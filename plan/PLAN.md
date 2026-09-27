@@ -200,15 +200,25 @@ fixed. Pick one up by writing it into its spec first.
   "poked again right after the last time", but Jev still picks grumpy
   (0.8), and it lasted 20–30 minutes in the working day, since a grumpy
   Boop didn't fade while failures came
-  ([evidence](evidence/2026-09-28-tonight/tune/README.md)). Leaving the
-  poke out of the mood's options, or telling Jev in the line that it's
-  the first, would settle it.
+  ([evidence](evidence/2026-09-28-tonight/tune/README.md)). Three more
+  tries in text (the guide's "grumpy face … and stays happy" naming a
+  poke, happy's file, and `grumpy`'s `not_for` quoting the line's
+  "again right after the last time") left it at 0.65–0.91
+  ([evidence](evidence/2026-09-28-tonight/tune-check/README.md)), so
+  the text isn't the lever. Leaving the poke out of the mood's options,
+  or telling Jev in the line that it's the first, would settle it.
 - **Jev drops its first passes on new steering.** After a steering
   change, its first 13–19 answers took over the 1.25 s deadline (about
   1.3 s) and were dropped, then fell to about 200 ms: a cold start on
   text it hasn't seen. The owner's first minutes after a steering edit
   would lose their reactions. A throwaway pass at launch would warm it
-  ([EVALS.md](EVALS.md) §5).
+  ([EVALS.md](EVALS.md) §5). It isn't only a cold start, though: on
+  steering Jev had just seen, two later runs of the working day dropped
+  2 and 8 passes in clusters of 2 to 4, at the same 1.28–1.33 s,
+  one of them the day's 16-minute finish
+  ([evidence](evidence/2026-09-28-tonight/tune-check/README.md)). So a
+  warm-up alone won't do; whether the deadline should sit above Jev's
+  slow answers is the open question.
 - **Curious has no way in.** No mood file leaves for curious, and in the
   working day Jev never picked its face either, since a turn start gets
   nothing. It needs a reason (mixed results across threads, a turn after
