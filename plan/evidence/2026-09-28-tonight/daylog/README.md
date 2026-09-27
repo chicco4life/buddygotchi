@@ -42,7 +42,7 @@ while a pass ran (only `boop.log` says so; it's an `event` with
 logged whether or not the device is connected, so a chirp counted while
 it was unplugged is one Boop would have made.
 
-**Size.** The fixture's lines average 135 bytes for a `sent` state, 4.5
+**Size.** The fixture's lines average 116 bytes for a `sent` state, 4.5
 KB for a scripted pass (its whole state) and 90–320 bytes for the rest.
 A 10-hour day adds about 3,600 keepalives (0.5 MB) and a few hundred Jev
 passes, whose states grow with HISTORY: a few MB a day. `boopctl day`
@@ -72,8 +72,11 @@ state dir:
 
 It took 2 min 24 s. The relaunch left `debug.1.jsonl` (44 lines, 28.6
 KB) beside `debug.jsonl` (303 lines, 98.3 KB); both are the test fixture
-in `internal/tools/boopctl_lib/tests/fixtures/day/`, as recorded. Neither
-has a `PRIVATE_` marker, though every hook carried them.
+in `internal/tools/boopctl_lib/tests/fixtures/day/`, as recorded, except
+that their `sent` states have since lost `idle` and `wait`, as the app
+now sends them (the tidy lane; `boopctl day` never read either, and its
+summary of the fixture is the same byte for byte). Neither has a
+`PRIVATE_` marker, though every hook carried them.
 
 The first launch starts at the real time and the second runs on an
 advanced clock, so the second must start after the first ends: the

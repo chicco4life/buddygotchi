@@ -41,7 +41,7 @@ def at(clock: str, date: str = "2026-09-28") -> int:
 
 
 def state(t: int, attn: tuple | None = None, mood: str = "happy", more: int = 0) -> dict:
-    s = {"t": "state", "v": 1, "base": "idle", "mood": mood, "busy": 0, "idle": 1, "wait": 1 if attn else 0, "vol": 6}
+    s = {"t": "state", "v": 1, "base": "idle", "mood": mood, "busy": 0, "vol": 6}
     if attn:
         s["attn"] = {"agent": attn[0], "project": attn[1], "more": more}
     return {"sent": s, "received_at_ms": t}
