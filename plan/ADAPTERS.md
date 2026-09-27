@@ -254,7 +254,7 @@ otherwise goes idle.
 
 | Timer | Value | What happens |
 | --- | --- | --- |
-| Codex grace (`codexGraceMs`) | 2 s | A Codex request nothing has answered shows at the first tick past its grace (2–3 s after it arrived), dated 2 s after it arrived. One the reviewer handled is answered by the session's next event within the grace, and never shows. So is one that event answers after the grace but before a tick showed it: the core records no `needs_you` for it, since the screen never showed it |
+| Codex grace (`codexGraceMs`) | 2 s | A Codex request nothing has answered shows at the first tick past its grace (2–3 s after it arrived), dated 2 s after it arrived. One the reviewer handled is answered by the session's next event within the grace, and never shows, as long as that event comes within the grace: see "What it can't see" below. So is one that event answers after the grace but before a tick showed it: the core records no `needs_you` for it, since the screen never showed it |
 | Safety net (`safetyNetMs`) | 10 min with no events from the session | The request clears, shown or still in its grace, and the session goes idle: by then the agent is still waiting at its prompt or gone. This covers a grace no tick saw through, as when the Mac sleeps right after Codex asks. The turn stays open, since you may have approved (which sends no hook) and the command run on: the session's next event makes it working again, and an interrupt still stops the turn |
 
 **What it can't see.**
@@ -268,6 +268,13 @@ otherwise goes idle.
   clears the request as usual.
 - **A denied subagent** stays amber while it takes in your answer, until
   its next tool call or its end answers it.
+- **Codex's reviewer approving** sends no hook either, as far as the
+  hand-written fixtures know: the next hook is the command's own result.
+  So a command the reviewer approves that runs past the 2 s grace shows
+  "needs you", and chirps, from 2 s until it ends, as an approved long
+  command of Claude's does; so does any command whose review takes over
+  2 s. Nobody was asked. A recorded Codex session (PLAN.md §3) would
+  show whether Codex sends something the grace could wait for.
 
 When a Claude request starts showing, and when a Codex one does after its
 grace, the core hands the harness a `needs_you` event, which never wakes

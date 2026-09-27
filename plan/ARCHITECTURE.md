@@ -309,8 +309,10 @@ have more sections; they still load, and the store leaves them be.
 
 **A new day** starts at the day's first hook or tap, by the Mac's local
 calendar. The memory store snapshots both files to `history/<date>/`,
-where `<date>` is the day before, and writes the new date to
-`short-term.md`. Setup also snapshots, under the day Boop hatched.
+where `<date>` is the date `short-term.md` held, the last day with
+activity (after a weekend, Friday's files go under Friday), and writes
+the new date to `short-term.md`. Setup also snapshots, under the day
+Boop hatched.
 
 **Hand edits** are welcome: the store reads a file again whenever it has
 changed on disk, so an edit isn't overwritten. A file that won't parse is
