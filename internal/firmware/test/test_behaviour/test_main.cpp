@@ -766,6 +766,28 @@ static void test_a_waited_moment_says_how_it_ended() {
   TEST_ASSERT_FALSE(r.b.onMoment(waited(15), r.t));
   TEST_ASSERT_EQUAL_STRING("15 skipped", ended(r).c_str());
 
+  // Its face holds on after its mumble is over (PROTOCOL.md §3), and a
+  // tap or "needs you" then still cuts it short.
+  Rig h;
+  h.state(base("idle"));  // the idle design's clock from 0
+  const uint32_t idle = loopMs(render::Mood::kProud, SceneState::kIdle);
+  h.at(1000);
+  h.b.onMoment(waited(17), h.t);
+  h.at(1000 + 400 + Behaviour::kBubbleReadMs + 100);
+  TEST_ASSERT_TRUE(h.t < idle);
+  TEST_ASSERT_NULL(h.b.mumble(h.t));
+  TEST_ASSERT_EQUAL_STRING("", ended(h).c_str());
+  h.b.tap(h.t);
+  TEST_ASSERT_EQUAL_STRING("17 cut by tap", ended(h).c_str());
+  h.at(2 * idle + 1000);
+  h.state(base("idle"));
+  h.b.onMoment(waited(18), h.t);
+  h.at(2 * idle + 1000 + 400 + Behaviour::kBubbleReadMs + 100);
+  TEST_ASSERT_NULL(h.b.mumble(h.t));
+  TEST_ASSERT_EQUAL_STRING("", ended(h).c_str());
+  h.state(attn());
+  TEST_ASSERT_EQUAL_STRING("18 cut by needs_you", ended(h).c_str());
+
   // dbg.reset forgets the moment, which the Mac is still told of.
   r.at(50000);
   r.state(base("idle"));
