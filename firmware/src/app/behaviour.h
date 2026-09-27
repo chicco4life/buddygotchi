@@ -159,7 +159,7 @@ class Behaviour {
     bool overridden = blOverride_;
     f();
     Source next = sourceAt(t);
-    if (!(next == src_)) blend_.start(t, showing), blending_ = true, blendAt_ = t, src_ = next;
+    if (!(next == src_)) blend_.start(t, showing), src_ = next;
     uint8_t level = blTarget(t);
     if (!blOverride_ && (level != blLevel_ || overridden)) blFade_ = true, blFrom_ = lit, blAt_ = t;
     blLevel_ = level;
@@ -196,8 +196,6 @@ class Behaviour {
   Say say_;
   Source src_;
   render::Blend blend_;
-  bool blending_ = false;  // blend_ started at blendAt_ and settle() hasn't ended it
-  uint32_t blendAt_ = 0;
   LifeEvent life_;
   uint32_t nextLife_ = 0;
   bool pressed_ = false;

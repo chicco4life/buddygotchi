@@ -124,7 +124,7 @@ void Behaviour::resync(uint32_t t) {
 // the others after 2^32 (49.7 days). None of them is part of the source,
 // so the face doesn't change.
 void Behaviour::settle(uint32_t t) {
-  if (blending_ && !within(t, blendAt_, render::kBlendMs)) blend_ = render::Blend{}, blending_ = false;
+  blend_.settle(t);
   if (say_.say.syllables > 0 && !within(t, say_.at, say_.ms)) say_ = Say{};
   if (releaseAt_ && !within(t, releaseAt_, kPressEaseMs)) releaseAt_ = 0;
   if (blFade_ && !within(t, blAt_, render::kBlendMs)) blFade_ = false;

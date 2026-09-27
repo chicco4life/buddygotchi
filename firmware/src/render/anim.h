@@ -53,6 +53,11 @@ class Blend {
   // What to show at `now`, given the new source's pose at `now`.
   Pose apply(uint32_t now, const Pose& target) const;
   bool blending(uint32_t now) const { return active_ && int32_t(now - at_) < int32_t(kBlendMs); }
+  // Ends a blend that has run its course, or lies ahead of a clock that
+  // went back, so it can't come back when the clock's difference wraps.
+  void settle(uint32_t now) {
+    if (active_ && uint32_t(now - at_) >= kBlendMs) active_ = false;
+  }
 
  private:
   Pose from_;
