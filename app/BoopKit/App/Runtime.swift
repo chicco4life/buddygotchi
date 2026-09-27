@@ -558,12 +558,13 @@ public final class Runtime: @unchecked Sendable {
     }
 
     /// Plays the brain's next moment if its turn has come, and sets a timer
-    /// for when to look again, unless one is set for no later. Whatever
-    /// frees the line sooner (a rule's animation, a tap, the device's
-    /// `ended`) pumps again at once. A moment sent with no device connected
-    /// ends its handle at once, as failed, and leaves the line free; one
-    /// sent to the device goes with an id, and it and its handle wait for
-    /// the device's `ended`. On `home`.
+    /// for when to look again, unless one is set for no later that the
+    /// clock hasn't passed yet. Whatever frees the line sooner (a rule's
+    /// animation, a tap, the device's `ended`, "needs you") pumps again at
+    /// once. A moment sent with no device connected ends its handle at
+    /// once, as failed, and leaves the line free; one sent to the device
+    /// goes with an id, and it and its handle wait for the device's
+    /// `ended`. On `home`.
     static func pump(_ moments: Moments, link: DeviceLink, clock: @escaping @Sendable () -> Int64,
                      home: DispatchQueue, log: @escaping @Sendable (String) -> Void) {
         let now = clock()
@@ -584,7 +585,10 @@ public final class Runtime: @unchecked Sendable {
             if alone { due.pending?.finish(.failed("no device connected")) }
         }
         guard let next = moments.schedule.next else { return }
-        if let at = moments.pumpAt, at <= next { return }
+        // One set for no later will do, unless the clock has passed it: a
+        // timer counts the Mac's uptime, which stops while it sleeps, and
+        // the clock doesn't, so it would come late.
+        if let at = moments.pumpAt, at <= next, at >= now { return }
         // A timer source, not asyncAfter, whose leeway grows with the wait
         // (a tenth of it): a turn 3 s away came 0.3 s late.
         moments.pumpTimer?.cancel()

@@ -273,7 +273,7 @@ hops onto it.
 | Timer | On | Does |
 | --- | --- | --- |
 | Tick, every 1 s | `home` | Reports the wall clock, runs the core's timers, sends the 10 s keepalive, gives up on a brain moment whose `ended` hasn't come in time ([harness/DECISIONS.md](harness/DECISIONS.md) §5), runs the moment pump, and ends any action left in progress too long ([harness/HARNESS.md](harness/HARNESS.md) §5.1) |
-| Moment pump | `home` | Plays the next brain moment when its turn comes, and drops one that has waited too long. Whatever frees the line sooner (a rule's animation, a tap, the device's `ended`, "needs you") runs it at once; its timer has 5 ms of leeway |
+| Moment pump | `home` | Plays the next brain moment when its turn comes, and drops one that has waited too long. Whatever frees the line sooner (a rule's animation, a tap, the device's `ended`, "needs you", a disconnect) runs it at once. Its timer has 5 ms of leeway, and counts the Mac's uptime, which stops while it sleeps, so one the clock has passed is replaced rather than waited for |
 
 At start the runtime takes the lock, reads the memory files (it won't run
 before setup), settings and mood, builds the core, Voice, the actions and

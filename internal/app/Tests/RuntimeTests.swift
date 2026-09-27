@@ -1206,6 +1206,37 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(moments().last?.contains(#""mood":"happy""#) == true)
     }
 
+    /// ARCHITECTURE.md §3.2: the pump's timer counts the Mac's uptime,
+    /// which stops while the Mac sleeps, and the moments' clock doesn't. A
+    /// timer set for a time the clock has already passed is late, so the
+    /// next moment to wait sets a timer of its own rather than wait for it.
+    func testATimerTheClockHasPassedIsReplaced() throws {
+        let transport = FakeTransport()
+        var options = try options(transport)
+        let clock = VirtualClock(harnessT0)
+        options.clock = { clock.now }
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        transport.onConnection?(true)
+        runtime.home.sync {}
+        func react(_ mood: String) {
+            runtime.home.sync { _ = runtime.harness.force(["react": mood, "react.loops": "twice"]) }
+        }
+        let pumpAt = { runtime.home.sync { runtime.moments.pumpAt } }
+
+        react("proud")
+        clock.now += 1000
+        react("curious")
+        XCTAssertEqual(pumpAt(), clock.now + MomentSchedule.maxWaitMs + 1, "the second waits, at most until it's too old")
+        clock.now += 60_000  // the Mac slept, and the timer with it
+        react("grumpy")  // the second is dropped, and this one plays
+        XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.waiting.count }, 0)
+        clock.now += 1000
+        react("excited")
+        XCTAssertEqual(pumpAt(), clock.now + MomentSchedule.maxWaitMs + 1, "a timer of its own, not the late one")
+    }
+
     /// PROTOCOL.md §3: moment ids start somewhere random at every launch
     /// and count up, so an earlier launch's moment still on the device
     /// can't share one; they stay within 1...Int32.max for the device.
