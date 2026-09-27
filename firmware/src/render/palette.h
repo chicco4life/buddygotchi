@@ -41,8 +41,6 @@ enum Color : uint8_t {
   kBlue,
   kAmber,
   kGrey,
-  kDarkGrey,
-  kOat,
   kFixedCount,
 };
 
@@ -95,7 +93,7 @@ constexpr PaletteTable makePalette() {
   PaletteTable p{};
   const Rgb fixed[kFixedCount] = {
       {0, 0, 0}, {255, 255, 255}, {255, 0, 0}, {0, 255, 0}, {0, 0, 255},
-      kAmberRgb, {128, 128, 128}, {64, 64, 64}, kOatRgb,
+      kAmberRgb, {128, 128, 128},
   };
   for (int i = 0; i < kFixedCount; ++i) p.c[i] = rgb565(fixed[i]);
   for (int ink = 0; ink < kInkCount; ++ink) {

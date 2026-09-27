@@ -222,10 +222,12 @@ static void test_status_on_connect_and_every_minute() {
   r.dev.tick();
   TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, "\"status\""));
   // Input goes to the Mac on Bluetooth; nothing leaks onto USB.
-  r.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");
-  r.hal.real += 100;
+  r.hal.boot = true;
+  r.dev.tick();
+  r.hal.boot = false;
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
   TEST_ASSERT_TRUE(has(r.ble.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"input\""));
   TEST_ASSERT_FALSE(has(r.usb.text, "\"status\""));
   r.dev.disconnected(app::Link::kBle);
   r.hal.real = 200000;
@@ -236,20 +238,23 @@ static void test_status_on_connect_and_every_minute() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"ble\":\"off\""));
 }
 
-// PROTOCOL.md §4: input goes to every live Mac link. A tool's moment over
-// USB while the app is on Bluetooth (boopctl say) doesn't take the taps
-// and push-to-talk away from the app; USB gets a copy while the Mac spoke
-// there in the last 30 s.
+// PROTOCOL.md §4: a real press goes to every live Mac link. A tool's
+// moment over USB while the app is on Bluetooth (boopctl mumble) doesn't
+// take the taps and push-to-talk away from the app; USB gets a copy while
+// the Mac spoke there in the last 30 s.
 static void test_input_reaches_every_live_link() {
   Rig r;
-  auto press = [&](int ms, int step) {
-    r.usbLine("{\"t\":\"dbg.clock\",\"step\":50}");  // past BOOT's debounce
-    std::string p = "{\"t\":\"dbg.press\",\"ms\":" + std::to_string(ms) + "}";
-    r.usbLine(p.c_str());
-    for (int at = 0; at <= ms; at += step) {
-      std::string s = "{\"t\":\"dbg.clock\",\"step\":" + std::to_string(step) + "}";
-      r.usbLine(s.c_str());
-    }
+  auto step = [&](int ms) {
+    std::string s = "{\"t\":\"dbg.clock\",\"step\":" + std::to_string(ms) + "}";
+    r.usbLine(s.c_str());
+  };
+  auto press = [&](int ms, int every) {  // BOOT, held for `ms`
+    step(50);  // past BOOT's debounce
+    r.hal.boot = true;
+    r.dev.tick();
+    for (int at = every; at <= ms; at += every) step(every);
+    r.hal.boot = false;
+    step(every);
   };
   const char* tap = "{\"t\":\"input\",\"k\":\"tap\"}";
   r.dev.connected(app::Link::kBle);
@@ -272,6 +277,31 @@ static void test_input_reaches_every_live_link() {
   r.dev.disconnected(app::Link::kBle);
   press(100, 100);
   TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, tap));
+}
+
+// PROTOCOL.md §4: input a tool injects (dbg.press, dbg.touch) goes back
+// only over USB, where the tool is, even while the everyday app is on
+// Bluetooth, so a test run never turns on the owner's mic.
+static void test_injected_input_stays_on_usb() {
+  Rig r;
+  r.dev.connected(app::Link::kBle);
+  r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);
+  r.usbLine("{\"t\":\"dbg.reset\"}");
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"dbg.press\",\"ms\":800}");
+  for (int ms = 0; ms <= 900; ms += 10) r.usbLine("{\"t\":\"dbg.clock\",\"step\":10}");
+  r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":100}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"step\":200}");
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_on\"}"));
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_off\"}"));
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_FALSE(has(r.ble.text, "\"input\""));
+  // With only dbg.* traffic from the tool, too.
+  r.hal.real = 60000;
+  r.usbLine("{\"t\":\"dbg.press\",\"ms\":100}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"step\":200}");
+  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_FALSE(has(r.ble.text, "\"input\""));
 }
 
 // USB has no connect event: the Mac's first word, or its first after 30 s
@@ -341,6 +371,29 @@ static void test_a_flickering_touch_is_one_tap() {
   TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, tap));
 }
 
+// UX.md §4: the 50 ms runs on real time, so a panel touch still ends, and
+// taps at once, while a tool has the clock frozen.
+static void test_a_touch_ends_while_the_clock_is_frozen() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1000}");
+  const char* tap = "{\"t\":\"input\",\"k\":\"tap\"}";
+  for (uint32_t ms = 200; ms <= 400; ms += 5) {
+    r.hal.real = ms;
+    r.hal.touching = ms < 300;  // last contact at 295
+    r.dev.tick();
+    if (ms == 340) {
+      TEST_ASSERT_EQUAL_INT(0, count(r.usb.text, tap));
+      r.usbLine("{\"t\":\"dbg.state\"}");
+      TEST_ASSERT_TRUE(has(r.usb.text, "\"touch\":{\"down\":true"));
+    }
+  }
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, tap));
+  TEST_ASSERT_EQUAL_UINT32(1000, r.dev.now());  // still frozen
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"touch\":{\"down\":false"));
+}
+
 static void test_physical_hold_sends_talk_on_and_off() {
   Rig r;
   r.usbLine("{\"t\":\"state\"}");
@@ -406,26 +459,79 @@ static void test_light_sets_the_led() {
 }
 
 // DEVICE.md §6: with the clock running, motion redraws at most every
-// 16 ms of real time, however fast the loop runs. A frozen clock redraws
-// on every step, so scenario frames stay exact.
+// 16 ms of real time, however fast the loop runs. A frozen clock checks
+// on every step, so scenario frames stay exact. A cheer's parts cross
+// block lines a few ms apart, so uncapped its picture changes faster.
 static void test_motion_redraws_at_most_every_16ms() {
-  Rig r;
-  r.usbLine("{\"t\":\"state\",\"base\":\"asleep\"}");  // breathing: always moving
-  r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
-  r.dev.takeFrame();
-  int frames = 0;
-  for (int ms = 0; ms < 1000; ++ms) {
-    ++r.hal.real;
-    r.dev.tick();
-    frames += r.dev.takeFrame();
+  for (bool running : {true, false}) {
+    Rig r;
+    r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
+    r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\"}");
+    if (running) r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
+    r.dev.takeFrame();
+    int frames = 0, last = 0, gap = 1000;
+    for (int ms = 1; ms <= 1000; ++ms) {
+      if (running) ++r.hal.real, r.dev.tick();
+      else r.usbLine("{\"t\":\"dbg.clock\",\"step\":1}");
+      if (!r.dev.takeFrame()) continue;
+      ++frames;
+      if (ms - last < gap) gap = ms - last;
+      last = ms;
+    }
+    TEST_ASSERT_TRUE(frames > 10);
+    if (running) TEST_ASSERT_GREATER_OR_EQUAL(16, gap);
+    else TEST_ASSERT_LESS_THAN(16, gap);
   }
-  TEST_ASSERT_EQUAL(1000 / 16, frames);
-  frames = 0;
-  for (int step = 0; step < 20; ++step) {
-    r.usbLine("{\"t\":\"dbg.clock\",\"step\":1}");
-    frames += r.dev.takeFrame();
+}
+
+// DEVICE.md §6: a frame is drawn only when the picture changes. The face
+// moves a block at a time, so with the clock running every frame drawn is
+// a new picture, a few a second asleep or listening. And the screen always
+// shows what drawing afresh would: stepping a frozen clock, which checks
+// on every step, it matches a second rig that takes a dbg.shot (which
+// draws afresh) after every step, pixel for pixel.
+static void test_a_still_picture_isnt_redrawn() {
+  struct Case {
+    const char* base;
+    const char* moment;
+    int ms;
+    int most;  // frames in 3 s; 3000 / 16 = 187 without the check
+  };
+  const Case cases[] = {
+      {"{\"t\":\"state\",\"base\":\"asleep\"}", nullptr, 2400, 20},
+      {"{\"t\":\"state\",\"base\":\"idle\"}", "{\"t\":\"moment\",\"anim\":\"listening\"}", 1200, 20},
+      {"{\"t\":\"state\",\"base\":\"working\",\"busy\":3}", nullptr, 1200, 40},
+      {"{\"t\":\"state\",\"base\":\"working\"}", "{\"t\":\"moment\",\"anim\":\"cheer\"}", 1200, 90},
+  };
+  for (const Case& c : cases) {
+    const std::string name = std::string(c.base) + (c.moment ? c.moment : "");
+    Rig r, fresh;
+    for (Rig* x : {&r, &fresh}) {
+      x->usbLine(c.base);
+      if (c.moment) x->usbLine(c.moment);
+    }
+    for (int ms = 2; ms <= c.ms + 2; ms += 2) {
+      r.usbLine("{\"t\":\"dbg.clock\",\"step\":2}");
+      fresh.usbLine("{\"t\":\"dbg.clock\",\"step\":2}");
+      fresh.usb.text.clear();
+      fresh.usbLine("{\"t\":\"dbg.shot\"}");
+      if (r.px != fresh.px) TEST_FAIL_MESSAGE(("stale frame at " + std::to_string(ms) + " ms: " + name).c_str());
+    }
+    if (c.moment) r.usbLine(c.moment);  // from the start again, with the clock running
+    r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
+    r.dev.takeFrame();
+    std::vector<uint8_t> last = r.px;
+    int frames = 0, pictures = 0;
+    for (int ms = 0; ms < 3000; ++ms) {
+      ++r.hal.real;
+      r.dev.tick();
+      if (!r.dev.takeFrame()) continue;
+      ++frames;
+      if (r.px != last) ++pictures, last = r.px;
+    }
+    TEST_ASSERT_EQUAL_MESSAGE(pictures, frames, name.c_str());
+    TEST_ASSERT_TRUE_MESSAGE(frames > 0 && frames <= c.most, name.c_str());
   }
-  TEST_ASSERT_EQUAL(20, frames);
 }
 
 // ARCHITECTURE.md §9, UX.md §4: a press shows within 20 ms, and the 16 ms
@@ -764,14 +870,17 @@ int main() {
   RUN_TEST(test_status_on_connect_and_every_minute);
   RUN_TEST(test_usb_status_when_the_mac_first_speaks);
   RUN_TEST(test_input_reaches_every_live_link);
+  RUN_TEST(test_injected_input_stays_on_usb);
   RUN_TEST(test_pattern_until_next_state);
   RUN_TEST(test_injected_tap_reaches_the_mac);
   RUN_TEST(test_physical_hold_sends_talk_on_and_off);
   RUN_TEST(test_a_flickering_touch_is_one_tap);
+  RUN_TEST(test_a_touch_ends_while_the_clock_is_frozen);
   RUN_TEST(test_a_frozen_clock_runs_again_after_60s_without_debug);
   RUN_TEST(test_shot_is_header_then_base64);
   RUN_TEST(test_light_sets_the_led);
   RUN_TEST(test_motion_redraws_at_most_every_16ms);
+  RUN_TEST(test_a_still_picture_isnt_redrawn);
   RUN_TEST(test_the_redraw_cap_doesnt_delay_a_press);
   RUN_TEST(test_attention_shows_needs_you_and_chirps_once);
   RUN_TEST(test_no_app_after_30s_of_silence);

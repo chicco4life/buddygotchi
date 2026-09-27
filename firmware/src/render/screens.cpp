@@ -25,14 +25,6 @@ constexpr int kFaceBubbleCy = kBubbleTop / 2 - kFaceDrop * kFaceBubbleScale / 10
 constexpr int kBubbleCy = (kBubbleTop + kStripTop) / 2;
 constexpr int kStripCy = (kStripTop + kHeight) / 2;
 
-// Where the face sits: `raise` eases it between the two places.
-void placeFace(Canvas& c, const Pose& p) {
-  int r = p.raise < 0 ? 0 : p.raise > 1000 ? 1000 : p.raise;
-  int cy = kFaceCy + (kFaceBubbleCy - kFaceCy) * r / 1000;
-  int scale = 1000 + (kFaceBubbleScale - 1000) * r / 1000;
-  drawFace(c, p, kWidth / 2, cy, scale);
-}
-
 void plotInk(Canvas& c, int x, int y, int level, int ink) { c.pixels()[y * kWidth + x] = inkAt(ink, level); }
 
 void fillCircle(Canvas& c, int cx, int cy, int r, int ink) {
@@ -106,6 +98,14 @@ void iconQuiet(Canvas& c, int x, int y) {  // a speaker with a slash
 
 }  // namespace
 
+// Where the face sits: `raise` eases it between the two places.
+FaceLayout faceLayout(const Pose& p) {
+  int r = p.raise < 0 ? 0 : p.raise > 1000 ? 1000 : p.raise;
+  int cy = kFaceCy + (kFaceBubbleCy - kFaceCy) * r / 1000;
+  int scale = 1000 + (kFaceBubbleScale - 1000) * r / 1000;
+  return layoutFace(p, kWidth / 2, cy, scale);
+}
+
 void drawStrip(Canvas& c, const Strip& s) {
   // An empty strip is bare glass: no divider under the face.
   if (s.wait <= 0 && s.busy <= 0 && !s.noApp && !s.quiet) return;
@@ -130,14 +130,14 @@ void drawStrip(Canvas& c, const Strip& s) {
 
 void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s) {
   c.fill(kBlack);
-  placeFace(c, p);
+  drawFace(c, faceLayout(p));
   if (mumble) drawMumble(c, *mumble);
   drawStrip(c, s);
 }
 
 void drawNeedsYou(Canvas& c, const Pose& p, const Attention& a, const Strip& s) {
   c.fill(kBlack);
-  placeFace(c, p);
+  drawFace(c, faceLayout(p));
   // Two lines in the bubble: who, then what, with "+N more" at its end.
   const int whoY = kBubbleCy - 22, whatY = kBubbleCy;
   char who[48];

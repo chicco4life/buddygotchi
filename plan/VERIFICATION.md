@@ -61,7 +61,7 @@ starts, so a typo can't launch the menu-bar app or run the whole eval.
 | `mumble [feeling…]` | Plays the Mac's Voice lines for each feeling, without and with a word, and checks each in `audio.out`: syllables, word, and the DAC's time within 10% of beats × `ms`. Then checks that a muted line moves the mouth silently. `--board-volume` and `--levels` are for listening by ear |
 | `sim [scenario…]` | Plays scenarios in the simulator and compares them with the goldens (L1); `--accept` copies the pictures in |
 | `run [scenario…]` | Plays scenarios on the board and diffs each screenshot against the simulator's, threshold 0 (L2), then lets the clock run again |
-| `perf` | Samples fps and heap once a second; `--motion` keeps the face moving (L2) |
+| `perf` | Samples fps, frame time and heap once a second; `--motion` keeps the face moving (L2) |
 | `soak` | Random, realistic traffic and inputs for `--minutes` (L2); `--pipeline` loops the L4 fixtures through the headless app instead |
 | `e2e [fixture…]` | The pipeline check (L4) |
 | `bridge` | Owns the serial port and shares it on a Unix socket (below) |
@@ -103,7 +103,7 @@ reply:
 | `{"t":"dbg.state"}` | Replies with the device's own view of itself (below) |
 | `{"t":"dbg.shot"}` | Replies with a header `{"t":"dbg.shot","w":320,"h":240,"bytes":N,"crc":…}`, then one base64 line: 512 bytes of RGB565 palette (256 little-endian entries), then 76,800 bytes of palette indexes, row by row. `crc` is zlib's CRC-32 of those bytes. It takes about 2.3 s |
 | `{"t":"dbg.clock","freeze":T}`, `{…,"step":MS}`, `{…,"run":true}` | Freezes the clock at T (and seeds randomness from T), steps it, or lets it run. A clock a tool froze runs again by itself after 60 s with no `dbg.` message, so a tool that dies can't leave the board stopped |
-| `{"t":"dbg.press","ms":N}`, `{"t":"dbg.touch","x":X,"y":Y,"ms":N}` | Holds BOOT, or a touch, for N ms (100 by default), through the same code as real input |
+| `{"t":"dbg.press","ms":N}`, `{"t":"dbg.touch","x":X,"y":Y,"ms":N}` | Holds BOOT, or a touch, for N ms (100 by default), through the same code as real input; its `input` goes back only over USB ([PROTOCOL.md](PROTOCOL.md) §4) |
 | `{"t":"dbg.pattern"}`, `{…,"fill":N}`, `{…,"target":[x,y]}` | Shows the test pattern, a solid screen of palette index N, or an amber cross at (x, y) on black, until the next `state`. Touches don't tap while it shows |
 | `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Sets the backlight and the LED (either is optional) until the next `state` |
 | `{"t":"dbg.touchcal"}`, `{…,"set":[ax,bx,cx,ay,by,cy]}`, `{…,"clear":true}` | Reads, sets or forgets the touch calibration, x = (ax·raw x + bx·raw y + cx) / 65536 and y alike; replies with `cal`, null when uncalibrated ([DEVICE.md](DEVICE.md) §4) |
@@ -225,8 +225,10 @@ accepted.
    replaces the test's.
 2. `tools/boopctl run`: every `expect` passes, and every screenshot is
    identical to the simulator's.
-3. `tools/boopctl perf --motion`: at least 25 fps while moving, at least
-   60 KB minimum free heap, and no reset (uptime keeps rising).
+3. `tools/boopctl perf --motion`: at least 10 fps while moving (a frame
+   is drawn only when the picture changes, [DEVICE.md](DEVICE.md) §6), no
+   sampled frame taking over 40 ms to draw and push, at least 60 KB
+   minimum free heap, and no reset (uptime keeps rising).
 4. When a change could leak memory or wedge the board: `tools/boopctl soak`
    (20 minutes by default, with one 35 s silence) ends with no reset, the
    minimum heap within 2 KB of where it stood after the first minute, the

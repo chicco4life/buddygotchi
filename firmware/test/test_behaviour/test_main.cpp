@@ -674,7 +674,7 @@ static void test_no_app_at_30s_looks_asleep_and_reconnect_blends_back() {
 
 // BEHAVIORS.md §3.3: push-to-talk listens at once on hold, and on release
 // the same listening face carries on, with no new blend, while it waits for
-// the reply. A moment from the Mac replaces it.
+// the reply.
 static void test_push_to_talk_listens_then_waits() {
   Rig r;
   r.state(base("idle"));
@@ -689,8 +689,53 @@ static void test_push_to_talk_listens_then_waits() {
   TEST_ASSERT_EQUAL(seq, r.b.momentSeq());          // the same moment
   TEST_ASSERT_TRUE(r.b.pose(r.t) == held);          // no jump
   TEST_ASSERT_EQUAL_STRING("listening", r.b.faceName(r.t));
+}
+
+// BEHAVIORS.md §3.3: listening holds until the reply. Another animation
+// from the Mac, such as a cheer, doesn't replace it, and a tap shows only
+// the press squash. A moment with a mumble is the reply: it ends
+// listening and the mumble plays, without its animation. That holds while
+// something needs you, too.
+static void test_listening_holds_until_the_reply() {
+  Rig r;
+  r.state(base("idle"));
+  r.b.talkOn(0);
+  r.at(500);
+  r.b.tap(r.t);  // a touch while BOOT is held
+  TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
+  r.at(1000);
+  r.b.talkOff(1000);
+  r.at(2000);
+  const uint32_t seq = r.b.momentSeq();
+  const render::Pose before = r.b.pose(r.t);
   r.moment(Anim::kCheer);
-  TEST_ASSERT_EQUAL(Anim::kCheer, r.anim());
+  r.moment(Anim::kWiggle);
+  r.b.tap(r.t);  // only the press squash, as under needs you
+  uint32_t left;
+  TEST_ASSERT_EQUAL(Anim::kListening, r.b.moment(r.t, left));
+  TEST_ASSERT_EQUAL_UINT32(Behaviour::kReplyWaitMs - 1000, left);  // the wait runs on
+  TEST_ASSERT_EQUAL(seq, r.b.momentSeq());
+  TEST_ASSERT_TRUE(r.b.pose(r.t) == before);  // no blend began
+  MomentIn m;
+  m.anim = Anim::kCheer, m.syllables = 3, m.ms = 100;
+  TEST_ASSERT_TRUE(r.b.onMoment(m, r.t));
+  TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
+  TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
+  // The Mac's own listening (the popover's Talk) still starts afresh.
+  r.at(5000);
+  r.moment(Anim::kListening);
+  TEST_ASSERT_EQUAL(Anim::kListening, r.b.moment(r.t, left));
+  TEST_ASSERT_EQUAL_UINT32(render::animDuration(Anim::kListening), left);
+
+  Rig a;
+  a.state(attn());
+  a.b.talkOn(0);
+  a.at(500);
+  a.moment(Anim::kCheer);
+  TEST_ASSERT_EQUAL(Anim::kListening, a.anim());
+  TEST_ASSERT_FALSE(a.b.onMoment(m, a.t));  // the reply can't show, but it ends listening
+  TEST_ASSERT_EQUAL(Anim::kNone, a.anim());
+  TEST_ASSERT_NULL(a.b.mumble(a.t));
 }
 
 // BEHAVIORS.md §3.3: listening lasts while held, capped at 30 s; after
@@ -862,6 +907,7 @@ int main() {
   RUN_TEST(test_working_keeps_moving_and_idle_rests);
   RUN_TEST(test_no_app_at_30s_looks_asleep_and_reconnect_blends_back);
   RUN_TEST(test_push_to_talk_listens_then_waits);
+  RUN_TEST(test_listening_holds_until_the_reply);
   RUN_TEST(test_push_to_talk_timeouts);
   RUN_TEST(test_press_shows_within_20ms);
   RUN_TEST(test_gestures_send_the_right_inputs);

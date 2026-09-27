@@ -57,6 +57,8 @@ bool Behaviour::momentOn(uint32_t t) const {
   return moment_.anim != render::Anim::kNone && within(t, moment_.at, moment_.ms);
 }
 
+bool Behaviour::listening(uint32_t t) const { return momentOn(t) && moment_.anim == render::Anim::kListening; }
+
 bool Behaviour::sayOn(uint32_t t) const { return say_.say.syllables > 0 && within(t, say_.at, say_.ms); }
 
 // Blinks: every 2–6 s idle, 2–5 s working (1.2–3.5 s with 3+ busy)
@@ -122,7 +124,7 @@ void Behaviour::resync(uint32_t t) {
 // the others after 2^32 (49.7 days). None of them is part of the source,
 // so the face doesn't change.
 void Behaviour::settle(uint32_t t) {
-  if (blending_ && !within(t, blendAt_, render::kBlendMs)) blend_ = render::Blend{}, blending_ = false;
+  blend_.settle(t);
   if (say_.say.syllables > 0 && !within(t, say_.at, say_.ms)) say_ = Say{};
   if (releaseAt_ && !within(t, releaseAt_, kPressEaseMs)) releaseAt_ = 0;
   if (blFade_ && !within(t, blAt_, render::kBlendMs)) blFade_ = false;
@@ -153,12 +155,15 @@ void Behaviour::onState(const Model& m, uint32_t t) {
 // mumble on its own plays over whatever face is showing and doesn't change
 // it, except that it's the reply `listening` waits for, so it ends that,
 // even when it doesn't show (needs you, quiet). The empty moment ends
-// `listening` too, and nothing else (PROTOCOL.md §3).
+// `listening` too, and nothing else (PROTOCOL.md §3). Attention wins
+// (BEHAVIORS.md §1) and `listening` holds until the reply (§3.3), so
+// neither gives way to another animation; the moment's mumble still counts.
 bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
-  bool anim = in.anim != render::Anim::kNone;
-  if (anim && model_.attn && !noApp(t) && !overAttention(in.anim)) return false;
+  bool waiting = listening(t);
+  bool held = (model_.attn && !noApp(t)) || waiting;
+  bool anim = in.anim != render::Anim::kNone && (!held || overAttention(in.anim));
   bool mumble = in.syllables > 0 && !model_.attn && model_.quiet <= 0;
-  bool ends = !anim && (in.syllables > 0 || in.empty) && momentOn(t) && moment_.anim == render::Anim::kListening;
+  bool ends = !anim && (in.syllables > 0 || in.empty) && waiting;
   if (!anim && !mumble && !ends) return false;
   change(t, [&] {
     if (anim) play(in.anim, t);
@@ -207,9 +212,10 @@ void Behaviour::pressUp(uint32_t t) {
   releaseAt_ = t;
 }
 
-// While something needs you, a tap shows the press squash only.
+// While something needs you (BEHAVIORS.md §1), or `listening` waits for
+// the reply (§3.3), a tap shows the press squash only.
 void Behaviour::tap(uint32_t t) {
-  if (model_.attn && !noApp(t)) return;
+  if ((model_.attn && !noApp(t)) || listening(t)) return;
   change(t, [&] { play(render::Anim::kWiggle, t); });
 }
 
@@ -219,10 +225,10 @@ void Behaviour::talkOn(uint32_t t) {
 
 // Released: listening carries on, without a new blend, and waits at most
 // kReplyWaitMs for the reply (BEHAVIORS.md §3.3). If it isn't playing any
-// more (the 30 s cap, or the Mac replaced it), there's nothing to wait on.
+// more (the 30 s cap, or the Mac ended it), there's nothing to wait on.
 void Behaviour::talkOff(uint32_t t) {
   change(t, [&] {
-    if (momentOn(t) && moment_.anim == render::Anim::kListening) moment_.ms = (t - moment_.at) + kReplyWaitMs;
+    if (listening(t)) moment_.ms = (t - moment_.at) + kReplyWaitMs;
   });
 }
 

@@ -119,8 +119,10 @@ device shows the no-app look ([BEHAVIORS.md](BEHAVIORS.md) §3.4).
 An animation from the rules comes alone. A mumble, the brain's or working
 chatter, comes with only `say` and plays over whatever face is showing. A
 moment can carry both, as `tools/boopctl play cheer --say happy` sends. A
-new moment replaces one still playing, and while something needs you
-only `listening` plays ([BEHAVIORS.md](BEHAVIORS.md) §1).
+new moment replaces one still playing, except that no other animation
+replaces `listening` ([BEHAVIORS.md](BEHAVIORS.md) §3.3), and while
+something needs you only `listening` plays ([BEHAVIORS.md](BEHAVIORS.md)
+§1).
 
 **The empty moment,** with neither `anim` nor `say`, ends `listening` and
 does nothing else: it never ends a cheer, a wiggle or a mumble. A mumble
@@ -163,7 +165,9 @@ The device has already reacted on screen before it sends this. It sends it
 on every live link: Bluetooth while a Mac is connected, and USB while the
 Mac has spoken there (any message that isn't `dbg.*`) in the last 30 s. So
 a tool's `moment` over USB doesn't take taps and push-to-talk away from
-the app on Bluetooth. The Mac ignores any other `k`.
+the app on Bluetooth. Input a tool injects (`dbg.press`, `dbg.touch`)
+goes back only over USB, so a test run never reaches the app on
+Bluetooth, or turns on its mic. The Mac ignores any other `k`.
 
 ## 5. Lifecycle
 

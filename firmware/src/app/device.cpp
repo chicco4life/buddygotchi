@@ -16,8 +16,9 @@ namespace {
 
 constexpr uint32_t kDefaultPressMs = 100;
 constexpr uint32_t kStatusMs = 60000;  // PROTOCOL.md §4
-// Motion redraws at most this often, in real ms: about 60 fps, while the
-// pixel face changes at most about 32 times a second (DEVICE.md §6).
+// Motion redraws at most this often, in real ms: about 60 fps. Parts of
+// the face that cross block lines a few ms apart show together
+// (DEVICE.md §6).
 constexpr uint32_t kFrameMs = 16;
 // A clock a tool froze runs again after this long, in real ms, with no
 // dbg.* message, so a tool that dies mid-run can't leave the board
@@ -63,7 +64,7 @@ void Device::reset() {
   pattern_ = false;
   patternFill_ = -1;
   targetX_ = targetY_ = -1;
-  injPress_ = injTouch_ = touchDown_ = touchPanel_ = false;
+  injPress_ = injTouch_ = bootInjected_ = touchDown_ = touchPanel_ = false;
   boot_ = ButtonGesture{};
   last_ = LastInput{};
   drawnT_ = 0;
@@ -79,10 +80,13 @@ void Device::reply(Link link, const char* text, size_t n) {
 
 // On every live Mac link (PROTOCOL.md §4): Bluetooth while connected, and
 // USB while the Mac has spoken there within kNoAppMs. A tool's `moment`
-// over USB doesn't take the taps away from the app on Bluetooth.
-void Device::emit(const char* k) {
+// over USB doesn't take the taps away from the app on Bluetooth. Input a
+// tool injected goes back only over USB, where the tool is, so a test run
+// never reaches the everyday app (and its mic) on Bluetooth.
+void Device::emit(const char* k, bool injected) {
   char buf[48];
   int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"input\",\"k\":\"%s\"}", k);
+  if (injected) return reply(Link::kUsb, buf, size_t(n));
   if (bleUp_) reply(Link::kBle, buf, size_t(n));
   if (usbHeard_ && hal_.realMs() - usbHeardReal_ < Behaviour::kNoAppMs) reply(Link::kUsb, buf, size_t(n));
 }
@@ -268,6 +272,7 @@ void Device::readInputs(uint32_t t) {
   if (injPress_ && int32_t(t - injPressUntil_) >= 0) injPress_ = false;
   switch (boot_.update(hal_.bootDown() || injPress_, t)) {
     case ButtonGesture::kDown:
+      bootInjected_ = !hal_.bootDown();
       b_.pressDown(t);
       dirty_ = true;
       break;
@@ -275,18 +280,18 @@ void Device::readInputs(uint32_t t) {
       b_.pressUp(t);
       b_.tap(t);
       input("tap", t);
-      emit("tap");
+      emit("tap", bootInjected_);
       break;
     case ButtonGesture::kHoldStart:
       b_.pressUp(t);
       b_.talkOn(t);
       input("talk_on", t);
-      emit("talk_on");
+      emit("talk_on", bootInjected_);
       break;
     case ButtonGesture::kHoldEnd:
       b_.talkOff(t);
       input("talk_off", t);
-      emit("talk_off");
+      emit("talk_off", bootInjected_);
       break;
     default:
       break;
@@ -294,13 +299,15 @@ void Device::readInputs(uint32_t t) {
 
   // A touch anywhere is a tap, sent on release however long it was held.
   // The press shows at once. The panel misses readings under a light
-  // press, so its touch ends only after kTouchReleaseMs without contact;
-  // an injected one ends when it says. The debug pattern ignores touches.
+  // press, so its touch ends only after kTouchReleaseMs without contact,
+  // in real time so that it ends while a tool has the clock frozen; an
+  // injected one ends when it says. The debug pattern ignores touches.
   if (injTouch_ && int32_t(t - injTouchUntil_) >= 0) injTouch_ = false;
   int x = 0, y = 0;
   bool contact = injTouch_ ? (x = injX_, y = injY_, true) : hal_.touch(x, y);
-  if (contact) touchSeenAt_ = t, touchPanel_ = !injTouch_;
-  bool touching = contact || (touchDown_ && touchPanel_ && int32_t(t - touchSeenAt_) < int32_t(kTouchReleaseMs));
+  uint32_t real = hal_.realMs();
+  if (contact) touchSeenReal_ = real, touchPanel_ = !injTouch_;
+  bool touching = contact || (touchDown_ && touchPanel_ && real - touchSeenReal_ < kTouchReleaseMs);
   bool faced = screenAt(t) != Screen::kPattern;
   if (touching && !touchDown_) {
     input("touch", t, x, y);
@@ -311,7 +318,7 @@ void Device::readInputs(uint32_t t) {
     if (faced) {
       b_.tap(t);
       input("tap", t);
-      emit("tap");
+      emit("tap", !touchPanel_);
     }
   }
   if (touching != touchDown_) dirty_ = true;
@@ -335,7 +342,7 @@ void Device::tick() {
   if (screen != screen_) screen_ = screen, dirty_ = true;
   if (debugLabel(t) != labelDrawn_) dirty_ = true;
   bool moving = screen_ != Screen::kPattern && b_.moving(t);
-  // A frozen clock redraws on every step, so scenario frames stay exact,
+  // A frozen clock looks on every step, so scenario frames stay exact,
   // and the press squish on every pass, so the cap doesn't delay a press.
   bool due = clock_.frozen() || b_.pressEasing(t) || hal_.realMs() - drawnReal_ >= kFrameMs;
   if (dirty_ || ((moving || drawnMoving_) && t != drawnT_ && due)) render(t);
@@ -359,10 +366,24 @@ void Device::followSound(uint32_t t) {
   if (k && m.vol > 0) hal_.cue(voice::cueFromName(k), uint8_t(m.vol > 10 ? 10 : m.vol));
 }
 
+// Draws the frame for t, unless nothing on it can have changed since the
+// last one (DEVICE.md §6): no message or input since (dirty_), the face
+// laid out on the same blocks and the bubble still up or still down. The
+// pixel face moves a block at a time, so most passes in motion find the
+// picture unchanged.
 void Device::render(uint32_t t) {
+  render::Pose pose = b_.pose(t);
+  const render::Mumble* mumble = b_.mumble(t);
+  render::FaceLayout face = render::faceLayout(pose);
+  bool same = !dirty_ && face == drawnFace_ && (mumble != nullptr) == drawnBubble_;
+  drawnMoving_ = screen_ != Screen::kPattern && b_.moving(t);
+  drawnT_ = t;
+  drawnReal_ = hal_.realMs();
+  if (same) return;
+  drawnFace_ = face;
+  drawnBubble_ = mumble != nullptr;
   render::Strip strip = b_.strip(t);
   const Model& m = b_.model();
-  bool faced = false;
   switch (screen_) {
     case Screen::kPattern:
       if (targetX_ >= 0) {
@@ -378,20 +399,15 @@ void Device::render(uint32_t t) {
     case Screen::kNeedsYou: {
       render::Attention a;
       a.agent = m.agent, a.project = m.project, a.more = m.more;
-      render::drawNeedsYou(canvas_, b_.pose(t), a, strip);
-      faced = true;
+      render::drawNeedsYou(canvas_, pose, a, strip);
       break;
     }
     default:
-      render::drawFaceScreen(canvas_, b_.pose(t), b_.mumble(t), strip);
-      faced = true;
+      render::drawFaceScreen(canvas_, pose, mumble, strip);
       break;
   }
   labelDrawn_ = debugLabel(t);
   if (labelDrawn_) canvas_.drawText(2, 2, labelDrawn_, render::inkAt(render::kInkDim, render::kLevels));
-  drawnMoving_ = faced && b_.moving(t);
-  drawnT_ = t;
-  drawnReal_ = hal_.realMs();
   dirty_ = false;
   frame_ = true;
 }
@@ -527,6 +543,7 @@ void Device::sendShot(Link to) {
   Out* out = outs_[int(to)];
   if (!out) return;
   screen_ = screenAt(now());
+  dirty_ = true;
   render(now());
   uint8_t pal[512];
   for (int i = 0; i < 256; ++i) {

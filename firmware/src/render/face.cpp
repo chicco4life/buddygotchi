@@ -1,5 +1,8 @@
 #include "render/face.h"
 
+#include <cstring>
+#include <type_traits>
+
 #include "render/palette.h"
 #include "render/raster.h"
 
@@ -65,8 +68,6 @@ int oddBlocks(int len, int min) {
   int n = 2 * (len / (2 * kB)) + 1;  // 12.x blocks → 13, 13.x → 13, 14.x → 15
   return n < min ? min : n;
 }
-// The centre of block b, in sub-pixels.
-int centreOf(int b) { return b * kB + kB / 2; }
 
 void block(Canvas& c, int bx, int by, uint8_t color) { c.fillRect(bx * kBlock, by * kBlock, kBlock, kBlock, color); }
 
@@ -95,13 +96,7 @@ struct Frame {
   int off(int pixels) const { return blocks(len(pixels)); }    // whole blocks
 };
 
-struct Eye {
-  int bx, by, wb, hb;    // centre block and size in blocks (odd)
-  int y0, y1;            // its first and last rows of blocks
-  int lidY;              // rows above this are under the upper lid, sub-pixels
-  int botY;              // happy: rows below this are cut (the squint), sub-pixels
-  int happy;             // permille, for the cheeks
-};
+using Eye = FaceLayout::Eye;
 
 Eye makeEye(const Pose& p, const Frame& f, bool right) {
   auto len = [&f](int pixels) { return f.len(pixels); };
@@ -113,8 +108,8 @@ Eye makeEye(const Pose& p, const Frame& f, bool right) {
   int h = len(kEyeH) * (1000 - sq * 6 / 10) / 1000 * size / 1000 * clampi(p.open, 0, 1000) / 1000;
   int happy = clampi(p.lidBot, 0, 1000);
   // Both eyes round the look alike, so they move together.
-  e.bx = f.ox + (right ? f.off(kEyeGap) : -f.off(kEyeGap)) + blocks(len(kLookX) * lookX / 1000);
-  e.by = f.oy + blocks(len(kLookY) * lookY / 1000);
+  e.bx = int16_t(f.ox + (right ? f.off(kEyeGap) : -f.off(kEyeGap)) + blocks(len(kLookX) * lookX / 1000));
+  e.by = int16_t(f.oy + blocks(len(kLookY) * lookY / 1000));
   // Perspective: the eye on the side being looked towards is nearer. Both
   // eyes round from the same size, and the turn adds to one and takes from
   // the other the same whole pair of blocks, so a small look (working's)
@@ -125,17 +120,23 @@ Eye makeEye(const Pose& p, const Frame& f, bool right) {
     n += near ? 2 * k : -2 * k;
     return n < least ? least : n;
   };
-  e.wb = turned(oddBlocks(w, 3), 3), e.hb = turned(oddBlocks(h, 1), 1);
+  e.wb = int16_t(turned(oddBlocks(w, 3), 3)), e.hb = int16_t(turned(oddBlocks(h, 1), 1));
   // Shut, an eye is a bar two blocks thick, the same weight as the mouth.
-  e.y0 = e.by - e.hb / 2, e.y1 = e.hb > 1 ? e.by + e.hb / 2 : e.by + 1;
+  e.y0 = int16_t(e.by - e.hb / 2), e.y1 = int16_t(e.hb > 1 ? e.by + e.hb / 2 : e.by + 1);
 
+  // The upper lid comes down to lidY and the squint up to botY, in
+  // sub-pixels; they take every row whose centre they pass.
   int lid = p.lidTop + (right ? (p.wink > 0 ? p.wink : 0) : (p.wink < 0 ? -p.wink : 0));
   lid = clampi(lid, 0, 1000);
   int top = e.y0 * kB, hs = (e.y1 - e.y0 + 1) * kB;
-  e.lidY = top + hs * lid / 1000;
+  int lidY = top + hs * lid / 1000;
+  int botY = top + hs - int(int64_t(hs) * kSquint / 1000 * happy / 1000);
+  e.top = int16_t(blockOf(lidY - kB / 2 + kB - 1));  // the first row whose centre is at or below lidY
+  e.bottom = int16_t(blockOf(botY - kB / 2));        // the last at or above botY
 
-  e.happy = happy;
-  e.botY = top + hs - int(int64_t(hs) * kSquint / 1000 * happy / 1000);
+  // The cheeks sit under the eye, towards the outside, and rise with the squint.
+  e.blushX = int16_t(e.bx + (right ? f.off(kBlushDx) : -f.off(kBlushDx)));
+  e.blushY = int16_t(e.by + f.off(kBlushDy) - blocks(f.len(kBlushLift) * happy / 1000));
   return e;
 }
 
@@ -149,8 +150,8 @@ void drawEye(Canvas& c, const Eye& e, uint8_t color) {
   const bool panes = e.hb >= 2 * kPaneMin + 1 && e.wb >= 2 * kPaneMin + 1;
   // Fills columns bx0..bx1 of rows by0..by1, less what the lids take.
   auto part = [&](int bx0, int by0, int bx1, int by1, int least) {
-    while (by0 <= by1 && centreOf(by0) < e.lidY) ++by0;
-    while (by1 >= by0 && centreOf(by1) > e.botY) --by1;
+    if (by0 < e.top) by0 = e.top;
+    if (by1 > e.bottom) by1 = e.bottom;
     if (by1 - by0 + 1 < least) return;
     for (int by = by0; by <= by1; ++by) {
       for (int bx = bx0; bx <= bx1; ++bx) block(c, bx, by, color);
@@ -187,24 +188,35 @@ void spriteAt(Canvas& c, const char* const* rows, int n, int bx, int by, uint8_t
 // The mouth, as pixel shapes rather than traced curves (UX.md §2): a flat
 // bar at rest, a small "u" smile, a small "o" while talking, and a small
 // filled cup when it's both happy and open.
-void drawMouth(Canvas& c, const Pose& p, const Frame& f, uint8_t color) {
-  static const char* const kSmile[] = {"X.....X", ".XXXXX."};
-  static const char* const kO[] = {".XXX.", "X...X", ".XXX."};
-  static const char* const kD[] = {"X...X", "XXXXX", ".XXX."};
+void layoutMouth(FaceLayout& l, const Pose& p, const Frame& f) {
   int lookX = clampi(p.lookX, -1000, 1000), lookY = clampi(p.lookY, -1000, 1000);
   int curve = clampi(p.mouthCurve, 0, 1000), open = clampi(p.mouthOpen, 0, 1000);
   // The middle column, and the bottom row every mouth shape sits on.
-  int mx = f.ox + blocks(f.len(kLookX) * lookX / 1000 * kMouthFollow / 1000);
-  int my = f.oy + f.off(kMouthY) + blocks(f.len(kLookY) * lookY / 1000 * kMouthFollow / 1000);
+  l.mouthX = int16_t(f.ox + blocks(f.len(kLookX) * lookX / 1000 * kMouthFollow / 1000));
+  l.mouthY = int16_t(f.oy + f.off(kMouthY) + blocks(f.len(kLookY) * lookY / 1000 * kMouthFollow / 1000));
+  if (open >= kMouthOpenAt) {
+    l.mouth = curve >= kMouthCurveAt ? FaceLayout::kD : FaceLayout::kO;
+  } else if (curve >= kMouthCurveAt) {
+    l.mouth = FaceLayout::kSmile;
+  } else {
+    // The bar: two blocks thick, as wide as mouthWide makes it (an odd
+    // number of blocks, so it centres).
+    l.mouth = FaceLayout::kBar;
+    l.mouthW = int16_t(oddBlocks(2 * (f.len(kMouthHalfW) * clampi(p.mouthWide, 200, 2000) / 1000), 3));
+  }
+}
+
+void drawMouth(Canvas& c, const FaceLayout& l, uint8_t color) {
+  static const char* const kSmile[] = {"X.....X", ".XXXXX."};
+  static const char* const kO[] = {".XXX.", "X...X", ".XXX."};
+  static const char* const kD[] = {"X...X", "XXXXX", ".XXX."};
+  const int mx = l.mouthX, my = l.mouthY, wb = l.mouthW;
   auto shape = [&](const char* const* rows, int n) {
     sprite(c, rows, n, (mx - spriteW(rows) / 2) * kBlock, (my + 1 - n) * kBlock, kBlock, color);
   };
-  if (open >= kMouthOpenAt) return shape(curve >= kMouthCurveAt ? kD : kO, 3);
-  if (curve >= kMouthCurveAt) return shape(kSmile, 2);
-  // The bar: two blocks thick, as wide as mouthWide makes it (an odd
-  // number of blocks, so it centres).
-  int hw = f.len(kMouthHalfW) * clampi(p.mouthWide, 200, 2000) / 1000;
-  int wb = oddBlocks(2 * hw, 3);
+  if (l.mouth == FaceLayout::kD) return shape(kD, 3);
+  if (l.mouth == FaceLayout::kO) return shape(kO, 3);
+  if (l.mouth == FaceLayout::kSmile) return shape(kSmile, 2);
   for (int b = mx - wb / 2; b <= mx + wb / 2; ++b) {
     block(c, b, my - 1, color);
     block(c, b, my, color);
@@ -214,13 +226,9 @@ void drawMouth(Canvas& c, const Pose& p, const Frame& f, uint8_t color) {
 
 // The cheeks: two small pink blocks side by side under an eye, towards the
 // outside, a block apart.
-void drawBlush(Canvas& c, const Eye& e, const Frame& f, bool right) {
-  auto size = [&f](int pixels) { return f.off(pixels) < 2 ? 2 : f.off(pixels); };
+void drawBlush(Canvas& c, const Eye& e, int bw, int bh) {
   const uint8_t pink = inkAt(kInkBlush, kLevels);
-  int cx = e.bx + (right ? f.off(kBlushDx) : -f.off(kBlushDx));
-  int cy = e.by + f.off(kBlushDy) - blocks(f.len(kBlushLift) * e.happy / 1000);
-  int bw = size(kBlushW), bh = size(kBlushH);
-  int bx0 = cx - bw, by0 = cy - bh / 2;
+  int bx0 = e.blushX - bw, by0 = e.blushY - bh / 2;
   for (int k = 0; k < 2; ++k) {
     int sx = bx0 + k * (bw + 1);
     for (int bx = sx; bx < sx + bw; ++bx) {
@@ -230,14 +238,14 @@ void drawBlush(Canvas& c, const Eye& e, const Frame& f, bool right) {
   }
 }
 
-// A pixel heart that pops in: small, then full size. (hx, hy) is its
-// centre block.
-void drawHeart(Canvas& c, int hx, int hy, int grow) {
+// A pixel heart that pops in: small (size 1), then full size (2). (hx, hy)
+// is its centre block.
+void drawHeart(Canvas& c, int hx, int hy, int size) {
   static const char* const kSmall[] = {"XX.XX", "XXXXX", ".XXX.", "..X.."};
   static const char* const kFull[] = {".XX.XX.", "XXXXXXX", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..."};
   const uint8_t rose = inkAt(kInkRose, kLevels);
-  if (grow >= kHeartFullAt) spriteAt(c, kFull, 6, hx, hy, rose);
-  else if (grow >= kHeartSmallAt) spriteAt(c, kSmall, 4, hx, hy, rose);
+  if (size >= 2) spriteAt(c, kFull, 6, hx, hy, rose);
+  else if (size == 1) spriteAt(c, kSmall, 4, hx, hy, rose);
 }
 
 // A pixel sweat drop, centred on block (bx, by): it tapers from a point
@@ -265,7 +273,7 @@ void drawDrop(Canvas& c, int bx, int by) {
 // side above them, up and to the right of the right eye, appearing one at a
 // time through the cycle. The letters don't scale with the face, so neither
 // does their layout: only where the first one sits does.
-void drawZzz(Canvas& c, const Eye& e, const Frame& f, int phase, uint8_t color) {
+void drawZzz(Canvas& c, int ax, int ay, int letters, uint8_t color) {
   // Bold diagonals: a one-block one reads as an "I" this small.
   static const char* const kLittle[] = {"XXXX", "..XX", "XX..", "XXXX"};
   static const char* const kBig[] = {"XXXXX", "...XX", "..XX.", ".XX..", "XXXXX"};
@@ -273,11 +281,9 @@ void drawZzz(Canvas& c, const Eye& e, const Frame& f, int phase, uint8_t color) 
     bool big;
     int bx, by;  // top left, in blocks from the first letter's
   };
-  const Letter letters[] = {{false, 0, 0}, {false, 5, -2}, {true, 6, -8}, {true, 12, -10}};
-  const int ax = e.bx + f.off(kZzzDx), ay = e.by + f.off(kZzzDy);
-  for (int i = 0; i < 4; ++i) {
-    if (uint32_t(phase) <= kZzzStep * uint32_t(i)) break;
-    const Letter& l = letters[i];
+  const Letter kLetters[] = {{false, 0, 0}, {false, 5, -2}, {true, 6, -8}, {true, 12, -10}};
+  for (int i = 0; i < letters; ++i) {
+    const Letter& l = kLetters[i];
     int x = (ax + l.bx) * kBlock, y = (ay + l.by) * kBlock;
     if (l.big) sprite(c, kBig, 5, x, y, kBlock, color);
     else sprite(c, kLittle, 4, x, y, kBlock, color);
@@ -317,28 +323,52 @@ bool operator==(const Pose& a, const Pose& b) {
          a.heart == b.heart && a.sweat == b.sweat && a.zzz == b.zzz;
 }
 
-void drawFace(Canvas& c, const Pose& p, int cx, int cy, int scale) {
+// Every field is an int16_t, so there's no padding to compare.
+static_assert(std::has_unique_object_representations_v<FaceLayout>, "FaceLayout compares as bytes");
+bool operator==(const FaceLayout& a, const FaceLayout& b) { return std::memcmp(&a, &b, sizeof a) == 0; }
+
+FaceLayout layoutFace(const Pose& p, int cx, int cy, int scale) {
+  FaceLayout l{};
   // The origin: the centre snapped to the grid, then moved by whole blocks.
   Frame f;
   f.s = scale * clampi(p.size, 500, 1500) / 1000;
   f.ox = blockOf(px(cx)) + blocks(px(p.dx) * scale / 1000);
   f.oy = blockOf(px(cy)) + blocks(px(p.dy) * scale / 1000);
-  const uint8_t ink = inkAt(kInkEye, kLevels);
-  Eye left = makeEye(p, f, false), right = makeEye(p, f, true);
-  drawBlush(c, left, f, false);
-  drawBlush(c, right, f, true);
-  drawEye(c, left, ink);
-  drawEye(c, right, ink);
-  drawMouth(c, p, f, ink);
+  l.eye[0] = makeEye(p, f, false);
+  l.eye[1] = makeEye(p, f, true);
+  const Eye& right = l.eye[1];
+  l.blushW = int16_t(f.off(kBlushW) < 2 ? 2 : f.off(kBlushW));
+  l.blushH = int16_t(f.off(kBlushH) < 2 ? 2 : f.off(kBlushH));
+  layoutMouth(l, p, f);
   int heart = clampi(p.heart, 0, 1000);
-  if (heart > 0) drawHeart(c, right.bx + f.off(kHeartDx), right.by + f.off(kHeartDy), heart);
+  if (heart >= kHeartSmallAt) {
+    l.heart = heart >= kHeartFullAt ? 2 : 1;
+    l.heartX = int16_t(right.bx + f.off(kHeartDx)), l.heartY = int16_t(right.by + f.off(kHeartDy));
+  }
   // The drop sits where the heart does, so it goes once the heart shows
   // (working into a cheer).
-  if (p.sweat > 0 && heart < kHeartSmallAt) {
+  if (p.sweat > 0 && !l.heart) {
     int slide = blocks(f.len(kSweatSlide) * clampi(p.sweat, 0, 1000) / 1000);
-    drawDrop(c, right.bx + f.off(kSweatDx), right.by + f.off(kSweatDy) + slide);
+    l.drop = 1;
+    l.dropX = int16_t(right.bx + f.off(kSweatDx)), l.dropY = int16_t(right.by + f.off(kSweatDy) + slide);
   }
-  if (p.zzz > 0) drawZzz(c, right, f, clampi(p.zzz, 0, 1000), ink);
+  // A letter more every kZzzStep of the cycle.
+  int zzz = clampi(p.zzz, 0, 1000);
+  while (l.zzz < 4 && zzz > int(kZzzStep) * l.zzz) ++l.zzz;
+  if (l.zzz) l.zzzX = int16_t(right.bx + f.off(kZzzDx)), l.zzzY = int16_t(right.by + f.off(kZzzDy));
+  return l;
+}
+
+void drawFace(Canvas& c, const FaceLayout& l) {
+  const uint8_t ink = inkAt(kInkEye, kLevels);
+  drawBlush(c, l.eye[0], l.blushW, l.blushH);
+  drawBlush(c, l.eye[1], l.blushW, l.blushH);
+  drawEye(c, l.eye[0], ink);
+  drawEye(c, l.eye[1], ink);
+  drawMouth(c, l, ink);
+  if (l.heart) drawHeart(c, l.heartX, l.heartY, l.heart);
+  if (l.drop) drawDrop(c, l.dropX, l.dropY);
+  if (l.zzz) drawZzz(c, l.zzzX, l.zzzY, l.zzz, ink);
 }
 
 }  // namespace render

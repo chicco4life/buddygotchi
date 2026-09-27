@@ -128,7 +128,7 @@ a firm press ([DEVICE.md](DEVICE.md) §1). Neither affects your agents.
 
 | Input | Does |
 | --- | --- |
-| Tap BOOT (under 400 ms), or touch the screen anywhere | Boop it: `wiggle`, or only the press squash while something needs you. Poking it over and over annoys it ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
+| Tap BOOT (under 400 ms), or touch the screen anywhere | Boop it: `wiggle`, or only the press squash while something needs you or `listening` waits for the reply. Poking it over and over annoys it ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 | Hold BOOT (400 ms or more) | Push-to-talk until you let go (§5) |
 
 Every press and touch squashes the face a little at once, before the Mac
@@ -136,8 +136,11 @@ hears about it ([ARCHITECTURE.md](ARCHITECTURE.md) §9 has the budget). A
 touch is a tap however long it's held, and counts when you lift your
 finger; the strip is part of the screen, so a touch there counts too. The
 panel misses readings under a light press, so a touch counts as lifted
-only after 50 ms without contact. BOOT ignores an edge within 15 ms of the
-last one.
+only after 50 ms without contact, timed in real milliseconds so it ends
+even while a test tool has the clock frozen. BOOT ignores an edge within
+15 ms of the last one. Its timing runs on the device clock, so a press
+made while a tool has the clock frozen resolves when the clock next
+moves.
 
 v1 has no job for a second button. An external main button, if one is
 added, takes over BOOT's jobs ([DEVICE.md](DEVICE.md) §3).

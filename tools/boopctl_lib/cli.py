@@ -22,6 +22,10 @@ SIM_OUT = Path("/tmp/boop-sim")
 RUN_OUT = Path("/tmp/boop-run")
 
 
+# The animation set (BEHAVIORS.md §5).
+ANIMS = ["cheer", "wiggle", "listening"]
+
+
 def emit(obj: object) -> None:
     print(json.dumps(obj, indent=2, sort_keys=True))
 
@@ -139,14 +143,17 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 1 if failures or differ else 0
 
 
-# Moments that keep the face moving for perf, one after another. Each
-# replaces the last, so listening's 30 s never runs out.
-MOTION = ["cheer", "wiggle", "listening"]
+# perf --motion's moments, each replacing the last: the two that move the
+# face most. The board draws only when the picture changes, so fps reads
+# about 20 through them, and draw_us + push_us says how fast it draws
+# (DEVICE.md §6).
+MOTION = ["cheer", "wiggle"]
 
 
 def cmd_perf(args: argparse.Namespace) -> int:
-    """Samples fps and heap once a second with the clock running. With
-    --motion, it plays moments back to back, so every sample is mid-motion."""
+    """Samples fps, frame time and heap once a second with the clock
+    running. With --motion, it plays a moment every second over the
+    working face, so every sample is mid-motion."""
     samples = []
     with Device(args.port) as dev:
         dev.request({"t": "dbg.clock", "run": True})
@@ -160,21 +167,20 @@ def cmd_perf(args: argparse.Namespace) -> int:
                 dev.send({"t": "state", "v": 1, "base": "working", "busy": 1})
                 last_moment, i = elapsed, i + 1
             time.sleep(1.0)
-            ping = dev.request({"t": "dbg.ping"})
-            samples.append({"fps": ping["fps"], "heap": ping["heap"], "heap_min": ping["heap_min"], "up": ping["up"]})
-        if args.motion:
-            dev.send({"t": "moment", "ttl": 5})  # the empty moment: ends a listening left playing
+            samples.append(dev.vitals())
     fps = [s["fps"] for s in samples[1:]] or [0]  # the first second includes the start
     ups = [s["up"] for s in samples]
     result = {
         "samples": len(samples),
         "fps_min": min(fps),
         "fps_mean": round(sum(fps) / len(fps), 1),
+        "frame_ms_max": round(max((s["draw_us"] + s["push_us"]) / 1000 for s in samples), 1),
         "heap_min": min(s["heap_min"] for s in samples),
         "reset": any(b <= a for a, b in zip(ups, ups[1:])),
         "motion": args.motion,
     }
-    result["ok"] = (not args.motion or result["fps_min"] >= 25) and result["heap_min"] >= 60000 and not result["reset"]
+    moving = result["fps_min"] >= 10 and result["frame_ms_max"] <= 40  # VERIFICATION.md L2
+    result["ok"] = (not args.motion or moving) and result["heap_min"] >= 60000 and not result["reset"]
     emit(result)
     return 0 if result["ok"] else 1
 
@@ -201,7 +207,6 @@ def boopdev_voice(feeling: str, word: str | None, count: int, seed: int | None =
     return [json.loads(row) for row in out.splitlines() if row.startswith("{")]
 
 
-SOAK_ANIMS = ["cheer", "wiggle", "listening"]
 SOAK_PROJECTS = ["landing", "jetpack", "buddygotchi", "a-very-long-project-name", "notes"]
 
 
@@ -228,7 +233,7 @@ def soak_moment(rng: random.Random) -> dict:
     if rng.random() < 0.1:
         return msg
     if rng.random() < 0.7:
-        msg["anim"] = rng.choice(SOAK_ANIMS)
+        msg["anim"] = rng.choice(ANIMS)
     if "anim" not in msg or rng.random() < 0.4:
         n = rng.randint(1, 8)
         msg["say"] = {"syl": " ".join(rng.choice(["ba", "na", "po", "ti", "ka", "mi"]) for _ in range(n)),
@@ -286,9 +291,7 @@ def cmd_soak(args: argparse.Namespace) -> int:
                     dev.send(state)  # the Mac's 10 s snapshot
                     last_state = elapsed
             if elapsed >= next_ping:
-                ping = dev.request({"t": "dbg.ping"})
-                samples.append({"t": round(elapsed, 1), "up": ping["up"], "heap": ping["heap"],
-                                "heap_min": ping["heap_min"], "fps": ping["fps"]})
+                samples.append({"t": round(elapsed, 1), **dev.vitals()})
                 next_ping = elapsed + 5
             time.sleep(rng.uniform(0.2, 1.5))
         # Stuck? The Mac's stop ends any listening it started; then calm
@@ -299,9 +302,7 @@ def cmd_soak(args: argparse.Namespace) -> int:
             dev.send({"t": "state", "v": 1, "base": "idle", "busy": 0, "idle": 1, "wait": 0})
             time.sleep(5)
         final = dev.request({"t": "dbg.state"})
-        ping = dev.request({"t": "dbg.ping"})
-        samples.append({"t": round(time.monotonic() - start, 1), "up": ping["up"], "heap": ping["heap"],
-                        "heap_min": ping["heap_min"], "fps": ping["fps"]})
+        samples.append({"t": round(time.monotonic() - start, 1), **dev.vitals()})
     ups = [s["up"] for s in samples]
     early = [s["heap_min"] for s in samples if s["t"] >= 60] or [samples[0]["heap_min"]]
     result = {
@@ -358,24 +359,14 @@ def cmd_bridge(args: argparse.Namespace) -> int:
 # sending its own `state` and can override these.
 
 FEELINGS = [f for f, _ in VOICE_LINES]
-MOMENT_ANIMS = ["cheer", "wiggle", "listening"]
 
 
 def show_begin(dev: Device, warn: bool = True) -> dict:
     """Lets the clock run (a scenario may have frozen it) and, with `warn`,
     warns when the Mac app is connected, since its next `state` wins. These
     commands poll dbg.state often, and the CH340 now and then drops a reply,
-    so a debug request is retried once, as in e2e's soak. Returns dbg.ping."""
-    request = dev.request
-
-    def retried(message: dict) -> dict:
-        try:
-            return request(message)
-        except (DeviceError, ValueError):
-            dev._buf.clear()
-            return request(message)
-
-    dev.request = retried
+    so a debug request is retried once (Link.retries). Returns dbg.ping."""
+    dev.retries = 1
     ping = dev.request({"t": "dbg.ping"})
     if warn and ping.get("ble") == "conn":
         print("boopctl: the Mac app is connected over Bluetooth and may override this; "
@@ -393,26 +384,20 @@ def show_state(dev: Device, vol: int, base: str = "idle", attn: dict | None = No
     dev.send(msg)
 
 
-def sfx_name(st: dict) -> str | None:
-    sfx = st.get("sfx")
-    if isinstance(sfx, dict):
-        sfx = sfx.get("k") or sfx.get("name")
-    elif isinstance(sfx, list):
-        sfx = sfx[0] if sfx else None
-    return sfx
-
-
-def play_line(dev: Device, say: dict) -> dict | None:
-    """Plays one mumble and waits for the board to finish it: `audio.out`
-    for the line, or None if it didn't play within 6 s."""
+def play_line(dev: Device, say: dict) -> tuple[int, dict, bool]:
+    """Plays one mumble and waits up to 6 s for the board to finish it.
+    Returns how many lines finished meanwhile (1 when it played), the last
+    dbg.state, and whether the amp was on at any point."""
     before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
     dev.send({"t": "moment", "say": say, "ttl": 5})
     deadline = time.monotonic() + 6
-    while (out := dev.request({"t": "dbg.state"})["audio"]["out"])["lines"] <= before:
-        if time.monotonic() > deadline:
-            return None
+    amp = False
+    while True:
+        st = dev.request({"t": "dbg.state"})
+        amp |= st["amp"]
+        if st["audio"]["out"]["lines"] > before or time.monotonic() > deadline:
+            return st["audio"]["out"]["lines"] - before, st, amp
         time.sleep(0.05)
-    return out
 
 
 def syllables(say: dict) -> int:
@@ -423,24 +408,15 @@ def check_line(dev: Device, say: dict) -> dict:
     """Plays one mumble and checks `audio.out` in dbg.state against it: the
     syllable count, the word, and the duration the DAC took within 10% of
     beats × ms (F5's L2 check). Waits up to 6 s for the line to finish."""
-    before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
-    dev.send({"t": "moment", "say": say, "ttl": 5})
-    deadline = time.monotonic() + 6
-    amp_seen = False
-    while True:
-        st = dev.request({"t": "dbg.state"})
-        out = st["audio"]["out"]
-        amp_seen |= st["amp"]
-        if out["lines"] > before or time.monotonic() > deadline:
-            break
-        time.sleep(0.05)
-    played = out["lines"] > before
+    finished, st, amp_seen = play_line(dev, say)
+    out = st["audio"]["out"]
+    played = finished > 0
     syl = syllables(say)
     plan = (syl + (2 if say.get("word") else 0)) * say["ms"]
     r = {"syl": say["syl"], "word": say.get("word"), "ms": say["ms"], "plan_ms": plan, "played": played,
          "got": {k: out[k] for k in ("syl", "word", "plan_ms", "out_ms", "wall_ms", "cut")} if played else None,
          "amp_on": amp_seen, "vol": st.get("vol")}
-    r["ok"] = (out["lines"] == before + 1 and out["syl"] == syl and out["word"] == bool(say.get("word"))
+    r["ok"] = (finished == 1 and out["syl"] == syl and out["word"] == bool(say.get("word"))
                and abs(out["plan_ms"] - plan) <= 1 and abs(out["out_ms"] - plan) <= 1
                and abs(out["wall_ms"] - plan) <= plan // 10 and not out["cut"] and amp_seen)
     return r
@@ -535,7 +511,8 @@ def mumble_levels(args: argparse.Namespace) -> int:
         for i in range(args.rounds):
             for vol in args.levels:
                 show_state(dev, vol)
-                out = play_line(dev, VOLUME_LINE)
+                finished, st, _ = play_line(dev, VOLUME_LINE)
+                out = st["audio"]["out"] if finished else None
                 missed += out is None or out["cut"]
                 print(f"round {i + 1} vol {vol:2}: "
                       + (f"played {out['out_ms']} ms" + (", cut short" if out["cut"] else "") if out else "didn't play"),
@@ -570,6 +547,10 @@ def cmd_play(args: argparse.Namespace) -> int:
     with Device(args.port) as dev:
         show_begin(dev)
         show_state(dev, args.vol, base=args.base)
+        if args.what != "listening":
+            # The empty moment first: no other animation replaces a
+            # listening left playing (BEHAVIORS.md §3.3).
+            dev.send({"t": "moment", "ttl": 5})
         msg = {"t": "moment", "anim": args.what, "ttl": 5}
         if args.say:
             msg["say"] = boopdev_voice(args.say, args.word, 1, args.seed)[0]
@@ -599,7 +580,7 @@ def play_needs(args: argparse.Namespace) -> int:
                     show_state(dev, args.vol, attn=attn)
                     resend = now + 10
                 if chirp != "chirp" and now - start < 3:
-                    chirp = sfx_name(st := dev.request({"t": "dbg.state"}))
+                    chirp = ((st := dev.request({"t": "dbg.state"})).get("sfx") or {}).get("k")
                     if not shown and now - start >= 0.3:
                         print(f"{now - start:6.1f} s  screen {st['screen']}  led {st['led']}  bl {st['bl']}", flush=True)
                         shown = True
@@ -628,8 +609,8 @@ def build_parser() -> argparse.ArgumentParser:
     vol = {"type": int, "choices": range(1, 11), "default": 6, "metavar": "1-10", "help": "volume (default 6)"}
     p = sub.add_parser("play", help="play an animation (with --say, a mumble over it), stop, a fake needs-you "
                                     "with its chirp, or the bring-up pattern")
-    p.add_argument("what", choices=MOMENT_ANIMS + ["stop", "needs", "pattern"],
-                   help=", ".join(MOMENT_ANIMS) + "; stop (the empty moment); needs; pattern")
+    p.add_argument("what", choices=ANIMS + ["stop", "needs", "pattern"],
+                   help=", ".join(ANIMS) + "; stop (the empty moment); needs; pattern")
     p.add_argument("--say", choices=FEELINGS, metavar="FEELING", help=f"a mumble with this feeling: {', '.join(FEELINGS)}")
     p.add_argument("--word", help="the mumble's word")
     p.add_argument("--seed", type=int)
@@ -666,7 +647,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("run", help="play scenarios on the device and compare with the simulator (L2)")
     p.add_argument("scenario", nargs="*", help="names or paths (default: all)")
     p.set_defaults(func=cmd_run)
-    p = sub.add_parser("perf", help="sample fps and heap; --motion keeps the face moving")
+    p = sub.add_parser("perf", help="sample fps, frame time and heap; --motion keeps the face moving")
     p.add_argument("--seconds", type=int, default=30)
     p.add_argument("--motion", action="store_true")
     p.set_defaults(func=cmd_perf)

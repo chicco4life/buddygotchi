@@ -44,7 +44,35 @@ Pose blend(const Pose& a, const Pose& b, int t);
 bool operator==(const Pose& a, const Pose& b);
 inline bool operator!=(const Pose& a, const Pose& b) { return !(a == b); }
 
-// Draws the face centred on (cx, cy), at `scale` permille of full size.
-void drawFace(Canvas& c, const Pose& p, int cx, int cy, int scale);
+// Everything drawFace draws, in whole blocks of its grid. Two poses with
+// the same layout draw the same pixels, so the device skips a frame whose
+// layout hasn't changed (DEVICE.md §6).
+struct FaceLayout {
+  enum Mouth : int16_t { kBar, kSmile, kO, kD };
+  struct Eye {
+    int16_t bx, by, wb, hb;  // centre block and size in blocks (odd)
+    int16_t y0, y1;          // its first and last rows
+    int16_t top, bottom;     // the first and last rows the lid and the squint leave
+    int16_t blushX, blushY;  // the cheeks' centre block
+  };
+  Eye eye[2];               // left, right
+  int16_t blushW, blushH;   // each cheek's two blocks, in blocks
+  int16_t mouth;            // a Mouth, its middle column and bottom row at
+  int16_t mouthX, mouthY;   // (mouthX, mouthY)
+  int16_t mouthW;           // the bar's width in blocks; 0 for the others
+  int16_t heart;            // 0 none, 1 small, 2 full, centred on (heartX, heartY)
+  int16_t heartX, heartY;
+  int16_t drop;             // 1: the sweat drop, centred on (dropX, dropY)
+  int16_t dropX, dropY;
+  int16_t zzz;              // letters of "zzZZ", 0 to 4, the first's top left at
+  int16_t zzzX, zzzY;       // (zzzX, zzzY)
+};
+bool operator==(const FaceLayout& a, const FaceLayout& b);
+inline bool operator!=(const FaceLayout& a, const FaceLayout& b) { return !(a == b); }
+
+// The face centred on (cx, cy), at `scale` permille of full size.
+FaceLayout layoutFace(const Pose& p, int cx, int cy, int scale);
+void drawFace(Canvas& c, const FaceLayout& f);
+inline void drawFace(Canvas& c, const Pose& p, int cx, int cy, int scale) { drawFace(c, layoutFace(p, cx, cy, scale)); }
 
 }  // namespace render
