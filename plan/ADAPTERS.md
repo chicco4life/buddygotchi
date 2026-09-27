@@ -203,6 +203,12 @@ it does remove an older Boop's, which call `~/.boop/boop-hook.sh`.
   for an agent that has none.
 - **Remove.** One click in settings removes Boop's entries, current and
   old, and nothing else.
+- **Only the everyday Boop.** A menu-bar app started with another
+  `--state-dir` installs, repairs and removes nothing, at setup or later
+  (a click in settings says "Couldn't change its hooks: only the everyday
+  Boop changes them"), and its log says why. Hooks always report to the
+  everyday app's socket, so pointing them at another folder would only
+  break them once it's deleted.
 - **Codex's switch.** Codex runs hooks only with `codex_hooks = true`
   under `[features]` in `~/.codex/config.toml`. Installing adds the line
   (the preview shows it); removing leaves it for other hooks. However the

@@ -8,7 +8,9 @@ import Foundation
 
 let usage = """
     usage: Boop [--state-dir DIR] [--link ble|usb:SOCKET|none] [--debug]
-               The menu-bar app. The owner runs this; it uses Bluetooth by default.
+               The menu-bar app. The owner runs this; it uses Bluetooth by default. With a --state-dir
+               other than the everyday one it never installs or repairs the hooks in ~/.claude and
+               ~/.codex: they keep reporting to the everyday app's socket, not this one.
            Boop --headless --state-dir DIR [--link usb:SOCKET|none] [--socket PATH] [--mode chatty|normal|calm]
                 [--classifier \(Brains.classifiers.joined(separator: "|"))] [--writer \(Brains.writers.joined(separator: "|"))]
                 [--name NAME] [--nature sweet|cheeky] [--debug]
