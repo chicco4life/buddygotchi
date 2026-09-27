@@ -121,27 +121,41 @@ from.
 - **A denied subagent** should drop "needs you" as soon as it ends
   (check 7). That's the first real `SubagentStop` Boop will see.
 
+## Decided this morning
+
+You decided three items at about 06:30, and they're built and on `main`
+(`651d0e71`, [followup](followup/README.md)):
+
+- **A poke streak never changes the mood.** Its pass doesn't ask the mood
+  question at all (the event says which actions sit it out, so the
+  harness stays generic). Jev still picks whether to react and with
+  which face.
+- **Jev's deadline is 1.5 s,** with no warm-up pass.
+- **Curious is gone as a mood.** Jev chooses among six moods and six
+  faces. The board keeps curious's designs but the Mac never sends it.
+  The stopped turn's example face became a happy "…hmm", which was a
+  guess and is easy to change in `boop.md`.
+
+Evals after these: 14/14 in all 3 runs, with no dropped passes. Two
+recordings still list curious and need re-recording from a new run
+(`harness/EXAMPLE.md` and the dashboard's test fixture), which is in
+PLAN.md §3.
+
+For the four you didn't choose, I kept the defaults: parallel subagents'
+results stay as they are (3 below); the held-face length (5) and the
+cheer's 6 px drop (7) wait for Federico's loopable designs. A reaction
+waiting when "needs you" starts (6) is still sent at once for the board
+to skip. Queuing it instead wasn't built this morning.
+
 ## What needs your decision
 
-1. **The first poke streak.** Jev makes Boop grumpy at 0.65–0.91 whatever
-   the text says (five tries). Either leave pokes out of the mood
-   question, so they get a face only, or have the event line say it's the
-   first streak ([tune-check](tune-check/README.md)).
-2. **Jev's deadline.** Even warmed up, Jev drops a few passes over a
-   day; one of them was the day's 16-minute finish, and this morning one
-   cost a full eval run a scenario. The first round read these as Jev
-   taking 1.28–1.33 s, but hunt2 found that was the deadline's own timer
-   firing late. It now fires on time and `boop.log` records when Jev
-   really answered, so a day of `make debug` gives the number to decide
-   on. Raising the deadline probably costs nothing, since no reflex waits
-   on the brain. A throwaway pass at launch would cover the cold start.
+The numbers are the ones the lanes' READMEs use; 1, 2 and 4 are decided
+above.
+
 3. **Two parallel subagents' test results.** Today the one that lands
    last decides whether the turn failed. The alternative is to fail any
    turn that leaves a check failing, but that changes sequential turns
    too (race report 29, [core](core/README.md)).
-4. **Curious has no way in as a mood.** Its face now shows at a stopped
-   turn, with "…hmm", but nothing leads to the mood. Give it a reason
-   (a turn after a long break, mixed results), or drop it.
 5. **A face held for its loops blocks the next reaction.** Over the idle
    look one loop lasts up to 9 s, since the idle designs loop every 9 s,
    and a face Jev holds two to four times holds the line for 16–36 s.
