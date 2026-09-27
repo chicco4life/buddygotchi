@@ -118,17 +118,16 @@ Eye makeEye(const Pose& p, int cx, int cy, int s, bool right) {
 // whole rows of blocks off the top, and the squint off the bottom. A pane
 // they leave thinner than kPaneRows goes, so no sliver of it floats like a
 // brow. Too thin for panes, the eye is one solid bar. Each pane, or the
-// bar, gets softened corners.
+// bar, gets softened corners where it's drawn.
 void drawEye(Canvas& c, const Eye& e, uint8_t color) {
   const int x0 = e.bx - e.wb / 2, x1 = e.bx + e.wb / 2, y0 = e.by - e.hb / 2, y1 = e.by + e.hb / 2;
   const bool panes = e.hb >= 2 * kPaneMin + 1 && e.wb >= 2 * kPaneMin + 1;
   // Fills columns bx0..bx1 of rows by0..by1, less what the lids take.
   auto part = [&](int bx0, int by0, int bx1, int by1, int least) {
-    int top = by0, bot = by1;
-    while (top <= bot && centreOf(top) < e.lidY) ++top;
-    while (bot >= top && centreOf(bot) > e.botY) --bot;
-    if (bot - top + 1 < least) return;
-    for (int by = top; by <= bot; ++by) {
+    while (by0 <= by1 && centreOf(by0) < e.lidY) ++by0;
+    while (by1 >= by0 && centreOf(by1) > e.botY) --by1;
+    if (by1 - by0 + 1 < least) return;
+    for (int by = by0; by <= by1; ++by) {
       for (int bx = bx0; bx <= bx1; ++bx) block(c, bx, by, color);
     }
     roundCorners(c, bx0 * kBlock, by0 * kBlock, (bx1 + 1) * kBlock - 1, (by1 + 1) * kBlock - 1, color);
