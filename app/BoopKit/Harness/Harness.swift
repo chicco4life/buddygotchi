@@ -187,8 +187,10 @@ public final class Harness: @unchecked Sendable {
         pending.bind { [weak self] end in self?.settle(entry.seq, end) }
     }
 
-    /// Ends an open action; one already ended is left alone.
+    /// Ends an open action; one already ended is left alone. A handle is
+    /// finished on `home`, so this runs there.
     func settle(_ seq: Int, _ end: Pending.End) {
+        dispatchPrecondition(condition: .onQueue(home))
         guard let item = open.removeValue(forKey: seq) else { return }
         record(.settle(Transcript.Settle(forSeq: seq, end: end)), extra: item.forced ? ["by": Transcript.forcedBy] : [:])
     }

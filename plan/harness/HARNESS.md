@@ -177,7 +177,7 @@ never kept.
 | The core emits an event | `event` | The harness, in `take`, before any pass for it |
 | A pass has its answers, or is dropped | `pass` | The harness |
 | An action returns a result | `action` | The harness, right after the action runs |
-| A started action's `Pending` ends, or it's still open a minute later | `settle` | The harness, when the end reaches it, or on the tick |
+| A started action's `Pending` ends, or it's left open too long (below) | `settle` | The harness, when the end reaches it, or on the tick |
 | The dashboard forces answers or a mood (§9) | `pass` and `action`, or `action` alone, for no event, and a started action's `settle` later | The harness |
 
 - **Append-only.** Each entry gets the next sequence number, in arrival
@@ -193,8 +193,8 @@ never kept.
   the first end of each. One still open **60 s**
   (`Harness.pendingMaxMs`) after its result is ended as `failed` with
   `no word it finished`, on the runtime's 1 s tick (`Harness.tick`), and
-  the app log says `harness: <name> was still in progress after 60000
-  ms; ended it`. So HISTORY never says in progress for good, whatever the
+  the app log says `harness: <name> was still in progress after <N> ms;
+  ended it`. So HISTORY never says in progress for good, whatever the
   action forgot.
 
 ### 5.2 The entries
@@ -386,7 +386,8 @@ dropped passes included: `brain <kind> <ms> ms → <result>`, where
 ` (failed)` after a failed one), `nothing`, or `dropped: <why>`. It never
 holds an action's message or the state. The harness also logs a replaced
 waiting event, a dropped pass, a slow action, an unusable answer's size,
-and forced answers it left out.
+forced answers it left out, and a started action it ended for staying
+open too long (§5.1).
 
 **Debug mode** is `Boop --debug`, in the menu-bar app (`make debug`) or
 headless. It prints to the terminal that started the app: each hook with
