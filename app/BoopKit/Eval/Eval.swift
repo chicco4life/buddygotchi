@@ -426,7 +426,7 @@ public struct Eval: Sendable {
                 switch r.outcome {
                 case .done: return r.call.plain
                 case .dropped(let reason):
-                    return "\(r.call.plain) dropped (\(reason == "nothing was written" ? "unwritten" : "action"))"
+                    return "\(r.call.plain) dropped (\(reason == Harness.unwritten ? "unwritten" : "action"))"
                 }
             }.joined(separator: ", ")
         }

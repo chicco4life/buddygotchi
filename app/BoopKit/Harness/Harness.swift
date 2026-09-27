@@ -143,6 +143,9 @@ public final class Harness: @unchecked Sendable {
     /// Time kept back from Stage 2 so its answer can still be handed off.
     static let marginMs = 100
 
+    /// Why a call whose required words were left empty is dropped.
+    public static let unwritten = "nothing was written"
+
     /// - Parameters:
     ///   - memory: the memory text as it is now, from the memory store.
     ///   - debugLog: a JSONL file for §8's log; nil writes nothing to disk.
@@ -388,7 +391,7 @@ public final class Harness: @unchecked Sendable {
             }
         }
         for (i, call) in calls.enumerated() {
-            let outcome = unwritten.contains(i) ? .dropped("nothing was written") : pass.handlers[call.name]!(call)
+            let outcome = unwritten.contains(i) ? .dropped(Harness.unwritten) : pass.handlers[call.name]!(call)
             record.ran.append((call, outcome))
             transcript.append(.ran(call, outcome))
         }
