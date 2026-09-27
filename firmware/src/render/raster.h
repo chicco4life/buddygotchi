@@ -28,6 +28,9 @@ int isin(int turn);
 // Smoothstep ease-in-out: t of `dur` → 0..1024.
 int ease(int t, int dur);
 
+// v, held within [lo, hi].
+constexpr int clamp(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
+
 // Up to four half-open spans [a, b) on one sub-scanline.
 struct Spans {
   struct Span {

@@ -40,8 +40,15 @@ FaceLayout faceLayout(const Pose& p);
 
 // The face screen, with the bubble when there's a mumble. The face's place
 // comes from the pose (Pose::raise), so moving up for the bubble is eased.
-void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s);
-void drawNeedsYou(Canvas& c, const Pose& p, const Attention& a, const Strip& s);
+// Both screens take the face as faceLayout lays it out, or its pose.
+void drawFaceScreen(Canvas& c, const FaceLayout& f, const Mumble* mumble, const Strip& s);
+void drawNeedsYou(Canvas& c, const FaceLayout& f, const Attention& a, const Strip& s);
+inline void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s) {
+  drawFaceScreen(c, faceLayout(p), mumble, s);
+}
+inline void drawNeedsYou(Canvas& c, const Pose& p, const Attention& a, const Strip& s) {
+  drawNeedsYou(c, faceLayout(p), a, s);
+}
 void drawStrip(Canvas& c, const Strip& s);
 
 }  // namespace render

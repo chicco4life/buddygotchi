@@ -8,6 +8,7 @@ let hasAppleXCTest = FileManager.default.fileExists(
 ) || FileManager.default.fileExists(
     atPath: "\(developerDir)/Library/Developer/Frameworks/XCTest.framework/Modules/XCTest.swiftmodule"
 )
+// tools/test.py's uses_shim() makes the same test; change the two together.
 let useXCTestShim = ProcessInfo.processInfo.environment["BOOP_USE_XCTEST_SHIM"] == "1" || !hasAppleXCTest
 
 var packageTargets: [Target] = [

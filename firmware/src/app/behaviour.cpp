@@ -13,7 +13,6 @@ constexpr uint32_t kAmberDim = 0x805800;  // needs you: amber at half
 
 bool after(uint32_t a, uint32_t b) { return int32_t(a - b) > 0; }  // a later than b
 bool within(uint32_t t, uint32_t from, uint32_t ms) { return int32_t(t - from) >= 0 && int32_t(t - from) < int32_t(ms); }
-int clamp(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 
 // The one moment that may play while something needs you (BEHAVIORS.md §1:
 // attention wins), so push-to-talk still works.
@@ -58,6 +57,8 @@ bool Behaviour::momentOn(uint32_t t) const {
 }
 
 bool Behaviour::listening(uint32_t t) const { return momentOn(t) && moment_.anim == render::Anim::kListening; }
+
+bool Behaviour::held(uint32_t t) const { return (model_.attn && !noApp(t)) || listening(t); }
 
 bool Behaviour::sayOn(uint32_t t) const { return say_.say.syllables > 0 && within(t, say_.at, say_.ms); }
 
@@ -160,8 +161,7 @@ void Behaviour::onState(const Model& m, uint32_t t) {
 // neither gives way to another animation; the moment's mumble still counts.
 bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
   bool waiting = listening(t);
-  bool held = (model_.attn && !noApp(t)) || waiting;
-  bool anim = in.anim != render::Anim::kNone && (!held || overAttention(in.anim));
+  bool anim = in.anim != render::Anim::kNone && (!held(t) || overAttention(in.anim));
   bool mumble = in.syllables > 0 && !model_.attn && model_.quiet <= 0;
   bool ends = !anim && (in.syllables > 0 || in.empty) && waiting;
   if (!anim && !mumble && !ends) return false;
@@ -190,8 +190,8 @@ void Behaviour::startSay(const MomentIn& in, uint32_t t) {
   std::snprintf(s.word, sizeof(s.word), "%s", in.word ? in.word : "");
   s.say.syllables = in.syllables;
   s.say.word = s.word[0] ? s.word : nullptr;
-  s.say.at = s.word[0] ? clamp(in.at < 0 ? in.syllables : in.at, 0, in.syllables) : -1;
-  s.sylMs = uint32_t(clamp(int(in.ms), 60, 400));
+  s.say.at = s.word[0] ? render::clamp(in.at < 0 ? in.syllables : in.at, 0, in.syllables) : -1;
+  s.sylMs = uint32_t(render::clamp(int(in.ms), 60, 400));
   s.speakMs = uint32_t(in.syllables + (s.word[0] ? 2 : 0)) * s.sylMs;  // a word is two beats
   s.at = t;
   s.ms = s.speakMs + kBubbleReadMs;
@@ -212,10 +212,9 @@ void Behaviour::pressUp(uint32_t t) {
   releaseAt_ = t;
 }
 
-// While something needs you (BEHAVIORS.md §1), or `listening` waits for
-// the reply (§3.3), a tap shows the press squash only.
+// While the face is held, a tap shows the press squash only.
 void Behaviour::tap(uint32_t t) {
-  if ((model_.attn && !noApp(t)) || listening(t)) return;
+  if (held(t)) return;
   change(t, [&] { play(render::Anim::kWiggle, t); });
 }
 
@@ -312,7 +311,7 @@ render::Pose Behaviour::pose(uint32_t t) const {
   render::Pose p = blended(t);
   int amt = 0;  // the press squish: feedback on the press itself
   if (pressed_) amt = pressEasing(t) ? render::ease(int(t - pressAt_), kPressEaseMs) : 1024;
-  else if (within(t, releaseAt_, kPressEaseMs) && releaseAt_) amt = 1024 - render::ease(int(t - releaseAt_), kPressEaseMs);
+  else if (releaseEasing(t)) amt = 1024 - render::ease(int(t - releaseAt_), kPressEaseMs);
   if (amt) {
     p.squash = int16_t(p.squash + 200 * amt / 1024);
     p.dy = int16_t(p.dy + 4 * amt / 1024);
@@ -327,11 +326,12 @@ bool Behaviour::moving(uint32_t t) const {
   // working strains and sweats (BEHAVIORS.md §2).
   bool looping = src_.look == render::Look::kAsleep || src_.look == render::Look::kWorking;
   if (src_.anim == render::Anim::kNone && looping) return true;
-  if (pressed_ ? pressEasing(t) : (releaseAt_ && within(t, releaseAt_, kPressEaseMs))) return true;
+  if (pressed_ ? pressEasing(t) : releaseEasing(t)) return true;
   return false;
 }
 
 bool Behaviour::pressEasing(uint32_t t) const { return pressed_ && within(t, pressAt_, kPressEaseMs); }
+bool Behaviour::releaseEasing(uint32_t t) const { return releaseAt_ && within(t, releaseAt_, kPressEaseMs); }
 
 const char* Behaviour::faceName(uint32_t t) const {
   Source s = sourceAt(t);

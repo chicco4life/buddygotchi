@@ -61,8 +61,8 @@ void drawMumble(Canvas& c, const Mumble& m) {
   const int gap = 8, sq = 22, room = kWidth - 2 * kMargin;
   bool hasWord = m.word && *m.word && m.at >= 0;
   int before = hasWord ? m.at : m.syllables, after = hasWord ? m.syllables - m.at : 0;
-  before = before > 3 ? 3 : before < 0 ? 0 : before;
-  after = after > 3 ? 3 : after < 0 ? 0 : after;
+  before = clamp(before, 0, 3);
+  after = clamp(after, 0, 3);
   if (!hasWord && before == 0) before = 3;
   int wordW = hasWord ? stringWidth(kLarge, m.word) : 0;
   // The word is the one thing that means something; the squiggles are
@@ -100,7 +100,7 @@ void iconQuiet(Canvas& c, int x, int y) {  // a speaker with a slash
 
 // Where the face sits: `raise` eases it between the two places.
 FaceLayout faceLayout(const Pose& p) {
-  int r = p.raise < 0 ? 0 : p.raise > 1000 ? 1000 : p.raise;
+  int r = clamp(p.raise, 0, 1000);
   int cy = kFaceCy + (kFaceBubbleCy - kFaceCy) * r / 1000;
   int scale = 1000 + (kFaceBubbleScale - 1000) * r / 1000;
   return layoutFace(p, kWidth / 2, cy, scale);
@@ -128,16 +128,16 @@ void drawStrip(Canvas& c, const Strip& s) {
   if (s.quiet) iconQuiet(c, ix, cy - 8);
 }
 
-void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s) {
+void drawFaceScreen(Canvas& c, const FaceLayout& f, const Mumble* mumble, const Strip& s) {
   c.fill(kBlack);
-  drawFace(c, faceLayout(p));
+  drawFace(c, f);
   if (mumble) drawMumble(c, *mumble);
   drawStrip(c, s);
 }
 
-void drawNeedsYou(Canvas& c, const Pose& p, const Attention& a, const Strip& s) {
+void drawNeedsYou(Canvas& c, const FaceLayout& f, const Attention& a, const Strip& s) {
   c.fill(kBlack);
-  drawFace(c, faceLayout(p));
+  drawFace(c, f);
   // Two lines in the bubble: who, then what, with "+N more" at its end.
   const int whoY = kBubbleCy - 22, whatY = kBubbleCy;
   char who[48];

@@ -8,6 +8,7 @@
 #include "app/codec.h"
 #include "render/palette.h"
 #include "render/pattern.h"
+#include "render/raster.h"
 #include "render/screens.h"
 
 namespace app {
@@ -64,7 +65,7 @@ void Device::reset() {
   pattern_ = false;
   patternFill_ = -1;
   targetX_ = targetY_ = -1;
-  injPress_ = injTouch_ = bootInjected_ = touchDown_ = touchPanel_ = false;
+  injPress_ = injTouch_ = bootInjected_ = touchDown_ = touchInjected_ = false;
   boot_ = ButtonGesture{};
   last_ = LastInput{};
   drawnT_ = 0;
@@ -193,9 +194,8 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     int fill = doc["fill"] | -1;
     patternFill_ = fill;
     JsonArrayConst target = doc["target"];
-    auto onScreen = [](int v, int size) { return v < 0 ? 0 : v >= size ? size - 1 : v; };
-    targetX_ = target.size() == 2 ? onScreen(target[0].as<int>(), render::kWidth) : -1;
-    targetY_ = target.size() == 2 ? onScreen(target[1].as<int>(), render::kHeight) : -1;
+    targetX_ = target.size() == 2 ? render::clamp(target[0].as<int>(), 0, render::kWidth - 1) : -1;
+    targetY_ = target.size() == 2 ? render::clamp(target[1].as<int>(), 0, render::kHeight - 1) : -1;
     pattern_ = true;
     dirty_ = true;
     reply(from, "{\"t\":\"dbg.pattern\"}", 19);
@@ -306,8 +306,8 @@ void Device::readInputs(uint32_t t) {
   int x = 0, y = 0;
   bool contact = injTouch_ ? (x = injX_, y = injY_, true) : hal_.touch(x, y);
   uint32_t real = hal_.realMs();
-  if (contact) touchSeenReal_ = real, touchPanel_ = !injTouch_;
-  bool touching = contact || (touchDown_ && touchPanel_ && real - touchSeenReal_ < kTouchReleaseMs);
+  if (contact) touchSeenReal_ = real, touchInjected_ = injTouch_;
+  bool touching = contact || (touchDown_ && !touchInjected_ && real - touchSeenReal_ < kTouchReleaseMs);
   bool faced = screenAt(t) != Screen::kPattern;
   if (touching && !touchDown_) {
     input("touch", t, x, y);
@@ -318,7 +318,7 @@ void Device::readInputs(uint32_t t) {
     if (faced) {
       b_.tap(t);
       input("tap", t);
-      emit("tap", !touchPanel_);
+      emit("tap", touchInjected_);
     }
   }
   if (touching != touchDown_) dirty_ = true;
@@ -341,11 +341,11 @@ void Device::tick() {
   Screen screen = screenAt(t);
   if (screen != screen_) screen_ = screen, dirty_ = true;
   if (debugLabel(t) != labelDrawn_) dirty_ = true;
-  bool moving = screen_ != Screen::kPattern && b_.moving(t);
+  bool moving = movingAt(t);
   // A frozen clock looks on every step, so scenario frames stay exact,
   // and the press squish on every pass, so the cap doesn't delay a press.
   bool due = clock_.frozen() || b_.pressEasing(t) || hal_.realMs() - drawnReal_ >= kFrameMs;
-  if (dirty_ || ((moving || drawnMoving_) && t != drawnT_ && due)) render(t);
+  if (dirty_ || ((moving || drawnMoving_) && t != drawnT_ && due)) render(t, moving);
 }
 
 void Device::hush() {
@@ -371,12 +371,11 @@ void Device::followSound(uint32_t t) {
 // laid out on the same blocks and the bubble still up or still down. The
 // pixel face moves a block at a time, so most passes in motion find the
 // picture unchanged.
-void Device::render(uint32_t t) {
-  render::Pose pose = b_.pose(t);
+void Device::render(uint32_t t, bool moving) {
+  render::FaceLayout face = render::faceLayout(b_.pose(t));
   const render::Mumble* mumble = b_.mumble(t);
-  render::FaceLayout face = render::faceLayout(pose);
   bool same = !dirty_ && face == drawnFace_ && (mumble != nullptr) == drawnBubble_;
-  drawnMoving_ = screen_ != Screen::kPattern && b_.moving(t);
+  drawnMoving_ = moving;
   drawnT_ = t;
   drawnReal_ = hal_.realMs();
   if (same) return;
@@ -399,11 +398,11 @@ void Device::render(uint32_t t) {
     case Screen::kNeedsYou: {
       render::Attention a;
       a.agent = m.agent, a.project = m.project, a.more = m.more;
-      render::drawNeedsYou(canvas_, pose, a, strip);
+      render::drawNeedsYou(canvas_, face, a, strip);
       break;
     }
     default:
-      render::drawFaceScreen(canvas_, pose, mumble, strip);
+      render::drawFaceScreen(canvas_, face, mumble, strip);
       break;
   }
   labelDrawn_ = debugLabel(t);
@@ -544,7 +543,8 @@ void Device::sendShot(Link to) {
   if (!out) return;
   screen_ = screenAt(now());
   dirty_ = true;
-  render(now());
+  uint32_t t = now();
+  render(t, movingAt(t));
   uint8_t pal[512];
   for (int i = 0; i < 256; ++i) {
     uint16_t c = render::paletteAt(i);
