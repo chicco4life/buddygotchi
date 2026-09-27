@@ -205,7 +205,11 @@ gets at least one scenario. Their pictures are the golden images in
   Bluetooth packets, screenshot encoding, the clock and gestures
   (`test_link`); the messages, debug channel and inputs (`test_device`);
   the behaviour state machine, to the millisecond, including
-  `test_no_change_ever_cuts_hard` (`test_behaviour`); the canvas and
+  `test_no_change_ever_cuts_hard` and
+  `test_nothing_cuts_hard_as_it_plays_out`, which hold every change and
+  every moment running out (a reaction's borrowed face and the cheer's
+  loops included) to the face never cutting hard ([UX.md](UX.md) §2)
+  (`test_behaviour`); the canvas and
   renderer (`test_canvas`, `test_face`); the mood designs' player against
   facegen's frames (`test_scene`); and the voice player (`test_voice`).
 - **The Mac app's look**, for Mac UI changes: run

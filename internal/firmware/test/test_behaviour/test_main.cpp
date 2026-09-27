@@ -231,20 +231,42 @@ static void test_changes_mid_motion_blink_into_the_new_design() {
   }
 }
 
+// UX.md §2: the design a show draws. Asleep and no app share one design
+// across moods, so a mood change there switches nothing.
+static int designOf(const SceneShow& s) { return render::sceneOf(s.mood, s.state); }
+
+// A brain's reaction (PROTOCOL.md §3): a mumble with a mood, held for
+// `loops` loops of the design it's drawn in.
+static MomentIn reaction(render::Mood mood, int loops = 2) {
+  MomentIn m;
+  m.syllables = 3, m.ms = 100;
+  m.expr = true, m.mood = mood, m.loops = loops;
+  return m;
+}
+
 // UX.md §2, every way round: whatever state Boop is in, whatever is
 // playing, and whatever arrives (any message or input), the design just
 // after the change is the design just before it, at the same moment of
-// its clock, or else the eyes are shut to hide the switch.
+// its clock, or else the eyes are shut to hide the switch. What plays
+// includes a reaction's borrowed face and a cheer in a mood, and what
+// arrives a reaction, a cheer of several loops in a mood, and a mood
+// change.
 static void test_no_change_ever_cuts_hard() {
   Model busy3 = base("working");
   busy3.busy = 3;
   Model muted = base("idle");
   muted.vol = 0;
-  const Model states[] = {base("idle"), base("working"), busy3, base("asleep"), attn(), attn("jetpack"), muted};
-  enum Playing { kNothing, kCheer, kWiggle, kSay, kCheerSay, kNoApp, kPlayingCount };
-  const int kEvents = 7 + 4;  // every state, then the moments and inputs
+  Model grumpy = base("idle");
+  grumpy.mood = render::Mood::kGrumpy;
+  Model sadAsleep = base("asleep");
+  sadAsleep.mood = render::Mood::kSad;
+  const Model states[] = {base("idle"), base("working"), busy3, base("asleep"), attn(), attn("jetpack"), muted,
+                          grumpy, sadAsleep};
+  const int kStates = int(sizeof(states) / sizeof(states[0]));
+  enum Playing { kNothing, kCheer, kWiggle, kSay, kCheerSay, kNoApp, kReaction, kMoodyCheer, kPlayingCount };
+  const int kEvents = kStates + 6;  // every state, then the moments and inputs
   int checked = 0;
-  for (int from = 0; from < 7; ++from) {
+  for (int from = 0; from < kStates; ++from) {
     for (int playing = 0; playing < kPlayingCount; ++playing) {
       for (int event = 0; event < kEvents; ++event) {
         for (uint32_t when : {40u, 333u, 1210u}) {
@@ -262,22 +284,36 @@ static void test_no_change_ever_cuts_hard() {
               break;
             }
             case kNoApp: r.at(500 + Behaviour::kNoAppMs); break;
+            case kReaction: r.b.onMoment(reaction(render::Mood::kSad), r.t); break;
+            case kMoodyCheer: {
+              MomentIn m;
+              m.anim = Anim::kCheer, m.expr = true, m.mood = render::Mood::kExcited, m.loops = 2;
+              r.b.onMoment(m, r.t);
+              break;
+            }
             default: break;
           }
           r.at(r.t + when);
           SceneShow before = r.b.show(r.t);
-          if (event < 7) {
+          if (event < kStates) {
             r.state(states[event]);
           } else {
-            switch (event - 7) {
+            switch (event - kStates) {
               case 0: r.moment(Anim::kCheer); break;
               case 1: r.b.tap(r.t); break;
               case 2: r.say(3); break;
-              default: r.moment(Anim::kWiggle); break;
+              case 3: r.moment(Anim::kWiggle); break;
+              case 4: r.b.onMoment(reaction(render::Mood::kProud, 3), r.t); break;
+              default: {
+                MomentIn m;
+                m.anim = Anim::kCheer, m.expr = true, m.mood = render::Mood::kCurious, m.loops = 3;
+                r.b.onMoment(m, r.t);
+                break;
+              }
             }
           }
           SceneShow after = r.b.show(r.t);
-          bool same = before.state == after.state && before.mood == after.mood && before.t == after.t;
+          bool same = designOf(before) == designOf(after) && before.t == after.t;
           if (!same && !after.eyesShut) {
             char why[96];
             std::snprintf(why, sizeof(why), "from state %d, playing %d, event %d at +%u ms", from, playing, event,
@@ -289,7 +325,90 @@ static void test_no_change_ever_cuts_hard() {
       }
     }
   }
-  TEST_ASSERT_EQUAL(7 * kPlayingCount * kEvents * 3, checked);
+  TEST_ASSERT_EQUAL(kStates * kPlayingCount * kEvents * 3, checked);
+}
+
+// UX.md §2 over time: as whatever plays runs out on its own (the cheer's
+// loops, a reaction's borrowed face at its loop boundary, over a look,
+// over the cheer or across a look change, a wiggle, a mumble, the Mac
+// going quiet), the face never cuts hard. From one 20 ms frame to the
+// next the design goes on at the same moment of its clock, or the eyes
+// are shut. The cheer's design starting over at each of its loop
+// boundaries is its clock going on (UX.md §2 Loops).
+static void test_nothing_cuts_hard_as_it_plays_out() {
+  using render::Mood;
+  Model grumpyWorking = base("working");
+  grumpyWorking.mood = Mood::kGrumpy;
+  Model proudIdle = base("idle");
+  proudIdle.mood = Mood::kProud;
+  const Model states[] = {base("idle"), grumpyWorking, proudIdle, base("asleep")};
+  enum Playing {
+    kCheer1, kCheer3, kMoodyCheer, kReaction, kSameMood, kLongReaction, kOverCheer, kAcrossLook, kCheerEnds,
+    kWiggle, kSay, kQuiet, kPlayingCount
+  };
+  int frames = 0;
+  for (const Model& m : states) {
+    for (int playing = 0; playing < kPlayingCount; ++playing) {
+      Rig r;
+      r.state(m);
+      r.at(777);
+      MomentIn cheer;
+      cheer.anim = Anim::kCheer;
+      switch (playing) {
+        case kCheer1: r.b.onMoment(cheer, r.t); break;
+        case kCheer3: cheer.loops = 3, r.b.onMoment(cheer, r.t); break;
+        case kMoodyCheer:
+          cheer.loops = 2, cheer.expr = true, cheer.mood = Mood::kSad;
+          r.b.onMoment(cheer, r.t);
+          break;
+        case kReaction: r.b.onMoment(reaction(Mood::kExcited, 2), r.t); break;
+        case kSameMood: r.b.onMoment(reaction(m.mood, 2), r.t); break;
+        case kLongReaction: r.b.onMoment(reaction(Mood::kCurious, 6), r.t); break;
+        case kOverCheer:
+          cheer.loops = 2, r.b.onMoment(cheer, r.t);
+          r.at(r.t + 700);
+          r.b.onMoment(reaction(Mood::kDetermined, 1), r.t);
+          break;
+        case kAcrossLook:
+          r.b.onMoment(reaction(Mood::kSad, 3), r.t);
+          break;
+        case kCheerEnds:  // a reaction late in the cheer holds past its end
+          r.b.onMoment(cheer, r.t);
+          r.at(r.t + 1900);
+          r.b.onMoment(reaction(Mood::kHappy, 2), r.t);
+          break;
+        case kWiggle: r.b.tap(r.t); break;
+        case kSay: r.say(5); break;
+        default: break;
+      }
+      SceneShow before = r.b.show(r.t);
+      const uint32_t end = playing == kQuiet ? Behaviour::kNoAppMs + 2000 : r.t + 60000;
+      bool moved = false;
+      uint32_t alive = r.t + 10000;
+      for (uint32_t t = r.t + 20; t <= end; t += 20) {
+        r.at(t);
+        if (playing == kAcrossLook && !moved && t >= 2000) {
+          r.state(base(m.base == SceneState::kIdle ? "working" : "idle"));
+          moved = true;
+        }
+        if (playing != kQuiet && t >= alive) r.state(r.b.model()), alive += 10000;  // the Mac's keepalive
+        SceneShow after = r.b.show(t);
+        bool same = designOf(before) == designOf(after);
+        uint32_t next = before.t + 20;
+        if (same && after.state == SceneState::kTaskComplete) next %= loopMs(after.mood, after.state);
+        if (!(same && after.t == next) && !after.eyesShut) {
+          char why[112];
+          std::snprintf(why, sizeof(why), "state %d/%d, playing %d: design %d at %u, then %d at %u, at t=%u",
+                        int(m.base), int(m.mood), playing, designOf(before), unsigned(before.t), designOf(after),
+                        unsigned(after.t), unsigned(t));
+          TEST_FAIL_MESSAGE(why);
+        }
+        before = after;
+        ++frames;
+      }
+    }
+  }
+  TEST_ASSERT_TRUE(frames > 100000);
 }
 
 // BEHAVIORS.md §3.4: no app holds however long the Mac stays away, even
@@ -1142,6 +1261,7 @@ int main() {
   RUN_TEST(test_changes_mid_motion_blink_into_the_new_design);
   RUN_TEST(test_no_app_holds_for_weeks);
   RUN_TEST(test_no_change_ever_cuts_hard);
+  RUN_TEST(test_nothing_cuts_hard_as_it_plays_out);
   RUN_TEST(test_face_name_is_the_moment_or_the_look);
   RUN_TEST(test_moments_end_and_replace);
   RUN_TEST(test_a_cheer_plays_its_loops);
