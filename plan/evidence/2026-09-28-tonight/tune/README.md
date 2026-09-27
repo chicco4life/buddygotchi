@@ -229,3 +229,27 @@ Nothing here touched the board or the webcam.
   failure at 11:05 kept it relevant to Jev. If that reads wrong on the
   device, grumpy's file could say a poke streak's grumpiness fades on
   its own.
+
+## Merged onto main
+
+Rebased onto main at 9315c9b8, whose review lane had already added
+scenarios `11-comeback-still-showing` and `12-comeback-that-didnt-happen`
+(`EvalTests` names them), so this lane's two became
+`13-proud-fades` and `14-minutes-turn-is-routine`; the names above are
+as they were run. The pass lines in
+[harness/EXAMPLE.md](../../../harness/EXAMPLE.md) gained main's `seen`
+field.
+
+Checks on the rebased branch, in its worktree:
+
+- `make build`: builds.
+- `make -C internal test`: 242 of 242 passed.
+- The tools' tests, run directly: `boopctl_lib` 52 OK, `workday` 9 OK,
+  `webcam` 3 OK.
+- `workday.py run --brain scripted` (fresh `/tmp` state, fake device):
+  193 turns, 403 passes, 0 dropped, all 403 reactions settled `done`
+  under main's moment schedule.
+- `BOOP_JEV_KEY=… make eval`: **14/14 passed in all 3 runs**, median
+  217 ms, slowest 417 ms. Run 1 of `04-tests-fight-back` made
+  EXAMPLE.md's picks, with the same states and `seen` equal to `for`.
+

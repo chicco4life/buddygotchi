@@ -15,6 +15,10 @@ Lines are copied from its `debug.jsonl`
 ([its three runs](../evidence/2026-09-28-tonight/tune/eval-04-debug.jsonl)),
 with probabilities rounded to two places and abridged only where marked
 `…`. The other two runs made the same picks, each within about 0.1.
+Merged onto the code that writes a pass's `seen` ([HARNESS.md](HARNESS.md)
+§9), the lines gained it, and a rerun there made the same picks, again
+within about 0.1, with the same states and `seen` equal to `for` in
+every pass.
 
 The eval has no device, so its queue ends each reaction `done` at once
 ([EVALS.md](../EVALS.md) §1): every `react` action, started
