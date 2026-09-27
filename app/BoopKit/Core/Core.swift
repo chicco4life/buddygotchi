@@ -78,12 +78,14 @@ public final class Core {
         var needsSince: Int64?
         /// Codex: when "needs you" arrived, during the grace period.
         var pendingSince: Int64?
-        /// When "needs you" last cleared, to drop a late duplicate.
+        /// When "needs you" last cleared, to drop its late `Notification`.
         var clearedAt: Int64?
+        /// A tool call has started since then: a new request follows one.
+        var calledSinceClear = false
         /// Who is asking, while "needs you" waits: `""` for the main agent,
-        /// a Claude subagent's id, or `Core.anyone` for a `Notification` with
-        /// no request before it. Only an asker's own next event answers it
-        /// (ADAPTERS.md §4).
+        /// a Claude subagent's id, or `Core.anyone` for a `Notification` whose
+        /// request's own hook hasn't come. Only an asker's own next event
+        /// answers it (ADAPTERS.md §4).
         var askers: Set<String> = []
         let order: Int
 
@@ -155,6 +157,10 @@ public final class Core {
     /// doesn't say who asked: any event from the session answers it.
     static let anyone = "*"
 
+    /// How far apart a request's own hook and its `Notification` may land,
+    /// either way round (ADAPTERS.md §4).
+    static let noticeLagMs: Int64 = 5000
+
     // MARK: - Inputs
 
     /// An agent event from an adapter.
@@ -189,15 +195,26 @@ public final class Core {
         noteActivity(now)
 
         if event.event == .needsYou {
-            // A tool-less one while waiting is the same request (PermissionRequest
-            // and its Notification), and one just after a clear is the
-            // Notification arriving late. A request from another agent in the
-            // session (a sibling subagent) joins the one waiting.
-            let asker = event.detail.tool == nil ? Core.anyone : event.subagent ?? ""
-            let lateDuplicate = event.detail.tool == nil && s.clearedAt.map { now - $0 < 5000 } == true
+            // A request's own hook (`PermissionRequest`, `Elicitation`) says
+            // which agent asks; its `Notification` doesn't, so it's from
+            // "anyone" until the hook comes. While a request waits, a
+            // Notification is the same request, and a hook joins it: a
+            // sibling subagent asking too, or, within 5 s of a Notification
+            // that came alone, that request's own hook. With nothing
+            // waiting, a Notification is the late copy of the request that
+            // last cleared if it comes within 5 s of the clear, or before any
+            // tool call has started since (ADAPTERS.md §4).
+            let asker = event.detail.notice ? Core.anyone : event.subagent ?? ""
+            let lateCopy = event.detail.notice
+                && s.clearedAt.map { now - $0 < Core.noticeLagMs || !s.calledSinceClear } == true
             if waiting {
-                if event.detail.tool != nil { s.askers.insert(asker) }
-            } else if !lateDuplicate {
+                if !event.detail.notice {
+                    if s.askers == [Core.anyone], s.needsSince.map({ now - $0 < Core.noticeLagMs }) == true {
+                        s.askers = []
+                    }
+                    s.askers.insert(asker)
+                }
+            } else if !lateCopy {
                 s.askers = [asker]
                 if event.agent == .codex {
                     s.pendingSince = now
@@ -286,6 +303,7 @@ public final class Core {
                 let start = (at: now, topic: event.detail.topic)
                 if let id = event.detail.toolUseID { s.toolStarts[id] = start }
                 s.lastToolStart = start
+                s.calledSinceClear = true
             }
             if let topic = event.detail.topic { s.topic = topic }
             if let topic = event.detail.topic, let failed = event.detail.failed, Core.checks.contains(topic) {
@@ -479,6 +497,7 @@ public final class Core {
         s.pendingSince = nil
         s.askers.removeAll()
         s.clearedAt = now
+        s.calledSinceClear = false
     }
 
     /// The first activity of a new day: short-term memory starts fresh.

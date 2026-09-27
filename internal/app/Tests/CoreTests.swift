@@ -22,10 +22,14 @@ final class CoreRig {
 
     @discardableResult
     func send(_ kind: BoopEvent.Kind, _ agent: Agent = .claudeCode, session: String = "s1", subagent: String? = nil,
-              project: String = "landing", tool: String? = nil, topic: String? = nil, failed: Bool? = nil) -> [CoreEffect] {
+              project: String = "landing", tool: String? = nil, topic: String? = nil, failed: Bool? = nil,
+              notice: Bool? = nil) -> [CoreEffect] {
         // A result (failed or not) is a finished call: its `PostToolUse`.
         var detail = BoopEvent.Detail(tool: tool, topic: topic, failed: failed)
         detail.done = kind == .activity && failed != nil
+        // A tool-less request is Claude's `Notification` unless it says
+        // otherwise (`notice: false` is an `Elicitation`).
+        detail.notice = notice ?? (kind == .needsYou && tool == nil)
         let fx = core.handle(BoopEvent(agent: agent, session: session, subagent: subagent, project: project, event: kind,
                                        detail: detail, ts: now))
         log += fx
@@ -450,6 +454,102 @@ final class CoreNeedsYouTests: XCTestCase {
         }
     }
 
+    /// ADAPTERS.md §4: a Notification repeats the request its agent's own
+    /// hook makes, so one with nothing waiting is the late copy of the
+    /// request that last cleared if it comes within 5 s of the clear, or
+    /// before any tool call has started since: a new request always follows
+    /// a new call. Here the turn has ended and it comes 5.5 s late.
+    func testALateNotificationAfterTheTurnEndedIsIgnored() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Bash")
+        rig.send(.needsYou, tool: "Bash")
+        rig.wait(500)
+        rig.send(.activity, tool: "Bash", failed: false)  // approved
+        rig.send(.turnEnd)
+        rig.wait(5500)
+        XCTAssertEqual(rig.send(.needsYou), [], "no call since the clear")
+        XCTAssertNil(rig.state.attn)
+        rig.wait(60_000)
+        XCTAssertNil(rig.state.attn)
+
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Bash")
+        rig.wait(6000)
+        rig.send(.needsYou)  // a request whose own hook never came
+        XCTAssertNotNil(rig.state.attn, "a call started since the clear")
+    }
+
+    /// ADAPTERS.md §4: an `Elicitation` is a request of its own, never a late
+    /// copy, however soon after a clear it comes: approved, then an MCP
+    /// tool asks you something; or Esc, the idle notice, a new prompt and
+    /// the MCP tool at once.
+    func testAnElicitationRightAfterAClearShows() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Bash")
+        rig.send(.needsYou, tool: "Bash")
+        rig.wait(300)
+        rig.send(.activity, tool: "Bash", failed: false)
+        rig.now += 500
+        rig.send(.activity, tool: "mcp__jira__create")
+        rig.now += 500
+        let fx = rig.send(.needsYou, notice: false)
+        XCTAssertNotNil(states(fx).last?.attn)
+        XCTAssertEqual(events(fx).map(\.line), [#"claude needs you on "landing"."#])
+        XCTAssertEqual(states(rig.send(.needsYou)), [], "its Notification is the same request")
+        rig.send(.activity)  // ElicitationResult
+        XCTAssertNil(rig.state.attn)
+
+        rig.send(.needsYou, tool: "Bash")
+        rig.wait(60_000)
+        rig.send(.turnStopped)  // Esc on it; Claude's idle notice
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "mcp__srv__deploy")
+        XCTAssertNotNil(states(rig.send(.needsYou, notice: false)).last?.attn)
+    }
+
+    /// ADAPTERS.md §4: a Notification that lands before its own request's
+    /// hook starts a request from "anyone"; the hook, which names who asked,
+    /// then takes it over, so a sibling's tool call doesn't answer it.
+    func testANotificationBeforeItsRequestBecomesThatRequest() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, subagent: "a1", tool: "Bash")
+        rig.send(.needsYou)  // the Notification, first
+        rig.send(.needsYou, subagent: "a1", tool: "Bash")
+        rig.send(.activity, subagent: "a2", tool: "Read")
+        XCTAssertNotNil(rig.state.attn, "a sibling's call")
+        rig.send(.activity, subagent: "a1", tool: "Bash", failed: false)
+        XCTAssertNil(rig.state.attn)
+    }
+
+    /// ADAPTERS.md §4: an `Elicitation` names who asked, as a tool request
+    /// does, so it's answered by that agent's next event or a turn-level
+    /// one: a sibling's call doesn't hide the dialog, answering it doesn't
+    /// hide a sibling's prompt, and one that comes while a sibling's request
+    /// waits joins it.
+    func testASubagentsElicitationIsItsOwn() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, subagent: "b", tool: "mcp__x__ask")
+        rig.send(.needsYou, subagent: "b", notice: false)
+        rig.send(.activity, subagent: "a", tool: "Read")
+        XCTAssertNotNil(rig.state.attn, "b's dialog is still up")
+        rig.send(.activity, subagent: "b")  // ElicitationResult
+        XCTAssertNil(rig.state.attn)
+
+        rig.send(.needsYou, subagent: "a", tool: "Bash")
+        rig.send(.needsYou, subagent: "b", notice: false)
+        rig.send(.activity, subagent: "b")
+        XCTAssertNotNil(rig.state.attn, "a's prompt is still up")
+        rig.send(.needsYou, subagent: "b", notice: false)
+        rig.send(.activity, subagent: "a", tool: "Bash", failed: false)
+        XCTAssertNotNil(rig.state.attn, "b's dialog is still up")
+        rig.send(.activity, subagent: "b")
+        XCTAssertNil(rig.state.attn)
+    }
+
     /// A request that came as a Notification alone doesn't say who asked, so
     /// any event from the session answers it, as before subagents.
     func testANotificationAloneIsAnsweredByAnyEvent() {
@@ -488,12 +588,14 @@ final class CoreNeedsYouTests: XCTestCase {
     }
 
     /// It answers nobody else: not the main agent, and not a request that
-    /// came as a Notification alone, which doesn't say who asked.
+    /// came as a Notification alone, which doesn't say who asked (a1's own
+    /// hook comes more than 5 s later, so it's another request).
     func testASubagentsEndLeavesOtherAskersWaiting() {
         for asker in ["main agent", "notification alone"] {
             let rig = CoreRig()
             rig.send(.turnStart)
             rig.send(.needsYou, tool: asker == "main agent" ? "Bash" : nil)
+            rig.wait(6000)
             rig.send(.needsYou, subagent: "a1", tool: "Bash")
             rig.send(.subagentEnd, subagent: "a1")
             XCTAssertNotNil(rig.state.attn, asker)

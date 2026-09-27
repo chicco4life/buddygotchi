@@ -70,6 +70,7 @@ public enum Adapter {
         if kind == .subagentEnd && line.agentID == nil { return nil }
 
         var detail = BoopEvent.Detail()
+        detail.notice = agent == .claudeCode && line.hook == "Notification"
         switch kind {
         case .activity, .needsYou:
             detail.tool = line.tool

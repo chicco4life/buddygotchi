@@ -42,7 +42,7 @@ for a `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | `project` | A short project name from the working directory (§3); `unknown` when the hook had no `cwd` |
 | `workspace` | The worktree or branch the session works in, cleaned to a name (§3); missing on the default branch or outside git |
 | `event` | `session_start`, `turn_start`, `activity`, `needs_you`, `turn_end`, `turn_failed`, `turn_stopped` (over without finishing), `subagent_end` (a Claude subagent finished), `session_end` |
-| `detail` | Per hook in §3: `tool`, `tool_use_id`, `topic`, `failed` (true or false, Claude only), `tool_error` (a failed call's class) and `error` (a failed turn's class) |
+| `detail` | Per hook in §3: `tool`, `tool_use_id`, `topic`, `failed` (true or false, Claude only), `tool_error` (a failed call's class), `error` (a failed turn's class) and `notice` (true on Claude's `Notification`) |
 | `ts` | When the app received it, in milliseconds on the app's steady clock ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2, "Clocks"); `boopdev replay` uses the hook line's own `ts` |
 
 Turn length isn't sent: the core times each turn itself.
@@ -114,8 +114,8 @@ taken only headless or in debug mode and dropped otherwise.
 | `PostToolUseFailure` | `activity`, the call's result | `tool`, `tool_use_id`, `topic`, `failed: true`, `tool_error` |
 | `PostToolUseFailure` with `is_interrupt` (you pressed Esc) | `turn_stopped` | `tool` |
 | `PermissionRequest` | `needs_you` | `tool`, `tool_use_id` |
-| `Notification`: `permission_prompt`, `elicitation_dialog` | `needs_you` | |
-| `Notification`: `idle_prompt` | `turn_stopped` | |
+| `Notification`: `permission_prompt`, `elicitation_dialog` | `needs_you` | `notice: true` |
+| `Notification`: `idle_prompt` | `turn_stopped` | `notice: true` |
 | `Elicitation` | `needs_you` | |
 | `ElicitationResult` | `activity` | |
 | `Stop` | `turn_end` | |
@@ -218,19 +218,22 @@ for tools you've already allowed. Codex's fires early: Codex can hand a
 request to its optional automatic reviewer, a model that may approve it
 without asking you, and the hook fires before that review.
 
-**Who asked.** A request remembers its askers: the main agent, a Claude
-subagent by its `agent_id`, or "anyone" for a request with no tool (a
-`Notification` or `Elicitation`), which doesn't say who asked.
+**Who asked.** A request remembers its askers: the main agent, or a
+Claude subagent by its `agent_id`, as its own hook names them
+(`PermissionRequest` with its tool, `Elicitation` without one). Claude's
+`Notification` (`notice`) repeats a request that its own hook makes too,
+landing just before or after it, and doesn't say who asked: one that
+starts a request starts it from "anyone".
 
 | While nothing waits | |
 | --- | --- |
-| `needs_you` with a tool | Starts a request from that asker. Claude's shows at once; Codex's waits 2 s first |
-| `needs_you` without a tool | The same, from "anyone", unless it comes within 5 s of the session's last request clearing: then it's that request's `Notification` arriving late, and is ignored |
+| `needs_you` from a hook | Starts a request from its asker. Claude's shows at once; Codex's waits 2 s first |
+| `needs_you` from a `Notification` | The same, from "anyone", unless it's the late copy of the session's last request: it comes within 5 s of that request clearing, or before any tool call has started since (a new request always follows a new call). Then it's ignored |
 
 | While a request waits | |
 | --- | --- |
-| `needs_you` with a tool | Its asker joins the request (a sibling subagent asking too) |
-| `needs_you` without a tool | Ignored: it's the same request (a `PermissionRequest` and its `Notification` count once) |
+| `needs_you` from a hook | Its asker joins the request (a sibling subagent asking too). If the request is a `Notification`'s from "anyone" under 5 s old, the hook is that request's own and takes it over |
+| `needs_you` from a `Notification` | Ignored: it's the same request (a `PermissionRequest` and its `Notification` count once) |
 | `activity` from an asker | Answers that asker: the tool ran (you approved) or the agent moved on (you denied) |
 | `activity` from anyone else | Nothing, unless "anyone" is asking: then it clears the request |
 | `turn_stopped` without a tool (Claude's `idle_prompt`, Codex's `Interrupt`) | Answers the main agent, and "anyone" if no subagent is also asking. Claude never sends `idle_prompt` while the main agent's prompt is up, so it arrives about a minute after you press Esc on that prompt, which sends no hook. A subagent's request stays, since its prompt may still be up |

@@ -34,6 +34,21 @@ final class AdapterTests: XCTestCase {
         XCTAssertNil(Adapter.event(from: line("claude", "Notification", kind: "idle_prompt"))?.detail.tool)
     }
 
+    /// ADAPTERS.md §3–4: a `Notification` is marked as a notice. Claude's
+    /// asking notices repeat a request its own hook makes, so the core can
+    /// tell a late one from an `Elicitation`, which is a request of its own.
+    func testANotificationIsMarkedAsANotice() {
+        for k in ["permission_prompt", "elicitation_dialog", "idle_prompt"] {
+            XCTAssertEqual(Adapter.event(from: line("claude", "Notification", kind: k))?.detail.notice, true, k)
+        }
+        for hook in ["Elicitation", "PermissionRequest", "PreToolUse", "Stop"] {
+            XCTAssertEqual(Adapter.event(from: line("claude", hook, tool: hook == "PermissionRequest" ? "Bash" : nil))?.detail.notice,
+                           false, hook)
+        }
+        XCTAssertEqual(Adapter.event(from: line("claude", "Notification", kind: "permission_prompt"))?.jsonLine,
+                       #"{"agent":"claude_code","detail":{"notice":true},"event":"needs_you","project":"landing","session":"s1","ts":7}"#)
+    }
+
     /// ADAPTERS.md §2: a Claude subagent's id rides on the event; Codex
     /// has none.
     func testASubagentsEventsSayWhichSubagent() {
