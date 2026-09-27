@@ -39,11 +39,10 @@ enum Phrases {
             let place = place(input.words ?? "", boopName: boopName)
             return ([react("happy"), ToolCall("remember", ["where": .string(place)])], "asked to remember, \(place)")
         }
-        if input.endsQuiet {
-            return ([ToolCall("quiet", ["minutes": .number(0)]), react("happy")], "asked to end quiet")
-        }
-        if input.asksForQuiet {
-            return ([ToolCall("quiet", ["minutes": .number(minutes(input.words ?? ""))])], "asked for quiet")
+        switch input.quietAsk {
+        case .end: return ([ToolCall("quiet", ["minutes": .number(0)]), react("happy")], "asked to end quiet")
+        case .start: return ([ToolCall("quiet", ["minutes": .number(minutes(input.words ?? ""))])], "asked for quiet")
+        case nil: break
         }
         if Input.tellsOff(words) { return (hurt, "told off") }
         // Only at the start: "the tests broke this morning" isn't a greeting.
@@ -97,9 +96,8 @@ enum Phrases {
     /// after "for" with no unit is minutes ("for fifteen"). Nil when
     /// there's none.
     static func spokenMinutes(_ said: String) -> Double? {
-        // As Input.plain, but "1.5" stays one number.
-        let kept = String(Input.straight(said).lowercased().map { $0.isLetter || $0.isNumber || "'.".contains($0) ? $0 : " " })
-        let w = kept.split(separator: " ").map { $0.trimmingCharacters(in: ["."]) }.filter { !$0.isEmpty }
+        // "1.5" stays one number.
+        let w = Input.plain(said, keeping: "'.").split(separator: " ").map { $0.trimmingCharacters(in: ["."]) }.filter { !$0.isEmpty }
         let words = " " + w.joined(separator: " ") + " "
         if words.contains(" quarter ") { return 15 }
         if words.contains(" half an hour ") || words.contains(" half hour ") { return 30 }
