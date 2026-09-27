@@ -32,7 +32,8 @@ the owner.
 
 Run a tool with `--help` for its flags: `tools/boopctl` (and
 `tools/boopctl <command>`), `app/.build/debug/boopdev`,
-`app/.build/debug/Boop`.
+`app/.build/debug/Boop`. `Boop` stops with its usage on a flag it doesn't
+take, before anything starts, so a typo can't launch the menu-bar app.
 
 | Make target | What it does |
 | --- | --- |

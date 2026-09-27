@@ -8,8 +8,8 @@ import SwiftUI
 /// agents' settings it reads are in a throwaway HOME.
 @MainActor
 enum Snapshots {
-    static func run(_ args: [String]) -> Never {
-        guard let dir = option(args, "--snapshots") else { fail("--snapshots needs a directory") }
+    static func run(_ args: Arguments) -> Never {
+        guard let dir = args["--snapshots"] else { fail("--snapshots needs a directory") }
         let out = URL(fileURLWithPath: dir)
         checkContrast()
         _ = NSApplication.shared

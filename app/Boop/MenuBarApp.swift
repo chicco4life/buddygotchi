@@ -6,10 +6,10 @@ import SwiftUI
 /// Setup and settings open inside the popover. It pops up by itself only
 /// once, on first launch, to show setup, and never sends notifications.
 enum MenuBarApp {
-    static func run(_ args: [String]) -> Never {
-        let stateDir = option(args, "--state-dir").map { URL(fileURLWithPath: $0) } ?? AppSettings.defaultStateDir()
-        guard let link = LinkSetting(option(args, "--link") ?? "ble") else { fail("--link is ble, usb:SOCKET or none") }
-        let debug = args.contains("--debug")
+    static func run(_ args: Arguments) -> Never {
+        let stateDir = args["--state-dir"].map { URL(fileURLWithPath: $0) } ?? AppSettings.defaultStateDir()
+        guard let link = LinkSetting(args["--link"] ?? "ble") else { fail("--link is ble, usb:SOCKET or none") }
+        let debug = args.has("--debug")
         MainActor.assumeIsolated {
             let app = NSApplication.shared
             let delegate = AppDelegate(stateDir: stateDir, link: link, debug: debug)

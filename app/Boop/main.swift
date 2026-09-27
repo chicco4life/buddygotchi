@@ -24,6 +24,7 @@ let usage = """
            Boop --snapshots DIR
                Renders the popover's panes and the menu-bar icons to PNGs from fixtures, then exits.
                No runtime, no Bluetooth.
+           A flag the chosen way doesn't take stops Boop with this usage, before anything starts.
     (boop \(BoopVersion.current))
     """
 
@@ -32,10 +33,6 @@ func fail(_ message: String) -> Never {
     exit(2)
 }
 
-func option(_ args: [String], _ name: String) -> String? {
-    guard let i = args.firstIndex(of: name), i + 1 < args.count else { return nil }
-    return args[i + 1]
-}
 
 /// `steering.md` as bundled with the app (a copy of `plan/steering.md`).
 func bundledSteering() -> String {
@@ -83,15 +80,43 @@ final class LogFile: @unchecked Sendable {
     }
 }
 
-let args = Array(CommandLine.arguments.dropFirst())
-if args.contains("-h") || args.contains("--help") {
+/// The ways to run Boop and what each takes. Anything else stops with the
+/// usage: a mistyped flag would otherwise start the menu-bar app, which uses
+/// Bluetooth and repairs the real hooks.
+enum Launch {
+    case menuBar, headless, snapshots
+
+    var options: Set<String> {
+        switch self {
+        case .menuBar: ["--state-dir", "--link"]
+        case .headless: ["--state-dir", "--link", "--socket", "--mode", "--classifier", "--writer", "--name", "--nature"]
+        case .snapshots: ["--snapshots"]
+        }
+    }
+
+    var flags: Set<String> {
+        switch self {
+        case .menuBar: ["--debug"]
+        case .headless: ["--headless", "--debug"]
+        case .snapshots: []
+        }
+    }
+}
+
+let raw = Array(CommandLine.arguments.dropFirst())
+let launch: Launch = raw.contains("--headless") ? .headless : raw.contains("--snapshots") ? .snapshots : .menuBar
+let args: Arguments
+do {
+    args = try Arguments(raw, options: launch.options, flags: launch.flags)
+} catch {
+    fail("boop: \(error)\n\(usage)")
+}
+if args.help {
     print(usage)
     exit(0)
 }
-if args.contains("--headless") {
-    Headless.run(args)
-} else if args.contains("--snapshots") {
-    MainActor.assumeIsolated { Snapshots.run(args) }
-} else {
-    MenuBarApp.run(args)
+switch launch {
+case .headless: Headless.run(args)
+case .snapshots: MainActor.assumeIsolated { Snapshots.run(args) }
+case .menuBar: MenuBarApp.run(args)
 }

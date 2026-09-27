@@ -4,17 +4,17 @@ import Foundation
 /// `Boop --headless`: the whole runtime with isolated state, no UI and no
 /// Bluetooth. The device, if any, is reached through `boopctl bridge`.
 enum Headless {
-    static func run(_ args: [String]) -> Never {
-        guard let dir = option(args, "--state-dir") else { fail("--headless needs --state-dir\n" + usage) }
+    static func run(_ args: Arguments) -> Never {
+        guard let dir = args["--state-dir"] else { fail("--headless needs --state-dir\n" + usage) }
         let stateDir = URL(fileURLWithPath: dir).standardizedFileURL
         let transport: DeviceTransport?
-        switch LinkSetting(option(args, "--link") ?? "none") {
+        switch LinkSetting(args["--link"] ?? "none") {
         case .usb(let path): transport = USBTransport(path: path)
         case .none?: transport = nil
         case .bluetooth?: fail("headless mode never uses Bluetooth; use --link usb:SOCKET")
         case nil: fail("--link is usb:SOCKET or none")
         }
-        let socketPath = option(args, "--socket") ?? stateDir.appendingPathComponent("boop.sock").path
+        let socketPath = args["--socket"] ?? stateDir.appendingPathComponent("boop.sock").path
         // Checked before anything is set up: a Unix socket's path has room
         // for 103 bytes (sockaddr_un), and a scratch directory is often longer.
         let room = MemoryLayout.size(ofValue: sockaddr_un().sun_path) - 1
@@ -26,8 +26,8 @@ enum Headless {
 
         let memory = try? MemoryStore(directory: stateDir, steering: "")
         if memory?.isSetUp != true {
-            let nature = LongTerm.Nature(rawValue: option(args, "--nature") ?? "sweet") ?? .sweet
-            let name = option(args, "--name") ?? "Boop"
+            let nature = LongTerm.Nature(rawValue: args["--nature"] ?? "sweet") ?? .sweet
+            let name = args["--name"] ?? "Boop"
             do {
                 try Runtime.setUp(stateDir: stateDir, name: name, nature: nature, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
                 log.write("boop: set up \(name) (\(nature.rawValue)) in \(stateDir.path)")
@@ -46,14 +46,14 @@ enum Headless {
         options.clock = { steady() + skew.ms }
         options.wallClock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.ms }
         options.advance = { skew.add($0) }
-        options.debug = args.contains("--debug")
+        options.debug = args.has("--debug")
         options.debugPrint = { log.echo($0) }
-        if let name = option(args, "--mode") {
+        if let name = args["--mode"] {
             guard let mode = Mode(rawValue: name) else { fail("--mode is chatty, normal or calm") }
             options.mode = mode
         }
-        options.classifier = option(args, "--classifier")
-        options.writer = option(args, "--writer")
+        options.classifier = args["--classifier"]
+        options.writer = args["--writer"]
         if let c = options.classifier, !Brains.classifiers.contains(c) {
             fail("--classifier is " + Brains.classifiers.joined(separator: ", "))
         }
