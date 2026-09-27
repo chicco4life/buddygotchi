@@ -1,5 +1,6 @@
 import BoopKit
 import Foundation
+import HookWire
 
 /// `Boop --headless`: the whole runtime with isolated state, no UI and no
 /// Bluetooth. The device, if any, is reached through `boopctl bridge`.
@@ -15,10 +16,11 @@ enum Headless {
         case nil: fail("--link is usb:SOCKET or none")
         }
         let socketPath = args["--socket"] ?? stateDir.appendingPathComponent("boop.sock").path
-        // Checked before anything is set up: a Unix socket's path has room
-        // for 103 bytes (sockaddr_un), and a scratch directory is often longer.
-        let room = MemoryLayout.size(ofValue: sockaddr_un().sun_path) - 1
-        if socketPath.utf8.count > room {
+        // Checked before anything is set up, as the hook server checks it: a
+        // Unix socket's path has room for 103 bytes (sockaddr_un), and a
+        // scratch directory is often longer.
+        if HookSocket.unixAddress(socketPath) == nil {
+            let room = MemoryLayout.size(ofValue: sockaddr_un().sun_path) - 1
             fail("the hook socket \(socketPath) is \(socketPath.utf8.count) bytes, and a Unix socket's path "
                  + "has room for \(room): pass --socket with a shorter one")
         }
