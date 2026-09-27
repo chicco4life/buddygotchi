@@ -226,12 +226,12 @@ mark is for the log only and never reaches the state. Real entries are in
 
 `StateText` builds the state's HISTORY and NOW for each pass. It's a
 pure function of the entries, the status line and the clock, so a logged
-pass can be rebuilt exactly from `debug.jsonl`, settles included, unless
-a settle was recorded while Jev answered: the log has it before the
-pass, but the state was built when the pass started, without it
-([PLAN.md](../PLAN.md) §3). It places event lines and action messages
-and never writes them, apart from marking a started action's progress
-(step 3).
+pass can be rebuilt exactly from `debug.jsonl`'s entries up to its `seen`
+(§9), settles included. A settle recorded while Jev answered lands in the
+log before the pass, but the state was built when the pass started,
+without it, and `seen` leaves it out. It places event lines and action
+messages and never writes them, apart from marking a started action's
+progress (step 3).
 
 1. **NOW** is the event the pass is for.
 2. **HISTORY's events** are those before NOW, from the last **10
@@ -423,9 +423,10 @@ Before emptying it, the app keeps a copy of the last launch's lines as
 (`DebugLog.keptLaunches`) and letting the oldest go, so relaunching
 mid-day doesn't lose the morning. An empty file isn't kept.
 `boopdev watch [FILE]` prints it as the terminal does, following it as it
-grows. A Jev pass's line carries three more fields, so any pass can be
+grows. A Jev pass's line carries four more fields, so any pass can be
 replayed: `state` (the whole state sent), `questions` (the keys asked, in
-order) and `brain` (its `id`). A forced pass's line has `questions` (the
+order), `brain` (its `id`) and `seen` (the last entry's `seq` when its
+state was built, so a rebuild takes the entries up to it, §5.3). A forced pass's line has `questions` (the
 keys it answered) and `by`, and no `state` or `brain`.
 
 **The dashboard's lines.** Debug mode also writes three kinds of line

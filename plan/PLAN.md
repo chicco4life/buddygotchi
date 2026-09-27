@@ -175,12 +175,6 @@ fixed. Pick one up by writing it into its spec first.
   `react.loops` question and no `loops` on its moments; `test_dash.py`
   checks those with lines of its own. The next recording of the fixture
   ([DASHBOARD.md](DASHBOARD.md) §7) brings them in.
-- **A settle recorded while Jev answers spoils an exact rebuild** of
-  that pass's state from `debug.jsonl`
-  ([harness/HARNESS.md](harness/HARNESS.md) §5.3). Since `react` waits
-  on its moment, one the device says ended during a pass does it. Logging
-  on the pass the last `seq` its state saw, or holding settles while a
-  pass runs, would make it exact again.
 - **Some Claude hook orders are guessed, not recorded.** The race hunt
   ([evidence](evidence/2026-09-28-tonight/core/README.md)) left three
   cases open for a recording to settle: whether a message queued

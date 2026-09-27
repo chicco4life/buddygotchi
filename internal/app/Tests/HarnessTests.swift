@@ -394,22 +394,39 @@ final class HarnessTests: XCTestCase {
     }
 
     /// §5.3, §9: a replay rebuilds a logged pass's state exactly from the
-    /// log's entries before it, a started action and its settle included.
+    /// log's entries up to the pass line's `seen`, a started action and its
+    /// settle included, and leaves out a settle recorded while the brain
+    /// answered, which lands before the pass line but wasn't in its state.
     func testALoggedStateIsRebuiltFromTheLogWithItsSettles() async throws {
-        let pending = Pending()
-        let (h, home) = harness(ScriptedBrain(always: [:]), [Recorder("a", keys: ["k"], result: .started("Boop did it.", pending))])
+        let pending = Pending(), during = Pending()
+        let home = DispatchQueue(label: "test.home")
+        // The second pass's brain hears the first action end while it answers.
+        let brain = ScriptedBrain { state, _ in
+            if state.contains("\nit ended\n") { home.sync { during.finish(.done) } }
+            return [:]
+        }
+        let started = Recorder("a", keys: ["k"], result: .started("Boop did it.", pending))
+        let h = Harness(brain: brain, actions: [started], parts: { _ in Self.parts }, home: home, clock: { harnessT0 })
         let lines = Lines()
         home.sync { h.onDebugLine = { lines.add($0) } }
-        _ = await h.respond(to: event(.turnStart, at: -2, "it started"))
+        _ = await h.respond(to: event(.turnStart, at: -3, "it started"))
         home.sync { pending.finish(.failed("the device disconnected")) }
+        started.result = .started("Boop did more.", during)
+        _ = await h.respond(to: event(.toolUse, at: -2, "it went on"))
+        started.result = nil
         _ = await h.respond(to: event(.turnEnd, at: 0, "it ended", reaction: "Boop cheered on its own."))
         let objects = lines.all.map { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
         let (i, pass) = try XCTUnwrap(objects.enumerated().compactMap { i, o in (o?["pass"] as? [String: Any]).map { (i, $0) } }.last)
         let logged = try XCTUnwrap(pass["state"] as? String)
-        XCTAssertTrue(logged.contains("2 min ago: it started\n  Boop did it. (didn't happen: the device disconnected)\n"), logged)
-        let entries = Self.entries(fromLog: Array(lines.all[..<i]))
+        XCTAssertTrue(logged.contains("3 min ago: it started\n  Boop did it. (didn't happen: the device disconnected)\n"), logged)
+        XCTAssertTrue(logged.contains("  Boop did more. (in progress)\n"), "its settle came while the brain answered: \(logged)")
+        let before = Self.entries(fromLog: Array(lines.all[..<i]))
+        XCTAssertTrue(before.contains { if case .settle(let s) = $0.body { s.end == .done } else { false } }, "logged before the pass")
+        let seen = try XCTUnwrap(pass["seen"] as? Int)
+        let entries = before.filter { $0.seq <= seen }
         let now = try XCTUnwrap(entries.first { $0.seq == pass["for"] as? Int })
         XCTAssertEqual(StateText.build(entries, now: now, at: harnessT0, Self.parts), logged)
+        XCTAssertNotEqual(StateText.build(before, now: now, at: harnessT0, Self.parts), logged, "without `seen`, not exact")
     }
 
     /// Transcript entries back from `debug.jsonl` lines, as far as the

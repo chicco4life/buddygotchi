@@ -106,11 +106,13 @@ public final class Harness: @unchecked Sendable {
 
     // MARK: A pass (§3)
 
-    /// What a pass sends, fixed when it starts on `home`.
+    /// What a pass sends, fixed when it starts on `home`, and the last
+    /// entry its state saw.
     struct Job: Sendable {
         var brain: any Brain
         var state: String
         var questions: [Question]
+        var seen: Int
     }
 
     var nextPass = 0
@@ -138,7 +140,8 @@ public final class Harness: @unchecked Sendable {
     /// Step 3, on `home`: the state and every action's questions.
     func prepare(_ entry: Transcript.Entry, brain: any Brain) -> Job {
         let state = StateText.build(transcript.entries, now: entry, at: clock(), parts(entry))
-        return Job(brain: brain, state: state, questions: actions.flatMap { $0.questions() })
+        return Job(brain: brain, state: state, questions: actions.flatMap { $0.questions() },
+                   seen: transcript.entries.last?.seq ?? entry.seq)
     }
 
     /// Steps 5–7, on `home`: each action gets its own answers, in order,
@@ -153,7 +156,8 @@ public final class Harness: @unchecked Sendable {
         case .success(let answers):
             pass.answers = answers
         }
-        record(.pass(pass), extra: ["state": job.state, "questions": job.questions.map(\.key), "brain": job.brain.id])
+        record(.pass(pass), extra: ["state": job.state, "questions": job.questions.map(\.key), "brain": job.brain.id,
+                                    "seen": job.seen])
         let ran = pass.dropped == nil ? runActions(pass.answers, forSeq: entry.seq) : []
         let record = Record(event: event, pass: pass, actions: ran)
         if let dropped = pass.dropped { log("harness: \(event.kind.rawValue) dropped: \(dropped)") }
