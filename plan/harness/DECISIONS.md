@@ -19,7 +19,7 @@ Two actions, registered in this order:
 All four questions go in one request. Jev answers each on its own
 ([HARNESS.md](HARNESS.md) §7), so `mood` and `react` are both judged
 against the current mood: on a pass that changes the mood, the mumble is
-still judged by the old one. GUIDE asks for the two to fit together, and
+still judged by the old one. The guide asks for the two to fit together, and
 the evals check how often they don't.
 
 ## 2. The static sections
@@ -28,18 +28,17 @@ What the three static sections of the state say
 ([HARNESS.md](HARNESS.md) §6). Each is a file in `plan/steering/`, and
 its examples are written in the state's own lines.
 
-### 2.1 GUIDE
+### 2.1 The guide
 
 `plan/steering/guide.md`: what Boop is, what it can't do and how to
 choose. The same for every personality and mood. How to read HISTORY and
-NOW isn't here: the state's READING section explains that
-([HARNESS.md](HARNESS.md) §6).
+NOW isn't in the file: the harness adds it after the guide
+([HARNESS.md](HARNESS.md) §6.1). The guide opens the state, with no heading.
 
 ```
-GUIDE
-You decide how Boop reacts to what's happening. Boop is a small creature
-on a person's desk that watches their AI coding agents work. Boop never
-approves or blocks anything.
+You are the mind of Boop, a small creature on a person's desk that
+watches their AI coding agents work. Boop never approves or blocks
+anything.
 Boop already reacts on its own: it cheers when a turn finishes, wiggles
 when tapped, and alerts when an agent needs the person. You only decide
 whether it adds a mumble: its own gibberish, in a feeling, with at most

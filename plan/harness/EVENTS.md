@@ -160,29 +160,19 @@ Working now: "fix-nav" (codex, landing), for 3 min.
 
 ### 8.1 Words
 
-The lines use a few words Jev couldn't know. They're explained in the
-second part of the state's READING section ([HARNESS.md](HARNESS.md) §6.1),
-which is kept here, next to the lines, so a change to one changes the
-other in the same place:
+The lines use a few words Jev couldn't know. They're explained at the end
+of the guide, after how to read the layout ([HARNESS.md](HARNESS.md) §6.1).
+That part is kept here, next to the lines, so a change to one changes
+the other in the same place:
 
 ```
-Words the lines use:
-- claude and codex are the person's coding agents. "claude's tests"
-  means tests that claude ran.
-- A thread is one conversation with an agent. It's written as its name
-  in quotes, then its project in brackets: "fix-nav" (landing) is the
-  thread fix-nav in the project landing. The name is the workspace the
-  agent works in, so two threads in one project have different names.
-  The project is left out when it's the same as the name.
-- A turn is one request to a thread, from the person's prompt to the
-  agent's answer, numbered within its thread. It ends done, failed, or
-  stopped (the person interrupted it).
-- Tests, build, deploy and docs are what an agent's command or edit was
-  about. Failed means the command ended with an error.
-- "N in a row" counts failures of the same thing in that thread. A
-  comeback is something that passed after failing.
-- A short turn is under 15 s, a long one up to a minute, a very long one
-  more.
+- claude and codex are the person's coding agents.
+- A thread is one conversation with an agent, named after its workspace:
+  "fix-nav" (landing) is the thread fix-nav in the project landing.
+- A turn is one request to a thread. It ends done, failed or stopped.
+- Tests, build, deploy and docs are what a command was about; failed
+  means it ended with an error. A comeback passed after failing.
+- Turns are short (under 15 s), long (under a minute) or very long.
 ```
 
 ## 9. Privacy

@@ -80,42 +80,16 @@ under the 0.35 floor, so the `react` action fell back to `word.about`'s
 
 ## 4. The state (14:09)
 
-The harness puts the six sections together (READING, then the three
-static files, then HISTORY and NOW, built from the transcript as
-[HARNESS.md](HARNESS.md) §5.3 describes). Entry 8 is NOW, so HISTORY
+The harness puts the state together: the guide, with no heading and
+ending with how to read the rest, then PERSONALITY and MOOD, then
+HISTORY and NOW, built from the transcript as
+[HARNESS.md](HARNESS.md) §5.3 describes. Entry 8 is NOW, so HISTORY
 stops before it:
 
 ```
-READING
-HISTORY and NOW describe what's happening around Boop, one line each.
-- HISTORY is what already happened, oldest first. Each line starts with
-  how long ago it was. Lines indented under it are what Boop did about it.
-- The last line of HISTORY lists the other threads still working.
-- NOW is the one thing to react to, headed with the time. Its second line
-  is what Boop already did on its own.
-- "On its own" means one of Boop's fixed reflexes, not a choice.
-Words the lines use:
-- claude and codex are the person's coding agents. "claude's tests"
-  means tests that claude ran.
-- A thread is one conversation with an agent. It's written as its name
-  in quotes, then its project in brackets: "fix-nav" (landing) is the
-  thread fix-nav in the project landing. The name is the workspace the
-  agent works in, so two threads in one project have different names.
-  The project is left out when it's the same as the name.
-- A turn is one request to a thread, from the person's prompt to the
-  agent's answer, numbered within its thread. It ends done, failed, or
-  stopped (the person interrupted it).
-- Tests, build, deploy and docs are what an agent's command or edit was
-  about. Failed means the command ended with an error.
-- "N in a row" counts failures of the same thing in that thread. A
-  comeback is something that passed after failing.
-- A short turn is under 15 s, a long one up to a minute, a very long one
-  more.
-
-GUIDE
-You decide how Boop reacts to what's happening. Boop is a small creature
-on a person's desk that watches their AI coding agents work. Boop never
-approves or blocks anything.
+You are the mind of Boop, a small creature on a person's desk that
+watches their AI coding agents work. Boop never approves or blocks
+anything.
 Boop already reacts on its own: it cheers when a turn finishes, wiggles
 when tapped, and alerts when an agent needs the person. You only decide
 whether it adds a mumble: its own gibberish, in a feeling, with at most
@@ -129,6 +103,19 @@ How to choose:
   gives MOOD's reason to leave it, and then the mumble should fit that
   change: a grumpy Boop doesn't gush, and a cheerful one doesn't sulk
   over one failure.
+How to read HISTORY and NOW:
+- HISTORY is oldest first. Each line says how long ago it happened, and
+  lines indented under it are what Boop did. The last line lists the
+  threads still working.
+- NOW is what to react to. Its second line is what Boop already did on
+  its own, by reflex.
+- claude and codex are the person's coding agents.
+- A thread is one conversation with an agent, named after its workspace:
+  "fix-nav" (landing) is the thread fix-nav in the project landing.
+- A turn is one request to a thread. It ends done, failed or stopped.
+- Tests, build, deploy and docs are what a command was about; failed
+  means it ended with an error. A comeback passed after failing.
+- Turns are short (under 15 s), long (under a minute) or very long.
 
 PERSONALITY
 Boop is curious, loyal and easily delighted, and a little smug. It
@@ -179,7 +166,7 @@ Boop did nothing on its own.
 ```json
 {
   "model": "jev-latest",
-  "state": "GUIDE\nYou decide how Boop reacts to what's happening. …\n\nNOW (14:09, Tuesday)\nclaude's tests failed again on \"agent-work-visibility\", 3 in a row.\nBoop did nothing on its own.",
+  "state": "You are the mind of Boop, a small creature on a person's desk …\n\nNOW (14:09, Tuesday)\nclaude's tests failed again on \"agent-work-visibility\", 3 in a row.\nBoop did nothing on its own.",
   "questions": {
     "mood": {
       "type": "choice",
@@ -312,7 +299,7 @@ claude's tests passed on "agent-work-visibility" after 3 failures in a row.
 Boop did nothing on its own.
 ```
 
-(READING, GUIDE and PERSONALITY are as in §4.) Jev answers `mood: cheerful`,
+(The guide and PERSONALITY are as in §4.) Jev answers `mood: cheerful`,
 `react: proud`, `word.feeling: finally 0.66`. The last mood change was 12
 minutes ago, over the 10-minute limit, so both actions return a result:
 Boop turns cheerful and mumbles, proud, "…finally!". Entries 14–16: the
@@ -327,7 +314,7 @@ claude finished turn 7 on "agent-work-visibility": done after 23 min, a very lon
 Boop cheered on its own.
 ```
 
-HISTORY ends with the "…finally!" of two minutes ago, and GUIDE says not
+HISTORY ends with the "…finally!" of two minutes ago, and the guide says not
 to repeat what Boop just did. Jev answers `mood: cheerful` and `react: none`, so both actions return
 `nil`. The pass appends only its `pass` entry (18).
 
