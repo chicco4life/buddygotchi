@@ -923,7 +923,7 @@ final class RuntimeTests: XCTestCase {
         runtime.home.sync { runtime.run([.moment(anim: "cheer", loops: 1)]) }
         clock.now += 300
         let asking = StateSnapshot(base: "idle", mood: "happy", attn: .init(agent: "claude", project: "x", more: 0, id: 1),
-                                   busy: 0, idle: 0, wait: 1, vol: 6)
+                                   busy: 0, vol: 6)
         runtime.home.sync { runtime.run([.state(asking)]) }
         XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.cheerUntil }, clock.now, "needs you stopped it")
         runtime.home.sync { runtime.run([.state(sampleSnapshot())]) }
