@@ -110,7 +110,7 @@ commands go through the bridge.
 | `internal/tools/.venv/bin/python internal/tools/voicegen/voicegen.py [--out FILE] [--wav-dir DIR]` | Rebuilds the voice assets, `firmware/assets/voice.h`, with macOS `say` ([VOICE.md](VOICE.md) §8); `--wav-dir` also writes every clip as a WAV |
 | `internal/tools/.venv/bin/python internal/tools/fontgen/fontgen.py [--ttf-dir DIR]` | Rebuilds the device's fonts, `firmware/assets/fonts.h`, from Geist Mono ([DEVICE.md](DEVICE.md) §6); the `.ttf` files are in `landing/node_modules` after `npm ci` there, by default |
 | `internal/tools/.venv/bin/python internal/tools/facegen/facegen.py [--check]` | What `make -C internal faces` runs; without `--check` it skips the comparison with Chrome |
-| `python3 internal/tools/workday/workday.py plan\|run\|report` | A scripted 8-hour working day through `Boop --headless` and its brain on a compressed clock, and a report of what Boop did hour by hour: mood changes, reactions by kind of line, faces (L5, [EVALS.md](EVALS.md) §5). `run --state DIR` (short, under `/tmp`; it's deleted first), `--seed N` (1), `--brain jev\|scripted` (jev, with `BOOP_JEV_KEY`), `--personality`, `--out DIR`, `--verbose`; `report FILE…` takes `debug.jsonl` files, `--json` |
+| `python3 internal/tools/workday/workday.py plan\|run\|report` | A scripted 8-hour working day through `Boop --headless` and its brain on a compressed clock, and a report of what Boop did hour by hour: mood changes, reactions by kind of line, faces, and the day's words (L5, [EVALS.md](EVALS.md) §5). `run --state DIR` (short, under `/tmp`; it's deleted first), `--seed N` (1), `--brain jev\|scripted` (jev, with `BOOP_JEV_KEY`), `--personality`, `--out DIR`, `--verbose`; `report FILE…` takes `debug.jsonl` files, `--json` |
 | `internal/tools/webcam/webcam.sh list\|record\|analyze` | The camera recorder ([its README](../internal/tools/webcam/README.md)); `boopctl cam` wraps it |
 | `internal/skills/doctor/doctor.sh` | Checks from inside an agent that its hooks reach Boop; `--headless` against a throwaway app ([ADAPTERS.md](ADAPTERS.md) §6) |
 
@@ -343,8 +343,8 @@ retried once and counted as a link glitch.
    day ([EVALS.md](EVALS.md) §5): `workday.py run` twice before the
    change and twice after, same seed, and `workday.py report` on each.
    How often the mood changes per hour, whether a routine line changed
-   it, and how often and with which faces Boop reacts, before against
-   after.
+   it, and how often, with which faces and which words Boop reacts,
+   before against after.
 
 **Pass:** every scenario passes in every run; no pass is dropped; the
 slowest pass is under the 1.25 s deadline; and the sample reads well.

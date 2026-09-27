@@ -186,9 +186,10 @@ routine line shouldn't cause); and reactions, as reacted/all for each
 kind of line that woke the brain: notable (a failure, a fix, a failed or
 stopped turn, a turn of 10 minutes or more, a poke streak), a clean
 finish of 1 to 10 minutes, one under a minute, a turn start, and a
-heartbeat; and the faces used. Then how long each mood lasted, and every
-mood change with the line that brought it. `--json` gives all that and
-every reaction.
+heartbeat; and the faces used. Then the words the reactions mumbled over
+the day (`none` for a mumble with no real word), how long each mood
+lasted, and every mood change with the line that brought it. `--json`
+gives all that and every reaction.
 
 Jev is stochastic, so run each side of a change at least twice. Warm it
 up on new steering first (a `boopdev eval --runs 1`): its first passes

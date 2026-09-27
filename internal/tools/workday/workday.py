@@ -5,7 +5,7 @@
 `plan` prints the day, `run` replays it through `Boop --headless` on a
 compressed clock, and `report` sums up what Boop did, hour by hour: how
 often its mood changed (and whether after one routine turn), how often it
-reacted, and with which faces. The same seed always gives the same day, so a
+reacted, with which faces and which words. The same seed always gives the same day, so a
 run before a steering change and one after it can be compared; Jev itself
 isn't deterministic, so run each at least twice.
 
@@ -635,7 +635,8 @@ def routine(event: dict[str, Any]) -> bool:
 
 def new_hour() -> dict[str, Any]:
     return {"turns": 0, "passes": 0, "dropped": 0, "reactions": 0, "mood_changes": 0, "mood_after_routine": 0,
-            "back_to_happy": 0, "lines": Counter(), "reacted": Counter(), "faces": Counter(), "loops": Counter()}
+            "back_to_happy": 0, "lines": Counter(), "reacted": Counter(), "faces": Counter(), "loops": Counter(),
+            "words": Counter()}
 
 
 def summarize(path: Path) -> dict[str, Any]:
@@ -687,13 +688,14 @@ def summarize(path: Path) -> dict[str, Any]:
                 msg = a["message"]
                 face = msg.split(" face")[0].split()[-1]
                 held = msg.split("held ")[1].split(",")[0] if "held " in msg else "once"
+                word = msg.split('"…')[1].split("!")[0] if '"…' in msg else None
                 hr["reactions"] += 1
                 hr["reacted"][ev["class"]] += 1
                 hr["faces"][face] += 1
                 hr["loops"][held] += 1
+                hr["words"][word or "none"] += 1
                 reactions.append({"at": clock_of(ev["at"]), "class": ev["class"], "face": face, "held": held,
-                                  "word": msg.split('"…')[1].split("!")[0] if '"…' in msg else None,
-                                  "after": ev["line"]})
+                                  "word": word, "after": ev["line"]})
     # How long each mood lasted, from the first event to the last.
     spans: Counter = Counter()
     if events:
@@ -744,7 +746,8 @@ def report(paths: list[Path], as_json: bool = False) -> str:
                        + f" | {v['mood_changes']} | {v['back_to_happy']} | {v['mood_after_routine']}"
                        f" | {v['reactions']} | {rate}"
                        f" | {fmt(v['faces'])} |")
-        out += ["", "Time in each mood: " + ", ".join(f"{k} {v} min" for k, v in r["mood_minutes"].items()),
+        out += ["", "Words mumbled (none: a mumble with no real word): " + fmt(total(r)["words"]),
+                "", "Time in each mood: " + ", ".join(f"{k} {v} min" for k, v in r["mood_minutes"].items()),
                 "", "Mood changes:"]
         for c in r["changes"]:
             out.append(f"- {c['at']} {c['change']} ({c['class']}): {c['after']}")

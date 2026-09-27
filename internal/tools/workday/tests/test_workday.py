@@ -96,10 +96,28 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(t["lines"], Counter({"start": 1, "short": 1, "notable": 1}))
         self.assertEqual(t["faces"], Counter({"grumpy": 1}))
         self.assertEqual(t["loops"], Counter({"twice": 1}))
+        self.assertEqual(t["words"], Counter({"oops": 1}))
         self.assertEqual(r["reactions"][0]["word"], "oops")
         # Excited from the first event to the failure 2 minutes later, then
         # grumpy to the last event, the same failure.
         self.assertEqual(r["mood_minutes"], {"excited": 2, "happy": 0, "grumpy": 0})
+
+    def test_the_words_count_a_mumble_with_no_word_as_none(self) -> None:
+        end = {"kind": "turn_end", "line": "claude finished turn 1 on \"api\": done after 50 s, a long turn.",
+               "wakes_brain": True, "facts": {"outcome": "done", "length_ms": 50_000, "tools_failed": 0}}
+        lines = [
+            entry(1, 0, event=end),
+            entry(2, 0, action={"for": 1, "name": "react", "ok": True, "pending": True,
+                                "message": "Boop made a happy face, held once, and mumbled."}),
+            entry(3, 1, event=end),
+            entry(4, 1, action={"for": 3, "name": "react", "ok": True, "pending": True,
+                                "message": "Boop made an excited face, held once, and mumbled \"…yay!\""}),
+        ]
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "debug.jsonl"
+            path.write_text("\n".join(lines) + "\n")
+            self.assertEqual(workday.total(workday.summarize(path))["words"], Counter({"none": 1, "yay": 1}))
+            self.assertIn("Words mumbled (none: a mumble with no real word): none 1, yay 1", workday.report([path]))
 
     def test_a_mood_fading_on_a_routine_line_is_counted_apart(self) -> None:
         start = {"kind": "turn_start", "line": "claude started turn 2 on \"api\".", "wakes_brain": True, "facts": {}}
