@@ -360,20 +360,14 @@ public final class Core {
         return fx
     }
 
-    /// The Mac's mic or speech recognition couldn't start. After the Talk
-    /// button, the empty moment ends the device's `listening` face at once;
-    /// the device's own button ends it by itself.
+    /// The Mac's mic or speech recognition couldn't start: as when it heard
+    /// nothing, the empty moment ends the device's `listening` face at once,
+    /// after either button.
     @discardableResult
     public func micFailed(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
-        let byApp = listening?.by == .app
         stopListening(now, &fx)
-        replyWait = nil  // no words are coming
-        if byApp {
-            listeningEndsAt = nil
-            fx.append(.endListening)
-        }
-        return fx
+        return fx + heardNothing(at: now)
     }
 
     /// The `quiet` action: no mumbles for `minutes` (0 ends it). The strip's

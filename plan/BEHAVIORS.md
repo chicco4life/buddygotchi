@@ -101,9 +101,8 @@ and click Send ([UX.md](UX.md) §5 has the indicators and permissions).
 4. If Boop won't reply (you asked for quiet, told it off in calm, quiet
    mode is on, something needs you, or the pass failed), or the mic heard
    nothing, the Mac ends `listening` at once with an empty `moment`
-   ([PROTOCOL.md](PROTOCOL.md) §3).
-5. If the Mac's mic can't start, `listening` ends at once after Talk.
-   After BOOT, the device ends it 8 s after you let go.
+   ([PROTOCOL.md](PROTOCOL.md) §3). So does a mic that can't start, even
+   while BOOT is still held.
 
 Until the reply nothing else speaks: no working chatter, and no brain
 mumble about an agent (one waiting its turn is dropped), since any mumble

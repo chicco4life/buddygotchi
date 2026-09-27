@@ -824,17 +824,21 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening), "and not again at 8 s")
     }
 
-    /// BEHAVIORS.md §3.3: a Mac mic that can't start ends the Talk button's
-    /// `listening` at once with the empty moment. The device's own button
-    /// ends its face by itself.
+    /// BEHAVIORS.md §3.3: a Mac mic that can't start ends `listening` at
+    /// once with the empty moment, after either button, as hearing nothing
+    /// does. After BOOT the face ends while you still hold it, so the
+    /// release has no 8 s stare left to hold.
     func testAMicThatCantStartEndsListeningAtOnce() {
         let rig = CoreRig()
         rig.core.listen(true, at: rig.now)
         XCTAssertEqual(rig.core.micFailed(at: rig.now), [.listen(false), .endListening])
         XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening), "no second one later")
         rig.input(.talkOn)
-        XCTAssertEqual(rig.core.micFailed(at: rig.now), [.listen(false)])
+        XCTAssertEqual(rig.core.micFailed(at: rig.now), [.listen(false), .endListening])
+        XCTAssertEqual(rig.core.heardNothing(at: rig.now), [], "the mic's stop hears nothing more")
+        XCTAssertEqual(rig.input(.talkOff), [], "the release changes nothing")
         XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening))
+        XCTAssertEqual(rig.core.micFailed(at: rig.now), [], "nothing to end")
     }
 
     /// The first activity of the day starts short-term memory with no
