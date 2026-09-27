@@ -188,9 +188,9 @@ delays a press ([UX.md](UX.md) §4). A screenshot always draws afresh.
 | --- | --- | --- |
 | Firmware size | 1.08 MB | `firmware.bin` of the merged build, 2026-09-27 |
 | Minimum free heap, through `perf --motion` and a pipeline soak | 74.0 KB | The bench board, [2026-09-26](evidence/2026-09-26-e2e-hardening/README.md) |
-| Pictures a second through `perf --motion`'s cheers and wiggles | 15–30, 21 on average | The simulator, a loop pass every ms, 2026-09-27 |
-| Drawing and pushing one frame (`draw_us`, `push_us`) | 0.6–1.0 ms and 2.7 ms | The bench board, merged firmware `d36886a`, 2026-09-27 |
-| Minimum free heap in motion, merged firmware | 73.8 KB | The same |
+| Pictures a second through `perf --motion`'s cheers and wiggles | 23 on average, 18 at the least (the simulator: 15–30, 21 on average) | The bench board, firmware `c0baa57`, 20 s, 2026-09-27 |
+| Drawing and pushing one changed frame (`draw_us`, `push_us`) | 1.2 ms and 4.5 ms | The same |
+| Minimum free heap in motion | 73.8 KB | The same |
 
 `fps` in `dbg.ping` counts frames drawn, so it says how often the picture
 changed; `draw_us` and `push_us` say how fast the board draws.
