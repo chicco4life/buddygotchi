@@ -73,8 +73,9 @@ only if every run does. Then, leaving out steps that script a stage, it
 reports refusals, how many passes Stage 1 answered on the menu, the
 writer's slots filled and its failures, the calls actions dropped and
 why, and for each kind of input the p50 latency of each stage and the p95
-of the whole pass against its deadline. It exits 1 unless every scenario
-passed and that report holds ([VERIFICATION.md](VERIFICATION.md) L5). Run
+of the whole pass against its deadline. Then one line says whether it
+all passed, and it exits 1 unless every scenario passed and that report holds
+([VERIFICATION.md](VERIFICATION.md) L5). Run
 it after changing `steering.md`, a definition's questions or a brain's
 prompt. `--classifier` runs any mode's lines with another classifier
 (`jev` needs `BOOP_JEV_KEY`), and `--writer apple` adds Apple's writer to

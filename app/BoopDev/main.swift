@@ -371,6 +371,13 @@ func eval(_ raw: [String]) async {
         let summary = Eval.Summary(results.flatMap { $0.flatMap(\.brainPasses) })
         summary.lines.forEach { print($0) }
         summaryHolds = summary.holds
+        // One verdict for both halves, so a report that held can't read as
+        // a pass under failed scenarios.
+        var failed: [String] = []
+        if passed < results.count { failed.append("\(results.count - passed) of \(results.count) scenarios failed") }
+        if !summaryHolds { failed.append("the report didn't hold") }
+        print(failed.isEmpty ? "passed: every scenario, and the report; now read a sample of the passes (VERIFICATION.md L5)"
+                             : "did NOT pass: " + failed.joined(separator: ", "))
     }
     print("every pass: boopdev watch \(log.path)")
     exit(passed == results.count && summaryHolds ? 0 : 1)
