@@ -19,6 +19,13 @@ public struct HookLine: Equatable, Sendable {
     public var kind: String?
     /// `PostToolUseFailure` because you interrupted the call.
     public var interrupt: Bool
+    /// `PostToolUseFailure`'s error as a short class (`ToolError`); the
+    /// error's text never leaves `boop-hook`.
+    public var toolError: String?
+    /// The tool call's ID, to pair its `PreToolUse` with its result.
+    public var toolUseID: String?
+    /// Claude's `agent_type`: what kind of subagent the hook fired in.
+    public var agentType: String?
     /// Claude's `agent_id`: which subagent the hook fired in. Claude gives a
     /// subagent's hooks the parent's session, so this tells siblings apart;
     /// nil for the main agent.
@@ -28,6 +35,7 @@ public struct HookLine: Equatable, Sendable {
 
     public init(agent: String, hook: String, session: String, cwd: String? = nil, tool: String? = nil,
                 topic: String? = nil, error: String? = nil, kind: String? = nil, interrupt: Bool = false,
+                toolError: String? = nil, toolUseID: String? = nil, agentType: String? = nil,
                 agentID: String? = nil, ts: Int64) {
         self.agent = agent
         self.hook = hook
@@ -38,6 +46,9 @@ public struct HookLine: Equatable, Sendable {
         self.error = error
         self.kind = kind
         self.interrupt = interrupt
+        self.toolError = toolError
+        self.toolUseID = toolUseID
+        self.agentType = agentType
         self.agentID = agentID
         self.ts = ts
     }
@@ -60,14 +71,18 @@ public struct HookLine: Equatable, Sendable {
               let session = string(json["session_id"]) ?? string(json["thread_id"]) ?? string(json["conversation_id"])
         else { return nil }
         var line = HookLine(agent: agent, hook: hook, session: session, cwd: string(json["cwd"]),
-                            agentID: string(json["agent_id"]), ts: ts)
+                            agentType: string(json["agent_type"]), agentID: string(json["agent_id"]), ts: ts)
         switch hook {
         case "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest":
             line.tool = string(json["tool_name"])
+            line.toolUseID = string(json["tool_use_id"])
             if hook != "PermissionRequest" {
                 line.topic = Topic.tag(tool: line.tool, input: json["tool_input"])
             }
             line.interrupt = hook == "PostToolUseFailure" && json["is_interrupt"] as? Bool == true
+            if hook == "PostToolUseFailure" && !line.interrupt {
+                line.toolError = ToolError.classify(json["error"] as? String)
+            }
         case "StopFailure":
             line.error = string(json["error"]) ?? string(json["error_type"])
         case "Notification":
@@ -97,6 +112,7 @@ public struct HookLine: Equatable, Sendable {
                             agentID: field("agent_id"), ts: ts)
         if ["PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest"].contains(hook) {
             line.tool = field("tool_name")
+            line.toolUseID = field("tool_use_id")
         }
         return line
     }
@@ -116,6 +132,9 @@ public struct HookLine: Equatable, Sendable {
         if let error { object["error"] = error }
         if let kind { object["kind"] = kind }
         if interrupt { object["interrupt"] = true }
+        if let toolError { object["tool_error"] = toolError }
+        if let toolUseID { object["tool_use_id"] = toolUseID }
+        if let agentType { object["agent_type"] = agentType }
         if let agentID { object["agent_id"] = agentID }
         // No `.sortedKeys`: nothing reads the order, and sorting loads
         // locale-aware comparison, about half of a hook's few milliseconds.
@@ -132,6 +151,8 @@ public struct HookLine: Equatable, Sendable {
         return HookLine(agent: agent, hook: hook, session: session, cwd: string(object["cwd"]),
                         tool: string(object["tool"]), topic: string(object["topic"]),
                         error: string(object["error"]), kind: string(object["kind"]),
-                        interrupt: object["interrupt"] as? Bool == true, agentID: string(object["agent_id"]), ts: ts)
+                        interrupt: object["interrupt"] as? Bool == true, toolError: string(object["tool_error"]),
+                        toolUseID: string(object["tool_use_id"]), agentType: string(object["agent_type"]),
+                        agentID: string(object["agent_id"]), ts: ts)
     }
 }

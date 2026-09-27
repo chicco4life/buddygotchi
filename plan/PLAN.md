@@ -160,8 +160,7 @@ fixed. Pick one up by writing it into its spec first.
   `plan/steering/`), the `steering.md` rule in CLAUDE.md,
   [ARCHITECTURE.md](ARCHITECTURE.md) §3.2–3.3 and §4 (bursts, the stages,
   memory writes), [VOICE.md](VOICE.md) §6 (who picks the word),
-  [ADAPTERS.md](ADAPTERS.md) §2–3 (the extra hook fields, the workspace,
-  Codex's `Interrupt`) and [EVALS.md](EVALS.md). Talk and memory writes
+  and [EVALS.md](EVALS.md). Talk and memory writes
   come back after it ([FUTURE.md](FUTURE.md)).
 
 - **Release.** There's no signing, notarisation, app icon or release

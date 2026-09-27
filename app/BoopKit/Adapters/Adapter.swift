@@ -29,7 +29,8 @@ public enum Adapter {
     /// other. A new order would make every install look outdated.
     static let notificationTypes = askingNotifications + [idleNotification]
 
-    /// Codex's hooks. Codex has no failure hook.
+    /// Codex's hooks. Codex has no failure hook; `Interrupt` is you
+    /// pressing Esc.
     static let codex: [String: BoopEvent.Kind] = [
         "SessionStart": .sessionStart,
         "UserPromptSubmit": .turnStart,
@@ -37,14 +38,15 @@ public enum Adapter {
         "PostToolUse": .activity,
         "PermissionRequest": .needsYou,
         "Stop": .turnEnd,
+        "Interrupt": .turnStopped,
         "SessionEnd": .sessionEnd,
     ]
 
     /// The common event for a hook line, or nil for hooks Boop ignores.
-    /// `project` names the line's `cwd`; a line without one is `unknown`,
-    /// and the core keeps the session's project.
+    /// `place` names the line's `cwd`: its project and workspace. A line
+    /// without one is `unknown`, and the core keeps the session's.
     public static func event(from line: HookLine, receivedAt: Int64? = nil,
-                             project: (String) -> String = { projectName(cwd: $0) }) -> BoopEvent? {
+                             place: (String) -> Place = { place(cwd: $0) }) -> BoopEvent? {
         guard let agent = Agent(hookName: line.agent) else { return nil }
         let kind: BoopEvent.Kind?
         switch agent {
@@ -67,11 +69,14 @@ public enum Adapter {
         switch kind {
         case .activity, .needsYou:
             detail.tool = line.tool
+            detail.toolUseID = line.toolUseID
             detail.topic = kind == .activity ? line.topic : nil
             if agent == .claudeCode && !line.interrupt {
                 switch line.hook {
                 case "PostToolUse": detail.failed = false
-                case "PostToolUseFailure": detail.failed = true
+                case "PostToolUseFailure":
+                    detail.failed = true
+                    detail.toolError = line.toolError ?? "other"
                 default: break
                 }
             }
@@ -82,9 +87,11 @@ public enum Adapter {
         default:
             break
         }
+        let where_ = line.cwd.map(place)
         return BoopEvent(agent: agent, session: line.session, subagent: agent == .claudeCode ? line.agentID : nil,
-                         project: line.cwd.map(project) ?? "unknown", event: kind, detail: detail,
-                         ts: receivedAt ?? line.ts)
+                         subagentType: agent == .claudeCode ? line.agentType : nil,
+                         project: where_?.project ?? "unknown", workspace: where_?.workspace, event: kind,
+                         detail: detail, ts: receivedAt ?? line.ts)
     }
 
     /// Claude's `StopFailure` errors that don't name their class.
@@ -103,22 +110,87 @@ public enum Adapter {
         return classes.first { lowered.contains($0) } ?? "other"
     }
 
-    /// Project names by working directory, so a worktree's `.git` is read
-    /// once per folder rather than on every hook. Touch it from one queue.
-    public final class ProjectNames {
-        var names: [String: String] = [:]
+    /// Where a session works: its project, and the workspace that tells two
+    /// threads in one project apart.
+    public struct Place: Equatable, Sendable {
+        public var project: String
+        public var workspace: String?
+        public init(project: String, workspace: String? = nil) {
+            self.project = project
+            self.workspace = workspace
+        }
+    }
+
+    /// Places by working directory, so a folder's `.git` is read once per
+    /// folder rather than on every hook. Touch it from one queue.
+    public final class Places {
+        var places: [String: Place] = [:]
         /// Folders remembered before the cache starts again.
         static let limit = 512
 
         public init() {}
 
-        public func name(cwd: String) -> String {
-            if let name = names[cwd] { return name }
-            if names.count >= Self.limit { names.removeAll() }
-            let name = Adapter.projectName(cwd: cwd)
-            names[cwd] = name
-            return name
+        public func place(cwd: String) -> Place {
+            if let place = places[cwd] { return place }
+            if places.count >= Self.limit { places.removeAll() }
+            let place = Adapter.place(cwd: cwd)
+            places[cwd] = place
+            return place
         }
+    }
+
+    public static func place(cwd: String, fileManager: FileManager = .default) -> Place {
+        Place(project: projectName(cwd: cwd, fileManager: fileManager),
+              workspace: workspace(cwd: cwd, fileManager: fileManager))
+    }
+
+    /// The workspace's name (harness/EVENTS.md §3): a linked worktree's
+    /// folder name, else the checked-out branch, else nil (the default
+    /// branch, a detached head, or no git), cleaned by `cleanWorkspace`.
+    public static func workspace(cwd: String, fileManager: FileManager = .default) -> String? {
+        var path = cwd
+        while path.count > 1 && path.hasSuffix("/") { path.removeLast() }
+        guard !path.isEmpty, path != "/" else { return nil }
+        let gitPath = (path as NSString).appendingPathComponent(".git")
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: gitPath, isDirectory: &isDirectory) else {
+            // A common worktree folder that can't be read still names itself.
+            let parts = path.split(separator: "/").map(String.init)
+            if parts.count >= 3, parts[parts.count - 2] == ".worktrees" || parts[parts.count - 2] == "worktrees" {
+                return cleanWorkspace(parts[parts.count - 1])
+            }
+            return nil
+        }
+        if !isDirectory.boolValue {
+            // A linked worktree: `gitdir: <repo>/.git/worktrees/<name>`.
+            guard let text = try? String(contentsOfFile: gitPath, encoding: .utf8),
+                  let range = text.range(of: "/.git/worktrees/") else { return nil }
+            let name = text[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+            return cleanWorkspace(name)
+        }
+        guard let head = try? String(contentsOfFile: (gitPath as NSString).appendingPathComponent("HEAD"), encoding: .utf8)
+        else { return nil }
+        let prefix = "ref: refs/heads/"
+        guard head.hasPrefix(prefix) else { return nil }
+        let branch = head.dropFirst(prefix.count).trimmingCharacters(in: .whitespacesAndNewlines)
+        return defaultBranches.contains(branch) ? nil : cleanWorkspace(branch)
+    }
+
+    static let defaultBranches: Set<String> = ["main", "master", "trunk", "develop"]
+
+    /// An agent chooses its branch names, so a workspace is cleaned before
+    /// anything sees it: a leading `word/` and a trailing hash (`-7a22ea`)
+    /// go, it's lowercased, only `a-z`, `0-9` and `-` stay, and it's cut to
+    /// 40 characters. Nothing left is nil.
+    public static func cleanWorkspace(_ raw: String) -> String? {
+        var name = raw.lowercased()
+        if let slash = name.lastIndex(of: "/") { name = String(name[name.index(after: slash)...]) }
+        if let range = name.range(of: "-[0-9a-f]{6,}$", options: .regularExpression) { name.removeSubrange(range) }
+        name = String(name.map { $0.isASCII && ($0.isLetter || $0.isNumber) ? $0 : "-" })
+        while name.contains("--") { name = name.replacingOccurrences(of: "--", with: "-") }
+        name = name.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        name = String(name.prefix(40)).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        return name.isEmpty ? nil : name
     }
 
     /// The last folder of `cwd`. A git worktree maps to its main repository's

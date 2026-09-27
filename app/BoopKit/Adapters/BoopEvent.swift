@@ -47,12 +47,20 @@ public struct BoopEvent: Equatable, Sendable {
         /// `PostToolUse` (false) and `PostToolUseFailure` (true), but not a
         /// call you interrupted. Nil when unknown.
         public var failed: Bool?
+        /// A failed tool call's error class: `exit_code`, `timeout`, `denied`
+        /// or `other` (harness/EVENTS.md §4).
+        public var toolError: String?
+        /// The tool call's ID, pairing its `PreToolUse` with its result.
+        public var toolUseID: String?
 
-        public init(tool: String? = nil, topic: String? = nil, error: String? = nil, failed: Bool? = nil) {
+        public init(tool: String? = nil, topic: String? = nil, error: String? = nil, failed: Bool? = nil,
+                    toolError: String? = nil, toolUseID: String? = nil) {
             self.tool = tool
             self.topic = topic
             self.error = error
             self.failed = failed
+            self.toolError = toolError
+            self.toolUseID = toolUseID
         }
     }
 
@@ -61,18 +69,25 @@ public struct BoopEvent: Equatable, Sendable {
     /// The Claude subagent the event came from, which shares its parent's
     /// session; nil for the main agent and for Codex.
     public var subagent: String?
+    /// That subagent's type, e.g. `Explore`.
+    public var subagentType: String?
     public var project: String
+    /// The worktree folder or git branch the session works in, cleaned to a
+    /// name (harness/EVENTS.md §3); nil on the default branch or outside git.
+    public var workspace: String?
     public var event: Kind
     public var detail: Detail
     /// Milliseconds.
     public var ts: Int64
 
-    public init(agent: Agent, session: String, subagent: String? = nil, project: String, event: Kind,
-                detail: Detail = Detail(), ts: Int64) {
+    public init(agent: Agent, session: String, subagent: String? = nil, subagentType: String? = nil,
+                project: String, workspace: String? = nil, event: Kind, detail: Detail = Detail(), ts: Int64) {
         self.agent = agent
         self.session = session
         self.subagent = subagent
+        self.subagentType = subagentType
         self.project = project
+        self.workspace = workspace
         self.event = event
         self.detail = detail
         self.ts = ts
@@ -80,7 +95,8 @@ public struct BoopEvent: Equatable, Sendable {
 
     /// The event on one line, for debug mode: `activity landing · tool Bash, topic tests`.
     public var summary: String {
-        let parts = [detail.tool.map { "tool \($0)" }, detail.topic.map { "topic \($0)" }, detail.failed == true ? "failed" : nil,
+        let parts = [workspace.map { "workspace \($0)" }, detail.tool.map { "tool \($0)" }, detail.topic.map { "topic \($0)" },
+                     detail.failed == true ? "failed" : nil, detail.toolError.map { "tool error \($0)" },
                      detail.error.map { "error \($0)" }, subagent.map { "subagent \($0)" }].compactMap { $0 }
         return "\(event.rawValue) \(project)" + (parts.isEmpty ? "" : " · " + parts.joined(separator: ", "))
     }
@@ -92,11 +108,15 @@ public struct BoopEvent: Equatable, Sendable {
         if let topic = detail.topic { detailObject["topic"] = topic }
         if let error = detail.error { detailObject["error"] = error }
         if let failed = detail.failed { detailObject["failed"] = failed }
+        if let toolError = detail.toolError { detailObject["tool_error"] = toolError }
+        if let toolUseID = detail.toolUseID { detailObject["tool_use_id"] = toolUseID }
         var object: [String: Any] = [
             "agent": agent.rawValue, "session": session, "project": project,
             "event": event.rawValue, "detail": detailObject, "ts": ts,
         ]
         if let subagent { object["subagent"] = subagent }
+        if let subagentType { object["subagent_type"] = subagentType }
+        if let workspace { object["workspace"] = workspace }
         let data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
         return String(decoding: data, as: UTF8.self)
     }

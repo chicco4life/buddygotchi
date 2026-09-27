@@ -40,14 +40,15 @@ final class HookWireTests: XCTestCase {
     }
 
     /// ADAPTERS.md §2: a failed call's error text never gets this far, only
-    /// whether you interrupted it.
+    /// its class and whether you interrupted it.
     func testPostToolUseFailureKeepsOnlyWhetherYouInterruptedIt() throws {
         let failure = try XCTUnwrap(HookLine.extract(agent: "claude", payload: payload([
             "hook_event_name": "PostToolUseFailure", "session_id": "s", "tool_name": "Bash",
             "tool_input": ["command": "npm test"], "error": "PRIVATE Command exited with non-zero status code 1",
             "is_interrupt": false,
         ]), ts: 0))
-        XCTAssertEqual(failure, HookLine(agent: "claude", hook: "PostToolUseFailure", session: "s", tool: "Bash", topic: "tests", ts: 0))
+        XCTAssertEqual(failure, HookLine(agent: "claude", hook: "PostToolUseFailure", session: "s", tool: "Bash", topic: "tests",
+                                         toolError: "exit_code", ts: 0))
         let wire = String(decoding: failure.encoded(), as: UTF8.self)
         XCTAssertFalse(wire.contains("PRIVATE") || wire.contains("interrupt"), wire)
         let interrupted = try XCTUnwrap(HookLine.extract(agent: "claude", payload: payload([
@@ -80,8 +81,8 @@ final class HookWireTests: XCTestCase {
     }
 
     /// ADAPTERS.md §2: a subagent's hooks carry the parent's session plus
-    /// its `agent_id`, which the line keeps (an opaque id; `agent_type` is
-    /// dropped), even from a payload cut off at the cap.
+    /// its `agent_id` and `agent_type`, which the line keeps (harness/EVENTS.md
+    /// §3), the id even from a payload cut off at the cap.
     func testASubagentsIDIsKept() throws {
         let raw = payload([
             "hook_event_name": "PreToolUse", "session_id": "s1", "agent_id": "a1b2", "agent_type": "general-purpose",
@@ -90,7 +91,7 @@ final class HookWireTests: XCTestCase {
         let line = try XCTUnwrap(HookLine.extract(agent: "claude", payload: raw, ts: 0))
         XCTAssertEqual(line.agentID, "a1b2")
         XCTAssertEqual(HookLine.decode(line.encoded()), line)
-        XCTAssertFalse(String(decoding: line.encoded(), as: UTF8.self).contains("general-purpose"))
+        XCTAssertEqual(line.agentType, "general-purpose")
         let main = try XCTUnwrap(HookLine.extract(agent: "claude", payload: payload(["hook_event_name": "Stop", "session_id": "s1"]), ts: 0))
         XCTAssertNil(main.agentID)
         XCTAssertFalse(String(decoding: main.encoded(), as: UTF8.self).contains("agent_id"))
@@ -263,5 +264,26 @@ final class HookWireTests: XCTestCase {
         XCTAssertEqual(HookSocket.defaultPath(environment: ["HOME": "/Users/x"]),
                        "/Users/x/Library/Application Support/Boop/boop.sock")
         XCTAssertEqual(HookSocket.defaultPath(environment: ["HOME": "/Users/x", "BOOP_SOCKET": "/tmp/b.sock"]), "/tmp/b.sock")
+    }
+
+    /// harness/EVENTS.md §4: a tool error's text becomes one of four classes.
+    func testToolErrorClasses() {
+        XCTAssertEqual(ToolError.classify("Command exited with non-zero status code 1"), "exit_code")
+        XCTAssertEqual(ToolError.classify("Command timed out after 2m"), "timeout")
+        XCTAssertEqual(ToolError.classify("Permission to use Bash has been denied."), "denied")
+        XCTAssertEqual(ToolError.classify("something odd"), "other")
+        XCTAssertEqual(ToolError.classify(nil), "other")
+    }
+
+    /// The tool call's ID and a subagent's type are kept; they carry no content.
+    func testKeepsTheToolUseIDAndAgentType() throws {
+        let line = try XCTUnwrap(HookLine.extract(agent: "claude", payload: payload([
+            "hook_event_name": "PreToolUse", "session_id": "s", "tool_name": "Read", "tool_use_id": "toolu_9",
+            "agent_id": "a1", "agent_type": "Explore", "tool_input": ["file_path": "/PRIVATE"],
+        ]), ts: 0))
+        XCTAssertEqual(line.toolUseID, "toolu_9")
+        XCTAssertEqual(line.agentType, "Explore")
+        XCTAssertEqual(HookLine.decode(line.encoded()), line)
+        XCTAssertFalse(String(decoding: line.encoded(), as: UTF8.self).contains("PRIVATE"))
     }
 }

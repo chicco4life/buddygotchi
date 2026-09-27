@@ -38,7 +38,7 @@ public struct HookInstaller {
         ],
         .codex: [
             ("SessionStart", "startup|resume|clear"), ("UserPromptSubmit", nil), ("PreToolUse", nil),
-            ("PostToolUse", nil), ("PermissionRequest", nil), ("Stop", nil), ("SessionEnd", nil),
+            ("PostToolUse", nil), ("PermissionRequest", nil), ("Stop", nil), ("Interrupt", nil), ("SessionEnd", nil),
         ],
     ]
     /// Seconds. `boop-hook` finishes in milliseconds and gives up after one.

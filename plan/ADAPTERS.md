@@ -37,9 +37,11 @@ for a `PreToolUse` that runs tests:
 | `agent` | `claude_code` or `codex` |
 | `session` | The agent's session or thread ID |
 | `subagent` | Only on events from inside a Claude subagent, which shares its parent's `session`: its `agent_id` (§4) |
+| `subagent_type` | That subagent's `agent_type`, such as `Explore` |
 | `project` | A short project name from the working directory (§3) |
+| `workspace` | The worktree or branch the session works in, cleaned to a name (§3); missing on the default branch or outside git |
 | `event` | `session_start`, `turn_start`, `activity`, `needs_you`, `turn_end`, `turn_failed`, `turn_stopped` (over without finishing), `session_end` |
-| `detail` | Small and event-specific, per hook in §3: `tool`, `topic`, `failed` (true or false) and `error` (an error class, §2). Never prompt text, commands or file contents |
+| `detail` | Small and event-specific, per hook in §3: `tool`, `tool_use_id`, `topic`, `failed` (true or false), `tool_error` (a failed call's error class, §2) and `error` (a turn's error class, §2). Never prompt text, commands, output or file contents |
 | `ts` | When the app received it, in milliseconds |
 
 Turn length isn't sent: the core times each turn itself.
@@ -56,8 +58,12 @@ agents that fire a hook on every tool call.
 2. It keeps only these fields, each cut to 200 characters: `agent`,
    `hook`, `session`, `cwd`, `tool`, `topic` (§3), `error` (StopFailure's
    `error` or `error_type`), `kind` (Notification's type), `interrupt`
-   (PostToolUseFailure's `is_interrupt`), `agent_id` (the Claude subagent
-   the hook fired in) and `ts`. A payload with no hook name or session
+   (PostToolUseFailure's `is_interrupt`), `tool_error` (PostToolUseFailure's
+   `error` as a class, below), `tool_use_id`, `agent_id` and `agent_type`
+   (the Claude subagent the hook fired in, and its type) and `ts`. A tool
+   error's text is read in memory and only its class kept: `timeout` if it
+   says it timed out, `denied` if it was refused, `exit_code` if a command
+   exited with an error, and `other`. A payload with no hook name or session
    sends nothing.
 3. It writes them as one JSON line to the app's Unix socket,
    `~/Library/Application Support/Boop/boop.sock` (tests point it
@@ -81,9 +87,9 @@ and `unknown` to `other`. Any other text becomes the first of
 | --- | --- | --- |
 | `SessionStart` | `session_start` | |
 | `UserPromptSubmit` | `turn_start` | |
-| `PreToolUse` | `activity` | `tool`, `topic` |
-| `PostToolUse` | `activity` | `tool`, `topic`, `failed: false` |
-| `PostToolUseFailure` | `activity` | `tool`, `topic`, `failed: true` |
+| `PreToolUse` | `activity` | `tool`, `tool_use_id`, `topic` |
+| `PostToolUse` | `activity` | `tool`, `tool_use_id`, `topic`, `failed: false` |
+| `PostToolUseFailure` | `activity` | `tool`, `tool_use_id`, `topic`, `failed: true`, `tool_error` |
 | `PostToolUseFailure` with `is_interrupt` (you pressed Esc) | `turn_stopped` | `tool` |
 | `PermissionRequest` | `needs_you` | `tool` |
 | `Notification`: `permission_prompt`, `elicitation_dialog` | `needs_you` | |
@@ -96,7 +102,8 @@ and `unknown` to `other`. Any other text becomes the first of
 
 Codex's `SessionStart` (startup, resume, clear), `UserPromptSubmit`,
 `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop` and `SessionEnd`
-map the same way. Codex has no failure hook, and what its `PostToolUse`
+map the same way, and its `Interrupt` (you pressed Esc) becomes
+`turn_stopped`. Codex has no failure hook, and what its `PostToolUse`
 reports after a failed command hasn't been seen from a real session, so
 Codex activity carries no `failed` and a Codex turn never fails
 ([FUTURE.md](FUTURE.md)).
@@ -112,6 +119,16 @@ with Esc. The interrupted tool call becomes `turn_stopped`, and so does
 a minute and which also covers an interrupt between tool calls. A working
 session then goes idle with no reaction. Either one can also clear a
 waiting request (§4).
+
+**Workspace.** What tells two threads in one project apart: a linked
+worktree's folder name, else the branch checked out in the folder's
+`.git/HEAD`; none on `main`, `master`, `trunk` or `develop`, on a
+detached head, or outside git. An agent picks its branch names, so the
+name is cleaned: a leading `word/` and a trailing hash (`-7a22ea`) go,
+it's lowercased, only `a-z`, `0-9` and `-` stay, and it's cut to 40
+characters (`claude/agent-work-visibility-7a22ea` is
+`agent-work-visibility`). It's read with the project name, below, and
+cached the same way.
 
 **Project name.** The last folder of the session's `cwd`. A git worktree
 maps to its main repository: `landing` and `landing/.worktrees/fix-nav`

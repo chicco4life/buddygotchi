@@ -115,7 +115,7 @@ public final class Runtime: @unchecked Sendable {
     var timer: DispatchSourceTimer?
     /// Keeps macOS from napping the app while it runs.
     var activity: NSObjectProtocol?
-    let projectNames = Adapter.ProjectNames()
+    let places = Adapter.Places()
     /// Jev's key, touched only on `home`: nil until read, and then the key
     /// or none. Until then normal decides with its table.
     var jevKey: String??
@@ -291,7 +291,7 @@ public final class Runtime: @unchecked Sendable {
     // MARK: Inputs (on `home`)
 
     func hook(_ line: HookLine, received: Int64) {
-        let event = Adapter.event(from: line, receivedAt: received, project: projectNames.name)
+        let event = Adapter.event(from: line, receivedAt: received, place: places.place)
         // Debug mode logs every hook with what it became; the doctor skill
         // arms the plain line to see hooks arrive. Otherwise hooks aren't logged.
         if options.debug {
