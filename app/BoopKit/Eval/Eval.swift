@@ -251,6 +251,14 @@ public struct Eval: Sendable {
         self.memory = memory
     }
 
+    /// The text of a scenario run's header line in the eval's log, as
+    /// `boopdev watch` prints it; nil for any other line.
+    public static func header(_ line: String) -> String? {
+        guard line.hasPrefix("{\"eval\""),
+              let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: String] else { return nil }
+        return o["eval"]
+    }
+
     /// The mode's if-else table, as without Jev's key.
     public static func rules(_ mode: Mode) -> any Classifier {
         Brains.classifier(for: mode)
@@ -263,8 +271,17 @@ public struct Eval: Sendable {
         case rule(String)
     }
 
-    /// Runs a scenario from the start in `mode`.
-    public func run(_ scenario: Scenario, mode: Mode) async throws -> Result {
+    /// Runs a scenario from the start in `mode`. `run` counts runs of the
+    /// same scenario, for the header each run gets in `debugLog`.
+    public func run(_ scenario: Scenario, mode: Mode, run: Int = 1) async throws -> Result {
+        if let debugLog {
+            // The virtual clock starts again with each run, so without it the
+            // passes behind a FAIL line are hard to find.
+            let header = ["eval": "\(mode.rawValue)  \(scenario.file)  run \(run)"]
+            if let data = try? JSONSerialization.data(withJSONObject: header) {
+                Harness.append(String(decoding: data, as: UTF8.self) + "\n", to: debugLog)
+            }
+        }
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent("boop-eval-\(UUID().uuidString)")
         try fm.copyItem(at: memory, to: dir)

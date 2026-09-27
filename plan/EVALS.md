@@ -33,13 +33,15 @@ app/.build/debug/boopdev eval --json FILE     # also write a report, to diff two
 app/.build/debug/boopdev watch FILE           # every pass of a run, readably
 ```
 
-`boopdev` with no arguments lists every flag. A run prints `pass` or
-`FAIL` for each scenario in each mode, then a summary, and exits 1 if any
-failed. For a failed step it prints the expected passes (`-`) and the
+`boopdev eval --help` lists every flag, and it runs from anywhere in the
+repo. A run prints `pass` or `FAIL` for each scenario in each mode, then a
+summary, and exits 1 if any failed. For a failed step it prints the expected passes (`-`) and the
 actual ones (`+`), with how Stage 1 got to each (the rule that matched,
 or Jev's answers) and what the writer answered. Every pass also goes to
 the run's own file in `/tmp/boop-eval`, named at the start and the end
-([HARNESS.md](HARNESS.md) §8); files over a day old are cleared away.
+([HARNESS.md](HARNESS.md) §8), under a header line for each scenario's
+run that `boopdev watch` prints as `=== calm  03-turn-failed.json  run 1`;
+files over a day old are cleared away.
 Here normal's lines run against the chatty table, which mumbles at a
 start (`boopdev eval --mode normal --classifier chatty --only 03`):
 
