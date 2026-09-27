@@ -1460,6 +1460,65 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(rig.sessions, [])
         XCTAssertEqual(rig.state.base, "asleep")
     }
+
+    /// ADAPTERS.md §4: a session that ended stays ended until it starts
+    /// again (`session_start`, or a prompt). A hook of its that lands after
+    /// its `SessionEnd` landed late: a permission `Notification` when you
+    /// quit at the prompt, a background subagent's result or end, the
+    /// command Codex's `Interrupt` aborted, a `Stop`. Before, each brought
+    /// the session back: amber for 10 minutes that silenced every other
+    /// session, working for an hour, or idle (awake at full backlight) for
+    /// a day, and a late `Stop` cheered.
+    func testALateHookAfterSessionEndDoesntBringItBack() {
+        let rig = CoreRig(rules: .chatty)
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Bash", id: "b")
+        rig.send(.needsYou, tool: "Bash")
+        rig.send(.sessionEnd)
+        XCTAssertEqual(rig.state.base, "asleep")
+        rig.now += 50
+        XCTAssertEqual(rig.send(.needsYou), [], "the late Notification")
+        XCTAssertNil(rig.state.attn)
+
+        rig.send(.turnStart, session: "bg")
+        rig.send(.activity, session: "bg", tool: "Agent", id: "a")
+        rig.send(.activity, session: "bg", subagent: "x", tool: "Bash", id: "x1")
+        rig.send(.sessionEnd, session: "bg")
+        var fx = rig.send(.activity, session: "bg", subagent: "x", tool: "Bash", failed: false, id: "x1")
+        fx += rig.send(.subagentEnd, session: "bg", subagent: "x")
+        fx += rig.send(.turnEnd, session: "bg")
+        fx += rig.send(.turnStopped, session: "bg", notice: true)
+        fx += rig.send(.activity, session: "bg", tool: "Read")
+        XCTAssertEqual(events(fx), [])
+        XCTAssertEqual(moments(fx), [], "no cheer for a late Stop")
+        XCTAssertEqual(rig.state.base, "asleep")
+
+        rig.send(.turnStart, .codex, session: "c")
+        rig.send(.activity, .codex, session: "c", tool: "shell", id: "c1")
+        rig.send(.turnStopped, .codex, session: "c")  // Interrupt
+        rig.send(.sessionEnd, .codex, session: "c")
+        rig.send(.activity, .codex, session: "c", tool: "shell", id: "c1", done: true)
+        XCTAssertEqual(rig.state.base, "asleep")
+        XCTAssertEqual(mumbles(rig.wait(30 * 60_000)), [], "no working chatter")
+        XCTAssertEqual(rig.sessions, [])
+
+        // Another session is untouched: its finish cheers and wakes the brain.
+        rig.send(.turnStart, session: "j", project: "jetpack")
+        rig.send(.needsYou, session: "s1")
+        XCTAssertNil(rig.state.attn)
+        XCTAssertEqual(moments(rig.send(.turnEnd, session: "j", project: "jetpack")), ["cheer"])
+
+        // Starting again brings it back: resumed, or a new prompt.
+        rig.send(.sessionStart)
+        XCTAssertEqual(rig.sessions, [["claude", "jetpack", "idle"], ["claude", "landing", "idle"]])
+        XCTAssertEqual(woke(rig.send(.turnStart, session: "bg")), [#"claude started turn 1 on "landing"."#])
+        XCTAssertEqual(rig.state.base, "working")
+
+        // The mark lasts as long as a silent session is kept: a day.
+        rig.wait(25 * 3_600_000)
+        rig.send(.activity, .codex, session: "c", tool: "shell")
+        XCTAssertEqual(rig.state.base, "working", "a day on, it's a session Boop hasn't seen")
+    }
 }
 
 // MARK: - The record and the screen agree

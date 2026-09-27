@@ -130,6 +130,10 @@ public final class Core {
     public private(set) var config: Config
 
     var sessions: [String: Session] = [:]
+    /// When each session that ended (`session_end`) did, until it starts
+    /// again or a day passes: a hook of its that lands later landed late,
+    /// and doesn't bring it back (ADAPTERS.md §4).
+    var ended: [String: Int64] = [:]
     var nextOrder = 0
     /// The last request's number: they count up from 1 each launch.
     var lastAsk = 0
@@ -208,6 +212,14 @@ public final class Core {
 
     /// The event's changes to its session, before the snapshot goes out.
     private func apply(_ event: BoopEvent, _ key: String, _ now: Int64, _ fx: inout [CoreEffect]) {
+        // A session that ended is back only when it starts again: resumed,
+        // or a new prompt. Anything else of its came from before the end (a
+        // Notification as you quit at the prompt, a background subagent's
+        // result, the command Codex's Interrupt aborted).
+        if sessions[key] == nil, ended[key] != nil {
+            guard event.subagent == nil, event.event == .sessionStart || event.event == .turnStart else { return }
+            ended[key] = nil
+        }
         var s = sessions[key] ?? Session(agent: event.agent, id: event.session, project: event.project,
                                          lastEventAt: now, order: takeOrder())
         let waiting = s.needsSince != nil || s.pendingSince != nil
@@ -436,6 +448,7 @@ public final class Core {
             }
         case .sessionEnd:
             sessions[key] = nil
+            ended[key] = now
         case .turnStopped:
             // Over without finishing (ADAPTERS.md §3): a working session goes
             // idle, with no reaction. A turn still open ends as stopped, and
@@ -673,6 +686,7 @@ public final class Core {
                 sessions[key] = s
             }
         }
+        ended = ended.filter { now - $0.value < config.forgetMs }
         chatter(now, &fx)
         heartbeat(now, &fx)
     }
