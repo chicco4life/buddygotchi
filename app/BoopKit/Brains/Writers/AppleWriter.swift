@@ -79,19 +79,16 @@ public struct AppleWriter: Writer {
         if let why = unavailable() { throw BrainError("apple: \(why)") }
         #if canImport(FoundationModels)
         let start = ContinuousClock.now
-        let first = try await generate(context, slots, wordRequired: false)
+        var writing = try await generate(context, slots, wordRequired: false)
         let took = ContinuousClock.now - start
         // Chatty: a word left empty gets one more try, with `none` off its
         // list, if it can finish in the time left; otherwise the first
         // answer stands.
-        guard wordRequired, AppleWriter.missesAWord(first.values, slots), took * 2 < deadline else {
-            return AppleWriter.withoutCopies(first, slots, context)
+        if wordRequired, AppleWriter.missesAWord(writing.values, slots), took * 2 < deadline,
+           let again = try? await generate(context, slots, wordRequired: true) {
+            writing = Writing(values: writing.values.merging(again.values) { old, _ in old }, raw: again.raw)
         }
-        guard let again = try? await generate(context, slots, wordRequired: true) else {
-            return AppleWriter.withoutCopies(first, slots, context)
-        }
-        let merged = Writing(values: first.values.merging(again.values) { old, _ in old }, raw: again.raw)
-        return AppleWriter.withoutCopies(merged, slots, context)
+        return AppleWriter.withoutCopies(writing, slots, context)
         #else
         throw BrainError("FoundationModels isn't in this SDK")
         #endif
@@ -115,17 +112,19 @@ public struct AppleWriter: Writer {
     /// Thursday"). A line that's there and was said again is left to the
     /// memory store, which refuses duplicates.
     static func copied(_ text: String, _ context: Context) -> Bool {
+        let written = line(text)
         let memory = (context.memory.longTerm + "\n" + context.memory.shortTerm).split(separator: "\n")
-        guard memory.contains(where: { line(String($0)) == line(text) }) else { return false }
+        guard memory.contains(where: { line(String($0)) == written }) else { return false }
         let said = Set(stems(context.input.words ?? ""))
         return stems(text).allSatisfy { !said.contains($0) }
     }
 
-    /// A memory line compared loosely: no bullet, case or end punctuation.
+    /// A memory line compared loosely: no bullet, and no case or end
+    /// punctuation, as the memory store compares lines (`MemoryStore.key`).
     static func line(_ s: String) -> String {
         var s = s.trimmingCharacters(in: .whitespaces)
         if s.hasPrefix("- ") { s.removeFirst(2) }
-        return s.lowercased().trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: ".!?")))
+        return MemoryStore.key(s)
     }
 
     /// Words of three letters or more, without the commonest, cut to four
@@ -186,14 +185,12 @@ public struct AppleWriter: Writer {
             .joined(separator: "\n\n")
     }
 
-    /// Short-term memory with only the last `happenedLines` of Happened.
+    /// Short-term memory with only the last `happenedLines` of Happened, or
+    /// as it is when it doesn't read.
     static func recent(_ shortTerm: String) -> String {
-        var lines = shortTerm.components(separatedBy: "\n")
-        guard let heading = lines.firstIndex(of: "## Happened") else { return shortTerm }
-        let end = lines[(heading + 1)...].firstIndex { $0.hasPrefix("## ") } ?? lines.endIndex
-        let items = lines[(heading + 1)..<end].filter { $0.hasPrefix("- ") }
-        lines.replaceSubrange((heading + 1)..<end, with: Array(items.suffix(happenedLines)) + (end < lines.endIndex ? [""] : []))
-        return lines.joined(separator: "\n")
+        guard var today = try? ShortTerm.parse(shortTerm) else { return shortTerm }
+        today.happened = Array(today.happened.suffix(happenedLines))
+        return today.markdown
     }
 
     /// The request, for the debug log.

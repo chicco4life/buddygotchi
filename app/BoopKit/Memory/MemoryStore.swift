@@ -193,8 +193,10 @@ public final class MemoryStore {
     }
 
     static func key(_ s: String) -> String {
-        s.lowercased().trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: ".!?")))
+        s.lowercased().trimmingCharacters(in: looseEnds)
     }
+
+    static let looseEnds = CharacterSet.whitespaces.union(CharacterSet(charactersIn: ".!?"))
 
     static func same(_ a: String, _ b: String) -> Bool { key(a) == key(b) }
 
