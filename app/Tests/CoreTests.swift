@@ -446,6 +446,23 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(states(rig.send(.activity, tool: "Bash")).last?.base, "working", "until the agent acts again")
     }
 
+    /// ADAPTERS.md §4: the safety net also covers a Codex request no tick
+    /// saw through its 2 s grace, as when the Mac sleeps right after Codex
+    /// asks: the session goes idle rather than staying at work.
+    func testSafetyNetCoversACodexRequestStillInItsGrace() {
+        let rig = CoreRig(mode: .chatty)
+        rig.send(.turnStart, .codex)
+        rig.send(.activity, .codex, tool: "shell", topic: "deploy")
+        rig.send(.needsYou, .codex, tool: "shell")
+        rig.now += Core.Config(name: "Pip").safetyNetMs  // one tick, on waking
+        let fx = rig.core.tick(at: rig.now)
+        XCTAssertEqual(states(fx).last?.base, "idle")
+        XCTAssertNil(rig.state.attn)
+        XCTAssertEqual(asides(fx), [], "it never showed")
+        XCTAssertEqual(rig.sessions, [["codex", "landing", "idle"]])
+        XCTAssertEqual(mumbles(rig.wait(600_000)), [], "no working chatter")
+    }
+
     func testWhileSomethingNeedsYouOnlyWhatYouSayReachesTheBrain() {
         let rig = CoreRig()
         rig.send(.turnStart, session: "a")

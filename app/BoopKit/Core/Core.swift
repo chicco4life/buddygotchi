@@ -628,22 +628,19 @@ public final class Core {
     /// Runs every timer due by `now`, in order.
     func advance(to now: Int64, _ fx: inout [CoreEffect]) {
         for (key, var s) in sessions {
-            if let pending = s.pendingSince {
-                if now - s.lastEventAt >= config.safetyNetMs {
-                    s.pendingSince = nil
-                    s.askers.removeAll()
-                } else if now - pending >= config.codexGraceMs {
-                    s.pendingSince = nil
-                    s.needsSince = pending + config.codexGraceMs
-                    s.status = .waiting
-                    fx.append(.aside(needsYouLine(s, now)))
-                }
+            let silent = now - s.lastEventAt >= config.safetyNetMs
+            if let pending = s.pendingSince, !silent, now - pending >= config.codexGraceMs {
+                s.pendingSince = nil
+                s.needsSince = pending + config.codexGraceMs
+                s.status = .waiting
+                fx.append(.aside(needsYouLine(s, now)))
             }
-            if s.needsSince != nil && now - s.lastEventAt >= config.safetyNetMs {
-                // Ten silent minutes: the agent is still waiting on its
-                // prompt, or gone. Either way it isn't working, so no
-                // sweat drop and no chatter. Its turn, if it goes on,
-                // still counts from its start.
+            if silent && (s.needsSince != nil || s.pendingSince != nil) {
+                // Ten silent minutes, even for a Codex request no tick saw
+                // through its grace (the Mac slept): the agent is still
+                // waiting on its prompt, or gone. Either way it isn't
+                // working, so no sweat drop and no chatter. Its turn, if it
+                // goes on, still counts from its start.
                 clearRequest(&s, now)
                 s.status = .idle
             }

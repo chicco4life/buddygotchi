@@ -181,8 +181,9 @@ may approve it without asking you, and the hook fires before that review.
   request as usual.
 - **Safety net.** After 10 minutes with no events from the session, the
   request clears anyway and the session goes idle: by then the agent is
-  still waiting at its prompt or is gone. Its next event makes it working
-  again.
+  still waiting at its prompt or is gone. This covers a Codex request still
+  in its grace, as when the Mac sleeps right after Codex asks. The
+  session's next event makes it working again.
 - **Stale sessions.** A working session with no events for an hour counts
   as idle, and one with no events for a day is forgotten, so a missed
   `SessionEnd` can't keep Boop busy.
