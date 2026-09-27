@@ -20,16 +20,16 @@ public enum Brains {
     public static func classifier(for mode: Mode, override: String? = nil, key: () -> String? = { nil },
                                   log: @escaping @Sendable (String) -> Void = { _ in }) -> any Classifier {
         switch override ?? mode.rawValue {
-        case "calm": return CalmRules()
+        case "calm": return Rules(.calm)
         case "normal", "jev":
-            guard override != "normal" else { return NormalRules() }
+            guard override != "normal" else { return Rules(.normal) }
             guard let key = key(), !key.isEmpty else {
                 log("brain: Jev needs an API key; deciding with the normal rules")
-                return NormalRules()
+                return Rules(.normal)
             }
             let jev = JevClassifier(key: key)
-            return override == "jev" ? jev : FallbackClassifier(jev, else: NormalRules(), log: log)
-        default: return ChattyRules()
+            return override == "jev" ? jev : FallbackClassifier(jev, else: Rules(.normal), log: log)
+        default: return Rules(.chatty)
         }
     }
 

@@ -4,16 +4,19 @@ import Foundation
 /// supplies, and the budgets that keep it inside Apple's 8K context with
 /// the transcript's window.
 public enum Prompt {
-    /// The text of what the memory store supplies for one pass.
+    /// The text of what the memory store supplies for one pass, and Boop's
+    /// name from it, so the if-else tables don't take it for someone else's.
     public struct Memory: Equatable, Sendable {
         public var steering: String
         public var longTerm: String
         public var shortTerm: String
+        public var boopName: String?
 
-        public init(steering: String, longTerm: String, shortTerm: String) {
+        public init(steering: String, longTerm: String, shortTerm: String, boopName: String? = nil) {
             self.steering = steering
             self.longTerm = longTerm
             self.shortTerm = shortTerm
+            self.boopName = boopName
         }
     }
 

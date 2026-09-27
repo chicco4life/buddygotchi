@@ -100,7 +100,8 @@ that's off becomes an open item (§3).
 
 12. **Hold BOOT: "be quiet for fifteen minutes".** The quiet icon on the
     strip, "Quiet · 15 min" in the popover, and no mumbles until it ends.
-    An approval still chirps.
+    An approval still chirps. Then hold BOOT: "you can talk again". The
+    icon goes and Boop mumbles happily.
 13. **Hold BOOT and snap "shut up"; then yell something neutral.** A sad
     mumble each time, and no quiet. If your normal voice counts as a yell,
     or a real yell doesn't, tune the threshold

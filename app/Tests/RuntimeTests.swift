@@ -197,7 +197,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(printed.contains { $0.hasPrefix("core: input you said") && $0.contains("PRIVATE_WORDS") })
         let pass = try XCTUnwrap(printed.first { $0.hasPrefix("▸ you said") })
         XCTAssertTrue(pass.contains("    memory\n      ## Boop"), pass)
-        XCTAssertTrue(pass.contains("    window   1 inputs, oldest first\n      you said"), pass)
+        XCTAssertTrue(pass.contains("    window   1 inputs, oldest first (Stage 1's)\n      you said"), pass)
         XCTAssertTrue(pass.contains("    decided  "), pass)
         let record = try XCTUnwrap(try String(contentsOf: debugLog, encoding: .utf8).split(separator: "\n").first)
         let o = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(record.utf8)) as? [String: Any])

@@ -27,7 +27,7 @@ extension Eval {
             lines.append("refused: \(refusals.count)")
             for p in refusals { lines.append("  \(p.input.kind.rawValue): \(p.dropped ?? p.writeFailed ?? "")") }
             let unanswered = passes.filter { !$0.answered && !$0.refused }
-            let answered = passes.count - unanswered.count - refusals.filter { !$0.answered }.count
+            let answered = passes.filter(\.answered).count
             lines.append("stage 1 answered on the menu: \(answered)/\(passes.count)")
             for p in unanswered { lines.append("  dropped (\(p.input.kind.rawValue)): \(p.dropped ?? "")") }
             let asked = passes.filter { !$0.slots.isEmpty }
@@ -36,7 +36,7 @@ extension Eval {
             lines.append("writer: \(asked.count) passes, \(slots.filter { !$0.isEmpty }.count)/\(slots.count) slots filled, "
                          + "\(writerFailed) failed")
             let ran = passes.flatMap(\.ran)
-            let handed = ran.filter { $0.outcome != .dropped("nothing was written") }
+            let handed = ran.filter { $0.outcome != .dropped(Harness.unwritten) }
             let dropped = handed.filter { !$0.outcome.isDone }
             lines.append("calls: \(handed.count) to actions, \(dropped.count) dropped by them, "
                          + "\(ran.count - handed.count) with nothing written")

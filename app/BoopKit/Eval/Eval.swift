@@ -288,7 +288,7 @@ public struct Eval: Sendable {
             let harness = Harness(classifier: ScriptedClassifier(base: classifier(mode), script: script),
                                   writer: ScriptedWriter(base: writer(mode), script: script),
                                   tools: actions.map(Harness.Tool.init),
-                                  memory: { _ in store.promptMemory() }, home: home, debugLog: debugLog)
+                                  memory: { store.promptMemory() }, home: home, debugLog: debugLog)
             return (core, harness, pending, actions.map(\.definition))
         }
 
@@ -426,7 +426,7 @@ public struct Eval: Sendable {
                 switch r.outcome {
                 case .done: return r.call.plain
                 case .dropped(let reason):
-                    return "\(r.call.plain) dropped (\(reason == "nothing was written" ? "unwritten" : "action"))"
+                    return "\(r.call.plain) dropped (\(reason == Harness.unwritten ? "unwritten" : "action"))"
                 }
             }.joined(separator: ", ")
         }
@@ -567,6 +567,10 @@ struct ScriptedWriter: Writer {
     let base: any Writer
     let script: Script
     var id: String { base.id }
+
+    func prompt(_ context: Context, _ slots: [Slot]) -> String? {
+        script.forWriter == nil ? base.prompt(context, slots) : nil
+    }
 
     func write(_ context: Context, _ slots: [Slot], deadline: Duration) async throws -> Writing {
         switch script.forWriter {

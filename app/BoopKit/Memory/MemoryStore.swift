@@ -316,6 +316,6 @@ public final class MemoryStore {
 extension MemoryStore {
     /// The memory text for a pass (HARNESS.md §4).
     public func promptMemory() -> Prompt.Memory {
-        Prompt.Memory(steering: steering, longTerm: longTermText, shortTerm: shortTermText)
+        Prompt.Memory(steering: steering, longTerm: longTermText, shortTerm: shortTermText, boopName: longTerm?.name)
     }
 }

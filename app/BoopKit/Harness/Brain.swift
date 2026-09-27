@@ -18,6 +18,13 @@ public protocol Writer: Sendable {
     /// Values by slot key. A slot left out, empty or `none` is left empty.
     /// May throw; the harness then treats every slot as empty.
     func write(_ context: Context, _ slots: [Slot], deadline: Duration) async throws -> Writing
+    /// What `write` asks for these slots, besides its instructions, for the
+    /// debug log (HARNESS.md §8); nil when it asks nothing.
+    func prompt(_ context: Context, _ slots: [Slot]) -> String?
+}
+
+extension Writer {
+    public func prompt(_ context: Context, _ slots: [Slot]) -> String? { nil }
 }
 
 /// What a brain gets for one pass: the input, the memory text and the
@@ -40,10 +47,14 @@ public struct Context: Equatable, Sendable {
 public struct Classification: Equatable, Sendable {
     public var calls: [ToolCall]
     public var evidence: String?
+    /// What a model answered that couldn't be used, when a table decided
+    /// instead, for the debug log.
+    public var raw: String?
 
-    public init(calls: [ToolCall], evidence: String? = nil) {
+    public init(calls: [ToolCall], evidence: String? = nil, raw: String? = nil) {
         self.calls = calls
         self.evidence = evidence
+        self.raw = raw
     }
 }
 

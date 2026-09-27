@@ -82,9 +82,9 @@ core hears (sessions, tool use, a new day) is its own bookkeeping.
 3. **Open the pass.** The input and the rules' reaction join the
    transcript (§4). The menu is the input's outputs, in the order they
    run, with the actions' definitions as they are now. `quiet` is on it
-   only when your words ask for quiet (`Input.asksForQuiet`,
-   [BEHAVIORS.md](BEHAVIORS.md) §3.3). The pass keeps the brains it started
-   with, so a new mode applies from the next.
+   only when your words ask for quiet or for it to end
+   (`Input.quietAsk`, [BEHAVIORS.md](BEHAVIORS.md) §3.3). The pass
+   keeps the brains it started with, so a new mode applies from the next.
 4. **Stage 1.** The classifier gets the input, the memory and the window,
    and answers with calls and their decided arguments. The harness checks
    them: only outputs on the menu, decided arguments from their choices,
@@ -127,7 +127,8 @@ asides** are noted after each input, and later ones are left out. Memory
 changes don't restart it, since every call gets the current memory
 anyway.
 
-**Who reads what.** The if-else tables read only the current input. Jev
+**Who reads what.** The if-else tables read only the current input (and
+Boop's name, from memory). Jev
 gets the window as JSON (§6). Apple's writer reads only this pass, then a
 line per slot (from `BrainTests`):
 
@@ -171,7 +172,7 @@ argument, the **sources** its value can come from (§7).
 | Output | Decided | Written | What it does |
 | --- | --- | --- | --- |
 | `react` | `feeling`: one of ten (below) | `word`, optional: one of Voice's 40 words ([VOICE.md](VOICE.md) §6), from what they said, the failed topic, how the turn went, or the feeling | A mumble: a Minion line in the feeling's sound, with the word, played over whatever face is showing. Dropped in quiet mode, while something needs you, and while you talk until your words arrive ([BEHAVIORS.md](BEHAVIORS.md) §3.3). Staying silent is not calling it |
-| `quiet` | `minutes`: 15, 30, 60 or 120 | — | Quiet mode ([BEHAVIORS.md](BEHAVIORS.md) §4). Runs only when your last words asked for quiet (§3) |
+| `quiet` | `minutes`: 15, 30, 60 or 120, or 0 to end quiet | — | Quiet mode ([BEHAVIORS.md](BEHAVIORS.md) §4). Runs only the way your last words asked (§3): minutes for quiet, 0 to end it |
 | `remember` | `where`: `today`, `about_you` or `preference` | `text` | A line in that part of memory |
 
 The feelings are `happy`, `excited`, `proud`, `curious`, `hopeful`,
@@ -202,21 +203,21 @@ harness is held to the same rules, and it logs why it dropped one.
 A classifier answers `classify(context, menu, deadline)` with calls and
 its evidence; a writer answers `write(context, slots, deadline)` with a
 value for each slot it filled. The context is the input, the memory and
-the window. Each brain is its own type in `app/BoopKit/Brains/`, with a
-comment that says exactly how it behaves. The mode picks them:
+the window. The brains are in `app/BoopKit/Brains/`, each with a comment
+that says exactly how it behaves. The mode picks them:
 
 | Mode | Classifier | Writer |
 | --- | --- | --- |
-| Chatty | `ChattyRules` (`chatty@1`) | `AppleWriter`, asked again for a word it leaves out |
-| Normal (the default) | `JevClassifier` (`jev:jev-latest`) with `NormalRules` behind it; `NormalRules` (`normal@1`) alone without Jev's key | `AppleWriter` |
-| Calm | `CalmRules` (`calm@1`) | `AppleWriter` |
+| Chatty | `Rules(.chatty)` (`chatty@1`) | `AppleWriter`, asked again for a word it leaves out |
+| Normal (the default) | `JevClassifier` (`jev:jev-latest`) with `Rules(.normal)` behind it; `Rules(.normal)` (`normal@1`) alone without Jev's key | `AppleWriter` |
+| Calm | `Rules(.calm)` (`calm@1`) | `AppleWriter` |
 
-**The if-else tables** are plain Swift: no model, always available, and
-reading only the input's fields, so the same events always get the same
-decisions. Each decides exactly its mode's column in
-[BEHAVIORS.md](BEHAVIORS.md) §6 (a curious mumble there is
-`react(curious)` here), and all three share the tables below for what you
-say.
+**The if-else tables** (`Rules`) are plain Swift: no model, always
+available, and reading only the input's fields and Boop's name, so the
+same events always get the same decisions. Each decides exactly its
+mode's column in [BEHAVIORS.md](BEHAVIORS.md) §6 (a curious mumble there
+is `react(curious)` here), and all three share the tables below for what
+you say.
 
 **`JevClassifier`** is TypeSafe's `jev-latest`
 ([docs](https://docs.typesafe.ai/api)) with the person's API key. It
@@ -236,9 +237,11 @@ probabilities, in one request of about 0.2 s.
 - **Failures:** a 429, a 5xx or a dropped connection is tried once more
   after 0.3 s. Only a failed request's HTTP status is logged.
 
-In normal mode Jev gets half the input's deadline (2.5 s for an agent
-input, 2 s otherwise), leaving the rest for the writer. When it fails,
-refuses or hasn't answered by then, `NormalRules` decides that pass
+In normal mode Jev gets a quarter of the input's deadline (1.25 s for an
+agent input, 1 s otherwise): four times its usual 0.2–0.3 s, with room
+for its one retry. That leaves the writer time for a memory line, which
+takes Apple's model about 1.6–2.2 s, even when Jev is late. When it fails,
+refuses or hasn't answered by then, `Rules(.normal)` decides that pass
 (`FallbackClassifier`), so a failed turn or "be quiet" is never lost to
 an outage or a bad key. The evidence then reads `jev:jev-latest failed
 (…) · normal@1: …`.
@@ -255,6 +258,10 @@ is a fresh session.
   source. In chatty mode a word left empty is asked for once more, with
   `none` off its list, if the first answer left time. It can't decline,
   so it can't choose silence: that was Stage 1's job.
+- **A copied line isn't kept:** a memory line that's already in memory
+  and shares no word with what you said is left empty, so its call is
+  dropped instead of saving the wrong fact. (A small model sometimes
+  answers "remember I work with Bob" with a note it read there.)
 - **Sampling** is greedy, so the same moment always gets the same words.
   Guardrails are `permissiveContentTransformations`, and a refusal fails
   the write like any error, marked as a refusal.
@@ -271,6 +278,7 @@ straight ones.
 | You said | Decides |
 | --- | --- |
 | "remember" or "note", unless you told Boop off | `react(happy)` and `remember(where)`, with where from the next table. This wins over "quiet": "remember I like it quiet" isn't asking for quiet |
+| Asking Boop to stop being quiet: "stop being quiet", "don't have to be quiet", "don't need to be quiet", "no more quiet", "not quiet anymore", "quiet mode off", "turn off quiet", "you can talk again", "you can speak again", "you can mumble again" or "unmute" | `quiet(0)`, which ends quiet, and `react(happy)` |
 | "quiet" | `quiet(minutes)` and nothing else, yelled or not |
 | You told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)` in chatty and normal; nothing in calm |
 | Starting with "hello", "hi", "hey", "morning" or "good morning" ("the tests broke this morning" isn't a greeting) | `react(happy)` |
@@ -285,13 +293,14 @@ minutes, the shorter on a tie ("ten minutes" is 15, "an hour and a half"
 60). A unit alone is one ("the next hour", 60), except "for hours" (120);
 a number alone is minutes ("for fifteen", 15). "A quarter of an hour" and
 "a little while" are 15, "a long while" 120, and no time at all is 30.
+Only ending quiet is 0, so a short time is still 15 ("five minutes").
 
 **Where to remember**, first match wins. Going only by the words, the
 tables lean towards today:
 
 | The words have | `where` |
 | --- | --- |
-| Someone else's name: a capitalised word that isn't the first, "I", a day, a month or an acronym ("Bob", not "PRs"), found as the memory store finds one | `today`, since long-term keeps no one else's name |
+| Someone else's name: a capitalised word that isn't the first, "I", a day, a month, an acronym or Boop's own name ("Bob", not "PRs" or "Pip"), found as the memory store finds one | `today`, since long-term keeps no one else's name |
 | "I like", "I love", "I prefer", "I hate", "I don't like" or "I'd rather" | `preference` |
 | "I", "I'm", "I've" or "my", with a sign it lasts: "always", "usually", "never", "every", "mostly", "generally", a weekday in the plural ("Fridays"), "weekends", "mornings", "evenings", "my name", "I'm a", "I work" or "I live" | `about_you` |
 | Anything else | `today` |
@@ -328,7 +337,7 @@ behind most of these rules is in [ARCHITECTURE.md](ARCHITECTURE.md) §11.
   latest Happened lines; Jev doesn't get the writer's guidance.
 - **No arithmetic:** numbers arrive already named (a long turn, not
   20 s), and what the rules decide isn't asked (`quiet` is offered only
-  when your words ask for it).
+  when your words ask for quiet or for it to end).
 - **Choices that say what they're not:** each feeling's meaning rules out
   its neighbours ("sad" is only hurt; a failed turn is "annoyed"), since
   Jev is literal
@@ -346,27 +355,40 @@ every line sent to the device (marked rules or brain), and each pass.
 
 Each pass is also one JSON line in the state directory's `debug.jsonl`,
 which starts afresh at every launch: the input (with what you said), both
-brains, the memory they read (not steering, which never changes), the
-window, Stage 1's calls and evidence, the slots and what was written
-(with the writer's raw answer), why anything was dropped or failed, what
-each action did, and each stage's latency. Asides get a line too, so the
-file holds the whole transcript. `boopdev watch [FILE]` prints it
-readably (the everyday app's by default), following it as it grows and
-starting again when a launch empties it. One pass from the
-`09-remember` eval (evals run without a writer, so nothing is written):
+brains, the memory (not steering, which never changes), Stage 1's window,
+its calls and evidence, what its model answered when that couldn't be
+used, the writer's prompt, the slots and what was written (with the
+writer's raw answer), why anything was dropped or failed, what each
+action did, and each stage's latency. Asides get a line too, so the file
+holds the whole transcript. `boopdev watch [FILE]` prints it readably
+(the everyday app's by default), following it as it grows and starting
+again when a launch empties it. It prints the memory in full for the
+first pass, then only the lines added (+) or removed (-). One pass from
+the `09-remember` eval with Apple's writer, after the pass that kept
+"demo on Thursday":
 
 ```
-▸ you said · 14:01 Wednesday   [normal@1 → none, 0 ms]
+▸ you said · 14:01 Wednesday   [normal@1 → apple:27.0, 1792 ms]
     said     "remember I always review PRs before lunch"
-    memory   the same as the pass before
-    window   2 inputs, oldest first
-      you said · 14:00 Wednesday "remember the demo is on Thursday" · rules: listening · did: react(feeling: happy)
+    memory   1 line changed since the pass before
+      + - demo on Thursday
+    window   2 inputs, oldest first (Stage 1's)
+      you said · 14:00 Wednesday "remember the demo is on Thursday" · rules: listening · did: react(feeling: happy, word: okay), remember(text: "demo on Thursday", where: today)
       you said · 14:01 Wednesday "remember I always review PRs before lunch" · rules: listening
     decided  react(feeling: happy), remember(where: about_you) (0 ms)
     because  asked to remember, about_you
-    wrote    react.word = (empty), remember.text = (empty) (0 ms)
-    ran      react(feeling: happy) → done: happy: la-la la… (seed 2)
-    ran      remember(where: about_you) → dropped: nothing was written
+    asked    the writer, after its instructions:
+      --- now ---
+      you said · 14:01 Wednesday
+      They just said: "remember I always review PRs before lunch"
+      Boop decided: react(feeling: happy), remember(where: about_you)
+      --- write ---
+      react.word: the mumble's one real word, from its list, as Writing says; none only when nothing fits.
+      remember.text: at most 100 characters. Long-term: a durable fact about the person that will still matter in a month, like their role, how they work or their routine. Plain words, no code; leave it empty if nothing is worth keeping.
+    wrote    react.word = "okay", remember.text = "review PRs before lunch" (1792 ms)
+    raw      {"react_word": "okay", "react_word_from": "what they said", "remember_text": "review PRs before lunch"}
+    ran      react(feeling: happy, word: okay) → done: happy: la-la la… okay! (seed 2)
+    ran      remember(text: "review PRs before lunch", where: about_you) → done: review PRs before lunch
 ```
 
 **The app log** (`boop.log`) gets one line per pass, debug mode or not:

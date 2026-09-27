@@ -160,7 +160,7 @@ extension Expectation.Call {
         }
         let actual: String? = switch outcome {
         case .done: nil
-        case .dropped(let why): why == "nothing was written" ? "unwritten" : "action"
+        case .dropped(let why): why == Harness.unwritten ? "unwritten" : "action"
         }
         guard actual == dropped else { return false }
         for key in Set(expected.keys).union(call.arguments.keys) {

@@ -116,6 +116,10 @@ doing and answers them.
 - **Asked to be quiet** ("be quiet for an hour"): quiet mode for that long
   (§4). Only the whole word "quiet" turns it on, and not inside a request
   to remember ("remember I like it quiet"), whichever brain decided.
+- **Asked to stop being quiet** ("you can talk again", "stop being
+  quiet", "unmute"): quiet mode ends at once, and Boop mumbles happily to
+  say it's back. These words never start or stretch quiet, and asking for
+  quiet never ends it, whichever brain decided.
 - **Told off, or yelled at with words that say nothing else:** a sad
   mumble (nothing in calm), and never quiet mode. A yelled "good job!" is
   still praise.
@@ -124,7 +128,8 @@ doing and answers them.
   for today, and a lasting fact about you, or a preference, for good. The
   if-else tables act only on "remember" or "note", and keep a fact that
   names someone else for today, since long-term memory keeps no one
-  else's name ([HARNESS.md](HARNESS.md) §6). Jev may also keep a fact you
+  else's name; calling Boop by its own name doesn't count
+  ([HARNESS.md](HARNESS.md) §6). Jev may also keep a fact you
   just state ([steering.md](steering.md), Remembering).
 - **Anything else:** a mumble that fits.
 
@@ -152,8 +157,9 @@ the next `state` says.
 Quiet mode, which only asking turns on (§3.3), stops every mumble for the
 minutes asked: chatter, the brain's reactions and replies to what you
 say. Cheers, wiggles and the chirp carry on, and the strip shows a quiet
-icon ([UX.md](UX.md) §2). Nothing ends it early, and asking again sets a
-new length. Mute (volume 0) silences all sound but keeps the light.
+icon ([UX.md](UX.md) §2). It ends when the time is up or when you ask
+Boop to stop being quiet (§3.3), and asking for quiet again sets a new
+length. Mute (volume 0) silences all sound but keeps the light.
 
 ## 5. Animation set
 

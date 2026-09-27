@@ -37,16 +37,21 @@ public final class Harness: @unchecked Sendable {
         public var writer: String
         /// Inputs in the window this pass saw, its own included.
         public var window: Int
-        /// What the brains were handed: the memory and the window.
+        /// What the pass was handed: the memory, which Jev and the writer
+        /// read, and the window, which only Stage 1 reads.
         public var context: Context?
         /// Stage 1's calls, in the order they run.
         public var decided: [ToolCall] = []
         public var evidence: String?
+        /// What Stage 1's model answered, when it couldn't be used.
+        public var classifierRaw: String?
         /// Why the pass produced nothing: Stage 1 failed, was late or
         /// cancelled, or answered off the menu.
         public var dropped: String?
         /// The slots Stage 2 was asked to fill, and what it wrote ("" left empty).
         public var slots: [String] = []
+        /// What the writer was asked, besides its instructions (`Writer.prompt`).
+        public var writerPrompt: String?
         public var wrote: [String: String] = [:]
         public var writerRaw: String?
         /// Why Stage 2 wrote nothing, if it failed or was late.
@@ -105,6 +110,8 @@ public final class Harness: @unchecked Sendable {
             }
             if let evidence { o["evidence"] = evidence }
             if let dropped { o["dropped"] = dropped }
+            if let classifierRaw { o["classifier_raw"] = classifierRaw }
+            if let writerPrompt { o["writer_prompt"] = writerPrompt }
             if let writerRaw { o["writer_raw"] = writerRaw }
             if let writeFailed { o["write_failed"] = writeFailed }
             let data = (try? JSONSerialization.data(withJSONObject: o, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
@@ -116,7 +123,7 @@ public final class Harness: @unchecked Sendable {
     public private(set) var classifier: any Classifier
     public private(set) var writer: any Writer
     let tools: [Tool]
-    let memory: (Input) -> Prompt.Memory
+    let memory: () -> Prompt.Memory
     let home: DispatchQueue
     let debugLog: URL?
     let log: (String) -> Void
@@ -136,10 +143,13 @@ public final class Harness: @unchecked Sendable {
     /// Time kept back from Stage 2 so its answer can still be handed off.
     static let marginMs = 100
 
+    /// Why a call whose required words were left empty is dropped.
+    public static let unwritten = "nothing was written"
+
     /// - Parameters:
-    ///   - memory: the memory text for an input, from the memory store.
+    ///   - memory: the memory text as it is now, from the memory store.
     ///   - debugLog: a JSONL file for §8's log; nil writes nothing to disk.
-    public init(classifier: any Classifier, writer: any Writer, tools: [Tool], memory: @escaping (Input) -> Prompt.Memory,
+    public init(classifier: any Classifier, writer: any Writer, tools: [Tool], memory: @escaping () -> Prompt.Memory,
                 home: DispatchQueue, debugLog: URL? = nil, transcript: Transcript = Transcript(),
                 log: @escaping (String) -> Void = { _ in }) {
         self.classifier = classifier
@@ -257,7 +267,7 @@ public final class Harness: @unchecked Sendable {
         transcript.begin(input)
         let current = tools.map { ($0.definition, $0.handle) }
         let menu = Menu(input.menu, definitions: current.map(\.0))
-        let text = memory(input)
+        let text = memory()
         for over in Prompt.overBudget(input, text) {
             log("harness: \(input.kind.rawValue) over budget: \(over)")
         }
@@ -275,6 +285,8 @@ public final class Harness: @unchecked Sendable {
         var offMenu: String?
         var calls: [ToolCall] = []
         var slots: [Slot] = []
+        /// What the writer was asked, for the debug log.
+        var prompt: String?
         /// Nil when there was nothing to write.
         var writing: Result<Writing, BrainError>?
         var classifyMs = 0
@@ -309,6 +321,7 @@ public final class Harness: @unchecked Sendable {
             written.window.append(.decided(by: classifier.id, thought.calls, evidence: classification.evidence))
             let slots = thought.slots
             let asked = written
+            thought.prompt = writer.prompt(asked, slots)
             thought.writing = await Harness.race(left) {
                 try await writer.write(asked, slots, deadline: .milliseconds(left))
             }
@@ -332,12 +345,14 @@ public final class Harness: @unchecked Sendable {
         switch thought.classification {
         case .failure(let error):
             record.dropped = error.description
+            record.classifierRaw = error.raw
             transcript.append(.dropped(error.description))
             return record
         case .success(let c):
             classification = c
         }
         record.evidence = classification.evidence
+        record.classifierRaw = classification.raw
         if let why = thought.offMenu {
             record.decided = classification.calls
             record.dropped = "off the menu: \(why)"
@@ -352,6 +367,7 @@ public final class Harness: @unchecked Sendable {
         var unwritten: Set<Int> = []
         if let writing = thought.writing {
             record.slots = thought.slots.map(\.key)
+            record.writerPrompt = thought.prompt
             var values: [String: String] = [:]
             switch writing {
             case .success(let w):
@@ -375,7 +391,7 @@ public final class Harness: @unchecked Sendable {
             }
         }
         for (i, call) in calls.enumerated() {
-            let outcome = unwritten.contains(i) ? .dropped("nothing was written") : pass.handlers[call.name]!(call)
+            let outcome = unwritten.contains(i) ? .dropped(Harness.unwritten) : pass.handlers[call.name]!(call)
             record.ran.append((call, outcome))
             transcript.append(.ran(call, outcome))
         }
@@ -431,8 +447,7 @@ public final class Harness: @unchecked Sendable {
     }
 
     static func ms(since start: ContinuousClock.Instant) -> Int {
-        let elapsed = ContinuousClock.now - start
-        return Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
+        (ContinuousClock.now - start).ms
     }
 
     static func append(_ line: String, to url: URL) {
@@ -445,6 +460,11 @@ public final class Harness: @unchecked Sendable {
             try? Data(line.utf8).write(to: url)
         }
     }
+}
+
+extension Duration {
+    /// In whole milliseconds.
+    var ms: Int { Int(components.seconds * 1000 + components.attoseconds / 1_000_000_000_000_000) }
 }
 
 /// Resumes a continuation once, from whichever of the work, the deadline or

@@ -127,20 +127,44 @@ public struct Input: Equatable, Sendable {
 
     /// What Boop may do for this input (HARNESS.md §3): its kind's menu,
     /// narrowed to what can happen, since a brain isn't asked what the
-    /// rules decide: `quiet` only when the words ask for it, since the quiet
-    /// action would refuse it otherwise.
+    /// rules decide: `quiet` only when the words ask for quiet or for it to
+    /// end, since the quiet action would refuse it otherwise.
     public var menu: [String] {
-        kind.menu.filter { $0 != "quiet" || asksForQuiet }
+        kind.menu.filter { $0 != "quiet" || quietAsk != nil }
     }
 
-    /// Your words asked Boop to be quiet: they have "quiet" in them, as a
-    /// whole word ("be quiet"), and don't ask it to remember something
-    /// ("remember I like it quiet"). Only then may `quiet` run, whoever
-    /// decided it: the menu, the core and the quiet action all ask this
-    /// (BEHAVIORS.md §3.3).
-    public var asksForQuiet: Bool {
-        kind == .said && Input.plain(words ?? "").contains(" quiet ") && !asksToRemember
+    /// Which way your words asked about quiet mode (BEHAVIORS.md §3.3).
+    public enum QuietAsk: Equatable, Sendable {
+        /// "be quiet": `quiet` with minutes.
+        case start
+        /// "you can talk again": `quiet(0)`.
+        case end
     }
+
+    /// Whether your words asked Boop to be quiet, or to stop being quiet,
+    /// or neither (nil). Only then may `quiet` run, and only that way,
+    /// whoever decided it: the menu, the core and the quiet action all ask
+    /// this (BEHAVIORS.md §3.3).
+    public var quietAsk: QuietAsk? { endsQuiet ? .end : asksForQuiet ? .start : nil }
+
+    /// Your words asked Boop to be quiet: they have "quiet" in them, as a
+    /// whole word ("be quiet"), and neither ask it to remember something
+    /// ("remember I like it quiet") nor to stop being quiet.
+    public var asksForQuiet: Bool {
+        kind == .said && Input.plain(words ?? "").contains(" quiet ") && !asksToRemember && !endsQuiet
+    }
+
+    /// Your words asked Boop to stop being quiet ("you can talk again"),
+    /// and don't ask it to remember something.
+    public var endsQuiet: Bool {
+        kind == .said && Input.endingQuiet.contains(where: Input.plain(words ?? "").contains) && !asksToRemember
+    }
+
+    /// Asking Boop to stop being quiet (BEHAVIORS.md §3.3).
+    static let endingQuiet = [" stop being quiet ", " don't have to be quiet ", " dont have to be quiet ",
+                              " don't need to be quiet ", " dont need to be quiet ", " no more quiet ",
+                              " not quiet anymore ", " quiet mode off ", " turn off quiet ", " you can talk again ",
+                              " you can speak again ", " you can mumble again ", " unmute "]
 
     /// Your words asked Boop to remember something: "remember" or "note",
     /// unless they tell Boop off (HARNESS.md §6). Yelled or not.

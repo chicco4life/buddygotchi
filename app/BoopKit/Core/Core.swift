@@ -114,9 +114,10 @@ public final class Core {
     /// end the `listening` face before the reply (BEHAVIORS.md §3.3).
     var replyWait: (until: Int64, words: Int64?)?
 
-    /// Whether the last thing you said asked for quiet: only then may the
-    /// `quiet` action run (BEHAVIORS.md §3.3).
-    public private(set) var quietAsked = false
+    /// Whether the last thing you said asked for quiet or for it to end
+    /// (nil for neither): only then may the `quiet` action run, and only
+    /// that way (BEHAVIORS.md §3.3).
+    public private(set) var quietAsked: Input.QuietAsk?
 
     // Poke streaks (BEHAVIORS.md §3.3).
     var taps: [Int64] = []
@@ -298,7 +299,7 @@ public final class Core {
         let input = Input(.said, words: words, yelled: yelled, clock: config.time.clock(wall(now)),
                           weekday: config.time.weekday(wall(now)), rules: "listening", ts: now)
         if replyWait != nil { replyWait?.words = now }
-        quietAsked = input.asksForQuiet
+        quietAsked = input.quietAsk
         fx.append(.input(input))
         publish(now, &fx)
         return fx

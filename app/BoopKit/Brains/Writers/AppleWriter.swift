@@ -23,6 +23,9 @@ import FoundationModels
 /// it can't answer "stay quiet": deciding was Stage 1's job. Text lengths
 /// are only asked for, so the harness still checks them.
 ///
+/// A memory line the model copied from memory, instead of writing what was
+/// said, is left empty (`copied`), so the harness drops that call.
+///
 /// Guardrails are `permissiveContentTransformations`; a refusal fails the
 /// write like any error, marked as a refusal. When the model can't run (it's
 /// updating, or Apple Intelligence is off), every write fails, so a mumble
@@ -81,13 +84,58 @@ public struct AppleWriter: Writer {
         // Chatty: a word left empty gets one more try, with `none` off its
         // list, if it can finish in the time left; otherwise the first
         // answer stands.
-        guard wordRequired, AppleWriter.missesAWord(first.values, slots), took * 2 < deadline else { return first }
-        guard let again = try? await generate(context, slots, wordRequired: true) else { return first }
-        return Writing(values: first.values.merging(again.values) { old, _ in old }, raw: again.raw)
+        guard wordRequired, AppleWriter.missesAWord(first.values, slots), took * 2 < deadline else {
+            return AppleWriter.withoutCopies(first, slots, context)
+        }
+        guard let again = try? await generate(context, slots, wordRequired: true) else {
+            return AppleWriter.withoutCopies(first, slots, context)
+        }
+        let merged = Writing(values: first.values.merging(again.values) { old, _ in old }, raw: again.raw)
+        return AppleWriter.withoutCopies(merged, slots, context)
         #else
         throw BrainError("FoundationModels isn't in this SDK")
         #endif
     }
+
+    /// The answer with any copied memory line left empty.
+    static func withoutCopies(_ writing: Writing, _ slots: [Slot], _ context: Context) -> Writing {
+        var writing = writing
+        for slot in slots {
+            if case .text = slot.kind, let text = writing.values[slot.key], copied(text, context) {
+                writing.values[slot.key] = nil
+            }
+        }
+        return writing
+    }
+
+    /// A line the model copied from memory instead of writing what was
+    /// said: it's already a line there, and shares no word with what was
+    /// said. A small model given the memory files sometimes answers
+    /// "remember I work with Bob" with a note it read there ("demo on
+    /// Thursday"). A line that's there and was said again is left to the
+    /// memory store, which refuses duplicates.
+    static func copied(_ text: String, _ context: Context) -> Bool {
+        let memory = (context.memory.longTerm + "\n" + context.memory.shortTerm).split(separator: "\n")
+        guard memory.contains(where: { line(String($0)) == line(text) }) else { return false }
+        let said = Set(stems(context.input.words ?? ""))
+        return stems(text).allSatisfy { !said.contains($0) }
+    }
+
+    /// A memory line compared loosely: no bullet, case or end punctuation.
+    static func line(_ s: String) -> String {
+        var s = s.trimmingCharacters(in: .whitespaces)
+        if s.hasPrefix("- ") { s.removeFirst(2) }
+        return s.lowercased().trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: ".!?")))
+    }
+
+    /// Words of three letters or more, without the commonest, cut to four
+    /// letters so "works" and "work" match.
+    static func stems(_ s: String) -> [String] {
+        Input.plain(s).split(separator: " ").map(String.init)
+            .filter { $0.count >= 3 && !common.contains($0) }.map { String($0.prefix(4)) }
+    }
+    static let common: Set = ["the", "and", "for", "with", "that", "this", "you", "are", "was", "has", "have", "its",
+                              "remember", "note", "about", "from", "they", "their"]
 
     /// Whether a word slot was left empty.
     static func missesAWord(_ values: [String: String], _ slots: [Slot]) -> Bool {
@@ -146,6 +194,11 @@ public struct AppleWriter: Writer {
         let items = lines[(heading + 1)..<end].filter { $0.hasPrefix("- ") }
         lines.replaceSubrange((heading + 1)..<end, with: Array(items.suffix(happenedLines)) + (end < lines.endIndex ? [""] : []))
         return lines.joined(separator: "\n")
+    }
+
+    /// The request, for the debug log.
+    public func prompt(_ context: Context, _ slots: [Slot]) -> String? {
+        AppleWriter.request(context, slots)
     }
 
     /// What just happened, what Boop decided (the window's last entry), then

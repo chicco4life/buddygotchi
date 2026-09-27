@@ -1,6 +1,6 @@
 {
   "name": "Only asking for quiet makes Boop quiet, in every mode",
-  "why": "VISION.md hero moment 3 and BEHAVIORS.md §3.3: words with \"quiet\" in them set quiet mode for the minutes asked, and in quiet mode agent inputs don't reach the brain, yelled or not. Quiet wins over every mode",
+  "why": "VISION.md's Listens (Boop goes quiet when asked) and BEHAVIORS.md §3.3, §4: words with \"quiet\" in them set quiet mode for the minutes asked, and in quiet mode agent inputs don't reach the brain, yelled or not (a yelled \"BE QUIET\" is quiet, not hero moment 3's sad mumble); asking Boop to stop being quiet ends it at once, with a happy mumble. Quiet wins over every mode",
   "steps": [
     {"input": {"at": "0m", "event": "talk", "words": "be quiet for an hour"},
      "expect": ["you said → quiet(minutes: 60)"]},
@@ -17,6 +17,12 @@
                 "normal": ["agent finished → react(feeling: proud, word: finally|done|yay|hooray|whee|nice|good|wow)"],
                 "calm": ["agent finished → nothing"]}},
     {"input": {"at": "80m", "event": "talk", "words": "BE QUIET", "yelled": true},
-     "expect": ["you said → quiet(minutes: 30)"]}
+     "expect": ["you said → quiet(minutes: 30)"]},
+    {"input": {"at": "85m", "event": "talk", "words": "okay, you can talk again"},
+     "expect": ["you said → quiet(minutes: 0), react(feeling: happy, word: okay|yay|yes|hi|hello|hooray|good|nice|whee|none)"]},
+    {"input": {"at": "86m", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+                "normal": ["agent started → nothing"],
+                "calm": ["agent started → nothing"]}}
   ]
 }

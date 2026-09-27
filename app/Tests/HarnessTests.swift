@@ -62,7 +62,7 @@ final class HarnessRig: @unchecked Sendable {
                 .init("text", .text(maxLength: 20, by: "where", limits: ["today": 10]), role: .written),
             ]),
         ].map { d in Harness.Tool(definition: d, handle: { [unowned self] call in handled.append(call); return .done("ok") }) }
-        harness = Harness(classifier: classifier, writer: writer, tools: tools, memory: { [unowned self] _ in self.memory },
+        harness = Harness(classifier: classifier, writer: writer, tools: tools, memory: { [unowned self] in self.memory },
                           home: home, debugLog: debugLog, log: { [unowned self] in logs.append($0) })
         harness.onRecord = { [unowned self] in records.append($0) }
     }
@@ -190,6 +190,25 @@ final class HarnessTests: XCTestCase {
 
     /// HARNESS.md §3: when Stage 2 fails, a mumble goes without its word and
     /// nothing is remembered.
+    /// HARNESS.md §6: when Jev doesn't answer in its share of the deadline,
+    /// the table decides and the writer still has time for a memory line,
+    /// which takes Apple's model about 1.6–2.2 s.
+    func testAfterAModelTimesOutTheWriterStillHasTimeToRemember() async {
+        struct Slow: Writer {
+            let id = "slow@1"
+            func write(_ context: Context, _ slots: [Slot], deadline: Duration) async throws -> Writing {
+                try await Task.sleep(for: .milliseconds(2200))
+                return Writing(values: ["react.word": "hi", "remember.text": "pairs"])
+            }
+        }
+        let silent = FakeClassifier(delayMs: 10_000) { _ in [] }
+        let rig = HarnessRig(classifier: FallbackClassifier(silent, else: Rules(.normal)), writer: Slow())
+        rig.submit(input(.said, words: "remember I always pair on Mondays"))
+        await rig.settle(timeoutMs: 5000)
+        XCTAssertNil(rig.snapshot.records.first?.writeFailed)
+        XCTAssertEqual(rig.snapshot.handled.map(\.name), ["react", "remember"])
+    }
+
     func testAFailedWriterLeavesEverySlotEmpty() async {
         let writer = FakeWriter { _ in throw BrainError("offline") }
         let rig = HarnessRig(classifier: FakeClassifier { _ in [react("happy"), remember("today")] }, writer: writer)
@@ -307,7 +326,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(first["decided"] as? [String], ["react(feeling: proud)"])
         XCTAssertEqual(first["wrote"] as? [String: String], ["react.word": "finally"])
         XCTAssertEqual(first["window"] as? Int, 1)
-        // The memory and window the brains read, as debug mode prints them.
+        // The memory and Stage 1's window, as debug mode prints them.
         XCTAssertNotNil((first["memory"] as? [String: String])?["short_term"])
         XCTAssertEqual((first["context"] as? [String])?.count, 1)
         XCTAssertEqual((first["input"] as? [String: Any])?["line"] as? String,
@@ -315,6 +334,55 @@ final class HarnessTests: XCTestCase {
         XCTAssertNotNil(first["latency_ms"])
         let second = try JSONSerialization.jsonObject(with: Data(lines[1].utf8)) as! [String: Any]
         XCTAssertEqual(second["window"] as? Int, 2)
+    }
+
+    /// HARNESS.md §8: the record says what each stage was handed: the
+    /// writer's prompt, and what Stage 1's model answered when it couldn't
+    /// be used, whether the pass was dropped or a table decided instead.
+    func testTheRecordHasEachStagesOwnContext() async throws {
+        struct Prompted: Writer {
+            let id = "prompted@1"
+            func write(_ context: Context, _ slots: [Slot], deadline: Duration) async throws -> Writing {
+                Writing(values: ["react.word": "hi"])
+            }
+            func prompt(_ context: Context, _ slots: [Slot]) -> String? { "write " + slots.map(\.key).joined() }
+        }
+        struct Garbled: Classifier {
+            let id = "garbled@1"
+            func classify(_ context: Context, _ menu: Menu, deadline: Duration) async throws -> Classification {
+                throw BrainError("no answers", raw: "{\"oops\": 1}")
+            }
+        }
+        let written = await run(HarnessRig(classifier: FakeClassifier { _ in [react("happy")] }, writer: Prompted()),
+                                [input(.said, words: "hi")])
+        XCTAssertEqual(written[0].writerPrompt, "write react.word")
+        XCTAssertTrue(written[0].json.contains("\"writer_prompt\":\"write react.word\""))
+        let dropped = await run(HarnessRig(classifier: Garbled()), [input(.agentStarted)])
+        XCTAssertEqual(dropped[0].classifierRaw, "{\"oops\": 1}")
+        XCTAssertTrue(dropped[0].json.contains("\"classifier_raw\""))
+        let fallback = FallbackClassifier(Garbled(), else: FakeClassifier { _ in [] })
+        let decided = await run(HarnessRig(classifier: fallback), [input(.agentStarted)])
+        XCTAssertNil(decided[0].dropped)
+        XCTAssertEqual(decided[0].classifierRaw, "{\"oops\": 1}")
+    }
+
+    /// HARNESS.md §8: the printer shows the memory in full once, then only
+    /// the lines that changed.
+    func testThePrinterShowsOnlyWhatChangedInMemory() throws {
+        func pass(_ shortTerm: String) throws -> String {
+            let o: [String: Any] = ["input": ["line": "agent started"], "memory": ["long_term": "## Boop\nname: Pip", "short_term": shortTerm]]
+            return String(decoding: try JSONSerialization.data(withJSONObject: o), as: UTF8.self)
+        }
+        let printer = DebugLog.Printer()
+        let first = printer.readable(try pass("## Happened\n- 14:00 started"))
+        XCTAssertTrue(first.contains("    memory\n      ## Boop\n      name: Pip\n\n      ## Happened\n      - 14:00 started"), first)
+        let same = printer.readable(try pass("## Happened\n- 14:00 started"))
+        XCTAssertTrue(same.contains("    memory   the same as the pass before"), same)
+        let grown = printer.readable(try pass("## Happened\n- 14:00 started\n- 14:05 finished"))
+        XCTAssertTrue(grown.contains("    memory   1 line changed since the pass before\n      + - 14:05 finished"), grown)
+        XCTAssertFalse(grown.contains("name: Pip"), grown)
+        let rolled = printer.readable(try pass("## Happened\n- 14:05 finished\n- 14:09 finished"))
+        XCTAssertTrue(rolled.contains("2 lines changed since the pass before\n      - - 14:00 started\n      + - 14:09 finished"), rolled)
     }
 
     func testWithoutDebugModeNothingIsWritten() async {
@@ -345,7 +413,7 @@ final class HarnessTests: XCTestCase {
             let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 1)), memory: memory.store)
             let harness = Harness(classifier: FakeClassifier { _ in [react("happy"), remember("today")] },
                                   writer: FakeWriter { _ in ["react.word": "hi", "remember.text": note] },
-                                  tools: actions.map(Harness.Tool.init), memory: { _ in memory.store.promptMemory() },
+                                  tools: actions.map(Harness.Tool.init), memory: { memory.store.promptMemory() },
                                   home: DispatchQueue(label: "test.log"), log: lines.add)
             harness.onRecord = { lines.add($0.logLine) }  // as the Runtime wires it
             _ = await harness.respond(to: input(.said, words: said))

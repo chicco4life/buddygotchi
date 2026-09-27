@@ -91,33 +91,41 @@ public final class ReactAction: Action {
     }
 }
 
-/// `quiet(minutes)`: tells the core to stop mumbles for a while, only when
-/// the last thing you said asked for quiet (`Input.asksForQuiet`), whatever
-/// the classifier decided (BEHAVIORS.md §3.3).
+/// `quiet(minutes)`: tells the core to stop mumbles for a while, or with 0
+/// to start them again, only the way the last thing you said asked: minutes
+/// for quiet, 0 for it to end (`Input.quietAsk`), whatever the classifier
+/// decided (BEHAVIORS.md §3.3).
 public final class QuietAction: Action {
     public let context: ActionContext
 
     public init(context: ActionContext) { self.context = context }
 
-    public static let choices = [15, 30, 60, 120]
+    /// 0 ends quiet; the rest are how long it lasts.
+    public static let choices = [0, 15, 30, 60, 120]
 
     public let definition = ToolDefinition(
-        name: "quiet", description: "Stop mumbling for a while, when the person asks for quiet.",
-        question: "Did the person just ask Boop to be quiet?",
+        name: "quiet", description: "Stop mumbling for a while when the person asks for quiet, or start again when they say so.",
+        question: "Did the person just ask Boop to be quiet, or to stop being quiet?",
         parameters: [.init("minutes", .number(QuietAction.choices),
-                           about: ["15": "Fifteen minutes, or a little while.",
-                                   "30": "Half an hour, or when they don't say how long.",
+                           about: ["0": "End quiet now, when the person says Boop can talk again.",
+                                   "15": "Fifteen minutes, or a little while.",
+                                   "30": "Half an hour, or when they ask for quiet without saying how long.",
                                    "60": "An hour.", "120": "Two hours, or a long while."],
-                           question: "How long did the person ask Boop to be quiet for?")])
+                           question: "How long did the person ask Boop to be quiet for? 0 if they asked it to stop being quiet.")])
 
     public func perform(_ call: ToolCall) -> ActionOutcome {
         switch arguments(call) {
         case .failure(let why): return .dropped(why.description)
         case .success(let args):
-            guard context.quietAsked() else { return .dropped("only when asked to be quiet") }
             let minutes = args["minutes"]!.number!
+            switch context.quietAsked() {
+            case nil: return .dropped("only when asked to be quiet or to stop")
+            case .start where minutes == 0: return .dropped("asked to be quiet, not to stop")
+            case .end where minutes != 0: return .dropped("asked to stop being quiet")
+            default: break
+            }
             context.setQuiet(minutes)
-            return .done("\(minutes) min")
+            return .done(minutes == 0 ? "quiet ended" : "\(minutes) min")
         }
     }
 }
