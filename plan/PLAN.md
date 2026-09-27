@@ -211,6 +211,15 @@ fixed. Pick one up by writing it into its spec first.
   (two debug replies and 23 characters in a 31-minute soak), and lines
   have no sequence numbers, so a lost tap is gone. Bluetooth doesn't go
   through it. Number the board's lines, or drop to 230400 baud.
+- **The cheer's card and tray drop 6 px as each loop starts over.** The
+  task-complete designs play once and hold (their tracks are `once`), and
+  the device starts the design over at every loop boundary
+  ([UX.md](UX.md) §2), so in a cheer of two or more loops the card and
+  tray jump back down 6 px in one frame and rise again. The rules' cheer
+  is one loop, so only `play cheer --loops`, the dashboard and a moment
+  with more loops show it. Designs made to loop, or starting over only
+  the gesture, would make it seamless
+  ([evidence](evidence/2026-09-28-tonight/firmware/README.md)).
 - **About 14 KB of heap headroom.** The minimum free heap, 73.7 KB, is
   only just over the 60 KB target ([DEVICE.md](DEVICE.md) §6), so
   anything that adds RAM needs measuring.
