@@ -178,6 +178,13 @@ fixed. Pick one up by writing it into its spec first.
   `PostToolUse` reports after a failed command hasn't been seen either, so
   a Codex turn never fails ([ADAPTERS.md](ADAPTERS.md) §3). One recorded
   session with an approval and a failing test run would settle both.
+- **Codex's reviewer approving a long command shows "needs you".** Codex
+  sends no hook when its automatic reviewer approves, as far as the
+  hand-written fixtures know, so a reviewed command that runs past the
+  2 s grace shows amber and chirps until it ends
+  ([ADAPTERS.md](ADAPTERS.md) §4). The recorded Codex session above
+  would show whether there's a signal to wait for
+  ([evidence](evidence/2026-09-28-tonight/hunt2/README.md)).
 - **A reaction's face in the idle look holds up to 9 s.** Today's idle
   designs rise once every 9 s, so that's their loop, and a face held
   once there lasts until the idle clock's next boundary, however short
@@ -245,6 +252,30 @@ fixed. Pick one up by writing it into its spec first.
   ([evidence](evidence/2026-09-28-tonight/tune-check/README.md)). So a
   warm-up alone won't do; whether the deadline should sit above Jev's
   slow answers is the open question.
+- **The dropped passes' 1.3 s was the deadline's timer, not Jev.** The
+  item above reads the dropped passes' 1.28–1.33 s as Jev's time, but
+  that was when the deadline's timer fired: it had the system's default
+  leeway, and a late pass logged the timer's time whatever Jev did. The
+  timer now fires within 5 ms, and the app log says when Jev did answer
+  a pass it was late for (`harness: jev:jev-latest answered after N ms,
+  too late for …`), so a day's `boop.log` shows how late Jev really is
+  before the deadline is moved
+  ([evidence](evidence/2026-09-28-tonight/hunt2/README.md)).
+- **A reaction held for its loops blocks the next for up to 36 s.** A
+  face held two to four times holds the line for 16–36 s (four loops of
+  a 9 s design), and every other reaction waits at most 5 s, so another
+  thread's failures meanwhile get no face. The 9 s item above is this
+  at one loop. Letting the next brain reaction end a held face once its
+  mumble has played (the device already counts that as done), or fewer
+  loops while another thread works, would keep both
+  ([evidence](evidence/2026-09-28-tonight/hunt2/README.md)).
+- **A `Stop` another hook blocks cheers twice.** Claude lets a `Stop`
+  hook block the stop, and the agent carries on; its next `Stop`
+  carries `stop_hook_active`, which `boop-hook` drops. So one prompt
+  cheers at each `Stop` and reads "finished turn 1" twice. Keeping
+  `stop_hook_active`, and ending such a turn with no second cheer, would
+  fix it; it needs a spec decision
+  ([evidence](evidence/2026-09-28-tonight/hunt2/README.md)).
 - **Curious has no way in.** No mood file leaves for curious, and in the
   working day Jev never picked its face either, since a turn start gets
   nothing. It needs a reason (mixed results across threads, a turn after

@@ -1,0 +1,260 @@
+################ qc-run1.txt
+=== q01_codex_safety_net_then_interrupt_late_post
+  [ok] codex request shows after grace
+  [ok] safety net: idle
+  [ok] Interrupt: idle
+  [ok] the aborted command's PostToolUse: still idle (ADAPTERS §4 late result)
+  [ok] 30 min later
+    ev#4 needs_you wakes=False line='codex needs you on "jetpack".' reaction=None {}
+    ev#6 turn_end wakes=True line='codex finished turn 1 on "jetpack": stopped after 11 min, a very long turn, 0 tools.' reaction=None {'comeback': None, 'error': None, 'length': 'very long', 'length_ms': 663409, 'outcome': 'stopped', 'tools': 0, 'tools_failed': 0, 'topics': {}}
+=== q01b_codex_interrupt_within_net
+  [ok] 9 min: still amber
+  [ok] Interrupt then late post: idle
+    ev#4 needs_you wakes=False line='codex needs you on "jetpack".' reaction=None {}
+    ev#6 turn_end wakes=True line='codex finished turn 1 on "jetpack": stopped after 9 min, a very long turn, 0 tools.' reaction=None {'comeback': None, 'error': None, 'length': 'very long', 'length_ms': 543058, 'outcome': 'stopped', 'tools': 0, 'tools_failed': 0, 'topics': {}}
+=== q01c_codex_net_interrupt_late_post_how_long
+  [ok] 64 min after the late post
+    chatter mumbles sent while 'working': 0
+  [ok] next prompt
+    ev#1 turn_start wakes=True line='codex started turn 1 on "jetpack".' reaction=None {'gap': None}
+    ev#5 turn_end wakes=True line='codex finished turn 1 on "jetpack": stopped after 11 min, a very long turn, 0 tools.' reaction=None {'comeback': None, 'error': None, 'length': 'very long', 'length_ms': 662702, 'outcome': 'stopped', 'tools': 0, 'tools_failed': 0, 'topics': {}}
+    ev#9 heartbeat wakes=True line='Nothing has happened for 1 hour.' reaction=None {'idle_hours': 1}
+    ev#13 turn_start wakes=True line='codex started turn 2 on "jetpack", after a long break.' reaction=None {'gap': 'a long break'}
+=== q01d_claude_esc_prompt_after_net
+  [ok] safety net: idle
+  [ok] idle notice
+    ev#1 turn_start wakes=True line='claude started turn 1 on "jetpack".' reaction=None {'gap': None}
+    ev#2 needs_you wakes=False line='claude needs you on "jetpack".' reaction=None {}
+    ev#5 turn_end wakes=True line='claude finished turn 1 on "jetpack": stopped after 13 min, a very long turn, 0 tools.' reaction=None {'comeback': None, 'error': None, 'length': 'very long', 'length_ms': 780538, 'outcome': 'stopped', 'tools': 0, 'tools_failed': 0, 'topics': {}}
+=== q02_claude_long_approved_cmd_net_then_esc
+  [ok] asks
+  [ok] safety net: idle
+  [ok] Esc mid-tool: idle
+  [ok] parallel Read's late result: stays idle (ADAPTERS §4)
+    ev#1 turn_start wakes=True line='claude started turn 1 on "jetpack".' reaction=None {'gap': None}
+    ev#2 needs_you wakes=False line='claude needs you on "jetpack".' reaction=None {}
+    ev#5 turn_end wakes=True line='claude finished turn 1 on "jetpack": stopped after 12 min, a very long turn, 0 tools.' reaction=None {'comeback': None, 'error': None, 'length': 'very long', 'length_ms': 720809, 'outcome': 'stopped', 'tools': 0, 'tools_failed': 0, 'topics': {}}
+=== q02b_claude_esc_within_net
+  [ok] control: idle
+    ev#1 turn_start wakes=True line='claude started turn 1 on "jetpack".' reaction=None {'gap': None}
+    ev#2 needs_you wakes=False line='claude needs you on "jetpack".' reaction=None {}
+    ev#5 turn_end wakes=True line='claude finished turn 1 on "jetpack": stopped after 5 min, a very long turn, 0 tools.' reaction=None {'comeback': None, 'error': None, 'length': 'very long', 'length_ms': 300093, 'outcome': 'stopped', 'tools': 0, 'tools_failed': 0, 'topics': {}}
+=== q02c_claude_subagent_approved_after_net_then_esc
+  [ok] a1 asks
+  [ok] after Esc and a2's racing result: idle (ADAPTERS §4 late result)
+  [ok] 20 min later
+    ev#2 needs_you wakes=False line='claude needs you on "jetpack".' reaction=None {}
+    ev#5 turn_end wakes=True line='claude finished turn 1 on "jetpack": stopped after 12 min, a very long turn, 0 tools.' reaction=None {'comeback': None, 'error': None, 'length': 'very long', 'length_ms': 750533, 'outcome': 'stopped', 'tools': 0, 'tools_failed': 0, 'topics': {}}
+=== q02d_claude_subagent_control_within_net
+  [ok] a1 asks
+  [ok] after Esc and a2's racing result: idle (ADAPTERS §4 late result)
+  [ok] 20 min later
+    ev#2 needs_you wakes=False line='claude needs you on "jetpack".' reaction=None {}
+    ev#5 turn_end wakes=True line='claude finished turn 1 on "jetpack": stopped after 5 min, a very long turn, 0 tools.' reaction=None {'comeback': None, 'error': None, 'length': 'very long', 'length_ms': 330553, 'outcome': 'stopped', 'tools': 0, 'tools_failed': 0, 'topics': {}}
+=== q03_sleep_inflates_turn
+  [ok] after 8 h: stale, idle
+  [ok] the call's result on waking: working again
+  [ok] Stop
+    ev#5 heartbeat wakes=True line='Nothing has happened for 8 hours.' reaction=None {'idle_hours': 8}
+    ev#9 turn_end wakes=True line='claude finished turn 1 on "jetpack": done after 2 min, a very long turn, 1 tool. Tests passing.' reaction='Boop cheered on its own.' {'comeback': None, 'error': None, 'length': 'very long', 'length_ms': 121005, 'outcome': 'done', 'tools': 1, 'tools_failed': 0, 'topics': {'tests': 'passing'}}
+=== q04_forgotten_session_finishes
+  [ok] 25 h: forgotten, asleep
+  [ok] its result
+  [ok] Stop
+    ev#1 turn_start wakes=True line='claude started turn 1 on "jetpack".' reaction=None {'gap': None}
+    ev#4 heartbeat wakes=True line='Nothing has happened for 25 hours.' reaction=None {'idle_hours': 25}
+    cheers sent: 1
+=== q04b_forgotten_session_stop_only
+  [ok] Stop from a forgotten session
+    ev#1 turn_start wakes=True line='claude started turn 1 on "jetpack".' reaction=None {'gap': None}
+=== q04c_forgotten_session_stopfailure_and_codex
+  [ok] both forgotten
+  [ok] their ends
+    cheers sent: 0
+=== q04d_restart_mid_turn
+=== q07b_new_day_two_midnights
+    after two midnights and a tap: ('## Today | 2026-09-30', ['2026-09-28'])
+
+################ replay-after.txt
+== f1
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"vol":6}
++5.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"codex","project":"landing","more":0,"id":1},"busy":0,"vol":6}
++603.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"vol":6}
+== f1c
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"vol":6}
++3.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":0,"vol":6}
++604.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"vol":6}
+== f2
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"vol":6}
++5.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"codex","project":"landing","more":0,"id":1},"busy":0,"vol":6}
++12.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"vol":6}
+== f4
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"vol":6}
++3.0s state {"t":"state","v":1,"base":"asleep","mood":"happy","busy":0,"vol":6}
+== f6
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"vol":6}
++3.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"vol":6}
+== f7
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"vol":6}
++3.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"vol":6}
++4.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"vol":6}
++6.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"codex","project":"landing","more":0,"id":1},"busy":0,"vol":6}
+
+################ ghost-after.txt
+=== notice
+06:31:38.156 core: event needs_you (no pass) · claude needs you on "landing".
+06:31:38.156 link rules → {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":345128020},"busy":0,"vol":6}
+06:31:38.242 hook: claude SessionEnd s1 → session_end landing
+06:31:38.242 link rules → {"t":"state","v":1,"base":"asleep","mood":"happy","busy":0,"vol":6}
+06:31:38.326 hook: claude Notification s1 → needs_you landing · notice permission_prompt
+06:31:38.409 link rules → {"t":"state","v":1,"base":"asleep","mood":"happy","busy":0,"vol":6}
+=== result
+06:31:39.597 core: event needs_you (no pass) · claude needs you on "landing".
+06:31:39.597 link rules → {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1454018157},"busy":0,"vol":6}
+06:31:39.678 hook: claude SessionEnd s1 → session_end landing
+06:31:39.678 link rules → {"t":"state","v":1,"base":"asleep","mood":"happy","busy":0,"vol":6}
+06:31:39.757 hook: claude PostToolUse s1 → activity landing · tool Bash, subagent bg
+06:31:39.839 link rules → {"t":"state","v":1,"base":"asleep","mood":"happy","busy":0,"vol":6}
+=== substop
+06:31:41.076 core: event needs_you (no pass) · claude needs you on "landing".
+06:31:41.076 link rules → {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":368166791},"busy":0,"vol":6}
+06:31:41.162 hook: claude SessionEnd s1 → session_end landing
+06:31:41.162 link rules → {"t":"state","v":1,"base":"asleep","mood":"happy","busy":0,"vol":6}
+06:31:41.240 hook: claude SubagentStop s1 → subagent_end landing · subagent bg
+06:31:41.324 link rules → {"t":"state","v":1,"base":"asleep","mood":"happy","busy":0,"vol":6}
+=== stop
+06:31:42.576 core: event needs_you (no pass) · claude needs you on "landing".
+06:31:42.577 link rules → {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1092001225},"busy":0,"vol":6}
+06:31:42.657 hook: claude SessionEnd s1 → session_end landing
+06:31:42.657 link rules → {"t":"state","v":1,"base":"asleep","mood":"happy","busy":0,"vol":6}
+06:31:42.744 hook: claude Stop s1 → turn_end landing
+06:31:42.824 link rules → {"t":"state","v":1,"base":"asleep","mood":"happy","busy":0,"vol":6}
+
+################ sl-e.txt
+== e1 ==
+      1.55s first hook: a result                     core=['landing:working'] sent=working/busy1 screen=face/working chirps=0
+      7.01s Stop                                     core=['landing:idle'] sent=idle/busy0 screen=face/idle chirps=0
+     12.41s s2 interrupted                           core=['landing:idle', 'jetpack:idle'] sent=idle/busy0 screen=face/idle chirps=0
+     17.79s s3 fails                                 core=['landing:idle', 'jetpack:idle', 'orbit:idle'] sent=idle/busy0 screen=face/idle chirps=0
+
+################ sl-f.txt
+== f1 ==
+     21.96s first Stop (blocked by another hook)     core=['landing:idle'] sent=idle/busy0 screen=face/idle chirps=0
+     23.26s carries on                               core=['landing:working'] sent=working/busy1 screen=face/working chirps=0
+     53.64s second Stop                              core=['landing:idle'] sent=idle/busy0 screen=face/idle chirps=0
+     54.97s third Stop, no tools in between          core=['landing:idle'] sent=idle/busy0 screen=face/idle chirps=0
+  ev   1 turn_start claude started turn 1 on "landing". WAKES
+  ev   5 turn_end   claude finished turn 1 on "landing": done after 20 s, a long turn, 1 tool. Tests passing. [Boop cheered on its own.] WAKES
+  ev   9 turn_end   claude finished turn 1 on "landing": done after 30 s, a long turn, 1 tool. [Boop cheered on its own.] WAKES
+[{'t': 'moment', 'anim': 'cheer', 'loops': 1}, {'t': 'moment', 'anim': 'cheer', 'loops': 1}]
+
+################ l1.txt
+=== l1
+FINDINGS
+NOTES
+ - react seq 3 id 1809466290: settled 'the device disconnected' (link drop, by design); device later said done/None
+ - chirps seen 0, needs_you events 0
+ - reacts: seq3 id1809466290 failed/the device disconnected dev=done/None; seq6 idNone failed/waited too long
+ * device ended lines: [{'t': 'ended', 'id': 1809466290, 'how': 'done'}]
+ * settles: [({'by': 'dashboard', 'end': 'failed', 'for': 3, 'why': 'the device disconnected'}, 603, 'Boop made a proud face, held twice, and mumbled "…finally!"'), ({'by': 'dashboard', 'end': 'failed', 'for': 6, 'why': 'waited too long'}, 5003, 'Boop made a happy face, held once, and mumbled "…yay!"')]
+
+################ l13a.txt
+   settle +2045 ms: done  <- Boop made an excited face, held once, and mumbled "…yay!"
+   settle +5002 ms: failed waited too long <- Boop made a grumpy face, held once, and mumbled "…ugh!"
+   settle +6625 ms: done  <- Boop made a proud face, held once, and mumbled "…finally!"
+   823 app>dev {'t': 'moment', 'say': {'syl': 'di-la-li di-di', 'word': 'yay', 'at': 5, 'tune': 'bounce', 'ms': 115}, 'mood':
+   2868 me tap
+   2868 dev>app {'t': 'ended', 'id': 1047282129, 'how': 'done'}
+   2870 app>dev {'t': 'moment', 'say': {'syl': 'da a', 'word': 'finally', 'at': 0, 'tune': 'lift', 'ms': 135}, 'mood': 'proud'
+   2883 dev>app {'t': 'input', 'k': 'tap'}
+   7449 dev>app {'t': 'ended', 'id': 1047282130, 'how': 'done'}
+=== l13_30_10
+FINDINGS
+NOTES
+ - chirps seen 0, needs_you events 0
+ - reacts: seq3 id1047282129 done dev=done/None; seq5 id1047282130 done dev=done/None; seq7 idNone failed/waited too long
+
+################ l13b.txt
+   settle +2180 ms: done  <- Boop made an excited face, held once, and mumbled "…yay!"
+   settle +2242 ms: failed cut short: you tapped Boop <- Boop made a proud face, held once, and mumbled "…finally!"
+   settle +3983 ms: done  <- Boop made a grumpy face, held once, and mumbled "…ugh!"
+   844 app>dev {'t': 'moment', 'say': {'syl': 'mi-na-la ya-bi mi', 'word': 'yay', 'at': 6, 'tune': 'bounce', 'ms': 115}, 'moo
+   3022 me tap
+   3022 dev>app {'t': 'ended', 'id': 1971542230, 'how': 'done'}
+   3031 app>dev {'t': 'moment', 'say': {'syl': 'ga-da do wo-do wo-ga-lon', 'word': 'finally', 'at': 8, 'tune': 'lift', 'ms': 1
+   3088 dev>app {'t': 'input', 'k': 'tap'}
+   3088 dev>app {'t': 'ended', 'id': 1971542231, 'how': 'cut', 'why': 'tap'}
+   3090 app>dev {'t': 'moment', 'say': {'syl': 'te-pu', 'word': 'ugh', 'at': 2, 'tune': 'flat', 'ms': 125}, 'mood': 'grumpy', 
+   4830 dev>app {'t': 'ended', 'id': 1971542232, 'how': 'done'}
+=== l13_30_60
+FINDINGS
+NOTES
+ - chirps seen 0, needs_you events 0
+ - reacts: seq3 id1971542230 done dev=done/None; seq5 id1971542231 failed/cut short: you tapped Boop dev=cut/tap; seq7 id1971542232 done dev=done/None
+
+################ l14a.txt
+states with attn ids (device ms, id): [(102, None), (102, None), (430, None), (433, None), (435, 764444441), (3603, 230491626)]
+chirps at device ms: [435, 3603]
+launch 2 events: ['needs_you']
+
+################ bp-run.txt
+=== s02_forced_mood_reverted
+== s02_forced_mood_reverted
+FINDINGS
+NOTES
+ - waking events 2, passes 2, replaced []
+ - pass 3 (for 1): 1 entries landed while it ran: ['action']
+ - forced entries: [(2, 'mood')]
+ - chirps seen 0, needs_you events 0
+ - reacts: 
+=== s07_needs_you_during_pass
+== s07_needs_you_during_pass
+FINDINGS
+ - react seq 11 (id 390021684) never settled; device ended: None
+NOTES
+ - waking events 3, passes 3, replaced []
+ - pass 4 (for 1): 2 entries landed while it ran: ['event', 'event']
+ - pass 4 mood happy → determined; its MOOD part began 'MOOD'
+ - pass 9 mood determined → grumpy; its MOOD part began 'MOOD'
+ - chirps seen 1, needs_you events 1
+ - reacts: seq6 idNone not started: something needs you; seq11 id390021684 OPEN
+=== s09_dashboard_storm
+== s09_dashboard_storm
+FINDINGS
+NOTES
+ - waking events 3, passes 3, replaced []
+ - pass 9 (for 1): 7 entries landed while it ran: ['event', 'pass', 'action', 'action', 'settle', 'pass', 'action']
+ - pass 10 mood excited → proud; its MOOD part began 'MOOD'
+ - forced entries: [(3, 'pass'), (4, 'react'), (5, 'mood'), (7, 'pass'), (8, 'mood')]
+ - chirps seen 0, needs_you events 0
+ - reacts: seq4 id2101271895 failed/cut short: something newer played dev=cut/moment; seq12 id2101271896 done dev=done/None
+=== s13_brain_hangs
+== s13_brain_hangs
+FINDINGS
+NOTES
+ - waking events 4, passes 4, replaced []
+ - chirps seen 0, needs_you events 0
+ - reacts: seq9 id524776762 failed/the device disconnected
+=== s15_chatter_history_limit
+      exp=[["claude read a file on \"landing\".", []]]
+ - pass 93 (for 92, seen 92): HISTORY differs from a rebuild
+      got=[["claude's tests failed on \"landing\".", ["Boop made a proud face, held four times, and mumbled \"\u2026yay!\" (in progress)"]], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []]]
+      exp=[["claude read a file on \"landing\".", []]]
+ - pass 95 (for 94, seen 94): HISTORY differs from a rebuild
+      got=[["claude's tests failed on \"landing\".", ["Boop made a proud face, held four times, and mumbled \"\u2026yay!\" (in progress)"]], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []]]
+      exp=[["claude read a file on \"landing\".", []]]
+ - pass 97 (for 96, seen 96): HISTORY differs from a rebuild
+      got=[["claude's tests failed on \"landing\".", ["Boop made a proud face, held four times, and mumbled \"\u2026yay!\" (in progress)"]], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []], ["claude read a file on \"landing\".", []]]
+      exp=[["claude read a file on \"landing\".", []]]
+ - react seq 5 (id 381203425) never settled; device ended: None
+NOTES
+ - waking events 48, passes 48, replaced []
+ - chirps seen 0, needs_you events 0
+ - reacts: seq5 id381203425 OPEN
+
