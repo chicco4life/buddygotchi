@@ -1,6 +1,7 @@
 #include "render/face.h"
 
 #include <cstring>
+#include <iterator>
 #include <type_traits>
 
 #include "render/palette.h"
@@ -165,12 +166,13 @@ void drawEye(Canvas& c, const Eye& e, uint8_t color) {
   part(e.bx + 1, e.by + 1, x1, y1, kPaneRows);
 }
 
-// A small sprite of `rows`, one character per block ('X' filled), drawn
-// with blocks of `b` pixels from the top left at pixel (x0, y0).
-void sprite(Canvas& c, const char* const* rows, int n, int x0, int y0, int b, uint8_t color) {
-  for (int r = 0; r < n; ++r) {
+// A small sprite of `rows`, one character per block ('X' filled), drawn on
+// the face's grid from the top left at block (bx, by).
+template <int N>
+void sprite(Canvas& c, const char* const (&rows)[N], int bx, int by, uint8_t color) {
+  for (int r = 0; r < N; ++r) {
     for (int i = 0; rows[r][i]; ++i) {
-      if (rows[r][i] == 'X') c.fillRect(x0 + i * b, y0 + r * b, b, b, color);
+      if (rows[r][i] == 'X') block(c, bx + i, by + r, color);
     }
   }
 }
@@ -179,10 +181,11 @@ int spriteW(const char* const* rows) {
   while (rows[0][w]) ++w;
   return w;
 }
-// A sprite on the face's grid, centred on block (bx, by) (for an even size,
-// the middle falls on that block's top or left edge).
-void spriteAt(Canvas& c, const char* const* rows, int n, int bx, int by, uint8_t color) {
-  sprite(c, rows, n, (bx - spriteW(rows) / 2) * kBlock, (by - n / 2) * kBlock, kBlock, color);
+// A sprite centred on block (bx, by) (for an even size, the middle falls on
+// that block's top or left edge).
+template <int N>
+void spriteAt(Canvas& c, const char* const (&rows)[N], int bx, int by, uint8_t color) {
+  sprite(c, rows, bx - spriteW(rows) / 2, by - N / 2, color);
 }
 
 // The mouth, as pixel shapes rather than traced curves (UX.md §2): a flat
@@ -211,12 +214,12 @@ void drawMouth(Canvas& c, const FaceLayout& l, uint8_t color) {
   static const char* const kO[] = {".XXX.", "X...X", ".XXX."};
   static const char* const kD[] = {"X...X", "XXXXX", ".XXX."};
   const int mx = l.mouthX, my = l.mouthY, wb = l.mouthW;
-  auto shape = [&](const char* const* rows, int n) {
-    sprite(c, rows, n, (mx - spriteW(rows) / 2) * kBlock, (my + 1 - n) * kBlock, kBlock, color);
+  auto shape = [&](const auto& rows) {
+    sprite(c, rows, mx - spriteW(rows) / 2, my + 1 - int(std::size(rows)), color);
   };
-  if (l.mouth == FaceLayout::kD) return shape(kD, 3);
-  if (l.mouth == FaceLayout::kO) return shape(kO, 3);
-  if (l.mouth == FaceLayout::kSmile) return shape(kSmile, 2);
+  if (l.mouth == FaceLayout::kD) return shape(kD);
+  if (l.mouth == FaceLayout::kO) return shape(kO);
+  if (l.mouth == FaceLayout::kSmile) return shape(kSmile);
   for (int b = mx - wb / 2; b <= mx + wb / 2; ++b) {
     block(c, b, my - 1, color);
     block(c, b, my, color);
@@ -244,8 +247,8 @@ void drawHeart(Canvas& c, int hx, int hy, int size) {
   static const char* const kSmall[] = {"XX.XX", "XXXXX", ".XXX.", "..X.."};
   static const char* const kFull[] = {".XX.XX.", "XXXXXXX", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..."};
   const uint8_t rose = inkAt(kInkRose, kLevels);
-  if (size >= 2) spriteAt(c, kFull, 6, hx, hy, rose);
-  else if (size == 1) spriteAt(c, kSmall, 4, hx, hy, rose);
+  if (size >= 2) spriteAt(c, kFull, hx, hy, rose);
+  else if (size == 1) spriteAt(c, kSmall, hx, hy, rose);
 }
 
 // A pixel sweat drop, centred on block (bx, by): it tapers from a point
@@ -254,7 +257,7 @@ void drawHeart(Canvas& c, int hx, int hy, int size) {
 void drawDrop(Canvas& c, int bx, int by) {
   constexpr int kW = 5, kH = 5;
   static const char* const kDrop[kH] = {"..X..", ".XXX.", "XXXXX", "XXXXX", ".XXX."};
-  spriteAt(c, kDrop, kH, bx, by, inkAt(kInkSky, kLevels));
+  spriteAt(c, kDrop, bx, by, inkAt(kInkSky, kLevels));
   auto on = [](int r, int i) { return r >= 0 && r < kH && i >= 0 && i < kW && kDrop[r][i] == 'X'; };
   const int x0 = (bx - kW / 2) * kBlock, y0 = (by - kH / 2) * kBlock;
   for (int r = 0; r < kH; ++r) {
@@ -284,9 +287,9 @@ void drawZzz(Canvas& c, int ax, int ay, int letters, uint8_t color) {
   const Letter kLetters[] = {{false, 0, 0}, {false, 5, -2}, {true, 6, -8}, {true, 12, -10}};
   for (int i = 0; i < letters; ++i) {
     const Letter& l = kLetters[i];
-    int x = (ax + l.bx) * kBlock, y = (ay + l.by) * kBlock;
-    if (l.big) sprite(c, kBig, 5, x, y, kBlock, color);
-    else sprite(c, kLittle, 4, x, y, kBlock, color);
+    int x = ax + l.bx, y = ay + l.by;
+    if (l.big) sprite(c, kBig, x, y, color);
+    else sprite(c, kLittle, x, y, color);
   }
 }
 
