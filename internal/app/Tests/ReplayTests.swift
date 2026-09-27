@@ -48,6 +48,21 @@ final class ReplayTests: XCTestCase {
         ])
     }
 
+    /// ADAPTERS.md §4: two parallel subagents; a1 asks and you deny it, and
+    /// it ends without another tool call. a2's end leaves a1's request up,
+    /// a1's own `SubagentStop` answers it while the main agent works on,
+    /// and a subagent that ends after the turn leaves the session idle.
+    func testADeniedSubagentsEndAnswersItsRequest() throws {
+        let got = try summary("claude-code/synthetic/subagent-denied.jsonl", agent: "claude")
+        XCTAssertEqual(got, [
+            "+0.0s idle - 0",
+            "+1.0s working - 0",
+            "+5.0s idle claude/landing 1",
+            "+31.0s working - 0",
+            "+35.0s idle - 0",
+        ])
+    }
+
     func testCodexRequestItsReviewerHandlesNeverShows() throws {
         let got = try summary("codex/synthetic/approval-reviewed.jsonl", agent: "codex")
         XCTAssertEqual(got, [

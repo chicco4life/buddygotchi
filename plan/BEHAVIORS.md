@@ -137,6 +137,7 @@ Boop only tells you. You approve on the Mac, in the agent's own prompt.
 | You tap Boop | The press dip only; it stays amber (§3.3) |
 | You answer on the Mac | The agent carries on; once nothing needs you, Boop blinks back to its base look. A long command you approved keeps "needs you" up until it finishes ([ADAPTERS.md](ADAPTERS.md) §4) |
 | You deny with Esc | Claude sends nothing, so Boop stays amber until Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §4) |
+| You deny a Claude subagent | It carries on, and Boop stays amber until its next tool call or until it ends ([ADAPTERS.md](ADAPTERS.md) §4) |
 
 The light stays steady and nothing repeats. The brain is never involved.
 

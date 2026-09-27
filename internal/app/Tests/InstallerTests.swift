@@ -74,7 +74,7 @@ final class InstallerTests: XCTestCase {
         let ours = "\"\(hook)\" claude"
         for event in ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
                       "PermissionRequest", "Notification", "Elicitation", "ElicitationResult", "Stop", "StopFailure",
-                      "SessionEnd"] {
+                      "SubagentStop", "SessionEnd"] {
             XCTAssertEqual(commands(.claude, event).filter(HookInstaller.isBoopCommand), [ours], event)
         }
         XCTAssertEqual(commands(.claude, "PreToolUse"), ["/usr/local/bin/audit.sh", ours])
@@ -107,6 +107,32 @@ final class InstallerTests: XCTestCase {
         XCTAssertEqual(installer.repair(), [.claude])
         let notification = (read(.claude)["hooks"] as! [String: Any])["Notification"] as! [[String: Any]]
         XCTAssertEqual(notification.map { $0["matcher"] as? String }, [matcher])
+    }
+
+    /// ADAPTERS.md §5: Claude gets 13 hooks. An install from before
+    /// `SubagentStop` was hooked is outdated, so the app's launch repair
+    /// adds it, beside a `SubagentStop` hook of the person's own, and
+    /// changes nothing else.
+    func testAnInstallWithoutSubagentStopIsRepaired() throws {
+        XCTAssertEqual(HookInstaller.events[.claude]!.count, 13)
+        let entry: [String: Any] = ["type": "command", "command": installer.command(.claude), "timeout": 5]
+        var hooks: [String: Any] = [:]
+        for event in ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
+                      "PermissionRequest", "Elicitation", "ElicitationResult", "Stop", "StopFailure", "SessionEnd"] {
+            hooks[event] = [["hooks": [entry]]]
+        }
+        hooks["Notification"] = [["matcher": "permission_prompt|elicitation_dialog|idle_prompt", "hooks": [entry]]]
+        hooks["SubagentStop"] = [["matcher": "Explore", "hooks": [["type": "command", "command": "say explored"]]]]
+        write(.claude, ["model": "opus", "hooks": hooks])
+        XCTAssertEqual(installer.health(.claude), .outdated)
+        XCTAssertEqual(installer.repair(), [.claude])
+        XCTAssertEqual(installer.health(.claude), .installed)
+        XCTAssertEqual(commands(.claude, "SubagentStop"), ["say explored", installer.command(.claude)])
+        let groups = (read(.claude)["hooks"] as! [String: Any])["SubagentStop"] as! [[String: Any]]
+        XCTAssertEqual(groups.map { $0["matcher"] as? String }, ["Explore", nil], "Boop's runs for every subagent")
+        XCTAssertEqual(read(.claude)["model"] as? String, "opus")
+        XCTAssertEqual(installer.repair(), [])
+        XCTAssertTrue(installer.preview(.claude).contains("\nSubagentStop → \(installer.command(.claude))\n"))
     }
 
     func testInstallIsIdempotent() throws {

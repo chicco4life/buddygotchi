@@ -100,6 +100,26 @@ final class HookWireTests: XCTestCase {
         XCTAssertEqual(HookLine.extract(agent: "claude", payload: Data(cut), ts: 0)?.agentID, "a1b2")
     }
 
+    /// ADAPTERS.md §2: `SubagentStop` keeps which subagent ended, never its
+    /// last message or transcript, and a payload cut off at the cap by a
+    /// long last message still says which subagent.
+    func testSubagentStopKeepsOnlyWhichSubagentEnded() throws {
+        let raw = payload([
+            "hook_event_name": "SubagentStop", "session_id": "s1", "cwd": "/w/landing", "stop_hook_active": false,
+            "agent_id": "a1", "agent_type": "Explore", "agent_transcript_path": "/PRIVATE/agent-a1.jsonl",
+            "last_assistant_message": "PRIVATE found 3 issues",
+        ])
+        let line = try XCTUnwrap(HookLine.extract(agent: "claude", payload: raw, ts: 3))
+        XCTAssertEqual(line, HookLine(agent: "claude", hook: "SubagentStop", session: "s1", cwd: "/w/landing",
+                                      agentType: "Explore", agentID: "a1", ts: 3))
+        XCTAssertFalse(String(decoding: line.encoded(), as: UTF8.self).contains("PRIVATE"))
+        let big = String(repeating: "x", count: 300_000)
+        let cut = Data(#"{"session_id": "s1", "hook_event_name": "SubagentStop", "agent_id": "a1", "last_assistant_message": "\#(big)"}"#.utf8).prefix(256 * 1024)
+        let salvaged = try XCTUnwrap(HookLine.extract(agent: "claude", payload: Data(cut), ts: 0))
+        XCTAssertEqual(salvaged.hook, "SubagentStop")
+        XCTAssertEqual(salvaged.agentID, "a1")
+    }
+
     func testPayloadWithoutHookNameOrSessionIsDropped() {
         XCTAssertNil(HookLine.extract(agent: "claude", payload: payload(["session_id": "s"]), ts: 0))
         XCTAssertNil(HookLine.extract(agent: "claude", payload: payload(["hook_event_name": "Stop"]), ts: 0))

@@ -80,7 +80,8 @@ that's off becomes an open item (§3).
    first and the strip moves to the other, chirping if it's another agent
    or project.
 7. **Two Claude subagents at once, one asking permission.** Boop stays
-   amber while the other keeps running tools, until you answer.
+   amber while the other keeps running tools, until you answer. Deny it
+   instead, and Boop goes back to working once that subagent ends.
 8. **A Codex approval.** Amber about 2 s after Codex asks; one its
    automatic reviewer handles never lights up. This is Boop's first real
    Codex session (§3).
@@ -160,13 +161,6 @@ fixed. Pick one up by writing it into its spec first.
   `PostToolUse` reports after a failed command hasn't been seen either, so
   a Codex turn never fails ([ADAPTERS.md](ADAPTERS.md) §3). One recorded
   session with an approval and a failing test run would settle both.
-- **A denied subagent can keep "needs you" until the main turn ends.**
-  A subagent you deny carries on, and if it ends without another tool
-  call, Claude sends only `SubagentStop`, which Boop doesn't hook. So its
-  request stays until the main agent's `Stop`, or the safety net
-  ([ADAPTERS.md](ADAPTERS.md) §4). Hooking `SubagentStop` and letting it
-  answer only that subagent's request would clear it; it mustn't make an
-  idle session working.
 - **A reaction's face in the idle look holds up to 9 s.** Today's idle
   designs rise once every 9 s, so that's their loop, and a face held
   once there lasts until the idle clock's next boundary, however short

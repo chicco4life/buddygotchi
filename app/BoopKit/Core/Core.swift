@@ -201,6 +201,24 @@ public final class Core {
             return fx
         }
 
+        if event.event == .subagentEnd {
+            // A subagent that has finished can't be waiting on a prompt, so
+            // its end answers its own request: denied, it carried on and
+            // ended without another tool call. It answers nobody else, not
+            // even "anyone". It isn't activity either: the session doesn't
+            // start working and its clock doesn't move, so it can't make an
+            // idle or stale session look busy. Once no asker is left, the
+            // session works again only if its turn is still going
+            // (ADAPTERS.md §4).
+            if waiting, let id = event.subagent, s.askers.remove(id) != nil, s.askers.isEmpty {
+                clearRequest(&s, now)
+                s.working = s.turnStartedAt != nil
+            }
+            sessions[key] = s
+            publish(now, &fx)
+            return fx
+        }
+
         // The asker's next event means it moved on, and so does any
         // turn-level event. A sibling subagent's tool calls don't answer
         // another agent's request. Claude's idle notice (`turn_stopped` with
@@ -303,7 +321,7 @@ public final class Core {
                 }
             }
             sessions[key] = s
-        case .needsYou:
+        case .needsYou, .subagentEnd:
             break
         }
         publish(now, &fx)

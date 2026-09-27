@@ -431,6 +431,75 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertNil(rig.state.attn)
     }
 
+    /// ADAPTERS.md §4: a subagent you deny carries on, and one that then
+    /// ends without another tool call sends only `SubagentStop`. Its end
+    /// answers its own request and nobody else's, and the main agent's turn
+    /// goes on working. The brain doesn't hear of it.
+    func testASubagentsEndAnswersOnlyItsOwnRequest() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Agent")
+        rig.send(.activity, subagent: "a1", tool: "Bash")
+        rig.send(.needsYou, subagent: "a1", tool: "Bash")
+        rig.send(.needsYou, subagent: "a2", tool: "Edit")
+        rig.wait(20_000)  // both denied: no hook says so
+        XCTAssertEqual(states(rig.send(.subagentEnd, subagent: "a3")), [], "a sibling's end")
+        XCTAssertEqual(states(rig.send(.subagentEnd)), [], "an end that names no subagent")
+        XCTAssertEqual(states(rig.send(.subagentEnd, subagent: "a1")), [])
+        XCTAssertNotNil(rig.state.attn, "a2 still waits")
+        let fx = rig.send(.subagentEnd, subagent: "a2")
+        XCTAssertNil(states(fx).last?.attn)
+        XCTAssertEqual(states(fx).last?.base, "working", "the main agent's turn goes on")
+        XCTAssertEqual(rig.sessions, [["claude", "landing", "working"]])
+        XCTAssertEqual(moments(fx), [])
+        XCTAssertTrue(events(fx).isEmpty, "nothing for the brain")
+        rig.send(.activity, tool: "Agent", failed: false)
+        XCTAssertEqual(moments(rig.send(.turnEnd)), ["cheer"])
+    }
+
+    /// It answers nobody else: not the main agent, and not a request that
+    /// came as a Notification alone, which doesn't say who asked.
+    func testASubagentsEndLeavesOtherAskersWaiting() {
+        for asker in ["main agent", "notification alone"] {
+            let rig = CoreRig()
+            rig.send(.turnStart)
+            rig.send(.needsYou, tool: asker == "main agent" ? "Bash" : nil)
+            rig.send(.needsYou, subagent: "a1", tool: "Bash")
+            rig.send(.subagentEnd, subagent: "a1")
+            XCTAssertNotNil(rig.state.attn, asker)
+            rig.send(.activity, tool: "Bash")
+            XCTAssertNil(rig.state.attn, asker)
+        }
+    }
+
+    /// ADAPTERS.md §4: a subagent's end isn't activity. One that comes
+    /// after its session's turn has ended (a background subagent finishing
+    /// late) leaves the session idle, one from a session Boop hasn't seen
+    /// creates it idle, and a turn gone stale stays stale. A request that
+    /// came while no turn was going leaves the session idle when it clears.
+    func testASubagentsEndNeverMakesASessionWork() {
+        let rig = CoreRig(rules: .chatty)
+        rig.turn(5000)
+        XCTAssertEqual(states(rig.send(.subagentEnd, subagent: "a1")), [])
+        XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"]])
+        XCTAssertEqual(mumbles(rig.wait(10 * 60_000)), [], "no working chatter")
+
+        rig.send(.subagentEnd, session: "s2", subagent: "a1")
+        XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"], ["claude", "landing", "idle"]])
+
+        rig.send(.turnStart, session: "s3")
+        rig.wait(Core.Config().staleWorkMs)
+        XCTAssertEqual(rig.state.base, "idle", "an hour without events")
+        XCTAssertEqual(states(rig.send(.subagentEnd, session: "s3", subagent: "a1")), [])
+        XCTAssertEqual(rig.state.base, "idle", "still stale")
+
+        rig.send(.needsYou, session: "s4", subagent: "a1", tool: "Bash")
+        XCTAssertNotNil(rig.state.attn)
+        let fx = rig.send(.subagentEnd, session: "s4", subagent: "a1")
+        XCTAssertNil(states(fx).last?.attn)
+        XCTAssertEqual(states(fx).last?.base, "idle", "no turn was going")
+    }
+
     func testMoreThanOneShowsTheOldestWithACount() {
         let rig = CoreRig()
         rig.send(.needsYou, .claudeCode, session: "a", project: "jetpack", tool: "Bash")

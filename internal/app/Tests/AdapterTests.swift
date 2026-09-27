@@ -18,7 +18,7 @@ final class AdapterTests: XCTestCase {
             ("SessionStart", .sessionStart), ("UserPromptSubmit", .turnStart), ("PreToolUse", .activity),
             ("PostToolUse", .activity), ("PostToolUseFailure", .activity), ("PermissionRequest", .needsYou),
             ("Elicitation", .needsYou), ("ElicitationResult", .activity), ("Stop", .turnEnd),
-            ("StopFailure", .turnFailed), ("SessionEnd", .sessionEnd), ("SubagentStop", nil), ("PreCompact", nil),
+            ("StopFailure", .turnFailed), ("SessionEnd", .sessionEnd), ("SubagentStart", nil), ("PreCompact", nil),
         ]
         for (hook, expected) in table {
             XCTAssertEqual(kind("claude", hook), expected, hook)
@@ -46,6 +46,23 @@ final class AdapterTests: XCTestCase {
         var codex = line("codex", "PreToolUse", tool: "shell")
         codex.agentID = "a1"
         XCTAssertNil(Adapter.event(from: codex)?.subagent)
+    }
+
+    /// ADAPTERS.md §3: `SubagentStop` becomes `subagent_end` with the
+    /// subagent's `agent_id` and type and no detail. Without an `agent_id`
+    /// it's ignored, since it would pass for the main agent. Codex has no
+    /// subagents.
+    func testSubagentStopSaysWhichSubagentEnded() throws {
+        var stop = line("claude", "SubagentStop")
+        stop.agentID = "a1"
+        stop.agentType = "Explore"
+        let event = try XCTUnwrap(Adapter.event(from: stop))
+        XCTAssertEqual(event.jsonLine, #"{"agent":"claude_code","detail":{},"event":"subagent_end","project":"landing","session":"s1","subagent":"a1","subagent_type":"Explore","ts":7}"#)
+        XCTAssertEqual(event.summary, "subagent_end landing · subagent a1")
+        XCTAssertNil(Adapter.event(from: line("claude", "SubagentStop")), "no agent_id")
+        var codex = line("codex", "SubagentStop")
+        codex.agentID = "a1"
+        XCTAssertNil(Adapter.event(from: codex))
     }
 
     func testCodexMapping() {

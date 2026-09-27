@@ -16,6 +16,7 @@ public enum Adapter {
         "ElicitationResult": .activity,
         "Stop": .turnEnd,
         "StopFailure": .turnFailed,
+        "SubagentStop": .subagentEnd,
         "SessionEnd": .sessionEnd,
     ]
 
@@ -64,6 +65,9 @@ public enum Adapter {
             kind = codex[line.hook]
         }
         guard let kind else { return nil }
+        // A subagent's end says which subagent by its `agent_id`; one without
+        // it can't answer anyone's request, and mustn't pass for the main agent.
+        if kind == .subagentEnd && line.agentID == nil { return nil }
 
         var detail = BoopEvent.Detail()
         switch kind {

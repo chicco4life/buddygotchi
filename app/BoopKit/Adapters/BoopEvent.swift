@@ -35,6 +35,10 @@ public struct BoopEvent: Equatable, Sendable {
         /// The turn is over without finishing: you interrupted it, or the
         /// agent has sat at its prompt for a while. No reaction.
         case turnStopped = "turn_stopped"
+        /// A Claude subagent finished (`SubagentStop`). It answers only that
+        /// subagent's request, and isn't activity: it never sets a session
+        /// working (ADAPTERS.md §4).
+        case subagentEnd = "subagent_end"
         case sessionEnd = "session_end"
     }
 

@@ -34,7 +34,7 @@ public struct HookInstaller {
             ("SessionStart", nil), ("UserPromptSubmit", nil), ("PreToolUse", nil), ("PostToolUse", nil),
             ("PostToolUseFailure", nil), ("PermissionRequest", nil),
             ("Notification", Adapter.notificationTypes.joined(separator: "|")), ("Elicitation", nil),
-            ("ElicitationResult", nil), ("Stop", nil), ("StopFailure", nil), ("SessionEnd", nil),
+            ("ElicitationResult", nil), ("Stop", nil), ("StopFailure", nil), ("SubagentStop", nil), ("SessionEnd", nil),
         ],
         .codex: [
             ("SessionStart", "startup|resume|clear"), ("UserPromptSubmit", nil), ("PreToolUse", nil),

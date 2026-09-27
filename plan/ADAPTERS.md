@@ -1,6 +1,6 @@
 # Boop: agent adapters
 
-Updated 2026-09-27. How Boop hears from Claude Code and Codex: the hook
+Updated 2026-09-28. How Boop hears from Claude Code and Codex: the hook
 client, the event every hook becomes, how a session moves between
 working, idle and "needs you", and how the hooks are installed. Code:
 `app/HookWire/`, `app/BoopHook/`, `app/BoopKit/Adapters/`,
@@ -41,7 +41,7 @@ for a `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | `subagent_type` | That subagent's `agent_type`, such as `Explore` |
 | `project` | A short project name from the working directory (§3); `unknown` when the hook had no `cwd` |
 | `workspace` | The worktree or branch the session works in, cleaned to a name (§3); missing on the default branch or outside git |
-| `event` | `session_start`, `turn_start`, `activity`, `needs_you`, `turn_end`, `turn_failed`, `turn_stopped` (over without finishing), `session_end` |
+| `event` | `session_start`, `turn_start`, `activity`, `needs_you`, `turn_end`, `turn_failed`, `turn_stopped` (over without finishing), `subagent_end` (a Claude subagent finished), `session_end` |
 | `detail` | Per hook in §3: `tool`, `tool_use_id`, `topic`, `failed` (true or false, Claude only), `tool_error` (a failed call's class) and `error` (a failed turn's class) |
 | `ts` | When the app received it, in milliseconds on the app's steady clock ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2, "Clocks"); `boopdev replay` uses the hook line's own `ts` |
 
@@ -120,6 +120,7 @@ taken only headless or in debug mode and dropped otherwise.
 | `ElicitationResult` | `activity` | |
 | `Stop` | `turn_end` | |
 | `StopFailure` | `turn_failed` | `error` |
+| `SubagentStop` | `subagent_end`, with the subagent's `agent_id`; ignored without one, since it would pass for the main agent | |
 | `SessionEnd` | `session_end` | |
 
 **Codex** (`codex`):
@@ -205,6 +206,7 @@ still counts as working. Which of them the device shows is
 | `turn_start`, `activity` | Works |
 | `turn_end`, `turn_failed` | Goes idle |
 | `turn_stopped` | Goes idle if it was working, with no rule reaction (the brain hears of a stopped turn, [harness/EVENTS.md](harness/EVENTS.md) §4) |
+| `subagent_end` | Stays as it is: a subagent finishing isn't activity, and it doesn't count as an event for the timers below, so it can't make an idle or stale session look busy. It can answer a request (below) |
 | `needs_you` | Needs you (below) |
 | `session_end` | Is forgotten |
 | No event for 1 hour (`staleWorkMs`) | Counts as idle if it was working |
@@ -232,10 +234,13 @@ subagent by its `agent_id`, or "anyone" for a request with no tool (a
 | `activity` from an asker | Answers that asker: the tool ran (you approved) or the agent moved on (you denied) |
 | `activity` from anyone else | Nothing, unless "anyone" is asking: then it clears the request |
 | `turn_stopped` without a tool (Claude's `idle_prompt`, Codex's `Interrupt`) | Answers the main agent, and "anyone" if no subagent is also asking. Claude never sends `idle_prompt` while the main agent's prompt is up, so it arrives about a minute after you press Esc on that prompt, which sends no hook. A subagent's request stays, since its prompt may still be up |
+| `subagent_end` | Answers that subagent only: one that has finished can't be waiting on a prompt. That's how a subagent you denied, which carries on and ends without another tool call, is answered. The main agent, other subagents and "anyone" stay asking |
 | Any other event: a new prompt, the turn ending, failing or interrupted mid-tool, the session starting or ending | Clears the request |
 
 Once no asker is left, the request clears and the session works again,
-before the event itself applies (so `turn_end` then makes it idle).
+before the event itself applies (so `turn_end` then makes it idle). After
+`subagent_end` it works again only if its turn is still going, and
+otherwise goes idle.
 
 **Timers**, checked on the core's one-second tick (`Core.Config`):
 
@@ -253,9 +258,8 @@ before the event itself applies (so `turn_end` then makes it idle).
   prompt that's still open.
 - **Denied with typed feedback** carries the turn on, and its next event
   clears the request as usual.
-- **A denied subagent** that then ends without another tool call sends
-  only `SubagentStop`, which Boop doesn't hook, so its request stays until
-  the turn ends or the safety net ([PLAN.md](PLAN.md) §3).
+- **A denied subagent** stays amber while it takes in your answer, until
+  its next tool call or its end answers it.
 
 When a Claude request starts showing, and when a Codex one does after its
 grace, the core hands the harness a `needs_you` event, which never wakes
@@ -277,7 +281,7 @@ command: any command running `boop-hook`, or an older Boop's
 
 | File | What Boop adds |
 | --- | --- |
-| `~/.claude/settings.json` | Under `hooks`, a group for each Claude hook in §3's table (12 hooks). `Notification`'s has the matcher `permission_prompt\|elicitation_dialog\|idle_prompt`, since Claude runs it only for the types its matcher lists |
+| `~/.claude/settings.json` | Under `hooks`, a group for each Claude hook in §3's table (13 hooks). `Notification`'s has the matcher `permission_prompt\|elicitation_dialog\|idle_prompt`, since Claude runs it only for the types its matcher lists |
 | `~/.codex/hooks.json` | Under `hooks`, a group for each Codex hook in §3's table (8 hooks). `SessionStart`'s has the matcher `startup\|resume\|clear` |
 | `~/.codex/config.toml` | `codex_hooks = true` under `[features]`, which Codex needs to run hooks at all. Added by install (or flipped from `false`), never removed, since other hooks may rely on it |
 
