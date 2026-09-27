@@ -53,7 +53,12 @@ public enum Brains {
     /// Jev's key from `BOOP_JEV_KEY`, else the Keychain. May block on a
     /// Keychain prompt: never call it on the main thread or `home`.
     public static func jevKey() -> String? {
-        environmentJevKey() ?? Keychain.key(.jev)
+        jevKey(else: Keychain.key(.jev))
+    }
+
+    /// Jev's key from `BOOP_JEV_KEY`, else the one Boop keeps (`saved`).
+    public static func jevKey(else saved: @autoclosure () -> String?) -> String? {
+        environmentJevKey() ?? saved()
     }
 
     /// `BOOP_JEV_KEY`, which wins over the Keychain.

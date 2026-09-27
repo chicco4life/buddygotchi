@@ -205,10 +205,9 @@ public final class Runtime: @unchecked Sendable {
         let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: memory)
         react = actions.compactMap { $0 as? ReactAction }.first!
         let memory = self.memory
-        // Jev's key isn't read yet: normal starts with its table, and
-        // `start` begins reading it (`readJevKey`).
-        harness = Harness(classifier: Brains.classifier(for: mode, override: options.classifier == "jev" ? "normal" : options.classifier),
-                          writer: Brains.writer(for: mode, override: options.writer, log: log),
+        // Jev's key isn't read yet: `start` begins reading it (`readJevKey`).
+        let (classifier, writer) = Runtime.brains(mode, options, jevKey: nil)
+        harness = Harness(classifier: classifier, writer: writer,
                           tools: actions.map(Harness.Tool.init), memory: { memory.promptMemory() },
                           home: home, debugLog: options.debug ? debugLogURL : nil, log: log)
         // Tool names only: arguments can carry what you said (HARNESS.md §8).
@@ -267,7 +266,7 @@ public final class Runtime: @unchecked Sendable {
         // `home`: reading Jev's key swaps the brains and calls `onChange`,
         // so it starts now, after the app has set its callbacks.
         home.async { [self] in
-            if Brains.wantsJevKey(mode, override: options.classifier) { readJevKey() }
+            readJevKey()
             run(core.tick(at: options.clock()))
             link.update(core.snapshot(at: options.clock()), now: options.clock())
             changed()
@@ -496,7 +495,7 @@ public final class Runtime: @unchecked Sendable {
     /// (nil when it was cleared); `BOOP_JEV_KEY` still wins.
     public func reloadBrains(jevKey key: String?) {
         home.async { [self] in
-            jevKey = .some(Brains.environmentJevKey() ?? key)
+            jevKey = .some(Brains.jevKey(else: key))
             useBrains()
             changed()
         }
@@ -505,20 +504,28 @@ public final class Runtime: @unchecked Sendable {
     /// The mode's brains, on `home`. A mode that wants Jev's key before it's
     /// been read starts it reading and decides with its table meanwhile.
     func useBrains() {
-        let log = options.log
-        let wantsKey = Brains.wantsJevKey(mode, override: options.classifier)
-        if wantsKey && jevKey == nil { readJevKey() }
-        let (key, override) = (jevKey ?? nil, jevKey == nil && options.classifier == "jev" ? "normal" : options.classifier)
-        harness.use(Brains.classifier(for: mode, override: override, key: { key }, log: log),
-                    Brains.writer(for: mode, override: options.writer, log: log))
-        log("mode \(mode.rawValue), brain \(harness.classifier.id) + \(harness.writer.id)")
+        readJevKey()
+        let (classifier, writer) = Runtime.brains(mode, options, jevKey: jevKey)
+        harness.use(classifier, writer)
+        options.log("mode \(mode.rawValue), brain \(harness.classifier.id) + \(harness.writer.id)")
     }
 
-    /// Reads Jev's key off `home` (HARNESS.md §6): a Keychain prompt there
-    /// would stall every hook, tick and device line until it's answered.
-    /// Then the brains are built again with it. On `home`.
+    /// The mode's two stages with Jev's key as far as it's been read (nil
+    /// until then): a mode or `--classifier` that wants Jev decides with
+    /// normal's table until it's read.
+    static func brains(_ mode: Mode, _ options: Options, jevKey: String??) -> (any Classifier, any Writer) {
+        let reading = jevKey == nil && Brains.wantsJevKey(mode, override: options.classifier)
+        let key = jevKey ?? nil
+        return (Brains.classifier(for: mode, override: reading ? "normal" : options.classifier, key: { key }, log: options.log),
+                Brains.writer(for: mode, override: options.writer, log: options.log))
+    }
+
+    /// Reads Jev's key off `home` (HARNESS.md §6), if the mode wants it and
+    /// it isn't read yet: a Keychain prompt there would stall every hook,
+    /// tick and device line until it's answered. Then the brains are built
+    /// again with it. On `home`.
     func readJevKey() {
-        guard !readingJevKey else { return }
+        guard jevKey == nil, !readingJevKey, Brains.wantsJevKey(mode, override: options.classifier) else { return }
         readingJevKey = true
         let read = options.readJevKey
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
