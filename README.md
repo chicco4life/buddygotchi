@@ -45,6 +45,7 @@ Everything you need, from the repo root:
 make flash   # build the firmware and upload it to the board over USB
 make run     # build and start the Mac app in the menu bar (Bluetooth)
 make debug   # the same, with a live view of everything Boop sees and decides
+internal/tools/boopctl dash   # with make debug running: the debug dashboard (face, brain passes, timeline, force a mood)
 make eval    # the brain's eval scenarios against Jev (needs BOOP_JEV_KEY)
 ```
 
@@ -55,7 +56,7 @@ saved in Settings, run it from your own terminal:
 BOOP_JEV_KEY=$(security find-generic-password -s com.boopcomputer.boop -a jev -w) make eval
 ```
 
-Tests, the simulator and the device tools are for development; they're in
+The dashboard is in [plan/DASHBOARD.md](plan/DASHBOARD.md). Tests, the simulator and the other device tools are for development; they're in
 [internal/](internal/README.md) and
 [plan/VERIFICATION.md](plan/VERIFICATION.md).
 
