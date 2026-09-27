@@ -237,7 +237,7 @@ def check_order(run: Run) -> dict[str, Any]:
     rule animation such as the cheer, which it doesn't cut; an animation
     stops the line playing. Each fixture ends with seconds to spare, so
     every brain moment sent with an `id` has its `ended` by then, and it
-    says whether a newer moment cut the moment's line or face short."""
+    says whether a newer moment cut the moment's line short."""
     stamp = re.compile(r"^(\d\d):(\d\d):(\d\d)\.(\d\d\d) (.*)$")
     ended_line = re.compile(r"^device: moment (\d+) ended (\w+)(?: \((\w+)\))?$")
     how_ended: dict[int, str] = {}  # how each moment ended, by id: "done", "cut (tap)"

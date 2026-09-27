@@ -269,21 +269,22 @@ while something needed you:
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | int | The moment's `id` (§3) |
-| `how` | `done`, `cut` or `skipped` | `done`: all of it played to the end. `cut`: something stopped part of it early. `skipped`: none of it played: something needed you when it arrived (or it had nothing the device can play, which the Mac never sends) |
+| `how` | `done`, `cut` or `skipped` | `done`: its animation and its line with its bubble played to the end. The face it holds after them counts too, but ending that early (below) leaves it `done`: the reaction was seen and heard. `cut`: something stopped its animation or its line early. `skipped`: none of it played: something needed you when it arrived (or it had nothing the device can play, which the Mac never sends) |
 | `why` | `tap`, `moment`, `needs_you` or `reset`, only with `cut` | What stopped it first: a tap's wiggle, a newer moment (an animation, or any line, which replaces the line playing), "needs you" starting, or `dbg.reset` |
 
 The device sends one for every moment with an `id`, exactly once, on the
 link the moment came in on, when none of it plays any more: the
 animation, the line with its bubble, and the face it borrows. It's
 immediate for `skipped`, and for a `cut` that leaves nothing playing. A
-newer line doesn't stop an animation (§3), so a moment whose animation
-plays on ends with it, `cut` if the newer line replaced its own line or
-face. Muting doesn't stop a moment. A moment without an `id` gets none.
-A moment whose `id` the device is still waiting on can only be from a
-later launch of the Mac app, which is rare, since a launch never reuses
-an id and each starts at a random one (§3): the old one is forgotten
-without an `ended` (its launch is gone), so the new one's `ended` is its
-own.
+face held on after the line ends at once when a newer moment, a tap or
+"needs you" comes, and the moment is `done`. A newer line doesn't stop an
+animation (§3), so a moment whose animation plays on ends with it, `cut`
+if the newer line replaced its own line. Muting doesn't stop a moment. A
+moment without an `id` gets none. A moment whose `id` the device is
+still waiting on can only be from a later launch of the Mac app, which
+is rare, since a launch never reuses an id and each starts at a random
+one (§3): the old one is forgotten without an `ended` (its launch is
+gone), so the new one's `ended` is its own.
 
 The Mac ends the reaction's handle from it
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5), sends the next brain

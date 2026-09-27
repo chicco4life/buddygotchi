@@ -707,9 +707,10 @@ static void test_an_expression_ends_with_its_moment() {
 
 // PROTOCOL.md §4: a moment the Mac waits on (one with an id) ends exactly
 // once, when no part of it plays any more (the mumble and its bubble, an
-// animation, the borrowed face): done when it played out; cut, and by
-// what, when a tap's wiggle, a newer moment, "needs you" or dbg.reset
-// stopped any part of it; skipped when none of it played.
+// animation, the borrowed face): done when it played out, or when only the
+// face it holds after its mumble was ended early; cut, and by what, when a
+// tap's wiggle, a newer moment, "needs you" or dbg.reset stopped its
+// animation or its mumble; skipped when none of it played.
 static std::string ended(Rig& r) {
   std::string out;
   app::Ended e;
@@ -796,19 +797,23 @@ static void test_a_waited_moment_says_how_it_ended() {
   TEST_ASSERT_FALSE(r.b.onMoment(waited(15), r.t));
   TEST_ASSERT_EQUAL_STRING("15 skipped", ended(r).c_str());
 
-  // Its face holds on after its mumble is over (PROTOCOL.md §3), and a
-  // tap or "needs you" then still cuts it short.
+  // Its face holds on after its mumble is over (PROTOCOL.md §3). A tap, a
+  // newer moment or "needs you" then ends it at once, but doesn't cut the
+  // moment: it was seen and heard, so it's done.
   Rig h;
   h.state(base("idle"));  // the idle design's clock from 0
   const uint32_t idle = loopMs(render::Mood::kProud, SceneState::kIdle);
+  render::Mood face;
   h.at(1000);
   h.b.onMoment(waited(17), h.t);
   h.at(1000 + 400 + Behaviour::kBubbleReadMs + 100);
   TEST_ASSERT_TRUE(h.t < idle);
   TEST_ASSERT_NULL(h.b.mumble(h.t));
+  TEST_ASSERT_TRUE(h.b.expression(h.t, face));
   TEST_ASSERT_EQUAL_STRING("", ended(h).c_str());
   h.b.tap(h.t);
-  TEST_ASSERT_EQUAL_STRING("17 cut by tap", ended(h).c_str());
+  TEST_ASSERT_FALSE(h.b.expression(h.t, face));
+  TEST_ASSERT_EQUAL_STRING("17 done", ended(h).c_str());
   h.at(2 * idle + 1000);
   h.state(base("idle"));
   h.b.onMoment(waited(18), h.t);
@@ -816,7 +821,27 @@ static void test_a_waited_moment_says_how_it_ended() {
   TEST_ASSERT_NULL(h.b.mumble(h.t));
   TEST_ASSERT_EQUAL_STRING("", ended(h).c_str());
   h.state(attn());
-  TEST_ASSERT_EQUAL_STRING("18 cut by needs_you", ended(h).c_str());
+  TEST_ASSERT_EQUAL_STRING("18 done", ended(h).c_str());
+  h.at(4 * idle + 1000);
+  h.state(base("idle"));
+  h.b.onMoment(waited(19), h.t);
+  h.at(4 * idle + 1000 + 400 + Behaviour::kBubbleReadMs + 100);
+  h.moment(Anim::kCheer);
+  TEST_ASSERT_EQUAL_STRING("19 done", ended(h).c_str());
+  h.at(6 * idle + 1000);
+  h.state(base("idle"));
+  h.b.onMoment(waited(20), h.t);
+  h.at(6 * idle + 1000 + 400 + Behaviour::kBubbleReadMs + 100);
+  h.say(2);  // a newer line
+  TEST_ASSERT_EQUAL_STRING("20 done", ended(h).c_str());
+  // During its bubble, after the last syllable, it's still its mumble.
+  h.at(8 * idle + 1000);
+  h.state(base("idle"));
+  h.b.onMoment(waited(21), h.t);
+  h.at(8 * idle + 1000 + 400 + Behaviour::kBubbleReadMs - 1);
+  TEST_ASSERT_NOT_NULL(h.b.mumble(h.t));
+  h.b.tap(h.t);
+  TEST_ASSERT_EQUAL_STRING("21 cut by tap", ended(h).c_str());
 
   // dbg.reset forgets the moment, which the Mac is still told of.
   r.at(50000);

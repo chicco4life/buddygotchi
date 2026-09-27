@@ -154,7 +154,9 @@ void Behaviour::settle(uint32_t t) {
 // ---- Moments the Mac waits on (PROTOCOL.md §4 `ended`) ---------------------
 
 // A moment is over when none of its parts plays: the animation, the mumble
-// and its bubble, the expression. It was cut if any part was stopped early.
+// and its bubble, the expression. It was cut if its animation or its mumble
+// was stopped early. Its expression holds on after its mumble, and ending
+// that early doesn't cut it: the reaction was seen and heard.
 bool Behaviour::holds(uint32_t id, uint32_t t) const {
   return (momentOn(t) && moment_.id == id) || (sayOn(t) && say_.id == id) || (exprOn(t) && exprId_ == id);
 }
@@ -231,7 +233,6 @@ void Behaviour::onState(const Model& m, uint32_t t) {
       sound("chirp", t);
       if (momentOn(t)) cut(moment_.id, CutBy::kNeedsYou), moment_.anim = render::Anim::kNone;
       if (sayOn(t)) cut(say_.id, CutBy::kNeedsYou);
-      if (exprOn(t)) cut(exprId_, CutBy::kNeedsYou);
       say_ = Say{};  // no mumbles while something needs you
       expr_ = false;
     }
@@ -277,7 +278,6 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
 void Behaviour::play(render::Anim a, uint32_t t, CutBy by, int loops, render::Mood mood) {
   if (momentOn(t)) cut(moment_.id, by);
   if (sayOn(t)) cut(say_.id, by);
-  if (exprOn(t)) cut(exprId_, by);
   moment_ = Moment{};
   ++momentSeq_;
   moment_.anim = a;
@@ -303,7 +303,6 @@ uint32_t Behaviour::holdMs(render::Mood mood, int loops, uint32_t t) const {
 
 void Behaviour::startSay(const MomentIn& in, uint32_t t) {
   if (sayOn(t)) cut(say_.id, CutBy::kMoment);
-  if (exprOn(t)) cut(exprId_, CutBy::kMoment);
   say_ = Say{};
   expr_ = false;  // a new line ends the last moment's expression
   ++momentSeq_;

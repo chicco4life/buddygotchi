@@ -167,7 +167,8 @@ class Behaviour {
     uint32_t id = 0;
   };
   // A moment the Mac waits on, while any part of it plays: where it came
-  // from, and what first cut a part of it short, if anything.
+  // from, and what first cut its animation or its mumble short, if
+  // anything.
   struct Waiting {
     uint32_t id = 0;
     uint8_t from = 0;

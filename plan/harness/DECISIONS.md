@@ -234,10 +234,10 @@ how it ended ([PROTOCOL.md](../PROTOCOL.md) §4):
 
 | End | When | By |
 | --- | --- | --- |
-| `done` | The device says it played to the end: its loops, and its mumble | The runtime, from the device's `ended` |
-| `failed`, `cut short: you tapped Boop` | The device says a tap's wiggle stopped it | The same |
-| `failed`, `cut short: something newer played` | The device says a newer moment stopped it: the rules' cheer, or a line | The same |
-| `failed`, `cut short: something needed you` | The device says "needs you" started while it played | The same |
+| `done` | The device says its mumble played to the end, and its face its loops, or until a newer moment, a tap or "needs you" ended the face after the mumble: it was seen and heard | The runtime, from the device's `ended` |
+| `failed`, `cut short: you tapped Boop` | The device says a tap's wiggle stopped its mumble | The same |
+| `failed`, `cut short: something newer played` | The device says a newer moment stopped its mumble: the rules' cheer, or a line | The same |
+| `failed`, `cut short: something needed you` | The device says "needs you" started while its mumble played | The same |
 | `failed`, `cut short` | The device says something else stopped it (`dbg.reset`), or doesn't say what | The same |
 | `failed`, `something needed you` | The device says none of it played: something needed you when it arrived | The same |
 | `failed`, `waited too long` | It waited too long for its turn and was dropped, face and all | The moment schedule |
