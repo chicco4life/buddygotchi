@@ -80,6 +80,12 @@ example `git show v1-full:plan/BEHAVIORS.md`. Bring one back at a time.
   in the bubble, or the Mac speaking for Boop). The word is its own step
   ([harness/DECISIONS.md](harness/DECISIONS.md) §4), so a writer can fill
   it without changing the rest.
+- **Talk and memory back in the brain.** Push-to-talk is inert for now:
+  Boop listens and doesn't reply. Bringing it back means a talk event,
+  and actions for what the words ask: quiet mode for a while or its end,
+  a hurt mumble when told off, and remembering a fact
+  ([BEHAVIORS.md](BEHAVIORS.md) §3.3 had the rules; git keeps the code).
+  Quiet mode has no other way in until then.
 - **`[PENDING]` in HISTORY.** Mark a brain mumble still waiting its turn
   or playing, so Jev doesn't pile a second one behind it. The moment's
   fate (started with its end time, cut, dropped) would be appended to the

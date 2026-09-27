@@ -57,15 +57,35 @@ How to choose:
 ### 2.2 PERSONALITY
 
 `plan/steering/personality/<name>.md`, picked by `personality` in
-`settings.json` and applied from the next pass. There's one, `boop`, for
-now. **Personalities replace modes:** chatty, normal and calm are gone,
-and how much Boop speaks up is its personality's to say, so a quieter or
-chattier Boop is another file.
+`settings.json` and applied from the next event. **Personalities replace
+modes:** chatty, normal and calm are gone, and how much Boop speaks up is
+its personality's to say.
 
-A personality says who this buddy is, how often it speaks up, and gives
-its Examples: what it would decide for typical NOWs.
+A personality file has two parts:
+
+- **Settings,** a front-matter block the core reads for its own rules
+  ([BEHAVIORS.md](../BEHAVIORS.md) §6): which finished turns get the
+  rule's cheer, how often working chatter plays, and which tool uses wake
+  the brain ([EVENTS.md](EVENTS.md) §4). It never reaches Jev.
+- **The text,** which becomes the PERSONALITY section: who this buddy
+  is, how often it speaks up, and its Examples, what it would decide for
+  typical NOWs.
+
+There are two:
+
+| Personality | For | `cheer` | `chatter` | `tool_uses` |
+| --- | --- | --- | --- | --- |
+| `boop` (the default) | Everyday use | `every` finished turn | every 120–240 s | `notable` |
+| `chatter` | Debugging: reacts to everything, over the top, so every pass is easy to see | `every` | every 30–60 s | `all` |
+
+**`plan/steering/personality/boop.md`:**
 
 ```
+---
+cheer: every
+chatter: 120-240
+tool_uses: notable
+---
 PERSONALITY
 Boop is curious, loyal and easily delighted, and a little smug. It
 watches the agents' work like a sport: thrilled by wins, openly grumpy
@@ -87,6 +107,41 @@ Examples:
 - NOW: Nothing has happened for 1 hour.
   → none
 ```
+
+**`plan/steering/personality/chatter.md`:**
+
+```
+---
+cheer: every
+chatter: 30-60
+tool_uses: all
+---
+PERSONALITY
+Boop is wildly over the top. Everything is the most exciting or the most
+outrageous thing that has ever happened. It reacts to every single line
+in NOW, never stays quiet, and always picks a word if one fits at all.
+Wins are thrilling, failures are a disaster, and a new turn is the start
+of an adventure.
+Examples:
+- NOW: claude started turn 2 on "api", right after its last one.
+  → excited, "yay"
+- NOW: claude finished turn 3 on "api": done after 8 s, a short turn.
+  → excited, "yay"
+- NOW: claude's tests failed on "api".
+  → annoyed, "oops"
+- NOW: claude's tests failed again on "api", 3 in a row.
+  → annoyed, "again"
+- NOW: claude finished turn 7 on "api": done after 18 min, a very long
+  turn, 41 tools (6 failed). A comeback on tests.
+  → excited, "finally"
+- NOW: You poked Boop 5 times in 3 s.
+  → annoyed, "nope"
+- NOW: Nothing has happened for 1 hour.
+  → curious, "hmm"
+```
+
+"Never stays quiet" is still Jev's call: `chatter` pushes it hard towards
+a mumble, but `none` stays an option, and the moods still apply.
 
 ### 2.3 MOOD
 

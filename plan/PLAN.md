@@ -151,17 +151,18 @@ that's off becomes an open item (§3).
 Known work that isn't a milestone yet, including drift found and not
 fixed. Pick one up by writing it into its spec first.
 
-- **Harness rework (A10).** [plan/harness/](harness/HARNESS.md) describes
-  the Jev-only harness, and the code still runs the two-stage one. Until it
-  lands, these still describe the old harness and move with the code:
-  `plan/steering.md` (splits into `plan/steering/`), the `steering.md`
-  rule in CLAUDE.md, [ARCHITECTURE.md](ARCHITECTURE.md) §3.2–3.3 and §4
-  (bursts, the stages, memory writes), [BEHAVIORS.md](BEHAVIORS.md) §3.3
-  and §6 (talk, modes), [VOICE.md](VOICE.md) §6 (who picks the word),
+- **Harness rework (A10).** [plan/harness/](harness/HARNESS.md)
+  describes the Jev-only harness, and the code still runs the two-stage
+  one. The personalities that replace modes, and inert push-to-talk, are
+  written into [BEHAVIORS.md](BEHAVIORS.md) §3.3 and §6 and
+  [UX.md](UX.md) §7. Until the code lands, these still describe the old
+  harness and move with it: `plan/steering.md` (splits into
+  `plan/steering/`), the `steering.md` rule in CLAUDE.md,
+  [ARCHITECTURE.md](ARCHITECTURE.md) §3.2–3.3 and §4 (bursts, the stages,
+  memory writes), [VOICE.md](VOICE.md) §6 (who picks the word),
   [ADAPTERS.md](ADAPTERS.md) §2–3 (the extra hook fields, the workspace,
-  Codex's `Interrupt`), [EVALS.md](EVALS.md) and
-  [UX.md](UX.md) §7 (Mode becomes Personality). Talk and memory writes
-  come back after it.
+  Codex's `Interrupt`) and [EVALS.md](EVALS.md). Talk and memory writes
+  come back after it ([FUTURE.md](FUTURE.md)).
 
 - **Release.** There's no signing, notarisation, app icon or release
   pipeline yet. Gen-2's list is in

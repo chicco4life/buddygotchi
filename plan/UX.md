@@ -193,9 +193,9 @@ and what goes to TypeSafe with Jev, is in [HARNESS.md](harness/HARNESS.md) §4 a
 3. The app finds `Boop-XXXX` over Bluetooth and connects, with no pairing
    in v1 ([PROTOCOL.md](PROTOCOL.md) §2). With no sessions yet Boop
    sleeps; the first agent session wakes it.
-4. The brain needs no setup. Boop starts in normal mode, which decides
-   with plain rules until you add a Jev API key in Settings (§7,
-   [HARNESS.md](harness/HARNESS.md) §6).
+4. The brain needs no setup. Boop starts with the `boop` personality,
+   and does only its rule reactions until you add a Jev API key in
+   Settings (§7, [HARNESS.md](harness/HARNESS.md) §7).
 
 ## 7. The Mac app
 
@@ -223,7 +223,7 @@ except Talk, which is there to be used in the moment.
 | --- | --- |
 | Header | A small copy of Boop's face on black glass (below) and its name. At the right, whether the body is "Connected", "Looking…" or "No device", and the Talk button (§5) |
 | Status line | Under the name, a dot and one line: "Listening…", "Needs you" (or "*N* sessions need you"), "Working on *N* sessions", "Hanging out" or "Napping"; "Waking up…" until Boop starts, or "Not running" if it couldn't |
-| Modes | Small chips, only when something isn't the usual: Chatty or Calm (Normal shows nothing), "Quiet · *N* min", Muted |
+| Chips | Small chips, only when something isn't the usual: the personality when it isn't `boop` ("Chatter"), "Quiet · *N* min", Muted |
 | Notices | "Boop couldn't start", with why in plain words (another copy is running, it can't listen for hooks, or look in `boop.log`). "*name* can't hear you" when push-to-talk can't use the mic, and "Restart your agent sessions" after hooks change, both dismissable |
 | Needs you | An amber card for the session that has waited longest: agent · project, the name in full, "Waiting for you. Answer it in the agent's window.", and "+*N* more" |
 | Sessions | Grouped by agent, Claude Code then Codex: one row per session, with its project, a coloured edge and a status chip (needs you, working, idle), waiting first, then working, then idle. With none: "No agents awake" |
@@ -239,7 +239,7 @@ command finishes ([ADAPTERS.md](ADAPTERS.md) §4).
 | Sound | Volume, 0–10 (0 shows "Off") |
 | Agents | Claude Code and Codex, each with its state and a button (below) |
 | Device | *Name*'s body: connected over Bluetooth or USB, or still looking, with a Reconnect button that drops the link and looks again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
-| Mode | Chatty, Normal or Calm, with one line on what the chosen one does ([BEHAVIORS.md](BEHAVIORS.md) §6); it takes effect at once. A line says when Apple's model can't run here, so mumbles have no word ([HARNESS.md](harness/HARNESS.md) §6). In Normal only, the Jev API key, kept in the Keychain; its caption says that with Jev, what happens and Boop's memory go to TypeSafe with each call. A saved key is used from the next input, and saving an empty one removes it |
+| Personality | Boop or Chatter, with one line on what the chosen one does ([BEHAVIORS.md](BEHAVIORS.md) §6); it takes effect from the next event. Below it, the Jev API key, kept in the Keychain; its caption says that with Jev, what happens and Boop's personality and mood go to TypeSafe with each call, and that without a key Boop does only its rule reactions. A saved key is used from the next event, and saving an empty one removes it |
 | What *name* remembers | Each lasting fact you told Boop (About you and Preferences in `long-term.md`), with a button to forget it. With none yet: "Nothing yet. Tell *name* something lasting about you, like "remember I ship on Fridays", and it keeps it here." |
 
 Each agent's row in Agents:
