@@ -237,8 +237,10 @@ probabilities, in one request of about 0.2 s.
 - **Failures:** a 429, a 5xx or a dropped connection is tried once more
   after 0.3 s. Only a failed request's HTTP status is logged.
 
-In normal mode Jev gets half the input's deadline (2.5 s for an agent
-input, 2 s otherwise), leaving the rest for the writer. When it fails,
+In normal mode Jev gets a quarter of the input's deadline (1.25 s for an
+agent input, 1 s otherwise): four times its usual 0.2–0.3 s, with room
+for its one retry. That leaves the writer time for a memory line, which
+takes Apple's model about 1.6–2.2 s, even when Jev is late. When it fails,
 refuses or hasn't answered by then, `Rules(.normal)` decides that pass
 (`FallbackClassifier`), so a failed turn or "be quiet" is never lost to
 an outage or a bad key. The evidence then reads `jev:jev-latest failed

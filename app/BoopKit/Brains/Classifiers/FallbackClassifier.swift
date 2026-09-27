@@ -1,9 +1,10 @@
 import Foundation
 
 /// A model classifier with an if-else table behind it (Stage 1, HARNESS.md
-/// §6): normal mode's Jev, with the normal table. The model gets half the
-/// input's deadline, which leaves the other half for the writer. When it
-/// fails, refuses or hasn't answered by then, the table decides that pass,
+/// §6): normal mode's Jev, with the normal table. The model gets a quarter
+/// of the input's deadline (`modelMs`), which leaves the rest for the
+/// writer. When it fails, refuses or hasn't answered by then, the table
+/// decides that pass,
 /// so a failed turn or "be quiet" never goes unanswered because the model
 /// is down, slow or has a bad key. The evidence says which one decided, and
 /// the log why the model didn't: only its error, which for Jev is the HTTP
@@ -23,9 +24,12 @@ public struct FallbackClassifier: Classifier {
         self.log = log
     }
 
-    /// The model's share of the input's deadline.
+    /// The model's share of the input's deadline: a quarter, 1 s for what
+    /// you said. That's four times Jev's usual 0.2–0.3 s, with room for its
+    /// one retry, and it leaves the writer time for a memory line (about
+    /// 2 s) even when the table has to decide.
     static func modelMs(_ deadline: Duration) -> Int {
-        deadline.ms / 2
+        deadline.ms / 4
     }
 
     public func classify(_ context: Context, _ menu: Menu, deadline: Duration) async throws -> Classification {

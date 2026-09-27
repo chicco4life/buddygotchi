@@ -418,9 +418,11 @@ final class JevClassifierTests: XCTestCase {
     /// HARNESS.md §6: in normal mode, Jev has half the input's deadline;
     /// an error, a refusal or no answer by then, and normal's table decides
     /// that pass instead, saying so in the evidence and the log.
+    /// HARNESS.md §6: Jev gets a quarter of the input's deadline, and the
+    /// normal table decides when it fails or is late.
     func testNormalsTableDecidesWhenJevCant() async throws {
-        XCTAssertEqual(FallbackClassifier.modelMs(.seconds(5)), 2500)
-        XCTAssertEqual(FallbackClassifier.modelMs(.seconds(4)), 2000)
+        XCTAssertEqual(FallbackClassifier.modelMs(.seconds(5)), 1250)
+        XCTAssertEqual(FallbackClassifier.modelMs(.seconds(4)), 1000)
         let failed = input(.agentFinished, outcome: .failed)
         let menu = Menu(failed.menu, definitions: try definitions())
         let logs = Lines()
@@ -434,10 +436,10 @@ final class JevClassifierTests: XCTestCase {
         XCTAssertEqual(logs.all, ["brain: jev:jev-latest failed (jev: HTTP 401); normal@1 decided"])
         XCTAssertEqual(normal.id, "jev:jev-latest")
 
-        // Slower than half the deadline: the table, in time for the writer.
+        // Slower than its share of the deadline: the table, in time for the writer.
         let slow = FallbackClassifier(FakeClassifier(delayMs: 400) { _ in [] }, else: Rules(.normal))
         let start = ContinuousClock.now
-        let late = try await slow.classify(context(failed), menu, deadline: .milliseconds(400))
+        let late = try await slow.classify(context(failed), menu, deadline: .milliseconds(800))
         XCTAssertEqual(late.calls, [react("annoyed")])
         XCTAssertTrue(late.evidence?.hasPrefix("fake-classifier@1 failed (late") ?? false, late.evidence ?? "")
         XCTAssertLessThan(ContinuousClock.now - start, .milliseconds(390))

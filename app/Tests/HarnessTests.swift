@@ -190,6 +190,25 @@ final class HarnessTests: XCTestCase {
 
     /// HARNESS.md §3: when Stage 2 fails, a mumble goes without its word and
     /// nothing is remembered.
+    /// HARNESS.md §6: when Jev doesn't answer in its share of the deadline,
+    /// the table decides and the writer still has time for a memory line,
+    /// which takes Apple's model about 1.6–2.2 s.
+    func testAfterAModelTimesOutTheWriterStillHasTimeToRemember() async {
+        struct Slow: Writer {
+            let id = "slow@1"
+            func write(_ context: Context, _ slots: [Slot], deadline: Duration) async throws -> Writing {
+                try await Task.sleep(for: .milliseconds(2200))
+                return Writing(values: ["react.word": "hi", "remember.text": "pairs"])
+            }
+        }
+        let silent = FakeClassifier(delayMs: 10_000) { _ in [] }
+        let rig = HarnessRig(classifier: FallbackClassifier(silent, else: Rules(.normal)), writer: Slow())
+        rig.submit(input(.said, words: "remember I always pair on Mondays"))
+        await rig.settle(timeoutMs: 5000)
+        XCTAssertNil(rig.snapshot.records.first?.writeFailed)
+        XCTAssertEqual(rig.snapshot.handled.map(\.name), ["react", "remember"])
+    }
+
     func testAFailedWriterLeavesEverySlotEmpty() async {
         let writer = FakeWriter { _ in throw BrainError("offline") }
         let rig = HarnessRig(classifier: FakeClassifier { _ in [react("happy"), remember("today")] }, writer: writer)
