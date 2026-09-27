@@ -39,6 +39,9 @@ enum Headless {
         var options = Runtime.Options(stateDir: stateDir,
                                       socketPath: socketPath,
                                       link: transport, steering: bundledSteering())
+        // Jev's key only from BOOP_JEV_KEY, as boopdev: a run from an agent
+        // shell must never use the owner's key from the Keychain (HARNESS.md §6).
+        options.readJevKey = { Brains.environmentJevKey() }
         // The clock can be moved forward with `{"dev":"advance","ms":N}`, so
         // the pipeline check can finish a 6-minute turn without waiting it out.
         let skew = Skew()

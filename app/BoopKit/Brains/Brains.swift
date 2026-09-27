@@ -8,7 +8,8 @@ import Foundation
 /// mumble's word it leaves out. `--classifier` and `--writer` override the
 /// mode's choice for one run.
 public enum Brains {
-    /// Overrides the Keychain's Jev key, for `boopdev` and headless runs.
+    /// Jev's key for `boopdev` and `Boop --headless`, which read nothing
+    /// else; in the menu-bar app it wins over the Keychain's.
     public static let jevKeyVariable = "BOOP_JEV_KEY"
     /// What `--classifier` and `--writer` take.
     public static let classifiers = ["chatty", "normal", "calm", "jev"]

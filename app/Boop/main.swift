@@ -16,7 +16,8 @@ let usage = """
                 [--name NAME] [--nature sweet|cheeky] [--debug]
                No UI and no Bluetooth. The hook socket defaults to DIR/boop.sock. A new state directory
                is set up with --name (default Boop). --mode, --classifier and --writer override the saved
-               mode and its brain for this run only. Stops cleanly on SIGINT or SIGTERM.
+               mode and its brain for this run only. Normal decides with Jev only when BOOP_JEV_KEY
+               holds its key: headless never reads the Keychain. Stops cleanly on SIGINT or SIGTERM.
                {"dev":"advance","ms":N} on the socket moves the clock forward.
            --debug prints everything to this terminal as it happens: each hook and what Boop made of it,
                the core's decisions, every line sent to the device, and every brain pass (the input, the
