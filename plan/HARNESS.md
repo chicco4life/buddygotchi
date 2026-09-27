@@ -369,19 +369,27 @@ single call.
 
 ## 8. Logging
 
-In debug mode, each pass is logged as one JSON line: the input and its
-line (with what you said), both brains, how many inputs the window held,
-Stage 1's calls and evidence, the slots and what was written (and the
-writer's raw answer), why anything was dropped or failed, what each action
-did, and each stage's latency. Each aside gets a line too, so the log
-carries the whole transcript. Debug mode is `--debug-log FILE`, in the
-menu-bar app (`make run DEBUG_LOG=FILE`) or headless, and `boopdev watch
-FILE` follows it live, printing each pass readably. Otherwise the app log gets one line per pass: the input kind, the
+Debug mode is `Boop --debug`, in the menu-bar app (`make debug`) or
+headless. It prints everything to the terminal that started the app, as it
+happens: each hook with the event the adapter made of it, the core's
+decisions, every line sent to the device (marked rules or brain), and each
+pass, readably. Each pass is also one JSON line in the state directory's
+`debug.jsonl`, which starts afresh at every launch: the input and its line
+(with what you said), both brains, the memory the brains read (long-term
+and short-term; steering is the same every time and left out), the window
+as one line per input or aside, Stage 1's calls and evidence, the slots
+and what was written (and the writer's raw answer), why anything was
+dropped or failed, what each action did, and each stage's latency. Each
+aside gets a line too, so the file carries the whole transcript.
+`boopdev watch [FILE]` prints a `debug.jsonl` the same way, following it
+as it grows and when a launch starts it again. The app log gets one line per pass: the input kind, the
 latency and the outputs that ran, never their arguments:
 
 ```
 brain you said 812 ms → quiet, react, remember
 ```
 
-Outside debug mode, the words you said and what the brain wrote never reach
-the log.
+The words you said and what the brain wrote never reach the log, in debug
+mode or not; only the terminal and `debug.jsonl` get them. (In debug mode
+the log does get the lines sent to the device, and a mumble's word is one
+of them.)

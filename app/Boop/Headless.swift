@@ -14,6 +14,14 @@ enum Headless {
         case .bluetooth?: fail("headless mode never uses Bluetooth; use --link usb:SOCKET")
         case nil: fail("--link is usb:SOCKET or none")
         }
+        let socketPath = option(args, "--socket") ?? stateDir.appendingPathComponent("boop.sock").path
+        // Checked before anything is set up: a Unix socket's path has room
+        // for 103 bytes (sockaddr_un), and a scratch directory is often longer.
+        let room = MemoryLayout.size(ofValue: sockaddr_un().sun_path) - 1
+        if socketPath.utf8.count > room {
+            fail("the hook socket \(socketPath) is \(socketPath.utf8.count) bytes, and a Unix socket's path "
+                 + "has room for \(room): pass --socket with a shorter one")
+        }
         let log = LogFile(directory: stateDir, echo: true)
 
         let memory = try? MemoryStore(directory: stateDir, steering: "")
@@ -29,7 +37,7 @@ enum Headless {
         }
 
         var options = Runtime.Options(stateDir: stateDir,
-                                      socketPath: option(args, "--socket") ?? stateDir.appendingPathComponent("boop.sock").path,
+                                      socketPath: socketPath,
                                       link: transport, steering: bundledSteering())
         // The clock can be moved forward with `{"dev":"advance","ms":N}`, so
         // the pipeline check can finish a 6-minute turn without waiting it out.
@@ -38,7 +46,8 @@ enum Headless {
         options.clock = { steady() + skew.ms }
         options.wallClock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.ms }
         options.advance = { skew.add($0) }
-        options.trace = args.contains("--trace")
+        options.debug = args.contains("--debug")
+        options.debugPrint = { log.echo($0) }
         if let name = option(args, "--mode") {
             guard let mode = Mode(rawValue: name) else { fail("--mode is chatty, normal or calm") }
             options.mode = mode
@@ -50,7 +59,6 @@ enum Headless {
         }
         if let w = options.writer, !Brains.writers.contains(w) { fail("--writer is " + Brains.writers.joined(separator: ", ")) }
         options.devLines = true
-        options.debugLog = option(args, "--debug-log").map { URL(fileURLWithPath: $0) }
         options.log = { log.write($0) }
         let runtime: Runtime
         do {

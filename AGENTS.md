@@ -19,7 +19,7 @@ cheap ESP32 board with a screen is the body. Start with
 | `plan/` | The spec. It's the contract the code implements. [plan/PLAN.md](plan/PLAN.md) has the build order and status, and [plan/VERIFICATION.md](plan/VERIFICATION.md) has how everything is checked. Evidence goes in `plan/evidence/` |
 | `app/` | Swift package: the Mac menu-bar app, the `boop-hook` hook client, and the `boopdev` dev CLI |
 | `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)) |
-| `tools/` | `boopctl` (device tool), `voicegen` (voice assets), `fontgen` (the device's fonts), `webcam/` (opt-in recorder), `build-loop.sh` (the unattended build) |
+| `tools/` | `boopctl` (device tool), `voicegen` (voice assets), `fontgen` (the device's fonts), `webcam/` (opt-in recorder) |
 | `skills/` | `doctor` (hook self-check) and `webcam-verify`, symlinked for Claude, Codex and Cursor |
 | `archived/` | History only: research, docs and the gen-2 specs (`archived/plan-gen2`). All earlier code is kept at git tag `gen2-final` (`git show gen2-final:<path>`). Don't extend it |
 | `landing/` | The Next.js landing page (Vercel project root) |
@@ -36,24 +36,29 @@ Run from the repo root.
 make build        # Mac app, boop-hook, boopdev
 make test         # Swift unit tests (XCTest shim; there is no Xcode here)
 make eval         # harness eval scenarios (app/Evals/scenarios) in every mode, deterministic
-make tools        # tools/.venv with pyserial and Pillow
+make eval REAL=1  # the same with the real brains, 3 runs each, plus refusals and latency (L5)
 make fw           # build firmware for the board
 make flash        # build and upload over USB
 make fw-test      # firmware unit tests on the Mac
-make sim          # the renderer simulator
+make sim          # every device scenario in the simulator, against the goldens
 make e2e          # hook → app → USB → device pipeline check
-make webcam-test  # the webcam recorder's tests, on synthetic video (no camera)
+make tools-test   # the tools' own tests: boopctl's commands, the webcam recorder on synthetic video
 make run          # the Mac app, with Bluetooth; the owner runs this, not agents
-tools/boopctl ping | state | shot | run <scenario> | sim <scenario> | bridge
-tools/boopctl mumble [feeling] | say [feeling] | volume [level…] | sound [chirp] | moment [anim] [--say F] | needs
+make debug        # make run, printing hooks, decisions, device lines and brain passes; the owner's too
+app/.build/debug/Boop --headless --state-dir DIR --debug   # the runtime with no UI or Bluetooth, printing everything
 app/.build/debug/Boop --snapshots DIR   # the Mac app's popover and icons as PNGs, no Bluetooth
+tools/boopctl ping | state | shot | send '<json>' | sim | run | bridge
+tools/boopctl play <cheer|wiggle|listening|stop|needs|pattern> | mumble [feeling…]
 ```
+
+Every tool lists its options with `--help` (`tools/boopctl`,
+`app/.build/debug/boopdev`, `app/.build/debug/Boop`).
 
 **Environment notes:**
 
 - There's no Xcode, so `swift test` runs nothing. `make test` runs
-  `python3 app/tools/test.py`, which generates the shim runner and runs
-  `swift run BoopTests`.
+  `python3 app/tools/test.py`, which generates the shim runner, builds the
+  package in one `swift build` and runs `app/.build/debug/BoopTests`.
 - Command Line Tools lack some Swift macro plugins. SwiftUI's `@State` and
   Foundation Models' `@Generable`/`@Guide` don't compile. Use the
   `ViewState` alias and runtime `DynamicGenerationSchema` instead
@@ -66,19 +71,13 @@ app/.build/debug/Boop --snapshots DIR   # the Mac app's popover and icons as PNG
   `firmware/tools/pio.sh` (the make targets do), which keeps its packages in
   `firmware/.platformio-core`. The board shows up as
   `/dev/cu.usbserial-*`. The serial port needs no special permissions.
-- System Python has no pyserial or Pillow. The tools use `tools/.venv`.
+- System Python has no pyserial or Pillow. The tools use `tools/.venv`,
+  which `tools/boopctl` makes on its first run (`make tools`).
+- A Unix socket's path has room for 103 bytes, so give `Boop --headless`
+  a short state directory (under `/tmp`) or a short `--socket`.
 - `make build` re-signs `Boop` with the owner's self-signed "Boop Dev"
   certificate when it exists, so the Keychain doesn't ask for the Jev key
   after every rebuild ([plan/VERIFICATION.md](plan/VERIFICATION.md) §2).
-
-## Running the v1 build
-
-"Run the loop" or "start the build" means: from this checkout's root, start
-`caffeinate -dimsu tools/build-loop.sh` as a background command and report
-where its log is (`/tmp/boop-build-loop/loop.log`). The script runs
-[plan/LOOP.md](plan/LOOP.md) one fresh iteration at a time until
-`plan/evidence/v1-build/DONE` exists ([plan/PLAN.md](plan/PLAN.md) §5).
-Don't run the iterations yourself in this session.
 
 ## Never do these
 
@@ -203,9 +202,9 @@ checks that actually ran and passed. A milestone's evidence goes in
 
 Webcam verification is opt-in. Use the `webcam-verify` skill
 (`skills/webcam-verify/SKILL.md`) only when the owner asks for it and
-confirms the physical setup for that session. The v1 build loop was
+confirms the physical setup for that session. The v1 build was
 authorised to use it until the owner withdrew that on 2026-09-26
-([plan/LOOP.md](plan/LOOP.md)). Clips are bounded, video only, and raw
+(`plan/evidence/v1-build/PROGRESS.md`). Clips are bounded, video only, and raw
 footage stays local.
 
 ## Self-diagnosis

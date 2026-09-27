@@ -54,6 +54,7 @@ class Run:
         self.writer = writer
         self.port = port
         self.state = root / "state"
+        self.debug_log = self.state / "debug.jsonl"
         self.bridge_sock = str(root / "usb.sock")
         self.hook_sock = str(root / "boop.sock")
         self.log: list[str] = []
@@ -85,8 +86,7 @@ class Run:
         self.procs.append(subprocess.Popen(bridge, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         self._wait_for(lambda: os.path.exists(self.bridge_sock), 10, "the bridge's socket")
         app = [str(BIN / "Boop"), "--headless", "--state-dir", str(self.state), "--link", f"usb:{self.bridge_sock}",
-               "--socket", self.hook_sock, "--mode", "chatty", "--writer", self.writer, "--name", "Pip", "--trace",
-               "--debug-log", str(self.root / "brain.jsonl")]
+               "--socket", self.hook_sock, "--mode", "chatty", "--writer", self.writer, "--name", "Pip", "--debug"]
         self.procs.append(subprocess.Popen(app, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         self._wait_for(lambda: "device link: connected" in self.app_log(), 10, "the app to reach the bridge")
         # The first launch of a freshly built boop-hook is slow (~270 ms) while
@@ -211,12 +211,12 @@ def check_after(run: Run, expected: dict[str, Any]) -> None:
         count = happened.count(want)
         need = expected["happened"].count(want)
         (run.say if count >= need else run.fail)(f"short-term Happened has {want!r} ×{count}")
-    brain_log = (run.root / "brain.jsonl").read_text() if (run.root / "brain.jsonl").exists() else ""
+    brain_log = run.debug_log.read_text() if run.debug_log.exists() else ""
     for want in expected["inputs"]:
         (run.say if want in brain_log else run.fail)(f"brain saw an input with {want!r}: {want in brain_log}")
-    # Nothing private may reach the app's files or the brain.
+    # Nothing private may reach the app's files, debug.jsonl included.
     leaks = []
-    for f in list(run.state.rglob("*")) + [run.root / "brain.jsonl"]:
+    for f in run.state.rglob("*"):
         if f.is_file() and "PRIVATE_" in f.read_text(errors="replace"):
             leaks.append(str(f))
     (run.fail if leaks else run.say)(f"PRIVATE_ markers in app files or the brain log: {leaks or 'none'}")
@@ -248,7 +248,7 @@ def check_order(run: Run) -> dict[str, Any]:
     """The brain's moments come after the rules' reaction and never cut a
     rule moment short.
 
-    With --trace the app logs `hook: …` for each hook and `link rules → …` or
+    With --debug the app logs `hook: …` for each hook and `link rules → …` or
     `link brain → …` for each line sent to the device. For every brain
     moment: the rules' reaction to the last hook came first, and the last
     rule moment had finished playing."""
@@ -451,8 +451,8 @@ def soak(out: Path, writer: str, port: str | None, minutes: float) -> int:
     (out / f"soak-{writer}.txt").write_text("\n".join(run.log) + "\n")
     if (run.state / "boop.log").exists():
         shutil.copy(run.state / "boop.log", out / f"soak-app-{writer}.log")
-    if (run.root / "brain.jsonl").exists():
-        shutil.copy(run.root / "brain.jsonl", out / f"soak-brain-{writer}.jsonl")
+    if run.debug_log.exists():
+        shutil.copy(run.debug_log, out / f"soak-brain-{writer}.jsonl")
     print(json.dumps({k: v for k, v in result.items() if k != "failures"}, indent=1))
     print("PASS" if result["ok"] else "FAIL")
     return 0 if result["ok"] else 1

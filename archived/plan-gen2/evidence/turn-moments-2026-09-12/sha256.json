@@ -1,5 +1,0 @@
-{
-  "firmware/esp32/.pio/build/ws-amoled164/firmware.factory.bin": "bc9870456d62164b7769d330aff5c17b2241115ee83f1a75afd9575c8d027a76",
-  "firmware/esp32/.pio/build/ws-amoled164-usb-debug/firmware.factory.bin": "2e81273074d4a94e2bea593fd4949f15016604f107b14418d47002104b1414ed",
-  "app/Boop/Resources/BEHAVIOR.md": "a7b47c7cecbccf5f74d5c1f86d64ed20f25b0cd5049adf28a775647b6d31c189"
-}

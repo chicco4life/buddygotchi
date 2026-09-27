@@ -35,47 +35,47 @@ Each level answers a different question:
 
 ## 2. The tools
 
+Every tool lists its options with `--help`; this table says what each is for.
+
 | Tool | What it is |
 | --- | --- |
-| `make build` / `make sign` | Builds the Mac app, `boop-hook` and `boopdev`. When the login keychain has a code-signing identity named "Boop Dev" (or `SIGN_IDENTITY`), it then re-signs `Boop` with it, so the Keychain keeps recognising the app across rebuilds and stops asking for the Jev key each time. Without one, the build stays ad-hoc signed. The owner makes the certificate once: Keychain Access → Certificate Assistant → Create a Certificate…, name "Boop Dev", type Code Signing |
-| `make test` | Swift unit tests. There's no Xcode here, so this runs the XCTest shim: `python3 app/tools/test.py`, which runs `swift run BoopTests` |
-| `make eval` | The harness eval scenarios ([EVALS.md](EVALS.md)): `boopdev eval` |
-| `make fw-test` | Firmware unit tests on the Mac: `pio test -e native` |
-| `make sim` / `tools/boopctl sim` | The simulator. It builds the same drawing and behaviour code as the firmware for the Mac, runs a scenario, and writes PNGs |
-| `tools/boopctl` | The new device tool, replacing `buddyctl.py`. It's Python in `tools/.venv` (pyserial, Pillow), created by `make tools` |
+| `make build` / `make sign` | Builds the Mac app, `boop-hook` and `boopdev` in one `swift build`. When the login keychain has a code-signing identity named "Boop Dev" (or `SIGN_IDENTITY`), it then re-signs `Boop` with it, so the Keychain keeps recognising the app across rebuilds and stops asking for the Jev key each time. Without one, the build stays ad-hoc signed. The owner makes the certificate once: Keychain Access → Certificate Assistant → Create a Certificate…, name "Boop Dev", type Code Signing |
+| `make test` | Swift unit tests. There's no Xcode here, so this runs the XCTest shim: `python3 app/tools/test.py` generates its runner, builds the package in one `swift build` and runs `app/.build/debug/BoopTests` |
+| `make eval` | The harness eval scenarios ([EVALS.md](EVALS.md)): `boopdev eval`. `make eval REAL=1` runs them with the real brains (L5) |
+| `make run` / `make debug` | The Mac app with Bluetooth, for the owner; `make debug` runs it with `--debug` ([HARNESS.md](HARNESS.md) §8) |
+| `make fw` / `make flash` / `make fw-test` | The firmware for the board, the same uploaded over USB, and its unit tests on the Mac (`pio test -e native`) |
+| `make sim` / `tools/boopctl sim` | The simulator. It builds the same drawing and behaviour code as the firmware for the Mac, runs every scenario (or the ones named), writes PNGs and compares them with the goldens |
+| `make e2e` | The L4 pipeline check (`boopctl e2e`) |
+| `make tools` / `make tools-test` | `tools/.venv` with pyserial and Pillow (`tools/boopctl` makes it when it's missing; this also refreshes it), and the tools' own tests: `boopctl`'s commands and the webcam recorder on synthetic video, with no board or camera |
+| `tools/boopctl` | The device tool, replacing `buddyctl.py`: Python in `tools/.venv`. Its commands are below |
 | `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket (`--socket`, default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`), so the Mac app and other `boopctl` commands can use the board at the same time. Every line from the board goes to every client, and each client's lines reach the board whole. It never waits on a client: a client that stops reading and falls 4 MB behind is dropped, so a paused `boopctl` can't stall the others or the app. While a bridge runs, other `boopctl` commands (with `BOOP_BRIDGE` set to its socket, if it isn't the default) go through it instead of opening the port |
-| `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it. `make webcam-test` tests it on synthetic video and never opens a camera |
+| `tools/webcam/webcam.sh` | The AVFoundation recorder and frame extractor ([its README](../tools/webcam/README.md)). `boopctl cam …` wraps it |
+| `Boop --headless` | The whole runtime with isolated state, no UI and no Bluetooth (L4). `--debug` prints everything as it happens, as `make debug` does; `{"dev":"advance","ms":N}` and `{"dev":"talk",…}` on its socket move its clock and hand it what you said |
 | `Boop --snapshots DIR` | Renders the Mac app's popover (seven overview states, including listening and a refused mic, the whole settings pane, the four setup steps) and the menu-bar icons to PNGs, in light and dark, from fixed fixtures, then exits. No runtime, Bluetooth, microphone or Keychain; the agents' settings it reads are in a throwaway HOME |
-| `boopdev` | A Swift CLI in the app package for replaying hooks, running the brain on recorded inputs, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev memory --state-dir DIR` prints the memory files as the store reads them, and the snapshot days. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `react` would build, and with `--why` every rejected try. `boopdev brain [--mode chatty\|normal\|calm] [--classifier chatty\|normal\|calm\|jev] [--writer apple\|none] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]` runs L5: recorded inputs through the real pipeline (§5). `boopdev eval [--mode chatty\|normal\|calm] [--classifier chatty\|calm\|jev] [--writer none\|apple] [--runs N] [--only TEXT] [--json FILE]` runs the harness eval scenarios in each mode ([EVALS.md](EVALS.md)); with a model, `--runs` runs each one N times and passes it only if every run does. `boopdev watch FILE [--new]` follows a brain debug log as it grows and prints each pass and aside readably (HARNESS.md §8). `boopdev talk "<words>" [--yelled] --socket PATH` hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic (`--yelled` as if you yelled it). `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
+| `boopdev eval` | The harness eval scenarios ([EVALS.md](EVALS.md)); `--real` is L5 |
+| `boopdev watch [FILE]` | Prints debug mode's `debug.jsonl` (the everyday app's by default) readably as it grows, as `Boop --debug` prints it ([HARNESS.md](HARNESS.md) §8) |
+| `boopdev replay <fixture>` | Runs recorded hook payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision; with `--socket`, through the real `boop-hook` to a running app, in real time |
+| `boopdev voice <feeling> [word]` | The Minion lines `react` would build (`boopctl mumble` plays them) |
+| `boopdev talk "<words>" --socket PATH` | Hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic |
+| `boopdev hooks status\|install\|remove --home DIR` | The hook installer against any HOME (the doctor checks with `status`) |
 
-`boopctl` subcommands:
+`boopctl` subcommands (`tools/boopctl <command> --help` has their options):
 
 | Command | Does |
 | --- | --- |
-| `ports` | List USB serial ports |
-| `flash [--env cyd24]` | Build and upload the firmware |
 | `ping` | Firmware version and git SHA, uptime, free and minimum heap, fps, link state |
 | `state` | The device's own view of itself (§3) |
-| `send '<json>'` | Send one protocol message, exactly as Bluetooth would |
-| `run <scenario>` | Play a scenario on the device (§4) and save its screenshots |
-| `sim <scenario>` | Play the same scenario in the simulator and save its PNGs |
-| `shot --out x.png` | Screenshot the device's canvas, at the size its `dbg.shot` header gives |
-| `diff a.png b.png` | Pixel diff. Exits non-zero past a threshold and writes a highlighted diff image. Pictures of different sizes differ in every pixel, and their diff image shows the two side by side |
-| `press tap\|hold [--ms N]` | Inject a BOOT press |
-| `touch X Y [--ms N]` | Inject a touch at screen coordinates |
-| `clock freeze T \| step MS \| run` | Control the device clock for repeatable frames |
-| `pattern` | Show the bring-up test pattern |
-| `mumble [feeling…] [--word W \| --no-word] [--count N] [--vol N] [--seed N] [--json]` | F5's L2 check, and for hearing Boop by hand. Plays N lines built by the Mac's Voice (`boopdev voice --json`) for every feeling (or the ones named), without and then with its usual word, and checks `audio.out` in `dbg.state` for each: the syllable count, the word, and the duration the DAC took within 10% of beats × `ms`. Then checks that a muted line moves the mouth and plays nothing. It prints its seed, and `--seed` plays the same lines again |
-| `say [feeling] [--word W] [--seed N]` | One line with its word at the end (the feeling's usual word by default), checked as `mumble` checks it. It sends no `state`, so the line plays at the volume the board already has: the Mac app's when it's connected, for trying the app's volume setting. It prints that volume, and says so instead of playing when the board is muted, quiet or showing needs you |
-| `volume [level…] [--rounds N]` | For comparing volumes by ear. Plays one fixed line at each level in turn (1 then 10 by default), for 6 rounds, and says whether the board played each one in full |
-| `sound [chirp] [--vol N]` | Plays the needs-you chirp, the only sound cue, the way the Mac causes it: with a new `attn`, then cleared. Checks `sfx` in `dbg.state` |
-| `moment [anim] [--say FEELING [--word W]] [--base B] [--vol N]` | Plays one animation from the set (`cheer`, `wiggle`, `listening`; [BEHAVIORS.md](BEHAVIORS.md) §5), a mumble on its own (`--say` with no anim), or both, and checks that the device took it. `moment stop` sends the empty moment ([PROTOCOL.md](PROTOCOL.md) §3) and reports whether `listening` is still playing |
-| `needs [--seconds S] [--agent A] [--project P] [--more N] [--vol N]` | Holds a fake "needs you" (10 s by default), printing the screen, light, backlight and the chirp once, then clears it; Ctrl-C clears it early |
-| `perf --seconds N [--motion]` | Sample fps and heap over time; `--motion` plays `cheer`, `wiggle` and `listening` back to back so every sample is mid-motion, then the empty moment |
-| `e2e [--writer none\|apple] [fixture…]` | The L4 pipeline check (`make e2e`): bridge, headless app, the J1 fixtures through the real `boop-hook`, checkpoints, latency, memory and ordering |
-| `e2e --soak MIN [--writer none\|apple]` | J2's pipeline soak: the same fixtures on a loop for MIN minutes, a tap on the board between rounds, then a quiet minute. Samples `dbg.ping`, `audio.out.errors` and the app's memory; fails on a board reset, a heap-minimum drift over 2 KB, audio errors, the app exiting, or anything left on screen (not the plain face, `attn` or a moment) at the end. Checkpoint misses are counted and reported. A debug request that loses its reply (the CH340 rarely drops bytes over a long run) is retried once and counted as a link glitch |
-| `soak --minutes N` | Random, realistic traffic and inputs (with one 35 s silence), then check for resets, a drifting heap minimum, and that calm snapshots bring back the plain face |
-| `cam frame\|pattern\|clip <name>` | Webcam helpers (L3 in §5). Clips are live presets: `idle`, `needs_you`, `cheer` (then a mumble) and `tap` |
+| `shot` | Screenshot the device's canvas, at the size its `dbg.shot` header gives |
+| `send '<json>'` | Send one protocol message, exactly as Bluetooth would. A `dbg.` request (§3) prints the board's reply: `{"t":"dbg.press","ms":100}` presses BOOT, `{"t":"dbg.clock","run":true}` lets the clock run |
+| `play <what>` | Plays one thing the Mac can make the board do and checks it took: `cheer`, `wiggle` or `listening` ([BEHAVIORS.md](BEHAVIORS.md) §5), with `--say FEELING` a mumble over it; `stop`, the empty moment ([PROTOCOL.md](PROTOCOL.md) §3), reporting whether `listening` still plays; `needs`, a fake "needs you" held for `--seconds` (10), printing the screen, light and backlight and whether its one chirp played, then cleared (Ctrl-C clears it early); `pattern`, the bring-up test pattern |
+| `mumble [feeling…]` | F5's L2 check, and for hearing Boop by hand. Plays lines built by the Mac's Voice (`boopdev voice --json`) for every feeling (or the ones named), without and then with its usual word, and checks `audio.out` in `dbg.state` for each: the syllable count, the word, and the duration the DAC took within 10% of beats × `ms`. Then checks that a muted line moves the mouth and plays nothing. It prints its seed, and `--seed` plays the same lines again. `--board-volume` plays one line with its word at the volume the board already has (the Mac app's, when it's connected), sending no `state`, and says so instead when the board is muted, quiet or showing needs you. `--levels 1 10` plays one fixed line at each level in turn, for `--rounds` (6), for comparing volumes by ear |
+| `sim [scenario…]` | Play scenarios in the simulator, save their PNGs and compare them with the goldens (`--accept` copies them in, after looking) |
+| `run [scenario…]` | Play scenarios on the device (§4), save its screenshots and diff each against the simulator's, threshold 0; the clock runs again afterwards, even after a failure |
+| `perf` | Sample fps and heap over time; `--motion` plays `cheer`, `wiggle` and `listening` back to back so every sample is mid-motion, then the empty moment |
+| `soak` | Random, realistic traffic and inputs for `--minutes` (with one 35 s silence), then check for resets, a drifting heap minimum, and that calm snapshots bring back the plain face. `--pipeline` is J2's soak instead: the e2e fixtures through the headless app on a loop (`--writer none\|apple`), a tap on the board between rounds, then a quiet minute. It samples `dbg.ping`, `audio.out.errors` and the app's memory, and fails on a board reset, a heap-minimum drift over 2 KB, audio errors, the app exiting, or anything left on screen (not the plain face, `attn` or a moment) at the end. Checkpoint misses are counted and reported. A debug request that loses its reply (the CH340 rarely drops bytes over a long run) is retried once and counted as a link glitch |
+| `e2e [fixture…]` | The L4 pipeline check (`make e2e`): bridge, headless app, the J1 fixtures through the real `boop-hook`, checkpoints, latency, memory and ordering |
+| `bridge` | Shares the serial port on a Unix socket (above) |
+| `cam frame\|pattern\|clip <name>` | Webcam helpers (L3 in §5). Clips are live presets: `idle`, `needs_you`, `cheer` (then a mumble) and `tap`. `--camera ID` (or `BOOP_CAMERA`) picks the camera, from `tools/webcam/webcam.sh list`; the default is the MacBook's own. `e2e --clip` takes `--camera` too |
 | `calibrate` | Touch calibration. Needs a person to tap 4 amber crosses 20 px in from the corners, then one in the middle to check; the crosses are placed from the screen size the board reports in `dbg.ping` (320×240). It fits a raw → screen map and the board keeps it in NVS for that screen and rotation. `--show` prints the stored map, `--show --clear` forgets it |
 
 ## 3. The debug channel
@@ -205,7 +205,7 @@ Named scenarios for what the harness should do in each mode, given events,
 taps and talk over time. In every mode they're deterministic and part of
 L0: `make test` runs them, and `make eval` prints each one's result. Jev
 runs normal's column only with its key
-(`boopdev eval --mode normal --classifier jev`). How they work and what
+(`make eval REAL=1`, or `boopdev eval --mode normal --classifier jev`). How they work and what
 each checks is in [EVALS.md](EVALS.md).
 
 **Pass:** every scenario passes in every mode.
@@ -235,7 +235,7 @@ each checks is in [EVALS.md](EVALS.md).
 2. `tools/boopctl run <scenario>` for every scenario. Each `expect` must
    pass.
 3. Each device screenshot must be **identical** to the simulator's picture
-   for the same scenario and shot (`boopctl diff`, threshold 0).
+   for the same scenario and shot (`boopctl run` diffs them, threshold 0).
 4. `tools/boopctl perf --seconds 30` during a motion scenario: at least 25 fps
    while moving, minimum free heap at least 60 KB, and no reset (uptime keeps
    rising).
@@ -286,7 +286,7 @@ matters because an agent can't launch the app with Bluetooth on.
    port.
 2. The app starts headless with isolated state and its own hook socket,
    never the everyday ones:
-   `Boop --headless --state-dir /tmp/boop-e2e/state --link usb:/tmp/boop-e2e/usb.sock --socket /tmp/boop-e2e/boop.sock --mode chatty --writer none --name Pip --trace --debug-log /tmp/boop-e2e/brain.jsonl`.
+   `Boop --headless --state-dir /tmp/boop-e2e/state --link usb:/tmp/boop-e2e/usb.sock --socket /tmp/boop-e2e/boop.sock --mode chatty --writer none --name Pip --debug`.
    Chatty's if-else rules always classify and no writer is the default, so
    runs repeat, with a brain mumble for every agent input;
    `--writer apple` runs the same fixtures with Apple's model writing the
@@ -303,8 +303,8 @@ matters because an agent can't launch the app with Bluetooth on.
    `state`, and is left out.
 5. Afterwards: the Happened lines in the memory files, the topics, error
    class and finishes in the brain's inputs, no `PRIVATE_` marker from the
-   fixtures in any app file or the brain's log, and, from the `--trace`
-   log, that every brain moment came after the rules' reaction and didn't
+   fixtures in any app file (`debug.jsonl` included), and, from debug
+   mode's lines in `boop.log`, that every brain moment came after the rules' reaction and didn't
    start while a rule moment was playing.
 
 `boopdev replay <fixture>` without `--socket` runs the same fixtures on the
@@ -315,40 +315,35 @@ under 200 ms at p95.
 
 ### L5: brain
 
-1. `boopdev brain --mode normal --writer apple --inputs app/Tests/Fixtures/inputs --memory app/Tests/Fixtures/memory`
-   (all four are the defaults, from the repo root) runs the real pipeline
-   on recorded inputs, with the mode's brains: agents starting and
-   finishing, things said to Boop, and poke streaks. They run 3 minutes
-   apart in file order (`--gap-min`) and share one transcript, so its
-   window fills and moves on as it would in the app
-   ([HARNESS.md](HARNESS.md) §4). Every input gets a fresh copy of the
-   sample memory. Normal decides with Jev, its key in `BOOP_JEV_KEY`, and
-   with the normal rules without one; `--mode chatty` asks Apple's model
-   for a word on every mumble. `--print` shows each input and what ran, and
-   every pass is logged to `/tmp/boop-brain/<classifier>-<writer>.jsonl`
-   (`--out`).
-2. It reports: refusals (a model's guardrail declining), how many inputs
-   Stage 1 answered on the menu, what each kind of input decided, the
-   writer's slots filled and its failures, the calls handed to actions and
-   those they dropped and why, the window's largest size and its restarts,
-   and, for each kind of input, each stage's p50 latency and the p95 of the
-   two together against its deadline.
-3. The agent reads a sample of about 20 passes against `steering.md`: are
+1. `make eval REAL=1` (`boopdev eval --real`) runs every eval scenario
+   ([EVALS.md](EVALS.md)) in every mode with its real brains, 3 times
+   each: Apple's model writes, and normal decides with Jev, its key in
+   `BOOP_JEV_KEY` (its table without one). Every pass goes to the run's own
+   file in `/tmp/boop-eval`, which it names.
+2. After the scenarios it reports, over the passes whose stages weren't
+   scripted: refusals (a model's guardrail declining), how many passes
+   Stage 1 answered on the menu, the writer's slots filled and its
+   failures, the calls handed to actions and those they dropped and why,
+   and, for each kind of input, each stage's p50 latency and the p95 of
+   the two together against its deadline.
+3. The agent reads a sample of about 20 passes
+   (`boopdev watch` on that file) against `steering.md`: are
    the decisions in character and never nagging, the words right for what
    happened, and the memory lines worth keeping?
 
-**Pass:** Stage 1 answered on the menu, in time, for every input it didn't
-refuse, fewer than 5% of the calls handed to actions were dropped by them,
-every kind's p95 is under its deadline, and a reviewed sample. Refusals are
-reported, not failed: a refused pass leaves Boop with the rules' reaction,
-and a refused write leaves the words empty. Apple's model is available on
-this Mac with an 8K context.
+**Pass:** every scenario passes in every run, Stage 1 answered on the
+menu, in time, for every pass it didn't refuse, fewer than 5% of the calls
+handed to actions were dropped by them, every kind's p95 is under its
+deadline, and a reviewed sample. Refusals are reported, not failed: a
+refused pass leaves Boop with the rules' reaction, and a refused write
+leaves the words empty. Apple's model is available on this Mac with an 8K
+context.
 
 ### L6: the owner (morning)
 
 These can't be checked without a person: Bluetooth connection (launching
 the app with Bluetooth), the mic and speech recognition, real touches and
-touch calibration, sound (by ear, with `boopctl mumble`, `say`, `volume` and `sound`), real Claude Code and
+touch calibration, sound (by ear, with `boopctl mumble`, `mumble --board-volume`, `mumble --levels` and `play needs`), real Claude Code and
 Codex sessions with installed hooks, the Mac app in the real menu bar, and
 how Boop feels. They're on the
 morning checklist in [PLAN.md](PLAN.md).
@@ -357,9 +352,9 @@ morning checklist in [PLAN.md](PLAN.md).
 
 The webcam stays opt-in ([CLAUDE.md](../CLAUDE.md)). A run may use it only
 when its prompt authorises it and the owner has positioned the board. The
-authorisation covers that run only. [LOOP.md](LOOP.md) authorised it for
-the v1 build until the owner withdrew that on 2026-09-26, so the webcam is
-off for the rest of that run.
+authorisation covers that run only. The v1 build was authorised to use it
+until the owner withdrew that on 2026-09-26
+([PROGRESS.md](evidence/v1-build/PROGRESS.md)).
 
 - Clips are bounded: at most 10 s each, video only, no audio.
 - Raw recordings stay in `/tmp` and are deleted at the end of the run. Only
@@ -372,5 +367,5 @@ off for the rest of that run.
 Each milestone writes `plan/evidence/v1-build/<milestone>/README.md`: what ran,
 the result, anything accepted or changed and why, plus a few small PNGs
 (simulator, device screenshot, webcam crop). Logs and raw video stay in
-`/tmp`. A build run also keeps a running log and ends with a report
+`/tmp`. The v1 build also kept a running log and ended with a report
 ([PLAN.md](PLAN.md) §5).

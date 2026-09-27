@@ -18,8 +18,7 @@ a change to one goes in the same commit as the code
 | [DEVICE.md](DEVICE.md) | The board, pins, firmware stack and bring-up |
 | [VERIFICATION.md](VERIFICATION.md) | How everything is checked, including the screen |
 | [EVALS.md](EVALS.md) | The harness eval scenarios: how they run and what each checks |
-| [PLAN.md](PLAN.md) | The build order, the check for each milestone, how the build runs, the morning checklist, and the open items |
-| [LOOP.md](LOOP.md) | The prompt for one iteration of the unattended build |
+| [PLAN.md](PLAN.md) | The build order, the check for each milestone, the morning checklist, and the open items |
 | [FUTURE.md](FUTURE.md) | Ideas we like but aren't building in v1 |
 
 The previous generation's specs are in

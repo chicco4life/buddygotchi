@@ -20,43 +20,29 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
-.venv/
+.venv
 venv/
 
 # Swift / SPM
 app/.build/
 app/.swiftpm/
-archived/app/.build/
-archived/app/.swiftpm/
 .build/
 .swiftpm/
 Package.resolved.bak
 
-# Xcode / macOS local build artifacts
-DerivedData/
-*.xcuserstate
-*.xcworkspace/xcuserdata/
-*.xcodeproj/xcuserdata/
-*.xcodeproj/project.xcworkspace/xcuserdata/
-
-# JavaScript / Bun legacy workspace
+# JavaScript (landing/)
 node_modules/
-bun.lockb
-dist-tsc/
 
 # Local logs, env, and generated reports
 *.log
 .env
 .env.*
-!archived/landing/.env.example
-boop-bug-report-*.json
 
 # Snapshot and temporary outputs
 snapshots/
 tmp/
 *.tmp
 .vercel
-.env*
 
 # Packaging output
 build/

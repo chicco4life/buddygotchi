@@ -1,1 +1,0 @@
-{"usbOnly": false, "contract": 2, "board": "ws-amoled164", "fw": "dev-moments-20260912", "git": "0c7f1d0e9b1a", "up": 88555, "heap": 198416, "heapMin": 197152, "heapBig": 155636, "reset": "unknown", "panics": 103, "early": 0, "safe": 0, "frameUs": 22185, "frameMaxUs": 22960}

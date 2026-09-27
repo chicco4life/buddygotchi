@@ -1,4 +1,5 @@
-"""Command line for boopctl. Subcommands are listed in plan/VERIFICATION.md §2."""
+"""Command line for boopctl (plan/VERIFICATION.md §2); `boopctl --help` lists
+the subcommands and `boopctl <command> --help` their options."""
 from __future__ import annotations
 
 import argparse
@@ -11,7 +12,7 @@ import time
 from pathlib import Path
 
 from boopctl_lib import scenario
-from boopctl_lib.device import Device, DeviceError, Sim, list_ports
+from boopctl_lib.device import Device, DeviceError, Sim
 from boopctl_lib.image import diff, save_shot
 
 REPO = Path(__file__).resolve().parents[2]
@@ -23,20 +24,6 @@ RUN_OUT = Path("/tmp/boop-run")
 
 def emit(obj: object) -> None:
     print(json.dumps(obj, indent=2, sort_keys=True))
-
-
-def cmd_ports(args: argparse.Namespace) -> int:
-    ports = list_ports()
-    for port in ports:
-        print(port)
-    return 0 if ports else 1
-
-
-def cmd_flash(args: argparse.Namespace) -> int:
-    cmd = [str(PIO), "run", "-e", args.env, "-t", "upload"]
-    if args.port:
-        cmd += ["--upload-port", args.port]
-    return subprocess.run(cmd).returncode
 
 
 def cmd_ping(args: argparse.Namespace) -> int:
@@ -52,9 +39,14 @@ def cmd_state(args: argparse.Namespace) -> int:
 
 
 def cmd_send(args: argparse.Namespace) -> int:
-    json.loads(args.message)  # refuse to send malformed JSON
+    """One message as the Mac would send it; a `dbg.` request (§3: press,
+    touch, clock, pattern, light…) prints the board's reply."""
+    message = json.loads(args.message)  # refuse to send malformed JSON
     with Device(args.port) as dev:
-        dev.send(args.message)
+        if str(message.get("t", "")).startswith("dbg."):
+            emit(dev.request(message))
+        else:
+            dev.send(args.message)
     return 0
 
 
@@ -62,32 +54,6 @@ def cmd_shot(args: argparse.Namespace) -> int:
     with Device(args.port) as dev:
         shot = dev.shot()
     print(save_shot(shot, Path(args.out)))
-    return 0
-
-
-def cmd_diff(args: argparse.Namespace) -> int:
-    out = Path(args.out) if args.out else Path(args.b).with_suffix(".diff.png")
-    n = diff(Path(args.a), Path(args.b), out)
-    print(f"{n} pixels differ" + (f"; see {out}" if n else ""))
-    return 0 if n <= args.threshold else 1
-
-
-def cmd_pattern(args: argparse.Namespace) -> int:
-    with Device(args.port) as dev:
-        dev.request({"t": "dbg.pattern"})
-    return 0
-
-
-def cmd_press(args: argparse.Namespace) -> int:
-    ms = args.ms or scenario.PRESS_MS[args.kind]
-    with Device(args.port) as dev:
-        dev.request({"t": "dbg.press", "ms": ms})
-    return 0
-
-
-def cmd_touch(args: argparse.Namespace) -> int:
-    with Device(args.port) as dev:
-        dev.request({"t": "dbg.touch", "x": args.x, "y": args.y, "ms": args.ms})
     return 0
 
 
@@ -99,15 +65,6 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
             emit(dev.request({"t": "dbg.touchcal", **({"clear": True} if args.clear else {})}))
         return 0
     emit(calibrate.run(args.port))
-    return 0
-
-
-def cmd_clock(args: argparse.Namespace) -> int:
-    message = {"freeze": {"freeze": args.value}, "step": {"step": args.value}, "run": {"run": True}}[args.action]
-    if args.action != "run" and args.value is None:
-        raise SystemExit(f"boopctl clock {args.action} needs a value in ms")
-    with Device(args.port) as dev:
-        emit(dev.request({"t": "dbg.clock", **message}))
     return 0
 
 
@@ -164,16 +121,20 @@ def cmd_run(args: argparse.Namespace) -> int:
     _, sim_dirs = sim_all(paths)
     failures = differ = 0
     with Device(args.port) as dev:
-        for path in paths:
-            out = RUN_OUT / path.stem
-            shutil.rmtree(out, ignore_errors=True)
-            failures += len(scenario.play(dev, path, out))
-            for png in sorted(out.glob("*.png")):
-                ref = sim_dirs[path.stem] / png.name
-                n = diff(ref, png, png.with_suffix(".diff.png"))
-                differ += bool(n)
-                print(("same  " if not n else f"DIFF  ({n} px) ") + f"{png} vs {ref}")
-        dev.request({"t": "dbg.clock", "run": True})
+        try:
+            for path in paths:
+                out = RUN_OUT / path.stem
+                shutil.rmtree(out, ignore_errors=True)
+                failures += len(scenario.play(dev, path, out))
+                for png in sorted(out.glob("*.png")):
+                    ref = sim_dirs[path.stem] / png.name
+                    n = diff(ref, png, png.with_suffix(".diff.png"))
+                    differ += bool(n)
+                    print(("same  " if not n else f"DIFF  ({n} px) ") + f"{png} vs {ref}")
+        finally:
+            # Scenarios freeze the clock; the face moves again even after a
+            # failure or Ctrl-C.
+            dev.request({"t": "dbg.clock", "run": True})
     print(f"{len(paths)} scenarios, {failures} expect failures, {differ} pictures differ from the simulator")
     return 1 if failures or differ else 0
 
@@ -218,7 +179,7 @@ def cmd_perf(args: argparse.Namespace) -> int:
     return 0 if result["ok"] else 1
 
 
-# The feelings `mumble` and `say` play, each with its usual word. A mumble
+# The feelings `mumble` plays, each with its usual word. A mumble
 # goes on its own, with no animation, as the Mac sends one (PROTOCOL.md §3).
 VOICE_LINES = [("happy", "yay"), ("excited", "done"), ("proud", "ship"), ("curious", "tests"),
                ("hopeful", "food"), ("annoyed", "build"), ("sad", "oops"), ("sleepy", "nap")]
@@ -290,7 +251,13 @@ def soak_input(rng: random.Random) -> dict:
 
 def cmd_soak(args: argparse.Namespace) -> int:
     """Random, realistic traffic and inputs with the clock running, then
-    checks for resets, a drifting heap minimum and stuck states."""
+    checks for resets, a drifting heap minimum and stuck states. With
+    --pipeline, the e2e fixtures on a loop through the headless app instead
+    (J2's soak)."""
+    if args.pipeline:
+        from boopctl_lib import e2e
+
+        return e2e.soak(Path(args.out or "/tmp/boop-e2e-out"), args.writer, args.port, args.minutes)
     rng = random.Random(args.seed)
     samples, log_lines = [], []
     with Device(args.port) as dev:
@@ -359,6 +326,7 @@ def cmd_soak(args: argparse.Namespace) -> int:
 def cmd_cam(args: argparse.Namespace) -> int:
     from boopctl_lib import cam
 
+    cam.CAMERA = args.camera or cam.CAMERA
     with Device(args.port) as dev:
         if args.action == "frame":
             result = cam.frame(dev, args.usb)
@@ -373,10 +341,9 @@ def cmd_cam(args: argparse.Namespace) -> int:
 
 
 def cmd_e2e(args: argparse.Namespace) -> int:
-    from boopctl_lib import e2e
+    from boopctl_lib import cam, e2e
 
-    if args.soak:
-        return e2e.soak(Path(args.out), args.writer, args.port, args.soak)
+    cam.CAMERA = args.camera or cam.CAMERA
     return e2e.main(Path(args.out), args.writer, args.port, args.fixture or None, args.clip)
 
 
@@ -386,9 +353,8 @@ def cmd_bridge(args: argparse.Namespace) -> int:
     return serve(args.port, args.socket or bridge_path(), quiet=args.quiet)
 
 
-# Hearing and watching Boop by hand: mumble, sound, moment and needs drive
-# the board over USB the way the Mac would, and read dbg.state to say
-# whether it happened. The Mac app, if it's connected over Bluetooth, keeps
+# Hearing and watching Boop by hand: mumble and play drive the board over
+# USB the way the Mac would, and read dbg.state to say whether it happened. The Mac app, if it's connected over Bluetooth, keeps
 # sending its own `state` and can override these.
 
 FEELINGS = [f for f, _ in VOICE_LINES]
@@ -493,7 +459,12 @@ def cmd_mumble(args: argparse.Namespace) -> int:
     """F5's L2 check, and for hearing Boop by hand: lines built by the Mac's
     Voice for every feeling (or the ones named), without and then with its
     usual word, each checked with check_line. Then checks that a muted line
-    moves the mouth and plays nothing."""
+    moves the mouth and plays nothing. --board-volume and --levels play one
+    line instead (mumble_at_board_volume, mumble_levels)."""
+    if args.levels:
+        return mumble_levels(args)
+    if args.board_volume:
+        return mumble_at_board_volume(args)
     words = dict(VOICE_LINES)
     seed = args.seed if args.seed is not None else random.randrange(10_000)
     if not args.json:
@@ -528,26 +499,25 @@ def cmd_mumble(args: argparse.Namespace) -> int:
     return 0 if summary["ok"] else 1
 
 
-def cmd_say(args: argparse.Namespace) -> int:
+def mumble_at_board_volume(args: argparse.Namespace) -> int:
     """One mumble with its word at the end. It sends no `state`, so the line
     plays at whatever volume the board already has: the Mac app's, when it's
-    connected."""
-    words = dict(VOICE_LINES)
-    say = boopdev_voice(args.feeling, args.word or words[args.feeling], 1, args.seed)[0]
+    connected, for trying the app's volume setting."""
+    feeling = (args.feeling or ["happy"])[0]
+    say = boopdev_voice(feeling, args.word or dict(VOICE_LINES)[feeling], 1, args.seed)[0]
     say["at"] = syllables(say)
     with Device(args.port) as dev:
         mac = show_begin(dev, warn=False).get("ble") == "conn"
         st = dev.request({"t": "dbg.state"})
         vol = st.get("vol")
-        source = "the Mac app's" if mac else "the last `state` the board got; the Mac app isn't connected"
-        print(f"volume {vol if vol is not None else '? (reflash: this firmware has no vol in dbg.state)'} ({source})")
+        print(f"volume {vol} ({'the Mac app' if mac else 'the last `state` the board got; the Mac app is not connected'})")
         why = ("muted (volume 0)" if vol == 0 else "quiet" if st["quiet"] else
                "something needs you" if st["attn"] else None)
         if why:
             print(f"not playing: the board is {why}, so it won't speak")
             return 1
         r = check_line(dev, say)
-    print(f"{args.feeling:8} {line_row(r)}")
+    print(f"{feeling:8} {line_row(r)}")
     return 0 if r["ok"] else 1
 
 
@@ -556,7 +526,7 @@ def cmd_say(args: argparse.Namespace) -> int:
 VOLUME_LINE = {"syl": "mo-la-gom la-pa pa go-gom", "word": "finally", "at": 8, "tune": "lift", "ms": 135}
 
 
-def cmd_volume(args: argparse.Namespace) -> int:
+def mumble_levels(args: argparse.Namespace) -> int:
     """The same line at each level in turn, round after round, for comparing
     by ear, and whether the board played each one in full."""
     missed = 0
@@ -574,29 +544,21 @@ def cmd_volume(args: argparse.Namespace) -> int:
     return 1 if missed else 0
 
 
-def cmd_sound(args: argparse.Namespace) -> int:
-    """The chirp, the only sound cue, comes with a new "needs you", so it's
-    played by sending one and clearing it."""
-    with Device(args.port) as dev:
-        show_begin(dev)
-        show_state(dev, args.vol, attn={"agent": "claude", "project": "boopctl", "more": 0})
-        deadline = time.monotonic() + 3
-        while (heard := sfx_name(dev.request({"t": "dbg.state"}))) != args.cue and time.monotonic() < deadline:
-            time.sleep(0.05)
-        time.sleep(1.5)
-        show_state(dev, args.vol)
-    print(f"{args.cue}: " + ("played" if heard == args.cue else f"not played (last cue {heard})"))
-    return 0 if heard == args.cue else 1
-
-
-def cmd_moment(args: argparse.Namespace) -> int:
-    """An animation, a mumble on its own (--say with no anim), or both; or
-    `stop`, the empty moment, which ends listening (PROTOCOL.md §3)."""
-    if not args.anim and not args.say:
-        raise DeviceError("moment needs an anim, --say FEELING, or both (or stop)")
-    if args.anim == "stop" and args.say:
-        raise DeviceError("stop is the empty moment: it takes no --say")
-    if args.anim == "stop":
+def cmd_play(args: argparse.Namespace) -> int:
+    """One thing the Mac can make the board do, checked through dbg.state:
+    an animation from the set (BEHAVIORS.md §5), with --say a mumble over
+    it; `stop`, the empty moment that ends listening (PROTOCOL.md §3);
+    `needs`, a fake "needs you" (play_needs); or the bring-up `pattern`."""
+    if args.say and args.what in ("stop", "needs", "pattern"):
+        raise DeviceError(f"play {args.what} takes no --say")
+    if args.what == "pattern":
+        with Device(args.port) as dev:
+            dev.request({"t": "dbg.pattern"})
+        print("pattern: showing until the next state")
+        return 0
+    if args.what == "needs":
+        return play_needs(args)
+    if args.what == "stop":
         with Device(args.port) as dev:
             show_begin(dev)
             dev.send({"t": "moment", "ttl": 5})
@@ -608,29 +570,24 @@ def cmd_moment(args: argparse.Namespace) -> int:
     with Device(args.port) as dev:
         show_begin(dev)
         show_state(dev, args.vol, base=args.base)
-        msg = {"t": "moment", "ttl": 5}
-        if args.anim:
-            msg["anim"] = args.anim
+        msg = {"t": "moment", "anim": args.what, "ttl": 5}
         if args.say:
             msg["say"] = boopdev_voice(args.say, args.word, 1, args.seed)[0]
         dev.send(msg)
-        st = dev.request({"t": "dbg.state"})
-    moment = st.get("moment")
-    if args.anim:
-        ok = bool(moment) and moment.get("anim") == args.anim
-        head = f"{args.anim}: " + (f"playing, {moment['left_ms']} ms" if ok else f"not playing ({moment})")
-    else:
-        ok = st["audio"]["syllables"] > 0
-        head = "mumble: " + ("playing over the face" if ok else "not playing (quiet, or something needs you?)")
-    print(head + (f", saying {msg['say']['syl']!r} {msg['say'].get('word') or ''}" if args.say else ""))
+        moment = dev.request({"t": "dbg.state"}).get("moment")
+    ok = bool(moment) and moment.get("anim") == args.what
+    print(f"{args.what}: " + (f"playing, {moment['left_ms']} ms" if ok else f"not playing ({moment})")
+          + (f", saying {msg['say']['syl']!r} {msg['say'].get('word') or ''}" if args.say else ""))
     return 0 if ok else 1
 
 
-def cmd_needs(args: argparse.Namespace) -> int:
-    """Holds a "needs you" for a while (BEHAVIORS.md §3.2): one chirp, amber
-    at half, the face turned to you. Prints what the board shows, then
-    clears it, and the face blends back. Ctrl-C clears it early."""
+def play_needs(args: argparse.Namespace) -> int:
+    """Holds a "needs you" for a while (BEHAVIORS.md §3.2): one chirp, the
+    only sound cue, amber at half, the face turned to you. Prints what the
+    board shows and whether the chirp played, then clears it, and the face
+    blends back. Ctrl-C clears it early."""
     attn = {"agent": args.agent, "project": args.project, "more": args.more}
+    chirp = None
     with Device(args.port) as dev:
         show_begin(dev)
         start = time.monotonic()
@@ -641,86 +598,48 @@ def cmd_needs(args: argparse.Namespace) -> int:
                 if resend is None or now >= resend:
                     show_state(dev, args.vol, attn=attn)
                     resend = now + 10
-                if not shown and now - start >= 0.3:
-                    st = dev.request({"t": "dbg.state"})
-                    print(f"{now - start:6.1f} s  screen {st['screen']}  led {st['led']}  bl {st['bl']}  "
-                          f"last cue {sfx_name(st)}", flush=True)
-                    shown = True
+                if chirp != "chirp" and now - start < 3:
+                    chirp = sfx_name(st := dev.request({"t": "dbg.state"}))
+                    if not shown and now - start >= 0.3:
+                        print(f"{now - start:6.1f} s  screen {st['screen']}  led {st['led']}  bl {st['bl']}", flush=True)
+                        shown = True
                 time.sleep(0.25)
         except KeyboardInterrupt:
             pass
         finally:
             show_state(dev, args.vol)
+    print("chirp: " + ("played" if chirp == "chirp" else f"not played (last cue {chirp})"))
     print("cleared: Boop goes back to idle")
-    return 0
+    return 0 if chirp == "chirp" else 1
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="boopctl", description="Talk to the Boop board over USB.")
+    parser = argparse.ArgumentParser(prog="boopctl", description="Talk to the Boop board over USB (plan/VERIFICATION.md §2).")
     parser.add_argument("--port", help="serial port (default: $BOOP_PORT or the first /dev/cu.usbserial-*)")
-    sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("ports", help="list USB serial ports").set_defaults(func=cmd_ports)
-    p = sub.add_parser("flash", help="build and upload the firmware")
-    p.add_argument("--env", default="cyd24")
-    p.set_defaults(func=cmd_flash)
+    sub = parser.add_subparsers(dest="command", required=True, metavar="command")
     sub.add_parser("ping", help="firmware version, uptime, heap, fps, link").set_defaults(func=cmd_ping)
-    p = sub.add_parser("bridge", help="own the serial port and share it on a Unix socket")
-    p.add_argument("--socket", help="socket path (default: $BOOP_BRIDGE or /tmp/boop-bridge.sock)")
-    p.add_argument("--quiet", action="store_true")
-    p.set_defaults(func=cmd_bridge)
-    p = sub.add_parser("e2e", help="the pipeline check: hooks → headless app → bridge → board (L4)")
-    p.add_argument("--writer", default="none", choices=["none", "apple"],
-                   help="the brain's writer; the classifier is always the rules (default: none)")
-    p.add_argument("--out", default="/tmp/boop-e2e-out", help="results, logs and screenshots")
-    p.add_argument("fixture", nargs="*", help="paths under app/Tests/Fixtures/hooks/e2e (default: all three)")
-    p.add_argument("--clip", action="store_true",
-                   help="first film a 10 s Claude session on the webcam (authorised runs only; §6)")
-    p.add_argument("--soak", type=float, metavar="MIN",
-                   help="loop the fixtures for MIN minutes and check for resets, leaks and stuck states (J2)")
-    p.set_defaults(func=cmd_e2e)
     sub.add_parser("state", help="the device's own view of itself").set_defaults(func=cmd_state)
-    p = sub.add_parser("send", help="send one protocol message")
-    p.add_argument("message")
-    p.set_defaults(func=cmd_send)
     p = sub.add_parser("shot", help="screenshot the device's canvas")
     p.add_argument("--out", default="/tmp/boop-shot.png")
     p.set_defaults(func=cmd_shot)
-    p = sub.add_parser("diff", help="pixel diff of two PNGs; non-zero exit past the threshold")
-    p.add_argument("a")
-    p.add_argument("b")
-    p.add_argument("--threshold", type=int, default=0)
-    p.add_argument("--out", help="highlighted diff image (default: <b>.diff.png)")
-    p.set_defaults(func=cmd_diff)
-    sub.add_parser("pattern", help="show the bring-up test pattern").set_defaults(func=cmd_pattern)
-    p = sub.add_parser("press", help="inject a BOOT press")
-    p.add_argument("kind", choices=["tap", "hold"])
-    p.add_argument("--ms", type=int)
-    p.set_defaults(func=cmd_press)
-    p = sub.add_parser("touch", help="inject a touch at screen coordinates")
-    p.add_argument("x", type=int)
-    p.add_argument("y", type=int)
-    p.add_argument("--ms", type=int, default=100)
-    p.set_defaults(func=cmd_touch)
-    p = sub.add_parser("calibrate", help="touch calibration: tap 4 crosses (needs a person); kept in NVS")
-    p.add_argument("--show", action="store_true", help="print the stored calibration instead")
-    p.add_argument("--clear", action="store_true", help="with --show: forget it (back to the default raw range)")
-    p.set_defaults(func=cmd_calibrate)
-    p = sub.add_parser("clock", help="freeze T | step MS | run")
-    p.add_argument("action", choices=["freeze", "step", "run"])
-    p.add_argument("value", type=int, nargs="?")
-    p.set_defaults(func=cmd_clock)
-    p = sub.add_parser("sim", help="play scenarios in the simulator and compare with the goldens")
-    p.add_argument("scenario", nargs="*", help="names or paths (default: all)")
-    p.add_argument("--accept", action="store_true", help="copy the pictures into the goldens (after looking!)")
-    p.set_defaults(func=cmd_sim)
-    p = sub.add_parser("run", help="play scenarios on the device and compare with the simulator")
-    p.add_argument("scenario", nargs="*", help="names or paths (default: all)")
-    p.set_defaults(func=cmd_run)
-    p = sub.add_parser("perf", help="sample fps and heap; --motion keeps the face moving")
-    p.add_argument("--seconds", type=int, default=30)
-    p.add_argument("--motion", action="store_true")
-    p.set_defaults(func=cmd_perf)
+    p = sub.add_parser("send", help="send one protocol message; a dbg.* request prints the reply")
+    p.add_argument("message", help="""JSON, e.g. '{"t":"dbg.press","ms":100}' or '{"t":"dbg.clock","run":true}'""")
+    p.set_defaults(func=cmd_send)
     vol = {"type": int, "choices": range(1, 11), "default": 6, "metavar": "1-10", "help": "volume (default 6)"}
+    p = sub.add_parser("play", help="play an animation (with --say, a mumble over it), stop, a fake needs-you "
+                                    "with its chirp, or the bring-up pattern")
+    p.add_argument("what", choices=MOMENT_ANIMS + ["stop", "needs", "pattern"],
+                   help=", ".join(MOMENT_ANIMS) + "; stop (the empty moment); needs; pattern")
+    p.add_argument("--say", choices=FEELINGS, metavar="FEELING", help=f"a mumble with this feeling: {', '.join(FEELINGS)}")
+    p.add_argument("--word", help="the mumble's word")
+    p.add_argument("--seed", type=int)
+    p.add_argument("--base", choices=["idle", "working", "asleep"], default="idle")
+    p.add_argument("--vol", **vol)
+    p.add_argument("--seconds", type=float, default=10, help="needs: how long to hold it (default 10)")
+    p.add_argument("--agent", choices=["claude", "codex"], default="claude", help="needs: who asks")
+    p.add_argument("--project", default="boopctl", help="needs: the project shown")
+    p.add_argument("--more", type=int, default=0, help="needs: how many more are waiting")
+    p.set_defaults(func=cmd_play)
     p = sub.add_parser("mumble", help="play and check mumbles: every feeling, or the ones named, without and "
                                       "with a word; then check mute (F5, L2)")
     p.add_argument("feeling", nargs="*", choices=FEELINGS, metavar="feeling",
@@ -733,53 +652,59 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--seed", type=int, help="replay the lines of an earlier run (default: new lines)")
     p.add_argument("--gap", type=float, default=0.8, help="seconds between lines (default 0.8)")
     p.add_argument("--json", action="store_true", help="every line's result as JSON")
+    how = p.add_mutually_exclusive_group()
+    how.add_argument("--board-volume", action="store_true",
+                     help="one line with its word at the volume the board has (the Mac app's), sending no state")
+    how.add_argument("--levels", nargs="+", type=int, choices=range(1, 11), metavar="LEVEL",
+                     help="compare volumes by ear: one fixed line at each level in turn, --rounds times")
+    p.add_argument("--rounds", type=int, default=6, help="with --levels (default 6)")
     p.set_defaults(func=cmd_mumble)
-    p = sub.add_parser("say", help="one mumble with a word at the end, at the board's current volume (the Mac's)")
-    p.add_argument("feeling", nargs="?", choices=FEELINGS, default="happy", metavar="feeling",
-                   help=f"any of {', '.join(FEELINGS)} (default: happy)")
-    p.add_argument("--word", help="the word (default: the feeling's usual one)")
-    p.add_argument("--seed", type=int, help="the same line again (default: a new one)")
-    p.set_defaults(func=cmd_say)
-    p = sub.add_parser("volume", help="compare volumes by ear: the same line at each level in turn")
-    p.add_argument("levels", nargs="*", type=int, choices=range(1, 11), default=[1, 10], metavar="level",
-                   help="volumes 1-10, played in this order each round (default: 1 10)")
-    p.add_argument("--rounds", type=int, default=6, help="default 6")
-    p.add_argument("--gap", type=float, default=0.6, help="seconds between lines (default 0.6)")
-    p.set_defaults(func=cmd_volume)
-    p = sub.add_parser("sound", help="hear the needs-you chirp, the only sound cue")
-    p.add_argument("cue", nargs="?", choices=["chirp"], default="chirp")
-    p.add_argument("--vol", **vol)
-    p.set_defaults(func=cmd_sound)
-    p = sub.add_parser("moment", help="play an animation, a mumble on its own (--say), or both; "
-                                      "stop sends the empty moment, which ends listening")
-    p.add_argument("anim", nargs="?", choices=MOMENT_ANIMS + ["stop"], metavar="anim",
-                   help=", ".join(MOMENT_ANIMS) + ", or stop")
-    p.add_argument("--say", choices=FEELINGS, metavar="FEELING",
-                   help=f"a mumble with this feeling: {', '.join(FEELINGS)}")
-    p.add_argument("--word", help="the mumble's word")
-    p.add_argument("--seed", type=int)
-    p.add_argument("--base", choices=["idle", "working", "asleep"], default="idle")
-    p.add_argument("--vol", **vol)
-    p.set_defaults(func=cmd_moment)
-    p = sub.add_parser("needs", help="hold a fake \"needs you\" for a while, then clear it")
-    p.add_argument("--seconds", type=float, default=10, help="how long to hold it (default 10)")
-    p.add_argument("--agent", choices=["claude", "codex"], default="claude")
-    p.add_argument("--project", default="boopctl")
-    p.add_argument("--more", type=int, default=0, help="how many more are waiting")
-    p.add_argument("--vol", **vol)
-    p.set_defaults(func=cmd_needs)
-    p = sub.add_parser("soak", help="random realistic traffic and inputs; checks resets, leaks, stuck states")
+    p = sub.add_parser("sim", help="play scenarios in the simulator and compare with the goldens (L1)")
+    p.add_argument("scenario", nargs="*", help="names or paths (default: all)")
+    p.add_argument("--accept", action="store_true", help="copy the pictures into the goldens (after looking!)")
+    p.set_defaults(func=cmd_sim)
+    p = sub.add_parser("run", help="play scenarios on the device and compare with the simulator (L2)")
+    p.add_argument("scenario", nargs="*", help="names or paths (default: all)")
+    p.set_defaults(func=cmd_run)
+    p = sub.add_parser("perf", help="sample fps and heap; --motion keeps the face moving")
+    p.add_argument("--seconds", type=int, default=30)
+    p.add_argument("--motion", action="store_true")
+    p.set_defaults(func=cmd_perf)
+    p = sub.add_parser("soak", help="random realistic traffic and inputs; checks resets, leaks, stuck states "
+                                    "(--pipeline: the e2e fixtures on a loop)")
     p.add_argument("--minutes", type=float, default=20)
     p.add_argument("--seed", type=int, default=1)
-    p.add_argument("--out", help="write the result and the samples as JSON")
+    p.add_argument("--out", help="write the result as JSON here (--pipeline: a directory, default /tmp/boop-e2e-out)")
+    p.add_argument("--pipeline", action="store_true",
+                   help="through the headless app: hooks, a tap between rounds, then a quiet minute (J2)")
+    p.add_argument("--writer", default="none", choices=["none", "apple"], help="with --pipeline (default: none)")
     p.set_defaults(func=cmd_soak)
+    p = sub.add_parser("e2e", help="the pipeline check: hooks → headless app → bridge → board (L4)")
+    p.add_argument("--writer", default="none", choices=["none", "apple"],
+                   help="the brain's writer; the classifier is always the rules (default: none)")
+    p.add_argument("--out", default="/tmp/boop-e2e-out", help="results, logs and screenshots")
+    p.add_argument("fixture", nargs="*", help="paths under app/Tests/Fixtures/hooks/e2e (default: all three)")
+    p.add_argument("--clip", action="store_true",
+                   help="first film a 10 s Claude session on the webcam (authorised runs only; §6)")
+    p.add_argument("--camera", help="with --clip: the camera id (default: $BOOP_CAMERA or the built-in one)")
+    p.set_defaults(func=cmd_e2e)
+    p = sub.add_parser("bridge", help="own the serial port and share it on a Unix socket")
+    p.add_argument("--socket", help="socket path (default: $BOOP_BRIDGE or /tmp/boop-bridge.sock)")
+    p.add_argument("--quiet", action="store_true")
+    p.set_defaults(func=cmd_bridge)
     p = sub.add_parser("cam", help="webcam helpers (opt-in; plan/VERIFICATION.md §6)")
     p.add_argument("action", choices=["frame", "pattern", "clip"])
     p.add_argument("name", nargs="?", help="clip: idle, needs_you, cheer or tap")
     p.add_argument("--seconds", type=int, default=8, help="clip length, at most 10")
     p.add_argument("--usb", default="right", choices=["bottom", "right", "top", "left"],
                    help="where USB-C is in the camera's view (frame only); right means upright")
+    p.add_argument("--camera", help="the camera id, from tools/webcam/webcam.sh list "
+                                    "(default: $BOOP_CAMERA or the built-in one)")
     p.set_defaults(func=cmd_cam)
+    p = sub.add_parser("calibrate", help="touch calibration: tap 4 crosses (needs a person); kept in NVS")
+    p.add_argument("--show", action="store_true", help="print the stored calibration instead")
+    p.add_argument("--clear", action="store_true", help="with --show: forget it (back to the default raw range)")
+    p.set_defaults(func=cmd_calibrate)
     return parser
 
 

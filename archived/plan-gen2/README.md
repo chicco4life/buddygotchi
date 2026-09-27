@@ -1,5 +1,8 @@
 # Product specs
 
+The evidence these specs link to (`evidence/…`) is no longer in the tree.
+Read it at the tag: `git show gen2-final:archived/plan-gen2/evidence/<path>`.
+
 Start with [How Boop behaves](BEHAVIORS.md): the compact reference for what
 Boop does, what triggers it, the current numbers, and the differences between the two screens.
 

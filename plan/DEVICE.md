@@ -1,6 +1,6 @@
 # Boop: device
 
-Updated 2026-09-26. Everything needed to get Boop's board running: the
+Updated 2026-09-27. Everything needed to get Boop's board running: the
 hardware, the pins, what's attached, the firmware stack, and how to build,
 flash and bring it up. Sources: the MicroTech MTR024QV01A-V1 product
 specification (2025-03-24) and measurements from our own board.
@@ -226,7 +226,7 @@ Commands (created in the first milestone of [PLAN.md](PLAN.md)):
 ```sh
 make fw          # build firmware/ for the board
 make flash       # build and upload over USB (auto-reset, no BOOT press needed)
-make sim         # build the Mac simulator of the whole device core
+make sim         # every scenario in the Mac simulator of the whole device core
 tools/boopctl ping         # firmware version, free heap, fps, uptime
 ```
 

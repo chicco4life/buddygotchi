@@ -80,7 +80,7 @@ final class ReplayTests: XCTestCase {
         let path = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .appendingPathComponent("Fixtures/hooks/e2e/claude/session.jsonl").path
         let steps = try Replay.steps(fromFile: path)
-        XCTAssertTrue(steps.contains(.wait(400_000)))
+        XCTAssertTrue(steps.contains(.advance(400_000)))
         let lines = Replay(agent: "claude").run(steps)
         XCTAssertFalse(lines.contains { $0.hasPrefix("# skipped") })
         XCTAssertTrue(lines.contains { $0.hasSuffix("moment cheer") })

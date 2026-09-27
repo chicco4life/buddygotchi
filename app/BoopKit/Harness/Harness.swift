@@ -37,6 +37,8 @@ public final class Harness: @unchecked Sendable {
         public var writer: String
         /// Inputs in the window this pass saw, its own included.
         public var window: Int
+        /// What the brains were handed: the memory and the window.
+        public var context: Context?
         /// Stage 1's calls, in the order they run.
         public var decided: [ToolCall] = []
         public var evidence: String?
@@ -96,6 +98,11 @@ public final class Harness: @unchecked Sendable {
                     }
                 },
             ]
+            if let context {
+                // Steering is left out: it's the same for every pass.
+                o["memory"] = ["long_term": context.memory.longTerm, "short_term": context.memory.shortTerm]
+                o["context"] = DebugLog.lines(context.window)
+            }
             if let evidence { o["evidence"] = evidence }
             if let dropped { o["dropped"] = dropped }
             if let writerRaw { o["writer_raw"] = writerRaw }
@@ -117,6 +124,9 @@ public final class Harness: @unchecked Sendable {
     public let transcript: Transcript
     /// Called on `home` after every pass, including dropped ones.
     public var onRecord: ((Record) -> Void)?
+    /// Called on `home` with each line of §8's log, whether or not it's
+    /// written to a file: debug mode prints them.
+    public var onDebugLine: ((String) -> Void)?
 
     // Scheduling, touched only on `home`.
     var running: (id: Int, pass: Pass, task: Task<Void, Never>)?
@@ -154,6 +164,7 @@ public final class Harness: @unchecked Sendable {
                 transcript.append(.dropped("cancelled by you talking"))
                 var record = Record(input: running.pass.input, classifier: running.pass.classifier.id,
                                     writer: running.pass.writer.id, window: running.pass.window)
+                record.context = running.pass.job.context
                 record.dropped = "cancelled by you talking"
                 finish(record)
             } else {
@@ -178,10 +189,16 @@ public final class Harness: @unchecked Sendable {
     public func note(_ aside: String, at ts: Int64) {
         dispatchPrecondition(condition: .onQueue(home))
         guard transcript.note(aside, at: ts) else { return }
-        if let debugLog {
+        if debugLog != nil || onDebugLine != nil {
             let data = (try? JSONSerialization.data(withJSONObject: ["aside": aside, "ts": ts], options: [.sortedKeys])) ?? Data()
-            Harness.append(String(decoding: data, as: UTF8.self) + "\n", to: debugLog)
+            debug(String(decoding: data, as: UTF8.self))
         }
+    }
+
+    /// One line of §8's log: to the file, if there is one, and to `onDebugLine`.
+    func debug(_ line: String) {
+        if let debugLog { Harness.append(line + "\n", to: debugLog) }
+        onDebugLine?(line)
     }
 
     /// Nothing running and nothing waiting.
@@ -307,6 +324,7 @@ public final class Harness: @unchecked Sendable {
     func hand(_ pass: Pass, _ thought: Thought) -> Record {
         let (classifier, writer) = (pass.classifier, pass.writer)
         var record = Record(input: pass.input, classifier: classifier.id, writer: writer.id, window: pass.window)
+        record.context = pass.job.context
         record.classifyMs = thought.classifyMs
         record.writeMs = thought.writeMs
         record.latencyMs = thought.classifyMs + thought.writeMs
@@ -368,11 +386,11 @@ public final class Harness: @unchecked Sendable {
     func finish(_ record: Record) {
         if let dropped = record.dropped { log("harness: \(record.input.kind.rawValue) dropped: \(dropped)") }
         if let failed = record.writeFailed { log("harness: \(record.input.kind.rawValue) writer failed: \(failed)") }
-        if let debugLog { Harness.append(record.json + "\n", to: debugLog) }
+        if debugLog != nil || onDebugLine != nil { debug(record.json) }
         onRecord?(record)
     }
 
-    /// One input straight through, without the queue: for `boopdev brain`.
+    /// One input straight through, without the queue: for the evals.
     /// Don't call on `home`.
     public func respond(to input: Input) async -> Record {
         let pass = home.sync { prepare(input) }

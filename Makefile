@@ -1,5 +1,5 @@
 # Boop v1. Run from the repo root. See README.md and plan/VERIFICATION.md.
-.PHONY: build sign run test eval tools fw flash sim fw-test e2e webcam webcam-test clean
+.PHONY: build sign run debug test eval tools fw flash sim fw-test e2e tools-test clean
 
 PIO := firmware/tools/pio.sh
 
@@ -27,21 +27,29 @@ sign:
 # The Mac app with Bluetooth. The owner runs this, not agents. Builds
 # everything first (the app copies the boop-hook built next to it), then
 # starts the binary: `swift run` would check the build all over again.
-# `make run DEBUG_LOG=FILE` also writes the brain's debug log, to follow
-# with `boopdev watch FILE`.
 run: build
-	app/.build/debug/Boop $(if $(DEBUG_LOG),--debug-log $(abspath $(DEBUG_LOG)))
+	app/.build/debug/Boop
 
-# Swift unit tests through the XCTest shim (there's no Xcode here).
+# The same, printing everything to this terminal as it happens: hooks, the
+# core's decisions, device messages and every brain pass (HARNESS.md §8).
+debug: build
+	app/.build/debug/Boop --debug
+
+# Swift unit tests through the XCTest shim (there's no Xcode here): one
+# `swift build` of the whole package, as `build` does, then the runner.
 test:
 	python3 app/tools/test.py
 
-# The harness eval scenarios: rules classifier, no writer (plan/EVALS.md).
-eval:
-	cd app && swift build --product boopdev
-	app/.build/debug/boopdev eval
+# The harness eval scenarios (plan/EVALS.md): every scenario in each mode
+# that has an if-else table, with no writer, deterministic. REAL=1 runs the real
+# brains (Apple's model; Jev for normal with BOOP_JEV_KEY), 3 runs each,
+# and reports refusals and latency (plan/VERIFICATION.md L5).
+eval: build
+	app/.build/debug/boopdev eval $(if $(REAL),--real)
 
-# tools/.venv with pyserial and Pillow, for boopctl.
+# tools/.venv with pyserial and Pillow, for boopctl. tools/boopctl makes it
+# by itself when it's missing; this also refreshes it after
+# tools/requirements.txt changes.
 tools: tools/.venv/.ok
 
 tools/.venv/.ok: tools/requirements.txt
@@ -62,22 +70,21 @@ flash:
 fw-test:
 	$(PIO) test -e native
 
-# The renderer simulator, boop-sim (runs scenarios via tools/boopctl sim).
+# Every device scenario in the simulator, against the goldens (L1). The
+# PNGs land in /tmp/boop-sim/<scenario>/; tools/boopctl sim NAME runs one.
 sim:
-	$(PIO) run -e native
+	tools/boopctl sim
 
-# Hook → app → USB → device pipeline check (built in J1).
-e2e:
-	$(MAKE) build
+# Hook → app → USB → device pipeline check (L4), on the board over USB.
+e2e: build
 	tools/boopctl e2e
 
-# The opt-in webcam recorder (tools/webcam/README.md): make webcam ARGS='list'.
-webcam:
-	tools/webcam/webcam.sh $(ARGS)
-
-# The recorder's own tests, on synthetic video. They never open a camera.
-webcam-test:
-	python3 -m unittest discover -s tools/webcam/tests -v
+# The tools' own tests, with no board or camera: boopctl's commands, and the
+# webcam recorder on synthetic video.
+tools-test:
+	tools/boopctl --help > /dev/null
+	tools/.venv/bin/python -m unittest discover -s tools/boopctl_lib/tests
+	python3 -m unittest discover -s tools/webcam/tests
 
 clean:
 	rm -rf app/.build firmware/.pio

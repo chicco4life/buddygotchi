@@ -54,7 +54,7 @@ without touching the owner's setup.
   owner to start Boop (`make run`). Don't launch it yourself: an
   agent-launched Boop is killed on its first Bluetooth use.
 - **Missing hooks, or previous-generation entries.** Boop → Settings →
-  Install (or Repair) for this agent, then restart the agent's sessions so
+  Agents → Connect (or Repair) for this agent, then restart the agent's sessions so
   they reload hook config.
 - **boop-hook is missing.** The app places it in
   `~/Library/Application Support/Boop/bin/` at launch; restart the app.

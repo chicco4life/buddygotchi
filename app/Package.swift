@@ -51,8 +51,8 @@ var packageTargets: [Target] = [
         dependencies: ["HookWire"],
         path: "BoopHook"
     ),
-    // Developer CLI: replay, memory dump, voice lines, brain runs, talk and
-    // the hook installer (hooks).
+    // Developer CLI: the evals, reading debug logs, replay, voice lines,
+    // talk and the hook installer (hooks).
     .executableTarget(
         name: "BoopDev",
         dependencies: ["BoopKit", "HookWire"],

@@ -30,10 +30,15 @@ public final class Runtime: @unchecked Sendable {
         public var devLines = false
         /// Moves `clock` forward, for `{"dev":"advance"}`; nil ignores it.
         public var advance: (@Sendable (Int64) -> Void)?
-        /// Log every hook and every line sent to the device (the L4 check).
-        public var trace = false
-        /// §8's JSONL log of every brain call; nil keeps none.
-        public var debugLog: URL?
+        /// Debug mode (HARNESS.md §8): logs every hook with what the adapter
+        /// made of it and every line sent to the device, starts
+        /// `debug.jsonl` afresh in the state directory with every brain
+        /// pass and aside, and hands those and the core's decisions to
+        /// `debugPrint`, readably.
+        public var debug = false
+        /// Where debug mode prints (the terminal). Never the log file: it
+        /// carries what you said and what the brain wrote.
+        public var debugPrint: @Sendable (String) -> Void = { _ in }
         /// Reads Jev's key, off `home` and the main thread, the first time
         /// the mode needs it: the Keychain may stop to ask for access.
         public var readJevKey: @Sendable () -> String? = { Brains.jevKey() }
@@ -86,6 +91,8 @@ public final class Runtime: @unchecked Sendable {
 
     /// While this file exists in the state directory, every hook is logged.
     public static let doctorArm = "doctor-armed"
+    /// Debug mode's log of every pass and aside, in the state directory.
+    public var debugLogURL: URL { options.stateDir.appendingPathComponent(DebugLog.fileName) }
 
     public let home = DispatchQueue(label: "boop.home", qos: .userInitiated)
     public let options: Options
@@ -118,7 +125,7 @@ public final class Runtime: @unchecked Sendable {
         var schedule = MomentSchedule()
         /// A timer is set for the next brain moment's turn.
         var pumpDue = false
-        /// True while a brain moment is being sent (for `trace`).
+        /// True while a brain moment is being sent (for debug mode).
         var brainSending = false
         /// Brain moments sent since the last harness pass ended. Only a
         /// pass's actions send them, so at its end this is what it sent.
@@ -153,6 +160,7 @@ public final class Runtime: @unchecked Sendable {
 
     public init(_ options: Options) throws {
         self.options = options
+        let debugLogURL = options.stateDir.appendingPathComponent(DebugLog.fileName)
         guard let lock = InstanceLock(directory: options.stateDir) else { throw OpenError.locked(options.stateDir.path) }
         self.lock = lock
         let log = options.log
@@ -160,7 +168,7 @@ public final class Runtime: @unchecked Sendable {
         guard let longTerm = memory.longTerm else { throw OpenError.notSetUp }
         settings = AppSettings.load(from: options.stateDir)
         link = DeviceLink(transport: options.link, log: log)
-        if options.trace {
+        if options.debug {
             let moments = self.moments
             link.onSend = { line in log("link \(moments.brainSending ? "brain" : "rules") → " + line) }
         }
@@ -205,7 +213,7 @@ public final class Runtime: @unchecked Sendable {
         harness = Harness(classifier: Brains.classifier(for: mode, override: options.classifier == "jev" ? "normal" : options.classifier),
                           writer: Brains.writer(for: mode, override: options.writer, log: log),
                           tools: actions.map(Harness.Tool.init), memory: { _ in memory.promptMemory() },
-                          home: home, debugLog: options.debugLog, log: log)
+                          home: home, debugLog: options.debug ? debugLogURL : nil, log: log)
         // Tool names only: arguments can carry what you said (HARNESS.md §8).
         // A pass for what you said that sent no mumble ends `listening` now.
         let moments = self.moments
@@ -215,6 +223,12 @@ public final class Runtime: @unchecked Sendable {
             moments.brainSent = 0
             guard record.input.kind == .said, let self else { return }
             run(core.replied(to: record.input.ts, mumbled: mumbled, at: clock()))
+        }
+        if options.debug {
+            DebugLog.start(debugLogURL)
+            let printer = DebugLog.Printer()
+            let print = options.debugPrint
+            harness.onDebugLine = { line in print(printer.readable(line)) }
         }
         route = { [weak self] in self?.run($0) }
         if Brains.wantsJevKey(mode, override: options.classifier) { home.async { [self] in readJevKey() } }
@@ -260,7 +274,8 @@ public final class Runtime: @unchecked Sendable {
             changed()
         }
         options.log("boop: running on \(options.stateDir.path), socket \(options.socketPath), link \(options.link?.name ?? "none"), "
-                    + "mode \(mode.rawValue), brain \(harness.classifier.id) + \(harness.writer.id)")
+                    + "mode \(mode.rawValue), brain \(harness.classifier.id) + \(harness.writer.id)"
+                    + (options.debug ? ", debug log \(debugLogURL.path)" : ""))
     }
 
     /// Stops listening for hooks and the device. Safe to call twice.
@@ -277,12 +292,15 @@ public final class Runtime: @unchecked Sendable {
     // MARK: Inputs (on `home`)
 
     func hook(_ line: HookLine, received: Int64) {
-        // The doctor skill arms this to see hooks arrive; otherwise hooks
-        // aren't logged.
-        if options.trace || FileManager.default.fileExists(atPath: options.stateDir.appendingPathComponent(Self.doctorArm).path) {
+        let event = Adapter.event(from: line, receivedAt: received, project: projectNames.name)
+        // Debug mode logs every hook with what it became; the doctor skill
+        // arms the plain line to see hooks arrive. Otherwise hooks aren't logged.
+        if options.debug {
+            options.log("hook: \(line.agent) \(line.hook) \(line.session) → " + (event.map(Runtime.describe) ?? "ignored"))
+        } else if FileManager.default.fileExists(atPath: options.stateDir.appendingPathComponent(Self.doctorArm).path) {
             options.log("hook: \(line.agent) \(line.hook) \(line.session)")
         }
-        guard let event = Adapter.event(from: line, receivedAt: received, project: projectNames.name) else { return }
+        guard let event else { return }
         run(core.handle(event))
     }
 
@@ -299,7 +317,8 @@ public final class Runtime: @unchecked Sendable {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
         if object["dev"] as? String == "talk", let words = object["words"] as? String {
             let yelled = object["yelled"] as? Bool == true
-            options.log("dev: talk \"\(words)\"\(yelled ? " (yelled)" : "")")
+            // Not the words: they reach only the brain, and debug mode's print.
+            options.log("dev: talk, \(words.count) characters\(yelled ? ", yelled" : "")")
             talkNow(words, yelled: yelled)
         } else if object["dev"] as? String == "advance", let ms = (object["ms"] as? NSNumber)?.int64Value,
                   ms > 0, let advance = options.advance {
@@ -316,8 +335,23 @@ public final class Runtime: @unchecked Sendable {
         link.tick(now: now, current: core.snapshot(at: now))
     }
 
+    /// An event on one line for debug mode: `activity landing · tool Bash, topic tests`.
+    static func describe(_ event: BoopEvent) -> String {
+        let d = event.detail
+        let detail = [d.tool.map { "tool \($0)" }, d.topic.map { "topic \($0)" }, d.failed == true ? "failed" : nil,
+                      d.error.map { "error \($0)" }, event.subagent.map { "subagent \($0)" }].compactMap { $0 }
+        return "\(event.event.rawValue) \(event.project)" + (detail.isEmpty ? "" : " · " + detail.joined(separator: ", "))
+    }
+
     /// Carries out the core's decisions (ARCHITECTURE.md §3.2).
     func run(_ effects: [CoreEffect]) {
+        if options.debug {
+            // The snapshot shows as the line the link sends, if it sends one.
+            for effect in effects {
+                if case .state = effect { continue }
+                options.debugPrint("core: " + Replay.describe(effect))
+            }
+        }
         moments.inRules += 1
         defer { moments.inRules -= 1 }
         var stateChanged = false

@@ -16,8 +16,7 @@ Bluetooth or USB.
 1. Flash the board: plug it in over USB and run `make flash`.
 2. Build and start the app from your own terminal: `make run`. It finds
    `Boop-XXXX` over Bluetooth and connects.
-3. From the menu bar, install the hooks for Claude Code and Codex, one click
-   each.
+3. In the popover, connect Claude Code and Codex, one click each.
 
 On the board:
 
@@ -29,6 +28,43 @@ On the board:
 The full picture is in [plan/UX.md](plan/UX.md) and
 [plan/BEHAVIORS.md](plan/BEHAVIORS.md).
 
+## Entry points
+
+From the repo root (no Xcode needed):
+
+```sh
+make run          # the Mac app, with Bluetooth
+make debug        # the same, printing everything Boop sees and decides as it happens
+make test         # unit tests
+make eval         # what the brain decides, scenario by scenario; REAL=1 with the real models
+make flash        # the firmware, onto the board over USB
+```
+
+Each tool lists its own options: `tools/boopctl --help`,
+`app/.build/debug/boopdev --help`, `app/.build/debug/Boop --help`.
+
+## Debugging
+
+- **What is Boop doing, and why?** `make debug`. Its terminal shows every
+  hook with what Boop made of it, the core's decisions, every line sent to
+  the board, and every brain pass: the input, the memory and transcript
+  window the models read, what Stage 1 decided and why, Stage 2's words,
+  and what ran. The passes are also in
+  `~/Library/Application Support/Boop/debug.jsonl`, fresh each launch;
+  `app/.build/debug/boopdev watch` prints that file the same way.
+- **Are my agents' hooks reaching Boop?** `skills/doctor/doctor.sh`, from
+  inside the agent (it tells you the next step).
+- **What do the models say?** `make eval REAL=1`, then
+  `app/.build/debug/boopdev watch` on the file it names, for every pass
+  behind the results.
+- **What is the board doing?** `tools/boopctl ping`, `state` or `shot`, over
+  USB.
+- **What does Boop remember?** `long-term.md` and `short-term.md` in
+  `~/Library/Application Support/Boop`, next to `boop.log`.
+
+Everything else, including the simulator, the pipeline check and the
+webcam, is in [plan/VERIFICATION.md](plan/VERIFICATION.md).
+
 ## Repo
 
 | Path | What it is |
@@ -36,62 +72,7 @@ The full picture is in [plan/UX.md](plan/UX.md) and
 | `plan/` | The spec and the contract the code implements. Start with [the index](plan/README.md) and [the vision](plan/VISION.md); [plan/PLAN.md](plan/PLAN.md) has the build order and status |
 | `app/` | Swift package: the `Boop` menu-bar app, the `boop-hook` hook client and the `boopdev` dev CLI |
 | `firmware/` | PlatformIO firmware for the board (`cyd24`) and the simulator and unit tests (`native`) |
-| `tools/` | `boopctl` (device tool), `voicegen` (voice assets), `fontgen`, `webcam/` (opt-in recorder), `build-loop.sh` |
+| `tools/` | `boopctl` (device tool), `voicegen` (voice assets), `fontgen`, `webcam/` (opt-in recorder) |
 | `skills/` | `doctor` (hook self-check) and `webcam-verify` |
 | `landing/` | The landing page |
 | `archived/` | History only; earlier code is at git tag `gen2-final` |
-
-## Build and test
-
-From the repo root. There's no Xcode needed: `make test` runs the XCTest
-shim.
-
-```sh
-make build        # Boop, boop-hook, boopdev; signs Boop as "Boop Dev" if you have that certificate
-make test         # Swift unit tests
-make eval         # the harness eval scenarios
-make run          # the Mac app, with Bluetooth (from your own terminal)
-make run DEBUG_LOG=/tmp/boop-brain.jsonl   # the same, logging every brain pass (boopdev watch)
-make tools        # tools/.venv with pyserial and Pillow, for boopctl
-make fw           # build the firmware
-make flash        # build and upload over USB
-make fw-test      # firmware unit tests on the Mac
-make sim          # build the renderer simulator
-make e2e          # hook → app → USB → board pipeline check
-make webcam-test  # the webcam recorder's tests, on synthetic video (no camera)
-```
-
-`tools/boopctl` talks to the board over USB:
-
-```sh
-tools/boopctl ports | ping | state | shot | pattern
-tools/boopctl sim [scenario…] [--accept]   # simulator vs goldens
-tools/boopctl run [scenario…]              # board vs simulator, pixel for pixel
-tools/boopctl bridge                       # share the serial port on a Unix socket
-tools/boopctl e2e [--writer none|apple]    # the pipeline check (needs the bridge's port free)
-tools/boopctl e2e --soak 30 --writer apple # the pipeline on a loop: resets, leaks, stuck states
-tools/boopctl soak | perf                  # device-only soak, frame rate
-tools/boopctl mumble | say | volume | sound | moment | needs  # hear and watch Boop by hand
-tools/boopctl calibrate                    # touch calibration: tap 4 crosses (needs a person)
-```
-
-`app/.build/debug/boopdev` exercises the app without a board:
-
-```sh
-boopdev replay <hooks.jsonl>               # hooks through the adapter and core, on a virtual clock
-boopdev memory --state-dir DIR             # the memory files as the store reads them
-boopdev voice <feeling> [word]             # Minion lines as `react` builds them
-boopdev brain [--mode chatty|normal|calm] [--classifier chatty|normal|calm|jev] [--writer apple|none] [--print]  # the brain on recorded inputs (L5); jev needs BOOP_JEV_KEY
-boopdev eval [--mode chatty|normal|calm] [--writer apple] [--runs N]  # the eval scenarios per mode (make eval: every mode); --classifier jev needs BOOP_JEV_KEY; with Apple's model, N runs each
-boopdev watch /tmp/boop-brain.jsonl  # follow a debug log live: each input, decision, words and what ran
-boopdev hooks status|install|remove --home DIR
-boopdev talk "<words>" [--yelled] --socket PATH   # a push-to-talk transcript to a headless app
-```
-
-For live checks without Bluetooth, run `tools/boopctl bridge` and
-`Boop --headless --state-dir DIR --link usb:/tmp/boop-bridge.sock`.
-`tools/.venv/bin/python tools/voicegen/voicegen.py` rebuilds the voice
-assets in `firmware/assets/voice.h`.
-
-How everything is checked, including what's on the screen, is in
-[plan/VERIFICATION.md](plan/VERIFICATION.md).

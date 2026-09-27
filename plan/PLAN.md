@@ -1,7 +1,7 @@
 # Boop: plan
 
 Updated 2026-09-27. The build order for v1, the check that closes each
-milestone, how the unattended build runs, the owner's morning checklist,
+milestone, how the unattended build ran, the owner's morning checklist,
 the later port to ESP-IDF + LVGL, and the open items (§7). The specs are
 listed in [README.md](README.md); ideas that aren't in v1 are in
 [FUTURE.md](FUTURE.md), so don't build them. [VERIFICATION.md](VERIFICATION.md)
@@ -15,8 +15,8 @@ tools, and the older generation in `archived/`. v1 **rewrote everything**,
 and the v1 code has replaced it. The tag `gen2-final` keeps the previous
 generation one command away (`git show gen2-final:<path>`). What's left
 under `archived/` is history (research, docs and the gen-2 specs in
-`archived/plan-gen2/`), plus a few evidence scripts there and the gen-2
-case model in `archived/hardware/case/`. Keep `landing/` (the live landing
+`archived/plan-gen2/`) and the gen-2 case model in
+`archived/hardware/case/`. Keep `landing/` (the live landing
 page) and the specs.
 
 Old code was reused only where it fit the new architecture as is. The
@@ -102,9 +102,8 @@ tools/
   voicegen/                builds the voice assets
   fontgen/                 builds the fonts
   webcam/                  existing recorder
-  build-loop.sh            runs the unattended build (§5)
-Makefile                   build run test tools fw flash sim fw-test e2e
-                           webcam webcam-test clean
+Makefile                   build run debug test eval tools fw flash sim fw-test
+                           e2e tools-test clean
 ```
 
 `plan/steering.md` is the single source for steering. The build copies it
@@ -112,8 +111,8 @@ into the app's resources, and a unit test fails if the copies differ.
 
 ## 3. Rules for the build
 
-1. **Branch and commits.** Work on branch `v1-overnight`. M0 creates it and
-   tags the starting commit `gen2-final`. Commit whenever tests pass, and at
+1. **Branch and commits.** The v1 build worked on branch `v1-overnight`
+   (history now). M0 created it and tagged the starting commit `gen2-final`. Commit whenever tests pass, and at
    least every 30 minutes (`WIP F2: face renderer`). Close each milestone with
    `F2: renderer and simulator — <one line>`. Never commit failing tests
    outside a WIP commit.
@@ -688,59 +687,13 @@ own milestone.
 
 ## 5. Running the build
 
-The build runs unattended as a series of short **iterations**, each with a
-fresh context. Each one reads the state from files, does the next piece of
-work, verifies it, commits, and exits. [LOOP.md](LOOP.md) is the prompt for
-one iteration.
-
-**State lives in files, not in any conversation:**
-
-| File | Holds |
-| --- | --- |
-| The status table (§4) | Where each milestone stands |
-| `plan/evidence/v1-build/PROGRESS.md` | A running log: one entry per iteration, ending with the exact next step |
-| `plan/evidence/v1-build/<milestone>/README.md` | Each milestone's evidence |
-| `plan/evidence/v1-build/DONE` | Created at the end, which stops the loop |
-| Git | Everything else, committed at least every 30 minutes |
-
-**How to run it:**
-
-- **Recommended:** `caffeinate -dimsu tools/build-loop.sh` from the repo
-  root. It runs one fresh `claude -p` session at a time, waiting for each
-  to finish before starting the next, in auto permission mode with no
-  permission prompts. A lock stops a second copy from starting. It stops
-  when `DONE` exists.
-  Logs go to `/tmp/boop-build-loop/`.
-- **Alternative:** in an interactive Claude Code session, run
-  `/loop Follow plan/LOOP.md`. It works the same way, but one session
-  accumulates context, and a usage limit can end the loop.
-
-**Usage limits and other interruptions.** Every iteration is safe to cut
-off at any point:
-
-- **Usage limit:** the iteration dies, and `build-loop.sh` waits 15 minutes
-  and tries again, for up to 8 hours. The next iteration finds any
-  uncommitted work, checks it, and carries on. With a 5-hour window that
-  resets partway through the night, the build simply pauses and resumes.
-- **A crash, a hang, or a reboot of the board:** the same. The next iteration
-  reads `PROGRESS.md`, kills leftover bridges or headless apps, and
-  continues.
-- **No progress:** if three iterations in a row end without a new commit,
-  `build-loop.sh` stops rather than burning usage.
-- **Permission denials:** auto mode may refuse some actions, and nothing
-  prompts. The iteration should find another way (for example, `git rm`
-  rather than `rm -rf`) and note it in `PROGRESS.md`.
-
-**Before starting (owner):**
-
-1. Plug the Mac into power, and keep the lid open.
-2. Make sure the old Boop app isn't running, so nothing else talks to the
-   board.
-3. Put the board facing the MacBook camera: the whole screen visible, about
-   30–40 cm away, with even light and no glare.
-4. Grant camera access once, and check the framing:
-   `tools/webcam/webcam.sh record --camera 6C707041-05AC-0010-000D-000000000001 --seconds 3 --out /tmp/boop-framing`.
-5. From the repo root, run `caffeinate -dimsu tools/build-loop.sh`.
+The v1 build ran unattended on 2026-09-26, on branch `v1-overnight`, as a
+series of short iterations, each with a fresh context, until it wrote
+`plan/evidence/v1-build/DONE`. Its log is
+[PROGRESS.md](evidence/v1-build/PROGRESS.md) and its summary
+[REPORT.md](evidence/v1-build/REPORT.md). The loop script and its prompt
+are in git history (`git show bbab5ac:tools/build-loop.sh`,
+`git show bbab5ac:plan/LOOP.md`).
 
 ## 6. Morning checklist (owner)
 
@@ -748,7 +701,7 @@ off at any point:
 | --- | --- | --- |
 | 1 | Read `plan/evidence/v1-build/REPORT.md` (or `PROGRESS.md` if it's still running) | What passed, what's blocked, and any changes to these steps |
 | 2 | The board runs the landscape build (F6), flashed for its L2 check. Run `tools/boopctl ping`, and `make flash` first if it doesn't show `"w": 320`. Stand Boop sideways with USB-C on the right and look at it | `ping` shows `"w": 320` and `"h": 240`. The no-app face, landscape: open lavender eyes glancing up, a plug icon, dimmed, slow blinks. It becomes the idle face once the app connects (row 6). Whether the new eyes are cute enough is your call (F6); note anything that's off |
-| 3 | Run `tools/boopctl pattern`. Then `tools/boopctl calibrate`: tap each amber cross (4 near the corners, then 1 in the middle) and lift. Do both only on the landscape build (row 2's `ping`): on the portrait build the pattern has no USB-C bar, and a calibration saved there is deleted when the landscape build starts | The UP arrow is at the top and the black bar is down the edge with the USB-C port. If the picture is upside down (the bar on the other side), set `kRotation` to 3 in `firmware/src/board/display.h`, `make flash`, and look again. Calibration prints `check_miss_px`: a few pixels is good, over about 10 means run it again. Run it again after any rotation change, because a calibration from another screen or rotation (including the portrait build's) is ignored. `--show` prints the stored map; `--show --clear` forgets it |
+| 3 | Run `tools/boopctl play pattern`. Then `tools/boopctl calibrate`: tap each amber cross (4 near the corners, then 1 in the middle) and lift. Do both only on the landscape build (row 2's `ping`): on the portrait build the pattern has no USB-C bar, and a calibration saved there is deleted when the landscape build starts | The UP arrow is at the top and the black bar is down the edge with the USB-C port. If the picture is upside down (the bar on the other side), set `kRotation` to 3 in `firmware/src/board/display.h`, `make flash`, and look again. Calibration prints `check_miss_px`: a few pixels is good, over about 10 means run it again. Run it again after any rotation change, because a calibration from another screen or rotation (including the portrait build's) is ignored. `--show` prints the stored map; `--show --clear` forgets it |
 | 4 | Tap the screen; press BOOT; hold BOOT | Wiggle; wiggle; listening face |
 | 5 | Run `make run` in your terminal | Boop's eyes appear in the menu bar and the popover opens on setup: hello, a name and sweet or cheeky, which agents to watch ("See exactly what gets added" shows what goes where), then "Wake … up". Allow Bluetooth, Microphone and Speech Recognition when asked. Say whether setup and the popover feel right (A5) |
 | 6 | Wait about 10 s | The app connects to `Boop-XXXX`, and the board leaves the no-app face. If Bluetooth won't connect, run `tools/boopctl bridge` and `app/.build/debug/Boop --link usb:/tmp/boop-bridge.sock` instead ([VERIFICATION.md](VERIFICATION.md) L4) |

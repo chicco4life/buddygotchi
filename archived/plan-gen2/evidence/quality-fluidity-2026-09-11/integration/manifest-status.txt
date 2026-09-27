@@ -1,1 +1,0 @@
-Firmware manifest HTTP status: 404

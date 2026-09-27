@@ -219,7 +219,7 @@ dialects, 5 came out as the safe hum (`VoiceTests`, 2026-09-27).
 - **Checking it.** Tests check playback through `dbg.state`
   ([VERIFICATION.md](VERIFICATION.md) §3). The sound itself is checked by
   ear on the bench board's speaker ([DEVICE.md](DEVICE.md) §3):
-  `tools/boopctl mumble`, `say`, `volume` and `sound` play it on demand
+  `tools/boopctl mumble` (with `--board-volume` or `--levels`) and `tools/boopctl play needs` play it on demand
   ([VERIFICATION.md](VERIFICATION.md) §2).
 
 ## 9. How often Boop talks

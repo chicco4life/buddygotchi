@@ -307,6 +307,9 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(first["decided"] as? [String], ["react(feeling: proud)"])
         XCTAssertEqual(first["wrote"] as? [String: String], ["react.word": "finally"])
         XCTAssertEqual(first["window"] as? Int, 1)
+        // The memory and window the brains read, as debug mode prints them.
+        XCTAssertNotNil((first["memory"] as? [String: String])?["short_term"])
+        XCTAssertEqual((first["context"] as? [String])?.count, 1)
         XCTAssertEqual((first["input"] as? [String: Any])?["line"] as? String,
                        "agent finished · done · claude · jetpack · a very long turn (10 min) · 14:05 Tuesday")
         XCTAssertNotNil(first["latency_ms"])
