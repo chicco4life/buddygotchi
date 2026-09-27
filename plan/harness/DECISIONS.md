@@ -68,11 +68,13 @@ event. It has two parts:
 - **The text,** which is the PERSONALITY section: who this Boop is, how
   often it speaks up, and its Examples, each a NOW line and what it
   would pick: the face, the word and how long it holds
-  (`→ grumpy, "again", once`).
+  (`→ grumpy, "again", once`). `no word` is a mumble with no real word,
+  and `no exclamation, "tests"` a topic word alone, so `word.feeling`
+  answers `none` and `word.about` gives the word (§5).
 
 | Personality | For | Its text |
 | --- | --- | --- |
-| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Curious, loyal, easily delighted and a little smug, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a first failure is determined with "oops", held once; a third grumpy with "again", twice; a fix after failures proud with "finally", twice, and a comeback finish three times; a turn of 10 minutes or more finishing clean excited, three times, and failing sad, three times; a failed turn grumpy with "ugh" and a poke streak grumpy with "nope", once. Routine work gets small faces: a turn of a few minutes excited, a long turn (15 s to a minute) happy, or excited when its checks passed, and a short one only when they did. A turn start and a heartbeat get nothing |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted and a little smug, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a first failure is determined with "oops", held once; a third grumpy with "again", twice; a fix after failures proud with "finally", twice, and a comeback finish three times; a turn of 10 minutes or more finishing clean excited with "yay", three times, and failing sad, three times; a failed turn grumpy with "ugh", a poke streak grumpy with "nope", and a stopped turn curious with "hmm", once. A routine finish gets a face only when it has something to show: a turn of a few minutes an excited "yay"; one under a minute a small happy face with no word if it ran 40 s or more, or an excited one with its topic ("tests") and no exclamation if its checks passed; otherwise nothing. The exclamation is kept for what stands out. A turn start and a heartbeat get nothing |
 | [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses and heartbeats included, always picks a word if one fits, and holds its faces long: twice for routine lines, up to four times for a comeback or a third failure |
 
 "Never stays quiet" is still Jev's call: `none` stays an option, and the
@@ -83,8 +85,10 @@ moods still apply.
 `mood/<mood>.md`, the current mood's file. There are seven moods
 (`MoodAction.moods`), each with its own set of faces on the device
 ([UX.md](../UX.md) §2). Each file says which faces Boop makes in its
-reactions while in that mood (a grumpy Boop rarely looks happy), what it
-mumbles at most, the words it likes, and when it leaves, and for which
+reactions while in that mood (a happy Boop's wins mostly get an excited
+face, and a grumpy Boop gives a win a grudging proud, never a grumpy
+face), what it mumbles at most and the words it likes ("yay" only at a
+big win, a routine one its topic), and when it leaves, and for which
 mood. That last part is what the `mood` question
 judges by. No timer holds or ends a mood: how long one lasts is the
 steering's to say. Only something lasting moves it: a run of failures

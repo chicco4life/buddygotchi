@@ -315,7 +315,7 @@ How to read HISTORY and NOW:
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
 bytes ÷ 4, which overestimates English: the guide 300 (now 275), a
-personality 600 (`boop` about 580, `chatter` 300) and a mood 150 (110–150).
+personality 600 (`boop` 600, `chatter` 300) and a mood 150 (110–150).
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
 about 225 tokens and HISTORY's 40 events about 1,200, so with the
@@ -416,7 +416,7 @@ to the device, and each transcript entry, readably. From the example run
 
 ```
 ▸ 12 tool_use: claude's tests failed again on "fix-nav" (landing), 3 in a row.
-  pass jev:jev-latest 191 ms: mood grumpy 0.93 · react grumpy 0.99 · react.loops twice 0.88 · word.about tests 0.98 · word.feeling again 0.99
+  pass jev:jev-latest 186 ms: mood grumpy 0.97 · react grumpy 0.99 · react.loops twice 0.86 · word.about tests 0.96 · word.feeling again 1.00
     │ <the whole state for the first pass, then only its HISTORY and NOW>
   ✓ mood: Boop's mood changed: determined → grumpy.
   … react: Boop made a grumpy face, held twice, and mumbled "…again!"

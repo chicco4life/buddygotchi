@@ -9,16 +9,15 @@ shows it.
 Everything here is real: run 1 of the eval scenario
 `04-tests-fight-back` ([EVALS.md](../EVALS.md) §4) in a `make eval`
 against `jev:jev-latest` on 2026-09-28, with today's code and the
-steering as tuned that night
-([evidence](../evidence/2026-09-28-tonight/tune/README.md)).
+steering as retuned for livelier reactions that night
+([evidence](../evidence/2026-09-28-tonight/tune2/README.md)).
 Lines are copied from its `debug.jsonl`
-([its three runs](../evidence/2026-09-28-tonight/tune/eval-04-debug.jsonl)),
+([its three runs](../evidence/2026-09-28-tonight/tune2/eval-04-debug.jsonl)),
 with probabilities rounded to two places and abridged only where marked
-`…`. The other two runs made the same picks, each within about 0.1.
-Merged onto the code that writes a pass's `seen` ([HARNESS.md](HARNESS.md)
-§9), the lines gained it, and a rerun there made the same picks, again
-within about 0.1, with the same states and `seen` equal to `for` in
-every pass.
+`…`. The other two runs made the same picks, each within about 0.1,
+with the same states and `seen` equal to `for` in every pass, except
+that run 3 held the last face three times (0.63) where run 2 held it
+twice, as here.
 
 The eval has no device, so its queue ends each reaction `done` at once
 ([EVALS.md](../EVALS.md) §1): every `react` action, started
@@ -34,13 +33,13 @@ A Wednesday afternoon. Claude works in the `fix-nav` worktree of
 | Time | What happens | Event | Jev's answers | Boop |
 | --- | --- | --- | --- | --- |
 | 14:00 | A turn starts | 1 `turn_start` | happy · none | Stays quiet |
-| 14:01 | The tests fail | 3 `tool_use` | happy · determined 0.99, once · "oops" 0.98 | A determined face, held once: "…oops!" |
-| 14:03 | They fail again | 7 `tool_use` | determined · grumpy 0.63, twice · "again" 0.93 | **Turns determined**, a grumpy face, held twice: "…again!" |
-| 14:05 | A third time | 12 `tool_use` | grumpy · grumpy 0.99, twice · "again" 0.99 | **Turns grumpy**, a grumpy face, held twice: "…again!" |
-| 14:07 | They pass | 17 `tool_use` | proud · proud 0.96, three times · "finally" 0.99 | **Turns proud**, a proud face, held three times: "…finally!" |
+| 14:01 | The tests fail | 3 `tool_use` | happy · determined 1.00, once · "oops" 0.96 | A determined face, held once: "…oops!" |
+| 14:03 | They fail again | 7 `tool_use` | determined · grumpy 0.73, twice · "again" 0.93 | **Turns determined**, a grumpy face, held twice: "…again!" |
+| 14:05 | A third time | 12 `tool_use` | grumpy · grumpy 0.99, twice · "again" 1.00 | **Turns grumpy**, a grumpy face, held twice: "…again!" |
+| 14:07 | They pass | 17 `tool_use` | proud · proud 0.98, twice · "finally" 0.99 | **Turns proud**, a proud face, held twice: "…finally!" |
 
 The pass at 14:05 is shown in full (§2–§6), and the one at 14:07 more
-briefly (§7). Each answer came back in 191–428 ms.
+briefly (§7). Each answer came back in 186–209 ms.
 
 ## 2. The event (14:05)
 
@@ -69,13 +68,13 @@ left out, and the thread abridged after the first):
 
 ```jsonl
 {"event":{"facts":{"gap":null,"thread":{"agent":"claude","name":"fix-nav","project":"landing","session":"s1","turn":1,"workspace":"fix-nav"}},"kind":"turn_start","line":"claude started turn 1 on \"fix-nav\" (landing).","reaction":null,"wakes_brain":true},"received_at_ms":1791986400000,"seq":1}
-{"pass":{"answers":{"mood":{"choice":"happy","p":{"curious":0,"determined":0,"excited":0,"grumpy":0,"happy":1,"proud":0,"sad":0}},"react":{"choice":"none","p":{"curious":0.01,"determined":0,"excited":0,"grumpy":0,"happy":0,"none":0.99,"proud":0,"sad":0}},"react.loops":{"choice":"once","p":{"four times":0.01,"once":0.99,"three times":0,"twice":0}},"word.about":{"choice":"none","p":{"build":0,"deploy":0,"docs":0,"none":1,"tests":0}},"word.feeling":{"choice":"none","p":{"again":0,"finally":0,"hmm":0,"none":1,"nope":0,"oops":0,"ugh":0,"yay":0}}},"brain":"jev:jev-latest","dropped":null,"for":1,"latency_ms":428,"questions":["mood","react","react.loops","word.feeling","word.about"],"seen":1,"state":"…"},"received_at_ms":1791986400000,"seq":2}
+{"pass":{"answers":{"mood":{"choice":"happy","p":{"curious":0,"determined":0,"excited":0,"grumpy":0,"happy":1,"proud":0,"sad":0}},"react":{"choice":"none","p":{"curious":0.01,"determined":0,"excited":0,"grumpy":0,"happy":0,"none":0.99,"proud":0,"sad":0}},"react.loops":{"choice":"once","p":{"four times":0,"once":1,"three times":0,"twice":0}},"word.about":{"choice":"none","p":{"build":0,"deploy":0,"docs":0,"none":1,"tests":0}},"word.feeling":{"choice":"none","p":{"again":0,"finally":0,"hmm":0.02,"none":0.98,"nope":0,"oops":0,"ugh":0,"yay":0}}},"brain":"jev:jev-latest","dropped":null,"for":1,"latency_ms":209,"questions":["mood","react","react.loops","word.feeling","word.about"],"seen":1,"state":"…"},"received_at_ms":1791986400000,"seq":2}
 {"event":{"facts":{"error":"exit_code","failed_before":0,"result":"failed","thread":{…},"took":"short","took_ms":0,"tool":"shell","tool_name":"Bash","tool_use_id":null,"topic":"tests"},"kind":"tool_use","line":"claude's tests failed on \"fix-nav\" (landing).","reaction":null,"wakes_brain":true},"received_at_ms":1791986460000,"seq":3}
-{"pass":{"answers":{"mood":{"choice":"happy","p":{"curious":0,"determined":0.07,"excited":0,"grumpy":0,"happy":0.93,"proud":0,"sad":0}},"react":{"choice":"determined","p":{"curious":0,"determined":0.99,"excited":0,"grumpy":0.01,"happy":0,"none":0,"proud":0,"sad":0}},"react.loops":{"choice":"once","p":{"four times":0,"once":0.95,"three times":0.01,"twice":0.04}},"word.about":{"choice":"tests","p":{"build":0,"deploy":0,"docs":0,"none":0.11,"tests":0.89}},"word.feeling":{"choice":"oops","p":{"again":0,"finally":0,"hmm":0,"none":0.02,"nope":0,"oops":0.98,"ugh":0,"yay":0}}},"brain":"jev:jev-latest","dropped":null,"for":3,"latency_ms":220,"questions":["mood","react","react.loops","word.feeling","word.about"],"seen":3,"state":"…"},"received_at_ms":1791986460000,"seq":4}
+{"pass":{"answers":{"mood":{"choice":"happy","p":{"curious":0,"determined":0.03,"excited":0,"grumpy":0,"happy":0.97,"proud":0,"sad":0}},"react":{"choice":"determined","p":{"curious":0,"determined":1,"excited":0,"grumpy":0,"happy":0,"none":0,"proud":0,"sad":0}},"react.loops":{"choice":"once","p":{"four times":0,"once":0.99,"three times":0,"twice":0.01}},"word.about":{"choice":"tests","p":{"build":0,"deploy":0,"docs":0,"none":0.02,"tests":0.98}},"word.feeling":{"choice":"oops","p":{"again":0,"finally":0,"hmm":0,"none":0.04,"nope":0,"oops":0.96,"ugh":0,"yay":0}}},"brain":"jev:jev-latest","dropped":null,"for":3,"latency_ms":191,"questions":["mood","react","react.loops","word.feeling","word.about"],"seen":3,"state":"…"},"received_at_ms":1791986460000,"seq":4}
 {"action":{"for":3,"latency_ms":0,"message":"Boop made a determined face, held once, and mumbled \"…oops!\"","name":"react","ok":true,"pending":true},"received_at_ms":1791986460000,"seq":5}
 {"received_at_ms":1791986460000,"seq":6,"settle":{"end":"done","for":5}}
 {"event":{"facts":{"error":"exit_code","failed_before":1,"result":"failed","thread":{…},"took":"short","took_ms":0,"tool":"shell","tool_name":"Bash","tool_use_id":null,"topic":"tests"},"kind":"tool_use","line":"claude's tests failed again on \"fix-nav\" (landing), 2 in a row.","reaction":null,"wakes_brain":true},"received_at_ms":1791986580000,"seq":7}
-{"pass":{"answers":{"mood":{"choice":"determined","p":{"curious":0,"determined":0.93,"excited":0,"grumpy":0.02,"happy":0.05,"proud":0,"sad":0}},"react":{"choice":"grumpy","p":{"curious":0,"determined":0.37,"excited":0,"grumpy":0.63,"happy":0,"none":0,"proud":0,"sad":0}},"react.loops":{"choice":"twice","p":{"four times":0.01,"once":0.07,"three times":0.01,"twice":0.91}},"word.about":{"choice":"tests","p":{"build":0,"deploy":0,"docs":0,"none":0.02,"tests":0.98}},"word.feeling":{"choice":"again","p":{"again":0.93,"finally":0,"hmm":0,"none":0.03,"nope":0,"oops":0.01,"ugh":0.03,"yay":0}}},"brain":"jev:jev-latest","dropped":null,"for":7,"latency_ms":198,"questions":["mood","react","react.loops","word.feeling","word.about"],"seen":7,"state":"…"},"received_at_ms":1791986580000,"seq":8}
+{"pass":{"answers":{"mood":{"choice":"determined","p":{"curious":0,"determined":0.93,"excited":0,"grumpy":0.01,"happy":0.06,"proud":0,"sad":0}},"react":{"choice":"grumpy","p":{"curious":0,"determined":0.25,"excited":0,"grumpy":0.73,"happy":0,"none":0.02,"proud":0,"sad":0}},"react.loops":{"choice":"twice","p":{"four times":0,"once":0.07,"three times":0.01,"twice":0.92}},"word.about":{"choice":"tests","p":{"build":0,"deploy":0,"docs":0,"none":0.03,"tests":0.97}},"word.feeling":{"choice":"again","p":{"again":0.93,"finally":0,"hmm":0,"none":0.04,"nope":0,"oops":0.01,"ugh":0.01,"yay":0}}},"brain":"jev:jev-latest","dropped":null,"for":7,"latency_ms":205,"questions":["mood","react","react.loops","word.feeling","word.about"],"seen":7,"state":"…"},"received_at_ms":1791986580000,"seq":8}
 {"action":{"for":7,"latency_ms":0,"message":"Boop's mood changed: happy → determined.","name":"mood","ok":true},"received_at_ms":1791986580000,"seq":9}
 {"action":{"for":7,"latency_ms":0,"message":"Boop made a grumpy face, held twice, and mumbled \"…again!\"","name":"react","ok":true,"pending":true},"received_at_ms":1791986580000,"seq":10}
 {"received_at_ms":1791986580000,"seq":11,"settle":{"end":"done","for":10}}
@@ -86,16 +85,16 @@ Five things to notice:
 - **A quiet pass leaves only a `pass` entry.** At 14:00 Jev answered the
   current mood and `none`, so both actions returned `nil`, and the
   `react.loops` pick went unused.
-- **The exclamation wins.** At 14:01 `word.feeling` was "oops" at 0.98,
+- **The exclamation wins.** At 14:01 `word.feeling` was "oops" at 0.96,
   over the 0.35 floor, so the mumble took it and `word.about`'s "tests"
-  at 0.89 went unused ([DECISIONS.md](DECISIONS.md) §5).
+  at 0.98 went unused ([DECISIONS.md](DECISIONS.md) §5).
 - **Each reaction is started, then settled** (entries 5–6 and 10–11), as
   above.
 - **Two in a row is determined,** as happy's file says it leaves for
   ([steering/mood/happy.md](../steering/mood/happy.md)); one failure
   wasn't, since happy stays through a first one.
 - **The face isn't the mood.** At 14:03 the mood turned determined, but
-  the face was grumpy (0.63, determined 0.37), held twice: both are
+  the face was grumpy (0.73, determined 0.25), held twice: both are
   judged on the same pass, the face by happy's MOOD, whose failures get
   determined or grumpy ([DECISIONS.md](DECISIONS.md) §1).
 
@@ -118,7 +117,7 @@ How to read HISTORY and NOW:
 - Turns are short (under 15 s), long (under a minute) or very long.
 
 PERSONALITY
-Boop is curious, loyal and easily delighted, and a little smug. …
+Boop is loyal, easily delighted and a little smug, always on the …
 Examples:
 …
 - NOW: claude's tests failed again on "api", 3 in a row.
@@ -185,12 +184,12 @@ state cut and one question of five in full:
 
 ## 6. From answers to Boop (14:05)
 
-Jev answered in 191 ms. The harness recorded the pass, then gave each
+Jev answered in 186 ms. The harness recorded the pass, then gave each
 action its own answers, in order ([DECISIONS.md](DECISIONS.md) §4–5):
 
 ```jsonl
-{"pass":{"answers":{"mood":{"choice":"grumpy","p":{"curious":0,"determined":0.07,"excited":0,"grumpy":0.93,"happy":0,"proud":0,"sad":0}},"react":{"choice":"grumpy","p":{"curious":0,"determined":0.01,"excited":0,"grumpy":0.99,"happy":0,"none":0,"proud":0,"sad":0}},"react.loops":{"choice":"twice","p":{"four times":0.03,"once":0.02,"three times":0.07,"twice":0.88}},"word.about":{"choice":"tests","p":{"build":0,"deploy":0,"docs":0,"none":0.02,"tests":0.98}},"word.feeling":{"choice":"again","p":{"again":0.99,"finally":0,"hmm":0,"none":0,"nope":0,"oops":0,"ugh":0.01,"yay":0}}},"brain":"jev:jev-latest","dropped":null,"for":12,"latency_ms":191,"questions":["mood","react","react.loops","word.feeling","word.about"],"seen":12,"state":"…"},"received_at_ms":1791986700000,"seq":13}
-{"action":{"for":12,"latency_ms":0,"message":"Boop's mood changed: determined → grumpy.","name":"mood","ok":true},"received_at_ms":1791986700000,"seq":14}
+{"pass":{"answers":{"mood":{"choice":"grumpy","p":{"curious":0,"determined":0.03,"excited":0,"grumpy":0.97,"happy":0,"proud":0,"sad":0}},"react":{"choice":"grumpy","p":{"curious":0,"determined":0,"excited":0,"grumpy":0.99,"happy":0,"none":0.01,"proud":0,"sad":0}},"react.loops":{"choice":"twice","p":{"four times":0.03,"once":0.01,"three times":0.1,"twice":0.86}},"word.about":{"choice":"tests","p":{"build":0,"deploy":0,"docs":0,"none":0.04,"tests":0.96}},"word.feeling":{"choice":"again","p":{"again":1,"finally":0,"hmm":0,"none":0,"nope":0,"oops":0,"ugh":0,"yay":0}}},"brain":"jev:jev-latest","dropped":null,"for":12,"latency_ms":186,"questions":["mood","react","react.loops","word.feeling","word.about"],"seen":12,"state":"…"},"received_at_ms":1791986700000,"seq":13}
+{"action":{"for":12,"latency_ms":1,"message":"Boop's mood changed: determined → grumpy.","name":"mood","ok":true},"received_at_ms":1791986700000,"seq":14}
 {"action":{"for":12,"latency_ms":0,"message":"Boop made a grumpy face, held twice, and mumbled \"…again!\"","name":"react","ok":true,"pending":true},"received_at_ms":1791986700000,"seq":15}
 {"received_at_ms":1791986700000,"seq":16,"settle":{"end":"done","for":15}}
 ```
@@ -198,8 +197,8 @@ action its own answers, in order ([DECISIONS.md](DECISIONS.md) §4–5):
 1. **`mood` got** `grumpy`, which isn't the current mood, so it saved
    it. From the next pass MOOD is the grumpy file, and in the app the
    device gets a `state` with `"mood":"grumpy"` at once.
-2. **`react` got** `grumpy`, held `twice` (at 0.88), "again" at 0.99 and
-   "tests" at 0.98. The exclamation clears the 0.35 floor, so it's the
+2. **`react` got** `grumpy`, held `twice` (at 0.86), "again" at 1.00 and
+   "tests" at 0.96. The exclamation clears the 0.35 floor, so it's the
    word and "tests" goes unused. Nothing needs you, so Voice builds a
    line in the voice it gives grumpy's face (annoyed's,
    [VOICE.md](../VOICE.md) §4) with "again", and queues it with the face,
@@ -207,7 +206,7 @@ action its own answers, in order ([DECISIONS.md](DECISIONS.md) §4–5):
    plays on the device, which says when it has ended; the eval's queue
    ends the handle at once, so the settle follows.
 
-In the app, `boop.log` would get `brain tool_use 191 ms → mood, react`.
+In the app, `boop.log` would get `brain tool_use 186 ms → mood, react`.
 The eval checked this step against `react: grumpy`,
 `word: again|tests|ugh` and `mood: grumpy`, and it passed.
 
@@ -243,15 +242,16 @@ claude's tests passed on "fix-nav" (landing) after 3 failures in a row.
 Boop did nothing on its own.
 ```
 
-Jev answered in 209 ms: `mood: proud` at 1.00, `react: proud` at 0.96,
-`react.loops: three times` at 0.62 (`twice` 0.35),
-`word.feeling: finally` at 0.99 and `word.about: tests` at 0.95. A
-comeback is a big moment, as boop's Examples say, so the face holds
-three loops. Grumpy leaves straight for proud; no rule holds a mood.
+Jev answered in 193 ms: `mood: proud` at 1.00, `react: proud` at 0.98,
+`react.loops: twice` at 0.53 (`three times` 0.43),
+`word.feeling: finally` at 0.99 and `word.about: tests` at 0.91. A
+comeback is a moment that stands out, as boop's Examples say, so the
+face holds more than once: twice, like the Example of a build passing
+after 2 failures, with three times close behind. Grumpy leaves straight for proud; no rule holds a mood.
 
 ```jsonl
-{"action":{"for":17,"latency_ms":0,"message":"Boop's mood changed: grumpy → proud.","name":"mood","ok":true},"received_at_ms":1791986820000,"seq":19}
-{"action":{"for":17,"latency_ms":0,"message":"Boop made a proud face, held three times, and mumbled \"…finally!\"","name":"react","ok":true,"pending":true},"received_at_ms":1791986820000,"seq":20}
+{"action":{"for":17,"latency_ms":1,"message":"Boop's mood changed: grumpy → proud.","name":"mood","ok":true},"received_at_ms":1791986820000,"seq":19}
+{"action":{"for":17,"latency_ms":1,"message":"Boop made a proud face, held twice, and mumbled \"…finally!\"","name":"react","ok":true,"pending":true},"received_at_ms":1791986820000,"seq":20}
 {"received_at_ms":1791986820000,"seq":21,"settle":{"end":"done","for":20}}
 ```
 

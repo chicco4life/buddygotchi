@@ -196,7 +196,8 @@ up on new steering first (a `boopdev eval --runs 1`): its first passes
 on text it hasn't seen can go over the 1.25 s deadline and drop, 13 and
 19 of the first 30 in the runs of
 [2026-09-28](evidence/2026-09-28-tonight/tune/README.md), which has the
-numbers the steering is tuned to today. A few can drop in a run that is
+numbers the mood is tuned to today; the reactions' are in
+[the second pass](evidence/2026-09-28-tonight/tune2/README.md). A few can drop in a run that is
 warm too (2 and 8 in [the check's reruns](evidence/2026-09-28-tonight/tune-check/README.md)),
 so compare runs by their dropped passes as well.
 
