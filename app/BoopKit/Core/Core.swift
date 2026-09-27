@@ -434,7 +434,8 @@ public final class Core {
         let (waiting, working, idle) = grouped(at: now)
         let base = !working.isEmpty ? "working" : sessions.isEmpty ? "asleep" : "idle"
         let attn = waiting.first.map {
-            StateSnapshot.Attention(agent: $0.agent.short, project: StateSnapshot.clip($0.project), more: waiting.count - 1)
+            StateSnapshot.Attention(
+                agent: $0.agent.short, project: StateSnapshot.clip($0.project, marked: true), more: waiting.count - 1)
         }
         return StateSnapshot(
             time: wall(now) / 1000, name: StateSnapshot.clip(config.name), base: base, attn: attn,

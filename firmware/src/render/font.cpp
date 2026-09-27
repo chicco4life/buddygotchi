@@ -10,14 +10,24 @@ const Font& kLarge = kFontLarge;
 
 namespace {
 
+// U+00C0 to U+00FF (UTF-8 C3 80 to C3 BF), each as its nearest plain
+// letter, so "café" shows as "cafe" rather than "caf?".
+constexpr char kLatin1[] = "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYPsaaaaaaaceeeeiiiidnooooo/ouuuuypy";
+static_assert(sizeof(kLatin1) == 64 + 1, "one letter per code point");
+
 // The glyph index for the character at `p`, advancing `p`; -1 at the end.
 int nextGlyph(const char*& p) {
   unsigned char c = static_cast<unsigned char>(*p);
   if (!c) return -1;
   ++p;
-  if (c == 0xC2 && static_cast<unsigned char>(*p) == 0xB7) {
+  unsigned char next = static_cast<unsigned char>(*p);
+  if (c == 0xC2 && next == 0xB7) {
     ++p;
     return 95;  // "·", the first extra after '~'
+  }
+  if (c == 0xC3 && (next & 0xC0) == 0x80) {
+    ++p;
+    return kLatin1[next - 0x80] - 0x20;
   }
   if (c >= 0x80) {  // skip the rest of any other UTF-8 sequence
     while ((static_cast<unsigned char>(*p) & 0xC0) == 0x80) ++p;

@@ -3,6 +3,7 @@
 #include <unity.h>
 
 #include <cstring>
+#include <utility>
 #include <vector>
 
 #include "render/anim.h"
@@ -33,6 +34,12 @@ struct Buf {
     return n;
   }
 };
+
+// The pose at rest where it stands: no offset.
+Pose with0(Pose p) {
+  p.dx = 0, p.dy = 0;
+  return p;
+}
 
 Buf face(const Pose& p) {
   Buf b;
@@ -105,7 +112,6 @@ static void test_isin_hits_the_quadrants() {
   TEST_ASSERT_EQUAL_INT(0, isin(512));
   TEST_ASSERT_EQUAL_INT(-1024, isin(768));
   TEST_ASSERT_EQUAL_INT(724, isin(128));  // sin 45°
-  TEST_ASSERT_EQUAL_INT(1024, icos(0));
 }
 
 static void test_ease_is_monotonic_from_0_to_1024() {
@@ -119,19 +125,13 @@ static void test_ease_is_monotonic_from_0_to_1024() {
   }
 }
 
-static void test_spans_cut_and_intersect() {
+static void test_spans_cut() {
   Spans s;
   s.add(0, 100);
   s.cut(40, 60);
   TEST_ASSERT_EQUAL_INT(2, s.n);
   TEST_ASSERT_EQUAL_INT(40, s.s[0].b);
   TEST_ASSERT_EQUAL_INT(60, s.s[1].a);
-  Spans o;
-  o.add(30, 70);
-  s.intersect(o);
-  TEST_ASSERT_EQUAL_INT(2, s.n);
-  TEST_ASSERT_EQUAL_INT(30, s.s[0].a);
-  TEST_ASSERT_EQUAL_INT(70, s.s[1].b);
 }
 
 static void test_fill_shape_antialiases_only_the_edges() {
@@ -156,8 +156,6 @@ static void test_palette_ramps_run_from_black_to_the_ink() {
   TEST_ASSERT_EQUAL_HEX16(rgb565(kRoseRgb), paletteAt(inkAt(kInkRose, kLevels)));
   TEST_ASSERT_EQUAL_HEX16(rgb565(kAmberRgb), paletteAt(inkAt(kInkAmber, kLevels)));
   TEST_ASSERT_EQUAL_INT(kBlack, inkAt(kInkEye, 0));
-  TEST_ASSERT_EQUAL_HEX16(rgb565(kHollowRgb), paletteAt(hollowAt(kInkEye, kLevels)));
-  TEST_ASSERT_EQUAL_INT(inkAt(kInkGlow4, kLevels), hollowAt(kInkGlow4, 0));
   TEST_ASSERT_TRUE(kPaletteUsed <= 256);
   TEST_ASSERT_EQUAL_HEX16(rgb565(255, 0, 0), paletteAt(kRed));  // the bring-up pattern's colours stay
 }
@@ -191,17 +189,16 @@ static void test_eyes_are_four_crisp_panes() {
   looks[1].lookX = 1000;
   looks[2].lookX = -700, looks[2].lookY = -800;
   looks[3].eyeSize = 1250;
-  looks[4].lidTop = 400, looks[4].lidTilt = 600;
-  looks[5].lidTop = 150, looks[5].lidTilt = -500, looks[5].dy = -7, looks[5].squash = -120;
+  looks[4].lidTop = 400;
+  looks[5].lidTop = 150, looks[5].dy = -7, looks[5].squash = -120;
   looks[6] = animPose(Anim::kWiggle, 150);
   looks[7] = animPose(Anim::kListening, 0);
   for (Pose p : looks) {
-    p.mouthOpen = 0;  // nothing dark anywhere: an open mouth is the only hollow
+    p.mouthOpen = 0;
     p.dx = 0, p.dy = 0;
     Buf b = face(p);
-    TEST_ASSERT_EQUAL_INT(0, b.count(kHollow));
-    TEST_ASSERT_TRUE(eyeIsCrisp(b, false, eyeInk(p)));
-    TEST_ASSERT_TRUE(eyeIsCrisp(b, true, eyeInk(p)));
+    TEST_ASSERT_TRUE(eyeIsCrisp(b, false, kInkEye));
+    TEST_ASSERT_TRUE(eyeIsCrisp(b, true, kInkEye));
   }
   // Open, an eye is four panes split by a one-block cross: the middle
   // column and row are dark, the middle of each pane is lit.
@@ -238,11 +235,69 @@ static void test_a_look_moves_the_whole_eye_with_perspective() {
   p.lookX = -1000;
   Buf m = face(p);
   TEST_ASSERT_TRUE(eyeBox(m, false).n * 100 >= eyeBox(m, true).n * 125);
+  // The turn adds a pair of blocks to the near eye and takes one from the
+  // far one (UX.md §2), and a small look like working's leaves the two eyes
+  // the same size, straining or not.
+  TEST_ASSERT_EQUAL_INT(eyeBox(n, true).w() + 6, r.w());
+  TEST_ASSERT_EQUAL_INT(eyeBox(n, false).w() - 6, l.w());
+  for (int strain : {0, 240}) {
+    for (int size : {1000, 850}) {
+      Pose w = lookPose(Look::kWorking, 1);
+      w.squash = int16_t(strain), w.lidTop = 0, w.size = int16_t(size);
+      Buf wb = face(w);
+      TEST_ASSERT_EQUAL_INT(eyeBox(wb, false).w(), eyeBox(wb, true).w());
+      TEST_ASSERT_EQUAL_INT(eyeBox(wb, false).h(), eyeBox(wb, true).h());
+    }
+  }
   // Up and down move the eyes too.
   Pose up, down;
   up.lookY = -1000, down.lookY = 1000;
   TEST_ASSERT_TRUE(nl.y0 - eyeBox(face(up), false).y0 >= 12);
   TEST_ASSERT_TRUE(eyeBox(face(down), false).y0 - nl.y0 >= 12);
+}
+
+// The box of full-strength `ink` pixels in [x0, x1) × [0, kStripTop).
+struct Box {
+  int x0 = kWidth, y0 = kHeight, x1 = -1, y1 = -1;
+};
+Box inkBox(const Buf& b, int ink, int x0, int x1) {
+  Box r;
+  for (int y = 0; y < kStripTop; ++y) {
+    for (int x = x0; x < x1; ++x) {
+      if (b.c.get(x, y) != inkAt(ink, kLevels)) continue;
+      if (x < r.x0) r.x0 = x;
+      if (x > r.x1) r.x1 = x;
+      if (y < r.y0) r.y0 = y;
+      if (y > r.y1) r.y1 = y;
+    }
+  }
+  return r;
+}
+
+static void test_the_face_moves_as_one_sprite() {
+  // The face's origin snaps to the grid once and every part sits whole
+  // blocks from it (UX.md §2), so wherever the face is, the mouth and the
+  // cheeks keep their places against the eyes: nothing lags a block behind.
+  Buf n = face(Pose{});
+  const Box ne = inkBox(n, kInkEye, 0, 125), nr = inkBox(n, kInkEye, 196, kWidth);
+  const Box nm = inkBox(n, kInkEye, 125, 196), nb = inkBox(n, kInkBlush, 0, kWidth);
+  for (int dx = -6; dx <= 6; ++dx) {
+    for (int dy = -15; dy <= 6; ++dy) {
+      Pose p;
+      p.dx = int16_t(dx), p.dy = int16_t(dy);
+      Buf b = face(p);
+      Box e = inkBox(b, kInkEye, 0, 125);
+      int mx = e.x0 - ne.x0, my = e.y0 - ne.y0;
+      TEST_ASSERT_EQUAL_INT(0, mx % 3);  // whole blocks
+      TEST_ASSERT_EQUAL_INT(0, my % 3);
+      for (auto parts : {std::make_pair(nr, inkBox(b, kInkEye, 196, kWidth)), std::make_pair(nm, inkBox(b, kInkEye, 125, 196)),
+                         std::make_pair(nb, inkBox(b, kInkBlush, 0, kWidth))}) {
+        TEST_ASSERT_EQUAL_INT(mx, parts.second.x0 - parts.first.x0);
+        TEST_ASSERT_EQUAL_INT(mx, parts.second.x1 - parts.first.x1);
+        TEST_ASSERT_EQUAL_INT(my, parts.second.y0 - parts.first.y0);
+      }
+    }
+  }
 }
 
 static void test_eye_size_changes_only_the_eyes() {
@@ -258,26 +313,21 @@ static void test_eye_size_changes_only_the_eyes() {
   }
 }
 
-static void test_lids_cut_each_half_flat() {
-  // A lid takes whole rows of blocks off the top. Tilted, it cuts each half
-  // of the eye flat at its own height, so the eye steps once between the
-  // panes instead of jagging every column (UX.md §2).
-  Pose sad, cross, flat;
+static void test_lids_cut_whole_rows_flat() {
+  // A lid takes whole rows of blocks off the top, straight across the eye
+  // (UX.md §2).
+  Pose flat;
   flat.lidTop = 400;
-  sad.lidTop = 250, sad.lidTilt = -650;
-  cross.lidTop = 450, cross.lidTilt = 450;
   struct Case {
     const char* name;
     Pose p;
   } lidded[] = {{"flat", flat},
-                {"outer corners down, lifted", [] {
+                {"lifted", [] {
                    Pose p;
-                   p.lidTop = 150, p.lidTilt = -500, p.dy = -7, p.squash = -120;
+                   p.lidTop = 150, p.dy = -7, p.squash = -120;
                    return p;
                  }()},
-                {"working", lookPose(Look::kWorking, 1)},
-                {"outer corners down", sad},
-                {"inner corners down", cross}};
+                {"working", lookPose(Look::kWorking, 1)}};
   for (const Case& c : lidded) {
     Pose q = c.p;
     q.mouthOpen = 0, q.dx = 0, q.dy = 0;
@@ -293,11 +343,47 @@ static void test_lids_cut_each_half_flat() {
       }
     }
   }
-  // Flat lids leave the two halves level; tilted ones don't.
-  Buf f = face(flat), t = face(sad);
-  EyeBox fe = eyeBox(f, false), te = eyeBox(t, false);
+  // The two halves stay level.
+  Buf f = face(flat);
+  EyeBox fe = eyeBox(f, false);
   TEST_ASSERT_EQUAL_INT(topAt(f, fe.x0 + 3), topAt(f, fe.x1 - 3));
-  TEST_ASSERT_TRUE(topAt(t, te.x0 + 3) != topAt(t, te.x1 - 3));
+}
+
+static void test_a_lid_never_leaves_a_sliver() {
+  // A lid or a squint that leaves a pane less than two blocks tall takes
+  // the whole pane (UX.md §2): down any column of an eye, every lit run is
+  // at least 6 px.
+  auto check = [](const Pose& q, const char* what) {
+    Pose p = q;
+    p.dx = 0, p.dy = 0, p.mouthOpen = 0, p.mouthCurve = 0;
+    Buf b = face(p);
+    EyeBox e = eyeBox(b, false);
+    if (e.n == 0) return;
+    for (int x : {e.x0 + e.w() / 4, e.x1 - e.w() / 4}) {
+      int run = 0;
+      for (int y = 0; y <= kEyeRows; ++y) {
+        bool lit = y < kEyeRows && x < kWidth / 2 && b.c.get(x, y) == inkAt(kInkEye, kLevels);
+        if (lit) {
+          ++run;
+        } else if (run) {
+          TEST_ASSERT_TRUE_MESSAGE(run >= 6, what);
+          run = 0;
+        }
+      }
+    }
+  };
+  for (int v = 0; v <= 1000; v += 25) {
+    Pose lid, squint;
+    lid.lidTop = int16_t(v), squint.lidBot = int16_t(v);
+    check(lid, "lid");
+    check(squint, "squint");
+  }
+  Pose strain = lookPose(Look::kWorking, 1);  // the working strain at its peak
+  strain.lidTop = int16_t(strain.lidTop + 170), strain.squash = 240;
+  check(strain, "strain");
+  Buf b = face(strain);  // it takes the top panes off, and keeps the bottom ones
+  EyeBox e = eyeBox(b, false);
+  TEST_ASSERT_TRUE(e.n > 0 && e.h() <= 18);
 }
 
 static void test_a_look_up_keeps_full_panes_and_working_looks_down() {
@@ -310,7 +396,8 @@ static void test_a_look_up_keeps_full_panes_and_working_looks_down() {
     return w;
   };
   Pose up;
-  up.lookX = 650, up.lookY = -1000, up.dy = -6, up.squash = 100, up.mouthWide = 600, up.mouthX = 8;
+  up.lookX = 650, up.lookY = -1000, up.dy = -6, up.squash = 100;
+  up.mouthWide = 200;  // narrow, so the mouth, following the look, stays right of the middle
   Buf n = face(Pose{}), t = face(up), w = face(lookPose(Look::kWorking, 1));
   for (bool right : {false, true}) {
     EyeBox ne = eyeBox(n, right), te = eyeBox(t, right), we = eyeBox(w, right);
@@ -323,8 +410,8 @@ static void test_a_look_up_keeps_full_panes_and_working_looks_down() {
       while (y < kEyeRows && b.c.get(x, y) != kBlack) ++y;
       return y - e.y0;
     };
-    // Looking up: all four panes (the left eye; looking up, the mouth rises
-    // into the right eye's rows).
+    // Looking up: all four panes (the left eye; looking up and right, the
+    // mouth rises into the right eye's rows).
     if (!right) TEST_ASSERT_TRUE(crossAt(t, te) >= 15);
     TEST_ASSERT_TRUE(crossAt(w, we) <= 12);  // working: the lid takes the top off
     TEST_ASSERT_TRUE(rowWidth(w, right, we.y0 + 1) >= 30);  // cut straight across
@@ -336,7 +423,10 @@ static void test_closed_eyes_are_a_line() {
   p.open = 0;
   Buf b = face(p);
   EyeBox e = eyeBox(b, false);
-  TEST_ASSERT_TRUE(e.h() <= 6);
+  // Two blocks thick, the same weight as the mouth's bar (UX.md §2).
+  TEST_ASSERT_EQUAL_INT(6, e.h());
+  Box m = inkBox(b, kInkEye, 125, 196);
+  TEST_ASSERT_EQUAL_INT(m.y1 - m.y0 + 1, e.h());
   TEST_ASSERT_TRUE(e.w() >= 36);
   TEST_ASSERT_TRUE(b.count(inkAt(kInkEye, kLevels)) > 80);  // but a line is there
 }
@@ -400,11 +490,12 @@ static void test_happy_eyes_squint_and_the_smile_stays_small() {
   TEST_ASSERT_TRUE(inkSpot(b, kInkBlush).y0 < inkSpot(n, kInkBlush).y0);
   // The cheer (BEHAVIORS.md §5): the squint, white eyes and a heart.
   Pose c = animPose(Anim::kCheer, 1500);  // landed, after the hops
-  TEST_ASSERT_EQUAL_INT(kInkEye, eyeInk(c));
+  TEST_ASSERT_TRUE(eyeIsCrisp(face(c), false, kInkEye));
   TEST_ASSERT_EQUAL_INT(1000, c.heart);
   TEST_ASSERT_TRUE(c.lidBot >= 650);
   TEST_ASSERT_EQUAL_INT(0, c.dy);
-  // Three hops, then still.
+  // Three hops, squashed wide on the ground for 60 ms around each landing
+  // and stretched only while moving, so round at the top of each hop.
   int hops = 0;
   bool up = false;
   for (uint32_t t = 0; t < animDuration(Anim::kCheer); t += 10) {
@@ -413,6 +504,23 @@ static void test_happy_eyes_squint_and_the_smile_stays_small() {
     up = air;
   }
   TEST_ASSERT_EQUAL_INT(3, hops);
+  for (uint32_t landing : {380u, 760u, 1140u}) {
+    for (uint32_t t = landing - 30; t < landing + 30; t += 5) {
+      TEST_ASSERT_TRUE(animPose(Anim::kCheer, t).squash > 200);
+      TEST_ASSERT_EQUAL_INT(0, animPose(Anim::kCheer, t).dy);
+    }
+    Pose top = animPose(Anim::kCheer, landing - 190);
+    TEST_ASSERT_TRUE(top.dy <= -13 && top.squash > -20 && top.squash <= 0);
+  }
+  // Then no frozen hold: the heart beats until the end.
+  int beats = 0;
+  bool small = false;
+  for (uint32_t t = 1170; t < animDuration(Anim::kCheer); t += 10) {
+    bool s = animPose(Anim::kCheer, t).heart < 650;
+    beats += s && !small;
+    small = s;
+  }
+  TEST_ASSERT_EQUAL_INT(2, beats);
 }
 
 static void test_a_tap_is_a_squint_and_a_heart() {
@@ -457,6 +565,41 @@ static void test_asleep_zzz_climbs_one_letter_at_a_time() {
   }
 }
 
+static void test_every_sprite_is_on_the_grid_and_on_screen() {
+  // The heart, the sweat drop and the "zzZZ" are built from the face's 3 px
+  // blocks too (UX.md §2): every 3 × 3 cell of the grid is dark or lit
+  // whole, less its softened corner pixels (two at the drop's tip). And the
+  // "zzZZ" stays 6 px clear of
+  // the screen's edges, bubble or not, whichever way the breathing bob has it.
+  auto onGrid = [](const Buf& b) {
+    for (int y = 0; y < kStripTop; y += 3) {
+      for (int x = 0; x < kWidth; x += 3) {
+        int n = 0;
+        for (int j = 0; j < 3; ++j) {
+          for (int i = 0; i < 3; ++i) n += b.c.get(x + i, y + j) != kBlack;
+        }
+        TEST_ASSERT_TRUE(n == 0 || n >= 7);
+      }
+    }
+  };
+  Pose sweat = lookPose(Look::kWorking, 1), sleep = lookPose(Look::kAsleep, 0), tap = animPose(Anim::kWiggle, 0);
+  sweat.sweat = 500, sleep.zzz = 999, tap.dx = 0;
+  for (const Pose& p : {sweat, sleep, tap}) onGrid(face(p));
+  for (int raise : {0, 1000}) {
+    for (int bob : {0, -kBobPx}) {
+      Pose p = sleep;
+      p.raise = int16_t(raise), p.dy = int16_t(p.dy + bob);
+      Buf b;
+      drawFaceScreen(b.c, p, nullptr, Strip{});
+      for (int y = 0; y < kStripTop; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+          if (y < 6 || x >= kWidth - 6) TEST_ASSERT_EQUAL_INT(kBlack, b.c.get(x, y));
+        }
+      }
+    }
+  }
+}
+
 static void test_a_sweat_drop_sits_by_the_right_eye_and_slides_down() {
   // Working, a sweat drop slides down beside the right eye (UX.md §2).
   Pose p = lookPose(Look::kWorking, 1);
@@ -470,6 +613,54 @@ static void test_a_sweat_drop_sits_by_the_right_eye_and_slides_down() {
   TEST_ASSERT_INT_WITHIN(4, a.n, b.n);
   TEST_ASSERT_TRUE(b.meanY() - a.meanY() >= 10);
   TEST_ASSERT_TRUE(a.x0 > eyeBox(top, true).x1);
+  // It's a teardrop, not a bottle (a nub on a square): from a point a third
+  // as wide as its widest row it widens at most 4 px per row of pixels, and
+  // it rounds off below.
+  int widths[kHeight] = {}, widest = 0, widestAt = a.y0;
+  for (int y = a.y0; y <= a.y1; ++y) {
+    for (int x = 0; x < kWidth; ++x) widths[y] += top.c.get(x, y) == inkAt(kInkSky, kLevels);
+    if (widths[y] > widest) widest = widths[y], widestAt = y;
+  }
+  for (int y = a.y0 + 1; y <= widestAt; ++y) {
+    TEST_ASSERT_TRUE(widths[y] >= widths[y - 1] && widths[y] - widths[y - 1] <= 4);
+  }
+  TEST_ASSERT_TRUE(3 * widths[a.y0] <= widest);
+  TEST_ASSERT_TRUE(widths[a.y1] < widest && widestAt < a.y1);
+}
+
+static void test_needs_you_leans_in_without_shrinking() {
+  // With the bubble the face moves up and shrinks to 85% (UX.md §2), so
+  // the needs-you face, which leans in, keeps the idle face's eyes, and
+  // its mouth stays clear of the bubble.
+  Buf idle, needs;
+  drawFaceScreen(idle.c, lookPose(Look::kIdle, 0), nullptr, Strip{});
+  Pose n = lookPose(Look::kNeedsYou, 0);
+  n.raise = 1000;
+  Attention a;
+  a.agent = "codex", a.project = "landing";
+  drawNeedsYou(needs.c, n, a, Strip{});
+  Box ie = inkBox(idle, kInkEye, 0, 125), ne = inkBox(needs, kInkEye, 0, 125);
+  TEST_ASSERT_EQUAL_INT(ie.x1 - ie.x0, ne.x1 - ne.x0);
+  TEST_ASSERT_EQUAL_INT(ie.y1 - ie.y0, ne.y1 - ne.y0);
+  Box mouth = inkBox(needs, kInkEye, 125, 196);
+  TEST_ASSERT_TRUE(mouth.y1 > 0 && mouth.y1 < kBubbleTop - 20);
+}
+
+static void test_the_heart_and_the_drop_never_overlap() {
+  // Working into a cheer, and a cheer cut short by listening, blend a drop
+  // out and a heart in: the drop goes once the heart shows (UX.md §2).
+  Pose working = lookPose(Look::kWorking, 1), cheer = animPose(Anim::kCheer, 1500);
+  working.sweat = 300;
+  bool sawDrop = false, sawHeart = false;
+  for (int t = 0; t <= 1024; t += 16) {
+    for (const Pose& p : {blend(working, cheer, t), blend(cheer, working, t)}) {
+      Buf b = face(p);
+      int drop = inkSpot(b, kInkSky).n, heart = inkSpot(b, kInkRose).n;
+      TEST_ASSERT_FALSE(drop && heart);
+      sawDrop |= drop > 0, sawHeart |= heart > 0;
+    }
+  }
+  TEST_ASSERT_TRUE(sawDrop && sawHeart);
 }
 
 static void test_a_happy_blend_squints_a_row_at_a_time() {
@@ -488,6 +679,34 @@ static void test_a_happy_blend_squints_a_row_at_a_time() {
     TEST_ASSERT_TRUE(e.y1 <= last);
     last = e.y1;
   }
+}
+
+static void test_listening_bobs_the_whole_face_a_block() {
+  // Listening bobs a block every 1.2 s (BEHAVIORS.md §5) instead of pulsing
+  // its size, which popped single eyes and cheeks (UX.md §2): every frame
+  // is the rest frame, or the whole of it one block (3 px) higher.
+  Buf rest = face(with0(animPose(Anim::kListening, 600)));
+  int up = 0;
+  for (uint32_t t = 0; t < 2400; t += 25) {
+    Pose p = animPose(Anim::kListening, t);
+    TEST_ASSERT_EQUAL_INT(1000, p.size);
+    Buf b = face(p);
+    bool same = true, lifted = true;
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        same &= b.c.get(x, y) == rest.c.get(x, y);
+        lifted &= b.c.get(x, y) == rest.c.get(x, y + 3);
+      }
+    }
+    TEST_ASSERT_TRUE(same || lifted);
+    up += lifted;
+  }
+  TEST_ASSERT_EQUAL_INT(48, up);  // half the time
+  // Its mouth is the small "o" (BEHAVIORS.md §5): three blocks tall, dark
+  // in the middle.
+  Box m = inkBox(rest, kInkEye, 125, 196);
+  TEST_ASSERT_EQUAL_INT(9, m.y1 - m.y0 + 1);
+  TEST_ASSERT_EQUAL_INT(kBlack, rest.c.get((m.x0 + m.x1) / 2, (m.y0 + m.y1) / 2));
 }
 
 static void test_blend_is_eased_interruptible_and_150ms() {
@@ -532,6 +751,51 @@ static void test_every_anim_has_a_name_and_ends() {
   TEST_ASSERT_EQUAL_UINT32(30000, animDuration(Anim::kListening));  // the hold cap
 }
 
+static void test_an_empty_strip_is_bare_glass() {
+  // With nothing to count or flag, the strip shows nothing, not even its
+  // divider (UX.md §2); with anything, the divider is there.
+  auto lit = [](const Strip& s) {
+    Buf b;
+    drawStrip(b.c, s);
+    int n = 0;
+    for (uint8_t v : b.px) n += v != kBlack;
+    return n;
+  };
+  TEST_ASSERT_EQUAL_INT(0, lit(Strip{}));
+  Strip busy, quiet;
+  busy.busy = 1, quiet.quiet = true;
+  for (const Strip& s : {busy, quiet}) {
+    Buf b;
+    drawStrip(b.c, s);
+    TEST_ASSERT_EQUAL_INT(inkAt(kInkDim, kLevels), b.c.get(kWidth / 2, kStripTop));
+  }
+}
+
+static void test_squiggles_make_room_for_the_word() {
+  // The mumble's word is never cut while squiggles keep their room (UX.md
+  // §2): with six syllables around it, "refactoring" shows whole, as it
+  // does alone; only a word too long for the bubble by itself ends "..".
+  auto amber = [](const Mumble& m) {
+    Buf b;
+    drawFaceScreen(b.c, Pose{}, &m, Strip{});
+    int n = 0;
+    for (int y = kBubbleTop; y < kStripTop; ++y) {
+      for (int x = 0; x < kWidth; ++x) n += b.c.get(x, y) == inkAt(kInkAmber, kLevels);
+    }
+    return n;
+  };
+  Mumble many, alone, longest;
+  many.syllables = 6, many.at = 3, many.word = "refactoring";
+  alone.syllables = 0, alone.at = 0, alone.word = "refactoring";
+  TEST_ASSERT_EQUAL_INT(amber(alone), amber(many));
+  longest.syllables = 2, longest.at = 1, longest.word = "a-very-long-mumbled-word";
+  Buf b;
+  drawFaceScreen(b.c, Pose{}, &longest, Strip{});
+  for (int y = kBubbleTop; y < kStripTop; ++y) {  // cut, but inside the margins
+    for (int x : {0, 11, kWidth - 12, kWidth - 1}) TEST_ASSERT_EQUAL_INT(kBlack, b.c.get(x, y));
+  }
+}
+
 static void test_fonts_are_monospaced_and_utf8_aware() {
   TEST_ASSERT_EQUAL_INT(3 * kSmall.w, stringWidth(kSmall, "abc"));
   TEST_ASSERT_EQUAL_INT(3 * kLarge.w, stringWidth(kLarge, "a\xC2\xB7" "b"));  // "·" is one glyph
@@ -542,6 +806,17 @@ static void test_fonts_are_monospaced_and_utf8_aware() {
   Buf fit;
   int w = drawStringFit(fit.c, kSmall, 0, 0, "a-very-long-project-name", kInkText, 10 * kSmall.w);
   TEST_ASSERT_TRUE(w <= 10 * kSmall.w);
+  // Accented letters show plain (UX.md §2), anything else outside the font
+  // as one "?" per character.
+  Buf accented, plain, other, marks;
+  TEST_ASSERT_EQUAL_INT(4 * kSmall.w, stringWidth(kSmall, "caf\xC3\xA9"));
+  drawString(accented.c, kSmall, 0, 0, "caf\xC3\xA9 \xC3\x9C" "ber", kInkText);
+  drawString(plain.c, kSmall, 0, 0, "cafe Uber", kInkText);
+  TEST_ASSERT_TRUE(accented.px == plain.px);
+  TEST_ASSERT_EQUAL_INT(2 * kSmall.w, stringWidth(kSmall, "\xED\x94\x84\xEB\xA1\x9C"));  // two Hangul syllables
+  drawString(other.c, kSmall, 0, 0, "\xED\x94\x84\xEB\xA1\x9C", kInkText);
+  drawString(marks.c, kSmall, 0, 0, "??", kInkText);
+  TEST_ASSERT_TRUE(other.px == marks.px);
 }
 
 int main(int, char**) {
@@ -549,23 +824,31 @@ int main(int, char**) {
   RUN_TEST(test_isqrt_is_exact);
   RUN_TEST(test_isin_hits_the_quadrants);
   RUN_TEST(test_ease_is_monotonic_from_0_to_1024);
-  RUN_TEST(test_spans_cut_and_intersect);
+  RUN_TEST(test_spans_cut);
   RUN_TEST(test_fill_shape_antialiases_only_the_edges);
   RUN_TEST(test_palette_ramps_run_from_black_to_the_ink);
   RUN_TEST(test_neutral_face_is_symmetric);
   RUN_TEST(test_eyes_are_four_crisp_panes);
   RUN_TEST(test_a_look_moves_the_whole_eye_with_perspective);
+  RUN_TEST(test_the_face_moves_as_one_sprite);
   RUN_TEST(test_eye_size_changes_only_the_eyes);
-  RUN_TEST(test_lids_cut_each_half_flat);
+  RUN_TEST(test_lids_cut_whole_rows_flat);
+  RUN_TEST(test_a_lid_never_leaves_a_sliver);
   RUN_TEST(test_a_look_up_keeps_full_panes_and_working_looks_down);
   RUN_TEST(test_closed_eyes_are_a_line);
   RUN_TEST(test_happy_eyes_squint_and_the_smile_stays_small);
   RUN_TEST(test_a_tap_is_a_squint_and_a_heart);
   RUN_TEST(test_asleep_zzz_climbs_one_letter_at_a_time);
+  RUN_TEST(test_every_sprite_is_on_the_grid_and_on_screen);
   RUN_TEST(test_a_sweat_drop_sits_by_the_right_eye_and_slides_down);
+  RUN_TEST(test_needs_you_leans_in_without_shrinking);
+  RUN_TEST(test_the_heart_and_the_drop_never_overlap);
   RUN_TEST(test_a_happy_blend_squints_a_row_at_a_time);
+  RUN_TEST(test_listening_bobs_the_whole_face_a_block);
   RUN_TEST(test_blend_is_eased_interruptible_and_150ms);
   RUN_TEST(test_every_anim_has_a_name_and_ends);
+  RUN_TEST(test_an_empty_strip_is_bare_glass);
+  RUN_TEST(test_squiggles_make_room_for_the_word);
   RUN_TEST(test_fonts_are_monospaced_and_utf8_aware);
   return UNITY_END();
 }

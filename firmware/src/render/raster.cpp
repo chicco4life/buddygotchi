@@ -62,15 +62,6 @@ int ease(int t, int dur) {
   return int(u * u * (3 * 1024 - 2 * u) / (1024 * 1024));
 }
 
-void Spans::clip(int lo, int hi) {
-  int m = 0;
-  for (int i = 0; i < n; ++i) {
-    int a = s[i].a < lo ? lo : s[i].a, b = s[i].b > hi ? hi : s[i].b;
-    if (b > a) s[m++] = {a, b};
-  }
-  n = m;
-}
-
 void Spans::cut(int lo, int hi) {
   if (hi <= lo) return;
   Spans out;
@@ -79,31 +70,6 @@ void Spans::cut(int lo, int hi) {
     out.add(s[i].a > hi ? s[i].a : hi, s[i].b);
   }
   *this = out;
-}
-
-void Spans::intersect(const Spans& other) {
-  Spans out;
-  for (int i = 0; i < n; ++i) {
-    for (int j = 0; j < other.n; ++j) {
-      int a = s[i].a > other.s[j].a ? s[i].a : other.s[j].a;
-      int b = s[i].b < other.s[j].b ? s[i].b : other.s[j].b;
-      out.add(a, b);
-    }
-  }
-  *this = out;
-}
-
-Spans roundRect(int x0, int y0, int x1, int y1, int r, int sy) {
-  Spans out;
-  if (sy < y0 || sy >= y1 || x1 <= x0) return out;
-  int maxR = (x1 - x0 < y1 - y0 ? x1 - x0 : y1 - y0) / 2;
-  if (r > maxR) r = maxR;
-  int d = 0;
-  if (sy < y0 + r) d = y0 + r - sy;
-  else if (sy >= y1 - r) d = sy - (y1 - r) + 1;
-  int inset = d > 0 ? r - int(isqrt(uint64_t(int64_t(r) * r - int64_t(d > r ? r : d) * (d > r ? r : d)))) : 0;
-  out.add(x0 + inset, x1 - inset);
-  return out;
 }
 
 bool ellipseRow(int cx, int cy, int rx, int ry, int sy, int& lo, int& hi) {
@@ -120,19 +86,6 @@ Spans ellipse(int cx, int cy, int rx, int ry, int sy) {
   int lo, hi;
   if (ellipseRow(cx, cy, rx, ry, sy, lo, hi)) out.add(lo, hi);
   return out;
-}
-
-void keepBelow(Spans& s, int lx, int ly, int m, int sy) {
-  if (m == 0) {
-    if (sy < ly) s.n = 0;
-    return;
-  }
-  int bound = lx + int(int64_t(sy - ly) * 1000 / m);
-  if (m > 0) {
-    s.clip(-(1 << 20), bound);
-  } else {
-    s.clip(bound, 1 << 20);
-  }
 }
 
 }  // namespace render

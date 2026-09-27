@@ -15,9 +15,10 @@ constexpr int kMargin = 12;
 // The face's centre and scale. The centre is the eyes', and the mouth hangs
 // below them, so the eyes sit kFaceDrop (face.h) above the middle of their
 // space. Alone, the face is centred in the space above the strip; with a
-// bubble it moves up into the space above the bubble and shrinks.
+// bubble it moves up into the space above the bubble and shrinks, but only
+// so far that the needs-you face, which leans in, keeps the idle face's size.
 constexpr int kFaceCy = kStripTop / 2 - kFaceDrop;
-constexpr int kFaceBubbleScale = 750;
+constexpr int kFaceBubbleScale = 850;
 constexpr int kFaceBubbleCy = kBubbleTop / 2 - kFaceDrop * kFaceBubbleScale / 1000;
 
 // The middle of the bubble and of the strip.
@@ -65,14 +66,21 @@ int squiggle(Canvas& c, int x, int cy, int ink) {
 }
 
 void drawMumble(Canvas& c, const Mumble& m) {
-  const int gap = 8, sq = 22;
+  const int gap = 8, sq = 22, room = kWidth - 2 * kMargin;
   bool hasWord = m.word && *m.word && m.at >= 0;
   int before = hasWord ? m.at : m.syllables, after = hasWord ? m.syllables - m.at : 0;
   before = before > 3 ? 3 : before < 0 ? 0 : before;
   after = after > 3 ? 3 : after < 0 ? 0 : after;
   if (!hasWord && before == 0) before = 3;
   int wordW = hasWord ? stringWidth(kLarge, m.word) : 0;
-  int maxWord = kWidth - 2 * kMargin - (before + after) * (sq + gap);
+  // The word is the one thing that means something; the squiggles are
+  // decoration. They make room for it, one at a time from the side with
+  // more, before the word is ever cut.
+  while (hasWord && before + after > 0 && (before + after) * (sq + gap) + wordW > room) {
+    if (before >= after) --before;
+    else --after;
+  }
+  int maxWord = room - (before + after) * (sq + gap);
   if (wordW > maxWord) wordW = maxWord;
   int total = (before + after) * (sq + gap) + wordW - (hasWord ? 0 : gap);
   int x = (kWidth - total) / 2, cy = kBubbleCy;
@@ -99,6 +107,8 @@ void iconQuiet(Canvas& c, int x, int y) {  // a speaker with a slash
 }  // namespace
 
 void drawStrip(Canvas& c, const Strip& s) {
+  // An empty strip is bare glass: no divider under the face.
+  if (s.wait <= 0 && s.busy <= 0 && !s.noApp && !s.quiet) return;
   c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 1, inkAt(kInkDim, kLevels));
   const int cy = kStripCy, ty = cy - 10;
   int x = kMargin;

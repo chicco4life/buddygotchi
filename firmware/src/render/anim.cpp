@@ -11,11 +11,6 @@ namespace {
 const char* const kNames[] = {"none", "cheer", "wiggle", "listening"};
 static_assert(sizeof(kNames) / sizeof(kNames[0]) == size_t(Anim::kCount), "one name per anim");
 
-// |sin| bounces: `period` ms per hop, peaking at `amp`.
-int hop(uint32_t t, uint32_t period, int amp) {
-  int s = isin(int(t % period * 512 / period));
-  return amp * s / 1024;
-}
 // A side-to-side wave of `period` ms.
 int wave(uint32_t t, uint32_t period, int amp) { return amp * isin(int(t % period * 1024 / period)) / 1024; }
 
@@ -25,9 +20,9 @@ Pose happy() {  // boxy eyes squinting from the bottom, and a small "u" smile
   p.lidBot = 700, p.mouthCurve = 900;
   return p;
 }
-Pose listening() {
+Pose listening() {  // big eyes looking up, one a little lidded, and a small "o": ooh?
   Pose p;
-  p.eyeSize = 1080, p.lookY = -250, p.wink = -150, p.mouthOpen = 250, p.mouthWide = 500;
+  p.eyeSize = 1080, p.lookY = -250, p.wink = -150, p.mouthOpen = 350, p.mouthWide = 500;
   return p;
 }
 Pose with(Pose p, int16_t Pose::*field, int value) {
@@ -35,17 +30,27 @@ Pose with(Pose p, int16_t Pose::*field, int value) {
   return p;
 }
 
-// Three hops, then the happy squint, a small open smile and the heart held
+// Three hops, then the happy squint, a small open smile and a beating heart
 // until the end (BEHAVIORS.md §5).
 Pose cheer(uint32_t t) {
   const int hops = 3;
-  const uint32_t period = 380;
+  const uint32_t period = 380, land = 30;
+  const uint32_t beat = 430, thumpAt = 230, thump = 100;  // the heart, once landed
   Pose p = happy();
   p.mouthOpen = 650, p.heart = 1000;
-  if (t < hops * period) {
-    int h = hop(t, period, 1024);
-    p.dy = int16_t(-14 * h / 1024);
-    p.squash = int16_t(220 - 380 * h / 1024);  // squashed on landing, stretched in the air
+  if (t < hops * period + land) {
+    uint32_t in = t % period;
+    if (in < land || in >= period - land) {  // on the ground: squashed wide for 60 ms around each landing
+      p.squash = 260;
+    } else {  // in the air: stretched with the speed, so round at the top
+      int turn = int(in * 512 / period);
+      int speed = isin(turn + 256);
+      p.dy = int16_t(-14 * isin(turn) / 1024);
+      p.squash = int16_t(-140 * (speed < 0 ? -speed : speed) / 1024);
+    }
+  } else {
+    uint32_t b = (t - hops * period - land) % beat;
+    if (b >= thumpAt && b < thumpAt + thump) p.heart = 600;  // the heart beats: small for a moment
   }
   return p;
 }
@@ -82,9 +87,9 @@ Pose animPose(Anim a, uint32_t t) {
       p.squash = int16_t(wave(t + 88, 350, 60));
       return p;
     }
-    case Anim::kListening: {
+    case Anim::kListening: {  // all ears, bobbing gently
       Pose p = listening();
-      p.size = int16_t(1000 + wave(t, 1200, 15));
+      p.dy = bob(t, 1200);
       return p;
     }
     default: return n;
@@ -113,7 +118,7 @@ Pose lookPose(Look look, int busy) {
       p.open = 0, p.dy = 10, p.mouthWide = 600;
       break;
     case Look::kNeedsYou:  // turned to you and leaning in
-      p.eyeSize = 1080, p.lookY = -100, p.mouthOpen = 200, p.mouthWide = 550;
+      p.eyeSize = 1080, p.lookY = -100, p.mouthWide = 550;
       p.size = 1060, p.dy = 2;
       break;
   }

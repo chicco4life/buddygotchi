@@ -104,7 +104,7 @@ so new optional fields never break an older peer.
 | `time` | Unix time. The v1 device doesn't read it |
 | `name` | Boop's name. The v1 device doesn't show it since the stats screen was parked |
 | `base` | `asleep`, `idle` or `working` |
-| `attn` | Present when something needs you: which agent and project, and how many more are waiting. A new `attn` (different agent or project) chirps once; the same one doesn't chirp again |
+| `attn` | Present when something needs you: which agent and project, and how many more are waiting. A new `attn` (different agent or project) chirps once; the same one doesn't chirp again. The project is at most 23 bytes of UTF-8, because the device keeps it in a 24-byte field: a longer one is cut on a character boundary and ends in `..` within those 23 bytes, so the device shows it was cut |
 | `busy` / `idle` / `wait` | Session counts for the status strip |
 | `quiet` | Minutes of quiet left; 0 when not quiet |
 | `vol` | Volume 0–10; 0 is mute |

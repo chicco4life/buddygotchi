@@ -23,8 +23,9 @@
 {"clock":121000}
 {"expect":{"screen":"needs_you","led":"#805800","sfx":{"k":"chirp","at":1000}}}
 {"shot":"plus-one-more"}
-// A different request chirps once more.
-{"t":"state","v":1,"base":"working","attn":{"agent":"claude","project":"a-very-long-project-name","more":0},"busy":1,"wait":1}
+// A different request chirps once more. Its project, a-very-long-project-name,
+// comes cut by the Mac to 23 bytes ending ".." (PROTOCOL.md §3).
+{"t":"state","v":1,"base":"working","attn":{"agent":"claude","project":"a-very-long-project-n..","more":0},"busy":1,"wait":1}
 {"clock":122000}
 {"expect":{"sfx":{"k":"chirp","at":121000}}}
 {"shot":"long-project"}

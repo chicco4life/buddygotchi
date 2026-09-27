@@ -1,5 +1,6 @@
-// Anti-aliased shape filling for the face, in integer maths only, so the
-// board and the simulator draw the same pixels (plan/VERIFICATION.md §3).
+// Anti-aliased shape filling for the bubble and the strip (the face itself
+// is pixel art), in integer maths only, so the board and the simulator draw
+// the same pixels (plan/VERIFICATION.md §3).
 //
 // Coordinates are in sub-pixels: 1/16 px (kSub). A shape is a function from
 // a sub-scanline's y to a few horizontal spans. Each pixel row samples 4
@@ -23,7 +24,6 @@ uint32_t isqrt(uint64_t v);
 
 // sin of `turn` (1024 per full turn), scaled to ±1024.
 int isin(int turn);
-inline int icos(int turn) { return isin(turn + 256); }
 
 // Smoothstep ease-in-out: t of `dur` → 0..1024.
 int ease(int t, int dur);
@@ -39,23 +39,14 @@ struct Spans {
   void add(int a, int b) {
     if (b > a && n < 4) s[n++] = {a, b};
   }
-  // Keeps only x in [lo, hi).
-  void clip(int lo, int hi);
   // Removes x in [lo, hi), which may split a span.
   void cut(int lo, int hi);
-  // Keeps only x inside `other`.
-  void intersect(const Spans& other);
 };
 
-// A rounded rectangle [x0, x1) × [y0, y1) with corner radius r.
-Spans roundRect(int x0, int y0, int x1, int y1, int r, int sy);
 // An axis-aligned ellipse.
 Spans ellipse(int cx, int cy, int rx, int ry, int sy);
 // The half of the ellipse's row inside it, as [lo, hi); false if none.
 bool ellipseRow(int cx, int cy, int rx, int ry, int sy, int& lo, int& hi);
-// Keeps the side of the line through (lx, ly) with slope m/1000 that lies
-// below it (larger y).
-void keepBelow(Spans& s, int lx, int ly, int m, int sy);
 
 // Fills pixel rows [y0, y1) from `shape(sy) -> Spans`, calling
 // `plot(x, y, level)` with level 1..8 for every pixel it touches.
@@ -92,29 +83,10 @@ void fillShape(int y0, int y1, Shape shape, Plot plot) {
   }
 }
 
-// Fills the pixel box [x0, x1) × [y0, y1) by testing 4×4 samples per pixel
-// with `inside(sx, sy)` in sub-pixels; `plot(x, y, level)` as above.
-template <class Inside, class Plot>
-void sampleShape(int x0, int y0, int x1, int y1, Inside inside, Plot plot) {
-  if (x0 < 0) x0 = 0;
-  if (y0 < 0) y0 = 0;
-  if (x1 > kWidth) x1 = kWidth;
-  if (y1 > kHeight) y1 = kHeight;
-  for (int y = y0; y < y1; ++y) {
-    for (int x = x0; x < x1; ++x) {
-      int n = 0;
-      for (int j = 0; j < 4; ++j) {
-        for (int i = 0; i < 4; ++i) n += inside(px(x) + 2 + 4 * i, px(y) + 2 + 4 * j) ? 1 : 0;
-      }
-      if (n) plot(x, y, (n + 1) / 2);
-    }
-  }
-}
-
 // Fills a shape that is one vertical band per x: `band(sx, top, bottom)`
-// gives the band [top, bottom) at sample column sx, or false for none. Uses
-// the same 4×4 samples per pixel as sampleShape, but asks for each column
-// once, which is what makes the mouth cheap on the board.
+// gives the band [top, bottom) at sample column sx, or false for none. Tests
+// 4×4 samples per pixel, asking for each column once, which is what makes
+// the bubble's squiggles cheap on the board. `plot(x, y, level)` as above.
 template <class Band, class Plot>
 void fillBands(int x0, int x1, Band band, Plot plot) {
   if (x0 < 0) x0 = 0;

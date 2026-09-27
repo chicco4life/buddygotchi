@@ -52,6 +52,12 @@
 {"expect":{"moment":null,"audio":{"playing":true,"syllables":3}}}
 {"clock":51400}
 {"shot":"reply-after-talk"}
+// The word is what matters: squiggles make room for it before it's cut.
+{"t":"state","v":1,"base":"idle"}
+{"clock":55000}
+{"t":"moment","say":{"syl":"ba po ti ka mo na","word":"refactoring","at":3,"tune":"flat","ms":120},"ttl":5}
+{"clock":55400}
+{"shot":"long-word-many-syllables"}
 // Quiet: nothing plays.
 {"t":"state","v":1,"base":"idle","quiet":30}
 {"clock":60000}

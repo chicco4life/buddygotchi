@@ -259,13 +259,13 @@ render::Pose Behaviour::basePose(const Source& s, uint32_t t) const {
   render::Pose p = render::lookPose(s.look, s.busier ? 3 : 1);
   if (s.look == render::Look::kNeedsYou) p.raise = 1000;
   if (s.look == render::Look::kAsleep) {  // slow breathing, and "zzZZ" rising every 2.4 s
-    p.size = int16_t(p.size + 14 * render::isin(int(t % 4000 * 1024 / 4000)) / 1024);
+    p.dy = int16_t(p.dy + render::bob(t, 4000));
     p.zzz = int16_t(1 + t % 2400 * 999 / 2400);
   }
   if (s.look == render::Look::kWorking) {
     // Effort: every couple of seconds (more often when busier) Boop strains
-    // for 0.8 s: the eyes squeeze, the mouth tightens and a small shiver
-    // runs through it. A sweat drop slides down beside the right eye.
+    // for 0.8 s: the eyes squeeze, the mouth tightens and the face dips. A
+    // sweat drop slides down beside the right eye.
     uint32_t period = s.busier ? 1800 : 2600;
     int e = envelope(t % period, 800, 150, 250);
     p.squash = int16_t(p.squash + 240 * e / 1024);
@@ -273,7 +273,6 @@ render::Pose Behaviour::basePose(const Source& s, uint32_t t) const {
     p.mouthWide = int16_t(p.mouthWide - (p.mouthWide - 450) * e / 1024);
     p.mouthCurve = int16_t(p.mouthCurve - 150 * e / 1024);
     p.dy = int16_t(p.dy + 2 * e / 1024);
-    p.dx = int16_t(p.dx + 2 * render::isin(int(t % 90 * 1024 / 90)) / 1024 * e / 1024);
     p.sweat = int16_t(1 + t % 3000 * 999 / 3000);
   }
   if (life_.kind != Life::kBlink || !within(t, life_.at, life_.ms)) return p;

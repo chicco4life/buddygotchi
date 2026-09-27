@@ -21,14 +21,17 @@ public struct StateSnapshot: Equatable, Sendable {
     public static let maxNameBytes = 23
 
     /// `text` cut to at most `bytes` of UTF-8, on a character boundary.
-    public static func clip(_ text: String, bytes: Int = maxNameBytes) -> String {
+    /// With `marked`, a cut text ends in "..", within `bytes`, so the device
+    /// shows it was cut (PROTOCOL.md §3).
+    public static func clip(_ text: String, bytes: Int = maxNameBytes, marked: Bool = false) -> String {
         guard text.utf8.count > bytes else { return text }
+        let room = marked ? bytes - 2 : bytes
         var out = ""
         for ch in text {
-            if out.utf8.count + String(ch).utf8.count > bytes { break }
+            if out.utf8.count + String(ch).utf8.count > room { break }
             out.append(ch)
         }
-        return out
+        return marked ? out + ".." : out
     }
 
     /// Unix seconds.

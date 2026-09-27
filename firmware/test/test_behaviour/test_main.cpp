@@ -312,8 +312,9 @@ static void test_no_app_holds_for_weeks() {
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   walk(0x100000000ull + 1150);  // 2^32 ms after the release, 150 after the mumble started
   TEST_ASSERT_NULL(r.b.mumble(r.t));
+  // No mumble raising the face: only breathing's bob, at this moment's phase.
   TEST_ASSERT_EQUAL_INT(asleep.squash, r.b.pose(r.t).squash);
-  TEST_ASSERT_EQUAL_INT(asleep.dy, r.b.pose(r.t).dy);
+  TEST_ASSERT_EQUAL_INT(asleep.dy - render::bob(start, 4000) + render::bob(r.t, 4000), r.b.pose(r.t).dy);
   walk(0x100000000ull + Behaviour::kNoAppMs + 50);  // 2^32 ms after the dimming began
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
@@ -565,7 +566,9 @@ static void test_asleep_breathes_and_never_blinks() {
     TEST_ASSERT_EQUAL(Life::kNone, r.b.life(t));
   }
   TEST_ASSERT_TRUE(r.b.moving(r.t));
-  TEST_ASSERT_TRUE(r.b.pose(1000).size != r.b.pose(2000).size);
+  // Breathing is a one-block bob every 4 s, not a size pulse (BEHAVIORS.md §2).
+  TEST_ASSERT_EQUAL_INT(r.b.pose(3000).dy - render::kBobPx, r.b.pose(1000).dy);
+  TEST_ASSERT_EQUAL_INT(r.b.pose(1000).size, r.b.pose(3000).size);
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
 }
 

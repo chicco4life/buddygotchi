@@ -34,40 +34,57 @@ reads as black glass. Boop sits sideways, so the screen is landscape,
 ```
 
 Alone, the face is centred in the 204 px above the strip. When the bubble
-shows, the face eases up into the top 144 px at three-quarters size.
+shows, the face eases up into the top 144 px at 85% size, so the
+needs-you face, which leans in, is as big as the idle face alone.
 
 - **Face.** Pixel art, after the owner's reference render (2026-09-26):
   everything is built from square 3 px blocks on one grid, with no
   anti-aliasing. The eyes are warm-white windows, 13 blocks (39 px) square
   and 144 px apart, each four panes around a one-block cross, with a pixel
-  softened off each pane's corners. There are no pupils. Two pink blush
+  softened off each pane's corners. There are no pupils. Two coral blush
   blocks sit under each eye, towards the outside, and the mouth is a flat
   bar as wide as an eye, level with the cheeks. The face blends between
-  expressions in 150 ms or less and never cuts hard; the grid makes it
-  move a block at a time. That holds whatever changes mid-animation:
+  expressions in 150 ms or less and never cuts hard. It moves a block at
+  a time, as one sprite: its origin snaps to the grid and every part sits
+  a whole number of blocks from it, so no part lags behind the eyes.
+  Breathing and listening bob the whole face a block rather than pulsing
+  its size, which would pop single parts. That holds whatever changes mid-animation:
   "needs you" arriving under a cheer or `listening`, or the working count
   crossing 3, eases from the frame that was showing. The backlight eases
-  over the same 150 ms. A blink shrinks the eye towards a one-block bar;
-  an eye too thin for its panes is drawn as one bar. A lid takes whole rows
-  of blocks off the top, and cuts each half of the eye flat at its own
-  height, so a tilted lid steps once between the panes. To look somewhere
-  the whole eye moves, and the eye on the side it looks towards grows a
-  little, as if Boop turned its head. Every expression keeps the window
+  over the same 150 ms. A blink shrinks the eye to a bar; an eye too thin
+  for its panes is drawn as one bar, and a shut eye is two blocks thick,
+  the same weight as the mouth. A lid takes whole rows
+  of blocks off the top, straight across the eye, and a pane it leaves
+  less than two blocks tall goes altogether, so no sliver floats like a
+  brow. To look somewhere
+  the whole eye moves, and on a big look the eye on the side it looks
+  towards grows a pair of blocks and the other shrinks as much, as if Boop
+  turned its head. A small look, like working's, keeps the eyes the same
+  size. Every expression keeps the window
   eyes: arches and wide grins on boxy eyes read as uncanny (the owner,
   2026-09-26). Happy, the bottom of each eye rises (a squint, as if the
   cheeks pushed it up; the cheeks rise with it) and the top stays put. The
   mouth is drawn as small pixel shapes, not curves: the bar at rest, a
-  small "u" smile, a frown, a small "o" while talking, and a small filled
+  small "u" smile, a small "o" while talking, and a small filled
   cup when it's happy and open. The eyes stay white. A tap and a cheer pop a pixel
-  heart in at the top right of the face. Asleep, a pixel "zzZZ" climbs up
-  from the right eye one letter at a time. Working, Boop strains every
+  heart in at the top right of the face, a stronger coral than the cheeks
+  so the two pinks don't clash. Asleep, a pixel "zzZZ" climbs up
+  from the right eye one letter at a time, two small z's then two big Z's,
+  clear of the screen's edges even when the bubble shows. Working, Boop strains every
   couple of seconds, and a pixel sweat drop slides down beside the right
-  eye ([BEHAVIORS.md](BEHAVIORS.md) §2).
+  eye; it goes when a heart takes its place ([BEHAVIORS.md](BEHAVIORS.md) §2).
 - **Bubble.** Empty most of the time. It shows either a mumble's one real
-  word, or who needs you.
+  word among squiggles for the gibberish, or who needs you. The squiggles
+  make room for the word, so it's cut (ending "..") only when it's too
+  long for the bubble on its own. A project name too long for the device
+  arrives already cut, ending ".." ([PROTOCOL.md](PROTOCOL.md) §3).
+  Accented letters in words and names
+  show as their plain letter (é as e); other characters the font lacks
+  show as "?".
 - **Status strip.** How many sessions need you (amber, hidden at zero) and
   how many are working (grey), plus icons at the right for quiet and no
-  app. With no app, only its icon shows.
+  app. With no app, only its icon shows. With nothing to show it's bare
+  glass, divider and all; the face doesn't move when it fills.
 - **Debug label.** A debug-only aid, off unless the firmware is built with
   `BOOP_DEBUG_LABEL=1` (add it to the board's `build_flags` in
   `firmware/platformio.ini` for a debugging session; the everyday build
