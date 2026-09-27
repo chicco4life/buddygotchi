@@ -733,12 +733,17 @@ final class CoreNeedsYouTests: XCTestCase {
 
     /// It answers nobody else: not the main agent, and not a request that
     /// came as a Notification alone, which doesn't say who asked (a1's own
-    /// hook comes more than 5 s later, so it's another request).
+    /// hook comes more than 5 s later, so it's another request). The end of
+    /// a subagent that never asked leaves either one up.
     func testASubagentsEndLeavesOtherAskersWaiting() {
         for asker in ["main agent", "notification alone"] {
             let rig = CoreRig()
             rig.send(.turnStart)
             rig.send(.needsYou, tool: asker == "main agent" ? "Bash" : nil)
+            let shown = rig.state.attn
+            XCTAssertNotNil(shown, asker)
+            XCTAssertEqual(states(rig.send(.subagentEnd, subagent: "a2")), [], "\(asker): a2 never asked")
+            XCTAssertEqual(rig.state.attn, shown, asker)
             rig.wait(6000)
             rig.send(.needsYou, subagent: "a1", tool: "Bash")
             rig.send(.subagentEnd, subagent: "a1")
@@ -1305,7 +1310,10 @@ final class CoreFuzzTests: XCTestCase {
     /// - no cheer, and no event that wakes the brain, while something needs
     ///   you (BEHAVIORS.md §1, harness/EVENTS.md §6);
     /// - the state sent is the snapshot, and one request's number never
-    ///   changes its agent or project (PROTOCOL.md §3).
+    ///   changes its agent or project (PROTOCOL.md §3);
+    /// - a subagent's end, or a turn-level hook from inside a subagent,
+    ///   answers only that subagent's request, isn't activity, and makes
+    ///   the session work again only while its turn goes on (ADAPTERS.md §4).
     func testRandomTrafficKeepsTheRecordAndTheScreenInStep() {
         var rng = SplitMix64(seed: 20260928)
         let rig = CoreRig()
@@ -1318,6 +1326,8 @@ final class CoreFuzzTests: XCTestCase {
         for step in 0..<20_000 {
             var fx: [CoreEffect] = []
             let logBefore = rig.log.count
+            let sentBefore = rig.sent.count
+            let before = rig.core.sessions
             let roll = rng.int(in: 0...99)
             if roll < 10 {
                 rig.now += Int64(rng.int(in: 1...(roll < 2 ? 700_000 : 3000)))
@@ -1352,6 +1362,24 @@ final class CoreFuzzTests: XCTestCase {
             let why = trail.joined(separator: "\n")
             let now = rig.core.snapshot(at: rig.now)
             let showing = rig.core.needsYouShowing
+            if rig.sent.count > sentBefore, let e = rig.sent.last, let id = e.subagent,
+               e.event == .subagentEnd || Core.turnLevel.contains(e.event) {
+                let key = Core.key(e.agent, e.session)
+                // Only when no timer of the session's could have acted first.
+                if let b = before[key], rig.now - b.lastEventAt < rig.core.config.safetyNetMs, let a = rig.core.sessions[key] {
+                    XCTAssertEqual(a.lastEventAt, b.lastEventAt, "a subagent's end isn't activity\n\(why)")
+                    XCTAssertEqual(a.turnStartedAt, b.turnStartedAt, why)
+                    XCTAssertEqual(a.askers, b.askers.filter { $0.key != id }, "it answers \(id) alone\n\(why)")
+                    if b.askers[id] == nil {
+                        XCTAssertEqual(a.needsSince, b.needsSince, "\(id) never asked\n\(why)")
+                        XCTAssertEqual(a.working, b.working, why)
+                    } else if a.needsSince == nil {
+                        XCTAssertEqual(a.working, b.turnStartedAt != nil, "working again only while its turn goes on\n\(why)")
+                    }
+                } else if before[key] == nil, let a = rig.core.sessions[key] {
+                    XCTAssertFalse(a.working || a.needsSince != nil, "a session first seen this way is idle\n\(why)")
+                }
+            }
             for event in events(fx) {
                 if event.kind == .needsYou {
                     shown += 1

@@ -195,9 +195,12 @@ gets at least one scenario. Their pictures are the golden images in
   the same way ([EVALS.md](EVALS.md)). `CoreFuzzTests` plays 20,000 random
   hooks from three sessions (Claude with subagents, and Codex) into the
   core, with ticks and clock jumps, and checks after each that HISTORY
-  and the screen agree: every `needs_you` event is for a session shown
+  and the screen agree (every `needs_you` event is for a session shown
   waiting, nothing cheers or wakes the brain while something needs you,
-  and one request's number never changes its agent or project.
+  and one request's number never changes its agent or project), and that
+  a subagent's end, or a turn-level hook from inside one, answers only
+  that subagent's request, isn't activity, and makes its session work
+  again only while its turn goes on.
 - **Firmware (`make -C internal fw-test`):** line reassembly across
   Bluetooth packets, screenshot encoding, the clock and gestures
   (`test_link`); the messages, debug channel and inputs (`test_device`);
