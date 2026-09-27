@@ -1,6 +1,6 @@
 # Boop: behaviors
 
-Updated 2026-09-26. What Boop does on the device when things happen. How
+Updated 2026-09-27. What Boop does on the device when things happen. How
 it sounds is in [VOICE.md](VOICE.md). Numbers marked *proposed* are first
 guesses, to be tuned once we've lived with Boop.
 
@@ -35,7 +35,7 @@ needs you.
 | --- | --- | --- |
 | Asleep | No sessions | Eyes closed, slow breathing, a "zzZZ" climbing every 2.4 s, never blinks, backlight at 60/255 |
 | Idle | Sessions open, none working | Blinks every 2–6 s |
-| Working | At least one agent working | Focused gaze, a sweat drop, blinks every 2–5 s (1.2–3.5 s with 3+ busy); every 2.6 s (1.8 s with 3+ busy) a 0.8 s strain: eyes squeeze, mouth tightens, a small shiver |
+| Working | At least one agent working | Focused gaze, a sweat drop, blinks every 2–5 s (1.2–3.5 s with 3+ busy); every 2.6 s (1.8 s with 3+ busy) a 0.8 s strain: eyes squeeze, mouth tightens, the face dips a block |
 
 Needs you (§3.2) sits on top of whichever of these is showing.
 Otherwise the backlight is full (255), and always while something needs
