@@ -258,6 +258,10 @@ is a fresh session.
   source. In chatty mode a word left empty is asked for once more, with
   `none` off its list, if the first answer left time. It can't decline,
   so it can't choose silence: that was Stage 1's job.
+- **A copied line isn't kept:** a memory line that's already in memory
+  and shares no word with what you said is left empty, so its call is
+  dropped instead of saving the wrong fact. (A small model sometimes
+  answers "remember I work with Bob" with a note it read there.)
 - **Sampling** is greedy, so the same moment always gets the same words.
   Guardrails are `permissiveContentTransformations`, and a refusal fails
   the write like any error, marked as a refusal.

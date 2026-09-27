@@ -487,6 +487,25 @@ final class WriterTests: XCTestCase {
         XCTAssertTrue(AppleWriter(unavailable: { nil }).id.hasPrefix("apple:"))
     }
 
+    /// HARNESS.md §6: a memory line copied from memory instead of what was
+    /// said is left empty; a line said again is left to the memory store.
+    func testAppleLeavesACopiedMemoryLineEmpty() throws {
+        let memory = Prompt.Memory(steering: "", longTerm: "## About you\n- Ships on Fridays.\n",
+                                   shortTerm: "## Notes\n- demo on Thursday\n")
+        let i = input(.said, words: "remember I work with Bob on landing")
+        let menu = Menu(i.menu, definitions: try definitions())
+        let s = menu.slots([react("happy"), remember("today")])
+        let c = context(i, memory: memory)
+        let copy = Writing(values: ["react.word": "hi", "remember.text": "demo on Thursday"])
+        XCTAssertEqual(AppleWriter.withoutCopies(copy, s, c).values, ["react.word": "hi"])
+        XCTAssertTrue(AppleWriter.copied("ships on fridays", c))
+        XCTAssertFalse(AppleWriter.copied("Works with Bob on landing.", c), "a new line")
+        let again = context(input(.said, words: "remember the demo is on Thursday"), memory: memory)
+        XCTAssertFalse(AppleWriter.copied("Demo on Thursday.", again), "said again: the store's to refuse")
+        let stem = context(input(.said, words: "remember I always ship on Fridays"), memory: memory)
+        XCTAssertFalse(AppleWriter.copied("Ships on Fridays.", stem))
+    }
+
     /// The request is what just happened and what Boop decided, then a line
     /// per slot; not the rest of the window, whose words the model copied
     /// (ARCHITECTURE.md §11).
