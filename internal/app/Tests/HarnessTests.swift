@@ -112,6 +112,31 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(StateText.ago(2 * 3_600_000 + 5), "2 h ago")
     }
 
+    /// §5.3 step 2: an event whose started action is still in progress
+    /// stays in HISTORY past the newest 40, so a pass still sees the face
+    /// Boop is making. With chatter's `tool_uses: all`, 40 routine calls
+    /// can land during one face held four times, and the reaction dropped
+    /// out of HISTORY: Jev could call for the same face again
+    /// (harness/DECISIONS.md §5, react's `none`).
+    func testAReactionInProgressStaysInHistory() {
+        let t = Transcript()
+        let failed = t.append(.event(event(.toolUse, at: 20, "tests failed")), at: Self.t0 + 20 * 60_000)
+        t.append(.action(.init(forSeq: failed.seq, name: "react", result: .started("Boop made a proud face.", Pending()),
+                               latencyMs: 1)), at: Self.t0 + 20 * 60_000)
+        let done = t.append(.event(event(.toolUse, at: 20, "tests failed again")), at: Self.t0 + 20 * 60_000)
+        t.append(.action(.init(forSeq: done.seq, name: "react", result: .done("Boop mumbled."), latencyMs: 1)),
+                 at: Self.t0 + 20 * 60_000)
+        for i in 1...45 { t.append(.event(event(.toolUse, at: 20, "read \(i)")), at: Self.t0 + 20 * 60_000) }
+        let now = t.append(.event(event(.toolUse, at: 20, "now")), at: Self.t0 + 20 * 60_000 + 30_000)
+        let history = StateText.history(t.entries, now: now, at: now.receivedAtMs, status: "s", workingSince: nil)
+        let lines = history.split(separator: "\n").map(String.init)
+        XCTAssertEqual(lines[1], "just now: tests failed", "the oldest, kept for its reaction")
+        XCTAssertEqual(lines[2], "  Boop made a proud face. (in progress)")
+        XCTAssertEqual(lines[3], "just now: read 6", "then the newest 40")
+        XCTAssertFalse(history.contains("tests failed again"), "a finished one isn't kept")
+        XCTAssertEqual(lines.count, 1 + 2 + 40 + 1)
+    }
+
     // MARK: The harness
 
     func harness(_ brain: (any Brain)?, _ actions: [any Action]) -> (Harness, DispatchQueue) {

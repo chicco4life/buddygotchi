@@ -242,7 +242,11 @@ progress (step 3).
 2. **HISTORY's events** are those before NOW, from the last **10
    minutes** (`StateText.historyMs`) or since the oldest turn still
    working began, whichever reaches further back, then at most the
-   newest **40** (`StateText.historyLimit`). Passes never show.
+   newest **40** (`StateText.historyLimit`), and any older one whose
+   started action is still in progress (step 3), so a pass sees what
+   Boop is still doing however many events came since. The harness
+   ends a started action within a minute (§5.1), so few ever stay.
+   Passes never show.
 3. **What Boop did** goes under each: the event's `reaction`, then the
    messages of its successful `action` entries, in order. A forced
    action counts as done about the latest event before it. A started

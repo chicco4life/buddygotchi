@@ -62,10 +62,14 @@ public enum StateText {
     public static func history(_ entries: [Transcript.Entry], now: Transcript.Entry, at nowMs: Int64, status: String,
                                workingSince: Int64?) -> String {
         let from = min(nowMs - historyMs, workingSince ?? Int64.max)
-        let picked = entries.filter { e in
+        let inRange = entries.filter { e in
             guard case .event = e.body else { return false }
             return e.seq < now.seq && e.receivedAtMs >= from
-        }.suffix(historyLimit)
+        }
+        // The newest 40, and any older one whose started action is still in
+        // progress: Boop is still doing it, so a pass must see it.
+        let open = inProgress(entries)
+        let picked = inRange.dropLast(historyLimit).filter { open.contains($0.seq) } + inRange.suffix(historyLimit)
         var lines = ["HISTORY (oldest first; indented lines are what Boop did)"]
         for e in picked {
             guard case .event(let event) = e.body else { continue }
@@ -74,6 +78,24 @@ public enum StateText {
         }
         lines.append(status)
         return lines.joined(separator: "\n")
+    }
+
+    /// The events with a started action still in progress: under its
+    /// event, or, forced, the latest event before it, as `didLines` places
+    /// it.
+    static func inProgress(_ entries: [Transcript.Entry]) -> Set<Int> {
+        var latest: Int?
+        var open: [Int: Int] = [:]  // the action entry's seq: its event's
+        for e in entries {
+            switch e.body {
+            case .event: latest = e.seq
+            case .action(let a) where a.result.ok && a.result.pending != nil:
+                if let about = a.forSeq ?? latest { open[e.seq] = about }
+            case .settle(let s): open[s.forSeq] = nil
+            default: break
+            }
+        }
+        return Set(open.values)
     }
 
     /// NOW: its heading, its line, and its rule reaction.
