@@ -207,8 +207,7 @@ def soak_state(rng: random.Random) -> dict:
     wait = sum(t[2] == "wait" for t in sessions)
     msg = {"t": "state", "v": 1,
            "base": "working" if busy else rng.choice(["idle", "idle", "asleep"]),
-           "busy": busy, "idle": len(sessions) - busy - wait, "wait": wait,
-           "vol": 6}
+           "busy": busy, "vol": 6}
     if wait:
         waiting = next(t for t in sessions if t[2] == "wait")
         msg["attn"] = {"agent": waiting[0], "project": waiting[1], "more": wait - 1}
@@ -283,7 +282,7 @@ def cmd_soak(args: argparse.Namespace) -> int:
         # Stuck? Calm snapshots must bring back the plain face once the
         # last press (held ≤ 3 s) and moment are over.
         for _ in range(3):
-            dev.send({"t": "state", "v": 1, "base": "idle", "busy": 0, "idle": 1, "wait": 0})
+            dev.send({"t": "state", "v": 1, "base": "idle", "busy": 0})
             time.sleep(5)
         final = dev.request({"t": "dbg.state"})
         samples.append({"t": round(time.monotonic() - start, 1), **dev.vitals()})

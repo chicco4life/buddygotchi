@@ -3,7 +3,7 @@
 {"clock":0}
 {"t":"state","v":1,"base":"working","busy":2}
 {"clock":1000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1,"idle":0,"wait":1}
+{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1}
 {"clock":1100}
 {"expect":{"screen":"needs_you","attn":{"agent":"codex","project":"landing"},"led":"#805800","bl":255,"sfx":{"k":"chirp","at":1000}}}
 {"shot":"blend"}
@@ -11,25 +11,25 @@
 {"shot":"needs-you"}
 // The same request again doesn't chirp again, and nothing grows.
 {"clock":20000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1,"idle":0,"wait":1}
+{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1}
 {"clock":40000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1,"idle":0,"wait":2}
+{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1}
 {"clock":60000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1,"idle":0,"wait":2}
+{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1}
 {"clock":80000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1,"idle":0,"wait":2}
+{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1}
 {"clock":100000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1,"idle":0,"wait":2}
+{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1}
 {"clock":121000}
 {"expect":{"screen":"needs_you","led":"#805800","sfx":{"k":"chirp","at":1000}}}
 {"shot":"plus-one-more"}
 // A different request chirps once more. Its project, a-very-long-project-name,
 // comes cut by the Mac to 23 bytes ending ".." (PROTOCOL.md §3).
-{"t":"state","v":1,"base":"working","attn":{"agent":"claude","project":"a-very-long-project-n..","more":0},"busy":1,"wait":1}
+{"t":"state","v":1,"base":"working","attn":{"agent":"claude","project":"a-very-long-project-n..","more":0},"busy":1}
 {"clock":122000}
 {"expect":{"sfx":{"k":"chirp","at":121000}}}
 {"shot":"long-project"}
-{"t":"state","v":1,"base":"working","busy":2,"wait":0}
+{"t":"state","v":1,"base":"working","busy":2}
 {"clock":122200}
 {"expect":{"screen":"face","attn":null,"moment":null,"led":"#000000"}}
 {"shot":"cleared"}

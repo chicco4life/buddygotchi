@@ -194,10 +194,10 @@ def pattern(dev: Device, camera: str) -> dict:
 
 # Live clips (plan/VERIFICATION.md §5 L3): the clock runs, so the camera sees
 # real motion. Each is a list of (seconds after recording starts, message).
-_WORKING = {"t": "state", "v": 1, "base": "working", "busy": 1, "idle": 0, "wait": 0}
-_ATTN = {**_WORKING, "attn": {"agent": "codex", "project": "landing", "more": 0}, "wait": 1}
+_WORKING = {"t": "state", "v": 1, "base": "working", "busy": 1}
+_ATTN = {**_WORKING, "attn": {"agent": "codex", "project": "landing", "more": 0}}
 CLIPS = {
-    "idle": [(0.0, {"t": "state", "v": 1, "base": "idle", "idle": 1})],
+    "idle": [(0.0, {"t": "state", "v": 1, "base": "idle"})],
     "needs_you": [(0.0, _WORKING), (2.0, _ATTN), (5.0, _ATTN)],
     # A cheer, then the brain's mumble on its own over the working face
     # (the mumble is PROTOCOL.md §3's example).
@@ -205,7 +205,7 @@ CLIPS = {
               (4.0, {"t": "moment",
                      "say": {"syl": "bi-do ba-na", "word": "done", "at": 4, "tune": "up", "ms": 120}}),
               (5.0, _WORKING)],
-    "tap": [(0.0, {"t": "state", "v": 1, "base": "idle", "idle": 1}), (1.0, {"t": "dbg.press", "ms": 100}),
+    "tap": [(0.0, {"t": "state", "v": 1, "base": "idle"}), (1.0, {"t": "dbg.press", "ms": 100}),
             (3.0, {"t": "dbg.touch", "x": 160, "y": 100, "ms": 100}), (5.0, {"t": "dbg.press", "ms": 100})],
 }
 

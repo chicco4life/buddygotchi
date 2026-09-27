@@ -151,7 +151,7 @@ of `behaviour.jsonl`:
 // Device behaviour (BEHAVIORS.md §3): press feedback, gestures, and the
 // needs-you tap. Shots are the rows' goldens.
 {"clock":0}
-{"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0}
+{"t":"state","v":1,"base":"idle","busy":0}
 {"clock":500}
 {"input":{"press":"tap"}}
 {"clock":516}

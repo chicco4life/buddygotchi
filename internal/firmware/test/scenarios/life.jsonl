@@ -1,7 +1,7 @@
 // Idle life (BEHAVIORS.md §2): blinks, idle and working. Each starts fresh,
 // so the blink and its frame are the same on the board and in the simulator.
 {"clock":0}
-{"t":"state","v":1,"base":"idle","idle":1}
+{"t":"state","v":1,"base":"idle"}
 {"clock":4990}
 {"expect":{"life":null}}
 {"clock":5100}
