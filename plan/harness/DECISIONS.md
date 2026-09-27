@@ -1,23 +1,23 @@
 # Boop: harness decisions
 
 Updated 2026-09-27. What Boop decides when the brain wakes: the static
-sections that steer it, the questions Jev is asked, how the answers are
-read, and the actions that carry them out. How the harness asks is in
-[HARNESS.md](HARNESS.md); the events are in [EVENTS.md](EVENTS.md), and
-decisions only ever see their lines in HISTORY and NOW, never their
-fields.
+sections that steer it, and its actions, each with its questions and its
+body. The contract every action follows, and what the harness does for
+it, is in [HARNESS.md](HARNESS.md) §4; the events are in
+[EVENTS.md](EVENTS.md), and actions only ever see their lines in HISTORY
+and NOW, never their facts.
 
 ## 1. What Boop decides
 
-Two things, each an action with its own questions:
+Two actions, registered in this order:
 
-| Action | Decides | Questions |
+| Action | Decides | Its questions |
 | --- | --- | --- |
 | `mood` | Whether Boop's mood changes, and to what | `mood` |
-| `react` | Whether Boop mumbles, in which feeling, and with which real word | `react`, `word.about`, `word.feeling` |
+| `react` | Whether Boop mumbles, in which feeling, and with which real word | `react`, `word.feeling`, `word.about` |
 
 All four questions go in one request. Jev answers each on its own
-([HARNESS.md](HARNESS.md) §6), so `mood` and `react` are both judged
+([HARNESS.md](HARNESS.md) §7), so `mood` and `react` are both judged
 against the current mood: on a pass that changes the mood, the mumble is
 still judged by the old one. GUIDE asks for the two to fit together, and
 the evals check how often they don't.
@@ -25,7 +25,7 @@ the evals check how often they don't.
 ## 2. The static sections
 
 What the three static sections of the state say
-([HARNESS.md](HARNESS.md) §5). Each is a file in `plan/steering/`, and
+([HARNESS.md](HARNESS.md) §6). Each is a file in `plan/steering/`, and
 its examples are written in the state's own lines.
 
 ### 2.1 GUIDE
@@ -33,7 +33,7 @@ its examples are written in the state's own lines.
 `plan/steering/guide.md`: what Boop is, what it can't do and how to
 choose. The same for every personality and mood. How to read HISTORY and
 NOW isn't here: the state's READING section explains that
-([HARNESS.md](HARNESS.md) §5).
+([HARNESS.md](HARNESS.md) §6).
 
 ```
 GUIDE
@@ -179,44 +179,71 @@ need. The device keeps all 40; the brain offers only these.
 | | `nope` | Poked too much, or refusing |
 | | `hmm` | Unsure, or something new |
 
-## 4. Reading the answers
+## 4. The `mood` action
 
-`mood` and `react` are read as Jev chose; their probabilities are only
-recorded, for the evals.
+**Questions:** `mood` (§3).
 
-- **`mood`:** a call when Jev's choice isn't the current mood.
-- **`react`:** a feeling makes a call, and `none` keeps Boop quiet.
-  `none`'s meaning says it isn't for anything PERSONALITY's Examples
-  mumble for, so a moment worth a mumble doesn't lose to it just because
-  Jev can't settle on one feeling; the evals watch for that.
-- **The word,** when Boop reacts, is the likeliest option of
-  `word.feeling` if it isn't `none` and its probability is **at least
-  0.35**, else the same for `word.about`, else no word. A flat spread
-  means Jev is guessing, and no word is better than a guessed one. A line
-  has one real word ([VOICE.md](../VOICE.md) §6), so the other pick is
-  only recorded. The threshold is tuned by the evals
-  ([EVALS.md](../EVALS.md)) and pinned in a test.
+**Made with:** the mood store, the only writer of the state directory's
+`mood` file, and the clock.
 
-## 5. The actions
+**`run`:**
 
-The harness hands the calls over `mood` first, then `react`.
+1. Jev's choice is the current mood → `nil`: nothing to do.
+2. The mood changed less than **10 minutes** ago → `ok: false`,
+   `"changed N min ago"`, so it doesn't flicker.
+3. Otherwise it writes the new mood and returns `ok: true`,
+   `"Boop's mood changed: cheerful → grumpy."`. From the next pass, MOOD
+   is the new mood's file.
 
-| Action | Call | Its own rules |
-| --- | --- | --- |
-| `mood` | `mood(to)` | Changes the mood **at most once every 10 minutes**, so it doesn't flicker, and drops a call that comes sooner or names the current mood. Writes through the mood store |
-| `react` | `react(feeling, word)` | Builds the mumble through Voice and hands it to `MomentSchedule` ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2), where it waits its turn behind whatever is playing. Dropped in quiet mode and while something needs you |
+## 5. The `react` action
 
-## 6. Lines
+**Questions:** `react`, `word.feeling`, `word.about` (§3).
 
-What the brain's actions did, as `boop` entries `by: brain`, indented
-under the entry they answered:
+**Made with:** Voice, a way to queue a moment (`MomentSchedule`, then the
+device, [ARCHITECTURE.md](../ARCHITECTURE.md) §3.2), and the core's gates
+(quiet mode, something needing you).
 
-| Action | Line |
-| --- | --- |
-| `mood` | `Boop's mood changed: cheerful → grumpy.` |
-| `react` | `Boop mumbled, proud: "…finally!"`, `Boop mumbled, curious.` (no word) |
+**`run`:**
 
-## 7. An example
+1. `react` is `none` → `nil`. `none`'s meaning says it isn't for anything
+   PERSONALITY's Examples mumble for, so a moment worth a mumble doesn't
+   lose to it just because Jev can't settle on one feeling; the evals
+   watch for that.
+2. **The word:** `word.feeling`'s choice if it isn't `none` and its
+   probability is **at least 0.35**, else the same for `word.about`, else
+   no word. A flat spread means Jev is guessing, and no word is better
+   than a guessed one. A line has one real word ([VOICE.md](../VOICE.md)
+   §6), so the other pick is only recorded. The floor is tuned by the
+   evals ([EVALS.md](../EVALS.md)) and pinned in a test.
+3. Quiet mode is on, or something needs you → `ok: false`, with which.
+4. Otherwise Voice builds the Minion line in the feeling's voice, with
+   the word, and it's queued to wait its turn behind whatever is playing.
+   It returns `ok: true` without waiting for it to play.
+
+**Messages:** `Boop mumbled, proud: "…finally!"`, or `Boop mumbled,
+curious.` with no word.
+
+In Swift:
+
+```swift
+final class ReactAction: Action {
+    let name = "react"
+    init(voice: Voice, queue: @escaping (DeviceMoment) -> Void, blocked: @escaping () -> String?) { … }
+
+    func questions() -> [Question] { [.react, .wordFeeling, .wordAbout] }    // §3
+
+    func run(_ answers: Answers) async -> ActionResult? {
+        guard let feeling = answers["react"]?.choice, feeling != "none" else { return nil }
+        let word = [answers["word.feeling"], answers["word.about"]].compactMap { $0 }
+            .first { $0.choice != "none" && $0.probabilities[$0.choice, default: 0] >= 0.35 }?.choice
+        if let why = blocked() { return ActionResult(ok: false, message: why) }
+        queue(DeviceMoment(say: voice.line(feeling: feeling, word: word)))
+        return ActionResult(ok: true, message: "Boop mumbled, \(feeling)" + (word.map { ": \"…\($0)!\"" } ?? "."))
+    }
+}
+```
+
+## 6. An example
 
 [EXAMPLE.md](EXAMPLE.md) follows one turn end to end: the hooks, the
 events, the transcript, the state and questions, Jev's answers and what

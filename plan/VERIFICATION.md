@@ -71,7 +71,7 @@ starts, so a typo can't launch the menu-bar app or run the whole eval.
 | Other tool | What it does |
 | --- | --- |
 | `Boop --headless` | The whole runtime with its own state directory, no UI and no Bluetooth (L4). On its hook socket, `{"dev":"advance","ms":N}` moves its clock and `{"dev":"talk","words":…}` hands it what you said |
-| `Boop --debug` | Prints every hook, decision, device line and brain pass as it happens ([HARNESS.md](harness/HARNESS.md) §8) |
+| `Boop --debug` | Prints every hook, decision, device line and brain pass as it happens ([HARNESS.md](harness/HARNESS.md) §9) |
 | `Boop --snapshots DIR` | Renders the popover's panes and the menu-bar icons to PNGs, light and dark, from fixtures, and fails on low contrast (L0). No runtime, Bluetooth or microphone |
 | `boopdev eval` | The eval scenarios ([EVALS.md](EVALS.md)); `--real` is L5 |
 | `boopdev watch [FILE]` | Prints a `debug.jsonl` readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's |

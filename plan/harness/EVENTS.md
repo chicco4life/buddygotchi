@@ -1,37 +1,34 @@
 # Boop: harness events
 
-Updated 2026-09-27. What the core hands the harness: the events, what
-they carry, which wake the brain, and the lines they become in the
-state. How the harness uses them is in [HARNESS.md](HARNESS.md); what Boop
-decides about them is in [DECISIONS.md](DECISIONS.md), which never reads
-an event's fields, only its line.
+Updated 2026-09-27. What the core hands the harness: the kinds of event,
+the facts each carries, which wake the brain, and the lines they're
+written as. The shape every event shares is the harness's contract
+([HARNESS.md](HARNESS.md) §3); what Boop decides about them is in
+[DECISIONS.md](DECISIONS.md), which never reads an event's facts, only
+its line.
 
 ## 1. What an event is
 
-The core turns hook events ([ADAPTERS.md](../ADAPTERS.md)) into five kinds
-of event: **turn start**, **turn end**, **tool use**, **pokes** and
-**heartbeat**. It builds each one whole, with its facts already worked
-out and named, reacts to it by rule, and decides whether it wakes the
-brain. The harness only records it and renders its line.
+The core turns hook events ([ADAPTERS.md](../ADAPTERS.md)), taps and its
+own clock into seven kinds of event: **turn start**, **turn end**, **tool
+use**, **pokes**, **heartbeat**, **tap** and **needs you**. For each it
+works out the facts, reacts by rule, decides whether the event wakes the
+brain, and writes its line (§8). The result is
+one `Event` ([HARNESS.md](HARNESS.md) §3); the harness only records it
+and places its line.
 
-## 2. The envelope
+## 2. Facts
 
-Every event has the same outer fields; only `detail` differs by kind.
-
-| Field | Shown to Jev | Meaning |
-| --- | --- | --- |
-| `thread` | ✓ | Which agent thread it's about (§3). `null` for pokes and heartbeats |
-| `detail` | ✓ | The kind's own fields (§4) |
-| `automatic_reaction` | ✓ | What Boop already did by rule, before the brain was asked: `cheer`, `wiggle` or `none` |
-| `woke_brain` | — | Whether it opened a pass (§6) |
-| `received_at_ms` | — | When the app received it, in ms since the epoch. Clock times, relative times and bands (§5) are worked out from it |
-
-Fields not shown to Jev are for matching, timing and logs. Jev only ever
-sees names, named bands and small counts: never IDs or raw durations.
+An event's `facts` are its kind's fields (§4), plus the thread (§3) for
+the kinds about one. They're for the core's line-writing, the logs and
+the evals; the harness never reads them. Each fact is either **shown**,
+meaning a line may say it, or **hidden**, used only for matching, timing
+and logs. A line only ever says names, named bands (§5) and small counts:
+never IDs or raw durations.
 
 ## 3. The thread
 
-| Field | Shown to Jev | Example | Meaning |
+| Fact | Shown | Example | Meaning |
 | --- | --- | --- | --- |
 | `name` | ✓ | `agent-work-visibility` | The workspace, or the project when there's none |
 | `agent` | ✓ | `claude`, `codex` | Which agent |
@@ -52,13 +49,15 @@ cleaning keeps it a name.
 
 ## 4. The kinds
 
-| Kind | `detail`, shown to Jev | `detail`, hidden | Wakes the brain |
+| Kind | Facts, shown | Facts, hidden | Wakes the brain |
 | --- | --- | --- | --- |
-| **Turn start** (`turn_start`) | `resumed` (the session was resumed), `gap` since this thread's last turn | — | Always |
-| **Turn end** (`turn_end`) | `outcome`: `done`, `failed` or `stopped`; `error` class when failed; `length`; `tools` and `tools_failed` (counts for the turn); `topics`: each topic's last state this turn; `comeback`: a topic that passed after failing this turn, if one did | `length_ms` | Always |
-| **Tool use** (`tool_use`) | `tool` category; `topic`; `result`: `ok`, `failed` or `unknown`; `error` class when failed; `took`; `failed_before`: failures in a row of this topic in this thread just before this one | `tool_name`, `tool_use_id`, `took_ms` | Only with a topic, and when it failed, or passed after at least one failure |
+| **Turn start** (`turn_start`) | The thread; `resumed` (the session was resumed), `gap` since this thread's last turn | — | Always |
+| **Turn end** (`turn_end`) | The thread; `outcome`: `done`, `failed` or `stopped`; `error` class when failed; `length`; `tools` and `tools_failed` (counts for the turn); `topics`: each topic's last state this turn; `comeback`: a topic that passed after failing this turn, if one did | `length_ms` | Always |
+| **Tool use** (`tool_use`) | The thread; `tool` category; `topic`; `result`: `ok`, `failed` or `unknown`; `error` class when failed; `took`; `failed_before`: failures in a row of this topic in this thread just before this one | `tool_name`, `tool_use_id`, `took_ms` | Always. Only a tool use with a topic that failed, or passed after at least one failure, becomes an event; the core keeps the rest to itself and only counts them |
 | **Pokes** (`pokes`) | `count`, `seconds` (the window they came in), `since_last` streak | — | As [BEHAVIORS.md](../BEHAVIORS.md) §3.3 allows a poke streak |
 | **Heartbeat** (`heartbeat`) | `idle_hours`: whole hours since the last event | — | Always |
+| **Tap** (`tap`) | — | — | Never: the rules handle it alone |
+| **Needs you** (`needs_you`) | The thread | — | Never: the rules handle it alone |
 
 - **Outcome.** `failed` is as [BEHAVIORS.md](../BEHAVIORS.md) §3.1
   defines it: an API error, or the turn's last test, build or deploy
@@ -86,16 +85,16 @@ cleaning keeps it a name.
   wake the brain, and its turns are never `failed`
   ([ADAPTERS.md](../ADAPTERS.md) §3).
 
-A tool use as it's recorded:
+A tool use as the core hands it over:
 
 ```json
-{"thread":{"name":"agent-work-visibility","agent":"claude","subagent":null,"turn":7,"project":"buddygotchi","workspace":"agent-work-visibility","session":"a1b2c3"},"detail":{"tool_use":{"tool":"shell","tool_name":"Bash","tool_use_id":"toolu_01Cc3","topic":"tests","result":"failed","error":"exit_code","took":"long","took_ms":49300,"failed_before":1}},"automatic_reaction":"none","woke_brain":true}
+{"kind":"tool_use","received_at_ms":1790000540000,"line":"claude's tests failed again on \"agent-work-visibility\", 2 in a row.","reaction":null,"wakes_brain":true,"facts":{"thread":{"name":"agent-work-visibility","agent":"claude","subagent":null,"turn":7,"project":"buddygotchi","workspace":"agent-work-visibility","session":"a1b2c3"},"tool":"shell","tool_name":"Bash","tool_use_id":"toolu_01Cc3","topic":"tests","result":"failed","error":"exit_code","took":"long","took_ms":49300,"failed_before":1}}
 ```
 
 ## 5. Named bands
 
 No number reaches Jev that it would have to compare
-([HARNESS.md](HARNESS.md) §7). The core names them:
+([HARNESS.md](HARNESS.md) §8). The core names them:
 
 | Band | Values |
 | --- | --- |
@@ -104,47 +103,49 @@ No number reaches Jev that it would have to compare
 
 ## 6. Which events wake the brain
 
-Every event goes into the transcript. One wakes the brain only when its
-kind says so (§4), and never:
+Every event goes into the transcript and gets its line in HISTORY. One
+wakes the brain only when its kind says so (§4), and never:
 
 - while something needs you, or in quiet mode
   ([BEHAVIORS.md](../BEHAVIORS.md) §3.2, §4);
-- without Jev's key ([HARNESS.md](HARNESS.md) §6).
+- without Jev's key ([HARNESS.md](HARNESS.md) §7).
 
 There are no cooldowns on the brain beyond these.
 
-## 7. Asides and automatic reactions
+## 7. Rule reactions
 
-**Asides.** A single tap and "needs you" are the rules' alone, so the
-brain can't make them slower or different. They go into the transcript
-as `aside` entries so the state shows them, but never wake the brain.
-
-**Automatic reactions** are the rules' moments: a `cheer` for a finished
-turn, a `wiggle` for a tap or a poke streak ([BEHAVIORS.md](../BEHAVIORS.md)
-§3). Each is recorded as a `boop` entry `by: automatic` under the event
-or aside it answered.
+The rules' moments are a `cheer` for a finished turn and a `wiggle` for
+a tap or a poke streak ([BEHAVIORS.md](../BEHAVIORS.md) §3). The core
+decides one at the same moment as its event, so it goes in the event's
+`reaction`, as its line. The brain can't make these slower or different;
+it only learns of them.
 
 Sessions starting and ending, and routine tool uses, are the core's own
-bookkeeping: they show up only as counts and in the threads line.
+bookkeeping: they never become events, and appear only as counts in other
+lines and in the status line.
 
 ## 8. Lines
 
-Each event, aside and automatic reaction has one template
-(`app/BoopKit/Harness/StateText.swift`):
+The core writes every event's line, and its reaction's, when it builds
+the event (`app/BoopKit/Core/Event.swift`), from the shown facts only.
+One template per kind, each with a test:
 
-| Entry | Line |
+| Kind | Line |
 | --- | --- |
 | Turn start | `claude started turn 7 on "agent-work-visibility" (buddygotchi), right after its last one.` The project is left out when it's the name; `, resumed` is added for a resumed session |
 | Turn end | `claude finished turn 7 on "…": done after 18 min, a very long turn, 41 tools (6 failed). Tests passing, build passing. A comeback on tests.` `failed (rate limit)` or `stopped` in place of `done` |
-| Tool use | `claude's tests failed on "…".`, `… failed again on "…", 3 in a row.`, `… passed on "…" after 3 failures in a row.` An error other than `exit_code` is added in brackets (`(timed out)`) |
+| Tool use | `claude's tests failed on "…".`, `… failed again on "…", 3 in a row.`, `… passed on "…" after 3 failures in a row.` An error other than `exit_code` is added in brackets (`(timed out)`). |
 | Pokes | `You poked Boop 5 times in 3 s, again a while after the last time.` |
 | Heartbeat | `Nothing has happened for 1 hour.`, `… for 3 hours.` |
 | Tap | `You tapped Boop.` |
 | Needs you | `claude needs you on "…".` |
-| Automatic reaction | `Boop cheered on its own.`, `Boop wiggled on its own.` In NOW: `Boop already cheered on its own.`, `Boop did nothing on its own.` |
-| Threads working now | `Working now: "fix-nav" (codex, landing), for 3 min.`, `Working now: nothing else.` The thread NOW is about is left out |
+| Reaction | `Boop cheered on its own.`, `Boop wiggled on its own.` |
 
-In HISTORY, as the harness renders them:
+**The status line,** the end of HISTORY, is the core's too:
+`Working now: "fix-nav" (codex, landing), for 3 min.`, or `Working now:
+nothing else.` The thread NOW is about is left out.
+
+In HISTORY, as the harness places them:
 
 ```
 18 min ago: claude started turn 7 on "agent-work-visibility" (buddygotchi), right after its last one.
@@ -160,7 +161,7 @@ Working now: "fix-nav" (codex, landing), for 3 min.
 ### 8.1 Words
 
 The lines use a few words Jev couldn't know. They're explained in the
-second part of the state's READING section ([HARNESS.md](HARNESS.md) §5),
+second part of the state's READING section ([HARNESS.md](HARNESS.md) §6.1),
 which is kept here, next to the lines, so a change to one changes the
 other in the same place:
 

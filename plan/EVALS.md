@@ -39,7 +39,7 @@ summary, and exits 1 if any failed. For a failed step it prints the expected pas
 actual ones (`+`), with how Stage 1 got to each (the rule that matched,
 or Jev's answers) and what the writer answered. Every pass also goes to
 the run's own file in `/tmp/boop-eval`, named at the start and the end
-([HARNESS.md](harness/HARNESS.md) §8), under a header line for each scenario's
+([HARNESS.md](harness/HARNESS.md) §9), under a header line for each scenario's
 run that `boopdev watch` prints as `=== calm  03-turn-failed.json  run 1`;
 files over a day old are cleared away.
 Here normal's lines run against the chatty table, which mumbles at a
