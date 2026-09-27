@@ -61,6 +61,12 @@ class Link:
     """One JSON message per line in each direction: the board or boop-sim."""
 
     timeout = 3.0
+    # The CH340 at 460800 baud on macOS now and then drops a run of bytes
+    # from the board: a lost reply, a short screenshot. With `retries`, a
+    # debug request or screenshot that fails that way is asked for again,
+    # up to that many times, and `on_retry` (if set) hears of each failure.
+    retries = 0
+    on_retry: Callable[[Exception], None] | None = None
 
     def __init__(self) -> None:
         self._buf = bytearray()
@@ -111,15 +117,40 @@ class Link:
             if match(msg):
                 return msg
 
+    def _retrying(self, call: Callable[[], Any]) -> Any:
+        for attempt in range(self.retries + 1):
+            try:
+                return call()
+            except (DeviceError, ValueError) as exc:
+                if attempt == self.retries:
+                    raise
+                if self.on_retry:
+                    self.on_retry(exc)
+                self._buf.clear()  # the rest of the broken line
+
     def request(self, message: dict[str, Any], timeout: float | None = None) -> dict[str, Any]:
         """Send a debug message and return the reply with the same type."""
-        self.send(message)
-        return self.wait_for(lambda m: m.get("t") == message["t"], timeout)
+
+        def once() -> dict[str, Any]:
+            self.send(message)
+            return self.wait_for(lambda m: m.get("t") == message["t"], timeout)
+
+        return self._retrying(once)
+
+    def vitals(self) -> dict[str, int]:
+        """Uptime, free heap, its lowest and fps, from dbg.ping: what perf
+        and the soaks sample."""
+        ping = self.request({"t": "dbg.ping"})
+        return {k: ping[k] for k in ("up", "heap", "heap_min", "fps")}
 
     def shot(self) -> tuple[list[int], bytes, tuple[int, int]]:
         """The canvas: 256 RGB565 palette entries, one index per pixel, and
         the (width, height) from the header, so a PNG has the device's shape."""
-        head = self.request({"t": "dbg.shot"}, timeout=5)
+        return self._retrying(self._shot)
+
+    def _shot(self) -> tuple[list[int], bytes, tuple[int, int]]:
+        self.send({"t": "dbg.shot"})
+        head = self.wait_for(lambda m: m.get("t") == "dbg.shot", 5)
         line = self.read_line(time.monotonic() + 10)
         if line is None:
             raise DeviceError(f"screenshot data never arrived from {self.name}")

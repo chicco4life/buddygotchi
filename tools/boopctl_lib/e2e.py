@@ -78,7 +78,7 @@ class Run:
             shutil.rmtree(self.root)
         self.root.mkdir(parents=True)
         self.out.mkdir(parents=True, exist_ok=True)
-        for name in ("Boop", "boop-hook", "boopdev"):
+        for name in ("Boop", "boop-hook"):
             if not (BIN / name).exists():
                 raise DeviceError(f"no {BIN / name}; run make build")
         bridge = [str(REPO / "tools" / "boopctl")] + (["--port", self.port] if self.port else [])
@@ -372,12 +372,11 @@ def soak(out: Path, writer: str, port: str | None, minutes: float) -> int:
     final: dict[str, Any] = {}
 
     def sample(dev: Device) -> None:
-        ping = dev.request({"t": "dbg.ping"})
+        vitals = dev.vitals()
         st = dev.request({"t": "dbg.state"})
         app = run.procs[1]
         rss = subprocess.run(["ps", "-o", "rss=", "-p", str(app.pid)], capture_output=True, text=True).stdout.strip()
-        samples.append({"t": round(time.monotonic() - t0, 1), "up": ping["up"], "heap": ping["heap"],
-                        "heap_min": ping["heap_min"], "fps": ping["fps"],
+        samples.append({"t": round(time.monotonic() - t0, 1), **vitals,
                         "audio_errors": st.get("audio", {}).get("out", {}).get("errors"),
                         "app_alive": app.poll() is None, "app_rss_kb": int(rss) if rss else None})
 
@@ -385,21 +384,14 @@ def soak(out: Path, writer: str, port: str | None, minutes: float) -> int:
         run.start()
         os.environ["BOOP_BRIDGE"] = run.bridge_sock
         with Device(timeout=3.0) as dev:
-            # The CH340 at 460800 baud on macOS rarely drops a run of bytes
-            # from the board over a long soak (a lost reply, a short shot). A
-            # debug request is retried once and the glitch counted; a second
-            # loss in a row still fails the soak.
-            def retried(call):
-                def wrapper(*a, **kw):
-                    try:
-                        return call(*a, **kw)
-                    except (DeviceError, ValueError) as exc:
-                        glitches.append(f"{time.monotonic() - t0:.0f} s: {exc}"[:160])
-                        run.say(f"  link glitch, retrying: {glitches[-1]}")
-                        dev._buf.clear()
-                        return call(*a, **kw)
-                return wrapper
-            dev.request, dev.shot = retried(dev.request), retried(dev.shot)
+            # A lost reply or short shot (Link.retries) is asked for again
+            # once and the glitch counted; a second loss in a row still
+            # fails the soak.
+            def glitch(exc: Exception) -> None:
+                glitches.append(f"{time.monotonic() - t0:.0f} s: {exc}"[:160])
+                run.say(f"  link glitch, retrying: {glitches[-1]}")
+
+            dev.retries, dev.on_retry = 1, glitch
             sample(dev)
             while time.monotonic() - t0 < minutes * 60:
                 rounds += 1
