@@ -67,6 +67,14 @@ func fail(_ message: String) -> Never {
     exit(2)
 }
 
+/// The `boop-hook` built next to boopdev.
+let builtHook = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("boop-hook")
+
+/// Sends one line to a running app's socket, or stops if nobody answers.
+func sendDev(_ line: Data, to socket: String) {
+    guard HookSocket.send(line + [0x0A], to: socket, timeoutMs: 500) else { fail("no app answering on \(socket)") }
+}
+
 /// A subcommand's arguments, checked against what it takes (VERIFICATION.md
 /// §2): --help prints its usage and exits, and anything else stops it.
 func arguments(_ command: String, _ args: [String], options: Set<String> = [], flags: Set<String> = [],
@@ -107,11 +115,8 @@ func replay(_ raw: [String]) {
 /// `boop-hook` fails open, so the app is asked first: with nobody
 /// listening, every hook would still exit 0.
 func replayLive(_ steps: [Replay.Step], agent: String, gapMs: Int64, socket: String) {
-    let hook = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("boop-hook")
-    guard FileManager.default.isExecutableFile(atPath: hook.path) else { fail("no boop-hook next to boopdev; run make build") }
-    guard HookSocket.send(Data(#"{"dev":"probe"}"#.utf8) + [0x0A], to: socket, timeoutMs: 500) else {
-        fail("no app answering on \(socket)")
-    }
+    guard FileManager.default.isExecutableFile(atPath: builtHook.path) else { fail("no boop-hook next to boopdev; run make build") }
+    sendDev(Data(#"{"dev":"probe"}"#.utf8), to: socket)
     var environment = ProcessInfo.processInfo.environment
     environment["BOOP_SOCKET"] = socket
     for step in steps {
@@ -120,13 +125,12 @@ func replayLive(_ steps: [Replay.Step], agent: String, gapMs: Int64, socket: Str
             usleep(useconds_t(ms * 1000))
         case .advance(let ms):
             // A headless app jumps its clock; the menu-bar app ignores this.
-            let line = Data(#"{"dev":"advance","ms":\#(ms)}"#.utf8) + [0x0A]
-            guard HookSocket.send(line, to: socket, timeoutMs: 500) else { fail("no app answering on \(socket)") }
+            sendDev(Data(#"{"dev":"advance","ms":\#(ms)}"#.utf8), to: socket)
             print("advanced the app's clock \(ms) ms")
         case .payload(let data):
             let sent = Date()
-            guard let (ms, status) = spawn(hook.path, [agent], stdin: data, environment: environment) else {
-                fail("can't run \(hook.path): \(String(cString: strerror(errno)))")
+            guard let (ms, status) = spawn(builtHook.path, [agent], stdin: data, environment: environment) else {
+                fail("can't run \(builtHook.path): \(String(cString: strerror(errno)))")
             }
             let name = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["hook_event_name"] as? String
             print("sent \(name ?? "?") at \(Int64(sent.timeIntervalSince1970 * 1000)) hook \(String(format: "%.1f", ms)) ms exit \(status)")
@@ -390,10 +394,9 @@ func talk(_ raw: [String]) {
     let words = args.words.joined(separator: " ")
     let yelled = args.has("--yelled")
     guard !words.isEmpty || yelled else { fail("boopdev talk: what was said? give the words, or --yelled") }
-    var data = (try? JSONSerialization.data(withJSONObject: ["dev": "talk", "words": words, "yelled": yelled] as [String: Any]))
+    let line = (try? JSONSerialization.data(withJSONObject: ["dev": "talk", "words": words, "yelled": yelled] as [String: Any]))
         ?? Data()
-    data.append(0x0A)
-    guard HookSocket.send(data, to: socket, timeoutMs: 500) else { fail("no app answering on \(socket)") }
+    sendDev(line, to: socket)
     print("sent talk \"\(words)\"\(yelled ? " (yelled)" : "")")
 }
 
@@ -404,8 +407,7 @@ func hooks(_ raw: [String]) {
     }
     // Never the real HOME by default: tests use a temporary one.
     guard let home = args["--home"] else { fail("boopdev hooks: pass --home DIR") }
-    let built = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("boop-hook")
-    let installer = HookInstaller(home: URL(fileURLWithPath: home), hookPath: args["--hook"] ?? built.path)
+    let installer = HookInstaller(home: URL(fileURLWithPath: home), hookPath: args["--hook"] ?? builtHook.path)
     var agents = HookInstaller.Agent.allCases
     if args.words.count > 1 {
         guard let agent = HookInstaller.Agent(rawValue: args.words[1]) else { fail("boopdev hooks: the agent is claude or codex") }
