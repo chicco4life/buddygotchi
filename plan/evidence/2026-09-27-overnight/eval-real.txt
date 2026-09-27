@@ -1,0 +1,61 @@
+normal: decided by its table; with Jev's API key in BOOP_JEV_KEY, Jev decides it
+every pass goes to /tmp/boop-eval/20260927-120333-20400.jsonl
+pass  chatty  01-short-turn.json  Short turns: a mumble in chatty, the cheer alone in normal, nothing in calm  (3/3 runs)
+pass  chatty  02-long-turn.json  A long turn is celebrated, and a very long one with a word  (3/3 runs)
+pass  chatty  03-turn-failed.json  A failed turn gets an annoyed mumble in every mode  (3/3 runs)
+pass  chatty  04-be-quiet.json  Only asking for quiet makes Boop quiet, in every mode  (3/3 runs)
+pass  chatty  05-bad-answer.json  A bad answer or a brain error is contained  (3/3 runs)
+pass  chatty  06-tests-left-failing.json  A turn that leaves its tests failing is a failure  (3/3 runs)
+pass  chatty  07-told-off.json  Yelled at or told off, Boop is hurt, and never goes quiet  (3/3 runs)
+pass  chatty  08-poke-streak.json  Poked again and again, Boop grumbles, except in calm  (3/3 runs)
+pass  chatty  09-remember.json  Told a fact, Boop keeps it where it belongs; praise it doesn't  (3/3 runs)
+pass  chatty  10-small-talk.json  Small talk gets the word it calls for  (3/3 runs)
+pass  chatty  11-mode-switch.json  A new mode takes effect at once  (3/3 runs)
+pass  chatty  12-chatter.json  Working chatter keeps the mode's pace, and calm cheers only a very long turn  (3/3 runs)
+pass  chatty  13-no-cheer-for-a-failure.json  A failed turn gets no cheer, and calm cheers only a very long turn  (3/3 runs)
+pass  chatty  14-quiet-fifteen.json  Quiet for fifteen minutes holds back mumbles, then lets them go  (3/3 runs)
+pass  chatty  15-needs-you.json  While something needs you, only what you say reaches the brain, and its mumble is dropped  (3/3 runs)
+pass  normal  01-short-turn.json  Short turns: a mumble in chatty, the cheer alone in normal, nothing in calm  (3/3 runs)
+pass  normal  02-long-turn.json  A long turn is celebrated, and a very long one with a word  (3/3 runs)
+pass  normal  03-turn-failed.json  A failed turn gets an annoyed mumble in every mode  (3/3 runs)
+pass  normal  04-be-quiet.json  Only asking for quiet makes Boop quiet, in every mode  (3/3 runs)
+pass  normal  05-bad-answer.json  A bad answer or a brain error is contained  (3/3 runs)
+pass  normal  06-tests-left-failing.json  A turn that leaves its tests failing is a failure  (3/3 runs)
+pass  normal  07-told-off.json  Yelled at or told off, Boop is hurt, and never goes quiet  (3/3 runs)
+pass  normal  08-poke-streak.json  Poked again and again, Boop grumbles, except in calm  (3/3 runs)
+pass  normal  09-remember.json  Told a fact, Boop keeps it where it belongs; praise it doesn't  (3/3 runs)
+pass  normal  10-small-talk.json  Small talk gets the word it calls for  (3/3 runs)
+pass  normal  11-mode-switch.json  A new mode takes effect at once  (3/3 runs)
+pass  normal  12-chatter.json  Working chatter keeps the mode's pace, and calm cheers only a very long turn  (3/3 runs)
+pass  normal  13-no-cheer-for-a-failure.json  A failed turn gets no cheer, and calm cheers only a very long turn  (3/3 runs)
+pass  normal  14-quiet-fifteen.json  Quiet for fifteen minutes holds back mumbles, then lets them go  (3/3 runs)
+pass  normal  15-needs-you.json  While something needs you, only what you say reaches the brain, and its mumble is dropped  (3/3 runs)
+pass  calm  01-short-turn.json  Short turns: a mumble in chatty, the cheer alone in normal, nothing in calm  (3/3 runs)
+pass  calm  02-long-turn.json  A long turn is celebrated, and a very long one with a word  (3/3 runs)
+pass  calm  03-turn-failed.json  A failed turn gets an annoyed mumble in every mode  (3/3 runs)
+pass  calm  04-be-quiet.json  Only asking for quiet makes Boop quiet, in every mode  (3/3 runs)
+pass  calm  05-bad-answer.json  A bad answer or a brain error is contained  (3/3 runs)
+pass  calm  06-tests-left-failing.json  A turn that leaves its tests failing is a failure  (3/3 runs)
+pass  calm  07-told-off.json  Yelled at or told off, Boop is hurt, and never goes quiet  (3/3 runs)
+pass  calm  08-poke-streak.json  Poked again and again, Boop grumbles, except in calm  (3/3 runs)
+pass  calm  09-remember.json  Told a fact, Boop keeps it where it belongs; praise it doesn't  (3/3 runs)
+pass  calm  10-small-talk.json  Small talk gets the word it calls for  (3/3 runs)
+pass  calm  11-mode-switch.json  A new mode takes effect at once  (3/3 runs)
+pass  calm  12-chatter.json  Working chatter keeps the mode's pace, and calm cheers only a very long turn  (3/3 runs)
+pass  calm  13-no-cheer-for-a-failure.json  A failed turn gets no cheer, and calm cheers only a very long turn  (3/3 runs)
+pass  calm  14-quiet-fifteen.json  Quiet for fifteen minutes holds back mumbles, then lets them go  (3/3 runs)
+pass  calm  15-needs-you.json  While something needs you, only what you say reaches the brain, and its mumble is dropped  (3/3 runs)
+45/45 passed in all 3 runs: chatty chatty@1 + apple:27.0, normal normal@1 + apple:27.0, calm calm@1 + apple:27.0
+--- the real brains, over 585 passes
+refused: 0
+stage 1 answered on the menu: 585/585
+writer: 342 passes, 387/387 slots filled, 0 failed
+calls: 423 to actions, 18 dropped by them, 0 with nothing written
+latency agent started: n 216, classify p50 0 ms, write p50 1528 ms (n 75), p95 1573 ms (deadline 5000 ms)
+latency agent finished: n 162, classify p50 0 ms, write p50 1530 ms (n 105), p95 1630 ms (deadline 5000 ms)
+latency you said: n 189, classify p50 0 ms, write p50 1519 ms (n 150), p95 1832 ms (deadline 4000 ms)
+latency poked again and again: n 18, classify p50 0 ms, write p50 1563 ms (n 12), p95 1632 ms (deadline 4000 ms)
+the report held: answered, in time, few drops
+passed: every scenario, and the report; now read a sample of the passes (VERIFICATION.md L5)
+every pass: boopdev watch /tmp/boop-eval/20260927-120333-20400.jsonl
+$S/boopdev-snapshot eval --real --steering plan/steering.md --json   10.28s user 1.57s system 2% cpu 8:49.81 total
