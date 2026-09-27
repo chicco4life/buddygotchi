@@ -95,7 +95,9 @@ public final class Runtime: @unchecked Sendable {
     /// confirms is removed, so hooks aren't logged from then on.
     public static let doctorArmSeconds: TimeInterval = 10 * 60
     /// Debug mode's log of every pass and aside, in the state directory.
-    public var debugLogURL: URL { options.stateDir.appendingPathComponent(DebugLog.fileName) }
+    public let debugLogURL: URL
+    /// The doctor's arm (`doctorArm`), in the state directory.
+    let doctorArmPath: String
 
     public let home = DispatchQueue(label: "boop.home", qos: .userInitiated)
     public let options: Options
@@ -160,7 +162,8 @@ public final class Runtime: @unchecked Sendable {
 
     public init(_ options: Options) throws {
         self.options = options
-        let debugLogURL = options.stateDir.appendingPathComponent(DebugLog.fileName)
+        debugLogURL = options.stateDir.appendingPathComponent(DebugLog.fileName)
+        doctorArmPath = options.stateDir.appendingPathComponent(Self.doctorArm).path
         guard let lock = InstanceLock(directory: options.stateDir) else { throw OpenError.locked(options.stateDir.path) }
         self.lock = lock
         let log = options.log
@@ -306,10 +309,10 @@ public final class Runtime: @unchecked Sendable {
     /// Whether the doctor armed this app within the last 10 minutes. An
     /// older arm is removed.
     func doctorArmed() -> Bool {
-        let path = options.stateDir.appendingPathComponent(Self.doctorArm).path
-        guard let armed = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date else { return false }
+        guard let armed = (try? FileManager.default.attributesOfItem(atPath: doctorArmPath))?[.modificationDate] as? Date
+        else { return false }
         if Date().timeIntervalSince(armed) < Self.doctorArmSeconds { return true }
-        try? FileManager.default.removeItem(atPath: path)
+        try? FileManager.default.removeItem(atPath: doctorArmPath)
         options.log("doctor: an arm older than \(Int(Self.doctorArmSeconds / 60)) minutes, removed")
         return false
     }
