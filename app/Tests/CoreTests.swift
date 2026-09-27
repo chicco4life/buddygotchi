@@ -496,8 +496,10 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertEqual(yelled?.line, "you said · yelled · 14:00 Wednesday")
         XCTAssertEqual(yelled?.words, "")
         XCTAssertEqual(yelled?.yelled, true)
-        for (words, asked) in [("shut up", false), ("be quiet please", true), ("stop talking", false), ("Quiet!", true),
-                               ("speak quietly", false)] {
+        let asks: [(String, Input.QuietAsk?)] = [("shut up", nil), ("be quiet please", .start), ("stop talking", nil),
+                                                 ("Quiet!", .start), ("speak quietly", nil), ("you can talk again", .end),
+                                                 ("stop being quiet", .end)]
+        for (words, asked) in asks {
             rig.core.talk(words, at: rig.now)
             XCTAssertEqual(rig.core.quietAsked, asked, words)
         }

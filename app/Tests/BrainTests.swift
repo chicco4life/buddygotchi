@@ -94,6 +94,9 @@ final class PhrasesTests: XCTestCase {
             // A half, in words or digits.
             ("be quiet for one and a half hours", 60), ("quiet for two and a half hours", 120),
             ("quiet for 1.5 hours", 60), ("quiet for 0.5 hours", 30), ("quiet for 2 hours.", 120),
+            // 0 only ends quiet: a short time is still the shortest quiet.
+            ("be quiet for five minutes", 15), ("quiet for a couple of minutes", 15), ("quiet for a minute", 15),
+            ("be quiet for 0 minutes", 15),
         ]
         for (words, minutes) in cases {
             XCTAssertEqual(Phrases.minutes(words), minutes, words)
@@ -112,6 +115,18 @@ final class PhrasesTests: XCTestCase {
             // Asked for quiet, Boop is just quiet, hurt or not.
             (input(.said, words: "BE QUIET", yelled: true), [quiet(30)]),
             (input(.said, words: "be quiet, you idiot"), [quiet(30)]),
+            // Asked to stop being quiet: quiet ends, and Boop is happy to be back.
+            (input(.said, words: "stop being quiet"), [quiet(0), react("happy")]),
+            (input(.said, words: "okay you don't have to be quiet anymore"), [quiet(0), react("happy")]),
+            (input(.said, words: "you don\u{2019}t need to be quiet now"), [quiet(0), react("happy")]),
+            (input(.said, words: "no more quiet mode please"), [quiet(0), react("happy")]),
+            (input(.said, words: "you're not quiet anymore"), [quiet(0), react("happy")]),
+            (input(.said, words: "quiet mode off"), [quiet(0), react("happy")]),
+            (input(.said, words: "You can talk again!"), [quiet(0), react("happy")]),
+            (input(.said, words: "you can speak again"), [quiet(0), react("happy")]),
+            (input(.said, words: "unmute"), [quiet(0), react("happy")]),
+            (input(.said, words: "YOU CAN TALK AGAIN", yelled: true), [quiet(0), react("happy")]),
+            (input(.said, words: "remember you can talk again after lunch"), [react("happy"), remember("today")]),
             (input(.said, words: "Shut up for an hour"), [react("sad")]),
             (input(.said, words: "can you keep it down for fifteen minutes"), [react("sad")]),
             (input(.said, words: "hush"), [react("sad")]),
@@ -182,9 +197,16 @@ final class InputMenuTests: XCTestCase {
                        "agent finished · done · claude · jetpack · a very long turn (4 min) · 14:05 Tuesday")
     }
 
-    /// `quiet` is on the menu only when the words ask for it.
+    /// `quiet` is on the menu only when the words ask for it, or for it to end.
     func testQuietIsOnTheMenuOnlyWhenAsked() {
         XCTAssertEqual(input(.said, words: "be quiet for an hour").menu, ["quiet", "react", "remember"])
+        XCTAssertEqual(input(.said, words: "you can talk again").menu, ["quiet", "react", "remember"])
+        XCTAssertFalse(input(.said, words: "stop being quiet").asksForQuiet)
+        XCTAssertTrue(input(.said, words: "stop being quiet").endsQuiet)
+        XCTAssertFalse(input(.said, words: "be quiet").endsQuiet)
+        XCTAssertFalse(input(.said, words: "stop talking").endsQuiet)
+        XCTAssertEqual(["be quiet", "you can talk again", "stop talking"].map { input(.said, words: $0).quietAsk },
+                       [.start, .end, nil])
         XCTAssertEqual(input(.said, words: "shut up for an hour").menu, ["react", "remember"])
         // Remember wins over quiet, for the menu and the core as for the
         // phrase table: "remember I like it quiet" isn't asking for quiet.
@@ -284,8 +306,9 @@ final class JevClassifierTests: XCTestCase {
         _ = try await classify(jev, input(.said, words: "be quiet please"))
         XCTAssertEqual(Set(jev.questions.keys), ["quiet", "quiet.minutes", "react", "react.feeling", "remember", "remember.where"])
         let minutes = jev.questions["quiet.minutes"]?["criteria"] as? [String: String]
-        XCTAssertEqual(Set(minutes?.keys ?? [:].keys), ["15", "30", "60", "120"])
-        XCTAssertEqual(minutes?["30"], "Half an hour, or when they don't say how long.")
+        XCTAssertEqual(Set(minutes?.keys ?? [:].keys), ["0", "15", "30", "60", "120"])
+        XCTAssertEqual(minutes?["30"], "Half an hour, or when they ask for quiet without saying how long.")
+        XCTAssertEqual(minutes?["0"], "End quiet now, when the person says Boop can talk again.")
     }
 
     func testYesesBecomeCallsWithTheirChoices() async throws {

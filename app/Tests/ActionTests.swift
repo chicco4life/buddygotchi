@@ -8,7 +8,7 @@ final class ActionRig {
     var quiet: [Int] = []
     var logs: [String] = []
     var allowed = true
-    var asked = true
+    var asked: Input.QuietAsk? = .start
     var actions: [String: Action] = [:]
     let memory: MemoryStore
 
@@ -67,7 +67,7 @@ final class ActionTests: XCTestCase {
                                                           "sad", "sleepy", "smug", "sulky"]))
         XCTAssertEqual(react.parameters[1].kind, .choice(Sounds.vocabulary))
         XCTAssertEqual(Sounds.vocabulary.count, 40)
-        XCTAssertEqual(rig.actions["quiet"]!.definition.parameters[0].kind, .number([15, 30, 60, 120]))
+        XCTAssertEqual(rig.actions["quiet"]!.definition.parameters[0].kind, .number([0, 15, 30, 60, 120]))
         let remember = rig.actions["remember"]!.definition
         XCTAssertEqual(remember.parameters.map(\.role), [.decided, .written])
         XCTAssertEqual(remember.parameters[0].kind, .choice(["today", "about_you", "preference"]))
@@ -157,23 +157,37 @@ final class ActionTests: XCTestCase {
         XCTAssertEqual(rig.quiet, [60, 30])
     }
 
-    /// BEHAVIORS.md §3.3: `quiet` runs only when the last thing you said
-    /// asked for quiet, whatever the classifier decided.
-    func testQuietRunsOnlyWhenAsked() {
-        rig.asked = false
-        XCTAssertEqual(rig.run(ToolCall("quiet", ["minutes": .number(30)])), .dropped("only when asked to be quiet"))
-        XCTAssertEqual(rig.quiet, [])
-        rig.asked = true
+    /// BEHAVIORS.md §3.3: `quiet` runs only the way the last thing you said
+    /// asked, whatever the classifier decided: minutes when you asked for
+    /// quiet, 0 when you asked it to stop, and nothing otherwise.
+    func testQuietRunsOnlyTheWayAsked() {
+        rig.asked = nil
+        XCTAssertEqual(rig.run(ToolCall("quiet", ["minutes": .number(30)])),
+                       .dropped("only when asked to be quiet or to stop"))
+        XCTAssertFalse(rig.run(ToolCall("quiet", ["minutes": .number(0)])).isDone)
+        rig.asked = .start
+        XCTAssertEqual(rig.run(ToolCall("quiet", ["minutes": .number(0)])), .dropped("asked to be quiet, not to stop"))
         XCTAssertTrue(rig.run(ToolCall("quiet", ["minutes": .number(30)])).isDone)
-        XCTAssertEqual(rig.quiet, [30])
+        // "you can talk again" never starts or stretches quiet.
+        rig.asked = .end
+        for minutes in [15, 30, 60, 120] {
+            XCTAssertEqual(rig.run(ToolCall("quiet", ["minutes": .number(minutes)])), .dropped("asked to stop being quiet"))
+        }
+        XCTAssertEqual(rig.run(ToolCall("quiet", ["minutes": .number(0)])), .done("quiet ended"))
+        XCTAssertEqual(rig.quiet, [30, 0])
     }
 
     func testQuietReachesTheRealCore() {
         let core = CoreRig()
+        var asked: Input.QuietAsk? = .start
         let context = ActionContext(send: { _ in }, setQuiet: { _ = core.core.setQuiet(minutes: $0, at: core.now) },
-                                    today: { "2026-10-14" })
+                                    quietAsked: { asked }, today: { "2026-10-14" })
         QuietAction(context: context).run(ToolCall("quiet", ["minutes": .number(30)]))
         XCTAssertEqual(core.core.snapshot(at: core.now).quiet, 30)
+        // BEHAVIORS.md §3.3: 0 ends it.
+        asked = .end
+        XCTAssertEqual(QuietAction(context: context).run(ToolCall("quiet", ["minutes": .number(0)])), .done("quiet ended"))
+        XCTAssertEqual(core.core.snapshot(at: core.now).quiet, 0)
     }
 
     func testRememberTodayWritesANote() {

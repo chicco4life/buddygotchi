@@ -193,7 +193,7 @@ newer input replacing a waiting one) is left to `HarnessTests`.
 | `01-short-turn.json` | Turns of 8 and 12 seconds: chatty mumbles at each start (curious) and finish (happy); normal leaves them to the core's cheer; calm has neither cheer nor mumble. Records the cheer. |
 | `02-long-turn.json` | A 20-second turn gets a proud mumble in chatty and normal; a 3-minute one gets an excited (chatty) or proud (normal) mumble, always with a word. Calm: nothing. Hero moment 1. |
 | `03-turn-failed.json` | A failed turn gets an annoyed mumble in every mode, with an annoyed word, `bug`, or none. Hero moment 2. |
-| `04-be-quiet.json` | "Be quiet for an hour" is quiet(60) in every mode: a turn in that hour is held back, and the next one gets through. A yelled "BE QUIET" is just quiet(30). Hero moment 3. |
+| `04-be-quiet.json` | "Be quiet for an hour" is quiet(60) in every mode: a turn in that hour is held back, and the next one gets through. A yelled "BE QUIET" is just quiet(30), and "you can talk again" ends it at once with a happy mumble, so the next turn reaches the brain. Hero moment 3. |
 | `05-bad-answer.json` | A classifier answer off the menu, and a classifier error, each drop their pass, and the next turn gets its mode's reaction. |
 | `06-tests-left-failing.json` | A turn whose last test run failed finishes failed: the annoyed mumble in every mode, with `tests` or `ugh`. One whose tests failed and then passed is a normal finish. Hero moment 2. |
 | `07-told-off.json` | "Shut up", "you're so annoying", a yell and a wordless yell each get a sad mumble (nothing in calm) and never quiet mode; "this build is annoying" doesn't count; a yelled "GOOD JOB!" is still praise; a classifier that calls `quiet` anyway has its pass dropped, since `quiet` isn't on the menu. Hero moment 3. |
@@ -203,7 +203,7 @@ newer input replacing a waiting one) is left to `HarnessTests`.
 | `11-mode-switch.json` | Switching between chatty and calm mid-turn changes the next reaction and the core's cheer at once. |
 | `12-chatter.json` | A 10-minute turn: the core chatters 8 times in chatty, twice in normal and never in calm, at the mode's pace ([BEHAVIORS.md](BEHAVIORS.md) §6), and cheers the finish in every mode. |
 | `13-no-cheer-for-a-failure.json` | A turn that leaves its tests failing, and one that stops on an API error, get the annoyed mumble and no cheer; a 30-second turn cheers in chatty and normal but not in calm. Records the cheer. Hero moment 2. |
-| `14-quiet-fifteen.json` | "Be quiet for fifteen minutes" is quiet(15): talk still reaches the brain but its mumble is dropped, agent inputs don't reach it, and after 15 minutes they do again. |
+| `14-quiet-fifteen.json` | "Be quiet for fifteen minutes" is quiet(15): talk still reaches the brain but its mumble is dropped, agent inputs don't reach it, and after 15 minutes they do again. A classifier that answers quiet the wrong way (30 for "you can talk again", 0 for "be quiet") has that call dropped, so the 15 minutes hold. |
 | `15-needs-you.json` | While one session needs you, another's finish and a poke streak don't reach the brain, and a reply to talk is dropped; once the first carries on (its next command is the answer), its finish gets the mode's reaction. |
 
 The hero moments are [VISION.md](VISION.md)'s. The first is the core's

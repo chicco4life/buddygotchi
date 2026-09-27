@@ -82,9 +82,9 @@ core hears (sessions, tool use, a new day) is its own bookkeeping.
 3. **Open the pass.** The input and the rules' reaction join the
    transcript (§4). The menu is the input's outputs, in the order they
    run, with the actions' definitions as they are now. `quiet` is on it
-   only when your words ask for quiet (`Input.asksForQuiet`,
-   [BEHAVIORS.md](BEHAVIORS.md) §3.3). The pass keeps the brains it started
-   with, so a new mode applies from the next.
+   only when your words ask for quiet or for it to end
+   (`Input.quietAsk`, [BEHAVIORS.md](BEHAVIORS.md) §3.3). The pass
+   keeps the brains it started with, so a new mode applies from the next.
 4. **Stage 1.** The classifier gets the input, the memory and the window,
    and answers with calls and their decided arguments. The harness checks
    them: only outputs on the menu, decided arguments from their choices,
@@ -171,7 +171,7 @@ argument, the **sources** its value can come from (§7).
 | Output | Decided | Written | What it does |
 | --- | --- | --- | --- |
 | `react` | `feeling`: one of ten (below) | `word`, optional: one of Voice's 40 words ([VOICE.md](VOICE.md) §6), from what they said, the failed topic, how the turn went, or the feeling | A mumble: a Minion line in the feeling's sound, with the word, played over whatever face is showing. Dropped in quiet mode, while something needs you, and while you talk until your words arrive ([BEHAVIORS.md](BEHAVIORS.md) §3.3). Staying silent is not calling it |
-| `quiet` | `minutes`: 15, 30, 60 or 120 | — | Quiet mode ([BEHAVIORS.md](BEHAVIORS.md) §4). Runs only when your last words asked for quiet (§3) |
+| `quiet` | `minutes`: 15, 30, 60 or 120, or 0 to end quiet | — | Quiet mode ([BEHAVIORS.md](BEHAVIORS.md) §4). Runs only the way your last words asked (§3): minutes for quiet, 0 to end it |
 | `remember` | `where`: `today`, `about_you` or `preference` | `text` | A line in that part of memory |
 
 The feelings are `happy`, `excited`, `proud`, `curious`, `hopeful`,
@@ -271,6 +271,7 @@ straight ones.
 | You said | Decides |
 | --- | --- |
 | "remember" or "note", unless you told Boop off | `react(happy)` and `remember(where)`, with where from the next table. This wins over "quiet": "remember I like it quiet" isn't asking for quiet |
+| Asking Boop to stop being quiet: "stop being quiet", "don't have to be quiet", "don't need to be quiet", "no more quiet", "not quiet anymore", "quiet mode off", "turn off quiet", "you can talk again", "you can speak again", "you can mumble again" or "unmute" | `quiet(0)`, which ends quiet, and `react(happy)` |
 | "quiet" | `quiet(minutes)` and nothing else, yelled or not |
 | You told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)` in chatty and normal; nothing in calm |
 | Starting with "hello", "hi", "hey", "morning" or "good morning" ("the tests broke this morning" isn't a greeting) | `react(happy)` |
@@ -285,6 +286,7 @@ minutes, the shorter on a tie ("ten minutes" is 15, "an hour and a half"
 60). A unit alone is one ("the next hour", 60), except "for hours" (120);
 a number alone is minutes ("for fifteen", 15). "A quarter of an hour" and
 "a little while" are 15, "a long while" 120, and no time at all is 30.
+Only ending quiet is 0, so a short time is still 15 ("five minutes").
 
 **Where to remember**, first match wins. Going only by the words, the
 tables lean towards today:
@@ -328,7 +330,7 @@ behind most of these rules is in [ARCHITECTURE.md](ARCHITECTURE.md) §11.
   latest Happened lines; Jev doesn't get the writer's guidance.
 - **No arithmetic:** numbers arrive already named (a long turn, not
   20 s), and what the rules decide isn't asked (`quiet` is offered only
-  when your words ask for it).
+  when your words ask for quiet or for it to end).
 - **Choices that say what they're not:** each feeling's meaning rules out
   its neighbours ("sad" is only hurt; a failed turn is "annoyed"), since
   Jev is literal

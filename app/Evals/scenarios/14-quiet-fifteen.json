@@ -1,6 +1,6 @@
 {
   "name": "Quiet for fifteen minutes holds back mumbles, then lets them go",
-  "why": "PLAN.md §2 check 12 and BEHAVIORS.md §3.3: \"be quiet for fifteen minutes\" is quiet(15); talk still reaches the brain but its mumble is dropped, agent inputs don't reach it, and after 15 minutes both come back",
+  "why": "PLAN.md §2 check 12 and BEHAVIORS.md §3.3: \"be quiet for fifteen minutes\" is quiet(15); talk still reaches the brain but its mumble is dropped, agent inputs don't reach it, and after 15 minutes both come back. A classifier that answers the wrong way, more minutes for \"you can talk again\" or 0 for \"be quiet\", has its quiet call dropped by the action, so the 15 minutes neither restart nor end early",
   "steps": [
     {"input": {"at": "0s", "event": "talk", "words": "be quiet for fifteen minutes"},
      "expect": ["you said → quiet(minutes: 15)"]},
@@ -8,6 +8,10 @@
      "expect": ["you said → react(feeling: happy|excited|curious, word: hi|hello) dropped (action)"]},
     {"input": {"at": "2m", "event": "turn started"},
      "expect": []},
+    {"input": {"at": "3m", "event": "talk", "words": "you can talk again"}, "classifier": {"calls": [{"tool": "quiet", "minutes": 30}]},
+     "expect": ["you said → quiet(minutes: 30) dropped (action)"]},
+    {"input": {"at": "4m", "event": "talk", "words": "be quiet"}, "classifier": {"calls": [{"tool": "quiet", "minutes": 0}]},
+     "expect": ["you said → quiet(minutes: 0) dropped (action)"]},
     {"input": {"at": "14m", "event": "turn finished"},
      "expect": []},
     {"input": {"at": "16m", "event": "turn started"},
