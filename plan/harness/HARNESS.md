@@ -406,8 +406,11 @@ probability, which become an `Answer` each; each action gets its own.
 - **When Jev fails** or is late, the pass is dropped and no action runs:
   Boop does only its rule reactions, and the `pass` entry says why.
 - **The key** comes from `BOOP_JEV_KEY`, else, in the menu-bar app only,
-  the Keychain. `Boop --headless` and `boopdev` read only the variable,
-  so a run from an agent shell never uses the owner's key. The Keychain is
+  the Keychain, which Boop reads and writes through Apple's
+  `/usr/bin/security` so a rebuild doesn't make macOS ask for it again
+  ([ARCHITECTURE.md](../ARCHITECTURE.md) §11). `Boop --headless` and
+  `boopdev` read only the variable, so a run from an agent shell never
+  uses the owner's key. The Keychain is
   read off the app's event queue and the main thread the first time it's
   needed, since a Keychain prompt would stall both. Without a key no
   event wakes the brain and Boop does only its rule reactions, which is

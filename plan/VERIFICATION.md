@@ -38,8 +38,7 @@ starts, so a typo can't launch the menu-bar app or run the whole eval.
 
 | Make target | What it does |
 | --- | --- |
-| `make build` | Builds the Mac app, `boop-hook` and `boopdev` in one `swift build`, then runs `make sign` |
-| `make sign` | Re-signs `Boop` with the "Boop Dev" code-signing certificate (or `SIGN_IDENTITY`) when the login keychain has one, so the Keychain keeps trusting the app across rebuilds and stops asking for the Jev key. Otherwise the build stays ad-hoc signed. The owner makes the certificate once in Keychain Access → Certificate Assistant → Create a Certificate…, type Code Signing |
+| `make build` | Builds the Mac app, `boop-hook` and `boopdev` in one `swift build` |
 | `make test` | Swift unit tests, the eval runner with a scripted brain included, through the XCTest shim (`python3 app/tools/test.py`), since there's no Xcode |
 | `make eval` | The harness eval scenarios against Jev, 3 runs each (L5, [EVALS.md](EVALS.md)); needs `BOOP_JEV_KEY` and fails without it |
 | `make run` / `make debug` | The Mac app with Bluetooth, for the owner; `debug` adds `--debug` |

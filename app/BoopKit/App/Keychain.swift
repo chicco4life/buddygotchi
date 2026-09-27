@@ -1,10 +1,16 @@
 import Foundation
-import Security
 
-/// API keys for the brains that need one (HARNESS.md §6), kept in the login
-/// Keychain and nowhere else. One entry per service. Both calls can block
-/// while macOS asks for access, so they never run on the main thread or on
-/// the runtime's `home` queue.
+/// API keys for the brains that need one (HARNESS.md §7), kept in the login
+/// Keychain and nowhere else. One entry per service.
+///
+/// Boop reads and writes the entry through Apple's `/usr/bin/security`, not
+/// the Security framework. The Keychain ties an entry to the program that
+/// made it, and without an Apple-issued certificate it knows Boop only by
+/// the exact build, so every rebuild asked for the key again. `security`
+/// stays the same from build to build. The catch is that any program
+/// running as the owner can read the entry that way without a prompt
+/// (ARCHITECTURE.md §11). Both calls can block while macOS asks for access,
+/// so they never run on the main thread or on the runtime's `home` queue.
 public enum Keychain {
     public enum Account: String, Sendable {
         case jev
@@ -12,26 +18,47 @@ public enum Keychain {
 
     static let service = "com.boopcomputer.boop"
 
-    public static func key(_ account: Account) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-            kSecAttrAccount as String: account.rawValue, kSecReturnData as String: true,
-        ]
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+    public static func key(_ account: Account, security: SecurityTool = .system) -> String? {
+        let found = security.run(["find-generic-password", "-s", service, "-a", account.rawValue, "-w"], nil)
+        guard found.status == 0 else { return nil }
+        let key = found.output.trimmingCharacters(in: .newlines)
+        return key.isEmpty ? nil : key
     }
 
+    /// Replaces the entry, or removes it when `key` is nil or empty. The key
+    /// reaches `security` hex-encoded on its stdin, never in its arguments,
+    /// which any process can see. True when the Keychain now holds `key`.
     @discardableResult
-    public static func setKey(_ key: String?, for account: Account) -> Bool {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-            kSecAttrAccount as String: account.rawValue,
-        ]
-        SecItemDelete(query as CFDictionary)
+    public static func setKey(_ key: String?, for account: Account, security: SecurityTool = .system) -> Bool {
+        _ = security.run(["delete-generic-password", "-s", service, "-a", account.rawValue], nil)
         guard let key, !key.isEmpty else { return true }
-        var add = query
-        add[kSecValueData as String] = Data(key.utf8)
-        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+        let hex = key.utf8.map { String(format: "%02x", $0) }.joined()
+        _ = security.run(["-i"], "add-generic-password -s \(service) -a \(account.rawValue) -X \(hex)\n")
+        // Read it back rather than trust the exit status of `security -i`.
+        return Self.key(account, security: security) == key
+    }
+}
+
+/// Runs `/usr/bin/security` with these arguments and this stdin, and
+/// returns its exit status and what it printed. Tests pass their own.
+public struct SecurityTool: Sendable {
+    var run: @Sendable (_ arguments: [String], _ input: String?) -> (status: Int32, output: String)
+
+    public static let system = SecurityTool { arguments, input in
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = arguments
+        let stdin = Pipe(), stdout = Pipe()
+        // Into the pipe before `security` starts: a few hundred bytes fit
+        // its buffer, and nothing is written after it could have exited.
+        if let input { stdin.fileHandleForWriting.write(Data(input.utf8)) }
+        try? stdin.fileHandleForWriting.close()
+        process.standardInput = stdin
+        process.standardOutput = stdout
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { return (-1, "") }
+        let output = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return (process.terminationStatus, String(decoding: output, as: UTF8.self))
     }
 }

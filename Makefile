@@ -1,5 +1,5 @@
 # Boop v1. Run from the repo root. See README.md and plan/VERIFICATION.md.
-.PHONY: build sign run debug test eval tools fw flash sim fw-test e2e tools-test clean
+.PHONY: build run debug test eval tools fw flash sim fw-test e2e tools-test clean
 
 PIO := firmware/tools/pio.sh
 
@@ -10,19 +10,6 @@ PIO := firmware/tools/pio.sh
 build:
 	python3 app/tools/gen-test-runner.py
 	cd app && swift build
-	@$(MAKE) --no-print-directory sign
-
-# Re-signs the Mac app with the owner's self-signed "Boop Dev" certificate
-# when the login keychain has one. An ad-hoc signature changes with every
-# build, so the Keychain would ask for the Jev key again after each rebuild;
-# a certificate gives the app one identity it can remember. Without the
-# certificate the build stays ad-hoc signed. Set SIGN_IDENTITY to use another.
-SIGN_IDENTITY ?= Boop Dev
-sign:
-	@if security find-identity -p codesigning | grep -q '"$(SIGN_IDENTITY)"'; then \
-		codesign -f -s "$(SIGN_IDENTITY)" --identifier com.boopcomputer.boop app/.build/debug/Boop \
-			&& echo "signed Boop as $(SIGN_IDENTITY)"; \
-	fi
 
 # The Mac app with Bluetooth. The owner runs this, not agents. Builds
 # everything first (the app copies the boop-hook built next to it), then
