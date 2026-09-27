@@ -105,14 +105,13 @@ const char* lookName(Look look) {
   }
 }
 
-Pose lookPose(Look look, int busy) {
+Pose lookPose(Look look) {
   Pose p;
   switch (look) {
     case Look::kIdle:  // gen-2's resting face: open eyes and a short flat mouth
       break;
     case Look::kWorking:
       p.lidTop = 180, p.lookX = -250, p.lookY = 350, p.mouthWide = 700;
-      p.eyeSize = int16_t(busy >= 3 ? 950 : 1000);  // busier, more focused
       break;
     case Look::kAsleep:
       p.open = 0, p.dy = 10, p.mouthWide = 600;

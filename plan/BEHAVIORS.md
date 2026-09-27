@@ -28,8 +28,8 @@ already playing when "needs you" starts is cut short, and no mumble shows.
 | Working | At least one agent working | Lids lowered, looking down at the work, a sweat drop. Every 2.6 s a 0.8 s strain: the eyes squeeze, the mouth tightens and the face dips a block. Blinks every 2–5 s |
 
 The first session wakes Boop, and needs you (§3.2) sits on top of
-whichever state shows. With 3 or more agents busy, Boop strains every
-1.8 s and blinks every 1.2–3.5 s. Awake, the backlight is full (255); it
+whichever state shows, and working looks the same however many agents
+are busy. Awake, the backlight is full (255); it
 eases between levels with the face ([UX.md](UX.md) §2).
 
 **No app** looks asleep, with only the unplugged icon in the strip (§3.4).

@@ -179,8 +179,7 @@ static void test_attention_wins_over_moments() {
 
 // UX.md §2: nothing cuts hard. A change the Mac makes mid-animation starts
 // its blend from exactly the frame that was showing: attention arriving
-// under a cheer (which it ends) or under listening (which it raises), and a
-// working count crossing 3 (the busier pace).
+// under a cheer (which it ends) or under listening (which it raises).
 static void test_changes_mid_motion_blend_from_what_was_showing() {
   struct Case {
     Model from;
@@ -188,12 +187,9 @@ static void test_changes_mid_motion_blend_from_what_was_showing() {
     Model to;
     int raise;  // where the face ends up
   };
-  Model busy3 = base("working");
-  busy3.busy = 3;
   const Case cases[] = {
       {base("working"), Anim::kCheer, attn(), 1000},
       {base("working"), Anim::kListening, attn(), 1000},
-      {base("working"), Anim::kNone, busy3, 0},
   };
   for (const Case& c : cases) {
     for (uint32_t when : {300u, 950u, 2100u}) {
@@ -544,7 +540,7 @@ void checkGaps(const std::vector<uint32_t>& starts, uint32_t from, uint32_t lo, 
 }
 
 // BEHAVIORS.md §2: idle and working life is blinks only, every 2–6 s idle,
-// 2–5 s working (1.2–3.5 s with 3 or more busy). Asleep, as with no app
+// 2–5 s working, however many agents are busy. Asleep, as with no app
 // (§3.4), never blinks.
 static void test_life_is_blinks_at_their_pace() {
   checkGaps(blinkStarts(base("idle"), true, 120000), 0, 2000, 6000);
@@ -552,7 +548,7 @@ static void test_life_is_blinks_at_their_pace() {
   w.busy = 1;
   checkGaps(blinkStarts(w, true, 120000), 0, 2000, 5000);
   w.busy = 3;
-  checkGaps(blinkStarts(w, true, 120000), 0, 1200, 3500);
+  checkGaps(blinkStarts(w, true, 120000), 0, 2000, 5000);
   std::vector<uint32_t> none = blinkStarts(base("idle"), false, 180000);
   TEST_ASSERT_TRUE(none.empty() || none.back() < 30000);  // no app: no blinks after 30 s
 }
@@ -655,7 +651,7 @@ static void test_no_app_at_30s_looks_asleep_and_reconnect_blends_back() {
   r.at(31000 + render::kBlendMs);
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   render::Pose p = r.b.pose(r.t);
-  render::Pose asleep = render::lookPose(render::Look::kAsleep, 0);
+  render::Pose asleep = render::lookPose(render::Look::kAsleep);
   TEST_ASSERT_EQUAL_INT(asleep.open, p.open);
   TEST_ASSERT_TRUE(p.zzz > 0);
   TEST_ASSERT_TRUE(r.b.moving(r.t));  // breathing
@@ -667,7 +663,7 @@ static void test_no_app_at_30s_looks_asleep_and_reconnect_blends_back() {
   TEST_ASSERT_EQUAL(Life::kNone, r.b.life(r.t));
   TEST_ASSERT_TRUE(r.b.pose(r.t) == before);  // from the asleep face, no cut
   TEST_ASSERT_TRUE(r.b.pose(r.t + render::kBlendMs / 2).open > 0);
-  TEST_ASSERT_EQUAL_INT(render::lookPose(render::Look::kIdle, 0).open, r.b.pose(r.t + render::kBlendMs).open);
+  TEST_ASSERT_EQUAL_INT(render::lookPose(render::Look::kIdle).open, r.b.pose(r.t + render::kBlendMs).open);
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t + render::kBlendMs));
 }

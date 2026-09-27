@@ -62,11 +62,11 @@ bool Behaviour::held(uint32_t t) const { return (model_.attn && !noApp(t)) || li
 
 bool Behaviour::sayOn(uint32_t t) const { return say_.say.syllables > 0 && within(t, say_.at, say_.ms); }
 
-// Blinks: every 2–6 s idle, 2–5 s working (1.2–3.5 s with 3+ busy)
+// Blinks: every 2–6 s idle, 2–5 s working
 // (BEHAVIORS.md §2). Asleep, and so with no app, the gap passes unblinked.
 uint32_t Behaviour::lifeGap(Rng& rng) const {
   int lo = 2000, hi = 6000;
-  if (!std::strcmp(model_.base, "working")) lo = model_.busy >= 3 ? 1200 : 2000, hi = model_.busy >= 3 ? 3500 : 5000;
+  if (!std::strcmp(model_.base, "working")) hi = 5000;
   return uint32_t(rng.range(lo, hi));
 }
 
@@ -254,25 +254,23 @@ Behaviour::Source Behaviour::sourceAt(uint32_t t) const {
     s.look = render::Look::kAsleep;
   } else if (!std::strcmp(model_.base, "working")) {
     s.look = render::Look::kWorking;
-    s.busier = model_.busy >= 3;
   }
   return s;
 }
 
 // The look, with its own motion and idle life on top.
 render::Pose Behaviour::basePose(const Source& s, uint32_t t) const {
-  render::Pose p = render::lookPose(s.look, s.busier ? 3 : 1);
+  render::Pose p = render::lookPose(s.look);
   if (s.look == render::Look::kNeedsYou) p.raise = 1000;
   if (s.look == render::Look::kAsleep) {  // slow breathing, and "zzZZ" rising every 2.4 s
     p.dy = int16_t(p.dy + render::bob(t, 4000));
     p.zzz = int16_t(1 + t % 2400 * 999 / 2400);
   }
   if (s.look == render::Look::kWorking) {
-    // Effort: every couple of seconds (more often when busier) Boop strains
+    // Effort: every 2.6 s Boop strains
     // for 0.8 s: the eyes squeeze, the mouth tightens and the face dips. A
     // sweat drop slides down beside the right eye.
-    uint32_t period = s.busier ? 1800 : 2600;
-    int e = envelope(t % period, 800, 150, 250);
+    int e = envelope(t % 2600, 800, 150, 250);
     p.squash = int16_t(p.squash + 240 * e / 1024);
     p.lidTop = int16_t(p.lidTop + 170 * e / 1024);
     p.mouthWide = int16_t(p.mouthWide - (p.mouthWide - 450) * e / 1024);

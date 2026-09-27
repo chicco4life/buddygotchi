@@ -132,12 +132,11 @@ class Behaviour {
     render::Anim anim = render::Anim::kNone;
     uint32_t at = 0;
     render::Look look = render::Look::kIdle;
-    bool busier = false;  // working's faster pace, with 3+ busy
     bool raised = false;  // an animation over needs you sits where its face does
     bool say = false;
     uint32_t sayAt = 0, speakMs = 0, sylMs = 0;  // the mouth follows the syllables
     bool operator==(const Source& o) const {
-      return anim == o.anim && at == o.at && look == o.look && busier == o.busier && raised == o.raised &&
+      return anim == o.anim && at == o.at && look == o.look && raised == o.raised &&
              say == o.say && sayAt == o.sayAt && speakMs == o.speakMs && sylMs == o.sylMs;
     }
   };

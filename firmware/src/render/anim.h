@@ -34,7 +34,7 @@ inline int16_t bob(uint32_t t, uint32_t period) { return int16_t(t % period < pe
 enum class Look : uint8_t { kIdle, kWorking, kAsleep, kNeedsYou };
 const char* lookName(Look look);
 // `busy` is the working count.
-Pose lookPose(Look look, int busy);
+Pose lookPose(Look look);
 
 // The longest blend between two expressions (plan/UX.md §2).
 constexpr uint32_t kBlendMs = 150;

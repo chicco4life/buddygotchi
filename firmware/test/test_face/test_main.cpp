@@ -242,7 +242,7 @@ static void test_a_look_moves_the_whole_eye_with_perspective() {
   TEST_ASSERT_EQUAL_INT(eyeBox(n, false).w() - 6, l.w());
   for (int strain : {0, 240}) {
     for (int size : {1000, 850}) {
-      Pose w = lookPose(Look::kWorking, 1);
+      Pose w = lookPose(Look::kWorking);
       w.squash = int16_t(strain), w.lidTop = 0, w.size = int16_t(size);
       Buf wb = face(w);
       TEST_ASSERT_EQUAL_INT(eyeBox(wb, false).w(), eyeBox(wb, true).w());
@@ -327,7 +327,7 @@ static void test_lids_cut_whole_rows_flat() {
                    p.lidTop = 150, p.dy = -7, p.squash = -120;
                    return p;
                  }()},
-                {"working", lookPose(Look::kWorking, 1)}};
+                {"working", lookPose(Look::kWorking)}};
   for (const Case& c : lidded) {
     Pose q = c.p;
     q.mouthOpen = 0, q.dx = 0, q.dy = 0;
@@ -378,7 +378,7 @@ static void test_a_lid_never_leaves_a_sliver() {
     check(lid, "lid");
     check(squint, "squint");
   }
-  Pose strain = lookPose(Look::kWorking, 1);  // the working strain at its peak
+  Pose strain = lookPose(Look::kWorking);  // the working strain at its peak
   strain.lidTop = int16_t(strain.lidTop + 170), strain.squash = 240;
   check(strain, "strain");
   Buf b = face(strain);  // it takes the top panes off, and keeps the bottom ones
@@ -398,7 +398,7 @@ static void test_a_look_up_keeps_full_panes_and_working_looks_down() {
   Pose up;
   up.lookX = 650, up.lookY = -1000, up.dy = -6, up.squash = 100;
   up.mouthWide = 200;  // narrow, so the mouth, following the look, stays right of the middle
-  Buf n = face(Pose{}), t = face(up), w = face(lookPose(Look::kWorking, 1));
+  Buf n = face(Pose{}), t = face(up), w = face(lookPose(Look::kWorking));
   for (bool right : {false, true}) {
     EyeBox ne = eyeBox(n, right), te = eyeBox(t, right), we = eyeBox(w, right);
     TEST_ASSERT_TRUE(ne.y0 - te.y0 >= 15);
@@ -544,7 +544,7 @@ static void test_a_tap_is_a_squint_and_a_heart() {
 
 static void test_asleep_zzz_climbs_one_letter_at_a_time() {
   // Asleep, "zzZZ" climbs up from the right eye a letter at a time (UX.md §2).
-  Pose p = lookPose(Look::kAsleep, 0);
+  Pose p = lookPose(Look::kAsleep);
   auto letters = [](const Buf& b) {  // lit pixels up and to the right of the right eye
     int n = 0;
     for (int y = 0; y < kFaceCy; ++y) {
@@ -582,7 +582,7 @@ static void test_every_sprite_is_on_the_grid_and_on_screen() {
       }
     }
   };
-  Pose sweat = lookPose(Look::kWorking, 1), sleep = lookPose(Look::kAsleep, 0), tap = animPose(Anim::kWiggle, 0);
+  Pose sweat = lookPose(Look::kWorking), sleep = lookPose(Look::kAsleep), tap = animPose(Anim::kWiggle, 0);
   sweat.sweat = 500, sleep.zzz = 999, tap.dx = 0;
   for (const Pose& p : {sweat, sleep, tap}) onGrid(face(p));
   for (int raise : {0, 1000}) {
@@ -602,7 +602,7 @@ static void test_every_sprite_is_on_the_grid_and_on_screen() {
 
 static void test_a_sweat_drop_sits_by_the_right_eye_and_slides_down() {
   // Working, a sweat drop slides down beside the right eye (UX.md §2).
-  Pose p = lookPose(Look::kWorking, 1);
+  Pose p = lookPose(Look::kWorking);
   TEST_ASSERT_EQUAL_INT(0, inkSpot(face(p), kInkSky).n);
   p.sweat = 1;
   Buf top = face(p);
@@ -633,8 +633,8 @@ static void test_needs_you_leans_in_without_shrinking() {
   // the needs-you face, which leans in, keeps the idle face's eyes, and
   // its mouth stays clear of the bubble.
   Buf idle, needs;
-  drawFaceScreen(idle.c, lookPose(Look::kIdle, 0), nullptr, Strip{});
-  Pose n = lookPose(Look::kNeedsYou, 0);
+  drawFaceScreen(idle.c, lookPose(Look::kIdle), nullptr, Strip{});
+  Pose n = lookPose(Look::kNeedsYou);
   n.raise = 1000;
   Attention a;
   a.agent = "codex", a.project = "landing";
@@ -649,7 +649,7 @@ static void test_needs_you_leans_in_without_shrinking() {
 static void test_the_heart_and_the_drop_never_overlap() {
   // Working into a cheer, and a cheer cut short by listening, blend a drop
   // out and a heart in: the drop goes once the heart shows (UX.md §2).
-  Pose working = lookPose(Look::kWorking, 1), cheer = animPose(Anim::kCheer, 1500);
+  Pose working = lookPose(Look::kWorking), cheer = animPose(Anim::kCheer, 1500);
   working.sweat = 300;
   bool sawDrop = false, sawHeart = false;
   for (int t = 0; t <= 1024; t += 16) {
