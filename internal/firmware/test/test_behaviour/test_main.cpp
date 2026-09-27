@@ -19,6 +19,8 @@ using app::Model;
 using app::MomentIn;
 using app::Screen;
 using render::Anim;
+using render::SceneShow;
+using render::SceneState;
 
 namespace {
 
@@ -89,32 +91,35 @@ static void test_needs_you_chirps_once_and_stays_amber() {
   TEST_ASSERT_EQUAL_STRING("chirp@1000", r.sfx().c_str());
   TEST_ASSERT_EQUAL_HEX32(0x805800, r.b.led(r.t));
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t));
-  r.at(2000);
-  const render::Pose first = r.b.pose(r.t);
+  r.at(3000);  // the design's lean toward you has played out (1.6 s)
+  SceneShow first = r.b.show(r.t);
+  TEST_ASSERT_TRUE(first.state == SceneState::kNeedsYou);
+  first.eyesShut = false;
   for (uint32_t t = 10000; t <= 300000; t += 10000) {
     r.at(t);
     r.state(attn());  // the same request: no second chirp
     TEST_ASSERT_EQUAL_STRING("chirp@1000", r.sfx().c_str());
     TEST_ASSERT_EQUAL_HEX32(0x805800, r.b.led(t));
     TEST_ASSERT_EQUAL_HEX32(0x805800, r.b.led(t + 5000));
-    TEST_ASSERT_EQUAL(first.size, r.b.pose(t).size);  // the lean doesn't grow
-    TEST_ASSERT_EQUAL(first.dy, r.b.pose(t).dy);
+    SceneShow now = r.b.show(t);
+    now.eyesShut = false;  // blinks go on
+    TEST_ASSERT_TRUE(render::sceneFrame(first) == render::sceneFrame(now));  // nothing else moves
   }
   // A different request chirps once more.
   r.state(attn("other"));
   TEST_ASSERT_EQUAL_STRING("chirp@300000", r.sfx().c_str());
 }
 
-// BEHAVIORS.md §3.2: a tap while something needs you is the press squash
+// BEHAVIORS.md §3.2: a tap while something needs you is the press dip
 // only, with no moment, and it stays amber.
-static void test_tap_during_needs_you_is_only_the_squash_and_stays_amber() {
+static void test_tap_during_needs_you_is_only_the_dip_and_stays_amber() {
   Rig r;
   r.state(attn());
   r.at(10000);
-  const render::Pose before = r.b.pose(r.t);
+  const SceneShow before = r.b.show(r.t);
   r.b.pressDown(r.t);
   r.at(10100);
-  TEST_ASSERT_TRUE(r.b.pose(r.t).squash > before.squash);  // the press shows
+  TEST_ASSERT_EQUAL_INT(before.dy + Behaviour::kPressPx, r.b.show(r.t).dy);  // the press shows
   r.b.pressUp(r.t);
   r.b.tap(r.t);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
@@ -126,9 +131,9 @@ static void test_tap_during_needs_you_is_only_the_squash_and_stays_amber() {
   TEST_ASSERT_EQUAL_STRING("chirp@0", r.sfx().c_str());
 }
 
-// BEHAVIORS.md §3.2: answered on the Mac, the face blends back to the
+// BEHAVIORS.md §3.2: answered on the Mac, the face blinks back to the
 // base look with no moment.
-static void test_answering_on_the_mac_blends_back() {
+static void test_answering_on_the_mac_blinks_back() {
   Rig r;
   r.state(attn());
   r.at(5000);
@@ -137,7 +142,8 @@ static void test_answering_on_the_mac_blends_back() {
   TEST_ASSERT_EQUAL(Screen::kFace, r.b.screen(r.t));
   TEST_ASSERT_EQUAL_HEX32(0, r.b.led(r.t));
   TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
-  TEST_ASSERT_TRUE(r.b.moving(r.t));  // blending
+  TEST_ASSERT_TRUE(r.b.show(r.t).eyesShut);  // a blink hides the switch
+  TEST_ASSERT_TRUE(r.b.show(r.t).state == SceneState::kWorking);
   TEST_ASSERT_EQUAL(0u, r.b.momentSeq());
 }
 
@@ -171,41 +177,34 @@ static void test_attention_wins_over_moments() {
   TEST_ASSERT_NULL(m.b.mumble(m.t));
 }
 
-// UX.md §2: nothing cuts hard. A change the Mac makes mid-animation starts
-// its blend from exactly the frame that was showing: attention arriving
-// under a cheer (which it ends) or under a mumble (which it ends too).
-static void test_changes_mid_motion_blend_from_what_was_showing() {
-  struct Case {
-    Model from;
-    Anim anim;
-    Model to;
-    int raise;  // where the face ends up
-  };
-  const Case cases[] = {
-      {base("working"), Anim::kCheer, attn(), 1000},
-      {base("idle"), Anim::kWiggle, attn(), 1000},
-  };
-  for (const Case& c : cases) {
-    for (uint32_t when : {300u, 950u, 2100u}) {
+// UX.md §2: nothing cuts hard. Attention arriving under a cheer (which it
+// ends) or a wiggle shows the needs-you design behind a blink of
+// kBlendMs, and the design's clock starts at the change.
+static void test_changes_mid_motion_blink_into_the_new_design() {
+  const Anim anims[] = {Anim::kCheer, Anim::kWiggle};
+  const char* const bases[] = {"working", "idle"};
+  for (int i = 0; i < 2; ++i) {
+    for (uint32_t when : {300u, 650u}) {
       Rig r;
-      r.state(c.from);
-      if (c.anim != Anim::kNone) r.moment(c.anim);
+      r.state(base(bases[i]));
+      r.moment(anims[i]);
       r.at(when);
-      render::Pose before = r.b.pose(r.t);
-      r.state(c.to);
-      TEST_ASSERT_TRUE(before == r.b.pose(r.t));  // the same frame at the change
-      render::Pose half = r.b.pose(r.t + render::kBlendMs / 2);
-      TEST_ASSERT_TRUE(half.raise >= before.raise && half.raise <= c.raise);
+      r.state(attn());
+      SceneShow s = r.b.show(r.t);
+      TEST_ASSERT_TRUE(s.state == SceneState::kNeedsYou);
+      TEST_ASSERT_TRUE(s.eyesShut);
+      TEST_ASSERT_EQUAL_UINT32(0, s.t);
+      TEST_ASSERT_TRUE(r.b.show(r.t + render::kBlendMs - 1).eyesShut);
       r.at(r.t + render::kBlendMs);
-      TEST_ASSERT_EQUAL(c.raise, r.b.pose(r.t).raise);
+      TEST_ASSERT_TRUE(!r.b.show(r.t).eyesShut || r.b.life(r.t) == Life::kBlink);
     }
   }
 }
 
 // UX.md §2, every way round: whatever state Boop is in, whatever is
-// playing, and whatever arrives (any message or input), the frame just
-// after the change is the frame just before it. Motion only ever starts
-// from what was showing.
+// playing, and whatever arrives (any message or input), the design just
+// after the change is the design just before it, at the same moment of
+// its clock, or else the eyes are shut to hide the switch.
 static void test_no_change_ever_cuts_hard() {
   Model busy3 = base("working");
   busy3.busy = 3;
@@ -236,7 +235,7 @@ static void test_no_change_ever_cuts_hard() {
             default: break;
           }
           r.at(r.t + when);
-          render::Pose before = r.b.pose(r.t);
+          SceneShow before = r.b.show(r.t);
           if (event < 7) {
             r.state(states[event]);
           } else {
@@ -247,8 +246,9 @@ static void test_no_change_ever_cuts_hard() {
               default: r.moment(Anim::kWiggle); break;
             }
           }
-          render::Pose after = r.b.pose(r.t);
-          if (!(before == after)) {
+          SceneShow after = r.b.show(r.t);
+          bool same = before.state == after.state && before.mood == after.mood && before.t == after.t;
+          if (!same && !after.eyesShut) {
             char why[96];
             std::snprintf(why, sizeof(why), "from state %d, playing %d, event %d at +%u ms", from, playing, event,
                           unsigned(when));
@@ -265,7 +265,7 @@ static void test_no_change_ever_cuts_hard() {
 // BEHAVIORS.md §3.4: no app holds however long the Mac stays away, even
 // past the 24.9 days where the clock's differences wrap, and whatever had
 // finished stays finished when they come round again at 49.7 days: the
-// asleep face, no old mumble, press squish or backlight fade.
+// no-app design, no old mumble, press dip or backlight fade.
 static void test_no_app_holds_for_weeks() {
   Rig r;
   r.state(base("working"));
@@ -278,8 +278,8 @@ static void test_no_app_holds_for_weeks() {
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
   const uint32_t start = Behaviour::kNoAppMs + 200;
   r.at(start);
-  const render::Pose asleep = r.b.pose(start);
-  TEST_ASSERT_EQUAL_INT(0, asleep.open);
+  const SceneShow noApp = r.b.show(start);
+  TEST_ASSERT_TRUE(noApp.state == SceneState::kNoApp);
   // The clock moves on a minute at a time, as the ticks would take it.
   uint64_t now = start;
   auto walk = [&](uint64_t to) {
@@ -287,16 +287,20 @@ static void test_no_app_holds_for_weeks() {
     now = to;
     r.at(uint32_t(now));
   };
-  // The asleep face repeats every 12 s (breathing 4 s, zzZZ 2.4 s).
-  walk(start + 12000ull * 178957);  // 2^31 ms and a little after the blend to asleep
+  // The no-app design repeats every 8 s, its breath.
+  walk(start + 8000ull * 268436);  // 2^31 ms and a little after the switch to no app
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
-  TEST_ASSERT_TRUE(asleep == r.b.pose(r.t));
+  TEST_ASSERT_TRUE(render::sceneFrame(noApp) == render::sceneFrame(r.b.show(r.t)));
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   walk(0x100000000ull + 1150);  // 2^32 ms after the release, 150 after the mumble started
   TEST_ASSERT_NULL(r.b.mumble(r.t));
-  // No mumble raising the face: only breathing's bob, at this moment's phase.
-  TEST_ASSERT_EQUAL_INT(asleep.squash, r.b.pose(r.t).squash);
-  TEST_ASSERT_EQUAL_INT(asleep.dy - render::bob(start, 4000) + render::bob(r.t, 4000), r.b.pose(r.t).dy);
+  // No mumble's bubble or mouth, no press, no blink: only the design.
+  SceneShow s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kNoApp);
+  TEST_ASSERT_FALSE(s.hideProp);
+  TEST_ASSERT_FALSE(s.mouthOpen);
+  TEST_ASSERT_FALSE(s.eyesShut);
+  TEST_ASSERT_EQUAL_INT(0, s.dy);
   walk(0x100000000ull + Behaviour::kNoAppMs + 50);  // 2^32 ms after the dimming began
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
@@ -356,9 +360,12 @@ static void test_mumble_moves_the_mouth() {
   TEST_ASSERT_EQUAL_STRING("done", r.b.mumble(r.t)->word);
   TEST_ASSERT_TRUE(r.b.speaking(599));  // (4 syllables + 2 for the word) × 100 ms
   TEST_ASSERT_FALSE(r.b.speaking(600));
-  // Mid-syllable the mouth is open; between syllables it nearly closes.
-  TEST_ASSERT_TRUE(r.b.pose(50).mouthOpen > r.b.pose(0).mouthOpen);
-  TEST_ASSERT_TRUE(r.b.pose(150).mouthOpen > 500);
+  // The mouth is an "o" for the first half of each syllable, and shut
+  // for the second, until the line is said.
+  TEST_ASSERT_TRUE(r.b.show(20).mouthOpen);
+  TEST_ASSERT_FALSE(r.b.show(60).mouthOpen);
+  TEST_ASSERT_TRUE(r.b.show(120).mouthOpen);
+  TEST_ASSERT_FALSE(r.b.show(620).mouthOpen);
 }
 
 // PROTOCOL.md §3, BEHAVIORS.md §5: a mumble on its own plays over whatever
@@ -373,13 +380,14 @@ static void test_a_mumble_alone_plays_over_the_face() {
   TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
   TEST_ASSERT_TRUE(r.b.speaking(1399));
   TEST_ASSERT_FALSE(r.b.speaking(1400));
-  TEST_ASSERT_TRUE(r.b.pose(1050).mouthOpen > r.b.pose(1000).mouthOpen);
-  TEST_ASSERT_TRUE(r.b.moving(1500));
+  TEST_ASSERT_TRUE(r.b.show(1020).mouthOpen);
+  TEST_ASSERT_TRUE(r.b.show(1020).hideProp);  // the bubble has the keyboard's room
+  TEST_ASSERT_TRUE(r.b.show(1500).state == SceneState::kWorking);  // the face goes on as it was
   r.at(1000 + 400 + Behaviour::kBubbleReadMs - 1);
   TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
   r.at(1000 + 400 + Behaviour::kBubbleReadMs);
   TEST_ASSERT_NULL(r.b.mumble(r.t));
-  TEST_ASSERT_EQUAL(0, r.b.pose(r.t + render::kBlendMs).raise);  // back down once the bubble goes
+  TEST_ASSERT_FALSE(r.b.show(r.t).hideProp);  // the keyboard is back once the bubble goes
 
   // Over a cheer, the cheer keeps its own timing.
   r.at(10000);
@@ -414,7 +422,7 @@ std::vector<uint32_t> blinkStarts(const Model& m, bool mac, uint32_t to) {
     if (mac && t % 10000 == 0) r.at(t), r.state(m);
     r.at(t);
     Life l = r.b.life(t);
-    if (l != Life::kNone) TEST_ASSERT_TRUE(r.b.moving(t));
+    if (l != Life::kNone) TEST_ASSERT_TRUE(r.b.show(t).eyesShut);
     if (l != Life::kNone && prev == Life::kNone) starts.push_back(t);
     TEST_ASSERT_TRUE(l == Life::kNone || l == Life::kBlink);
     prev = l;
@@ -456,73 +464,96 @@ static void test_asleep_breathes_and_never_blinks() {
     r.at(t);
     TEST_ASSERT_EQUAL(Life::kNone, r.b.life(t));
   }
-  TEST_ASSERT_TRUE(r.b.moving(r.t));
-  // Breathing is a one-block bob every 4 s, not a size pulse (BEHAVIORS.md §2).
-  TEST_ASSERT_EQUAL_INT(r.b.pose(3000).dy - render::kBobPx, r.b.pose(1000).dy);
-  TEST_ASSERT_EQUAL_INT(r.b.pose(1000).size, r.b.pose(3000).size);
+  // Breathing is the asleep design's own 8 s breath (BEHAVIORS.md §2).
+  TEST_ASSERT_TRUE(r.b.show(1000).state == SceneState::kAsleep);
+  TEST_ASSERT_TRUE(render::sceneFrame(r.b.show(1000)) != render::sceneFrame(r.b.show(3000)));
+  TEST_ASSERT_TRUE(render::sceneFrame(r.b.show(1000)) == render::sceneFrame(r.b.show(9000)));
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
 }
 
-// BEHAVIORS.md §2: working's strain and sweat drop move all the time, so
-// the face counts as moving and the board keeps redrawing it, as asleep;
-// idle only moves to blink.
-static void test_working_keeps_moving_and_idle_rests() {
-  Model w = base("working");
-  for (int busy : {1, 3}) {
-    w.busy = busy;
-    Rig r;
-    r.state(w);
-    for (uint32_t t = 1000; t <= 20000; t += 7) {
-      if (t % 10000 < 7) r.state(w);
-      r.at(t);
-      TEST_ASSERT_TRUE(r.b.moving(t));
+// BEHAVIORS.md §2, UX.md §2: each look shows its design in the mood the Mac
+// sent. A cheer shows the task_complete design on its own clock; the mood
+// changing mid-cheer blinks to the new mood's design and keeps that clock.
+static void test_each_look_shows_its_design_in_the_mood() {
+  struct Case {
+    const char* base;
+    bool attn;
+    SceneState state;
+  };
+  const Case cases[] = {{"idle", false, SceneState::kIdle},
+                        {"working", false, SceneState::kWorking},
+                        {"asleep", false, SceneState::kAsleep},
+                        {"working", true, SceneState::kNeedsYou}};
+  for (const Case& c : cases) {
+    for (render::Mood mood : {render::Mood::kHappy, render::Mood::kGrumpy, render::Mood::kSad}) {
+      Rig r;
+      Model m = c.attn ? attn() : base(c.base);
+      m.mood = mood;
+      r.state(m);
+      r.at(500);
+      SceneShow s = r.b.show(r.t);
+      TEST_ASSERT_TRUE(s.state == c.state);
+      TEST_ASSERT_TRUE(s.mood == mood);
+      TEST_ASSERT_EQUAL_UINT32(500, s.t);
     }
   }
-  Rig i;
-  i.state(base("idle"));
-  int resting = 0;
-  for (uint32_t t = 1000; t <= 20000; t += 7) {
-    if (t % 10000 < 7) i.state(base("idle"));
-    i.at(t);
-    resting += !i.b.moving(t);
-  }
-  TEST_ASSERT_TRUE(resting > 2000);
+  Rig r;
+  Model m = base("working");
+  m.mood = render::Mood::kDetermined;
+  r.state(m);
+  r.at(1000);
+  r.moment(Anim::kCheer);
+  r.at(1500);
+  SceneShow s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kTaskComplete);
+  TEST_ASSERT_EQUAL_UINT32(500, s.t);
+  m.mood = render::Mood::kProud;
+  r.state(m);
+  s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kTaskComplete);
+  TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
+  TEST_ASSERT_EQUAL_UINT32(500, s.t);
+  TEST_ASSERT_TRUE(s.eyesShut);
+  r.at(3000);  // the cheer is over: back to working, still proud
+  s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kWorking);
+  TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
 }
 
-static void test_working_strains_and_sweats_and_asleep_says_zzz() {
-  // Effort: over one 2.6 s cycle the working face strains for part of it
-  // and rests the rest, with a sweat drop the whole time (BEHAVIORS.md §2).
+// BEHAVIORS.md §5: a tap's wiggle keeps the look's design and its clock,
+// with no blink; the face sways a few pixels and a heart pops in, small
+// then full size, for the 0.7 s it plays.
+static void test_a_wiggle_sways_over_the_look() {
   Rig r;
   r.state(base("working"));
-  int strained = 0, resting = 0;
-  for (uint32_t t = 3000; t < 3000 + 2600; t += 10) {
-    r.at(t);
-    render::Pose p = r.b.pose(t);
-    TEST_ASSERT_TRUE(p.sweat > 0);
-    strained += p.squash >= 200;
-    resting += p.squash == 0;
+  r.at(1000);
+  const SceneShow before = r.b.show(r.t);
+  r.b.tap(r.t);
+  SceneShow s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kWorking);
+  TEST_ASSERT_EQUAL_UINT32(before.t, s.t);
+  TEST_ASSERT_FALSE(s.eyesShut);
+  TEST_ASSERT_EQUAL(1, s.heart);
+  int lo = 0, hi = 0;
+  for (uint32_t t = 1000; t < 1700; ++t) {
+    s = r.b.show(t);
+    if (s.dx < lo) lo = s.dx;
+    if (s.dx > hi) hi = s.dx;
+    if (t >= 1100) TEST_ASSERT_EQUAL(2, s.heart);
   }
-  TEST_ASSERT_TRUE(strained >= 30);  // 0.3 s or more at full strain
-  TEST_ASSERT_TRUE(resting >= 120);  // and most of the cycle at rest
-  // Asleep, the "zzZZ" runs the whole time.
-  Rig s;
-  s.state(base("asleep"));
-  for (uint32_t t = 1000; t < 6000; t += 50) {
-    s.at(t);
-    TEST_ASSERT_TRUE(s.b.pose(t).zzz > 0);
-  }
-  // Idle has neither.
-  Rig i;
-  i.state(base("idle"));
-  i.at(3000);
-  TEST_ASSERT_EQUAL_INT(0, i.b.pose(3000).sweat);
-  TEST_ASSERT_EQUAL_INT(0, i.b.pose(3000).zzz);
+  TEST_ASSERT_TRUE(lo <= -2 && lo >= -3);
+  TEST_ASSERT_TRUE(hi >= 2 && hi <= 3);
+  r.at(1700);
+  s = r.b.show(r.t);
+  TEST_ASSERT_EQUAL(0, s.heart);
+  TEST_ASSERT_EQUAL(0, s.dx);
+  TEST_ASSERT_FALSE(s.eyesShut && r.b.life(r.t) == Life::kNone);  // no blink when it ends either
 }
 
-// BEHAVIORS.md §3.4: with no state for 30 s the device shows the asleep
-// look (breathing, zzZZ, backlight 60), with the unplugged icon in the
-// strip; on reconnect the face blends to whatever the next state says.
-static void test_no_app_at_30s_looks_asleep_and_reconnect_blends_back() {
+// BEHAVIORS.md §3.4: with no state for 30 s the device shows the no-app
+// design (backlight 60), with the unplugged icon in the strip; on
+// reconnect the face blinks into whatever the next state says.
+static void test_no_app_at_30s_and_reconnect_blinks_back() {
   Rig r;
   r.at(1000);
   Model m = attn();  // even a stale "needs you" gives way
@@ -533,8 +564,8 @@ static void test_no_app_at_30s_looks_asleep_and_reconnect_blends_back() {
   TEST_ASSERT_EQUAL(1, r.b.strip(r.t).wait);
   r.at(31000);
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
-  TEST_ASSERT_EQUAL_STRING("asleep", r.b.faceName(r.t));
-  TEST_ASSERT_EQUAL(255, r.b.backlight(r.t));  // dimming with the face's blend
+  TEST_ASSERT_EQUAL_STRING("no_app", r.b.faceName(r.t));
+  TEST_ASSERT_EQUAL(255, r.b.backlight(r.t));  // dimming over kBlendMs
   TEST_ASSERT_TRUE(r.b.backlight(r.t + render::kBlendMs / 2) < 255);
   TEST_ASSERT_EQUAL_HEX32(0, r.b.led(r.t));
   // The strip keeps only the unplugged icon: the counts are stale.
@@ -544,20 +575,18 @@ static void test_no_app_at_30s_looks_asleep_and_reconnect_blends_back() {
   TEST_ASSERT_EQUAL(0, strip.busy);
   r.at(31000 + render::kBlendMs);
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
-  render::Pose p = r.b.pose(r.t);
-  render::Pose asleep = render::lookPose(render::Look::kAsleep);
-  TEST_ASSERT_EQUAL_INT(asleep.open, p.open);
-  TEST_ASSERT_TRUE(p.zzz > 0);
-  TEST_ASSERT_TRUE(r.b.moving(r.t));  // breathing
+  SceneShow s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kNoApp);
+  TEST_ASSERT_FALSE(s.eyesShut);
   r.at(40000);
-  const render::Pose before = r.b.pose(r.t);
   r.state(base("idle"));
   r.state(base("idle"));
   TEST_ASSERT_EQUAL(Screen::kFace, r.b.screen(r.t));
   TEST_ASSERT_EQUAL(Life::kNone, r.b.life(r.t));
-  TEST_ASSERT_TRUE(r.b.pose(r.t) == before);  // from the asleep face, no cut
-  TEST_ASSERT_TRUE(r.b.pose(r.t + render::kBlendMs / 2).open > 0);
-  TEST_ASSERT_EQUAL_INT(render::lookPose(render::Look::kIdle).open, r.b.pose(r.t + render::kBlendMs).open);
+  s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kIdle);
+  TEST_ASSERT_TRUE(s.eyesShut);  // a blink hides the switch
+  TEST_ASSERT_FALSE(r.b.show(r.t + render::kBlendMs).eyesShut);
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t + render::kBlendMs));
 }
@@ -566,10 +595,10 @@ static void test_press_shows_within_20ms() {
   Rig r;
   r.state(base("idle"));
   r.at(500);
-  render::Pose before = r.b.pose(500);
+  const SceneShow before = r.b.show(500);
   r.b.pressDown(500);
-  TEST_ASSERT_TRUE(r.b.pose(516) != before);
-  TEST_ASSERT_TRUE(r.b.moving(516));
+  TEST_ASSERT_EQUAL_INT(before.dy + Behaviour::kPressPx, r.b.show(500).dy);  // at once
+  TEST_ASSERT_TRUE(r.b.pressEasing(516));  // and the redraw cap lets it through
 }
 
 // ---- Through the device core: gestures and the input messages ------------
@@ -666,10 +695,10 @@ static void test_a_long_touch_during_needs_you_is_a_tap() {
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_needs_you_chirps_once_and_stays_amber);
-  RUN_TEST(test_tap_during_needs_you_is_only_the_squash_and_stays_amber);
-  RUN_TEST(test_answering_on_the_mac_blends_back);
+  RUN_TEST(test_tap_during_needs_you_is_only_the_dip_and_stays_amber);
+  RUN_TEST(test_answering_on_the_mac_blinks_back);
   RUN_TEST(test_attention_wins_over_moments);
-  RUN_TEST(test_changes_mid_motion_blend_from_what_was_showing);
+  RUN_TEST(test_changes_mid_motion_blink_into_the_new_design);
   RUN_TEST(test_no_app_holds_for_weeks);
   RUN_TEST(test_no_change_ever_cuts_hard);
   RUN_TEST(test_face_name_is_the_moment_or_the_look);
@@ -678,9 +707,9 @@ int main() {
   RUN_TEST(test_a_mumble_alone_plays_over_the_face);
   RUN_TEST(test_life_is_blinks_at_their_pace);
   RUN_TEST(test_asleep_breathes_and_never_blinks);
-  RUN_TEST(test_working_strains_and_sweats_and_asleep_says_zzz);
-  RUN_TEST(test_working_keeps_moving_and_idle_rests);
-  RUN_TEST(test_no_app_at_30s_looks_asleep_and_reconnect_blends_back);
+  RUN_TEST(test_a_wiggle_sways_over_the_look);
+  RUN_TEST(test_each_look_shows_its_design_in_the_mood);
+  RUN_TEST(test_no_app_at_30s_and_reconnect_blinks_back);
   RUN_TEST(test_press_shows_within_20ms);
   RUN_TEST(test_gestures_send_the_right_inputs);
   RUN_TEST(test_a_long_touch_during_needs_you_is_a_tap);

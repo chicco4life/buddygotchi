@@ -58,7 +58,7 @@ with less personality.
 
 | Loop | Runs on | Speed | Does | Never does |
 | --- | --- | --- | --- | --- |
-| Reflex | Device | < 20 ms | Tap feedback, blinking, blending faces, the needs-you chirp and light | Wait for the Mac |
+| Reflex | Device | < 20 ms | Tap feedback, blinking, playing the face designs, the needs-you chirp and light | Wait for the Mac |
 | Reactive | Core → actions | < 200 ms p95 | Agent event → rule → action → device | Wait for the brain |
 | Deliberative | Harness + brain → actions | 1–5 s, in the background | React with character, and change Boop's mood | Block the reactive loop |
 
@@ -353,3 +353,4 @@ log up to 2026-09-27 is in
 | 2026-09-27 | Seven moods, the mood SVGs' set: happy (formerly cheerful), excited, proud, curious, determined, grumpy and sad. The 10-minute hold between mood changes is removed | The device's faces come in these seven. The hold was an arbitrary rule; the steering says moods last and when each one leaves, and the evals check it | [harness/DECISIONS.md](harness/DECISIONS.md) §2.3, §4 |
 | 2026-09-27 | Every `state` carries the mood, and the device keeps it; a missing or unknown one reads as happy | The mood picks the set of faces the device draws in. As part of the snapshot, a lost update fixes itself with the next `state`, and an older device ignores the field | [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-27 | The device draws the mood designs exactly: `facegen` turns their SVGs into rectangles and step-wise timings in `firmware/assets/faces.h`, on whole pixels rather than the old 3 px blocks | The designs are the look. Exact pixels can be checked (Chrome against facegen at `make faces`, facegen against the device at `make fw-test`), and a revised design is a rerun | [DEVICE.md](DEVICE.md) §6, [evidence](evidence/2026-09-27-mood-faces/README.md) |
+| 2026-09-27 | The face switches designs behind a 150 ms blink instead of easing between poses; who needs you moves from the bubble into the strip; the bubble takes the props' band and the face stays put; a tap keeps its sway and heart. The old face's sweat drop, strain, climbing "zzZZ" and needs-you lean-and-raise go with it | The designs step in whole pixels and can't be eased into one another, and a blink reads as Boop's own. The "needs you" sign sits where the bubble was, and the strip already carried the amber count | [UX.md](UX.md) §2–3 |

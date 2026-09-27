@@ -137,8 +137,10 @@ class Device {
   void hush();
   void followSound(uint32_t t);
   Screen screenAt(uint32_t t) const { return pattern_ ? Screen::kPattern : b_.screen(t); }
-  // The face on screen is mid-motion at t, so the next time step may differ.
-  bool movingAt(uint32_t t) const { return screen_ != Screen::kPattern && b_.moving(t); }
+  // The face on screen may change without a message: its design moves on
+  // its own clock (a breath, keys lighting, a blink), so on the face screens
+  // every step is checked, and drawn only if its frame changed.
+  bool movingAt(uint32_t) const { return screen_ != Screen::kPattern; }
   const char* debugLabel(uint32_t t) const;
 
   Hal& hal_;
@@ -168,7 +170,7 @@ class Device {
   uint32_t drawnT_ = 0;   // the time of the last frame
   uint32_t drawnReal_ = 0;  // and the real time it was drawn
   bool drawnMoving_ = false;  // it was mid-motion, so the next time step redraws
-  render::FaceLayout drawnFace_{};  // its face, block by block
+  render::SceneFrame drawnFrame_{};  // everything its face's pixels depend on
   bool drawnBubble_ = false;  // and whether the bubble was up
   bool dirty_ = true;
   bool frame_ = false;

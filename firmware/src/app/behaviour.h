@@ -9,12 +9,13 @@
 
 #include "app/clock.h"
 #include "render/anim.h"
+#include "render/scene.h"
 #include "render/screens.h"
 
 namespace app {
 
-// kNoApp draws the face screen with the asleep look and the unplugged icon;
-// dbg.state still names it "no_app" (BEHAVIORS.md §3.4).
+// kNoApp draws the face screen with the no-app design and the unplugged
+// icon (BEHAVIORS.md §3.4).
 enum class Screen : uint8_t { kFace, kNeedsYou, kNoApp, kPattern };
 const char* screenName(Screen s);
 
@@ -48,7 +49,8 @@ class Behaviour {
   // Timings (BEHAVIORS.md, UX.md). Proposed values are marked there.
   static constexpr uint32_t kNoAppMs = 30000;
   static constexpr uint32_t kBubbleReadMs = 1200;  // the word stays up after the mumble
-  static constexpr uint32_t kPressEaseMs = 60;     // the press squish
+  static constexpr uint32_t kPressEaseMs = 60;     // a press draws at once this long (DEVICE.md §6)
+  static constexpr int kPressPx = 2;                // a press dips the face this far
   static constexpr uint32_t kBlinkMs = 180;
 
   void reset(uint32_t t, Rng& rng);
@@ -73,10 +75,11 @@ class Behaviour {
 
   // Queries at t (after advance).
   Screen screen(uint32_t t) const;
-  render::Pose pose(uint32_t t) const;
-  bool moving(uint32_t t) const;
-  // The press squish is easing in: feedback the redraw cap mustn't hold
-  // back (DEVICE.md §6).
+  // The face at t: its design, the design's clock, and what the device
+  // adds on top (render/scene.h).
+  render::SceneShow show(uint32_t t) const;
+  // A press has just come in: feedback the redraw cap mustn't hold back
+  // (DEVICE.md §6).
   bool pressEasing(uint32_t t) const;
   bool noApp(uint32_t t) const;
   uint32_t led(uint32_t t) const;
@@ -93,7 +96,7 @@ class Behaviour {
   uint32_t momentSeq() const { return momentSeq_; }
   Life life(uint32_t t) const;
   // What the face is following at t: the animation ("cheer"), or the look
-  // ("idle", "working", "asleep", "needs_you"). With no app it's "asleep".
+  // ("idle", "working", "asleep", "needs_you", "no_app").
   const char* faceName(uint32_t t) const;
   const char* sfx(uint32_t& at) const {
     at = sfxAt_;
@@ -115,22 +118,23 @@ class Behaviour {
     uint32_t speakMs = 0;  // the mouth moves this long
     uint32_t sylMs = 120;
   };
-  // What the face is following: an animation or a look, and a mumble on
-  // top. It holds everything its pose depends on besides the clock and a
-  // blink, so the pose of an old source stays exactly what was on screen
-  // after the model changes, and any change that moves the face is a new
-  // source, which blends (UX.md §2: nothing cuts hard).
+  // What the face is following: an animation or a look, in a mood, and a
+  // mumble on top. A change of design shuts the eyes for kBlendMs, which
+  // hides the cut (UX.md §2).
   struct Source {
     render::Anim anim = render::Anim::kNone;
     uint32_t at = 0;
     render::Look look = render::Look::kIdle;
-    bool raised = false;  // an animation over needs you sits where its face does
+    render::Mood mood = render::Mood::kHappy;
     bool say = false;
     uint32_t sayAt = 0, speakMs = 0, sylMs = 0;  // the mouth follows the syllables
     bool operator==(const Source& o) const {
-      return anim == o.anim && at == o.at && look == o.look && raised == o.raised &&
-             say == o.say && sayAt == o.sayAt && speakMs == o.speakMs && sylMs == o.sylMs;
+      return anim == o.anim && at == o.at && look == o.look && mood == o.mood && say == o.say &&
+             sayAt == o.sayAt && speakMs == o.speakMs && sylMs == o.sylMs;
     }
+    // The design it shows: the cheer's, or the look's.
+    render::SceneState state() const;
+    int scene() const { return render::sceneOf(mood, state()); }
   };
   struct LifeEvent {
     Life kind = Life::kNone;
@@ -141,16 +145,22 @@ class Behaviour {
   void startSay(const MomentIn& in, uint32_t t);
   void sound(const char* k, uint32_t t);
   // Every change goes through here: `f` changes the state at t, and if
-  // what the face follows changed, the blend starts from the pose that was
-  // showing just before, blink and all. The backlight eases the same way.
+  // what the face follows changed to another design, the eyes shut for a
+  // moment; a new look starts its design's clock. The backlight eases from
+  // the level that was showing.
   template <class F>
   void change(uint32_t t, F f) {
-    render::Pose showing = blended(t);
     uint8_t lit = backlight(t);
     bool overridden = blOverride_;
     f();
     Source next = sourceAt(t);
-    if (!(next == src_)) blend_.start(t, showing), src_ = next;
+    if (!(next == src_)) {
+      // Another design, or the cheer's design starting over for a new cheer.
+      bool restart = next.anim == render::Anim::kCheer && next.at != src_.at;
+      if (next.scene() != src_.scene() || restart) switched_ = true, switchAt_ = t;
+      if (next.look != src_.look) lookAt_ = t;
+      src_ = next;
+    }
     uint8_t level = blTarget(t);
     if (!blOverride_ && (level != blLevel_ || overridden)) blFade_ = true, blFrom_ = lit, blAt_ = t;
     blLevel_ = level;
@@ -164,13 +174,9 @@ class Behaviour {
   // Something needs you (BEHAVIORS.md §1): a tap or an animation doesn't
   // take the face over.
   bool held(uint32_t t) const;
-  bool releaseEasing(uint32_t t) const;  // the press squish is easing out
   uint8_t blTarget(uint32_t t) const;  // the level the state asks for at t
   bool sayOn(uint32_t t) const;
   Source sourceAt(uint32_t t) const;
-  render::Pose basePose(const Source& s, uint32_t t) const;
-  render::Pose sourcePose(const Source& s, uint32_t t) const;
-  render::Pose blended(uint32_t t) const { return blend_.apply(t, sourcePose(src_, t)); }
 
   Model model_;
   uint32_t lastState_ = 0;
@@ -189,11 +195,13 @@ class Behaviour {
   Moment moment_;
   Say say_;
   Source src_;
-  render::Blend blend_;
+  uint32_t lookAt_ = 0;  // when the look's design started
+  bool switched_ = false;  // the eyes shut at switchAt_, for a change of design
+  uint32_t switchAt_ = 0;
   LifeEvent life_;
   uint32_t nextLife_ = 0;
   bool pressed_ = false;
-  uint32_t pressAt_ = 0, releaseAt_ = 0;
+  uint32_t pressAt_ = 0;
   const char* sfx_ = nullptr;
   uint32_t sfxAt_ = 0;
   uint32_t modelT_ = 0;

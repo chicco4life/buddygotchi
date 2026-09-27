@@ -11,7 +11,7 @@ namespace {
 
 using namespace faces;
 
-static_assert(kMaxTracks <= SceneFrame::kMaxSteps, "a scene's steps fit its frame");
+static_assert(kMaxGroups <= SceneFrame::kMaxGroups, "a scene's groups fit its frame");
 static_assert(int(Mood::kCount) == 7 && int(SceneState::kCount) == 6, "faces.h's moods and states");
 
 // The small "o" the mouth becomes on a syllable, from the curious design
@@ -22,6 +22,24 @@ struct Box {
 constexpr Box kTalk[] = {{153, 128, 14, 4}, {153, 132, 4, 4}, {163, 132, 4, 4}, {153, 136, 14, 4}};
 
 const Scene& scene(const SceneShow& s) { return kScenes[sceneOf(s.mood, s.state)]; }
+
+// The tap's heart, in 3 px blocks, a stronger coral than the cheeks: it pops
+// in small, then full size.
+constexpr int kHeartBlock = 3;
+const char* const kHeartSmall[] = {"XX.XX", "XXXXX", ".XXX.", "..X.."};
+const char* const kHeartFull[] = {".XX.XX.", "XXXXXXX", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..."};
+
+template <int N>
+void drawHeart(Canvas& c, const char* const (&rows)[N], int cx, int cy) {
+  const uint8_t rose = inkAt(kInkRose, kLevels);
+  int w = int(std::strlen(rows[0]));
+  int x0 = cx - w * kHeartBlock / 2, y0 = cy - N * kHeartBlock / 2;
+  for (int r = 0; r < N; ++r) {
+    for (int i = 0; i < w; ++i) {
+      if (rows[r][i] == 'X') c.fillRect(x0 + i * kHeartBlock, y0 + r * kHeartBlock, kHeartBlock, kHeartBlock, rose);
+    }
+  }
+}
 
 // The step a track is on t ms into its scene.
 int step(const Track& tr, uint32_t t) {
@@ -36,7 +54,7 @@ int step(const Track& tr, uint32_t t) {
 struct Placed {
   int16_t x[kMaxGroups], y[kMaxGroups];
   bool on[kMaxGroups];
-  int mouth = -1;
+  int mouth = -1, face = -1;
 };
 
 void place(const Scene& sc, const SceneShow& s, Placed& p) {
@@ -55,7 +73,10 @@ void place(const Scene& sc, const SceneShow& s, Placed& p) {
       on = kValues[2 * (tr.key0 + step(tr, s.t))] != 0;
     }
     switch (g.role) {
-      case kRoleFace: x += s.dx, y += s.dy; break;
+      case kRoleFace:
+        x += s.dx, y += s.dy;
+        p.face = i;
+        break;
       case kRoleEyesOpen: on = !s.eyesShut; break;
       case kRoleEyesClosed: on = s.eyesShut; break;
       case kRoleProp: on = on && !s.hideProp; break;
@@ -96,10 +117,15 @@ SceneFrame sceneFrame(const SceneShow& s) {
   SceneFrame f;
   std::memset(&f, 0, sizeof f);  // padding too, since frames compare as bytes
   f.scene = uint8_t(sceneOf(s.mood, s.state));
-  f.flags = uint8_t(s.eyesShut | s.hideProp << 1 | s.mouthOpen << 2);
-  f.dx = s.dx, f.dy = s.dy;
+  f.flags = uint8_t(s.mouthOpen | (s.heart > 2 ? 2 : s.heart) << 1);
   const Scene& sc = kScenes[f.scene];
-  for (int i = 0; i < sc.tracks; ++i) f.steps[i] = uint8_t(step(kTracks[sc.track0 + i], s.t));
+  Placed p;
+  place(sc, s, p);
+  for (int i = 0; i < sc.groups; ++i) {
+    // The talking "o" sits where the hidden mouth would.
+    if (!p.on[i] && i != p.mouth && i != p.face) continue;
+    f.x[i] = p.x[i], f.y[i] = p.y[i], f.on[i] = p.on[i];
+  }
   return f;
 }
 
@@ -111,10 +137,13 @@ void drawScene(Canvas& c, const SceneShow& s) {
     const Rect& r = kRects[sc.rect0 + i];
     if (p.on[r.group]) c.fillRect(r.x + p.x[r.group], r.y + p.y[r.group], r.w, r.h, sceneInk(r.color));
   }
-  if (s.mouthOpen && p.mouth >= 0 && kGroups[sc.group0 + p.mouth].parent >= 0) {
-    int m = p.mouth, parent = kGroups[sc.group0 + m].parent;
-    if (!p.on[parent]) return;
-    for (const Box& b : kTalk) c.fillRect(b.x + p.x[m], b.y + p.y[m], b.w, b.h, sceneInk(faces::kInk));
+  if (s.mouthOpen && p.mouth >= 0 && p.on[kGroups[sc.group0 + p.mouth].parent]) {
+    for (const Box& b : kTalk) c.fillRect(b.x + p.x[p.mouth], b.y + p.y[p.mouth], b.w, b.h, sceneInk(faces::kInk));
+  }
+  if (s.heart && p.face >= 0) {
+    int cx = kHeartX + p.x[p.face], cy = kHeartY + p.y[p.face];
+    if (s.heart >= 2) drawHeart(c, kHeartFull, cx, cy);
+    else drawHeart(c, kHeartSmall, cx, cy);
   }
 }
 

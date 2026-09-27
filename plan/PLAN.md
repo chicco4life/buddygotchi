@@ -37,7 +37,7 @@ milestone's evidence says which ones ran.
 | | Overnight pass (2026-09-27): reliability, behaviour and polish across the core, brain, firmware, face, Mac app and tools | Done. The final firmware `cf6d8ae` matches the simulator on the board in all 10 scenarios, `perf --motion` passes and `make e2e` passes; the new looks still need watching in motion (check 1) | [evidence](evidence/2026-09-27-overnight/) |
 | A10 | Jev-only harness: typed events and transcript, a plain-text state, mood and personalities ([harness/](harness/HARNESS.md)) | Done; the evals pass against Jev; checks 12–17 are the owner's | [evidence](evidence/2026-09-27-jev-harness/README.md) |
 | | Production and internal code split: what doesn't ship moves to `internal/`, `Package.swift` to the root ([internal/README.md](../internal/README.md)) | Done; the evals pass against Jev, 7/7 in all 3 runs | [evidence](evidence/2026-09-27-internal-split/README.md) |
-| A11 | Seven moods, drawn from the mood SVGs: Jev picks the mood, and the device shows each state and reaction in it | In progress. Jev chooses among the seven moods with no minimum time between changes, and the evals pass against Jev (10/10 in all 3 runs); every `state` carries the mood to the device, which keeps and reports it. The designs are generated into the firmware and its player draws them exactly as Chrome does; the screen doesn't use it yet | [moods](evidence/2026-09-27-seven-moods/README.md), [faces](evidence/2026-09-27-mood-faces/README.md) |
+| A11 | Seven moods, drawn from the mood SVGs: Jev picks the mood, and the device shows each state and reaction in it | In progress. Jev chooses among the seven moods with no minimum time between changes (evals 10/10 in all 3 runs); every `state` carries the mood; the device draws each look and the cheer as the mood's design, exactly as Chrome draws the SVGs. Still to do: the popover's face, and the board | [moods](evidence/2026-09-27-seven-moods/README.md), [faces](evidence/2026-09-27-mood-faces/README.md) |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks
@@ -54,9 +54,10 @@ that's off becomes an open item (§3).
 1. **Look at the board after the overnight changes.** They were checked
    on it by screenshot (every scenario matches the simulator pixel for
    pixel, [VERIFICATION.md](VERIFICATION.md) L2), but nobody has watched
-   them move: the face moving as one sprite, the one-block breathing bob,
-   the working strain and sweat drop, the cheer's landing squash and
-   beating heart. Say what you'd change.
+   them move. Since then the face has become the mood designs (A11): watch
+   each look and the cheer in a few moods (`internal/tools/boopctl play
+   cheer --mood proud`, for one), the blink at each switch, and the tap's
+   sway and heart. Say what you'd change.
 2. **`make run`, or `make debug` to watch everything.** Within about 10 s
    the app connects to `Boop-XXXX` and the board leaves the no-app face.
    `make debug` also prints every hook, decision, device line and brain
@@ -79,22 +80,22 @@ that's off becomes an open item (§3).
 **Agents**
 
 5. **Make Claude ask permission for a quick shell command.** Within
-   about 1 s Boop leans in, the amber light on the board's back glows,
-   the bubble says `claude · <project>`, and it chirps once. A tap only
-   squashes the face. Approving in the terminal blends it back to working
+   about 1 s Boop leans in with its amber sign, the amber light on the
+   board's back glows, the strip says `claude · <project>`, and it chirps
+   once. A tap only dips the face. Approving in the terminal blinks it back to working
    once the command has run (a long one stays amber until it ends,
    [ADAPTERS.md](ADAPTERS.md) §4); pressing Esc on the prompt instead
    leaves it amber until it goes idle about a minute later.
-6. **Approvals in two sessions.** One chirp, and "+1 more". Answer the
-   first and the bubble moves to the other, chirping if it's another agent
+6. **Approvals in two sessions.** One chirp, and "+1" in the strip. Answer the
+   first and the strip moves to the other, chirping if it's another agent
    or project.
 7. **Two Claude subagents at once, one asking permission.** Boop stays
    amber while the other keeps running tools, until you answer.
 8. **A Codex approval.** Amber about 2 s after Codex asks; one its
    automatic reviewer handles never lights up. This is Boop's first real
    Codex session (§3).
-9. **A Claude task that runs past a minute.** The working face (a sweat
-   drop, a strain every few seconds), then a cheer and a proud mumble,
+9. **A Claude task that runs past a minute.** The working face (the
+   keyboard, in Boop's mood), then a cheer and a proud mumble,
    nearly always with a word.
 10. **Ask Claude to run a failing test, then stop.** No cheer: Boop goes
     idle, then an annoyed mumble ("tests" or "ugh").
@@ -144,7 +145,7 @@ that's off becomes an open item (§3).
     again; then quit it and wait 30 s.** Both reconnects find the board
     within a couple of seconds, the second by taking over the link macOS
     kept ([PROTOCOL.md](PROTOCOL.md) §2). After quitting, the board shows
-    the asleep look with only the unplugged icon.
+    the no-app design with only the unplugged icon.
 
 ## 3. Open items
 
@@ -178,12 +179,12 @@ fixed. Pick one up by writing it into its spec first.
 - **Some of Voice's words can't be picked.** The brain offers eleven of
   the 40 ([harness/DECISIONS.md](harness/DECISIONS.md) §3); the rest are
   recorded on the device for nothing until the lists grow.
-- **A press takes about 20 ms to show, right at the budget**
-  ([ARCHITECTURE.md](ARCHITECTURE.md) §9). The squish eases in over 60 ms,
-  a block at a time, so its first changed pixel comes 20 ms after a BOOT
-  press (`test_the_redraw_cap_doesnt_delay_a_press`), and the board still
-  has to draw and push it. A squish with a bigger first step would meet
-  it.
+- **How fast a press shows on the board hasn't been measured since the
+  dip.** A press now dips the face 2 px at once, so its first changed
+  pixel comes on the press's own ms in the simulator
+  (`test_the_redraw_cap_doesnt_delay_a_press`), where the old squish took
+  20 ms; the board still has to draw and push it
+  ([ARCHITECTURE.md](ARCHITECTURE.md) §9 has the 20 ms budget).
 - **Shear during fast moves.** On the webcam the face shears diagonally as
   it moves fast. It's either the panel (no tear-effect sync, and in
   landscape its scan crosses the rows the firmware writes) or the camera's

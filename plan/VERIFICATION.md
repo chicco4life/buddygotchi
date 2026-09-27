@@ -115,7 +115,7 @@ What `dbg.state` reports:
 
 | Field | Meaning |
 | --- | --- |
-| `screen` | `face`, `needs_you`, `no_app` (drawn as the asleep face) or `pattern` |
+| `screen` | `face`, `needs_you`, `no_app` (the no-app design) or `pattern` |
 | `base`, `mood`, `attn`, `vol` | From the last `state` ([PROTOCOL.md](PROTOCOL.md) §3); `mood` is `happy` when the state had none or one the device doesn't know, and `attn` is null unless something needs you |
 | `moment` | `{"anim":…,"left_ms":…}` while an animation plays, otherwise null (a mumble on its own leaves it null) |
 | `life` | `blink` while Boop blinks, otherwise null |

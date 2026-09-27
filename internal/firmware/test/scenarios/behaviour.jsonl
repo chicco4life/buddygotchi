@@ -32,12 +32,12 @@
 {"expect":{"screen":"needs_you","led":"#805800","bl":255,"sfx":{"k":"chirp","at":27000}}}
 {"t":"moment","anim":"cheer","ttl":5}
 {"expect":{"moment":null}}
-// A tap while something needs you: the press squash only (BEHAVIORS.md §3.2).
+// A tap while something needs you: the press dip only (BEHAVIORS.md §3.2).
 {"clock":28000}
 {"input":{"touch":[160,70]}}
 {"clock":28100}
 {"expect":{"screen":"needs_you","moment":null,"last_input":{"k":"tap","at":28100}}}
-// The strip is part of the screen: a touch there squashes the face and taps.
+// The strip is part of the screen: a touch there dips the face and taps.
 {"clock":29000}
 {"input":{"touch":[160,222]}}
 {"clock":29016}
@@ -48,7 +48,7 @@
 {"clock":29900}
 {"t":"moment","say":{"syl":"ba po","ms":120},"ttl":5}
 {"expect":{"screen":"needs_you","moment":null,"audio":{"syllables":0}}}
-// Answered on the Mac: the face blends back to working.
+// Answered on the Mac: the face blinks back to working.
 {"clock":30000}
 {"t":"state","v":1,"base":"working","busy":2,"idle":0,"wait":0}
 {"clock":30075}

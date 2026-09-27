@@ -99,6 +99,14 @@ static void test_the_prop_can_make_room() {
   for (int y = 0; y < 150; ++y) {
     for (int x = 0; x < kWidth; ++x) TEST_ASSERT_EQUAL(with.at(x, y), without.at(x, y));
   }
+  // The cheer's sparkles by the card, outside the card's own group, go too.
+  Buf sparkles, none;
+  sparkles.draw(show(Mood::kHappy, SceneState::kTaskComplete, 600));
+  SceneShow t = show(Mood::kHappy, SceneState::kTaskComplete, 600);
+  t.hideProp = true;
+  none.draw(t);
+  TEST_ASSERT_EQUAL(sceneInk(4), sparkles.at(129, 168));
+  TEST_ASSERT_EQUAL(kBlack, none.at(129, 168));
 }
 
 // Talking, the mouth is a small "o" where it was, moving with the face.

@@ -1,5 +1,5 @@
 // Base states (BEHAVIORS.md §2), and no app after 30 s of silence: the
-// asleep look whatever the base was, with the unplugged icon (§3.4).
+// no-app design whatever the base was, with the unplugged icon (§3.4).
 {"clock":0}
 {"t":"state","v":1,"base":"idle","busy":0,"idle":2,"wait":0}
 {"clock":300}
@@ -25,7 +25,7 @@
 {"expect":{"screen":"no_app","bl":60}}
 {"clock":31500}
 {"shot":"no-app"}
-// Reconnect: the next state, blending from the asleep face (100 ms of 150 in).
+// Reconnect: the next state, its design behind a blink (100 ms of 150 in).
 {"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0}
 {"clock":31600}
 {"expect":{"screen":"face","life":null}}

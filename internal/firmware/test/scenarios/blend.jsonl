@@ -1,4 +1,5 @@
-// Eased, interruptible blends of 150 ms or less (UX.md §2).
+// Switching designs: the eyes shut for 150 ms to hide each cut, and a
+// switch mid-switch shuts them again from there (UX.md §2).
 {"clock":0}
 {"t":"state","v":1,"base":"idle"}
 {"clock":1000}
@@ -16,7 +17,7 @@
 {"clock":1300}
 {"shot":"interrupted-75ms"}
 {"expect":{"moment":{"anim":"wiggle"}}}
-// The wiggle ends after 700 ms, and the face blends back.
+// The wiggle ends after 700 ms; it kept working's design, so no blink.
 {"clock":1925}
 {"expect":{"moment":null}}
 {"clock":2000}

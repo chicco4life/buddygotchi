@@ -24,16 +24,19 @@ struct SceneShow {
   bool hideProp = false;   // the bubble has the prop's room: no keyboard, sign or card
   bool mouthOpen = false;  // talking: a small "o" instead of the mouth
   int16_t dx = 0, dy = 0;  // the face moved: a tap's sway, a press
+  uint8_t heart = 0;       // a tap: a coral heart by the right eye, 1 small or 2 full size
 };
 
-// Everything a scene's pixels depend on. Two shows with the same frame
+// Everything a scene's pixels depend on: the scene, the additions, and
+// where each group sits and whether it shows. Two shows with the same frame
 // draw the same pixels, so the device skips drawing one whose frame hasn't
-// changed (plan/DEVICE.md §6).
+// changed (plan/DEVICE.md §6). A step to the same place (the designs often
+// hold a value over several steps) leaves the frame as it was.
 struct SceneFrame {
-  static constexpr int kMaxSteps = 16;  // tracks in a scene; faces.h checks it
+  static constexpr int kMaxGroups = 40;  // groups in a scene; faces.h checks it
   uint8_t scene = 0xFF, flags = 0;
-  int16_t dx = 0, dy = 0;
-  uint8_t steps[kMaxSteps] = {};  // each track's current step
+  int16_t x[kMaxGroups] = {}, y[kMaxGroups] = {};  // 0 while the group doesn't show
+  uint8_t on[kMaxGroups] = {};
 };
 bool operator==(const SceneFrame& a, const SceneFrame& b);
 inline bool operator!=(const SceneFrame& a, const SceneFrame& b) { return !(a == b); }
@@ -43,6 +46,8 @@ int sceneOf(Mood m, SceneState s);
 SceneFrame sceneFrame(const SceneShow& s);
 // Draws the scene over what's on the canvas; the screen clears it first.
 void drawScene(Canvas& c, const SceneShow& s);
+// Where the tap's heart is centred, before the face moves.
+constexpr int kHeartX = 268, kHeartY = 60;
 // The palette entry for a design colour (faces::Color), for the tests.
 uint8_t sceneInk(int color);
 

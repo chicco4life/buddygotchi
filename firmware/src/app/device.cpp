@@ -355,22 +355,21 @@ void Device::followSound(uint32_t t) {
 }
 
 // Draws the frame for t, unless nothing on it can have changed since the
-// last one (DEVICE.md §6): no message or input since (dirty_), the face
-// laid out on the same blocks and the bubble still up or still down. The
-// pixel face moves a block at a time, so most passes in motion find the
-// picture unchanged.
+// last one (DEVICE.md §6): no message or input since (dirty_), the face's
+// design on the same steps with the same additions, and the bubble still
+// up or still down. The designs step a few times a second, so most passes
+// find the picture unchanged.
 void Device::render(uint32_t t, bool moving) {
-  render::FaceLayout face = render::faceLayout(b_.pose(t));
+  render::SceneShow face = b_.show(t);
+  render::SceneFrame frame = render::sceneFrame(face);
   const render::Mumble* mumble = b_.mumble(t);
-  bool same = !dirty_ && face == drawnFace_ && (mumble != nullptr) == drawnBubble_;
+  bool same = !dirty_ && frame == drawnFrame_ && (mumble != nullptr) == drawnBubble_;
   drawnMoving_ = moving;
   drawnT_ = t;
   drawnReal_ = hal_.realMs();
   if (same) return;
-  drawnFace_ = face;
+  drawnFrame_ = frame;
   drawnBubble_ = mumble != nullptr;
-  render::Strip strip = b_.strip(t);
-  const Model& m = b_.model();
   switch (screen_) {
     case Screen::kPattern:
       if (targetX_ >= 0) {
@@ -383,14 +382,8 @@ void Device::render(uint32_t t, bool moving) {
         render::drawPattern(canvas_);
       }
       break;
-    case Screen::kNeedsYou: {
-      render::Attention a;
-      a.agent = m.agent, a.project = m.project, a.more = m.more;
-      render::drawNeedsYou(canvas_, face, a, strip);
-      break;
-    }
-    default:
-      render::drawFaceScreen(canvas_, face, mumble, strip);
+    default:  // the face, needs you and no app: what differs is in the show and the strip
+      render::drawFaceScreen(canvas_, face, mumble, b_.strip(t));
       break;
   }
   labelDrawn_ = debugLabel(t);

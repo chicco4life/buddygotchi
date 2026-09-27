@@ -47,6 +47,7 @@ COLOR_NAMES = ["black", "ink", "cheek", "blue", "amber", "dim", "prop"]
 # What the device does with a group (render::faces::Role).
 ROLES = ["none", "face", "mouth", "prop", "eyes_open", "eyes_closed"]
 PROPS = {"keyboard", "request-cue", "result-cue", "listening-cue", "disconnected-cue"}
+PROP_TOP = 144  # the band the props share with the bubble (render/screens.h kBubbleTop)
 BLINK_KEYS = [0.0, 0.76, 0.79, 1.0]
 # Moments the check and the frames sample, in ms; each scene skips those
 # within 4 ms of a step, where Chrome and the device could disagree by a
@@ -274,6 +275,18 @@ def read_scene(path: Path) -> Scene:
                 g.role = "eyes_closed"
 
     walk(motion, -1, None)
+    # A loose group drawn only in the props' band, such as the sparkles by
+    # the result card, gives way to the bubble with the props.
+    for i, g in enumerate(scene.groups):
+        if g.parent != 0 or g.role != "none":
+            continue
+        mine = {i}
+        for j in range(i + 1, len(scene.groups)):
+            if scene.groups[j].parent in mine:
+                mine.add(j)
+        ys = [r.y + g.ty for r in scene.rects if r.group in mine]
+        if ys and min(ys) >= PROP_TOP:
+            g.role = "prop"
     roles = [g.role for g in scene.groups]
     assert roles.count("eyes_open") == roles.count("eyes_closed") <= 1, f"{path.name}: one blink"
     assert roles.count("face") == 1 and roles.count("mouth") == 1, f"{path.name}: one face, one mouth"

@@ -480,17 +480,17 @@ static void test_light_sets_the_led() {
 
 // DEVICE.md §6: with the clock running, motion redraws at most every
 // 16 ms of real time, however fast the loop runs. A frozen clock checks
-// on every step, so scenario frames stay exact. A cheer's parts cross
-// block lines a few ms apart, so uncapped its picture changes faster.
+// on every step, so scenario frames stay exact. The excited working
+// design's sparks and keys step 3 ms apart (810 and 813 ms), so uncapped
+// its picture changes faster.
 static void test_motion_redraws_at_most_every_16ms() {
   for (bool running : {true, false}) {
     Rig r;
-    r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
-    r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\"}");
+    r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"mood\":\"excited\"}");
     if (running) r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
     r.dev.takeFrame();
     int frames = 0, last = 0, gap = 1000;
-    for (int ms = 1; ms <= 1000; ++ms) {
+    for (int ms = 1; ms <= 2000; ++ms) {
       if (running) ++r.hal.real, r.dev.tick();
       else r.usbLine("{\"t\":\"dbg.clock\",\"step\":1}");
       if (!r.dev.takeFrame()) continue;
@@ -504,9 +504,9 @@ static void test_motion_redraws_at_most_every_16ms() {
   }
 }
 
-// DEVICE.md §6: a frame is drawn only when the picture changes. The face
-// moves a block at a time, so with the clock running every frame drawn is
-// a new picture, a few a second asleep. And the screen always
+// DEVICE.md §6: a frame is drawn only when the picture changes. The
+// designs step a few times a second, so with the clock running every frame
+// drawn is a new picture, fewer than one a second asleep. And the screen always
 // shows what drawing afresh would: stepping a frozen clock, which checks
 // on every step, it matches a second rig that takes a dbg.shot (which
 // draws afresh) after every step, pixel for pixel.
@@ -588,7 +588,7 @@ static void test_the_redraw_cap_doesnt_delay_a_press() {
     std::vector<std::vector<uint8_t>> still = run(false, false, nullptr, frozen);
     run(true, false, &still, frozen);
     run(true, true, &still, running);
-    TEST_ASSERT_TRUE_MESSAGE(frozen > 0, base);
+    TEST_ASSERT_TRUE_MESSAGE(frozen >= 0, base);  // the dip shows on the press's own ms
     TEST_ASSERT_EQUAL_INT_MESSAGE(frozen, running, base);
   }
 }

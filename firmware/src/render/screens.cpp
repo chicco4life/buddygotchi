@@ -12,15 +12,6 @@ namespace {
 
 constexpr int kMargin = 12;
 
-// The face's centre and scale. The centre is the eyes', and the mouth hangs
-// below them, so the eyes sit kFaceDrop (face.h) above the middle of their
-// space. Alone, the face is centred in the space above the strip; with a
-// bubble it moves up into the space above the bubble and shrinks, but only
-// so far that the needs-you face, which leans in, keeps the idle face's size.
-constexpr int kFaceCy = kStripTop / 2 - kFaceDrop;
-constexpr int kFaceBubbleScale = 850;
-constexpr int kFaceBubbleCy = kBubbleTop / 2 - kFaceDrop * kFaceBubbleScale / 1000;
-
 // The middle of the bubble and of the strip.
 constexpr int kBubbleCy = (kBubbleTop + kStripTop) / 2;
 constexpr int kStripCy = (kStripTop + kHeight) / 2;
@@ -92,14 +83,6 @@ void iconNoApp(Canvas& c, int x, int y) {  // a plug on its cord, pointing at no
 
 }  // namespace
 
-// Where the face sits: `raise` eases it between the two places.
-FaceLayout faceLayout(const Pose& p) {
-  int r = clamp(p.raise, 0, 1000);
-  int cy = kFaceCy + (kFaceBubbleCy - kFaceCy) * r / 1000;
-  int scale = 1000 + (kFaceBubbleScale - 1000) * r / 1000;
-  return layoutFace(p, kWidth / 2, cy, scale);
-}
-
 void drawStrip(Canvas& c, const Strip& s) {
   // An empty strip is bare glass: no divider under the face.
   if (s.wait <= 0 && s.busy <= 0 && !s.noApp) return;
@@ -109,8 +92,22 @@ void drawStrip(Canvas& c, const Strip& s) {
   char buf[24];
   if (s.wait > 0) {
     fillCircle(c, px(x + 5), px(cy), px(5), kInkAmber);
-    std::snprintf(buf, sizeof(buf), "%d needs you", s.wait);
-    x = drawString(c, kSmall, x + 15, ty, buf, kInkAmber) + 14;
+    if (s.agent && *s.agent) {
+      // Who needs you, cut to leave room for "+N" and the working count.
+      char more[12] = "";
+      if (s.more > 0) std::snprintf(more, sizeof(more), "+%d", s.more);
+      std::snprintf(buf, sizeof(buf), "%d", s.busy);
+      int room = kWidth - kMargin - (x + 15) - (more[0] ? stringWidth(kSmall, more) + 8 : 0) -
+                 (s.busy > 0 ? 29 + stringWidth(kSmall, buf) : 0);
+      char who[48];
+      std::snprintf(who, sizeof(who), "%s \xC2\xB7 %s", s.agent, s.project);
+      x = drawStringFit(c, kSmall, x + 15, ty, who, kInkAmber, room);
+      if (more[0]) x = drawString(c, kSmall, x + 8, ty, more, kInkGrey);
+      x += 14;
+    } else {
+      std::snprintf(buf, sizeof(buf), "%d needs you", s.wait);
+      x = drawString(c, kSmall, x + 15, ty, buf, kInkAmber) + 14;
+    }
   }
   if (s.busy > 0) {
     fillRing(c, px(x + 5), px(cy), px(5), px(3), kInkGrey);
@@ -120,27 +117,10 @@ void drawStrip(Canvas& c, const Strip& s) {
   if (s.noApp) iconNoApp(c, kWidth - kMargin - 16, cy - 8);
 }
 
-void drawFaceScreen(Canvas& c, const FaceLayout& f, const Mumble* mumble, const Strip& s) {
+void drawFaceScreen(Canvas& c, const SceneShow& face, const Mumble* mumble, const Strip& s) {
   c.fill(kBlack);
-  drawFace(c, f);
+  drawScene(c, face);
   if (mumble) drawMumble(c, *mumble);
-  drawStrip(c, s);
-}
-
-void drawNeedsYou(Canvas& c, const FaceLayout& f, const Attention& a, const Strip& s) {
-  c.fill(kBlack);
-  drawFace(c, f);
-  // Two lines in the bubble: who, then what, with "+N more" at its end.
-  const int whoY = kBubbleCy - 22, whatY = kBubbleCy;
-  char who[48];
-  std::snprintf(who, sizeof(who), "%s \xC2\xB7 %s", a.agent, a.project);
-  drawStringFit(c, kSmall, kMargin, whoY, who, kInkAmber, kWidth - 2 * kMargin);
-  drawString(c, kSmall, kMargin, whatY, "needs you on the Mac", kInkText);
-  if (a.more > 0) {
-    char more[16];
-    std::snprintf(more, sizeof(more), "+%d more", a.more);
-    drawString(c, kSmall, kWidth - kMargin - stringWidth(kSmall, more), whatY, more, kInkGrey);
-  }
   drawStrip(c, s);
 }
 

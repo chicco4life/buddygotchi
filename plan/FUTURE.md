@@ -30,7 +30,7 @@ example `git show v1-full:plan/BEHAVIORS.md`. Bring one back at a time.
 | `zip` | Drawn but never played | `v1-full` BEHAVIORS §7 |
 | `nod` | A nod when "needs you" cleared, and on a tap while it showed | `fd1c083` BEHAVIORS §5 |
 | `thinking` and `shrug` | A thinking face while waiting for the brain's reply, and a shrug when it was too slow or the mic couldn't start; `listening` now covers the wait | `fd1c083` BEHAVIORS §3.3 |
-| The no-app look | Eyes open, glancing about while waiting for the Mac; now the asleep face with the unplugged icon | `fd1c083` BEHAVIORS §2 |
+| The no-app look | Eyes open, glancing about while waiting for the Mac; now the no-app mood design with the unplugged icon | `fd1c083` BEHAVIORS §2 |
 | The new day's reflection | At a day's first activity the brain looked back on yesterday and could keep a line about you, a preference, a temperament sentence or a moment in `long-term.md` (only Jev ever did). Its sections, and About you, Preferences, Notes and Happened, went with the memory store's writes on 2026-09-27 | `9bb8004` HARNESS §2, §5; ARCHITECTURE §4 |
 | `listening` and push-to-talk | Hold BOOT or click Talk, and the Mac's mic listened while the device looked up with a small "o"; the words went nowhere | `6bfdf6d` BEHAVIORS §3.3, UX §5 |
 | Quiet mode | No mumbles for the minutes asked, with a quiet icon in the strip; only talk could turn it on | `6bfdf6d` BEHAVIORS §4 |

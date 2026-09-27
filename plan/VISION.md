@@ -72,16 +72,16 @@ real time.
 
 ## How it should feel
 
-You sit down and Boop is asleep, eyes shut, a little "zzZZ" drifting up.
-You open Claude Code and it wakes. You kick off a refactor, and a test run
-in Codex, and Boop gets to work with you: a focused look, a sweat drop, a
-small strain every couple of seconds. Every few minutes it mutters to
+You sit down and Boop is asleep, eyes shut, a little Z by its head,
+breathing slowly. You open Claude Code and it wakes. You kick off a
+refactor, and a test run in Codex, and Boop gets to work with you: a
+focused look over a little keyboard, keys tapping. Every few minutes it mutters to
 itself, *"mi-ne? po… tests?"*, and you only half-notice. Nobody expects
 you to follow it. It's like a colleague humming.
 
 Twenty minutes in, Codex wants to run a shell command. Boop's light goes
-amber, it turns and leans towards you with one little chirp, and its bubble
-says *codex · landing*. It won't chirp again. When you get to it, you
+amber, it leans towards you with an amber sign and one little chirp, and
+its strip says *codex · landing*. It won't chirp again. When you get to it, you
 approve in Codex, and Boop sees the agent carry on and goes back to work.
 
 The refactor finishes. Boop hops, beams, a heart pops up, and it mumbles
@@ -164,9 +164,9 @@ Most of this is parked and comes back one feature at a time
 ## Look
 
 "Warm Terminal": an oat matte body, a black glass face and one amber
-accent. The face is pixel art, two window eyes with pink cheeks and a bar
-mouth ([UX.md](UX.md) §2), drawn from code so every expression blends into
-the next. It should look like an object an adult is happy to have on their
+accent. The face is pixel art, two window eyes with pink cheeks and a
+small mouth, in a design for each mood ([UX.md](UX.md) §2), and it blinks
+from one to the next. It should look like an object an adult is happy to have on their
 desk, not like a toy. v1 has the face and the colours, on the board's
 screen and in the Mac app; the body comes later.
 

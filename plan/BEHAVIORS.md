@@ -20,18 +20,21 @@ shows.
 
 ## 2. Base states
 
+Each state shows its design in Boop's mood ([UX.md](UX.md) §2), which
+moves on its own; the device adds the blinks.
+
 | State | When | Loop |
 | --- | --- | --- |
-| Asleep | No sessions | Eyes closed, slow breathing (the face rises a block for 2 s of every 4), a "zzZZ" climbing every 2.4 s, no blinks, backlight at 60/255 |
-| Idle | Sessions open, none working | Blinks every 2–6 s |
-| Working | At least one agent working | Lids lowered, looking down at the work, a sweat drop. Every 2.6 s a 0.8 s strain: the eyes squeeze, the mouth tightens and the face dips a block. Blinks every 2–5 s |
+| Asleep | No sessions | The asleep design, the same in every mood: eyes shut, a small grey Z, a slow 8 s breath of a pixel or two. No blinks, backlight at 60/255 |
+| Idle | Sessions open, none working | The mood's idle design, rising a pixel every 9 s. Blinks every 2–6 s |
+| Working | At least one agent working | The mood's working design: a keyboard under the face, its keys lighting in the mood's rhythm, and the mood's own motion (a steady nod when determined, a bounce when excited, a key knocked loose when grumpy, tears when sad). Blinks every 2–5 s |
 
 The first session wakes Boop, and needs you (§3.2) sits on top of
 whichever state shows, and working looks the same however many agents
 are busy. Awake, the backlight is full (255); it
-eases between levels with the face ([UX.md](UX.md) §2).
+eases between levels over the 150 ms a switch of design takes ([UX.md](UX.md) §2).
 
-**No app** looks asleep, with only the unplugged icon in the strip (§3.4).
+**No app** has its own design, with only the unplugged icon in the strip (§3.4).
 
 **Working chatter.** While agents work, Boop mutters by rule, as often as
 the personality says (§6). About half the time the word is a working session's
@@ -70,13 +73,13 @@ When "needs you" starts and clears is in [ADAPTERS.md](ADAPTERS.md) §4.
 
 | When | What Boop does |
 | --- | --- |
-| An agent needs approval | Turns to you and leans in, amber light at half brightness; the bubble shows agent and project; one soft chirp |
-| More than one needs you | The bubble shows the oldest, with "+N more" |
-| You tap Boop | The press squash only; it stays amber |
-| You answer on the Mac | The agent carries on, and once nothing needs you, Boop blends back to what it was doing |
+| An agent needs approval | The mood's needs-you design: a lean toward you that plays once and an amber sign under the face. Amber light at half brightness; the strip shows agent and project; one soft chirp |
+| More than one needs you | The strip shows the oldest, with "+N" for the rest |
+| You tap Boop | The press dip only; it stays amber |
+| You answer on the Mac | The agent carries on, and once nothing needs you, Boop blinks back to what it was doing |
 | You deny with Esc | Claude sends nothing, so Boop stays amber until Claude reports itself idle about a minute later. A subagent's request stays until your next prompt or the safety net ([ADAPTERS.md](ADAPTERS.md) §4) |
 
-The light stays steady and nothing repeats: one chirp when the bubble
+The light stays steady and nothing repeats: one chirp when the strip
 first shows a request, and another only when it switches to a different
 agent or project. The brain is never involved.
 
@@ -89,11 +92,11 @@ agent or project. The brain is never involved.
 
 ### 3.4 The link
 
-With no `state` from the Mac for 30 s, the device shows the asleep look
-(backlight 60/255) with only the unplugged icon in the strip, for as long
-as the silence lasts. The session counts go, since it can no longer know
-them. When the Mac comes back, it blends to whatever
-the next `state` says.
+With no `state` from the Mac for 30 s, the device shows the no-app design
+(low eyes, a grey broken-link sign, the same in every mood; backlight
+60/255) with only the unplugged icon in the strip, for as long as the
+silence lasts. The session counts go, since it can no longer know them.
+When the Mac comes back, it blinks into whatever the next `state` says.
 
 ## 4. Sound and light
 
@@ -110,8 +113,8 @@ Mute (volume 0) silences all sound but keeps the light.
 
 | Name | Used for | Look |
 | --- | --- | --- |
-| `cheer` | A finished turn | Three hops, squashed on each landing, then a happy squint, a small open smile and a beating heart; 2 s |
-| `wiggle` | A tap | A happy squint, a small smile and a heart at the top right, swaying gently; 0.7 s |
+| `cheer` | A finished turn | The mood's task-complete design: a result card rising onto a tray, the mood's gesture (a hop when excited, a nod when proud, a small escaped smile when grumpy), sparkles when happy, excited or proud; 2 s |
+| `wiggle` | A tap | The design showing, on its own clock, swaying 3 px either way, with a pixel heart popping in at the top right; 0.7 s |
 
 A mumble on its own (the brain's `react`, or chatter) plays over whatever
 face is showing and doesn't change it. The brain has no faces of its own:

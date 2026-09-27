@@ -33,3 +33,37 @@ and the face moving as one. The screen doesn't use it yet.
 - **`make fw`:** builds; RAM 13.9%, flash 55.1% (the player isn't linked
   in until the screen uses it).
 - **`make sim`:** 10 scenarios, 0 changed pictures.
+
+## Part 2: the screen draws them
+
+The device's face is now the mood design for Boop's mood and what it's
+doing, and the old face (`render/face.*` and the poses in `render/anim.*`)
+is gone. [device-screens.png](device-screens.png) has nine of the
+simulator's new goldens: idle, working, asleep, no app, needs you with
+"+1", the cheer, a tap's wiggle, a mumble over the cheer, and 100 ms into
+the blink that hides a switch.
+
+- **What the device adds** ([UX.md](../../UX.md) §2): its own blinks, a
+  150 ms blink at every switch of design (and at a new cheer over a
+  cheer), the tap's 3 px sway and heart, the press's 2 px dip, the bubble
+  taking the props' band, and the talking "o". Who needs you moved from
+  the bubble into the strip.
+- **`make fw-test`:** 105 pass. The behaviour tests now check the scenes:
+  after any change the design carries on at the same moment of its clock
+  or the eyes are shut (every state × what's playing × every message or
+  input); each look shows its design in the mood; the cheer keeps its
+  clock when the mood changes mid-cheer; the wiggle keeps the look's
+  clock; no app holds past the clock's wrap. The device tests: a frame
+  is drawn only when the picture changes (a step that holds its place
+  doesn't count), the 16 ms cap, and a press showing on its own ms with
+  the clock running as frozen. The old face's 19 drawing tests went with
+  it; `test_scene` covers the designs.
+- **`make sim`:** all 36 pictures changed; each was looked at before
+  `boopctl sim --accept`. The first run showed the cheer's sparkles under
+  the bubble, since they sit outside the card's group in the SVG; facegen
+  now counts a loose group drawn only in the props' band as a prop.
+  After accepting: 10 scenarios, 0 expect failures, 0 changed pictures.
+- **`make fw`:** builds; RAM 14.0%, flash 56.0% (1.10 MB, up 17 KB).
+
+Not run: the board over USB (L2), and nobody has watched the designs
+move on it (PLAN.md, owner check 1).

@@ -23,76 +23,70 @@ black, which the backlit panel shows as black glass.
 ```
 ┌──────────────────────────────────┐
 │                                  │
-│       ▐██▌        ▐██▌           │  face, the top 204 px when alone
-│               ‿                  │  moves up and shrinks when the bubble shows
+│       ▐██▌        ▐██▌           │  face, the top 144 px
+│     ▪▪        ‿        ▪▪        │
 │                                  │
 ├──────────────────────────────────┤
-│       ~ ~ ~  tests?  ~           │  bubble, 60 px, only when it shows
+│           [ keyboard ]           │  props, or the bubble when it shows: 60 px
 ├──────────────────────────────────┤
-│ ● 1 needs you  ◦ 4          ⊙ ▯  │  status strip, the bottom 36 px
+│ ● 1 needs you  ◦ 4             ▯ │  status strip, the bottom 36 px
 └──────────────────────────────────┘
 ```
 
-Alone, the face is centred in the 204 px above the strip. When the bubble
-shows, the face eases up into the top 144 px at 85% size. Leaning in makes
-the needs-you face bigger, so at 85% its eyes match the idle face's.
+**The face is its mood design.** Every mood (happy, excited, proud,
+curious, determined, grumpy, sad) has a design for each look and for the
+cheer: idle, working, needs you and task complete. Asleep and no app are
+one design each, the same in every mood. The designs are the designer's
+animated SVGs in `internal/tools/facegen/design/` (their README says what
+each one shows), and the device draws them exactly, pixel for pixel, as
+Chrome draws the SVGs ([DEVICE.md](DEVICE.md) §6). A mood picks the set,
+and the look or the cheer picks the design in it
+([BEHAVIORS.md](BEHAVIORS.md) §2, §5). [This
+sheet](evidence/2026-09-27-mood-faces/designs-vs-device.png) has every
+one, 2.5 s in.
 
-**The face** is pixel art:
-
-- **Grid.** Every part is built from square 3 px blocks, with no
-  anti-aliasing. The face's origin snaps to the grid and every part sits
-  a whole number of blocks from it, so the face moves a block at a time,
-  as one sprite, and no part lags behind another.
-- **Eyes.** Warm-white windows 13 blocks (39 px) square, 144 px apart:
-  four panes around a one-block cross, each pane's corners softened by a
-  pixel. No pupils, and every expression keeps the windows.
-- **Looking.** The whole eye moves. On a big sideways look the near eye
-  grows a pair of blocks and the far one shrinks as much, as if Boop
-  turned its head; a small look (working's) keeps them equal.
-- **Lids.** A lid takes whole rows off the top, straight across; happy
-  takes rows off the bottom instead, a squint as if the cheeks pushed it
-  up. A pane left under two blocks tall goes altogether, so no sliver
-  floats like a brow. An eye too thin for panes is one bar, and a shut eye
-  is two blocks thick, as heavy as the mouth.
-- **Cheeks.** Two coral blocks side by side under each eye, towards the
-  outside, level with the mouth. They rise with the happy squint.
-- **Mouth.** Small pixel shapes, never curves: a flat bar as wide as an
-  eye at rest (narrower in some looks), a small "u" smile, a small "o"
-  when open, and a small filled cup when happy and open. It follows the
-  eyes' look a little.
-- **Extras.** A tap and a cheer pop a pixel heart in at the top right,
-  small then full size, a stronger coral than the cheeks so the pinks
-  don't clash. Working, a sky-blue sweat drop slides down beside the right
-  eye; it goes whenever the heart shows, since they share a spot. Asleep,
-  a "zzZZ" climbs up from the right eye a letter at a time, two small z's
-  then two big Z's, clear of the screen's edges even with the bubble. When
-  each plays is in [BEHAVIORS.md](BEHAVIORS.md) §2 and §5.
-- **Motion.** The face eases between any two expressions in 150 ms or
-  less and never cuts hard: whatever changes mid-blend or mid-animation
-  ("needs you" arriving under a cheer or a mumble, the working count
-  crossing 3), the blend starts from the frame that was showing. The
-  backlight eases over the same 150 ms. Breathing bobs the whole face a
-  block instead of pulsing its size, which would pop single
-  parts.
+- **Shared by every design.** Warm-white window eyes, four panes each,
+  with a small mouth and two coral cheek blocks under each eye, on black.
+  Moods change the lids (stepped, never curved), the eyes' size and the
+  mouth. Every shape sits on whole pixels, with no anti-aliasing.
+- **Props.** Below the face, in the band the bubble uses: a keyboard
+  while working, an amber "?" sign while something needs you, a result
+  card on a tray for the cheer, and a grey broken-link sign with no app.
+  Asleep has a small grey Z by the right eye.
+- **Motion.** Each design moves in whole-pixel steps on its own clock,
+  which starts when its look or cheer starts: a breath, keys lighting in
+  the mood's rhythm, a lean toward you that plays once when something
+  needs you, the card rising once for the cheer.
+- **What the device adds.** Blinks, at the device's own pace
+  ([BEHAVIORS.md](BEHAVIORS.md) §2), show the design's closed eyes. A tap's
+  wiggle keeps the design and its clock, sways the face 3 px either way
+  and pops a pixel heart in at the top right, small then full size, a
+  stronger coral than the cheeks. A press dips the face 2 px at once
+  (§4). While Boop mumbles, the bubble takes the props' band, and the
+  mouth is a small "o" for the first half of each syllable.
+- **Switching designs.** The face never cuts hard: a change to another
+  design (another look, the cheer, the mood) shuts the eyes for 150 ms
+  and opens them on the new one, and so does a new cheer over a cheer.
+  The new design's clock starts with its look; the mood changing mid-cheer
+  keeps the cheer's clock. The backlight eases over the same 150 ms.
 
 **The bubble** is empty most of the time. It shows a mumble, as its one
-real word in amber among grey squiggles for the gibberish, or who needs
-you (§3). The squiggles give up their room before the word is cut, so a
+real word in amber among grey squiggles for the gibberish. The squiggles give up their room before the word is cut, so a
 word ends in ".." only when it's too long for the bubble on its own. A
 project name too long for the device arrives already cut, ending ".."
 ([PROTOCOL.md](PROTOCOL.md) §3). Accented letters show plain (é as e),
 and anything else the font lacks as "?".
 
-**The status strip** shows how many sessions need you (amber, hidden at
-zero) and how many are working (grey), with an icon at the right for no
-app. With no app, only its icon shows. With nothing to show
+**The status strip** shows who needs you (amber, hidden when nothing
+does; §3) and how many sessions are working (grey), with an icon at the
+right for no app. With no app, only its icon shows. With nothing to show
 it's bare glass with no divider, and the face doesn't move when it fills.
 
 **The debug label**, off unless the firmware is built with
 `-DBOOP_DEBUG_LABEL=1` (`firmware/platformio.ini`), shows what the face is
 following in tiny faint 5×7 text at the top left of the face, needs-you
 and no-app screens: the animation, or else the look (`idle`, `working`,
-`asleep`, `needs_you`; no app shows `asleep`). Frozen-clock frames leave
+`asleep`, `needs_you`, `no_app`). Frozen-clock frames leave
 it out, so simulator and scenario screenshots don't change.
 
 ## 3. Screens
@@ -100,23 +94,25 @@ it out, so simulator and scenario screenshots don't change.
 **Face.** The default. Everything in [BEHAVIORS.md](BEHAVIORS.md) happens
 here.
 
-**Needs you.** The face moves up and the bubble says who (the
-`plus-one-more` shot of
+**Needs you.** The mood's needs-you design, with its amber sign, and the
+strip says who: the oldest waiting session's agent and project in amber,
+cut to fit, then "+N" in grey for the others, then the working count
+(the `plus-one-more` shot of
 `internal/firmware/test/scenarios/needs_you.jsonl`):
 
 ```
 ┌──────────────────────────────────┐
-│           ▐██▌    ▐██▌           │
+│       ▐██▌        ▐██▌           │
+│               ‿                  │
 ├──────────────────────────────────┤
-│ codex · landing                  │  agent · project, in amber
-│ needs you on the Mac     +1 more │  "+N more" in grey, at the right
+│              [ ? ]               │  the sign, in the props' band
 ├──────────────────────────────────┤
-│ ● 2 needs you  ◦ 1               │
+│ ● codex · landing +1  ◦ 1        │  who, in amber; "+1" and the count in grey
 └──────────────────────────────────┘
 ```
 
-**No app.** The asleep face, with only the unplugged icon in the strip
-([BEHAVIORS.md](BEHAVIORS.md) §3.4).
+**No app.** The no-app design, low eyes and a grey broken-link sign, with
+only the unplugged icon in the strip ([BEHAVIORS.md](BEHAVIORS.md) §3.4).
 
 The only other screen is the debug test pattern
 ([VERIFICATION.md](VERIFICATION.md) §3). The threads and stats screens are
@@ -129,9 +125,9 @@ a firm press ([DEVICE.md](DEVICE.md) §1). Neither affects your agents.
 
 | Input | Does |
 | --- | --- |
-| Press BOOT, or touch the screen anywhere | Boop it: `wiggle`, or only the press squash while something needs you. Poking it over and over annoys it ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
+| Press BOOT, or touch the screen anywhere | Boop it: `wiggle`, or only the press dip while something needs you. Poking it over and over annoys it ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 
-Every press and touch squashes the face a little at once, before the Mac
+Every press and touch dips the face 2 px at once, before the Mac
 hears about it ([ARCHITECTURE.md](ARCHITECTURE.md) §9 has the budget). A
 press or touch is a tap however long it's held, and counts when you lift
 your finger; the strip is part of the screen, so a touch there counts too. The
