@@ -66,25 +66,24 @@ personality's to say.
 A personality file has two parts:
 
 - **Settings,** a front-matter block the core reads for its own rules
-  ([BEHAVIORS.md](../BEHAVIORS.md) §6): which finished turns get the
-  rule's cheer, how often working chatter plays, and which tool uses wake
-  the brain ([EVENTS.md](EVENTS.md) §4). It never reaches Jev.
+  ([BEHAVIORS.md](../BEHAVIORS.md) §6): how often working chatter plays,
+  and which tool uses wake the brain ([EVENTS.md](EVENTS.md) §4). It
+  never reaches Jev. Every personality cheers every finished turn.
 - **The text,** which becomes the PERSONALITY section: who this buddy
   is, how often it speaks up, and its Examples, what it would decide for
   typical NOWs.
 
 There are two:
 
-| Personality | For | `cheer` | `chatter` | `tool_uses` |
-| --- | --- | --- | --- | --- |
-| `boop` (the default) | Everyday use | `every` finished turn | every 120–240 s | `notable` |
-| `chatter` | Debugging: reacts to everything, over the top, so every pass is easy to see | `every` | every 30–60 s | `all` |
+| Personality | For | `chatter` | `tool_uses` |
+| --- | --- | --- | --- |
+| `boop` (the default) | Everyday use | every 120–240 s | `notable` |
+| `chatter` | Debugging: reacts to everything, over the top, so every pass is easy to see | every 30–60 s | `all` |
 
 **`plan/steering/personality/boop.md`:**
 
 ```
 ---
-cheer: every
 chatter: 120-240
 tool_uses: notable
 ---
@@ -114,7 +113,6 @@ Examples:
 
 ```
 ---
-cheer: every
 chatter: 30-60
 tool_uses: all
 ---

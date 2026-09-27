@@ -10,15 +10,13 @@ public struct Scenario: Sendable {
     /// One step: what happens, and what the pass it wakes should lead to.
     public struct Step: Sendable {
         /// `turn started`, `command`, `turn finished`, `turn failed`,
-        /// `needs you`, `tap`, `pokes` or `wait`.
+        /// `pokes` or `wait`.
         public var event: String
         /// Virtual time since the scenario started, in ms.
         public var atMs: Int64
-        public var agent: Agent = .claudeCode
-        public var project = "landing"
+        /// The thread's workspace; it's always Claude's session in `landing`.
         public var workspace: String?
-        public var session = "s1"
-        /// A command: its topic, and whether it failed (nil for Codex).
+        /// A command: its topic, and whether it failed.
         public var topic: String?
         public var failed: Bool?
         /// A failed turn's error class.
@@ -51,7 +49,7 @@ public struct Scenario: Sendable {
     public var steps: [Step]
     public var file: String
 
-    public static let events = ["turn started", "command", "turn finished", "turn failed", "needs you", "tap", "pokes", "wait"]
+    public static let events = ["turn started", "command", "turn finished", "turn failed", "pokes", "wait"]
 
     /// Reads one scenario file. Throws with the file and step on a bad one.
     public init(file: URL) throws {
@@ -73,13 +71,7 @@ public struct Scenario: Sendable {
             }
             guard let at = s["at"] as? String, let atMs = Scenario.ms(at) else { throw badStep("at is like 0m, 90s or 2m30s") }
             var step = Step(event: event, atMs: atMs)
-            if let agent = s["agent"] as? String {
-                guard let a = Agent(hookName: agent) else { throw badStep("agent is claude or codex") }
-                step.agent = a
-            }
-            step.project = s["project"] as? String ?? step.project
             step.workspace = s["workspace"] as? String
-            step.session = s["session"] as? String ?? step.session
             step.topic = s["topic"] as? String
             step.failed = s["failed"] as? Bool
             step.error = s["error"] as? String
@@ -182,24 +174,21 @@ public struct Eval {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
-        let start: Int64 = 1_791_986_400_000  // a Wednesday, 14:00 UTC
+        let start = Replay.defaultStart
         let clock = VirtualClock(start)
         let rules = steering.personality(scenario.personality).rules
-        let core = Core(config: .init(name: "Pip", rules: rules, time: time, seed: 1), lastActiveDay: time.day(start))
+        let core = Core(config: .init(rules: rules, time: time, seed: 1), lastActiveDay: time.day(start))
         core.setWallClock(start, at: start)
         let mood = MoodStore(stateDir: dir)
         let home = DispatchQueue(label: "boop.eval")
         let actions: [any Action] = [
             MoodAction(store: mood),
-            ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _ in }, blocked: { core.mumbleBlock(at: clock.now) }),
+            ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _ in }, blocked: { core.mumbleBlock }),
         ]
         let steering = self.steering
         let harness = Harness(brain: brain, actions: actions, parts: { entry in
-            let about: String? = if case .event(let e) = entry.body { e.about } else { nil }
-            return StateText.Parts(guide: steering.guide, personality: steering.personality(scenario.personality).text,
-                                   mood: steering.mood(mood.current), status: core.statusLine(excluding: about, at: clock.now),
-                                   workingSince: core.workingSince(at: clock.now),
-                                   clock: "\(time.clock(clock.now)), \(time.weekday(clock.now))")
+            Runtime.stateParts(for: entry, steering: steering, personality: scenario.personality, mood: mood.current,
+                               core: core, time: time, now: clock.now, wall: clock.now)
         }, home: home, clock: { clock.now }, debugLog: debugLog)
 
         var checks: [Check] = []
@@ -233,45 +222,43 @@ public struct Eval {
     }
 
     /// A step as it reaches the core: the hook events or device input it
-    /// stands for.
+    /// stands for, in Claude's session `s1` in `landing`.
     static func feed(_ step: Scenario.Step, _ core: Core, at now: Int64) -> [CoreEffect] {
         func hook(_ kind: BoopEvent.Kind, _ detail: BoopEvent.Detail = .init()) -> [CoreEffect] {
-            core.handle(BoopEvent(agent: step.agent, session: step.session, project: step.project, workspace: step.workspace,
+            core.handle(BoopEvent(agent: .claudeCode, session: "s1", project: "landing", workspace: step.workspace,
                                   event: kind, detail: detail, ts: now))
         }
         switch step.event {
         case "turn started": return hook(.turnStart)
         case "turn finished": return hook(.turnEnd)
         case "turn failed": return hook(.turnFailed, .init(error: step.error ?? "api_error"))
-        case "needs you": return hook(.needsYou, .init(tool: "Bash"))
         case "command":
-            let tool = step.agent == .codex ? "shell" : "Bash"
-            var fx = hook(.activity, .init(tool: tool, topic: step.topic))
-            var done = BoopEvent.Detail(tool: tool, topic: step.topic, failed: step.agent == .codex ? nil : (step.failed ?? false),
+            var fx = hook(.activity, .init(tool: "Bash", topic: step.topic))
+            var done = BoopEvent.Detail(tool: "Bash", topic: step.topic, failed: step.failed ?? false,
                                         toolError: step.failed == true ? "exit_code" : nil)
             done.done = true
             fx += hook(.activity, done)
             return fx
-        case "tap": return core.input(.tap, at: now)
         case "pokes": return (0..<4).flatMap { _ in core.input(.tap, at: now) }
         default: return []  // wait
         }
     }
 
-    /// The results, readably: each scenario's verdict, and each failing step.
-    public static func report(_ results: [[Result]]) -> [String] {
-        var lines: [String] = []
-        for runs in results {
-            guard let first = runs.first else { continue }
-            let passed = runs.filter(\.passed).count
-            let tally = runs.count > 1 ? "  (\(passed)/\(runs.count) runs)" : ""
-            lines.append((passed == runs.count ? "pass  " : "FAIL  ") + "\(first.file)  \(first.scenario)\(tally)")
-            var seen: Set<String> = []
-            for r in runs { for c in r.checks where !c.passed && seen.insert(c.summary).inserted { lines.append(c.summary) } }
-        }
-        let ok = results.filter { $0.allSatisfy(\.passed) }.count
-        lines.append("\(ok)/\(results.count) passed")
+    /// One scenario's runs, readably: its verdict, and each failing step
+    /// once.
+    public static func report(_ runs: [Result]) -> [String] {
+        guard let first = runs.first else { return [] }
+        let passed = runs.filter(\.passed).count
+        let tally = runs.count > 1 ? "  (\(passed)/\(runs.count) runs)" : ""
+        var lines = [(passed == runs.count ? "pass  " : "FAIL  ") + "\(first.file)  \(first.scenario)\(tally)"]
+        var seen: Set<String> = []
+        for r in runs { for c in r.checks where !c.passed && seen.insert(c.summary).inserted { lines.append(c.summary) } }
         return lines
+    }
+
+    /// How many scenarios passed in every run: `7/10 passed`.
+    public static func summary(_ results: [[Result]]) -> String {
+        "\(results.filter { $0.allSatisfy(\.passed) }.count)/\(results.count) passed"
     }
 }
 

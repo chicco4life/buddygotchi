@@ -164,7 +164,6 @@ struct BLEOutbox {
     /// Pieces of the first line already written.
     private var sent = 0
 
-    var isEmpty: Bool { lines.isEmpty }
     var bytes: Int { lines.reduce(0) { $0 + $1.chunks.reduce(0) { $0 + $1.count } } }
 
     mutating func add(_ line: String, size: Int) {

@@ -6,7 +6,7 @@ import Foundation
 /// the harness never reads them. The kinds, their facts and their lines are
 /// harness/EVENTS.md's.
 public struct Event: Equatable, Sendable {
-    public enum Kind: String, Sendable, CaseIterable {
+    public enum Kind: String, Sendable {
         case turnStart = "turn_start"
         case turnEnd = "turn_end"
         case toolUse = "tool_use"

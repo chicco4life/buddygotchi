@@ -33,12 +33,6 @@ let usage = """
     (boop \(BoopVersion.current))
     """
 
-func fail(_ message: String) -> Never {
-    FileHandle.standardError.write(Data((message + "\n").utf8))
-    exit(2)
-}
-
-
 /// The steering folder as bundled with the app (a copy of `plan/steering/`).
 func bundledSteering() -> Steering {
     guard let url = Bundle.module.url(forResource: "steering", withExtension: nil) else {

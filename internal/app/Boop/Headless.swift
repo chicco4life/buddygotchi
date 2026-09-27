@@ -35,7 +35,7 @@ enum Headless {
         if memory?.isSetUp != true {
             let name = args["--name"] ?? "Boop"
             do {
-                try Runtime.setUp(stateDir: stateDir, name: name, nature: nature, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
+                try Runtime.setUp(stateDir: stateDir, name: name, nature: nature)
                 log.write("boop: set up \(name) (\(nature.rawValue)) in \(stateDir.path)")
             } catch {
                 fail("can't set up \(stateDir.path): \(error)")
@@ -49,10 +49,7 @@ enum Headless {
         // shell must never use the owner's key from the Keychain
         // (harness/HARNESS.md §7).
         options.readJevKey = { JevKey.environment() }
-        if brain == "scripted" {
-            options.readJevKey = { "scripted" }
-            options.brain = { _ in ScriptedBrain.pipelineCheck }
-        }
+        if brain == "scripted" { options.brain = { _ in ScriptedBrain.pipelineCheck } }
         // The clock can be moved forward with `{"dev":"advance","ms":N}`, so
         // the pipeline check can finish a 6-minute turn without waiting it out.
         let skew = Skew()

@@ -1,10 +1,9 @@
 import Foundation
 import XCTest
+@testable import BoopDevKit
 @testable import BoopKit
 
-func events(_ fx: [CoreEffect]) -> [Event] {
-    fx.compactMap { if case .event(let e) = $0 { return e } else { return nil } }
-}
+func events(_ fx: [CoreEffect]) -> [Event] { Eval.events(fx) }
 
 /// The core's events for the harness (harness/EVENTS.md).
 final class EventTests: XCTestCase {

@@ -51,9 +51,6 @@ final class AppModel: ObservableObject {
     @Published var restartAgents = false
     /// Why the last Connect, Repair or Remove failed, per agent.
     @Published var hookErrors: [HookInstaller.Agent: String] = [:]
-    /// Who Boop is, chosen in settings; `status` has the brain it runs.
-    @Published var personality = Personality.boop
-    @Published var nature = LongTerm.Nature.sweet
     @Published var startError: String?
 
     let installer: HookInstaller
@@ -74,7 +71,9 @@ final class AppModel: ObservableObject {
         refreshHooks()
     }
 
-    var name: String { status?.snapshot.name ?? "Boop" }
+    var name: String { status?.name ?? "Boop" }
+    /// Who Boop is, chosen in settings.
+    var personality: Personality { status?.personality ?? .boop }
 
     func refreshHooks() {
         hooks = Dictionary(uniqueKeysWithValues: HookInstaller.Agent.allCases.map { ($0, installer.health($0)) })
@@ -120,7 +119,6 @@ final class AppModel: ObservableObject {
     /// Takes effect from the next event (BEHAVIORS.md §6).
     func setPersonality(_ personality: Personality) {
         guard personality != self.personality else { return }
-        self.personality = personality
         status?.personality = personality
         runtime?.setPersonality(personality)
     }
@@ -144,7 +142,6 @@ final class AppModel: ObservableObject {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let stateDir: URL
-    let link: LinkSetting
     /// Debug mode (harness/HARNESS.md §9): everything printed to the terminal that
     /// started the app, and every pass to `debug.jsonl`.
     let debug: Bool
@@ -153,11 +150,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var statusItem: NSStatusItem?
     private var iconMood: FaceMood?
     let popover = NSPopover()
-    var runtime: Runtime?
 
     init(stateDir: URL, link: LinkSetting, debug: Bool) {
         self.stateDir = stateDir
-        self.link = link
         self.debug = debug
         log = LogFile(directory: stateDir, echo: debug)
         // On another folder the installer still reads the real hooks, as the
@@ -237,7 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        runtime?.stop()
+        model.runtime?.stop()
     }
 
     /// The hooks call a stable copy of `boop-hook` in the state directory, so
@@ -264,7 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func startRuntime() {
-        let transport: DeviceTransport? = switch link {
+        let transport: DeviceTransport? = switch model.link {
         case .bluetooth: BLETransport(log: { [log] in log.write($0) })
         case .usb(let path): USBTransport(path: path)
         case .none: nil
@@ -279,14 +274,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         options.devLines = debug
         do {
             let runtime = try Runtime(options)
-            let model = self.model
             runtime.onChange = { [weak self] status in Task { @MainActor in self?.show(status) } }
-            // Read before start: from then on the runtime's state belongs to
-            // its own queue.
-            model.personality = runtime.settings.personality
-            model.nature = runtime.memory.longTerm?.nature ?? .sweet
             try runtime.start()
-            self.runtime = runtime
             model.runtime = runtime
             model.startError = nil
             runtime.refresh()
@@ -320,7 +309,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     func showPopover() {
         guard let button = statusItem?.button else { return }
         model.refreshHooks()
-        runtime?.refresh()
+        model.runtime?.refresh()
         NSApp.activate()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
@@ -334,8 +323,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     func finishSetup() {
         let draft = model.setup
         do {
-            try Runtime.setUp(stateDir: stateDir, name: draft.trimmedName, nature: draft.nature,
-                              today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
+            try Runtime.setUp(stateDir: stateDir, name: draft.trimmedName, nature: draft.nature)
         } catch {
             log.write("setup: \(error)")
             model.setup.error = "Boop couldn't save its memory. What happened is in boop.log, in Boop's folder."

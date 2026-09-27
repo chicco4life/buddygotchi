@@ -80,8 +80,7 @@ final class ReplayTests: XCTestCase {
     /// The J1 fixtures carry boopctl e2e checkpoints; replay skips them and
     /// treats a clock jump as time passing.
     func testE2ECheckpointsAreSkipped() throws {
-        let path = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .appendingPathComponent("Fixtures/hooks/e2e/claude/session.jsonl").path
+        let path = HookWireTests.fixtures.appendingPathComponent("e2e/claude/session.jsonl").path
         let steps = try Replay.steps(fromFile: path)
         XCTAssertTrue(steps.contains(.advance(400_000)))
         let lines = Replay(agent: "claude").run(steps)

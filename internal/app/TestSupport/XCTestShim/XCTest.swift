@@ -43,21 +43,6 @@ public func XCTAssertEqual<T: Equatable>(
     }
 }
 
-public func XCTAssertEqual(
-    _ expression1: @autoclosure () throws -> Double,
-    _ expression2: @autoclosure () throws -> Double,
-    accuracy: Double,
-    _ message: @autoclosure () -> String = "",
-    file: StaticString = #filePath,
-    line: UInt = #line
-) rethrows {
-    let lhs = try expression1()
-    let rhs = try expression2()
-    if abs(lhs - rhs) > accuracy {
-        fail(message().isEmpty ? "XCTAssertEqual failed: \(lhs) is not within \(accuracy) of \(rhs)" : message(), file: file, line: line)
-    }
-}
-
 public func XCTAssertNil<T>(
     _ expression: @autoclosure () throws -> T?,
     _ message: @autoclosure () -> String = "",

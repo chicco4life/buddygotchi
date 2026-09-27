@@ -1,7 +1,7 @@
 import Foundation
 
 /// The agents Boop listens to.
-public enum Agent: String, Sendable, CaseIterable {
+public enum Agent: String, Sendable {
     case claudeCode = "claude_code"
     case codex
 
@@ -25,7 +25,7 @@ public enum Agent: String, Sendable, CaseIterable {
 
 /// The common event every adapter produces (ADAPTERS.md §1).
 public struct BoopEvent: Equatable, Sendable {
-    public enum Kind: String, Sendable, CaseIterable {
+    public enum Kind: String, Sendable {
         case sessionStart = "session_start"
         case turnStart = "turn_start"
         case needsYou = "needs_you"

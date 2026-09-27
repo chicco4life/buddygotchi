@@ -109,8 +109,8 @@ waiting ([HARNESS.md](harness/HARNESS.md) §3).
 The brain's moments never cut another moment off. The rules' moments play
 at once, each new one replacing whatever is playing
 ([BEHAVIORS.md](BEHAVIORS.md) §3). The brain's wait their turn
-(`MomentSchedule`), one at a time, and one that has waited longer than its
-`ttl` (5 s) is dropped, since a late reaction is worse than none. The app
+(`MomentSchedule`), one at a time, and one that has waited longer than
+5 s is dropped, since a late reaction is worse than none. The app
 times each moment as the device does: the animation's length or, if
 longer, the mumble's syllables plus two beats for the word, then 1.2 s to
 read the bubble.
@@ -207,11 +207,12 @@ From the memory tests (`testANewDaySnapshotsAndStartsFresh`):
 
 ```markdown
 ## Today
-2026-10-15 · first seen 09:01
+2026-10-15
 ```
 
-The core's new day writes it: the date and the time of the first
-activity. It's how a restart knows the day has already started.
+The core's new day writes it: the date alone. It's how a restart knows
+the day has already started. Anything after the date on the Today line,
+like the `first seen` time older files have, is ignored.
 
 ### 4.4 State directory
 
@@ -334,7 +335,7 @@ mood hold) are at the end of that file.
 | 2026-09-26 | Four hero moments lead Boop's story: a cheer for a finished turn, frustration at a failed one (including one that leaves its tests failing), sadness when yelled at, annoyance at a poke streak. Past the cheer, the brain's mumbles tell them | Each has one clear cause and one clear feeling, and the device keeps its 4 states and 3 animations | [VISION.md](VISION.md), [BEHAVIORS.md](BEHAVIORS.md) §3 |
 | 2026-09-26 | v1 is cut to 4 states and 3 animations; everything else is parked | The surface had grown past what the owner can hold in their head; features come back one at a time | [BEHAVIORS.md](BEHAVIORS.md), [FUTURE.md](FUTURE.md) |
 | 2026-09-26 | The face is pixel art after the owner's reference render: window eyes, pink cheeks and small pixel mouths on a 3 px grid | The owner asked for every animation to match the reference | [UX.md](UX.md) §2 |
-| 2026-09-26 | The brain's moments take turns behind the rules' and each other's, and are dropped past their `ttl` | An if-else classifier answers in 0 ms, so a brain mumble cut off the rules' cheer before it showed, and a later mumble cut off an earlier one | §3.2 |
+| 2026-09-26 | The brain's moments take turns behind the rules' and each other's, and are dropped after waiting 5 s | An if-else classifier answers in 0 ms, so a brain mumble cut off the rules' cheer before it showed, and a later mumble cut off an earlier one | §3.2 |
 | 2026-09-26 | Durations and gaps arrive named (short, long, very long; right after, a while, a long break) | Keep arithmetic out of the brain: Jev read "took 45 s" as quick | [harness/EVENTS.md](harness/EVENTS.md) §5 |
 | 2026-09-26 | Each feeling's meaning rules out its neighbours ("sad" is only hurt; a failed turn is "annoyed") | Jev is literal: while "sad" also covered things going badly, a complaint about a build came out sad | [harness/DECISIONS.md](harness/DECISIONS.md) §3 |
 | 2026-09-27 | Personalities replace modes: how much Boop speaks up is its personality file's to say, chosen in Settings | Modes picked brains, and there's one brain now; a chattier or quieter Boop is a different character | [harness/DECISIONS.md](harness/DECISIONS.md) §2.2 |
@@ -352,3 +353,5 @@ mood hold) are at the end of that file.
 | 2026-09-27 | Every `state` carries the mood, and the device keeps it; a missing or unknown one reads as happy | The mood picks the set of faces the device draws in. As part of the snapshot, a lost update fixes itself with the next `state`, and an older device ignores the field | [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-27 | The device draws the mood designs exactly: `facegen` turns their SVGs into rectangles and step-wise timings in `firmware/assets/faces.h`, on whole pixels rather than the old 3 px blocks | The designs are the look. Exact pixels can be checked (Chrome against facegen at `make -C internal faces`, facegen against the device at `make -C internal fw-test`), and a revised design is a rerun | [DEVICE.md](DEVICE.md) §6, [evidence](evidence/2026-09-27-mood-faces/README.md) |
 | 2026-09-27 | The face switches designs behind a 150 ms blink instead of easing between poses; who needs you moves from the bubble into the strip; the bubble takes the props' band and the face stays put; a tap keeps its sway and heart. The old face's sweat drop, strain, climbing "zzZZ" and needs-you lean-and-raise go with it | The designs step in whole pixels and can't be eased into one another, and a blink reads as Boop's own. The "needs you" sign sits where the bubble was, and the strip already carried the amber count | [UX.md](UX.md) §2–3 |
+| 2026-09-27 | Every finished turn cheers, whatever the personality: the personality files' `cheer` setting is gone, and an older file's is ignored | Both personalities said `cheer: every`; a setting nobody varies is just a rule | [BEHAVIORS.md](BEHAVIORS.md) §3.1, §6 |
+| 2026-09-27 | The wire carries only what's read: `state` drops `time` and `name`, `moment` drops `ttl` (the Mac keeps its 5 s drop for brain moments), and `status` drops `bat` and `usb`. The device shows "needs you" from `attn` and reads neither `idle` nor `wait`, which stay for the dashboard; the keepalive resends the latest `state` | No device or tool read the dropped fields, and without `time` a resent `state` is the same line, so a snapshot needn't be rebuilt every second | [PROTOCOL.md](PROTOCOL.md) §3–4 |

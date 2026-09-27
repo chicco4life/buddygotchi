@@ -2,7 +2,7 @@ import BoopKit
 import SwiftUI
 
 /// Settings, inside the popover (UX.md §6): sound, agents and hooks, the
-/// device, the personality and Jev's key, and what Boop remembers.
+/// device, and the personality with Jev's key.
 struct SettingsPane: View {
     @ObservedObject var model: AppModel
     var maxHeight: CGFloat
@@ -18,7 +18,7 @@ struct SettingsPane: View {
                     PaneSection("Sound") { sound }
                     PaneSection("Agents") { agents }
                     PaneSection("Device") { device }
-                    PaneSection("Personality") { modes }
+                    PaneSection("Personality") { personality }
                 }
                 .padding(.horizontal, Theme.gutter)
                 .padding(.bottom, Theme.gapLoose)
@@ -89,7 +89,7 @@ struct SettingsPane: View {
             default: found ? ("Not connected", Theme.inkSoft) : ("Not found on this Mac", Theme.inkSoft)
             }
         }
-        return SettingRow(icon: agentSymbol(agent == .claude ? "claude" : "codex"), title: agent.displayName,
+        return SettingRow(icon: agentSymbol(agent.rawValue), title: agent.displayName,
                           detail: text, detailTone: tone) {
             switch health {
             case .installed?:
@@ -145,11 +145,11 @@ struct SettingsPane: View {
         return "Without a Jev API key, \(model.name) only cheers, wiggles and chatters by rule."
     }
 
-    private var modes: some View {
+    private var personality: some View {
         Card(padding: 0) {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 8) {
-                    ModePicker(personality: Binding(get: { model.personality }, set: { model.setPersonality($0) }))
+                    PersonalityPicker(personality: Binding(get: { model.personality }, set: { model.setPersonality($0) }))
                     Text(about(model.personality))
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
@@ -211,18 +211,18 @@ struct SettingsPane: View {
 /// Boop or Chatter: equal segments on a well, the chosen one raised on
 /// paper. Drawn here rather than the system's segmented control,
 /// which doesn't stretch, and draws grey in the popover's inactive window.
-struct ModePicker: View {
+struct PersonalityPicker: View {
     @Binding var personality: Personality
     @Namespace private var chosen
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(Personality.allCases, id: \.self) { m in
-                let on = m == personality
+            ForEach(Personality.allCases, id: \.self) { p in
+                let on = p == personality
                 Button {
-                    withAnimation(.boopSettle) { personality = m }
+                    withAnimation(.boopSettle) { personality = p }
                 } label: {
-                    Text(m.rawValue.capitalized)
+                    Text(p.rawValue.capitalized)
                         .font(.system(size: 11, weight: on ? .semibold : .medium))
                         .foregroundStyle(on ? Theme.ink : Theme.inkSoft)
                         .frame(maxWidth: .infinity)

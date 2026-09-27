@@ -46,32 +46,25 @@ public struct LongTerm: Equatable, Sendable {
 /// `short-term.md`: today (ARCHITECTURE.md §4.3).
 public struct ShortTerm: Equatable, Sendable {
     public var date: String
-    public var firstSeen: String
 
-    public init(date: String, firstSeen: String) {
+    public init(date: String) {
         self.date = date
-        self.firstSeen = firstSeen
     }
 
-    public var markdown: String { "## Today\n\(date) · first seen \(firstSeen)\n" }
+    public var markdown: String { "## Today\n\(date)\n" }
 
-    /// Reads the file. Anything else on the Today line, like the `mood:`
-    /// files from before 2026-09-26 have, and other sections, like the
-    /// Notes and Happened of files from before 2026-09-27, are left out.
+    /// Reads the file. Anything else on the Today line, like the
+    /// `first seen` and `mood:` of older files, and other sections, like
+    /// the Notes and Happened of files from before 2026-09-27, are left out.
     public static func parse(_ text: String) throws -> ShortTerm {
         let sections = MarkdownSections(text)
         guard let today = sections["Today"]?.first(where: { !$0.isEmpty }) else {
             throw MemoryParseError("no Today line")
         }
-        let parts = today.components(separatedBy: " · ").map { $0.trimmingCharacters(in: .whitespaces) }
-        guard let date = parts.first, LocalTime.isDay(date) else {
-            throw MemoryParseError("the Today line doesn't read: \(today)")
-        }
-        var firstSeen = ""
-        for part in parts.dropFirst() where part.hasPrefix("first seen ") {
-            firstSeen = String(part.dropFirst("first seen ".count))
-        }
-        return ShortTerm(date: date, firstSeen: firstSeen)
+        guard let date = today.components(separatedBy: " · ").first?.trimmingCharacters(in: .whitespaces),
+              LocalTime.isDay(date)
+        else { throw MemoryParseError("the Today line doesn't read: \(today)") }
+        return ShortTerm(date: date)
     }
 }
 

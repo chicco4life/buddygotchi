@@ -9,7 +9,7 @@ import HookWire
 /// Each subcommand's usage, in the order `boopdev --help` lists them.
 let usages: [(command: String, text: String)] = [
     ("replay", """
-    boopdev replay <hooks.jsonl> [--agent claude|codex] [--gap-ms N] [--start MS] [--tz ZONE] [--new-day] [--states]
+    boopdev replay <hooks.jsonl> [--agent claude|codex] [--gap-ms N] [--states]
         Runs recorded hook payloads through boop-hook's field picking, the adapter and the core,
         on a virtual clock, and prints what the core decides. {"wait_ms":N} and {"advance_ms":N} move the clock.
     boopdev replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]
@@ -18,7 +18,7 @@ let usages: [(command: String, text: String)] = [
         app's clock.
     """),
     ("voice", """
-    boopdev voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json] [--why]
+    boopdev voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json]
         Prints Minion lines as the react action would build them.
     """),
     ("eval", """
@@ -52,11 +52,6 @@ func indented(_ text: String) -> String {
 let usage = "usage:\n" + usages.map { indented($0.text) }.joined(separator: "\n") + "\n"
     + "Each command prints its own usage with --help, and stops on a flag it doesn't take.\n" + version
 
-func fail(_ message: String) -> Never {
-    FileHandle.standardError.write(Data((message + "\n").utf8))
-    exit(2)
-}
-
 /// The `boop-hook` built next to boopdev.
 let builtHook = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("boop-hook")
 
@@ -74,8 +69,7 @@ func arguments(_ command: String, _ args: [String], options: Set<String> = [], f
 }
 
 func replay(_ raw: [String]) {
-    let args = arguments("replay", raw, options: ["--agent", "--gap-ms", "--start", "--tz", "--socket"],
-                         flags: ["--new-day", "--states"], words: 1)
+    let args = arguments("replay", raw, options: ["--agent", "--gap-ms", "--socket"], flags: ["--states"], words: 1)
     guard let path = args.words.first else { fail("boopdev replay: which hooks.jsonl?") }
     let agent = args["--agent"] ?? (path.contains("/codex/") ? "codex" : "claude")
     guard let gap = Int64(args["--gap-ms"] ?? "1000") else { fail("--gap-ms is a number of milliseconds") }
@@ -88,15 +82,6 @@ func replay(_ raw: [String]) {
     }
     var replay = Replay(agent: agent)
     replay.gapMs = gap
-    if let start = args["--start"] {
-        guard let ms = Int64(start) else { fail("--start is milliseconds since 1970") }
-        replay.start = ms
-    }
-    if let tz = args["--tz"] {
-        guard let zone = TimeZone(identifier: tz) else { fail("--tz is a time zone such as Europe/London") }
-        replay.time = LocalTime(timeZone: zone)
-    }
-    replay.newDay = args.has("--new-day")
     for line in replay.run(steps, statesOnly: args.has("--states")) { print(line) }
 }
 
@@ -170,7 +155,7 @@ func spawn(_ path: String, _ args: [String], stdin: Data, environment: [String: 
 }
 
 func voice(_ raw: [String]) {
-    let args = arguments("voice", raw, options: ["--dialect", "--seed", "--count"], flags: ["--json", "--why"], words: 2)
+    let args = arguments("voice", raw, options: ["--dialect", "--seed", "--count"], flags: ["--json"], words: 2)
     let words = args.words
     guard let feeling = words.first.flatMap(Feeling.init(rawValue:)) else {
         fail("feelings: " + Feeling.allCases.map(\.rawValue).joined(separator: ", "))
@@ -185,9 +170,7 @@ func voice(_ raw: [String]) {
     }
     if !args.has("--json") { print("dialect \(String(dialect.seed, radix: 16)): \(dialect.favourites.joined(separator: " "))") }
     for seed in first..<(first + count) {
-        let line = v.line(feeling, word: word, seed: seed, rejected: { groups, why in
-            if let why, args.has("--why") { print("  tried \(groups.map { $0.joined(separator: "-") }.joined(separator: " ")): \(why)") }
-        })
+        let line = v.line(feeling, word: word, seed: seed)
         print(args.has("--json") ? line.json : "\(seed)\t\(line.text)\t\(line.tune.rawValue) \(line.ms) ms")
     }
 }
@@ -228,7 +211,8 @@ func eval(_ raw: [String]) async {
     }
     guard !list.isEmpty else { fail("no scenarios in \(scenarios.path)") }
     guard let runs = Int(args["--runs"] ?? "3"), runs >= 1 else { fail("--runs is a count, 1 or more") }
-    var runner = Eval(brain: JevBrain(key: key), steering: steering)
+    let brain = JevBrain(key: key)
+    var runner = Eval(brain: brain, steering: steering)
     let log = evalDebugLog()
     DebugLog.start(log)
     runner.debugLog = log
@@ -240,16 +224,15 @@ func eval(_ raw: [String]) async {
             do { rs.append(try await runner.run(scenario)) } catch { fail("\(error)") }
         }
         results.append(rs)
-        for line in Eval.report([rs]).dropLast() { print(line) }
+        for line in Eval.report(rs) { print(line) }
     }
-    let passed = results.filter { $0.allSatisfy(\.passed) }.count
-    print("\(passed)/\(results.count) passed" + (runs > 1 ? " in all \(runs) runs" : "") + " with jev:jev-latest")
+    print(Eval.summary(results) + (runs > 1 ? " in all \(runs) runs" : "") + " with \(brain.id)")
     let latencies = results.flatMap { $0.flatMap { $0.checks.map(\.latencyMs) } }.sorted()
     if !latencies.isEmpty {
         print("latency: median \(latencies[latencies.count / 2]) ms, slowest \(latencies.last!) ms (deadline \(Harness.deadlineMs) ms)")
     }
     print("every entry: boopdev watch \(log.path)")
-    exit(passed == results.count ? 0 : 1)
+    exit(results.allSatisfy { $0.allSatisfy(\.passed) } ? 0 : 1)
 }
 
 /// A file of the run's own (harness/HARNESS.md §9), so runs side by side

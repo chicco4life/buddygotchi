@@ -65,11 +65,11 @@ One JSON file per scenario in `internal/app/Evals/scenarios/`:
 | --- | --- |
 | `name`, `why` | What it checks, and the spec that says so |
 | `personality` | `boop` (the default) or `chatter` |
-| `steps[].event` | `turn started`, `command`, `turn finished`, `turn failed`, `needs you`, `tap`, `pokes` or `wait` |
+| `steps[].event` | `turn started`, `command`, `turn finished`, `turn failed`, `pokes` or `wait`, all in one Claude session in `landing` |
 | `steps[].at` | Virtual time since the start: `0s`, `2m30s`, `1h5m`. Time passes a second at a time, so heartbeats and the core's timers fire on the way |
 | `steps[].topic`, `failed` | A command's topic and whether it failed |
 | `steps[].error` | A failed turn's error class |
-| `steps[].agent`, `session`, `project`, `workspace` | The thread, when it isn't the default Claude one in `landing` |
+| `steps[].workspace` | The thread's workspace, when it has one |
 | `steps[].expect` | `react`, `word` and `mood`, each a `|`-separated list |
 
 ## 4. The scenarios

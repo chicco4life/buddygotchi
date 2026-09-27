@@ -1,3 +1,4 @@
+import BoopDevKit
 import Foundation
 import XCTest
 @testable import BoopKit
@@ -5,7 +6,7 @@ import XCTest
 /// Drives a core with a virtual clock. Starts 2026-10-14 14:00 UTC, a
 /// Wednesday afternoon, with today already started.
 final class CoreRig {
-    static let start: Int64 = 1_791_986_400_000
+    static let start = Replay.defaultStart
     static let day: Int64 = 24 * 3600 * 1000
     let time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
     var now: Int64
@@ -15,7 +16,7 @@ final class CoreRig {
     init(start: Int64 = CoreRig.start, newDay: Bool = false, seed: UInt64 = 1, rules: Personality.Rules = Personality.Rules()) {
         now = start
         let today = time.day(start)
-        core = Core(config: .init(name: "Pip", rules: rules, time: time, seed: seed), lastActiveDay: newDay ? nil : today)
+        core = Core(config: .init(rules: rules, time: time, seed: seed), lastActiveDay: newDay ? nil : today)
         if !newDay { core.tick(at: start) }  // the first snapshot has gone out
     }
 
@@ -75,7 +76,7 @@ func woke(_ fx: [CoreEffect]) -> [String] {
 
 /// A chatty Boop's rules, for tests that need chatter often.
 extension Personality.Rules {
-    static let chatty = Personality.Rules(cheer: .every, chatterMs: 45_000...90_000, toolUses: .notable)
+    static let chatty = Personality.Rules(chatterMs: 45_000...90_000, toolUses: .notable)
 }
 
 func mumbles(_ fx: [CoreEffect]) -> [String] {
@@ -332,7 +333,7 @@ final class CoreNeedsYouTests: XCTestCase {
 
         rig.send(.activity, tool: "Bash", topic: "build")
         rig.send(.needsYou, tool: "Bash")
-        rig.wait(Core.Config(name: "Pip").safetyNetMs)
+        rig.wait(Core.Config().safetyNetMs)
         XCTAssertNil(rig.state.attn, "the safety net")
         XCTAssertEqual(rig.state.base, "idle", "though the approved build still runs")
         XCTAssertEqual(states(rig.send(.activity, tool: "Bash", topic: "build", failed: false)).last?.base, "working")
@@ -431,7 +432,7 @@ final class CoreNeedsYouTests: XCTestCase {
     /// and the session goes idle rather than back to working: no sweat drop
     /// and no chatter while the agent may still be waiting on its prompt.
     func testSafetyNetClearsAfterTenQuietMinutes() {
-        XCTAssertEqual(Core.Config(name: "Pip").safetyNetMs, 600_000)
+        XCTAssertEqual(Core.Config().safetyNetMs, 600_000)
         let rig = CoreRig(rules: .chatty)
         rig.send(.turnStart)
         rig.send(.needsYou, tool: "Bash")
@@ -453,7 +454,7 @@ final class CoreNeedsYouTests: XCTestCase {
         rig.send(.turnStart, .codex)
         rig.send(.activity, .codex, tool: "shell", topic: "deploy")
         rig.send(.needsYou, .codex, tool: "shell")
-        rig.now += Core.Config(name: "Pip").safetyNetMs  // one tick, on waking
+        rig.now += Core.Config().safetyNetMs  // one tick, on waking
         let fx = rig.core.tick(at: rig.now)
         XCTAssertEqual(states(fx).last?.base, "idle")
         XCTAssertNil(rig.state.attn)
@@ -561,7 +562,7 @@ final class CoreYouAndBoopTests: XCTestCase {
     func testFirstActivityOfTheDayStartsTheDayQuietly() {
         let rig = CoreRig(newDay: true)
         let fx = rig.send(.sessionStart)
-        XCTAssertTrue(fx.contains(.newDay(date: "2026-10-14", firstSeen: "14:00")))
+        XCTAssertTrue(fx.contains(.newDay(date: "2026-10-14")))
         XCTAssertEqual(moments(fx), [])
         XCTAssertEqual(moments(rig.wait(2000)), [])
         XCTAssertFalse(rig.send(.turnStart).contains { if case .newDay = $0 { true } else { false } }, "only the first activity")
@@ -577,10 +578,9 @@ final class CoreYouAndBoopTests: XCTestCase {
         rig.wait(1000)
         rig.core.setWallClock(rig.now - 3_600_000, at: rig.now)  // the Mac's clock set back an hour
         XCTAssertFalse(mumbles(rig.wait(120_000)).isEmpty, "chatter, on time")
-        XCTAssertEqual(rig.state.time, (rig.now - 3_600_000) / 1000, "the snapshot's time is the wall clock's")
         rig.core.setWallClock(rig.now + CoreRig.day, at: rig.now)
         let fx = rig.send(.sessionStart)
-        XCTAssertTrue(fx.contains(.newDay(date: "2026-10-15", firstSeen: "14:02")))
+        XCTAssertTrue(fx.contains(.newDay(date: "2026-10-15")))
     }
 
     /// The runtime's steady clock starts at the wall clock's time and never
@@ -604,7 +604,7 @@ final class CoreYouAndBoopTests: XCTestCase {
         rig.send(.sessionStart)
         rig.wait(24 * 3600 * 1000)
         let fx = rig.send(.turnStart)
-        XCTAssertTrue(fx.contains(.newDay(date: "2026-10-15", firstSeen: "14:00")))
+        XCTAssertTrue(fx.contains(.newDay(date: "2026-10-15")))
         XCTAssertEqual(events(fx).map(\.kind), [.turnStart])
     }
 }
@@ -612,20 +612,6 @@ final class CoreYouAndBoopTests: XCTestCase {
 // MARK: - BEHAVIORS.md §6 Personalities
 
 final class CorePersonalityTests: XCTestCase {
-    /// BEHAVIORS.md §6: `cheer: every` cheers every finish; `long` only one
-    /// over a minute, and then the brain hears it didn't cheer.
-    func testCheerEveryOrOnlyLong() {
-        XCTAssertEqual(moments(CoreRig().turn(8_000)), ["cheer"])
-        let rig = CoreRig(rules: Personality.Rules(cheer: .long))
-        let short = rig.turn(60_000)
-        XCTAssertEqual(moments(short), [])
-        XCTAssertNil(events(short).first?.reaction)
-        rig.wait(5000)
-        let long = rig.turn(61_000)
-        XCTAssertEqual(moments(long), ["cheer"])
-        XCTAssertEqual(events(long).first?.reaction, "Boop cheered on its own.")
-    }
-
     /// The gaps between chatter mumbles over two working hours.
     func chatterGaps(_ rig: CoreRig) -> [Int64] {
         rig.send(.turnStart)
@@ -651,23 +637,22 @@ final class CorePersonalityTests: XCTestCase {
 
     /// A new personality applies from the next event, with no restart.
     func testANewPersonalityAppliesAtOnce() {
-        let rig = CoreRig(rules: Personality.Rules(cheer: .long, chatterMs: nil))
+        let rig = CoreRig(rules: Personality.Rules(chatterMs: nil))
         rig.send(.turnStart)
         XCTAssertEqual(mumbles(rig.wait(300_000)), [], "no chatter")
         rig.core.setRules(Personality.Rules(chatterMs: 30_000...60_000))
         XCTAssertFalse(mumbles(rig.wait(61_000)).isEmpty, "chatters within 60 s")
-        XCTAssertEqual(moments(rig.send(.turnEnd)), ["cheer"])
-        rig.core.setRules(Personality.Rules(cheer: .long))
-        XCTAssertEqual(moments(rig.turn(10_000)), [])
     }
 
     /// DECISIONS.md §2.2: a personality file's front matter, and its
     /// defaults for anything missing or unreadable.
     func testFrontMatter() {
-        let chatter = Personality.Rules(frontMatter: "cheer: every\nchatter: 30-60\ntool_uses: all")
-        XCTAssertEqual(chatter, Personality.Rules(cheer: .every, chatterMs: 30_000...60_000, toolUses: .all))
-        XCTAssertEqual(Personality.Rules(frontMatter: "chatter: none\ncheer: long").chatterMs, nil)
-        XCTAssertEqual(Personality.Rules(frontMatter: "chatter: 60-30\ncheer: loud"), Personality.Rules())
+        let chatter = Personality.Rules(frontMatter: "chatter: 30-60\ntool_uses: all")
+        XCTAssertEqual(chatter, Personality.Rules(chatterMs: 30_000...60_000, toolUses: .all))
+        XCTAssertEqual(Personality.Rules(frontMatter: "chatter: none").chatterMs, nil)
+        XCTAssertEqual(Personality.Rules(frontMatter: "chatter: 60-30\ntool_uses: loud"), Personality.Rules())
+        XCTAssertEqual(Personality.Rules(frontMatter: "cheer: long\nchatter: 30-60"), Personality.Rules(chatterMs: 30_000...60_000),
+                       "an older file's cheer is ignored: every finish cheers")
     }
 }
 
@@ -736,7 +721,7 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(rig.sessions, [["claude", "landing", "waiting"], ["codex", "buddygotchi", "working"],
                                       ["claude", "jetpack", "working"], ["claude", "notes", "idle"]])
         XCTAssertEqual([s.busy, s.idle, s.wait], [2, 1, 1])
-        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"time":1791986400,"name":"Pip","base":"working","mood":"happy","attn":{"agent":"claude","project":"landing","more":0},"busy":2,"idle":1,"wait":1,"vol":6}"#)
+        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"happy","attn":{"agent":"claude","project":"landing","more":0},"busy":2,"idle":1,"wait":1,"vol":6}"#)
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
     }
 

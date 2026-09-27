@@ -81,22 +81,21 @@ testing ([VERIFICATION.md](VERIFICATION.md) §3).
 
 ### `state`: the whole picture
 
-The Mac sends a `state` whenever something on it other than `time`
-changes, and at least every 10 s.
+The Mac sends a `state` whenever something on it changes, and the latest
+one again after 10 s without one.
 
 ```json
-{"t":"state","v":1,"time":1791986400,"name":"Pip","base":"working","mood":"happy","attn":{"agent":"claude","project":"landing","more":0},"busy":2,"idle":1,"wait":1,"vol":6}
+{"t":"state","v":1,"base":"working","mood":"happy","attn":{"agent":"claude","project":"landing","more":0},"busy":2,"idle":1,"wait":1,"vol":6}
 ```
 
 | Field | Meaning |
 | --- | --- |
 | `v` | Protocol version, 1 |
-| `time`, `name` | Unix time, and Boop's name cut to 23 bytes. The v1 device reads neither |
-| `base` | `asleep`, `idle` or `working` ([BEHAVIORS.md](BEHAVIORS.md) §2) |
+| `base` | `asleep`, `idle` or `working` ([BEHAVIORS.md](BEHAVIORS.md) §2). A missing or unknown one reads as `idle` |
 | `mood` | Boop's mood, as Jev last set it: `happy`, `excited`, `proud`, `curious`, `determined`, `grumpy` or `sad` ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). It picks the set of faces the device draws every look and animation in. A missing or unknown mood reads as `happy`. The device keeps and reports it |
-| `attn` | Only while something needs you: the oldest waiting session's agent (`claude` or `codex`) and project, and how many more are waiting. The project is at most 23 bytes of UTF-8, because the device keeps it in a 24-byte field; a longer one is cut on a character boundary and ends in `..` within those 23 bytes, so the device shows it was cut. Names are precomposed (NFC) first, so a folder named in Finder sends é as one letter ([UX.md](UX.md) §2 has how the device draws it) |
-| `busy`, `idle`, `wait` | Session counts. The strip shows `wait` and `busy`; the v1 device ignores `idle` |
-| `vol` | Volume 0–10; 0 is mute |
+| `attn` | Only while something needs you, and the device shows "needs you" whenever it's there: the oldest waiting session's agent (`claude` or `codex`) and project, and how many more are waiting. The project is at most 23 bytes of UTF-8, because the device keeps it in a 24-byte field; a longer one is cut on a character boundary and ends in `..` within those 23 bytes, so the device shows it was cut. Names are precomposed (NFC) first, so a folder named in Finder sends é as one letter ([UX.md](UX.md) §2 has how the device draws it) |
+| `busy`, `idle`, `wait` | Session counts: working, idle and waiting on you. The device's strip shows `busy`; it reads neither `idle` nor `wait`, which the dashboard shows ([DASHBOARD.md](DASHBOARD.md)) |
+| `vol` | Volume 0–10; 0 is mute. The device clamps anything else into that range |
 
 A new `attn` (a different agent or project) chirps once
 ([BEHAVIORS.md](BEHAVIORS.md) §3.2). After 30 s without a `state` the
@@ -105,15 +104,18 @@ device shows the no-app look ([BEHAVIORS.md](BEHAVIORS.md) §3.4).
 ### `moment`: something to play once
 
 ```json
-{"t":"moment","anim":"cheer","ttl":5}
-{"t":"moment","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"ttl":5}
+{"t":"moment","anim":"cheer"}
+{"t":"moment","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120}}
 ```
 
 | Field | Meaning |
 | --- | --- |
 | `anim` | Optional: `cheer` or `wiggle` ([BEHAVIORS.md](BEHAVIORS.md) §5) |
-| `say` | Optional: a mumble as Voice built it ([VOICE.md](VOICE.md) §4). `syl` is the gibberish, words separated by spaces and their syllables by `-`; `word` is the optional real word and `at` its place among the syllables; `tune` is `up`, `down`, `bounce`, `flat` or `lift`; `ms` is milliseconds per syllable |
-| `ttl` | Seconds, always 5. The v1 device plays a moment as it arrives and ignores `ttl`; the Mac uses it to drop a brain moment that waited too long ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2) |
+| `say` | Optional: a mumble as Voice built it ([VOICE.md](VOICE.md) §4). `syl` is the gibberish, words separated by spaces and their syllables by `-`; `word` is the optional real word and `at` its place among the syllables, which the device clamps to 0 (the start) through the syllable count; `tune` is `up`, `down`, `bounce`, `flat` or `lift`; `ms` is milliseconds per syllable, which the device clamps to 60–400 |
+
+The device plays a moment as it arrives. The Mac drops a brain moment
+that has waited its turn for more than 5 s rather than send it late
+([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 
 An animation from the rules comes alone. A mumble, the brain's or working
 chatter, comes with only `say` and plays over whatever face is showing. A
@@ -128,15 +130,13 @@ only an `anim` it doesn't know.
 ### `status`: on connect and every 60 s
 
 ```json
-{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.4.0","bat":0,"usb":1}
+{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.4.0"}
 ```
 
 | Field | Meaning |
 | --- | --- |
 | `id` | The device's permanent ID: `b00p-` and the same 4 hex digits as its advertised name, in lower case. The Mac logs it |
 | `fw` | Firmware version, shown in the popover's footer |
-| `bat` | Battery voltage in mV; 0 with no battery, as on the v1 board |
-| `usb` | 1 on USB power; always, on the v1 board |
 
 The Mac answers every `status` with a `state`. Over Bluetooth the device
 sends one when a Mac connects. USB has no connection event, so there it

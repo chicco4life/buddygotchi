@@ -471,10 +471,10 @@ them. Their time is the app's clock, as the entries' is, which headless
 (options and long lines abridged with `…`):
 
 ```jsonl
-{"questions":[{"action":"mood","key":"mood","options":[{"name":"happy","not_for":null,"what":"Good spirits: things are going fine."},…],"text":"After NOW, what is Boop's mood?"},{"action":"react","key":"react",…},…],"received_at_ms":1790504196112}
-{"sent":{"t":"state","v":1,"time":1790504200,"name":"Pip","base":"idle","mood":"happy","attn":{"agent":"claude","project":"jetpack","more":0},"busy":0,"idle":0,"wait":1,"vol":6},"received_at_ms":1790504200417}
-{"sent":{"t":"moment","say":{"syl":"li bi-bi ni-la pi-ga-ni","word":"yay","at":0,"tune":"bounce","ms":115},"ttl":5},"received_at_ms":1790504197864}
-{"status":{"brain":"scripted","connected":false,"personality":"boop","sessions":[{"agent":"claude","project":"jetpack","status":"working"}]},"received_at_ms":1790504197860}
+{"questions":[{"action":"mood","key":"mood","options":[{"name":"happy","not_for":null,"what":"Good spirits: things are going fine."},…],"text":"After NOW, what is Boop's mood?"},{"action":"react","key":"react",…},…],"received_at_ms":1790507369530}
+{"status":{"brain":"scripted","connected":false,"personality":"boop","sessions":[{"agent":"claude","project":"jetpack","status":"working"}]},"received_at_ms":1790507370527}
+{"sent":{"t":"moment","say":{"syl":"ba ba-ta di","word":"yay","at":4,"tune":"bounce","ms":115}},"received_at_ms":1790507370530}
+{"sent":{"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"jetpack","more":0},"busy":0,"idle":0,"wait":1,"vol":6},"received_at_ms":1790507372477}
 ```
 
 | Line | When | Holds |

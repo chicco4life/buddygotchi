@@ -80,17 +80,13 @@ public struct Voice: Sendable {
 
     /// Builds a line. The same inputs and `seed` give the same line. A word
     /// outside the vocabulary is left out.
-    /// `rejected` sees every try and why it failed, for debugging.
-    public func line(_ feeling: Feeling, word: String? = nil, seed: UInt64,
-                     rejected: (([[String]], String?) -> Void)? = nil) -> VoiceLine {
+    public func line(_ feeling: Feeling, word: String? = nil, seed: UInt64) -> VoiceLine {
         let word = word.flatMap { Sounds.vocabularySet.contains($0) ? $0 : nil }
         let salt = UInt64(Feeling.allCases.firstIndex(of: feeling)! + 1) << 56
         var rng = SplitMix64(seed: (seed ^ salt) ^ dialect.seed &* 0x100_0000_01B3)
         for _ in 0...Voice.retries {
             let groups = gibberish(feeling, rng: &rng)
-            let failure = check.failure(groups)
-            rejected?(groups, failure)
-            if failure == nil {
+            if check.failure(groups) == nil {
                 return place(groups, word: word, feeling: feeling, rng: &rng)
             }
         }
@@ -100,12 +96,12 @@ public struct Voice: Sendable {
     }
 
     func place(_ groups: [[String]], word: String?, feeling: Feeling, rng: inout SplitMix64) -> VoiceLine {
-        let count = groups.reduce(0) { $0 + $1.count }
+        var line = VoiceLine(groups: groups, word: word, at: 0, tune: feeling.tune, ms: Voice.tempo(feeling))
         // Usually at the end, as a question or exclamation; now and then at
         // the start, as an announcement. Curious always asks.
         let first = word != nil && feeling != .curious && rng.chance(20)
-        return VoiceLine(groups: groups, word: word, at: word == nil ? count : (first ? 0 : count),
-                         tune: feeling.tune, ms: Voice.tempo(feeling))
+        if !first { line.at = line.syllableCount }
+        return line
     }
 
     /// Milliseconds per syllable at the neutral pace, before the feeling.

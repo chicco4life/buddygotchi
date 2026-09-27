@@ -49,15 +49,10 @@ public struct DeviceStatus: Equatable, Sendable {
     /// `b00p-7f3a`: which Boop this body is.
     public var id: String
     public var fw: String
-    /// Battery in mV.
-    public var bat: Int
-    public var usb: Bool
 
-    public init(id: String, fw: String, bat: Int = 0, usb: Bool = true) {
+    public init(id: String, fw: String) {
         self.id = id
         self.fw = fw
-        self.bat = bat
-        self.usb = usb
     }
 }
 
@@ -76,9 +71,7 @@ public enum DeviceMessage: Equatable, Sendable {
         switch type {
         case "status":
             guard let id = object["id"] as? String else { return .other(line) }
-            return .status(DeviceStatus(id: id, fw: object["fw"] as? String ?? "?",
-                                        bat: (object["bat"] as? NSNumber)?.intValue ?? 0,
-                                        usb: (object["usb"] as? NSNumber)?.intValue != 0))
+            return .status(DeviceStatus(id: id, fw: object["fw"] as? String ?? "?"))
         case "input":
             guard let input = (object["k"] as? String).flatMap(Core.DeviceInput.init(rawValue:)) else { return .other(line) }
             return .input(input)

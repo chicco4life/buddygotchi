@@ -1,5 +1,4 @@
 ---
-cheer: every
 chatter: 120-240
 tool_uses: notable
 ---

@@ -87,25 +87,23 @@ struct FittedScroll<Content: View>: View {
     }
 }
 
-/// A pane's title row: an optional Back chevron and the title.
+/// A pane's title row: a Back chevron and the title.
 struct PaneHeader: View {
     let title: String
-    var back: (() -> Void)? = nil
+    let back: () -> Void
 
     var body: some View {
         HStack(spacing: Theme.gapTight) {
-            if let back {
-                Button(action: back) {
-                    Image(systemName: "chevron.left").font(.system(size: 12, weight: .semibold))
-                }
-                .buttonStyle(.quiet)
-                .keyboardShortcut("[", modifiers: .command)
-                .accessibilityLabel("Back")
+            Button(action: back) {
+                Image(systemName: "chevron.left").font(.system(size: 12, weight: .semibold))
             }
+            .buttonStyle(.quiet)
+            .keyboardShortcut("[", modifiers: .command)
+            .accessibilityLabel("Back")
             Text(title).font(.boop(16))
             Spacer()
         }
-        .padding(.horizontal, back == nil ? Theme.gutter : Theme.gutter - 8)
+        .padding(.horizontal, Theme.gutter - 8)
         .padding(.top, Theme.gutter - 4)
         .padding(.bottom, Theme.gap)
     }

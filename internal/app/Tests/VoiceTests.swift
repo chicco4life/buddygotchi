@@ -156,7 +156,7 @@ final class VoiceTests: XCTestCase {
     func testMomentJSON() {
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
         XCTAssertEqual(DeviceMoment(say: line).jsonLine,
-                       #"{"t":"moment","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"ttl":5}"#)
+                       #"{"t":"moment","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120}}"#)
         let plain = VoiceLine(groups: [["mm", "nn"]], word: nil, at: 2, tune: .down, ms: 170)
         XCTAssertEqual(plain.json, #"{"syl":"mm-nn","tune":"down","ms":170}"#)
     }

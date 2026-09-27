@@ -13,7 +13,7 @@ final class MemoryRig {
         try reopen()
         if setUp {
             try store.setUp(name: "Pip", nature: .cheeky, seed: 0x7f3a, today: "2026-10-02")
-            store.apply(.newDay(date: day, firstSeen: "08:52"))
+            store.startDay(day)
         }
     }
 
@@ -67,7 +67,7 @@ final class MemoryTests: XCTestCase {
         try XCTAssertEqual(try LongTerm.parse(oldLongTerm), try LongTerm.parse(MemoryTests.sample))
         let oldShortTerm = "## Today\n2026-10-14 · first seen 08:52 · mood: a bit frazzled\n\n## Notes\n- a note\n\n## Happened\n- 14:02 codex · landing · failed\n"
         let st = try ShortTerm.parse(oldShortTerm)
-        XCTAssertEqual(st, ShortTerm(date: "2026-10-14", firstSeen: "08:52"))
+        XCTAssertEqual(st, ShortTerm(date: "2026-10-14"))
 
         let rig = try MemoryRig()
         try rig.edit("long-term.md", oldLongTerm)
@@ -103,21 +103,12 @@ final class MemoryTests: XCTestCase {
         XCTAssertFalse(rig.store.isSetUp)
     }
 
-    func testOnlyANewDayChangesTheFiles() throws {
-        let rig = try MemoryRig()
-        let before = (rig.file("long-term.md"), rig.file("short-term.md"))
-        rig.store.apply(.state(StateSnapshot.sample))
-        rig.store.apply(.moment(anim: "cheer"))
-        XCTAssertEqual(rig.file("long-term.md"), before.0)
-        XCTAssertEqual(rig.file("short-term.md"), before.1)
-    }
-
     func testANewDaySnapshotsAndStartsFresh() throws {
         let rig = try MemoryRig()
-        rig.store.apply(.newDay(date: "2026-10-15", firstSeen: "09:01"))
-        XCTAssertTrue(rig.file("history/2026-10-14/short-term.md").contains("2026-10-14 · first seen 08:52"))
+        rig.store.startDay("2026-10-15")
+        XCTAssertEqual(rig.file("history/2026-10-14/short-term.md"), "## Today\n2026-10-14\n")
         XCTAssertTrue(rig.file("history/2026-10-14/long-term.md").contains("name: Pip"))
-        XCTAssertEqual(rig.file("short-term.md"), "## Today\n2026-10-15 · first seen 09:01\n")
+        XCTAssertEqual(rig.file("short-term.md"), "## Today\n2026-10-15\n")
         XCTAssertEqual(rig.store.lastActiveDay, "2026-10-15")
     }
 
@@ -158,12 +149,12 @@ final class MemoryTests: XCTestCase {
         let time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
         let start = CoreRig.start  // 2026-10-14 14:00 UTC
         try rig.store.setUp(name: "Pip", nature: .sweet, seed: 1, today: "2026-10-13")
-        rig.store.apply(.newDay(date: "2026-10-13", firstSeen: "09:00"))
+        rig.store.startDay("2026-10-13")
         func boot(_ now: Int64) -> (Core, [CoreEffect]) {
-            let core = Core(config: .init(name: "Pip", time: time), lastActiveDay: rig.store.lastActiveDay)
+            let core = Core(config: .init(time: time), lastActiveDay: rig.store.lastActiveDay)
             let fx = core.handle(BoopEvent(agent: .claudeCode, session: "s1", project: "landing", event: .turnStart,
                                            detail: .init(), ts: now))
-            for effect in fx { rig.store.apply(effect) }
+            for case .newDay(let date) in fx { rig.store.startDay(date) }
             return (core, fx)
         }
         let (_, first) = boot(start)
@@ -174,10 +165,4 @@ final class MemoryTests: XCTestCase {
         let (_, again) = boot(start + 60_000)
         XCTAssertFalse(again.contains { if case .newDay = $0 { true } else { false } })
     }
-
-}
-
-extension StateSnapshot {
-    static let sample = StateSnapshot(
-        time: 0, name: "Pip", base: "idle", mood: "happy", attn: nil, busy: 0, idle: 0, wait: 0, vol: 6)
 }

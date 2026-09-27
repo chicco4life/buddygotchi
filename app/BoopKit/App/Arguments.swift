@@ -52,7 +52,7 @@ public struct Arguments: Sendable {
     /// it isn't given. Any other value stops the command, naming them.
     public func choice(_ option: String, of choices: [String]) -> String? {
         guard let value = values[option] else { return nil }
-        if !choices.contains(value) { Arguments.stop("\(option) is " + choices.joined(separator: ", ")) }
+        if !choices.contains(value) { fail("\(option) is " + choices.joined(separator: ", ")) }
         return value
     }
 
@@ -69,13 +69,14 @@ public struct Arguments: Sendable {
             }
             return parsed
         } catch {
-            stop("\(command): \(error)\n\(usage)")
+            fail("\(command): \(error)\n\(usage)")
         }
     }
+}
 
-    /// Prints `message` to stderr and exits 2.
-    static func stop(_ message: String) -> Never {
-        FileHandle.standardError.write(Data((message + "\n").utf8))
-        exit(2)
-    }
+/// Prints `message` to stderr and exits 2: how the app's and boopdev's
+/// commands stop on a problem.
+public func fail(_ message: String) -> Never {
+    FileHandle.standardError.write(Data((message + "\n").utf8))
+    exit(2)
 }

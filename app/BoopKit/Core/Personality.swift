@@ -11,40 +11,27 @@ public enum Personality: String, CaseIterable, Sendable {
 
     /// The settings a personality file's front matter sets for the core.
     public struct Rules: Equatable, Sendable {
-        public enum Cheer: String, Sendable {
-            /// Every finished turn gets the rule's cheer.
-            case every
-            /// Only one over a minute (`very long`).
-            case long
-        }
+        /// Which finished tool calls become events (harness/EVENTS.md §4).
+        public enum ToolUses: String, Sendable { case notable, all }
 
-        public var cheer: Cheer
         /// Working chatter every so many milliseconds, or none.
         public var chatterMs: ClosedRange<Int>?
-        public var toolUses: Core.ToolUses
+        public var toolUses: ToolUses
 
-        public init(cheer: Cheer = .every, chatterMs: ClosedRange<Int>? = 120_000...240_000,
-                    toolUses: Core.ToolUses = .notable) {
-            self.cheer = cheer
+        public init(chatterMs: ClosedRange<Int>? = 120_000...240_000, toolUses: ToolUses = .notable) {
             self.chatterMs = chatterMs
             self.toolUses = toolUses
         }
 
-        /// Whether a finished turn of this length gets the rule's cheer.
-        public func cheers(lengthMs: Int64) -> Bool {
-            cheer == .every || Band.length(ms: lengthMs) == "very long"
-        }
-
-        /// Reads `cheer`, `chatter` and `tool_uses` from a front-matter
-        /// block; anything missing or unreadable keeps its default.
+        /// Reads `chatter` and `tool_uses` from a front-matter block;
+        /// anything missing or unreadable keeps its default.
         public init(frontMatter: String) {
             self.init()
             for line in frontMatter.split(separator: "\n") {
                 let parts = line.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
                 guard parts.count == 2 else { continue }
                 switch parts[0] {
-                case "cheer": if let c = Cheer(rawValue: parts[1]) { cheer = c }
-                case "tool_uses": if let t = Core.ToolUses(rawValue: parts[1]) { toolUses = t }
+                case "tool_uses": if let t = ToolUses(rawValue: parts[1]) { toolUses = t }
                 case "chatter":
                     if parts[1] == "none" {
                         chatterMs = nil

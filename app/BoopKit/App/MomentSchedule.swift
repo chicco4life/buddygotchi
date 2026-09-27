@@ -3,12 +3,16 @@ import Foundation
 /// What plays on the device and until when (ARCHITECTURE.md §3.2). The
 /// rules' moments play at once. The brain's wait their turn: one at a time,
 /// each after whatever is playing has finished, so none cuts off a rule
-/// moment or another of the brain's. One that has waited longer than its
-/// `ttl` is dropped, since a late reaction is worse than none.
+/// moment or another of the brain's. One that has waited longer than
+/// `maxWaitMs` is dropped, since a late reaction is worse than none.
 ///
 /// Pure and on a caller's clock, so the runtime can drive it with a timer
 /// and the tests without one.
 public struct MomentSchedule {
+    /// A brain moment that has waited longer than this is dropped
+    /// (ARCHITECTURE.md §3.2).
+    public static let maxWaitMs: Int64 = 5000
+
     /// When the moment playing on the device ends, as the device times it.
     public private(set) var busyUntil: Int64 = 0
     /// The brain's moments waiting, oldest first, with when each arrived.
@@ -39,7 +43,7 @@ public struct MomentSchedule {
         guard now >= busyUntil else { return (nil, dropped, waiting.isEmpty ? nil : busyUntil) }
         while !waiting.isEmpty {
             let (moment, at) = waiting.removeFirst()
-            if now - at > Int64(moment.ttl) * 1000 {
+            if now - at > Self.maxWaitMs {
                 dropped.append(moment)
                 continue
             }

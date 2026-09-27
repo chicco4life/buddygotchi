@@ -1,7 +1,7 @@
 import Foundation
 
-/// Local calendar maths for the core: days, and the time as input lines
-/// and memory files write it. Times are milliseconds since 1970.
+/// Local calendar maths: the core's days, and the time of day and weekday
+/// Jev's state shows. Times are milliseconds since 1970.
 public struct LocalTime: Sendable {
     public var timeZone: TimeZone
     private var calendar: Calendar
@@ -32,12 +32,6 @@ public struct LocalTime: Sendable {
         let names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
         let index = calendar.component(.weekday, from: date(ms)) - 1
         return names[max(0, min(6, index))]
-    }
-
-    /// The day `n` days after a `yyyy-MM-dd`.
-    public static func day(_ day: String, plus n: Int) -> String {
-        guard let o = ordinal(day) else { return day }
-        return fromOrdinal(o + n)
     }
 
     /// Days since 1970-01-01 in the proleptic Gregorian calendar.

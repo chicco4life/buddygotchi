@@ -40,7 +40,7 @@ struct OverviewPane: View {
         VStack(alignment: .leading, spacing: Theme.gapSnug) {
             HStack(spacing: Theme.gap) {
                 HStack(spacing: Theme.gap) {
-                    BoopFace(mood: FaceMood(model.status), design: model.status?.mood ?? MoodAction.initial,
+                    BoopFace(mood: FaceMood(model.status), design: model.status?.snapshot.mood ?? MoodAction.initial,
                              size: faceSize)
                     VStack(alignment: .leading, spacing: 3) {
                         // A long name shrinks a little before it's cut.
@@ -60,7 +60,7 @@ struct OverviewPane: View {
             }
             // Under the name, the full width of the popover, so the chips
             // never squeeze each other or the device line.
-            modes.padding(.leading, faceSize + Theme.gap)
+            chips.padding(.leading, faceSize + Theme.gap)
         }
         .padding(.horizontal, Theme.gutter)
         .padding(.top, Theme.gutter)
@@ -71,7 +71,7 @@ struct OverviewPane: View {
 
     /// Small reminders of what's set in Settings, so a silent Boop never
     /// looks broken. Nothing shows when everything is the usual.
-    @ViewBuilder private var modes: some View {
+    @ViewBuilder private var chips: some View {
         if let status = model.status {
             let s = status.snapshot
             let all: [(String, String)?] = [
@@ -131,6 +131,7 @@ struct OverviewPane: View {
     /// The session list puts it first.
     private func needsYou(_ attn: StateSnapshot.Attention, _ sessions: [SessionSummary]) -> some View {
         let project = sessions.first { $0.status == .waiting }?.project ?? attn.project
+        let agent = HookInstaller.Agent(rawValue: attn.agent)?.displayName ?? attn.agent
         return Card(tone: Theme.amber) {
             HStack(alignment: .top, spacing: Theme.gapSnug + 2) {
                 Image(systemName: "hand.wave.fill")
@@ -138,7 +139,7 @@ struct OverviewPane: View {
                     .foregroundStyle(Theme.amberInk)
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(project.isEmpty ? agentName(attn.agent) : "\(agentName(attn.agent)) · \(project)")
+                    Text(project.isEmpty ? agent : "\(agent) · \(project)")
                         .font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle)
                     Text("Waiting for you. Answer it in the agent's window.")
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
@@ -156,14 +157,13 @@ struct OverviewPane: View {
     // MARK: Sessions
 
     @ViewBuilder private func sessions(_ status: Runtime.Status) -> some View {
-        let s = status.snapshot
         if status.sessions.isEmpty {
             Card {
                 HStack(spacing: Theme.gapSnug + 2) {
                     Image(systemName: "moon.zzz.fill").font(.system(size: 14)).foregroundStyle(Theme.inkFaint)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("No agents awake").font(.system(size: 12, weight: .medium))
-                        Text("Start Claude Code or Codex and \(s.name) will notice.")
+                        Text("Start Claude Code or Codex and \(status.name) will notice.")
                             .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                     }
                     Spacer(minLength: 0)
@@ -172,18 +172,18 @@ struct OverviewPane: View {
         } else {
             // A fixed order, so a group doesn't jump to the top when one of
             // its sessions starts waiting and back when it stops.
-            let agents = HookInstaller.Agent.allCases.map(\.rawValue).filter { a in status.sessions.contains { $0.agent == a } }
+            let agents = HookInstaller.Agent.allCases.filter { a in status.sessions.contains { $0.agent == a.rawValue } }
             VStack(alignment: .leading, spacing: Theme.gap) {
                 ForEach(agents, id: \.self) { agent in
                     VStack(alignment: .leading, spacing: 5) {
                         // A fixed icon width, so the names line up.
                         HStack(spacing: 6) {
-                            Image(systemName: agentSymbol(agent)).frame(width: 18)
-                            Text(agentName(agent))
+                            Image(systemName: agentSymbol(agent.rawValue)).frame(width: 18)
+                            Text(agent.displayName)
                         }
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Theme.inkSoft)
-                        ForEach(KeyedSession.rows(status.sessions.filter { $0.agent == agent })) { row in
+                        ForEach(KeyedSession.rows(status.sessions.filter { $0.agent == agent.rawValue })) { row in
                             SessionRow(project: row.session.project, status: row.session.status)
                         }
                     }
@@ -221,14 +221,6 @@ struct OverviewPane: View {
 }
 
 // MARK: - Parts
-
-func agentName(_ short: String) -> String {
-    switch short {
-    case "claude": "Claude Code"
-    case "codex": "Codex"
-    default: short.capitalized
-    }
-}
 
 func agentSymbol(_ short: String) -> String {
     switch short {

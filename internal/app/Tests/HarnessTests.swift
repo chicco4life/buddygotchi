@@ -194,8 +194,7 @@ final class HarnessTests: XCTestCase {
         }
         Thread.sleep(forTimeInterval: 0.1)
         gate.signal()
-        let deadline = Date().addingTimeInterval(3)
-        while home.sync(execute: { records.count }) < 2 && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
+        eventually("two passes") { home.sync { records.count } >= 2 }
         XCTAssertEqual(seen.all, ["first", "third"], "second was replaced while it waited")
         home.sync {
             XCTAssertTrue(h.idle)
@@ -262,8 +261,7 @@ final class HarnessTests: XCTestCase {
         }
         gate.signal()
         gate.signal()
-        let deadline = Date().addingTimeInterval(3)
-        while home.sync(execute: { records.count }) < 2 && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
+        eventually("two passes") { home.sync { records.count } >= 2 }
         XCTAssertEqual(records.map(\.event.line), ["first", "second"], "both of Jev's passes still ran")
         XCTAssertTrue(home.sync { h.idle })
     }
@@ -289,7 +287,7 @@ final class HarnessTests: XCTestCase {
             (#"{"action":{"for":3,"latency_ms":0,"message":"changed 3 min ago","name":"mood","ok":false},"received_at_ms":9,"seq":8}"#,
              "  ✗ mood: changed 3 min ago"),
             ("not json", "not json"),
-            (#"{"sent":{"t":"moment","anim":"cheer","ttl":5},"received_at_ms":9}"#, nil),
+            (#"{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":9}"#, nil),
             (#"{"status":{"brain":"none","connected":false,"mood":"cheerful","personality":"boop","sessions":[]},"received_at_ms":9}"#, nil),
             (#"{"questions":[],"received_at_ms":9}"#, nil),
             (#"{"pass":{"answers":{"react":{"choice":"annoyed","p":{"annoyed":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react"]},"received_at_ms":10,"seq":9}"#,

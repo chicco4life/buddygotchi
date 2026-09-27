@@ -33,9 +33,8 @@ final class EvalTests: XCTestCase {
             return ["mood": a(state.contains("MOOD\nGrumpy") ? "grumpy" : "happy"), "react": a("none"),
                     "word.feeling": a("none"), "word.about": a("none")]
         }
-        let steering = try Steering(directory: RuntimeTests.steeringDir)
         let scenario = try Scenario(file: Self.scenarios.appendingPathComponent("04-tests-fight-back.json"))
-        let result = try await Eval(brain: brain, steering: steering).run(scenario)
+        let result = try await Eval(brain: brain, steering: RuntimeTests.steering).run(scenario)
         XCTAssertEqual(result.checks.count, 4)
         XCTAssertTrue(result.passed, result.checks.filter { !$0.passed }.map(\.summary).joined(separator: "\n"))
         XCTAssertEqual(result.checks[2].word, "again")
@@ -46,13 +45,12 @@ final class EvalTests: XCTestCase {
     /// A brain that stays quiet fails what should mumble, and the report
     /// says what was wanted and what came.
     func testAQuietBrainFailsAndTheReportSaysWhy() async throws {
-        let steering = try Steering(directory: RuntimeTests.steeringDir)
         let scenario = try Scenario(file: Self.scenarios.appendingPathComponent("05-poke-streak.json"))
-        let result = try await Eval(brain: ScriptedBrain(always: [:]), steering: steering).run(scenario)
+        let result = try await Eval(brain: ScriptedBrain(always: [:]), steering: RuntimeTests.steering).run(scenario)
         XCTAssertFalse(result.passed)
-        let report = Eval.report([[result]])
+        let report = Eval.report([result])
         XCTAssertEqual(report.first, "FAIL  05-poke-streak.json  Poked again and again, Boop is annoyed")
         XCTAssertTrue(report[1].contains("wanted react annoyed, word none|nope|ugh; got react none, word none, mood happy"), report[1])
-        XCTAssertEqual(report.last, "0/1 passed")
+        XCTAssertEqual(Eval.summary([[result]]), "0/1 passed")
     }
 }

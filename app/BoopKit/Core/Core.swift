@@ -11,13 +11,12 @@ import Foundation
 /// with `setWallClock`.
 public final class Core {
     public struct Config: Sendable {
-        public var name: String
         public var volume: Int
         /// Boop's mood, which the mood action sets (harness/DECISIONS.md §4)
         /// and every `state` carries (PROTOCOL.md §3).
         public var mood = MoodAction.initial
-        /// The personality's settings: which finishes cheer, how often
-        /// chatter plays and which tool uses wake the brain (BEHAVIORS.md §6).
+        /// The personality's settings: how often chatter plays and which
+        /// tool uses wake the brain (BEHAVIORS.md §6).
         public var rules: Personality.Rules
         public var time: LocalTime
         public var seed: UInt64
@@ -43,9 +42,8 @@ public final class Core {
         /// and again every time as long again passes (harness/EVENTS.md §4).
         public var heartbeatMs: Int64 = 60 * 60 * 1000
 
-        public init(name: String, volume: Int = 6, rules: Personality.Rules = Personality.Rules(), time: LocalTime = LocalTime(),
+        public init(volume: Int = 6, rules: Personality.Rules = Personality.Rules(), time: LocalTime = LocalTime(),
                     seed: UInt64 = 1) {
-            self.name = name
             self.volume = volume
             self.rules = rules
             self.time = time
@@ -53,15 +51,12 @@ public final class Core {
         }
     }
 
-    public enum ToolUses: String, Sendable { case notable, all }
-
-    enum Status { case idle, working, waiting }
-
     struct Session {
         var agent: Agent
         var id: String
         var project: String
-        var status: Status = .idle
+        /// Working on a turn: not idle, and not waiting on "needs you".
+        var working = false
         var turnStartedAt: Int64?
         var lastEventAt: Int64
         var topic: String?
@@ -179,10 +174,10 @@ public final class Core {
                 s.askers = [asker]
                 if event.agent == .codex {
                     s.pendingSince = now
-                    s.status = .working
+                    s.working = true
                 } else {
                     s.needsSince = now
-                    s.status = .waiting
+                    s.working = false
                     needsYouEvent(s, now, &fx)
                 }
             }
@@ -210,7 +205,7 @@ public final class Core {
             }
             if s.askers.isEmpty {
                 clearRequest(&s, now)
-                s.status = .working
+                s.working = true
             }
         }
         s.lastEventAt = now
@@ -220,7 +215,7 @@ public final class Core {
             sessions[key] = s
         case .turnStart:
             let gap = s.lastTurnEndedAt.map { Band.gap(ms: now - $0) }
-            s.status = .working
+            s.working = true
             s.turnStartedAt = now
             s.topic = nil
             s.check = nil
@@ -232,7 +227,7 @@ public final class Core {
             sessions[key] = s
             turnStartEvent(s, gap: gap, now, &fx)
         case .activity:
-            s.status = .working
+            s.working = true
             if s.turnStartedAt == nil { s.turnStartedAt = now }
             var event = event
             if event.detail.done {
@@ -254,25 +249,25 @@ public final class Core {
         case .turnEnd:
             let ms = s.turnStartedAt.map { now - $0 } ?? 0
             let check = s.check
-            s.status = .idle
+            s.working = false
             s.turnStartedAt = nil
             s.check = nil
             s.lastTurnEndedAt = now
             if let check, check.failed {
                 // It left its tests, build or deploy failing: a failure, not
                 // a finish.
-                s.topic = check.topic
                 sessions[key] = s
                 turnEndEvent(s, outcome: "failed", error: nil, lengthMs: ms, reaction: nil, now, &fx)
             } else {
+                // A finish: a cheer, even while other sessions are still
+                // working (BEHAVIORS.md §3.1).
                 sessions[key] = s
-                let cheered = finished(s, durationMs: ms, now, &fx)
-                turnEndEvent(s, outcome: "done", error: nil, lengthMs: ms,
-                             reaction: cheered ? EventLine.cheered : nil, now, &fx)
+                fx.append(.moment(anim: "cheer"))
+                turnEndEvent(s, outcome: "done", error: nil, lengthMs: ms, reaction: EventLine.cheered, now, &fx)
             }
         case .turnFailed:
             let ms = s.turnStartedAt.map { now - $0 } ?? 0
-            s.status = .idle
+            s.working = false
             s.turnStartedAt = nil
             s.check = nil
             s.lastTurnEndedAt = now
@@ -283,9 +278,9 @@ public final class Core {
         case .turnStopped:
             // Over without finishing (ADAPTERS.md §3): a working session goes
             // idle, with no reaction and nothing for the brain.
-            if s.status == .working {
+            if s.working {
                 let ms = s.turnStartedAt.map { now - $0 } ?? 0
-                s.status = .idle
+                s.working = false
                 s.turnStartedAt = nil
                 s.check = nil
                 s.lastTurnEndedAt = now
@@ -382,8 +377,7 @@ public final class Core {
                 agent: $0.agent.short, project: StateSnapshot.clip($0.project, marked: true), more: waiting.count - 1)
         }
         return StateSnapshot(
-            time: wall(now) / 1000, name: StateSnapshot.clip(config.name), base: base, mood: config.mood, attn: attn,
-            busy: working.count, idle: idle.count, wait: waiting.count, vol: config.volume)
+            base: base, mood: config.mood, attn: attn, busy: working.count, idle: idle.count, wait: waiting.count, vol: config.volume)
     }
 
     /// Every session, for the popover's list (UX.md §6). The device doesn't
@@ -396,7 +390,7 @@ public final class Core {
 
     /// Why a mumble can't play now, or nil: something needs you
     /// (BEHAVIORS.md §1).
-    public func mumbleBlock(at now: Int64) -> String? {
+    public var mumbleBlock: String? {
         needsYouShowing ? "something needs you" : nil
     }
 
@@ -405,10 +399,8 @@ public final class Core {
     /// The wall clock at steady time `now`.
     func wall(_ now: Int64) -> Int64 { now + wallOffsetMs }
 
-    /// The time of day, weekday and date at steady time `now`, on the wall
-    /// clock: the calendar never sees steady time.
-    private func clock(_ now: Int64) -> String { config.time.clock(wall(now)) }
-    private func weekday(_ now: Int64) -> String { config.time.weekday(wall(now)) }
+    /// The date at steady time `now`, on the wall clock: the calendar never
+    /// sees steady time.
     private func day(_ now: Int64) -> String { config.time.day(wall(now)) }
 
     func takeOrder() -> Int {
@@ -417,7 +409,7 @@ public final class Core {
     }
 
     func isWorking(_ s: Session, _ now: Int64) -> Bool {
-        s.status == .working && now - s.lastEventAt < config.staleWorkMs
+        s.working && now - s.lastEventAt < config.staleWorkMs
     }
 
     var needsYouShowing: Bool { sessions.values.contains { $0.needsSince != nil } }
@@ -435,21 +427,7 @@ public final class Core {
         let today = day(now)
         guard today != lastActiveDay else { return }
         lastActiveDay = today
-        fx.append(.newDay(date: today, firstSeen: clock(now)))
-    }
-
-    /// Plays a rule moment now. The device replaces one that's playing.
-    func play(_ anim: String, _ fx: inout [CoreEffect]) {
-        fx.append(.moment(anim: anim))
-    }
-
-    /// A finished turn: a cheer, even while other sessions are still
-    /// working, as the personality allows (BEHAVIORS.md §3.1).
-    @discardableResult
-    func finished(_ s: Session, durationMs ms: Int64, _ now: Int64, _ fx: inout [CoreEffect]) -> Bool {
-        let cheer = config.rules.cheers(lengthMs: ms)
-        if cheer { play("cheer", &fx) }
-        return cheer
+        fx.append(.newDay(date: today))
     }
 
     /// A tap is the rules' alone: the device wiggles, and the brain only
@@ -483,7 +461,7 @@ public final class Core {
         }
         pokedAt = now
         fx.append(.event(Event(.pokes, at: now, line: line, reaction: EventLine.wiggled,
-                               wakesBrain: wakes(now), facts: facts)))
+                               wakesBrain: wakes, facts: facts)))
     }
 
     /// Runs every timer due by `now`, in order.
@@ -493,17 +471,17 @@ public final class Core {
             if let pending = s.pendingSince, !silent, now - pending >= config.codexGraceMs {
                 s.pendingSince = nil
                 s.needsSince = pending + config.codexGraceMs
-                s.status = .waiting
+                s.working = false
                 needsYouEvent(s, now, &fx)
             }
             if silent && (s.needsSince != nil || s.pendingSince != nil) {
                 // Ten silent minutes, even for a Codex request no tick saw
                 // through its grace (the Mac slept): the agent is still
                 // waiting on its prompt, or gone. Either way it isn't
-                // working, so no sweat drop and no chatter. Its turn, if it
-                // goes on, still counts from its start.
+                // working, so no chatter. Its turn, if it goes on, still
+                // counts from its start.
                 clearRequest(&s, now)
-                s.status = .idle
+                s.working = false
             }
             if now - s.lastEventAt >= config.forgetMs {
                 sessions[key] = nil
@@ -541,7 +519,7 @@ public final class Core {
 
     /// Whether an event whose kind wakes the brain does: never while
     /// something needs you, or with no brain (EVENTS.md §6).
-    func wakes(_ now: Int64) -> Bool {
+    var wakes: Bool {
         config.brain && !needsYouShowing
     }
 
@@ -562,7 +540,7 @@ public final class Core {
 
     func turnStartEvent(_ s: Session, gap: String?, _ now: Int64, _ fx: inout [CoreEffect]) {
         let line = EventLine.turnStart(agent: s.agent.short, turn: s.turns, thread: threadLine(s), gap: gap)
-        fx.append(.event(Event(.turnStart, at: now, line: line, wakesBrain: wakes(now), about: s.key,
+        fx.append(.event(Event(.turnStart, at: now, line: line, wakesBrain: wakes, about: s.key,
                                facts: ["thread": threadFacts(s), "gap": .of(gap)])))
     }
 
@@ -574,7 +552,7 @@ public final class Core {
                                      topics: topics, comeback: s.comeback)
         var topicFacts: [String: JSONValue] = [:]
         for (topic, state) in topics { topicFacts[topic] = .string(state) }
-        fx.append(.event(Event(.turnEnd, at: now, line: line, reaction: reaction, wakesBrain: wakes(now), about: s.key,
+        fx.append(.event(Event(.turnEnd, at: now, line: line, reaction: reaction, wakesBrain: wakes, about: s.key,
                                facts: ["thread": threadFacts(s), "outcome": .string(outcome), "error": .of(error),
                                        "length": .string(Band.length(ms: lengthMs)), "length_ms": .int(lengthMs),
                                        "tools": .int(Int64(s.tools)), "tools_failed": .int(Int64(s.toolsFailed)),
@@ -627,7 +605,7 @@ public final class Core {
             facts["took_ms"] = .int(tookMs)
         }
         if let type = event.subagentType { facts["subagent"] = .string(type) }
-        fx.append(.event(Event(.toolUse, at: now, line: line, wakesBrain: wakes(now), about: s.key, facts: facts)))
+        fx.append(.event(Event(.toolUse, at: now, line: line, wakesBrain: wakes, about: s.key, facts: facts)))
     }
 
     func setTopic(_ s: inout Session, _ topic: String, _ state: String) {
@@ -651,7 +629,7 @@ public final class Core {
         guard hours > Int64(heartbeats) else { return }
         heartbeats = Int(hours)
         fx.append(.event(Event(.heartbeat, at: now, line: EventLine.heartbeat(hours: Int(hours)),
-                               wakesBrain: wakes(now), facts: ["idle_hours": .int(hours)])))
+                               wakesBrain: wakes, facts: ["idle_hours": .int(hours)])))
     }
 
     /// When the oldest turn still working began, or nil: HISTORY reaches
@@ -673,7 +651,7 @@ public final class Core {
 
     func publish(_ now: Int64, _ fx: inout [CoreEffect]) {
         let snapshot = snapshot(at: now)
-        guard !snapshot.sameContent(as: lastPublished) else { return }
+        guard snapshot != lastPublished else { return }
         lastPublished = snapshot
         // The picture changes before any moment plays on top of it.
         fx.insert(.state(snapshot), at: 0)

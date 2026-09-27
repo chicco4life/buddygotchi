@@ -6,17 +6,16 @@ import HookWire
 /// each line on. It never writes anything back, so a hook can't be answered.
 public final class HookServer: @unchecked Sendable {
     public let path: String
-    private let onLine: @Sendable (HookLine, Int64) -> Void
+    private let onLine: @Sendable (HookLine) -> Void
     private let onOther: (@Sendable (Data) -> Void)?
     private let lock = NSLock()
     private var listener: Int32 = -1
     private var thread: Thread?
 
-    /// `onLine` gets each line with the time it arrived, in milliseconds, on
-    /// the server's own thread. `onOther` gets lines that aren't hook lines
-    /// (headless mode's dev lines, such as `{"dev":"advance"}`); without
-    /// it they're dropped.
-    public init(path: String, onLine: @escaping @Sendable (HookLine, Int64) -> Void,
+    /// `onLine` gets each line on the server's own thread. `onOther` gets
+    /// lines that aren't hook lines (headless mode's dev lines, such as
+    /// `{"dev":"advance"}`); without it they're dropped.
+    public init(path: String, onLine: @escaping @Sendable (HookLine) -> Void,
                 onOther: (@Sendable (Data) -> Void)? = nil) {
         self.path = path
         self.onLine = onLine
@@ -101,10 +100,9 @@ public final class HookServer: @unchecked Sendable {
             if n <= 0 { break }
             data.append(contentsOf: buffer[0..<n])
         }
-        let received = Int64(Date().timeIntervalSince1970 * 1000)
         for part in data.split(separator: 0x0A) where !part.isEmpty {
             if let line = HookLine.decode(Data(part)) {
-                onLine(line, received)
+                onLine(line)
             } else {
                 onOther?(Data(part))
             }

@@ -209,7 +209,7 @@ struct SetupPane: View {
         let found = model.installer.detected(agent)
         let on = found && model.installer.clientInPlace && model.setup.agents.contains(agent)
         return Card(padding: 0) {
-            SettingRow(icon: agentSymbol(agent == .claude ? "claude" : "codex"), title: agent.displayName,
+            SettingRow(icon: agentSymbol(agent.rawValue), title: agent.displayName,
                        detail: found ? "Found on this Mac" : "Not found. You can add it later in Settings.",
                        detailTone: found ? Theme.sageInk : Theme.inkSoft) {
                 Toggle("Watch \(agent.displayName)", isOn: Binding(get: { on }, set: { value in

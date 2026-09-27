@@ -1,5 +1,4 @@
 ---
-cheer: every
 chatter: 30-60
 tool_uses: all
 ---

@@ -47,14 +47,14 @@ public final class DeviceLink {
     /// A snapshot from the core. Sent only if something on it changed.
     public func update(_ snapshot: StateSnapshot, now: Int64) {
         latest = snapshot
-        guard !snapshot.sameContent(as: lastSent) else { return }
+        guard snapshot != lastSent else { return }
         sendState(snapshot, now: now)
     }
 
-    /// Once a second: the 10 s keepalive, with a fresh clock.
-    public func tick(now: Int64, current: StateSnapshot) {
-        latest = current
-        if lastSentAt.map({ now - $0 >= DeviceLink.keepaliveMs }) ?? true { sendState(current, now: now) }
+    /// Once a second: the 10 s keepalive sends the latest `state` again.
+    public func tick(now: Int64) {
+        guard let latest, lastSentAt.map({ now - $0 >= DeviceLink.keepaliveMs }) ?? true else { return }
+        sendState(latest, now: now)
     }
 
     public func play(_ moment: DeviceMoment) {

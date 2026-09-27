@@ -230,12 +230,11 @@ struct StatusChip: View {
 
 /// Footer and inline buttons: quiet text that darkens on hover.
 struct QuietButtonStyle: ButtonStyle {
-    var tone: Color? = nil
     @ViewState private var hovering = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(tone ?? (hovering || configuration.isPressed ? Theme.ink : Theme.inkSoft))
+            .foregroundStyle(hovering || configuration.isPressed ? Theme.ink : Theme.inkSoft)
             .padding(.horizontal, 8).padding(.vertical, 4)
             .background(RoundedRectangle(cornerRadius: Theme.chipRadius)
                 .fill(configuration.isPressed ? Theme.hairline : hovering ? Theme.well : .clear))
@@ -270,25 +269,20 @@ struct ProminentButtonStyle: ButtonStyle {
 /// A small button for rows: outlined for Remove, Reconnect and Save, filled
 /// for Connect and Repair.
 struct RowButtonStyle: ButtonStyle {
-    /// A fill and its label: the filled button's unless set.
-    struct Fill {
-        var fill = Theme.fill, pressed = Theme.fillPressed, label = Theme.fillLabel
-    }
-
-    var filled: Fill? = nil
+    var filled = false
     @ViewState private var hovering = false
     @Environment(\.isEnabled) private var enabled
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        let pressed = configuration.isPressed
+        return configuration.label
             .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(filled?.label ?? Theme.ink)
+            .foregroundStyle(filled ? Theme.fillLabel : Theme.ink)
             .padding(.horizontal, 10).padding(.vertical, 4)
             .background(RoundedRectangle(cornerRadius: 7).fill(
-                filled.map { configuration.isPressed ? $0.pressed : $0.fill }
-                    ?? (hovering || configuration.isPressed ? Theme.well : Theme.paper)))
+                filled ? (pressed ? Theme.fillPressed : Theme.fill) : (hovering || pressed ? Theme.well : Theme.paper)))
             .overlay(RoundedRectangle(cornerRadius: 7)
-                .strokeBorder(filled == nil ? Theme.hairlineStrong : .clear, lineWidth: 1))
+                .strokeBorder(filled ? .clear : Theme.hairlineStrong, lineWidth: 1))
             .opacity(enabled ? 1 : 0.4)
             .contentShape(RoundedRectangle(cornerRadius: 7))
             .onHover { hovering = $0 }
@@ -306,7 +300,7 @@ extension ButtonStyle where Self == ProminentButtonStyle {
 
 extension ButtonStyle where Self == RowButtonStyle {
     static var row: RowButtonStyle { RowButtonStyle() }
-    static var rowFilled: RowButtonStyle { RowButtonStyle(filled: .init()) }
+    static var rowFilled: RowButtonStyle { RowButtonStyle(filled: true) }
 }
 
 // MARK: - Hex colours

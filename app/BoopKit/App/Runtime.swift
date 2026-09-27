@@ -54,6 +54,9 @@ public final class Runtime: @unchecked Sendable {
 
     /// What the menu bar shows.
     public struct Status: Sendable {
+        /// Boop's name, from `long-term.md`.
+        public var name: String
+        /// What the device shows, and Boop's mood.
         public var snapshot: StateSnapshot
         /// Every session, for the popover's list.
         public var sessions: [SessionSummary]
@@ -62,17 +65,16 @@ public final class Runtime: @unchecked Sendable {
         public var personality: Personality
         /// The brain as it runs: `jev:jev-latest`, or `none` without a key.
         public var brain: String
-        public var mood: String
 
-        public init(snapshot: StateSnapshot, sessions: [SessionSummary], connected: Bool, device: DeviceStatus?,
-                    personality: Personality, brain: String, mood: String = MoodAction.initial) {
+        public init(name: String, snapshot: StateSnapshot, sessions: [SessionSummary], connected: Bool,
+                    device: DeviceStatus?, personality: Personality, brain: String) {
+            self.name = name
             self.snapshot = snapshot
             self.sessions = sessions
             self.connected = connected
             self.device = device
             self.personality = personality
             self.brain = brain
-            self.mood = mood
         }
     }
 
@@ -100,6 +102,8 @@ public final class Runtime: @unchecked Sendable {
     public let options: Options
     public let memory: MemoryStore
     public let link: DeviceLink
+    /// Boop's name, from `long-term.md`.
+    let name: String
     public private(set) var settings: AppSettings
     /// The personality running now, touched only on `home`. Starts as the
     /// saved one, unless this run overrides it.
@@ -145,7 +149,9 @@ public final class Runtime: @unchecked Sendable {
     }
 
     /// Sets up a new Boop: name and sweet-or-cheeky, asked once (UX.md §5).
-    public static func setUp(stateDir: URL, name: String, nature: LongTerm.Nature, today: String) throws {
+    /// It hatches `today`, by default the Mac's.
+    public static func setUp(stateDir: URL, name: String, nature: LongTerm.Nature,
+                             today: String = LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000))) throws {
         let store = try MemoryStore(directory: stateDir)
         try store.setUp(name: name, nature: nature, seed: UInt64.random(in: 1...0xFFFF), today: today)
     }
@@ -159,6 +165,7 @@ public final class Runtime: @unchecked Sendable {
         let log = options.log
         memory = try MemoryStore(directory: options.stateDir, log: log)
         guard let longTerm = memory.longTerm else { throw OpenError.notSetUp }
+        name = longTerm.name
         settings = AppSettings.load(from: options.stateDir)
         link = DeviceLink(transport: options.link, log: log)
         if options.debug {
@@ -175,8 +182,7 @@ public final class Runtime: @unchecked Sendable {
         personality = options.personality ?? settings.personality
         let rules = options.steering.personality(personality).rules
         mood = MoodStore(stateDir: options.stateDir)
-        var config = Core.Config(name: longTerm.name, volume: settings.volume, rules: rules, time: options.time,
-                                 seed: longTerm.seed ^ UInt64(now))
+        var config = Core.Config(volume: settings.volume, rules: rules, time: options.time, seed: longTerm.seed ^ UInt64(now))
         config.brain = false  // until Jev's key is read
         config.mood = mood.current
         core = Core(config: config, lastActiveDay: memory.lastActiveDay)
@@ -198,21 +204,16 @@ public final class Runtime: @unchecked Sendable {
             ReactAction(voice: voice, queue: { moment in
                 moments.schedule.brain(moment, now: clock())
                 Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
-            }, blocked: { core.mumbleBlock(at: clock()) }),
+            }, blocked: { core.mumbleBlock }),
         ]
         let steering = options.steering
         let mood = self.mood
         let time = options.time
         var personalityNow: () -> Personality = { .boop }
+        let wallClock = options.wallClock
         harness = Harness(brain: nil, actions: actions, parts: { entry in
-            let now = clock()
-            let wall = options.wallClock()
-            guard case .event(let event) = entry.body else { preconditionFailure("a pass is for an event") }
-            return StateText.Parts(guide: steering.guide, personality: steering.personality(personalityNow()).text,
-                                   mood: steering.mood(mood.current),
-                                   status: core.statusLine(excluding: event.about, at: now),
-                                   workingSince: core.workingSince(at: now),
-                                   clock: "\(time.clock(wall)), \(time.weekday(wall))")
+            Runtime.stateParts(for: entry, steering: steering, personality: personalityNow(), mood: mood.current,
+                               core: core, time: time, now: clock(), wall: wallClock())
         }, home: home, clock: clock, debugLog: options.debug ? debugLogURL : nil, log: log)
         if options.debug {
             DebugLog.start(debugLogURL)
@@ -229,6 +230,19 @@ public final class Runtime: @unchecked Sendable {
         }
     }
 
+    /// Everything Jev's state needs besides the transcript, for the pass on
+    /// `entry` (harness/HARNESS.md §5.3): the steering files, the core's
+    /// status line and oldest working turn at steady time `now`, and the
+    /// time of day at wall-clock time `wall`. The evals build theirs with
+    /// it too.
+    public static func stateParts(for entry: Transcript.Entry, steering: Steering, personality: Personality,
+                                  mood: String, core: Core, time: LocalTime, now: Int64, wall: Int64) -> StateText.Parts {
+        let about: String? = if case .event(let event) = entry.body { event.about } else { nil }
+        return StateText.Parts(guide: steering.guide, personality: steering.personality(personality).text,
+                               mood: steering.mood(mood), status: core.statusLine(excluding: about, at: now),
+                               workingSince: core.workingSince(at: now), clock: "\(time.clock(wall)), \(time.weekday(wall))")
+    }
+
     // MARK: Running
 
     public func start() throws {
@@ -241,7 +255,7 @@ public final class Runtime: @unchecked Sendable {
         }
         // Hooks are timed on the runtime's clock, which headless mode can move.
         let clock = options.clock
-        let onLine: @Sendable (HookLine, Int64) -> Void = { [weak self] line, _ in
+        let onLine: @Sendable (HookLine) -> Void = { [weak self] line in
             let received = clock()
             home.async { self?.hook(line, received: received) }
         }
@@ -366,7 +380,7 @@ public final class Runtime: @unchecked Sendable {
         let now = options.clock()
         core.setWallClock(options.wallClock(), at: now)
         run(core.tick(at: now))
-        link.tick(now: now, current: core.snapshot(at: now))
+        link.tick(now: now)
     }
 
     /// The mood action saved a new mood: the device draws it from the next
@@ -396,14 +410,14 @@ public final class Runtime: @unchecked Sendable {
                 // Working chatter is filler: it never cuts a moment that's
                 // playing, such as a brain mumble, or jumps one waiting its
                 // turn (BEHAVIORS.md §2).
-                guard moments.schedule.idle(now: options.clock()), core.mumbleBlock(at: options.clock()) == nil,
+                guard moments.schedule.idle(now: options.clock()), core.mumbleBlock == nil,
                       let f = Feeling(rawValue: feeling) else { continue }
                 chatterSeed += 1
                 playRule(DeviceMoment(say: voice.line(f, word: word, seed: chatterSeed)))
             case .event(let event):
                 harness.take(event)
-            case .newDay:
-                memory.apply(effect)
+            case .newDay(let date):
+                memory.startDay(date)
             }
         }
         if stateChanged { changed() }
@@ -427,7 +441,7 @@ public final class Runtime: @unchecked Sendable {
         let now = clock()
         let due = moments.schedule.due(now: now)
         for moment in due.dropped {
-            log("react: dropped a brain moment that waited past its \(moment.ttl) s: \(moment.jsonLine)")
+            log("react: dropped a brain moment that waited over \(MomentSchedule.maxWaitMs / 1000) s: \(moment.jsonLine)")
         }
         if let moment = due.play {
             moments.brainSending = true
@@ -444,9 +458,9 @@ public final class Runtime: @unchecked Sendable {
 
     func changed() {
         let now = options.clock()
-        let status = Status(snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
+        let status = Status(name: name, snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
                             connected: link.connected, device: link.status, personality: personality,
-                            brain: harness.brain?.id ?? "none", mood: mood.current)
+                            brain: harness.brain?.id ?? "none")
         if options.debug, let line = DebugLog.status(status, at: now, last: &lastStatus) { Harness.appendLine(line, to: debugLogURL) }
         onChange?(status)
     }
@@ -469,7 +483,7 @@ public final class Runtime: @unchecked Sendable {
     public func setVolume(_ volume: Int) {
         home.async { [self] in
             run(core.setVolume(volume, at: options.clock()))
-            saveSettings { $0.volume = max(0, min(10, volume)) }
+            saveSettings { $0.volume = core.config.volume }
         }
     }
 

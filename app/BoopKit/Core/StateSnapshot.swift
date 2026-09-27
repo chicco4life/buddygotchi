@@ -20,15 +20,15 @@ public struct StateSnapshot: Equatable, Sendable {
     /// The device keeps names in 24-byte fields.
     public static let maxNameBytes = 23
 
-    /// `text` precomposed (NFC) and cut to at most `bytes` of UTF-8, on a
-    /// character boundary. Finder names folders decomposed (e and U+0301),
-    /// which the device would draw as "e?"; precomposed, é shows as e. With
-    /// `marked`, a cut text ends in "..", within `bytes`, so the device
-    /// shows it was cut (PROTOCOL.md §3).
-    public static func clip(_ text: String, bytes: Int = maxNameBytes, marked: Bool = false) -> String {
+    /// `text` precomposed (NFC) and cut to at most `maxNameBytes` of UTF-8,
+    /// on a character boundary. Finder names folders decomposed (e and
+    /// U+0301), which the device would draw as "e?"; precomposed, é shows as
+    /// e. With `marked`, a cut text ends in "..", within those bytes, so the
+    /// device shows it was cut (PROTOCOL.md §3).
+    public static func clip(_ text: String, marked: Bool = false) -> String {
         let text = text.precomposedStringWithCanonicalMapping
-        guard text.utf8.count > bytes else { return text }
-        let room = marked ? bytes - 2 : bytes
+        guard text.utf8.count > maxNameBytes else { return text }
+        let room = marked ? maxNameBytes - 2 : maxNameBytes
         var out = ""
         for ch in text {
             if out.utf8.count + String(ch).utf8.count > room { break }
@@ -37,9 +37,6 @@ public struct StateSnapshot: Equatable, Sendable {
         return marked ? out + ".." : out
     }
 
-    /// Unix seconds.
-    public var time: Int64
-    public var name: String
     /// `asleep`, `idle` or `working`.
     public var base: String
     /// Boop's mood, one of the seven (harness/DECISIONS.md §2.3), which
@@ -51,10 +48,7 @@ public struct StateSnapshot: Equatable, Sendable {
     public var wait: Int
     public var vol: Int
 
-    public init(time: Int64, name: String, base: String, mood: String, attn: Attention?, busy: Int, idle: Int,
-                wait: Int, vol: Int) {
-        self.time = time
-        self.name = name
+    public init(base: String, mood: String, attn: Attention?, busy: Int, idle: Int, wait: Int, vol: Int) {
         self.base = base
         self.mood = mood
         self.attn = attn
@@ -64,18 +58,10 @@ public struct StateSnapshot: Equatable, Sendable {
         self.vol = vol
     }
 
-    /// Equal apart from the clock, which changes every second.
-    public func sameContent(as other: StateSnapshot?) -> Bool {
-        guard var other else { return false }
-        other.time = time
-        return other == self
-    }
-
     /// One JSON line, keys in the protocol's order.
     public var jsonLine: String {
         var parts: [String] = [
-            "\"t\":\"state\"", "\"v\":\(StateSnapshot.version)", "\"time\":\(time)", "\"name\":\(json(name))",
-            "\"base\":\(json(base))", "\"mood\":\(json(mood))",
+            "\"t\":\"state\"", "\"v\":\(StateSnapshot.version)", "\"base\":\(json(base))", "\"mood\":\(json(mood))",
         ]
         if let attn {
             parts.append("\"attn\":{\"agent\":\(json(attn.agent)),\"project\":\(json(attn.project)),\"more\":\(attn.more)}")

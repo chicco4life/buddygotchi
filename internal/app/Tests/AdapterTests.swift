@@ -117,13 +117,13 @@ final class AdapterTests: XCTestCase {
     }
 
     func testProjectNames() {
-        XCTAssertEqual(Adapter.projectName(cwd: "/Users/me/src/landing"), "landing")
-        XCTAssertEqual(Adapter.projectName(cwd: "/Users/me/src/landing/"), "landing")
-        XCTAssertEqual(Adapter.projectName(cwd: "~/project"), "project")
-        XCTAssertEqual(Adapter.projectName(cwd: "/Users/me/src/landing/.worktrees/fix-nav"), "landing")
-        XCTAssertEqual(Adapter.projectName(cwd: "/Users/me/src/buddygotchi/.claude/worktrees/bridge-x"), "buddygotchi")
-        XCTAssertEqual(Adapter.projectName(cwd: "/"), "unknown")
-        XCTAssertEqual(Adapter.projectName(cwd: ""), "unknown")
+        XCTAssertEqual(Adapter.place(cwd: "/Users/me/src/landing").project, "landing")
+        XCTAssertEqual(Adapter.place(cwd: "/Users/me/src/landing/").project, "landing")
+        XCTAssertEqual(Adapter.place(cwd: "~/project").project, "project")
+        XCTAssertEqual(Adapter.place(cwd: "/Users/me/src/landing/.worktrees/fix-nav").project, "landing")
+        XCTAssertEqual(Adapter.place(cwd: "/Users/me/src/buddygotchi/.claude/worktrees/bridge-x").project, "buddygotchi")
+        XCTAssertEqual(Adapter.place(cwd: "/").project, "unknown")
+        XCTAssertEqual(Adapter.place(cwd: "").project, "unknown")
     }
 
     func testAGitWorktreeAnywhereMapsToItsMainRepository() throws {
@@ -133,7 +133,7 @@ final class AdapterTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         try "gitdir: /Users/me/src/jetpack/.git/worktrees/feature-x\n"
             .write(to: tree.appendingPathComponent(".git"), atomically: true, encoding: .utf8)
-        XCTAssertEqual(Adapter.projectName(cwd: tree.path), "jetpack")
+        XCTAssertEqual(Adapter.place(cwd: tree.path).project, "jetpack")
     }
 
     /// ADAPTERS.md §3: a worktree's `.git` is read once per folder, not on
@@ -191,14 +191,13 @@ final class AdapterTests: XCTestCase {
     func testHookServerReceivesWhatTheClientSends() throws {
         let path = NSTemporaryDirectory() + "boop-test-\(getpid()).sock"
         let received = Received()
-        let server = HookServer(path: path) { line, _ in received.add(line) }
+        let server = HookServer(path: path) { line in received.add(line) }
         try server.start()
         defer { server.stop() }
         let sent = HookLine(agent: "codex", hook: "Stop", session: "t1", cwd: "/w/x", ts: 5)
         XCTAssertTrue(HookSocket.send(sent.encoded(), to: path))
         XCTAssertTrue(HookSocket.send(HookLine(agent: "claude", hook: "Stop", session: "t2", ts: 6).encoded(), to: path))
-        let deadline = Date().addingTimeInterval(2)
-        while received.count < 2 && Date() < deadline { usleep(5000) }
+        eventually("both lines", timeout: 2) { received.count >= 2 }
         XCTAssertEqual(received.lines.first, sent)
         XCTAssertEqual(received.count, 2)
         server.stop()
@@ -214,19 +213,19 @@ final class AdapterTests: XCTestCase {
         try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
         try "gitdir: /Users/me/src/buddygotchi/.git/worktrees/agent-work-visibility-7a22ea\n"
             .write(to: tree.appendingPathComponent(".git"), atomically: true, encoding: .utf8)
-        XCTAssertEqual(Adapter.workspace(cwd: tree.path), "agent-work-visibility")
+        XCTAssertEqual(Adapter.place(cwd: tree.path).workspace, "agent-work-visibility")
 
         let repo = root.appendingPathComponent("landing")
         try FileManager.default.createDirectory(at: repo.appendingPathComponent(".git"), withIntermediateDirectories: true)
         let head = repo.appendingPathComponent(".git/HEAD")
         try "ref: refs/heads/main\n".write(to: head, atomically: true, encoding: .utf8)
-        XCTAssertNil(Adapter.workspace(cwd: repo.path), "the default branch has no workspace")
+        XCTAssertNil(Adapter.place(cwd: repo.path).workspace, "the default branch has no workspace")
         try "ref: refs/heads/claude/Fix_Nav-Bar\n".write(to: head, atomically: true, encoding: .utf8)
-        XCTAssertEqual(Adapter.workspace(cwd: repo.path), "fix-nav-bar")
+        XCTAssertEqual(Adapter.place(cwd: repo.path).workspace, "fix-nav-bar")
         try "0123456789abcdef0123456789abcdef01234567\n".write(to: head, atomically: true, encoding: .utf8)
-        XCTAssertNil(Adapter.workspace(cwd: repo.path), "a detached head has none")
-        XCTAssertNil(Adapter.workspace(cwd: root.appendingPathComponent("plain").path))
-        XCTAssertEqual(Adapter.workspace(cwd: "/Users/me/src/landing/.worktrees/fix-nav"), "fix-nav")
+        XCTAssertNil(Adapter.place(cwd: repo.path).workspace, "a detached head has none")
+        XCTAssertNil(Adapter.place(cwd: root.appendingPathComponent("plain").path).workspace)
+        XCTAssertEqual(Adapter.place(cwd: "/Users/me/src/landing/.worktrees/fix-nav").workspace, "fix-nav")
     }
 
     /// An agent picks its branch names: only a short plain name gets through.

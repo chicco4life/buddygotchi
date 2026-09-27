@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+@testable import BoopDevKit
 @testable import BoopKit
 @testable import HookWire
 
@@ -26,9 +27,8 @@ final class RuntimeTests: XCTestCase {
     /// A runtime whose brain is `brain` once the key reads, or none.
     func options(_ transport: FakeTransport?, brain: ScriptedBrain = .pipelineCheck,
                  readJevKey: @escaping @Sendable () -> String? = { "k" }) throws -> Runtime.Options {
-        try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
-        var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
-                                      link: transport, steering: Self.steering)
+        try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet)
+        var options = Runtime.Options(stateDir: dir, socketPath: socketPath, link: transport, steering: Self.steering)
         options.devLines = true
         options.readJevKey = readJevKey
         options.brain = { key in key.map { _ in brain } }
@@ -59,21 +59,15 @@ final class RuntimeTests: XCTestCase {
         runtime.onChange = { statuses.append($0) }
         try runtime.start()
         defer { runtime.stop() }
-        wait("home answers while the key is read") { runtime.home.sync { statuses.last?.brain == "none" } }
+        eventually("home answers while the key is read") { runtime.home.sync { statuses.last?.brain == "none" } }
         prompt.signal()
-        wait("the brain once it's read") { runtime.home.sync { statuses.last?.brain == "jev-test" } }
+        eventually("the brain once it's read") { runtime.home.sync { statuses.last?.brain == "jev-test" } }
         XCTAssertTrue(runtime.home.sync { runtime.core.config.brain })
         runtime.reloadBrain(jevKey: nil)
-        wait("none when Settings clears it") { runtime.home.sync { statuses.last?.brain == "none" } }
+        eventually("none when Settings clears it") { runtime.home.sync { statuses.last?.brain == "none" } }
         XCTAssertFalse(runtime.home.sync { runtime.core.config.brain }, "so no event wakes it")
         runtime.reloadBrain(jevKey: "k2")
-        wait("the brain when Settings saves one") { runtime.home.sync { statuses.last?.brain == "jev-test" } }
-    }
-
-    func wait(_ what: String, timeout: TimeInterval = 3, _ condition: () -> Bool) {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !condition() && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
-        XCTAssertTrue(condition(), what)
+        eventually("the brain when Settings saves one") { runtime.home.sync { statuses.last?.brain == "jev-test" } }
     }
 
     func hook(_ hook: String, tool: String? = nil) -> Data {
@@ -86,28 +80,27 @@ final class RuntimeTests: XCTestCase {
         let runtime = try makeRuntime(transport)
         try runtime.start()
         defer { runtime.stop() }
-        wait("first state on start") { transport.types().contains("state") }
+        eventually("first state on start") { transport.types().contains("state") }
         transport.onConnection?(true)
 
-        let socket = dir.appendingPathComponent("boop.sock").path
-        XCTAssertTrue(HookSocket.send(hook("SessionStart"), to: socket))
-        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socket))
-        wait("working state") { transport.sent.contains { $0.contains("\"base\":\"working\"") } }
-        XCTAssertTrue(HookSocket.send(hook("PermissionRequest", tool: "Bash"), to: socket))
-        wait("needs you") { transport.sent.contains { $0.contains("\"attn\":{\"agent\":\"claude\",\"project\":\"jetpack\"") } }
+        XCTAssertTrue(HookSocket.send(hook("SessionStart"), to: socketPath))
+        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
+        eventually("working state") { transport.sent.contains { $0.contains("\"base\":\"working\"") } }
+        XCTAssertTrue(HookSocket.send(hook("PermissionRequest", tool: "Bash"), to: socketPath))
+        eventually("needs you") { transport.sent.contains { $0.contains("\"attn\":{\"agent\":\"claude\",\"project\":\"jetpack\"") } }
 
         // The device's status gets a state back.
         let before = transport.types().filter { $0 == "state" }.count
-        transport.onLine?(#"{"t":"status","v":1,"id":"b00p-54fe","fw":"1.0.0","bat":0,"usb":1}"#)
-        wait("state after status") { transport.types().filter { $0 == "state" }.count > before }
+        transport.onLine?(#"{"t":"status","v":1,"id":"b00p-54fe","fw":"1.0.0"}"#)
+        eventually("state after status") { transport.types().filter { $0 == "state" }.count > before }
         XCTAssertEqual(runtime.home.sync { runtime.link.status?.id }, "b00p-54fe")
 
         // A finished turn clears "needs you" and cheers.
-        XCTAssertTrue(HookSocket.send(hook("PostToolUse", tool: "Bash"), to: socket))
-        XCTAssertTrue(HookSocket.send(hook("Stop"), to: socket))
-        wait("cheer") { transport.sent.contains { $0 == #"{"t":"moment","anim":"cheer","ttl":5}"# } }
+        XCTAssertTrue(HookSocket.send(hook("PostToolUse", tool: "Bash"), to: socketPath))
+        XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
+        eventually("cheer") { transport.sent.contains { $0 == #"{"t":"moment","anim":"cheer"}"# } }
         XCTAssertEqual(AppSettings.load(from: dir).personality, .boop)
-        wait("today's short-term memory") {
+        eventually("today's short-term memory") {
             (try? String(contentsOf: self.dir.appendingPathComponent("short-term.md"), encoding: .utf8))?.contains("## Today") == true
         }
     }
@@ -131,20 +124,19 @@ final class RuntimeTests: XCTestCase {
         try runtime.start()
         defer { runtime.stop() }
         transport.onConnection?(true)
-        wait("the brain") { runtime.home.sync { statuses.last?.brain == "scripted" } }
-        let socket = dir.appendingPathComponent("boop.sock").path
-        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socket))
-        wait("a mumble") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) } }
-        wait("grumpy") { runtime.home.sync { runtime.mood.current == "grumpy" } }
-        wait("the device hears it") { transport.sent.contains { $0.hasPrefix(#"{"t":"state""#) && $0.contains(#""mood":"grumpy""#) } }
+        eventually("the brain") { runtime.home.sync { statuses.last?.brain == "scripted" } }
+        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
+        eventually("a mumble") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) } }
+        eventually("grumpy") { runtime.home.sync { runtime.mood.current == "grumpy" } }
+        eventually("the device hears it") { transport.sent.contains { $0.hasPrefix(#"{"t":"state""#) && $0.contains(#""mood":"grumpy""#) } }
         try XCTAssertEqual(try String(contentsOf: dir.appendingPathComponent(MoodStore.fileName), encoding: .utf8), "grumpy\n")
-        wait("the log line") { lines.lock.withLock { lines.log.contains { $0.hasPrefix("brain turn_start ") && $0.hasSuffix("→ mood, react") } } }
-        XCTAssertTrue(HookSocket.send(hook("Stop"), to: socket))
+        eventually("the log line") { lines.lock.withLock { lines.log.contains { $0.hasPrefix("brain turn_start ") && $0.hasSuffix("→ mood, react") } } }
+        XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
         let debugLog = dir.appendingPathComponent(DebugLog.fileName)
         func passes() -> [Substring] {
             ((try? String(contentsOf: debugLog, encoding: .utf8)) ?? "").split(separator: "\n").filter { $0.contains("\"pass\":") }
         }
-        wait("the second pass") { passes().count == 2 }
+        eventually("the second pass") { passes().count == 2 }
         XCTAssertTrue(passes()[0].contains("Happy. Boop is in good spirits"), "the first pass read happy")
         XCTAssertTrue(passes()[1].contains("Grumpy. Boop is fed up"), "the next reads the new mood's file")
         XCTAssertTrue(passes()[1].contains(#"Boop mumbled, annoyed: \"…again!\""#), "HISTORY shows what the actions did")
@@ -173,12 +165,11 @@ final class RuntimeTests: XCTestCase {
                       "each launch starts afresh, with the questions first (DASHBOARD.md §3)")
         XCTAssertEqual(file(), lastLaunch, "in place, so a boopdev watch on it sees it start again")
 
-        let socket = dir.appendingPathComponent("boop.sock").path
-        XCTAssertTrue(HookSocket.send(hook("SessionStart"), to: socket))
-        XCTAssertTrue(HookSocket.send(hook("PreToolUse", tool: "Bash"), to: socket))
-        wait("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
-        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socket))
-        wait("the pass in debug.jsonl") { self.debugLines().contains { $0["action"] != nil } }
+        XCTAssertTrue(HookSocket.send(hook("SessionStart"), to: socketPath))
+        XCTAssertTrue(HookSocket.send(hook("PreToolUse", tool: "Bash"), to: socketPath))
+        eventually("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
+        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
+        eventually("the pass in debug.jsonl") { self.debugLines().contains { $0["action"] != nil } }
         let log = lines.lock.withLock { lines.log }
         let printed = lines.lock.withLock { lines.printed }
         XCTAssertTrue(log.contains("hook: claude SessionStart s1 → session_start jetpack"), "\(log)")
@@ -220,10 +211,9 @@ final class RuntimeTests: XCTestCase {
         runtime.link.sentLines = []
         try runtime.start()
         defer { runtime.stop() }
-        wait("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
-        let socket = socketPath
-        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socket))
-        wait("a mumble") { runtime.home.sync { runtime.link.sentLines!.contains { $0.contains(#""say":"#) } } }
+        eventually("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
+        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
+        eventually("a mumble") { runtime.home.sync { runtime.link.sentLines!.contains { $0.contains(#""say":"#) } } }
         runtime.home.sync {}
 
         let text = try String(contentsOf: dir.appendingPathComponent(DebugLog.fileName), encoding: .utf8)
@@ -276,22 +266,22 @@ final class RuntimeTests: XCTestCase {
         try runtime.start()
         defer { runtime.stop() }
         transport.onConnection?(true)
-        wait("no brain") { runtime.home.sync { !runtime.readingJevKey && runtime.jevKey != nil } }
+        eventually("no brain") { runtime.home.sync { !runtime.readingJevKey && runtime.jevKey != nil } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
 
         dev(#"{"dev":"answer","answers":{"react":"annoyed","word.feeling":"again"}}"#)
-        wait("a mumble with no brain") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) && $0.contains(#""word":"again""#) } }
+        eventually("a mumble with no brain") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) && $0.contains(#""word":"again""#) } }
         dev(#"{"dev":"mood","mood":"grumpy"}"#)
-        wait("grumpy") { runtime.home.sync { runtime.mood.current == "grumpy" } }
+        eventually("grumpy") { runtime.home.sync { runtime.mood.current == "grumpy" } }
         dev(#"{"dev":"mood","mood":"happy"}"#)
-        wait("happy again") { runtime.home.sync { runtime.mood.current == "happy" } }
+        eventually("happy again") { runtime.home.sync { runtime.mood.current == "happy" } }
         dev(#"{"dev":"moment","anim":"cheer"}"#)
-        wait("the cheer") { transport.sent.contains(#"{"t":"moment","anim":"cheer","ttl":5}"#) }
+        eventually("the cheer") { transport.sent.contains(#"{"t":"moment","anim":"cheer"}"#) }
         dev(#"{"dev":"moment","anim":"dance"}"#)
         dev(#"{"dev":"moment"}"#)
         dev(#"{"dev":"moment","anim":"wiggle"}"#)
-        wait("the wiggle after them") { transport.sent.contains(#"{"t":"moment","anim":"wiggle","ttl":5}"#) }
-        XCTAssertFalse(transport.sent.contains { $0.contains("dance") || $0 == #"{"t":"moment","ttl":5}"# })
+        eventually("the wiggle after them") { transport.sent.contains(#"{"t":"moment","anim":"wiggle"}"#) }
+        XCTAssertFalse(transport.sent.contains { $0.contains("dance") || $0 == #"{"t":"moment"}"# })
 
         let lines = debugLines()
         let pass = try XCTUnwrap(lines.compactMap { $0["pass"] as? [String: Any] }.first)
@@ -323,9 +313,9 @@ final class RuntimeTests: XCTestCase {
         try runtime.start()
         defer { runtime.stop() }
         XCTAssertTrue(HookSocket.send(hook("PermissionRequest", tool: "Bash"), to: socketPath))
-        wait("needs you") { transport.sent.contains { $0.contains(#""attn":"#) } }
+        eventually("needs you") { transport.sent.contains { $0.contains(#""attn":"#) } }
         dev(#"{"dev":"answer","answers":{"react":"happy"}}"#)
-        wait("the refusal") {
+        eventually("the refusal") {
             self.debugLines().contains { ($0["action"] as? [String: Any])?["message"] as? String == "something needs you" }
         }
         let action = try XCTUnwrap(debugLines().compactMap { $0["action"] as? [String: Any] }.last)
@@ -345,7 +335,7 @@ final class RuntimeTests: XCTestCase {
         dev(#"{"dev":"mood","mood":"grumpy"}"#)
         dev(#"{"dev":"moment","anim":"cheer"}"#)
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
-        wait("the hook after them") { transport.sent.contains { $0.contains(#""base":"working""#) } }
+        eventually("the hook after them") { transport.sent.contains { $0.contains(#""base":"working""#) } }
         runtime.home.sync {}
         XCTAssertEqual(runtime.home.sync { runtime.mood.current }, "happy")
         XCTAssertFalse(transport.sent.contains { $0.contains("cheer\"") })
@@ -362,27 +352,26 @@ final class RuntimeTests: XCTestCase {
         let runtime = try Runtime(options)
         try runtime.start()
         defer { runtime.stop() }
-        let socket = dir.appendingPathComponent("boop.sock").path
         let arm = dir.appendingPathComponent(Runtime.doctorArm)
         func logged(_ session: String) -> Bool { lines.lock.withLock { lines.log.contains("hook: claude Stop \(session)") } }
         func send(_ session: String) {
             XCTAssertTrue(HookSocket.send(HookLine(agent: "claude", hook: "Stop", session: session, cwd: "/tmp/jetpack",
-                                                   ts: Int64(Date().timeIntervalSince1970 * 1000)).encoded(), to: socket))
+                                                   ts: Int64(Date().timeIntervalSince1970 * 1000)).encoded(), to: socketPath))
             runtime.home.sync {}
         }
 
         try Data("0\n".utf8).write(to: arm)
         send("armed")
-        wait("an armed app logs hooks") { logged("armed") }
+        eventually("an armed app logs hooks") { logged("armed") }
 
         XCTAssertEqual(Runtime.doctorArmSeconds, 600)
         try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-9 * 60 - 50)], ofItemAtPath: arm.path)
         send("nine-fifty")
-        wait("still armed just under 10 minutes") { logged("nine-fifty") }
+        eventually("still armed just under 10 minutes") { logged("nine-fifty") }
         try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-10 * 60 - 1)], ofItemAtPath: arm.path)
         send("expired")
         send("after")
-        wait("an expired arm is removed") { !FileManager.default.fileExists(atPath: arm.path) }
+        eventually("an expired arm is removed") { !FileManager.default.fileExists(atPath: arm.path) }
         Thread.sleep(forTimeInterval: 0.2)
         XCTAssertFalse(logged("expired"))
         XCTAssertFalse(logged("after"))
@@ -391,18 +380,16 @@ final class RuntimeTests: XCTestCase {
     func testStopRemovesTheSocketAndReleasesTheLock() throws {
         let runtime = try makeRuntime(FakeTransport())
         try runtime.start()
-        let socket = dir.appendingPathComponent("boop.sock").path
-        XCTAssertTrue(FileManager.default.fileExists(atPath: socket))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: socketPath))
         try XCTAssertThrowsError(try Runtime(runtime.options)) // one app per state directory
         runtime.stop()
         runtime.home.sync {}
-        XCTAssertFalse(FileManager.default.fileExists(atPath: socket))
-        XCTAssertFalse(HookSocket.send(hook("Stop"), to: socket))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: socketPath))
+        XCTAssertFalse(HookSocket.send(hook("Stop"), to: socketPath))
     }
 
     func testNotSetUpIsAnError() throws {
-        let options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
-                                      link: nil, steering: Self.steering)
+        let options = Runtime.Options(stateDir: dir, socketPath: socketPath, link: nil, steering: Self.steering)
         try XCTAssertThrowsError(try Runtime(options)) { XCTAssertEqual("\($0)", "\(Runtime.OpenError.notSetUp)") }
     }
 
@@ -425,10 +412,8 @@ final class RuntimeTests: XCTestCase {
     /// and the personalities' settings are BEHAVIORS.md §6's.
     func testTheSteeringFitsItsBudgetsAndSettings() {
         XCTAssertEqual(Self.steering.overBudget(), [])
-        XCTAssertEqual(Self.steering.personality(.boop).rules,
-                       Personality.Rules(cheer: .every, chatterMs: 120_000...240_000, toolUses: .notable))
-        XCTAssertEqual(Self.steering.personality(.chatter).rules,
-                       Personality.Rules(cheer: .every, chatterMs: 30_000...60_000, toolUses: .all))
+        XCTAssertEqual(Self.steering.personality(.boop).rules, Personality.Rules(chatterMs: 120_000...240_000, toolUses: .notable))
+        XCTAssertEqual(Self.steering.personality(.chatter).rules, Personality.Rules(chatterMs: 30_000...60_000, toolUses: .all))
         XCTAssertFalse(Self.steering.guide.contains("<!--"), "comments are left out")
         XCTAssertTrue(Self.steering.personality(.boop).text.hasPrefix("PERSONALITY\n"))
         XCTAssertTrue(Self.steering.mood("grumpy").hasPrefix("MOOD\nGrumpy."))
@@ -474,9 +459,9 @@ final class RuntimeTests: XCTestCase {
         runtime.onChange = { statuses.append($0) }
         try runtime.start()
         defer { runtime.stop() }
-        wait("started as boop") { runtime.home.sync { statuses.last?.personality == .boop } }
+        eventually("started as boop") { runtime.home.sync { statuses.last?.personality == .boop } }
         runtime.setPersonality(.chatter)
-        wait("chatter now") { runtime.home.sync { statuses.last?.personality == .chatter } }
+        eventually("chatter now") { runtime.home.sync { statuses.last?.personality == .chatter } }
         XCTAssertEqual(runtime.home.sync { runtime.core.config.rules.toolUses }, .all)
         XCTAssertEqual(AppSettings.load(from: dir).personality, .chatter)
     }
@@ -487,30 +472,28 @@ final class RuntimeTests: XCTestCase {
     func testTheBrainWaitsForTheRulesMoment() throws {
         let transport = FakeTransport()
         var options = try options(transport)
-        let skew = NSLock()
-        nonisolated(unsafe) var skewMs: Int64 = 0
-        options.clock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.withLock { skewMs } }
-        options.advance = { ms in skew.withLock { skewMs += ms } }
+        let skew = VirtualClock(0)
+        options.clock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.now }
+        options.advance = { skew.now += $0 }
         let runtime = try Runtime(options)
         try runtime.start()
         defer { runtime.stop() }
         transport.onConnection?(true)
 
-        let socket = dir.appendingPathComponent("boop.sock").path
-        wait("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
-        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socket))
-        wait("working") { transport.sent.contains { $0.contains("\"base\":\"working\"") } }
-        wait("the start's mumble has played", timeout: 5) {
+        eventually("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
+        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
+        eventually("working") { transport.sent.contains { $0.contains("\"base\":\"working\"") } }
+        eventually("the start's mumble has played", timeout: 5) {
             transport.sent.contains { $0.contains("\"say\"") } && runtime.home.sync { runtime.moments.schedule.idle(now: runtime.options.clock()) }
         }
-        XCTAssertTrue(HookSocket.send(Data(#"{"dev":"advance","ms":30000}"#.utf8), to: socket))
-        wait("clock moved") { skew.withLock { skewMs } == 30_000 }
-        XCTAssertTrue(HookSocket.send(hook("Stop"), to: socket))
-        wait("cheer") { transport.sent.contains { $0.contains("\"anim\":\"cheer\"") } }
+        XCTAssertTrue(HookSocket.send(Data(#"{"dev":"advance","ms":30000}"#.utf8), to: socketPath))
+        eventually("clock moved") { skew.now == 30_000 }
+        XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
+        eventually("cheer") { transport.sent.contains { $0.contains("\"anim\":\"cheer\"") } }
         let cheered = Date()
         let moments = { transport.sent.filter { $0.contains("\"t\":\"moment\"") } }
         let afterCheer = moments().count
-        wait("the brain's mumble", timeout: 4) { moments().count > afterCheer }
+        eventually("the brain's mumble", timeout: 4) { moments().count > afterCheer }
         XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(cheered), 1.5, "a cheer plays 2 s")
         let mumble = try XCTUnwrap(moments().last)
         XCTAssertTrue(mumble.hasPrefix(#"{"t":"moment","say":"#), "a mumble has no anim: \(mumble)")
@@ -519,7 +502,7 @@ final class RuntimeTests: XCTestCase {
     /// ARCHITECTURE.md §3.2: the brain's moments play one at a time, each
     /// after whatever is playing, so none cuts off a rule moment or another
     /// of the brain's; a newer rule moment pushes them back; one that waited
-    /// past its ttl is dropped.
+    /// over 5 s is dropped.
     func testBrainMomentsTakeTurns() {
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
         let mumble = DeviceMoment(say: line)  // 1920 ms
@@ -553,7 +536,8 @@ final class RuntimeTests: XCTestCase {
         late.rule(DeviceMoment(anim: "cheer"), now: 3800)
         due = late.due(now: 5800)
         XCTAssertNil(due.play)
-        XCTAssertEqual(due.dropped, [mumble], "5.8 s is past its 5 s ttl")
+        XCTAssertEqual(MomentSchedule.maxWaitMs, 5000)
+        XCTAssertEqual(due.dropped, [mumble], "5.8 s is past 5 s")
         XCTAssertNil(due.next)
     }
 
@@ -624,4 +608,12 @@ final class Lines: @unchecked Sendable {
     var all: [String] { lock.withLock { stored } }
     private var stored: [String] = []
     func add(_ line: String) { lock.withLock { stored.append(line) } }
+}
+
+/// Waits up to `timeout` for `condition`, checking every 20 ms, then checks
+/// it: how every test waits on another thread.
+func eventually(_ what: String, timeout: TimeInterval = 3, _ condition: () -> Bool) {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !condition() && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
+    XCTAssertTrue(condition(), what)
 }

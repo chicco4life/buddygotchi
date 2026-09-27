@@ -40,9 +40,7 @@ enum Snapshots {
                 settings.restartAgents = true
                 shot("settings", settings, pane: .settings)
                 try? installer.remove(.claude)
-                let chatter = model(installer, status: status(personality: .chatter))
-                chatter.personality = .chatter
-                shot("settings-chatter", chatter, pane: .settings)
+                shot("settings-chatter", model(installer, status: status(personality: .chatter)), pane: .settings)
                 shot("settings-no-hook", model(unbuilt, status: status()), pane: .settings)
                 // No Jev key, the body away and Claude's hooks needing a repair.
                 let offline = model(installer, status: status(connected: false, brain: "none"))
@@ -90,16 +88,16 @@ enum Snapshots {
         let sessions = rows.map { SessionSummary(agent: $0[0], project: $0[1], status: statuses[$0[2]]!) }
         let wait = sessions.filter { $0.status == .waiting }
         let snapshot = StateSnapshot(
-            time: 1_790_000_000, name: name, base: base, mood: mood,
+            base: base, mood: mood,
             // Cut as the core cuts it for the device; the popover shows it whole.
             attn: wait.first.map {
                 StateSnapshot.Attention(agent: $0.agent, project: StateSnapshot.clip($0.project, marked: true), more: wait.count - 1)
             },
             busy: sessions.filter { $0.status == .working }.count, idle: sessions.filter { $0.status == .idle }.count,
             wait: wait.count, vol: vol)
-        return Runtime.Status(snapshot: snapshot, sessions: sessions, connected: connected,
+        return Runtime.Status(name: name, snapshot: snapshot, sessions: sessions, connected: connected,
                               device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0") : nil,
-                              personality: personality, brain: brain, mood: mood)
+                              personality: personality, brain: brain)
     }
 
     static func overviews(_ installer: HookInstaller) -> [(String, AppModel)] {
@@ -128,7 +126,7 @@ enum Snapshots {
             ("waking-up", model(installer, status: nil)),
             ("no-device", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]],
                                                           connected: false), link: .none)),
-            // Every mode chip at once, under the longest kind of name.
+            // Every chip at once (Chatter and Muted), under the longest kind of name.
             ("all-chips", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], vol: 0,
                                                           personality: .chatter, name: "Wobblebottom McSnugs"))),
             // Many sessions, a long project, two in one project, and one

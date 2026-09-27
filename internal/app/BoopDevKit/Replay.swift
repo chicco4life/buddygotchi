@@ -16,16 +16,13 @@ public struct Replay {
         case advance(Int64)
     }
 
-    /// 2026-10-14 14:00 UTC, so output is repeatable.
+    /// 2026-10-14 14:00 UTC, a Wednesday, so output is repeatable. The
+    /// evals and the tests start there too.
     public static let defaultStart: Int64 = 1_791_986_400_000
 
     public var agent: String
     /// Virtual time between payloads.
     public var gapMs: Int64 = 1000
-    public var start: Int64 = Replay.defaultStart
-    public var time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
-    /// Start with today's rituals still to come.
-    public var newDay = false
 
     public init(agent: String) {
         self.agent = agent
@@ -52,9 +49,10 @@ public struct Replay {
     /// Runs the steps and returns one line per event and effect, each
     /// effect prefixed with its virtual time.
     public func run(_ steps: [Step], statesOnly: Bool = false) -> [String] {
+        let start = Replay.defaultStart
         var now = start
-        let today = time.day(now)
-        let core = Core(config: .init(name: "Pip", time: time), lastActiveDay: newDay ? nil : today)
+        let time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
+        let core = Core(config: .init(time: time), lastActiveDay: time.day(now))
         var out: [String] = []
 
         func emit(_ effects: [CoreEffect]) {
@@ -71,7 +69,7 @@ public struct Replay {
             }
         }
 
-        if !newDay { core.tick(at: now) }
+        core.tick(at: now)
         for step in steps {
             switch step {
             case .wait(let ms), .advance(let ms):

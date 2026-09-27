@@ -57,7 +57,7 @@ look like one cheer.
 | When | What Boop does |
 | --- | --- |
 | You send a prompt | Working |
-| A turn finishes | `cheer`, even while other sessions keep working, as the personality's `cheer` setting allows (§6) |
+| A turn finishes | `cheer`, whatever its length and even while other sessions keep working |
 | A turn fails | No moment; the session goes idle. The brain may react ([harness/DECISIONS.md](harness/DECISIONS.md)) |
 | You interrupt a turn (Esc) | The session goes idle, with no moment and nothing for the brain. That happens at once if a tool was running, which also clears a request it was waiting on; otherwise when Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §3) |
 
@@ -128,11 +128,11 @@ How much Boop reacts is its personality's to say, chosen in Settings
 file in `plan/steering/personality/`: its settings drive the core's rules
 below, and its text steers the brain
 ([harness/DECISIONS.md](harness/DECISIONS.md) §2.2). "Needs you", the
-tap's wiggle are the same for every personality.
+cheer on every finished turn and the tap's wiggle are the same for every
+personality.
 
 | Setting | What it sets | `boop` (the default) | `chatter` (debugging) |
 | --- | --- | --- | --- |
-| `cheer` | Which finished turns get the rule's `cheer`: `every`, or `long` for those over a minute only | `every` | `every` |
 | `chatter` | Working chatter: every so many seconds, as a range, or `none` | 120–240 s | 30–60 s |
 | `tool_uses` | Which tool uses wake the brain: `notable` (a failure, or a pass after failures) or `all` ([harness/EVENTS.md](harness/EVENTS.md) §4) | `notable` | `all` |
 

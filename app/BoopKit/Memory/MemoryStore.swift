@@ -56,15 +56,9 @@ public final class MemoryStore {
 
     // MARK: Core effects
 
-    /// Applies the core's `.newDay`; ignores the rest.
-    public func apply(_ effect: CoreEffect) {
-        refresh()
-        if case .newDay(let date, let firstSeen) = effect { startDay(date, firstSeen: firstSeen) }
-    }
-
-    /// Snapshots both files to `history/<the old day>/` and starts
-    /// short-term memory fresh.
-    func startDay(_ date: String, firstSeen: String) {
+    /// The core's `.newDay`: snapshots both files to `history/<the old
+    /// day>/` and starts short-term memory fresh.
+    public func startDay(_ date: String) {
         if let old = shortTerm, old.date != date {
             do {
                 try snapshot(day: old.date)
@@ -72,7 +66,7 @@ public final class MemoryStore {
                 log("memory: snapshot for \(old.date) failed: \(error)")
             }
         }
-        save(ShortTerm(date: date, firstSeen: firstSeen))
+        save(ShortTerm(date: date))
     }
 
     // MARK: Files
@@ -137,9 +131,8 @@ public final class MemoryStore {
             let text = (try? String(contentsOf: url(file), encoding: .utf8)) ?? ""
             let date = text.split(whereSeparator: { !$0.isNumber && $0 != "-" }).map(String.init).first(where: LocalTime.isDay)
             if let date {
-                let st = shortTermValue?.date == date ? shortTermValue! : ShortTerm(date: date, firstSeen: "")
                 log("memory: \(file) didn't read (\(error)); kept it as \(file).broken and wrote back \(date)")
-                save(st)
+                save(ShortTerm(date: date))
             } else {
                 log("memory: \(file) didn't read (\(error)); kept it as \(file).broken and starting it fresh")
                 shortTermValue = nil

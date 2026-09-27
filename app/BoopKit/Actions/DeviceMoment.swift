@@ -6,13 +6,10 @@ import Foundation
 public struct DeviceMoment: Equatable, Sendable {
     public var anim: String?
     public var say: VoiceLine?
-    /// Seconds; the device skips it if it can't start in time.
-    public var ttl: Int
 
-    public init(anim: String? = nil, say: VoiceLine? = nil, ttl: Int = 5) {
+    public init(anim: String? = nil, say: VoiceLine? = nil) {
         self.anim = anim
         self.say = say
-        self.ttl = ttl
     }
 
     /// The animations the device plays (BEHAVIORS.md §5).
@@ -44,7 +41,6 @@ public struct DeviceMoment: Equatable, Sendable {
         var parts = ["\"t\":\"moment\""]
         if let anim { parts.append("\"anim\":\"\(anim)\"") }
         if let say { parts.append("\"say\":" + say.json) }
-        parts.append("\"ttl\":\(ttl)")
         return "{" + parts.joined(separator: ",") + "}"
     }
 }

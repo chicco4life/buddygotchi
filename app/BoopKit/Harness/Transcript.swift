@@ -63,8 +63,6 @@ public final class Transcript: @unchecked Sendable {
         return entry
     }
 
-    public func entry(_ seq: Int) -> Entry? { entries.first { $0.seq == seq } }
-
     /// The entry as one JSON line for `debug.jsonl` (§9).
     public static func json(_ entry: Entry, extra: [String: Any] = [:]) -> String {
         var o: [String: Any] = ["seq": entry.seq, "received_at_ms": entry.receivedAtMs]

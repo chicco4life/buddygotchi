@@ -139,7 +139,6 @@ let package = Package(
     name: "Boop",
     platforms: [.macOS(.v26)],
     products: [
-        .library(name: "BoopKit", targets: ["BoopKit"]),
         .executable(name: "Boop", targets: ["Boop"]),
         .executable(name: "boop-hook", targets: ["BoopHook"]),
         .executable(name: "boopdev", targets: ["BoopDev"]),

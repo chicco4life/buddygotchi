@@ -26,9 +26,8 @@ final class FakeTransport: DeviceTransport, @unchecked Sendable {
     }
 }
 
-func sampleSnapshot(busy: Int = 0, time: Int64 = 1_790_000_000) -> StateSnapshot {
-    StateSnapshot(time: time, name: "Pip", base: busy > 0 ? "working" : "idle", mood: "happy", attn: nil, busy: busy,
-                  idle: 0, wait: 0, vol: 6)
+func sampleSnapshot(busy: Int = 0) -> StateSnapshot {
+    StateSnapshot(base: busy > 0 ? "working" : "idle", mood: "happy", attn: nil, busy: busy, idle: 0, wait: 0, vol: 6)
 }
 
 final class DeviceLinkTests: XCTestCase {
@@ -65,7 +64,7 @@ final class DeviceLinkTests: XCTestCase {
         }
         let state1 = #"{"t":"state","v":1,"base":"working"}"#
         let state2 = #"{"t":"state","v":1,"base":"idle"}"#
-        let cheer = #"{"t":"moment","anim":"cheer","ttl":5}"#
+        let cheer = #"{"t":"moment","anim":"cheer"}"#
         var box = BLEOutbox()
         box.add(state1, size: 8)
         box.add(cheer, size: 8)
@@ -83,7 +82,7 @@ final class DeviceLinkTests: XCTestCase {
         let lines = drain(&box).split(separator: "\n")
         XCTAssertTrue(lines.last?.contains(#""n":199"#) == true, "the newest is kept")
         XCTAssertTrue(lines.allSatisfy { $0.hasPrefix("{") && $0.hasSuffix("}") }, "only whole lines")
-        XCTAssertTrue(box.isEmpty)
+        XCTAssertEqual(box.bytes, 0, "all sent")
     }
 
     /// PROTOCOL.md §2 (USB): the USB link sends on the runtime's queue, so a
@@ -108,7 +107,7 @@ final class DeviceLinkTests: XCTestCase {
         nonisolated(unsafe) var changes: [Bool] = []
         transport.start(onLine: { _ in }, onConnection: { up in ups.withLock { changes.append(up) } })
         defer { transport.stop() }
-        for _ in 0..<200 where ups.withLock({ changes.isEmpty }) { usleep(10_000) }
+        eventually("connected", timeout: 2) { !ups.withLock { changes.isEmpty } }
         XCTAssertEqual(ups.withLock { changes }, [true])
 
         let line = String(repeating: "x", count: 64 * 1024)
@@ -116,13 +115,16 @@ final class DeviceLinkTests: XCTestCase {
         for _ in 0..<64 { transport.send(line) }  // 4 MB into a socket nobody reads
         XCTAssertLessThan(Date().timeIntervalSince(start), 2 * Double(USBTransport.sendTimeoutMs) / 1000 + 1,
                           "one timed-out write, then the rest are dropped")
-        for _ in 0..<200 where ups.withLock({ changes.count < 2 }) { usleep(10_000) }
+        eventually("dropped", timeout: 2) { ups.withLock { changes.count >= 2 } }
         XCTAssertEqual(ups.withLock { changes }.prefix(2), [true, false], "it lets go, to reconnect")
     }
 
     func testDecodesStatusInputAndIgnoresTheRest() {
+        XCTAssertEqual(DeviceMessage.decode(#"{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.3.1"}"#),
+                       .status(DeviceStatus(id: "b00p-7f3a", fw: "0.3.1")))
+        // An older board's `bat` and `usb` are ignored.
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.3.1","bat":3910,"usb":1}"#),
-                       .status(DeviceStatus(id: "b00p-7f3a", fw: "0.3.1", bat: 3910, usb: true)))
+                       .status(DeviceStatus(id: "b00p-7f3a", fw: "0.3.1")))
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"tap"}"#), .input(.tap))
         // Focus, touch-and-hold and push-to-talk were removed; an older
         // board's are ignored.
@@ -134,29 +136,31 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertEqual(DeviceMessage.decode("rst:0x1 (POWERON_RESET)"), .other("rst:0x1 (POWERON_RESET)"))
     }
 
-    /// PROTOCOL.md §3: `anim` is optional and there's no `size`.
+    /// PROTOCOL.md §3: `anim` is optional, and there's no `size` or `ttl`.
     func testMomentEncodingMatchesTheProtocol() {
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
-        XCTAssertEqual(DeviceMoment(anim: "cheer", say: line, ttl: 5).jsonLine,
-                       #"{"t":"moment","anim":"cheer","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"ttl":5}"#)
-        XCTAssertEqual(DeviceMoment(anim: "wiggle").jsonLine, #"{"t":"moment","anim":"wiggle","ttl":5}"#)
+        XCTAssertEqual(DeviceMoment(anim: "cheer", say: line).jsonLine,
+                       #"{"t":"moment","anim":"cheer","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120}}"#)
+        XCTAssertEqual(DeviceMoment(anim: "wiggle").jsonLine, #"{"t":"moment","anim":"wiggle"}"#)
         XCTAssertEqual(DeviceMoment(say: line).jsonLine,
-                       #"{"t":"moment","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"ttl":5}"#)
+                       #"{"t":"moment","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120}}"#)
     }
 
+    /// PROTOCOL.md §3: a `state` on every change, and the latest again
+    /// after 10 s without one.
     func testStateGoesOutOnChangeAndEveryTenSeconds() {
         let transport = FakeTransport()
         let link = DeviceLink(transport: transport)
         link.update(sampleSnapshot(), now: 0)
-        link.update(sampleSnapshot(time: 1_790_000_001), now: 1000)  // only the clock changed
+        link.update(sampleSnapshot(), now: 1000)  // nothing changed
         XCTAssertEqual(transport.sent.count, 1)
         link.update(sampleSnapshot(busy: 1), now: 2000)
         XCTAssertEqual(transport.sent.count, 2)
-        link.tick(now: 11_000, current: sampleSnapshot(busy: 1))
+        link.tick(now: 11_000)
         XCTAssertEqual(transport.sent.count, 2)
-        link.tick(now: 12_000, current: sampleSnapshot(busy: 1, time: 1_790_000_012))
+        link.tick(now: 12_000)
         XCTAssertEqual(transport.sent.count, 3)
-        XCTAssertTrue(transport.sent[2].contains("\"time\":1790000012"))
+        XCTAssertEqual(transport.sent[2], transport.sent[1], "the keepalive is the latest line again")
     }
 
     func testStatusAndConnectGetTheLatestState() {
@@ -165,8 +169,8 @@ final class DeviceLinkTests: XCTestCase {
         link.update(sampleSnapshot(busy: 2), now: 0)
         link.connection(true, now: 100)
         XCTAssertEqual(transport.types(), ["state", "state"])
-        XCTAssertEqual(link.receive(#"{"t":"status","v":1,"id":"b00p-54fe","fw":"1.0.0","bat":0,"usb":1}"#, now: 200),
-                       .status(DeviceStatus(id: "b00p-54fe", fw: "1.0.0", bat: 0, usb: true)))
+        XCTAssertEqual(link.receive(#"{"t":"status","v":1,"id":"b00p-54fe","fw":"1.0.0"}"#, now: 200),
+                       .status(DeviceStatus(id: "b00p-54fe", fw: "1.0.0")))
         XCTAssertEqual(transport.types(), ["state", "state", "state"])
         XCTAssertEqual(link.status?.id, "b00p-54fe")
         XCTAssertTrue(transport.sent.last!.contains("\"busy\":2"))
@@ -178,15 +182,14 @@ final class DeviceLinkTests: XCTestCase {
     private let esc = String(repeating: "\\u0001", count: 23)
 
     /// PROTOCOL.md §2: a line is at most 512 bytes. The biggest `state`,
-    /// with 23-byte names that each escape to six bytes a character, fits.
+    /// with a 23-byte project that escapes to six bytes a character, fits.
     func testEveryStateLineFitsTheProtocol() {
         let widest = String(repeating: "\u{1}", count: 23)
-        let s = StateSnapshot(time: Int64(Int32.max), name: widest, base: "working", mood: "determined",
-                              attn: .init(agent: "claude", project: widest, more: 999),
+        let s = StateSnapshot(base: "working", mood: "determined", attn: .init(agent: "claude", project: widest, more: 999),
                               busy: 999, idle: 999, wait: 999, vol: 10)
         XCTAssertLessThanOrEqual(s.jsonLine.utf8.count, StateSnapshot.maxLine)
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
-        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"time":2147483647,"name":"\#(esc)","base":"working","mood":"determined","attn":{"agent":"claude","project":"\#(esc)","more":999},"busy":999,"idle":999,"wait":999,"vol":10}"#)
+        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"determined","attn":{"agent":"claude","project":"\#(esc)","more":999},"busy":999,"idle":999,"wait":999,"vol":10}"#)
     }
 
     /// PROTOCOL.md §2, "Reconnecting": 1 s, doubling to 5 s, reset once a

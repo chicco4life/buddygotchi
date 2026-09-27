@@ -108,11 +108,7 @@ public final class Harness: @unchecked Sendable {
         running = id
         let job = prepare(entry, brain: brain)
         Task { [self] in
-            let started = ContinuousClock.now
-            let result = await Harness.race(Harness.deadlineMs) {
-                try await job.brain.answer(state: job.state, questions: job.questions, deadline: .milliseconds(Harness.deadlineMs))
-            }
-            let ms = (ContinuousClock.now - started).ms
+            let (result, ms) = await Harness.ask(job)
             home.async { [self] in
                 guard running == id else { return }
                 running = nil
@@ -223,11 +219,7 @@ public final class Harness: @unchecked Sendable {
             return (entry, prepare(entry, brain: brain))
         }
         guard let job else { return nil }
-        let started = ContinuousClock.now
-        let result = await Harness.race(Harness.deadlineMs) {
-            try await job.brain.answer(state: job.state, questions: job.questions, deadline: .milliseconds(Harness.deadlineMs))
-        }
-        let ms = (ContinuousClock.now - started).ms
+        let (result, ms) = await Harness.ask(job)
         return home.sync {
             var out: Record?
             let keep = onRecord
@@ -239,6 +231,16 @@ public final class Harness: @unchecked Sendable {
     }
 
     // MARK: Helpers
+
+    /// Step 4, off `home`: the brain's answers within the deadline, and how
+    /// long they took in ms.
+    private static func ask(_ job: Job) async -> (Result<Answers, BrainError>, Int) {
+        let started = ContinuousClock.now
+        let result = await race(deadlineMs) {
+            try await job.brain.answer(state: job.state, questions: job.questions, deadline: .milliseconds(deadlineMs))
+        }
+        return (result, (ContinuousClock.now - started).ms)
+    }
 
     /// `work`, raced against a deadline and cancelling. Work that ignores
     /// cancelling is left to finish on its own; its answer is dropped.

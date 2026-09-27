@@ -140,41 +140,52 @@ public enum Adapter {
         }
     }
 
-    public static func place(cwd: String, fileManager: FileManager = .default) -> Place {
-        Place(project: projectName(cwd: cwd, fileManager: fileManager),
-              workspace: workspace(cwd: cwd, fileManager: fileManager))
-    }
-
-    /// The workspace's name (harness/EVENTS.md §3): a linked worktree's
-    /// folder name, else the checked-out branch, else nil (the default
-    /// branch, a detached head, or no git), cleaned by `cleanWorkspace`.
-    public static func workspace(cwd: String, fileManager: FileManager = .default) -> String? {
+    /// Where `cwd` works (harness/EVENTS.md §3), from one look at its
+    /// `.git`. The project is the last folder, except that a git worktree
+    /// maps to its main repository's name, so `landing` and
+    /// `landing/.worktrees/fix-nav` both give `landing`. The workspace is a
+    /// linked worktree's folder name, else the checked-out branch, else nil
+    /// (the default branch, a detached head, or no git), cleaned by
+    /// `cleanWorkspace`.
+    public static func place(cwd: String) -> Place {
         var path = cwd
         while path.count > 1 && path.hasSuffix("/") { path.removeLast() }
-        guard !path.isEmpty, path != "/" else { return nil }
-        let gitPath = (path as NSString).appendingPathComponent(".git")
+        guard !path.isEmpty, path != "/" else { return Place(project: "unknown") }
+
+        // Common worktree folders, even when the folder itself isn't readable:
+        // `<repo>/.worktrees/<name>` and `<repo>/.<tool>/worktrees/<name>`.
+        let parts = path.split(separator: "/").map(String.init)
+        let parent = parts.count >= 3 ? parts[parts.count - 2] : nil
+        var project = parts.last ?? "unknown"
+        if parent == ".worktrees" {
+            project = parts[parts.count - 3]
+        } else if parent == "worktrees", parts.count >= 4, parts[parts.count - 3].hasPrefix(".") {
+            project = parts[parts.count - 4]
+        }
+
+        let git = (path as NSString).appendingPathComponent(".git")
         var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: gitPath, isDirectory: &isDirectory) else {
+        guard FileManager.default.fileExists(atPath: git, isDirectory: &isDirectory) else {
             // A common worktree folder that can't be read still names itself.
-            let parts = path.split(separator: "/").map(String.init)
-            if parts.count >= 3, parts[parts.count - 2] == ".worktrees" || parts[parts.count - 2] == "worktrees" {
-                return cleanWorkspace(parts[parts.count - 1])
-            }
-            return nil
+            let named = parent == ".worktrees" || parent == "worktrees"
+            return Place(project: project, workspace: named ? cleanWorkspace(parts[parts.count - 1]) : nil)
         }
         if !isDirectory.boolValue {
             // A linked worktree: `gitdir: <repo>/.git/worktrees/<name>`.
-            guard let text = try? String(contentsOfFile: gitPath, encoding: .utf8),
-                  let range = text.range(of: "/.git/worktrees/") else { return nil }
-            let name = text[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
-            return cleanWorkspace(name)
+            guard let text = try? String(contentsOfFile: git, encoding: .utf8),
+                  let range = text.range(of: "/.git/worktrees/") else { return Place(project: project) }
+            let prefix = text[..<range.lowerBound]
+            let repo = prefix.hasPrefix("gitdir:") ? prefix.dropFirst("gitdir:".count) : prefix
+            let name = (repo.trimmingCharacters(in: .whitespaces) as NSString).lastPathComponent
+            return Place(project: name.isEmpty ? project : name,
+                         workspace: cleanWorkspace(text[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)))
         }
-        guard let head = try? String(contentsOfFile: (gitPath as NSString).appendingPathComponent("HEAD"), encoding: .utf8)
-        else { return nil }
         let prefix = "ref: refs/heads/"
-        guard head.hasPrefix(prefix) else { return nil }
+        guard let head = try? String(contentsOfFile: (git as NSString).appendingPathComponent("HEAD"), encoding: .utf8),
+              head.hasPrefix(prefix)
+        else { return Place(project: project) }
         let branch = head.dropFirst(prefix.count).trimmingCharacters(in: .whitespacesAndNewlines)
-        return defaultBranches.contains(branch) ? nil : cleanWorkspace(branch)
+        return Place(project: project, workspace: defaultBranches.contains(branch) ? nil : cleanWorkspace(branch))
     }
 
     static let defaultBranches: Set<String> = ["main", "master", "trunk", "develop"]
@@ -192,37 +203,5 @@ public enum Adapter {
         name = name.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
         name = String(name.prefix(40)).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
         return name.isEmpty ? nil : name
-    }
-
-    /// The last folder of `cwd`. A git worktree maps to its main repository's
-    /// name, so `landing` and `landing/.worktrees/fix-nav` both give `landing`.
-    public static func projectName(cwd: String, fileManager: FileManager = .default) -> String {
-        var path = cwd
-        while path.count > 1 && path.hasSuffix("/") { path.removeLast() }
-        guard !path.isEmpty, path != "/" else { return "unknown" }
-
-        // A linked worktree's `.git` is a file: `gitdir: <repo>/.git/worktrees/<name>`.
-        let gitFile = (path as NSString).appendingPathComponent(".git")
-        var isDirectory: ObjCBool = false
-        if fileManager.fileExists(atPath: gitFile, isDirectory: &isDirectory), !isDirectory.boolValue,
-           let text = try? String(contentsOfFile: gitFile, encoding: .utf8),
-           let range = text.range(of: "/.git/worktrees/") {
-            let prefix = text[..<range.lowerBound]
-            let repo = prefix.hasPrefix("gitdir:") ? prefix.dropFirst("gitdir:".count) : prefix
-            let name = (repo.trimmingCharacters(in: .whitespaces) as NSString).lastPathComponent
-            if !name.isEmpty { return name }
-        }
-
-        // Common worktree folders, even when the folder itself isn't readable:
-        // `<repo>/.worktrees/<name>` and `<repo>/.<tool>/worktrees/<name>`.
-        let parts = path.split(separator: "/").map(String.init)
-        if parts.count >= 3 {
-            let parent = parts[parts.count - 2]
-            if parent == ".worktrees" { return parts[parts.count - 3] }
-            if parent == "worktrees", parts.count >= 4, parts[parts.count - 3].hasPrefix(".") {
-                return parts[parts.count - 4]
-            }
-        }
-        return parts.last ?? "unknown"
     }
 }
