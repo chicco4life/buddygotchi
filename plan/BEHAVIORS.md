@@ -128,6 +128,13 @@ newer moment, or skipped because something needed you
 A Codex turn never fails, since Codex reports no failures yet
 ([ADAPTERS.md](ADAPTERS.md) §3).
 
+Only a turn that's open finishes: a second `Stop`, or one after the turn
+stopped, does nothing. The brain hears only of turns Boop saw start: one
+it joined partway (the app launched, or forgot the session, after the
+prompt) still cheers when it finishes, since the screen showed it
+working, but Boop can't say how long it ran, so the brain isn't told
+([harness/EVENTS.md](harness/EVENTS.md) §7).
+
 ### 3.2 Something needs you
 
 Boop only tells you. You approve on the Mac, in the agent's own prompt.

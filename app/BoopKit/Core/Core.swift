@@ -362,7 +362,16 @@ public final class Core {
             }
             if !late {
                 s.working = true
-                if s.turnStartedAt == nil { s.turnStartedAt = now }
+                if s.turnStartedAt == nil {
+                    // A call opens a turn with no prompt (a background
+                    // subagent's after the main agent's `Stop`, say): its
+                    // counts are its own (EVENTS.md §4.1).
+                    s.turnStartedAt = now
+                    s.tools = 0
+                    s.toolsFailed = 0
+                    s.topicStates = []
+                    s.comeback = nil
+                }
             }
             if let topic = event.detail.topic { s.topic = topic }
             if let topic = event.detail.topic, let failed = event.detail.failed, Core.checks.contains(topic) {
@@ -370,13 +379,29 @@ public final class Core {
             }
             sessions[key] = s
         case .turnEnd:
-            let ms = s.turnStartedAt.map { now - $0 } ?? 0
-            let check = s.check
             s.working = false
+            // A finish with no turn open (a second `Stop`, one after the
+            // turn stopped, or the first Boop hears from a session) finishes
+            // nothing Boop saw: no cheer, and no event (EVENTS.md §7).
+            guard let started = s.turnStartedAt else {
+                sessions[key] = s
+                break
+            }
+            let ms = now - started
+            let check = s.check
             s.turnStartedAt = nil
             s.check = nil
             s.lastTurnEndedAt = now
-            if let check, check.failed {
+            if s.turns == 0 {
+                // Boop joined this turn partway (it launched, or forgot the
+                // session, meanwhile), so it can't say how long it ran or
+                // what it did: the brain hears nothing, as for a stop. The
+                // screen saw it work, so a finish still cheers.
+                sessions[key] = s
+                if !(check?.failed ?? false) && !needsYouShowing {
+                    fx.append(.moment(anim: "cheer", loops: Core.cheerLoops(mood: config.mood)))
+                }
+            } else if let check, check.failed {
                 // It left its tests, build or deploy failing: a failure, not
                 // a finish.
                 sessions[key] = s
@@ -395,13 +420,20 @@ public final class Core {
                 turnEndEvent(s, outcome: "done", error: nil, lengthMs: ms, reaction: EventLine.cheered, now, &fx)
             }
         case .turnFailed:
-            let ms = s.turnStartedAt.map { now - $0 } ?? 0
+            // As a finish: nothing with no turn open, nothing for the brain
+            // from a turn Boop joined partway.
             s.working = false
+            guard let started = s.turnStartedAt else {
+                sessions[key] = s
+                break
+            }
             s.turnStartedAt = nil
             s.check = nil
             s.lastTurnEndedAt = now
             sessions[key] = s
-            turnEndEvent(s, outcome: "failed", error: event.detail.error, lengthMs: ms, reaction: nil, now, &fx)
+            if s.turns > 0 {
+                turnEndEvent(s, outcome: "failed", error: event.detail.error, lengthMs: now - started, reaction: nil, now, &fx)
+            }
         case .sessionEnd:
             sessions[key] = nil
         case .turnStopped:

@@ -430,7 +430,7 @@ personality or memory, only its touch calibration. What it does is in
 | Failure | What happens |
 | --- | --- |
 | App not running, or the Mac asleep | Hooks give up within 50 ms and agents carry on. The device shows it has no app after 30 s ([BEHAVIORS.md](BEHAVIORS.md) §3.4) |
-| App restarted | Sessions are gone until their next hook; the mood, settings and memory stay (§6) |
+| App restarted | Sessions are gone until their next hook; the mood, settings and memory stay (§6). A turn that was running cheers when it finishes, but the brain isn't told of it, since Boop didn't see it start ([harness/EVENTS.md](harness/EVENTS.md) §7) |
 | Device disconnected | The app keeps going and drops what it would send; on reconnect the latest `state` catches the device up. HISTORY says a reaction playing or sent meanwhile didn't happen ([harness/DECISIONS.md](harness/DECISIONS.md) §5) |
 | Jev slow, offline or wrong | Rules still drive every reaction. A pass Jev fails, is late for, or answers off its options is dropped, and no action runs ([harness/HARNESS.md](harness/HARNESS.md) §7) |
 | No Jev key | No pass runs; events are still recorded |

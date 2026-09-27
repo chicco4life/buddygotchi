@@ -54,7 +54,7 @@ such as `claude_code/s1`.
 | Kind | The core makes one when | Reaction | Wakes the brain |
 | --- | --- | --- | --- |
 | `turn_start` | A turn starts | — | Yes |
-| `turn_end` | A turn ends `done`, `failed` or `stopped` (§4.1) | `Boop cheered on its own.` when `done`, or none while something needs you | Yes |
+| `turn_end` | A turn Boop saw start ends `done`, `failed` or `stopped` (§4.1) | `Boop cheered on its own.` when `done`, or none while something needs you | Yes |
 | `tool_use` | A tool call finishes and is notable (§4.1), or any call with the personality's `tool_uses: all` ([BEHAVIORS.md](../BEHAVIORS.md) §6) | — | Yes |
 | `pokes` | Taps make a poke streak ([BEHAVIORS.md](../BEHAVIORS.md) §3.3) | `Boop wiggled on its own.` | Yes, unless it comes within a minute of the last streak that could (`Core.Config.pokedEveryMs`) |
 | `heartbeat` | While no thread works, each whole hour since the last hook or tap (`Core.Config.heartbeatMs`); none before the first since launch | — | Yes |
@@ -96,6 +96,11 @@ when the turn ends while its last test, build or deploy command failed
 ([BEHAVIORS.md](../BEHAVIORS.md) §3.1); `stopped` when a turn still open is
 interrupted ([ADAPTERS.md](../ADAPTERS.md) §3); and `done` otherwise,
 the only outcome the rule cheers.
+
+**A turn** starts at your prompt, or at a call while none is open (a
+background subagent's after the main agent's `Stop`, or Claude carrying
+on after another hook blocked its `Stop`). One a call opens keeps the
+thread's `turn` number, and its length and counts start from that call.
 
 **A notable tool use** is a finished `tests`, `build` or `deploy` call
 whose result is known: one that failed, or one that passed with
@@ -154,8 +159,12 @@ it.
 | `Boop wiggled on its own.` | `tap`, `pokes` | The device's own `wiggle`, already played |
 
 **Never an event:** a session starting or ending, a tool call starting,
-a routine tool use under `notable`, "needs you" clearing, and a stop
-with no turn open. These reach Jev only as counts and
+a routine tool use under `notable`, "needs you" clearing, a turn's end
+with no turn open (a second `Stop`, or one after the turn stopped), and
+the end of a turn Boop joined partway: it launched, or forgot the
+session, after the turn started, so it can't know the turn's length or
+tools. That turn's finish still cheers, with no event to carry the
+reaction, since the screen showed it working. These reach Jev only as counts and
 topics in other lines, and in the status line. Working chatter, the
 rules' own mumble ([BEHAVIORS.md](../BEHAVIORS.md) §2), never reaches
 Jev at all.

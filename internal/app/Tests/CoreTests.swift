@@ -315,6 +315,96 @@ final class CoreAgentWorkTests: XCTestCase {
         }
     }
 
+    /// harness/EVENTS.md §7: a stop with no turn open is never an event,
+    /// and a finish is the same: a `Stop` after the turn stopped, a second
+    /// `Stop`, or one from a session Boop has only now seen (launched, or
+    /// forgotten after a day, partway through) finishes nothing Boop saw.
+    /// It gets no cheer and no event. Before, each read "done after 0 s, a
+    /// short turn" (turn 0 for a new session) and cheered.
+    func testAFinishWithNoTurnOpenIsNothing() {
+        let rig = CoreRig()
+        rig.send(.turnStart, .codex, session: "c")
+        rig.send(.activity, .codex, session: "c", tool: "shell")
+        rig.wait(2000)
+        XCTAssertEqual(events(rig.send(.turnStopped, .codex, session: "c")).count, 1)  // Interrupt
+        var fx = rig.send(.turnEnd, .codex, session: "c")
+        fx += rig.send(.turnFailed, .codex, session: "c")
+        XCTAssertEqual(events(fx), [], "after the stop")
+        XCTAssertEqual(moments(fx), [])
+
+        rig.send(.turnStart)
+        rig.wait(20_000)
+        XCTAssertEqual(moments(rig.send(.turnEnd)), ["cheer"])
+        rig.wait(3000)
+        fx = rig.send(.turnEnd)
+        XCTAssertEqual(events(fx), [], "a second Stop")
+        XCTAssertEqual(moments(fx), [])
+
+        for kind in [BoopEvent.Kind.turnEnd, .turnFailed] {
+            let fx = rig.send(kind, session: "new-\(kind.rawValue)")
+            XCTAssertEqual(events(fx), [], "\(kind.rawValue) from a session never seen")
+            XCTAssertEqual(moments(fx), [])
+        }
+        rig.send(.turnStart, session: "old")
+        rig.wait(25 * 3600 * 1000)  // forgotten
+        fx = rig.send(.turnEnd, session: "old")
+        XCTAssertEqual(events(fx), [], "a session forgotten mid-turn")
+        XCTAssertEqual(moments(fx), [])
+        XCTAssertEqual(rig.state.base, "idle")
+    }
+
+    /// A session Boop first sees partway through a turn (it launched, or
+    /// forgot the session, meanwhile) works from its first call, but Boop
+    /// never saw the turn start, so it can't say how long it ran or what
+    /// it did: its end tells the brain nothing, whether done, failed or
+    /// stopped, as a stop already didn't (harness/EVENTS.md §7). The screen
+    /// still shows it finish with a cheer (BEHAVIORS.md §3.1). Before, it
+    /// was "turn 0", timed from the first hook Boop saw.
+    func testATurnBoopJoinedPartwayEndsWithoutAnEvent() {
+        let rig = CoreRig()
+        rig.send(.activity, tool: "Bash", failed: false)
+        XCTAssertEqual(rig.state.base, "working")
+        rig.wait(5000)
+        rig.send(.activity, tool: "Read")
+        rig.send(.activity, tool: "Read", failed: false)
+        var fx = rig.send(.turnEnd)
+        XCTAssertEqual(moments(fx), ["cheer"], "the screen saw it working, and it finished")
+        XCTAssertEqual(events(fx), [])
+        XCTAssertEqual(rig.state.base, "idle")
+
+        rig.send(.activity, session: "f", tool: "Bash")
+        rig.wait(5000)
+        fx = rig.send(.turnFailed, session: "f")
+        XCTAssertEqual(events(fx), [], "failed")
+        XCTAssertEqual(moments(fx), [])
+        XCTAssertEqual(rig.state.base, "idle")
+
+        rig.send(.turnStart, session: "f")
+        XCTAssertEqual(woke(rig.send(.turnEnd, session: "f")), [#"claude finished turn 1 on "landing": done after 0 s, a short turn, 0 tools."#],
+                       "the next turn, which Boop saw start, is reported")
+    }
+
+    /// A turn a call opens with no prompt (a background subagent's after
+    /// the main agent's `Stop`, or Claude carrying on after another hook
+    /// blocked its `Stop`) counts its own tool calls and topics, from that
+    /// call: harness/EVENTS.md §4.1's `tools` are the turn's.
+    func testATurnACallOpensCountsItsOwnTools() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Bash", topic: "tests", id: "t")
+        rig.wait(20_000)
+        rig.send(.activity, tool: "Bash", topic: "tests", failed: false, id: "t")
+        XCTAssertEqual(woke(rig.send(.turnEnd)),
+                       [#"claude finished turn 1 on "landing": done after 20 s, a long turn, 1 tool. Tests passing."#])
+        rig.wait(1000)
+        rig.send(.activity, tool: "Edit", id: "e")
+        rig.wait(30_000)
+        rig.send(.activity, tool: "Edit", failed: false, id: "e")
+        XCTAssertEqual(woke(rig.send(.turnEnd)), [#"claude finished turn 1 on "landing": done after 30 s, a long turn, 1 tool."#])
+        rig.wait(1000)
+        XCTAssertEqual(events(rig.send(.turnEnd)), [], "no turn open")
+    }
+
     /// ADAPTERS.md §4: Claude's idle notice means it has sat at its prompt
     /// for a minute, so one that lands less than 30 s after a turn started
     /// is from before it: you typed a new prompt just as the minute after
