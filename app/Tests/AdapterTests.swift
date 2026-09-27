@@ -74,6 +74,22 @@ final class AdapterTests: XCTestCase {
         XCTAssertEqual(Adapter.event(from: line("claude", "Stop"), receivedAt: 99)?.ts, 99)
     }
 
+    /// ADAPTERS.md §2: every `error` Claude's StopFailure can carry maps to
+    /// a class the brain can make sense of.
+    func testClaudesErrorsMapToTheirClasses() {
+        let classes = [
+            "rate_limit": "rate_limit", "overloaded": "overloaded", "server_error": "api_error",
+            "invalid_request": "api_error", "model_not_found": "api_error", "max_output_tokens": "context_limit",
+            "authentication_failed": "auth", "oauth_org_not_allowed": "auth", "account_on_hold": "auth",
+            "verification_required": "auth", "cloud_credential_error": "auth", "billing_error": "billing",
+            "unknown": "other",
+        ]
+        for (error, expected) in classes {
+            XCTAssertEqual(Adapter.event(from: line("claude", "StopFailure", error: error))?.detail.error, expected, error)
+        }
+        XCTAssertEqual(Adapter.errorClass("Request timeout"), "timeout", "other text by what it contains")
+    }
+
     /// ADAPTERS.md §3: Claude's PostToolUse and PostToolUseFailure say
     /// whether the call failed; an interrupted call and Codex say nothing.
     func testClaudeSaysWhetherACallFailed() throws {

@@ -67,9 +67,13 @@ agents that fire a hook on every tool call.
    if stdin never closes.
 
 The app's adapter turns the line into the common event, and `error` into
-a class: `rate_limit`, `overloaded`, `api_error`, `auth`, `timeout`,
-`network`, `context_limit` or `billing` when the text contains one, and
-`other` otherwise.
+a short class for the brain. Claude's own values map as: `rate_limit` and
+`overloaded` as they are; `server_error`, `invalid_request` and
+`model_not_found` to `api_error`; `max_output_tokens` to `context_limit`;
+`billing_error` to `billing`; its sign-in and account errors to `auth`;
+and `unknown` to `other`. Any other text becomes the first of
+`rate_limit`, `overloaded`, `api_error`, `auth`, `timeout`, `network`,
+`context_limit` or `billing` it contains, and `other` otherwise.
 
 ## 3. Event mapping
 
