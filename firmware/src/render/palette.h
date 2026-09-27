@@ -1,8 +1,8 @@
 // The canvas palette: index → RGB565 (plan/DEVICE.md §6). Every colour on
 // the screen comes from this one table: "Warm Terminal", black glass with
 // oat text and one amber accent, plus the bring-up colours. The face is
-// warm white with coral blush, a stronger coral heart for affection and a
-// soft sky sweat drop for effort.
+// the mood designs' warm white with coral cheeks and sky tears, and a
+// stronger coral heart for a tap.
 //
 // Anti-aliased edges (text, the bubble and the strip) use ramps: 8 steps
 // from black up to an ink colour. The face is pixel art, so it uses only
@@ -23,13 +23,16 @@ struct Rgb {
 
 // The Warm Terminal colours.
 constexpr Rgb kGlass = {0, 0, 0};          // the backlit black
+// The face's inks are the mood designs' colours as near as RGB565 gets:
+// the eyes' #F8F7EF shows as (247, 247, 239), the cheeks' #F1787D as
+// (239, 121, 123), the tears' #7BB4EF as (123, 178, 239).
 constexpr Rgb kEyeRgb = {246, 244, 238};   // the eyes and mouth: warm white
 constexpr Rgb kOatRgb = {232, 220, 196};   // main text
 constexpr Rgb kAmberRgb = {255, 176, 0};   // the one accent: needs you, the word
 constexpr Rgb kGreyRgb = {140, 132, 121};  // secondary text
 constexpr Rgb kDimRgb = {74, 68, 62};      // faint text, dividers, rings
 constexpr Rgb kRoseRgb = {255, 92, 110};   // the heart: a stronger cheek coral
-constexpr Rgb kSkyRgb = {120, 176, 235};   // the sweat drop: a soft sky
+constexpr Rgb kSkyRgb = {120, 176, 235};   // the tears: a soft sky
 constexpr Rgb kBlushRgb = {236, 120, 124};  // the cheeks
 // The mood designs' props (render/scene.h): the "needs you" sign's softer
 // amber, and the keyboard's and the cards' two greys.
@@ -57,7 +60,7 @@ enum Ink : uint8_t {
   kInkDim,
   kInkText,  // oat
   kInkRose,  // the heart
-  kInkSky,   // the sweat drop
+  kInkSky,   // the designs' tears
   kInkBlush, // the cheeks
   kInkSign,     // the mood designs' props: the sign,
   kInkPropDim,  // the keyboard's frame and keys,

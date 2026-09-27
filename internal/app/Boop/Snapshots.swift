@@ -84,12 +84,13 @@ enum Snapshots {
     /// `sessions` are agent, project and `wait`, `work` or `idle`.
     static func status(base: String = "working", sessions rows: [[String]] = [], vol: Int = 6,
                        connected: Bool = true, personality: Personality = .boop,
-                       name: String = "Mochi", brain: String = "jev:jev-latest") -> Runtime.Status {
+                       name: String = "Mochi", brain: String = "jev:jev-latest",
+                       mood: String = MoodAction.initial) -> Runtime.Status {
         let statuses: [String: SessionSummary.Status] = ["wait": .waiting, "work": .working, "idle": .idle]
         let sessions = rows.map { SessionSummary(agent: $0[0], project: $0[1], status: statuses[$0[2]]!) }
         let wait = sessions.filter { $0.status == .waiting }
         let snapshot = StateSnapshot(
-            time: 1_790_000_000, name: name, base: base, mood: MoodAction.initial,
+            time: 1_790_000_000, name: name, base: base, mood: mood,
             // Cut as the core cuts it for the device; the popover shows it whole.
             attn: wait.first.map {
                 StateSnapshot.Attention(agent: $0.agent, project: StateSnapshot.clip($0.project, marked: true), more: wait.count - 1)
@@ -98,7 +99,7 @@ enum Snapshots {
             wait: wait.count, vol: vol)
         return Runtime.Status(snapshot: snapshot, sessions: sessions, connected: connected,
                               device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0") : nil,
-                              personality: personality, brain: brain)
+                              personality: personality, brain: brain, mood: mood)
     }
 
     static func overviews(_ installer: HookInstaller) -> [(String, AppModel)] {
@@ -107,7 +108,7 @@ enum Snapshots {
             ("working", model(installer, status: status(sessions: [
                 ["codex", "landing", "work"], ["codex", "buddygotchi", "work"],
                 ["claude", "jetpack", "work"], ["claude", "notes", "idle"],
-            ]))),
+            ], mood: "determined"))),
             ("needs-you", model(installer, status: status(sessions: [
                 ["codex", "landing-page-redesign-v2", "wait"], ["claude", "jetpack", "wait"],
                 ["codex", "buddygotchi", "work"], ["claude", "notes", "idle"],

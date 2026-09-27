@@ -40,7 +40,8 @@ struct OverviewPane: View {
         VStack(alignment: .leading, spacing: Theme.gapSnug) {
             HStack(spacing: Theme.gap) {
                 HStack(spacing: Theme.gap) {
-                    BoopFace(mood: FaceMood(model.status), size: faceSize)
+                    BoopFace(mood: FaceMood(model.status), design: model.status?.mood ?? MoodAction.initial,
+                             size: faceSize)
                     VStack(alignment: .leading, spacing: 3) {
                         // A long name shrinks a little before it's cut.
                         Text(model.name).font(.boop(18)).lineLimit(1).minimumScaleFactor(0.8)

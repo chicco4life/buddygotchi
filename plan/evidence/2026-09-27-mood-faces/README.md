@@ -67,3 +67,24 @@ the blink that hides a switch.
 
 Not run: the board over USB (L2), and nobody has watched the designs
 move on it (PLAN.md, owner check 1).
+
+## Part 3: the popover's face
+
+The popover's face tile now shows the face of the same design as the
+device, for Boop's mood and look, from `app/Boop/Views/FaceDesigns.swift`,
+which `facegen` writes alongside `faces.h`. The old hand-copied face
+(`FaceGrid`, `FacePose`, `FaceBlocks`) is gone; the menu-bar icon is
+unchanged. [popover-tiles.png](popover-tiles.png): the working overview
+in the determined mood (a new snapshot fixture), and setup's cheeky
+preview, the proud idle face.
+
+The Mac draws the designs' exact colours. The device keeps its inks,
+which were already the nearest RGB565 colours to them: setting them to
+the designs' values made the panel's truncation land further away (the
+eyes' red at 255 for 248), which the simulator showed as a change in
+every golden.
+
+- **`make build`** and **`make test`:** pass.
+- **`Boop --snapshots`:** 42 PNGs, contrast passes.
+- **`make fw-test`** and **`make sim`:** unchanged (105 pass; 0 changed
+  pictures).

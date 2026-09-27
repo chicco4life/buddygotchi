@@ -4,7 +4,8 @@ The designs are animated SVGs, one per mood and state, in design/svg/ (the
 designer's package, with the source that drew them). This reads each one
 as rectangles and step-wise timings and writes firmware/assets/faces.h,
 plus the frames the firmware test checks the device's player against
-(internal/firmware/test/test_scene/frames.h). Nothing is rounded or
+(internal/firmware/test/test_scene/frames.h), and the faces the Mac's
+popover shows (app/Boop/Views/FaceDesigns.swift). Nothing is rounded or
 smoothed: every shape sits on whole pixels and every move is a whole-pixel
 step, so the device draws each design exactly. Rerun it when the designs
 change:
@@ -32,6 +33,9 @@ REPO = HERE.parents[2]
 SVG_DIR = HERE / "design" / "svg"
 OUT = REPO / "firmware" / "assets" / "faces.h"
 FRAMES = REPO / "internal" / "firmware" / "test" / "test_scene" / "frames.h"
+SWIFT = REPO / "app" / "Boop" / "Views" / "FaceDesigns.swift"
+# The popover's tile shows these looks' faces (UX.md §7).
+TILE_STATES = ["idle", "working", "needs_you", "asleep"]
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 NS = "{http://www.w3.org/2000/svg}"
 W, H = 320, 240
@@ -296,11 +300,13 @@ def read_scene(path: Path) -> Scene:
 # ---- Drawing, as the device does and as the SVG does -------------------------
 
 
-def render(scene: Scene, t: int, svg_blink: bool = False) -> bytes:
+def render(scene: Scene, t: int, svg_blink: bool = False, face_only: bool = False, shut: bool = False) -> bytes:
     """The colour index of every pixel at t ms. The device blinks on its own
-    clock, so it shows the open eyes and never the closed ones; with
-    `svg_blink` the eyes blink on the design's clock, as Chrome draws it."""
+    clock, so it shows the open eyes, or the closed ones when `shut`; with
+    `svg_blink` the eyes blink on the design's clock, as Chrome draws it.
+    `face_only` leaves out everything outside the face's group."""
     px = bytearray(W * H)
+    in_face: list[bool] = []
     offset: list[tuple[int, int]] = []
     shown: list[bool] = []
     for g in scene.groups:
@@ -314,13 +320,14 @@ def render(scene: Scene, t: int, svg_blink: bool = False) -> bytes:
         if g.show and (svg_blink or g.role not in ("eyes_open", "eyes_closed")):
             vis = bool(g.show.values[g.show.index(t)][0])
         elif g.role == "eyes_open":
-            vis = True
+            vis = not shut
         elif g.role == "eyes_closed":
-            vis = False
+            vis = shut
         offset.append((ox, oy))
         shown.append(on and vis)
+        in_face.append(g.role == "face" or (g.parent >= 0 and in_face[g.parent]))
     for r in scene.rects:
-        if not shown[r.group]:
+        if not shown[r.group] or (face_only and not in_face[r.group]):
             continue
         ox, oy = offset[r.group]
         x0, y0 = max(0, r.x + ox), max(0, r.y + oy)
@@ -435,6 +442,74 @@ def emit(scenes: list[Scene], index: dict[tuple[int, int], int], sources: dict[i
     lines += block("kKeys", "uint16_t", [str(k) for k in keys], 16)
     lines += block("kValues", "int8_t", [str(v) for v in vals], 24)
     lines += ["", "}  // namespace faces", "}  // namespace render", ""]
+    return "\n".join(lines)
+
+
+def emit_swift(scenes: list[Scene], index: dict[tuple[int, int], int]) -> str:
+    """Each tile look's face at rest (the moment its design starts), open
+    and shut, as rectangles of one colour each."""
+    import base64
+
+    faces: dict[str, tuple[str, str]] = {}
+    boxes = []
+    rects_of: dict[tuple[int, bool], list[tuple[int, int, int, int, int]]] = {}
+    for m, mood in enumerate(MOODS):
+        for state in TILE_STATES:
+            n = index[(m, STATES.index(state))]
+            for shut in (False, True):
+                if (n, shut) in rects_of:
+                    continue
+                px = render(scenes[n], 0, face_only=True, shut=shut)
+                out = []
+                for color in range(1, len(COLOR_NAMES)):
+                    rows = []
+                    for y in range(H):
+                        run, start = [], None
+                        for x in range(W + 1):
+                            on = x < W and px[y * W + x] == color
+                            if on and start is None:
+                                start = x
+                            if not on and start is not None:
+                                run.append((start, x))
+                                start = None
+                        rows.append(run)
+                    out += [(x, y, w, h, color) for x, y, w, h in merge_runs(rows, 0)]
+                rects_of[(n, shut)] = out
+                boxes += out
+    x0 = min(r[0] for r in boxes)
+    y0 = min(r[1] for r in boxes)
+    x1 = max(r[0] + r[2] for r in boxes)
+    y1 = max(r[1] + r[3] for r in boxes)
+    assert x1 - x0 < 256 and y1 - y0 < 256
+    for m, mood in enumerate(MOODS):
+        for state in TILE_STATES:
+            n = index[(m, STATES.index(state))]
+            enc = []
+            for shut in (False, True):
+                data = bytes(v for x, y, w, h, c in rects_of[(n, shut)] for v in (x - x0, y - y0, w, h, c))
+                enc.append(base64.b64encode(data).decode())
+            faces[f"{mood}/{state}"] = (enc[0], enc[1])
+    lines = [
+        "// Generated by internal/tools/facegen/facegen.py from the mood designs in",
+        "// internal/tools/facegen/design/svg/. Do not edit.",
+        "import CoreGraphics",
+        "",
+        "/// Each mood design's face as its look starts, open-eyed and blinking,",
+        "/// for the popover's tile (UX.md §7): the device's own shapes, without",
+        "/// the props.",
+        "enum FaceDesigns {",
+        "    /// Where the faces sit in the designs' 320×240 screen.",
+        f"    static let box = CGRect(x: {x0}, y: {y0}, width: {x1 - x0}, height: {y1 - y0})",
+        "",
+        "    /// By \"mood/look\": base64 of five bytes a rectangle, x and y from the",
+        "    /// box's corner, width, height and colour (1 the eyes and mouth,",
+        "    /// 2 the cheeks, 3 the tears).",
+        "    static let faces: [String: (open: String, shut: String)] = [",
+    ]
+    for k, (o, sh) in faces.items():
+        lines.append(f'        "{k}": ("{o}",')
+        lines.append(f'            "{sh}"),')
+    lines += ["    ]", "}", ""]
     return "\n".join(lines)
 
 
@@ -555,9 +630,11 @@ def main() -> None:
             for t in scenes[n].samples():
                 frames.append((m, s, t, zlib.crc32(render(scenes[n], t))))
     OUT.write_text(emit(scenes, index, sources))
+    SWIFT.write_text(emit_swift(scenes, index))
     FRAMES.parent.mkdir(parents=True, exist_ok=True)
     FRAMES.write_text(emit_frames(frames))
-    print(f"wrote {OUT.relative_to(REPO)} ({len(scenes)} scenes) and {FRAMES.relative_to(REPO)} ({len(frames)} frames)")
+    print(f"wrote {OUT.relative_to(REPO)} ({len(scenes)} scenes), {FRAMES.relative_to(REPO)} ({len(frames)} frames)"
+          f" and {SWIFT.relative_to(REPO)}")
 
 
 if __name__ == "__main__":

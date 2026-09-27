@@ -244,11 +244,13 @@ button stands 3:1 off its card, and the coloured menu-bar icons 3:1 off a
 light or dark menu bar. `Boop --snapshots DIR` checks it all on every run.
 The faint tone is only for decoration and disabled things.
 
-The face tile uses the device's colours, geometry and pixel mouths (§2),
-in square blocks snapped to the screen's pixels, so it's as crisp as the
-device and moves a block at a time. Its looks follow the device's: working
-lowers the lids, looks down and glances about; needs you leans in with an
-amber rim; asleep shuts its eyes. It blinks
-every few seconds, except asleep or with Reduce Motion on. Only the face
+The face tile shows the face of the device's design for Boop's mood and
+look (§2), without the props, as its look starts: idle, working, needs
+you (with an amber rim) or asleep. `facegen` writes those faces into
+`app/Boop/Views/FaceDesigns.swift` from the same designs as the device's,
+in the designs' own colours. Setup's sweet and cheeky previews are the
+happy and the proud idle faces. It blinks every few seconds, and into a
+new face when the mood or the look changes, except asleep or with Reduce
+Motion on. Only the face
 and the status dot loop, and the dot pulses only while something is live:
 working or needs you.

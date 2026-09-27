@@ -2,12 +2,12 @@ import AppKit
 import BoopKit
 import SwiftUI
 
-/// What the little face shows. The Mac never plays Boop's moments; this is
-/// just enough of the device's face that the popover and the menu bar read
-/// as the same creature (UX.md §6).
+/// Which look the little face shows. The Mac never plays Boop's moments;
+/// this is just enough of the device's face that the popover and the menu
+/// bar read as the same creature (UX.md §7).
 enum FaceMood: Hashable {
     case asleep, idle, working, needsYou, happy
-    /// Setup's preview of a cheeky Boop: a sidelong look and a smile.
+    /// Setup's preview of a cheeky Boop: the proud face's smirk.
     case cheeky
 
     init(_ status: Runtime.Status?) {
@@ -28,206 +28,90 @@ enum FaceMood: Hashable {
     }
 }
 
-/// The device's face (firmware `face.cpp`) in its own blocks: window eyes
-/// 13 blocks square, four panes around a one-block cross, their centres 24
-/// blocks either side; two pink 4×3 cheeks under each eye towards the
-/// outside; and a bar mouth two blocks thick, 15 blocks under the eyes.
-private enum FaceGrid {
-    static let eye: CGFloat = 13, eyeGap = 24
-    static let lookX: CGFloat = 8, lookY: CGFloat = 5, turn: CGFloat = 0.11
-    static let mouthRow = 15, mouthWide: CGFloat = 13.33, mouthFollow: CGFloat = 0.45
-    static let cheekRow = 12, cheekW = 4, cheekH = 3, cheekIn = 3
-    /// The eyes' centre row sits this far above the face's middle (eye tops
-    /// to the mouth's bottom), so the face centres in the tile.
-    static let drop = 5
-    /// Eye edge to eye edge, the width the tile's 72% is measured on.
-    static let span: CGFloat = 61
-}
-
-/// Boop's face on a small black-glass tile, drawn as the device draws it: in
-/// square blocks on a grid snapped to the screen's pixels, so it's as crisp
-/// as the device and moves a block at a time. It blinks now and then, glances
-/// about while agents work, and looks up at you when something needs you.
+/// Boop's face on a small black-glass tile: the face of the device's design
+/// for Boop's mood and look (FaceDesigns, which facegen writes from the same
+/// designs as the device's), at rest, without the props. It blinks now and
+/// then, and blinks into a new face when the mood or the look changes, as
+/// the device does.
 struct BoopFace: View {
     var mood: FaceMood
+    /// Boop's mood, which picks the set of designs (harness/DECISIONS.md §2.3).
+    var design: String = MoodAction.initial
     var size: CGFloat = 40
 
     @ViewState private var blink = false
-    @ViewState private var gaze: CGFloat = -0.25
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.stillMotion) private var still
-    @Environment(\.displayScale) private var scale
+
+    /// The design the tile shows: setup's sweet and cheeky previews are the
+    /// happy and the proud idle faces.
+    private var key: String {
+        switch mood {
+        case .asleep: "happy/asleep"
+        case .idle: "\(design)/idle"
+        case .working: "\(design)/working"
+        case .needsYou: "\(design)/needs_you"
+        case .happy: "happy/idle"
+        case .cheeky: "proud/idle"
+        }
+    }
 
     var body: some View {
-        // Whole pixels per block where the tile is big enough for the grid;
-        // a 1× screen's small tile keeps the shapes instead.
-        let fit = 0.72 * size / FaceGrid.span
-        let pixels = (fit * scale).rounded(.down)
-        let block = pixels >= 1 ? pixels / scale : fit
-        let pose = pose
+        let key = key
+        let face = FaceDesigns.faces[key] ?? FaceDesigns.faces["happy/idle"]!
+        let rects = Self.rects(blink ? face.shut : face.open)
         ZStack {
             RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
                 .fill(Theme.glass)
             RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
                 .strokeBorder(mood == .needsYou ? Theme.amber : Theme.hairlineStrong.opacity(0.6),
                               lineWidth: mood == .needsYou ? max(1.5, size * 0.04) : 1)
-            FaceBlocks(pose: pose, part: .cheeks, block: block, scale: scale).fill(Theme.blush)
-            FaceBlocks(pose: pose, part: .features, block: block, scale: scale)
-                .fill(mood == .asleep ? Theme.eye.opacity(0.7) : Theme.eye)
-        }
-        .frame(width: size, height: size)
-        .animation(.boopEase(0.35), value: mood)
-        .task(id: mood) { await live() }
-        .accessibilityHidden(true)
-    }
-
-    /// The device's looks (firmware `anim.cpp`), near enough.
-    private var pose: FacePose {
-        var p = FacePose()
-        switch mood {
-        case .asleep:
-            p.open = 0
-            p.lookY = 0.6
-            p.mouth = 0.6
-        case .idle:
-            break
-        case .working:
-            p.lid = 0.18
-            p.lookX = gaze
-            p.lookY = 0.35
-            p.mouth = 0.7
-        case .needsYou:  // turned to you and leaning in
-            p.size = 1.08
-            p.lookY = -0.6
-            p.mouth = 0.55
-        case .happy:  // the squint and a small "u"
-            p.squint = 0.25
-            p.smile = 1
-        case .cheeky:
-            p.lid = 0.25
-            p.lookX = 0.6
-            p.smile = 1
-        }
-        if blink { p.open = min(p.open, 0.08) }
-        return p
-    }
-
-    /// Blinks every few seconds; while working, the gaze drifts side to side.
-    private func live() async {
-        guard !reduceMotion, !still, mood != .asleep else { return }
-        var left = true
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .milliseconds(Int.random(in: 2400...5200)))
-            if Task.isCancelled { return }
-            if mood == .working && Bool.random() {
-                withAnimation(.boopEase(0.5)) { gaze = left ? -0.7 : 0.6 }
-                left.toggle()
-                continue
-            }
-            withAnimation(.easeIn(duration: 0.07)) { blink = true }
-            try? await Task.sleep(for: .milliseconds(110))
-            withAnimation(.easeOut(duration: 0.12)) { blink = false }
-        }
-    }
-}
-
-/// Where the face is, as numbers that blend: SwiftUI eases between two
-/// poses and each frame snaps to the grid, as the device's blend does.
-private struct FacePose: VectorArithmetic {
-    var open: CGFloat = 1, lookX: CGFloat = 0, lookY: CGFloat = 0, size: CGFloat = 1
-    var lid: CGFloat = 0  // rows off the top, as a share of the eye
-    var squint: CGFloat = 0  // happy: rows off the bottom
-    var smile: CGFloat = 0  // from 0.3 the bar becomes a small "u"
-    var mouth: CGFloat = 1  // the bar's width, as a share of an eye
-
-    private static let fields: [WritableKeyPath<FacePose, CGFloat> & Sendable] =
-        [\.open, \.lookX, \.lookY, \.size, \.lid, \.squint, \.smile, \.mouth]
-
-    private static func combine(_ a: FacePose, _ b: FacePose, _ op: (CGFloat, CGFloat) -> CGFloat) -> FacePose {
-        var out = a
-        for f in fields { out[keyPath: f] = op(a[keyPath: f], b[keyPath: f]) }
-        return out
-    }
-
-    static var zero: FacePose { FacePose(open: 0, size: 0, mouth: 0) }
-    static func + (a: FacePose, b: FacePose) -> FacePose { combine(a, b, +) }
-    static func - (a: FacePose, b: FacePose) -> FacePose { combine(a, b, -) }
-    mutating func scale(by rhs: Double) { for f in Self.fields { self[keyPath: f] *= rhs } }
-    var magnitudeSquared: Double { Self.fields.reduce(0) { $0 + Double(self[keyPath: $1] * self[keyPath: $1]) } }
-}
-
-/// The face's blocks, in one colour: the eyes and mouth, or the cheeks.
-private struct FaceBlocks: Shape {
-    enum Part { case features, cheeks }
-
-    var pose: FacePose
-    let part: Part
-    let block: CGFloat
-    let scale: CGFloat
-
-    var animatableData: FacePose {
-        get { pose }
-        set { pose = newValue }
-    }
-
-    /// The nearest odd count of blocks (12.x and 13.x → 13), so a shape centres on a block.
-    private func odd(_ blocks: CGFloat, least: Int) -> Int {
-        max(least, 2 * Int((blocks / 2).rounded(.down)) + 1)
-    }
-
-    func path(in rect: CGRect) -> Path {
-        let g = FaceGrid.self
-        var path = Path()
-        // Block (0, 0) is the tile's middle; its corner lands on a pixel.
-        let x0 = ((rect.midX - block / 2) * scale).rounded() / scale
-        let y0 = ((rect.midY - block / 2) * scale).rounded() / scale
-        func fill(_ bx: Int, _ by: Int, _ w: Int = 1, _ h: Int = 1) {
-            path.addRect(CGRect(x: x0 + CGFloat(bx) * block, y: y0 + CGFloat(by) * block,
-                                width: CGFloat(w) * block, height: CGFloat(h) * block))
-        }
-        let p = pose
-        let rest = -g.drop
-        for side in [-1, 1] {
-            // The eye on the side Boop looks towards comes nearer and grows,
-            // the other shrinks, as if it turned its head.
-            let turn = 1 + g.turn * p.lookX * CGFloat(side)
-            let ex = Int((CGFloat(side * g.eyeGap) + p.lookX * g.lookX).rounded())
-            let ey = rest + Int((p.lookY * g.lookY).rounded())
-            if part == .cheeks {
-                let happy = p.squint > 0.1 ? 1 : 0  // the cheeks rise with the squint
-                let inner = side > 0 ? ex + g.cheekIn : ex - g.cheekIn - 2 * g.cheekW
-                for k in 0..<2 { fill(inner + k * (g.cheekW + 1), ey + g.cheekRow - happy, g.cheekW, g.cheekH) }
-                continue
-            }
-            let wb = odd(g.eye * p.size * turn, least: 3)
-            let hb = odd(g.eye * p.size * turn * max(p.open, 0), least: 1)
-            let panes = wb >= 7 && hb >= 7
-            let top = ey - hb / 2
-            let cutTop = Int((CGFloat(hb) * max(p.lid, 0) + 0.5).rounded(.down))
-            let keep = Int((CGFloat(hb) * (1 - max(p.squint, 0)) + 0.5).rounded(.down))
-            for row in cutTop..<max(cutTop, keep) where !(panes && row == hb / 2) {
-                if panes {
-                    fill(ex - wb / 2, top + row, wb / 2)
-                    fill(ex + 1, top + row, wb / 2)
-                } else {
-                    fill(ex - wb / 2, top + row, wb)
+            Canvas { context, canvas in
+                let box = FaceDesigns.box
+                let s = 0.8 * canvas.width / box.width
+                let x0 = (canvas.width - box.width * s) / 2, y0 = (canvas.height - box.height * s) / 2
+                for r in rects {
+                    let colour = r.colour == 2 ? Theme.blush : r.colour == 3 ? Theme.tear : Theme.eye
+                    context.fill(Path(CGRect(x: x0 + r.x * s, y: y0 + r.y * s, width: r.w * s, height: r.h * s)),
+                                 with: .color(mood == .asleep ? colour.opacity(0.7) : colour))
                 }
             }
         }
-        guard part == .features else { return path }
-        // The mouth follows the eyes a little. Pixel shapes, not curves: the
-        // bar, or a small "u" when Boop smiles.
-        let mx = Int((p.lookX * g.lookX * g.mouthFollow).rounded())
-        let my = rest + g.mouthRow + Int((p.lookY * g.lookY * g.mouthFollow).rounded())
-        if p.smile >= 0.3 {
-            fill(mx - 3, my)
-            fill(mx + 3, my)
-            fill(mx - 2, my + 1, 5)
-        } else {
-            let wb = odd(g.mouthWide * max(p.mouth, 0.2), least: 3)
-            fill(mx - wb / 2, my, wb, 2)
+        .frame(width: size, height: size)
+        .task(id: key) { await live() }
+        .accessibilityHidden(true)
+    }
+
+    private struct FaceRect {
+        let x, y, w, h: CGFloat
+        let colour: UInt8
+    }
+
+    private static func rects(_ base64: String) -> [FaceRect] {
+        let b = [UInt8](Data(base64Encoded: base64) ?? Data())
+        return stride(from: 0, to: b.count - 4, by: 5).map {
+            FaceRect(x: CGFloat(b[$0]), y: CGFloat(b[$0 + 1]), w: CGFloat(b[$0 + 2]), h: CGFloat(b[$0 + 3]),
+                     colour: b[$0 + 4])
         }
-        return path
+    }
+
+    /// Blinks into the new face, then every few seconds.
+    private func live() async {
+        guard !reduceMotion, !still, mood != .asleep else {
+            blink = false
+            return
+        }
+        var first = true
+        while !Task.isCancelled {
+            if !first {
+                try? await Task.sleep(for: .milliseconds(Int.random(in: 2400...5200)))
+                if Task.isCancelled { return }
+            }
+            blink = true
+            try? await Task.sleep(for: .milliseconds(first ? 150 : 180))
+            blink = false
+            first = false
+        }
     }
 }
 
