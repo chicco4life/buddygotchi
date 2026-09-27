@@ -111,14 +111,10 @@ struct SetupPane: View {
             TextField("A name", text: Binding(
                 get: { model.setup.name },
                 set: { model.setup.name = StateSnapshot.clip($0) }))
-                .textFieldStyle(.plain)
                 .font(.boop(16, .medium))
                 .multilineTextAlignment(.center)
                 .padding(.vertical, 9)
-                .background(Theme.raised, in: RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(nameFocused ? Theme.inkSoft : Theme.hairlineStrong, lineWidth: nameFocused ? 1.5 : 1))
-                .focused($nameFocused)
+                .fieldBox(Theme.raised, radius: 10, focus: $nameFocused)
                 .onAppear { nameFocused = true }
             Text("Names are for keeps, so pick one you love.")
                 .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
