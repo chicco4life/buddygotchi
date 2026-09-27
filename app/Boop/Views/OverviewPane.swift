@@ -22,7 +22,7 @@ struct OverviewPane: View {
                         }
                     }
                     if model.restartAgents {
-                        notice("arrow.clockwise", Theme.amberInk, "Restart your agent sessions",
+                        notice("arrow.clockwise", Theme.inkSoft, "Restart your agent sessions",
                                "Open sessions pick up Boop's hooks when they restart.") {
                             model.restartAgents = false
                         }
@@ -43,32 +43,39 @@ struct OverviewPane: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(spacing: Theme.gap) {
+        VStack(alignment: .leading, spacing: Theme.gapSnug) {
             HStack(spacing: Theme.gap) {
-                BoopFace(mood: FaceMood(model.status), size: 46)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(model.name).font(.boop(18)).lineLimit(1)
-                    HStack(spacing: 6) {
-                        StateDot(tone: tone, pulsing: live)
-                        Text(headline).font(.system(size: 12)).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                HStack(spacing: Theme.gap) {
+                    BoopFace(mood: FaceMood(model.status), size: faceSize)
+                    VStack(alignment: .leading, spacing: 3) {
+                        // A long name shrinks a little before it's cut.
+                        Text(model.name).font(.boop(18)).lineLimit(1).minimumScaleFactor(0.8)
+                        HStack(spacing: 6) {
+                            StateDot(tone: tone, pulsing: live)
+                            Text(headline).font(.system(size: 12)).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                        }
+                        .animation(.boopSettle, value: headline)
                     }
-                    .animation(.boopSettle, value: headline)
-                    modes
+                }
+                .accessibilityElement(children: .combine)
+                Spacer(minLength: 0)
+                if model.status != nil {
+                    VStack(alignment: .trailing, spacing: 6) {
+                        DeviceLine(model: model)
+                        TalkButton(model: model)
+                    }
                 }
             }
-            .accessibilityElement(children: .combine)
-            Spacer(minLength: 0)
-            if model.status != nil {
-                VStack(alignment: .trailing, spacing: 6) {
-                    DevicePill(model: model)
-                    TalkButton(model: model)
-                }
-            }
+            // Under the name, the full width of the popover, so three
+            // chips never squeeze each other or the Talk column.
+            modes.padding(.leading, faceSize + Theme.gap)
         }
         .padding(.horizontal, Theme.gutter)
         .padding(.top, Theme.gutter)
         .padding(.bottom, Theme.gapLoose)
     }
+
+    private let faceSize: CGFloat = 46
 
     /// Small reminders of the modes set in Settings, so a silent Boop never
     /// looks broken. Nothing shows when everything is normal.
@@ -85,14 +92,18 @@ struct OverviewPane: View {
             if !chips.isEmpty {
                 HStack(spacing: 4) {
                     ForEach(chips, id: \.1) { icon, text in
-                        Label(text, systemImage: icon)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Theme.inkSoft)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Theme.well, in: Capsule())
+                        HStack(spacing: 4) {
+                            Image(systemName: icon)
+                            Text(text)
+                        }
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Theme.inkSoft)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(Theme.well, in: Capsule())
                     }
                 }
-                .padding(.top, 2)
                 .transition(.opacity)
             }
         }
@@ -102,9 +113,8 @@ struct OverviewPane: View {
         switch FaceMood(model.status) {
         case .listening: Theme.recording
         case .needsYou: Theme.amber
-        case .working: Theme.accent
-        case .idle, .happy: Theme.sage
-        case .asleep: Theme.inkFaint
+        case .working: Theme.inkSoft
+        case .idle, .happy, .asleep, .cheeky: Theme.inkFaint
         }
     }
 
@@ -132,12 +142,12 @@ struct OverviewPane: View {
         Card(tone: Theme.amber) {
             HStack(alignment: .top, spacing: Theme.gapSnug + 2) {
                 Image(systemName: "hand.wave.fill")
-                    .font(.system(size: 14))
+                    .font(.system(size: 13))
                     .foregroundStyle(Theme.amberInk)
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(agentName(attn.agent)) · \(attn.project)")
-                        .font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                    Text(attn.project.isEmpty ? agentName(attn.agent) : "\(agentName(attn.agent)) · \(attn.project)")
+                        .font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle)
                     Text("Waiting for you. Answer it in the agent's window.")
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                 }
@@ -168,16 +178,24 @@ struct OverviewPane: View {
                 }
             }
         } else {
-            let agents = status.sessions.map(\.agent).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+            // A fixed order, so a group doesn't jump to the top when one of
+            // its sessions starts waiting and back when it stops.
+            let known = HookInstaller.Agent.allCases.map(\.rawValue)
+            let agents = status.sessions.map(\.agent).reduce(into: known.filter { a in status.sessions.contains { $0.agent == a } }) {
+                if !$0.contains($1) { $0.append($1) }
+            }
             VStack(alignment: .leading, spacing: Theme.gap) {
                 ForEach(agents, id: \.self) { agent in
                     VStack(alignment: .leading, spacing: 5) {
-                        Label(agentName(agent), systemImage: agentSymbol(agent))
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Theme.inkSoft)
-                            .padding(.leading, 2)
-                        ForEach(Array(status.sessions.filter { $0.agent == agent }.enumerated()), id: \.offset) { _, row in
-                            SessionRow(project: row.project, status: row.status)
+                        // A fixed icon width, so the names line up.
+                        HStack(spacing: 6) {
+                            Image(systemName: agentSymbol(agent)).frame(width: 18)
+                            Text(agentName(agent))
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.inkSoft)
+                        ForEach(KeyedSession.rows(status.sessions.filter { $0.agent == agent })) { row in
+                            SessionRow(project: row.session.project, status: row.session.status)
                         }
                     }
                 }
@@ -231,8 +249,26 @@ func agentSymbol(_ short: String) -> String {
     }
 }
 
+/// A session keyed by its project and which of that project's sessions it
+/// is, so a row that changes status moves, instead of the row in its old
+/// place crossfading to another project.
+struct KeyedSession: Identifiable {
+    let id: String
+    let session: SessionSummary
+
+    static func rows(_ sessions: [SessionSummary]) -> [KeyedSession] {
+        var seen: [String: Int] = [:]
+        return sessions.map { s in
+            let n = seen[s.project, default: 0]
+            seen[s.project] = n + 1
+            return KeyedSession(id: "\(s.project)#\(n)", session: s)
+        }
+    }
+}
+
 /// One session: the project, and its status in a chip. The tone also runs
-/// down a thin bar on the leading edge, so a column of rows scans by colour.
+/// down a thin bar on the leading edge, so the amber of a waiting one stands
+/// out in a column of greys.
 struct SessionRow: View {
     let project: String
     let status: SessionSummary.Status
@@ -240,7 +276,7 @@ struct SessionRow: View {
     private var tone: Color {
         switch status {
         case .waiting: Theme.amberInk
-        case .working: Theme.accentInk
+        case .working: Theme.ink
         case .idle: Theme.inkSoft
         }
     }
@@ -248,7 +284,7 @@ struct SessionRow: View {
     private var bar: Color {
         switch status {
         case .waiting: Theme.amber
-        case .working: Theme.accent
+        case .working: Theme.inkSoft
         case .idle: Theme.hairlineStrong
         }
     }
@@ -287,10 +323,13 @@ struct TalkButton: View {
     var body: some View {
         let on = model.listening
         Button(action: model.toggleTalk) {
+            // One width for both words, so the button doesn't jump.
             Label(on ? "Send" : "Talk", systemImage: on ? "arrow.up" : "mic.fill")
                 .labelStyle(.titleAndIcon)
+                .lineLimit(1)
+                .frame(width: 50)
         }
-        .buttonStyle(RowButtonStyle(filled: on, fill: Theme.recording))
+        .buttonStyle(RowButtonStyle(filled: on ? Theme.send : nil))
         .fixedSize()
         .help(on ? "Stop listening and send what \(model.name) heard"
                  : "Talk to \(model.name) with the Mac's microphone. It stops by itself after 30 seconds")
@@ -299,8 +338,9 @@ struct TalkButton: View {
     }
 }
 
-/// Whether Boop's body is connected. Which board it is stays out of sight.
-struct DevicePill: View {
+/// Whether Boop's body is connected, as plain words over the Talk button, so
+/// it doesn't look like a second button. Which board it is stays out of sight.
+struct DeviceLine: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
@@ -311,12 +351,8 @@ struct DevicePill: View {
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Theme.inkSoft)
         }
-        .padding(.horizontal, 8).padding(.vertical, 4)
         .fixedSize()
-        // Just under half the height: an exact capsule outline picks up
-        // straight edges when rendered offscreen.
-        .background(Theme.raised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Theme.hairline, lineWidth: 1))
+        .padding(.trailing, 2)
         .help(connected ? "Boop's body is connected" : "Boop's body isn't connected yet. Plug it into USB power.")
         .animation(.boopSettle, value: connected)
     }

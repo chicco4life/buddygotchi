@@ -51,7 +51,7 @@ Every tool lists its options with `--help`; this table says what each is for.
 | `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket (`--socket`, default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`), so the Mac app and other `boopctl` commands can use the board at the same time. Every line from the board goes to every client, and each client's lines reach the board whole. It never waits on a client: a client that stops reading and falls 4 MB behind is dropped, so a paused `boopctl` can't stall the others or the app. While a bridge runs, other `boopctl` commands (with `BOOP_BRIDGE` set to its socket, if it isn't the default) go through it instead of opening the port |
 | `tools/webcam/webcam.sh` | The AVFoundation recorder and frame extractor ([its README](../tools/webcam/README.md)). `boopctl cam …` wraps it |
 | `Boop --headless` | The whole runtime with isolated state, no UI and no Bluetooth (L4). `--debug` prints everything as it happens, as `make debug` does; `{"dev":"advance","ms":N}` and `{"dev":"talk",…}` on its socket move its clock and hand it what you said |
-| `Boop --snapshots DIR` | Renders the Mac app's popover (seven overview states, including listening and a refused mic, the whole settings pane, the four setup steps) and the menu-bar icons to PNGs, in light and dark, from fixed fixtures, then exits. No runtime, Bluetooth, microphone or Keychain; the agents' settings it reads are in a throwaway HOME |
+| `Boop --snapshots DIR` | Renders the Mac app's popover (twelve overview states, including listening, a refused mic, every mode chip at once and a crowded session list; settings four ways; the four setup steps) and the menu-bar icons at 1× and 2×, each pixel magnified, to PNGs, in light and dark, from fixed fixtures, then exits. No runtime, Bluetooth, microphone or Keychain; the agents' settings it reads are in a throwaway HOME. Its window is never key, so switches and sliders draw as they do in an inactive window |
 | `boopdev eval` | The harness eval scenarios ([EVALS.md](EVALS.md)); `--real` is L5 |
 | `boopdev watch [FILE]` | Prints debug mode's `debug.jsonl` (the everyday app's by default) readably as it grows, as `Boop --debug` prints it ([HARNESS.md](HARNESS.md) §8) |
 | `boopdev replay <fixture>` | Runs recorded hook payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision; with `--socket`, through the real `boop-hook` to a running app, in real time |
@@ -196,7 +196,8 @@ gets at least one scenario. Their pictures become the **golden images** in
 `app/.build/debug/Boop --snapshots DIR`, and open every PNG, in both
 appearances. Check it against [UX.md](UX.md) §7: nothing clipped or cut
 off, no debug data, text readable on its background, and the panes in the
-cream look. There are no goldens. How it feels in the menu bar (opening,
+Warm Terminal look. The run fails if a text tone or a filled button drops
+under UX.md §7's contrast. There are no goldens. How it feels in the menu bar (opening,
 resizing, typing, switches) is the owner's (L6).
 
 ### Harness evals

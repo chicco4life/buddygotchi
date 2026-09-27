@@ -526,7 +526,8 @@ window, and gen-2's styling and flow were better ([UX.md](UX.md) §6–7).
 - **The look:** gen-2's "Boop Cream" tokens and building blocks (cards,
   section labels, status chips, session rows with a coloured edge), a small
   copy of the device's face in the header and setup, and the eyes as the
-  menu-bar icon.
+  menu-bar icon. Re-coloured on 2026-09-27 in the device's Warm Terminal
+  ([UX.md](UX.md) §7).
 - **Tools:** `Boop --snapshots DIR` renders every pane and the icons from
   fixtures ([VERIFICATION.md](VERIFICATION.md) §2).
 
@@ -743,6 +744,11 @@ matching spec first.
   a burst over Bluetooth (a finish while something needs you) should never
   garble the device, and pressing BOOT again within a second of letting go
   should still hear you ([evidence](evidence/2026-09-26-e2e-hardening/README.md)).
+- **The popover's active colours are unseen.** `Boop --snapshots` draws in
+  a window that is never key, so setup's switches (sage when on) and the
+  volume slider's fill (ink) show only as they do in an inactive window.
+  The owner's `make run` should show both clearly in light and dark
+  ([UX.md](UX.md) §7).
 - **Bluetooth reconnect is only partly checked on hardware.** On
   2026-09-26 the owner's `make run` reconnected about 1 s after a reflash
   and 1.5 s after the app was quit and relaunched ([PROTOCOL.md](PROTOCOL.md)

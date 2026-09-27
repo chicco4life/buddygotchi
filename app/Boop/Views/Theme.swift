@@ -1,12 +1,15 @@
 import AppKit
 import SwiftUI
 
-/// The app's palette, "Boop Cream" (UX.md §7): warm paper and ink in both
-/// appearances, one terracotta accent, and the device's meanings for amber
-/// (needs you), sage (done) and clay (trouble). It's hand-set rather than
-/// the system's greys, because the popover belongs to a toy on your desk.
-/// Every `*Ink` tone clears 4.5:1 on its own paper; `inkFaint` doesn't and is
-/// for decoration and disabled things only.
+/// The app's palette, the device's "Warm Terminal" (UX.md §7): warm paper
+/// and ink in both appearances, black glass for the face tile and the one
+/// filled button (oat on dark paper), and one amber accent, for needs you
+/// only. Working and idle are greys, as on the device; sage means connected
+/// and on, and clay means trouble. It's hand-set rather than the system's
+/// greys, because the popover belongs to an object on your desk. Every
+/// `*Ink` tone clears 4.5:1 on its paper, cards, the well and its own chip
+/// (`Boop --snapshots` checks); `inkFaint` doesn't and is for decoration and
+/// disabled things only.
 enum Palette {
     static let paperLight = "#FAF7F2", paperDark = "#1B1815"
     static let raisedLight = "#F3EDE3", raisedDark = "#24211C"
@@ -14,21 +17,24 @@ enum Palette {
     static let hairlineLight = "#E4DACA", hairlineDark = "#38332B"
     static let hairlineStrongLight = "#D6C8B2", hairlineStrongDark = "#4A4339"
     static let inkLight = "#24211C", inkDark = "#F2EBE0"
-    static let inkSoftLight = "#6E665A", inkSoftDark = "#ADA396"
+    static let inkSoftLight = "#675F53", inkSoftDark = "#ADA396"
     static let inkFaintLight = "#A29888", inkFaintDark = "#787064"
 
-    static let terracotta = "#D97757", terracottaPressed = "#C05F3F"
-    static let terracottaInkLight = "#A8482B", terracottaInkDark = "#F0A98C"
-    static let amber = "#E8A33D", amberInkLight = "#8A5A16", amberInkDark = "#E8B970"
-    static let sage = "#6E9B5E", sageInkLight = "#4A6B3C", sageInkDark = "#A3CC90"
-    static let clay = "#C4574A", clayInkLight = "#9C3B2E", clayInkDark = "#F09384"
-    static let rose = "#D4839B", roseInkLight = "#A35270", roseInkDark = "#EFB3C5"
+    /// The device's amber (firmware `palette.h`), and text tones of it.
+    static let amber = "#FFB000", amberInkLight = "#82540F", amberInkDark = "#E8B970"
+    /// The menu-bar icon's amber on a light menu bar, where the device's is 1.7:1.
+    static let menuAmberLight = "#B87400"
+    static let sage = "#6E9B5E", sageInkLight = "#466638", sageInkDark = "#A3CC90"
+    static let clayInkLight = "#9C3B2E", clayInkDark = "#F09384"
 
-    /// The device's own colours (firmware `palette.h`): black glass, the
-    /// warm-white eyes, the pink cheeks and its brighter amber, for the little face.
-    static let glass = "#000000", eye = "#F6F4EE", blush = "#EC787C", deviceAmber = "#FFB000"
-    /// The mic is on: macOS's own recording red, on the menu bar and the Talk button.
-    static let recording = "#FF3B30"
+    /// The device's black glass, the oat of its text, its warm-white eyes
+    /// and pink cheeks. Glass with an oat label is the filled button on
+    /// light paper; on dark paper it's the other way round.
+    static let glass = "#000000", glassPressed = "#2A2620", oat = "#E8DCC4", oatPressed = "#CFC2A8"
+    static let eye = "#F6F4EE", blush = "#EC787C"
+    /// The mic is on: macOS's own recording red, on the menu bar and the
+    /// dot, and a deeper one under Send's white label.
+    static let recording = "#FF3B30", recordingFill = "#D63A2F", recordingPressed = "#BC2F25"
 }
 
 enum Theme {
@@ -48,20 +54,25 @@ enum Theme {
     static let inkSoft = adaptive(Palette.inkSoftLight, Palette.inkSoftDark)
     static let inkFaint = adaptive(Palette.inkFaintLight, Palette.inkFaintDark)
 
-    static let accent = Color(hex: Palette.terracotta)
-    static let accentPressed = Color(hex: Palette.terracottaPressed)
-    static let accentInk = adaptive(Palette.terracottaInkLight, Palette.terracottaInkDark)
     static let amber = Color(hex: Palette.amber)
     static let amberInk = adaptive(Palette.amberInkLight, Palette.amberInkDark)
     static let sage = Color(hex: Palette.sage)
     static let sageInk = adaptive(Palette.sageInkLight, Palette.sageInkDark)
-    static let clay = Color(hex: Palette.clay)
     static let clayInk = adaptive(Palette.clayInkLight, Palette.clayInkDark)
     static let recording = Color(hex: Palette.recording)
-    static let rose = Color(hex: Palette.rose)
-    static let roseInk = adaptive(Palette.roseInkLight, Palette.roseInkDark)
+    /// Send, while the mic is on: white on a red deep enough to read.
+    static let send = RowButtonStyle.Fill(fill: Color(hex: Palette.recordingFill),
+                                          pressed: Color(hex: Palette.recordingPressed), label: .white)
 
     static let glass = Color(hex: Palette.glass)
+    /// The filled button: black glass with an oat label on light paper. On
+    /// dark paper glass would read as a hole, no heavier than an outlined
+    /// button, so there it's oat with a glass label.
+    static let fill = adaptive(Palette.glass, Palette.oat)
+    static let fillPressed = adaptive(Palette.glassPressed, Palette.oatPressed)
+    static let fillLabel = adaptive(Palette.oat, Palette.glass)
+    /// The tints under a status chip and a toned card, over a raised card.
+    static let chipTint = 0.12, cardTint = 0.08
     static let eye = Color(hex: Palette.eye)
     static let blush = Color(hex: Palette.blush)
 
@@ -128,7 +139,7 @@ struct Card<Content: View>: View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(tone.map { $0.opacity(0.08) } ?? Theme.raised,
+            .background(tone.map { $0.opacity(Theme.cardTint) } ?? Theme.raised,
                         in: RoundedRectangle(cornerRadius: Theme.cardRadius))
             .background(Theme.raised, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
             .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius)
@@ -145,7 +156,7 @@ struct SectionLabel: View {
         Text(text.uppercased())
             .font(.system(size: 10, weight: .semibold))
             .tracking(0.6)
-            .foregroundStyle(Theme.inkFaint)
+            .foregroundStyle(Theme.inkSoft)
             .padding(.leading, 2)
             .accessibilityAddTraits(.isHeader)
     }
@@ -206,29 +217,30 @@ struct StatusChip: View {
             .font(.system(size: 10, weight: .medium))
             .foregroundStyle(tone)
             .padding(.horizontal, 7).padding(.vertical, 3)
-            .background(tone.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.chipRadius))
+            .background(tone.opacity(Theme.chipTint), in: RoundedRectangle(cornerRadius: Theme.chipRadius))
     }
 }
 
-/// Footer and inline buttons: quiet text that warms on hover.
+/// Footer and inline buttons: quiet text that darkens on hover.
 struct QuietButtonStyle: ButtonStyle {
     var tone: Color? = nil
     @ViewState private var hovering = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(configuration.isPressed ? Theme.accentPressed
-                             : hovering ? (tone ?? Theme.accentInk) : (tone ?? Theme.inkSoft))
+            .foregroundStyle(tone ?? (hovering || configuration.isPressed ? Theme.ink : Theme.inkSoft))
             .padding(.horizontal, 8).padding(.vertical, 4)
-            .background(RoundedRectangle(cornerRadius: Theme.chipRadius).fill(hovering ? Theme.well : .clear))
+            .background(RoundedRectangle(cornerRadius: Theme.chipRadius)
+                .fill(configuration.isPressed ? Theme.hairline : hovering ? Theme.well : .clear))
             .contentShape(RoundedRectangle(cornerRadius: Theme.chipRadius))
             .onHover { hovering = $0 }
             .animation(.boopSettle, value: hovering)
     }
 }
 
-/// The one filled button per screen: terracotta, rounded, a little squash
-/// when pressed.
+/// The one filled button per screen: black glass with an oat label, like
+/// the device's face (oat on dark paper), rounded, a little squash when
+/// pressed.
 struct ProminentButtonStyle: ButtonStyle {
     var wide = false
     @Environment(\.isEnabled) private var enabled
@@ -236,10 +248,10 @@ struct ProminentButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(Theme.fillLabel)
             .padding(.horizontal, 16).padding(.vertical, 8)
             .frame(maxWidth: wide ? .infinity : nil)
-            .background(configuration.isPressed ? Theme.accentPressed : Theme.accent,
+            .background(configuration.isPressed ? Theme.fillPressed : Theme.fill,
                         in: RoundedRectangle(cornerRadius: 10))
             .opacity(enabled ? 1 : 0.4)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
@@ -248,24 +260,28 @@ struct ProminentButtonStyle: ButtonStyle {
     }
 }
 
-/// A small outlined button for rows: Connect, Repair, Save.
+/// A small button for rows: outlined for Remove, Reconnect and Save, filled
+/// for Connect and Repair.
 struct RowButtonStyle: ButtonStyle {
-    var filled = false
-    /// The fill when `filled`; terracotta unless set.
-    var fill: Color? = nil
+    /// A fill and its label: the filled button's unless set.
+    struct Fill {
+        var fill = Theme.fill, pressed = Theme.fillPressed, label = Theme.fillLabel
+    }
+
+    var filled: Fill? = nil
     @ViewState private var hovering = false
     @Environment(\.isEnabled) private var enabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(filled ? .white : Theme.ink)
+            .foregroundStyle(filled?.label ?? Theme.ink)
             .padding(.horizontal, 10).padding(.vertical, 4)
             .background(RoundedRectangle(cornerRadius: 7).fill(
-                filled ? (fill.map { configuration.isPressed ? $0.opacity(0.85) : $0 }
-                          ?? (configuration.isPressed ? Theme.accentPressed : Theme.accent))
-                    : (hovering || configuration.isPressed ? Theme.well : Theme.paper)))
-            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(filled ? .clear : Theme.hairlineStrong, lineWidth: 1))
+                filled.map { configuration.isPressed ? $0.pressed : $0.fill }
+                    ?? (hovering || configuration.isPressed ? Theme.well : Theme.paper)))
+            .overlay(RoundedRectangle(cornerRadius: 7)
+                .strokeBorder(filled == nil ? Theme.hairlineStrong : .clear, lineWidth: 1))
             .opacity(enabled ? 1 : 0.4)
             .contentShape(RoundedRectangle(cornerRadius: 7))
             .onHover { hovering = $0 }
@@ -283,7 +299,7 @@ extension ButtonStyle where Self == ProminentButtonStyle {
 
 extension ButtonStyle where Self == RowButtonStyle {
     static var row: RowButtonStyle { RowButtonStyle() }
-    static var rowFilled: RowButtonStyle { RowButtonStyle(filled: true) }
+    static var rowFilled: RowButtonStyle { RowButtonStyle(filled: .init()) }
 }
 
 // MARK: - Hex colours

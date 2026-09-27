@@ -143,6 +143,16 @@ final class AppModel: ObservableObject {
     func jevKeyChanged(_ key: String?) {
         runtime?.reloadBrains(jevKey: key)
     }
+
+    /// What "Boop couldn't start" says, in plain words; the log keeps the
+    /// error itself.
+    static func startProblem(_ error: Error) -> String {
+        switch error {
+        case Runtime.OpenError.locked: "Another copy of Boop is already running. Quit it, then open this one again."
+        case is HookServer.StartError: "Boop can't listen for your agents' hooks. Quit other copies of Boop and open it again."
+        default: "Something went wrong while starting. What happened is in boop.log, in Boop's folder."
+        }
+    }
 }
 
 @MainActor
@@ -155,6 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let log: LogFile
     let model: AppModel
     var statusItem: NSStatusItem?
+    private var iconMood: FaceMood?
     let popover = NSPopover()
     var runtime: Runtime?
     var listener: SpeechListener?
@@ -304,7 +315,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             runtime.refresh()
         } catch {
             log.write("boop: can't start: \(error)")
-            model.startError = "\(error)"
+            model.startError = AppModel.startProblem(error)
         }
     }
 
@@ -313,9 +324,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         updateIcon(status)
     }
 
+    /// Every status push lands here, and most don't change the mood.
     func updateIcon(_ status: Runtime.Status?) {
-        guard let button = statusItem?.button else { return }
-        button.image = MenuBarIcon.image(FaceMood(status))
+        let mood = FaceMood(status)
+        guard mood != iconMood, let button = statusItem?.button else { return }
+        iconMood = mood
+        button.image = MenuBarIcon.image(mood)
     }
 
     @objc func togglePopover() {
@@ -347,7 +361,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                               today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
         } catch {
             log.write("setup: \(error)")
-            model.setup.error = "Boop couldn't save its memory: \(error)"
+            model.setup.error = "Boop couldn't save its memory. What happened is in boop.log, in Boop's folder."
             return
         }
         for agent in HookInstaller.Agent.allCases where draft.agents.contains(agent) && model.installer.detected(agent) {

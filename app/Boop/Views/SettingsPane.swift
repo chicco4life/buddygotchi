@@ -2,12 +2,13 @@ import BoopKit
 import SwiftUI
 
 /// Settings, inside the popover (UX.md §7): sound, agents and hooks, the
-/// device, the mode and Jev's key, and what Boop remembers.
+/// device, the mode (and in Normal, Jev's key), and what Boop remembers.
 struct SettingsPane: View {
     @ObservedObject var model: AppModel
     var maxHeight: CGFloat
     @ViewState private var apiKey = ""
     @ViewState private var keySaved = false
+    @FocusState private var keyFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -19,7 +20,6 @@ struct SettingsPane: View {
                     PaneSection("Device") { device }
                     PaneSection("Mode") { modes }
                     PaneSection("What \(model.name) remembers") { remembered }
-                    PaneSection("About") { about }
                 }
                 .padding(.horizontal, Theme.gutter)
                 .padding(.bottom, Theme.gapLoose)
@@ -38,13 +38,13 @@ struct SettingsPane: View {
         let s = model.status?.snapshot
         return Card(padding: 0) {
             SettingRow(icon: s?.vol == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill", title: "Volume",
-                       detail: "How loud \(model.name) mumbles and chirps.") {
+                       detail: "How loud \(model.name) mumbles.") {
                 HStack(spacing: 6) {
                     Slider(value: Binding(get: { Double(s?.vol ?? 6) },
                                           set: { model.setVolume(Int($0.rounded())) }),
                            in: 0...10, step: 1)
                         .controlSize(.small)
-                        .frame(width: 96)
+                        .frame(width: 84)
                         .accessibilityLabel("Volume")
                     Text(s?.vol == 0 ? "Off" : "\(s?.vol ?? 6)")
                         .font(.system(size: 11, weight: .medium).monospacedDigit())
@@ -63,14 +63,14 @@ struct SettingsPane: View {
             Card(padding: 0) {
                 VStack(spacing: 0) {
                     ForEach(Array(HookInstaller.Agent.allCases.enumerated()), id: \.element) { index, agent in
-                        if index > 0 { Hairline().padding(.leading, 40) }
+                        if index > 0 { Hairline().padding(.leading, 40).padding(.trailing, 12) }
                         agentRow(agent)
                     }
                 }
             }
             if model.restartAgents {
                 Label("Restart open agent sessions to pick up the change.", systemImage: "arrow.clockwise")
-                    .font(.system(size: 11)).foregroundStyle(Theme.amberInk)
+                    .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                     .padding(.leading, 2)
             }
         }
@@ -84,10 +84,10 @@ struct SettingsPane: View {
         } else {
             switch health {
             case .installed?: ("Connected", Theme.sageInk)
-            case .outdated?: ("Needs a repair", Theme.amberInk)
+            case .outdated?: ("Needs a repair", Theme.clayInk)
             case .unreadable(let why)?: ("Can't read its settings: \(why)", Theme.clayInk)
             case .clientMissing?: ("boop-hook isn't built. Run make build, then restart Boop.", Theme.clayInk)
-            default: found ? ("Not connected", Theme.inkSoft) : ("Not found on this Mac", Theme.inkFaint)
+            default: found ? ("Not connected", Theme.inkSoft) : ("Not found on this Mac", Theme.inkSoft)
             }
         }
         return SettingRow(icon: agentSymbol(agent == .claude ? "claude" : "codex"), title: agent.displayName,
@@ -100,7 +100,9 @@ struct SettingsPane: View {
             case .unreadable?, .clientMissing?:
                 EmptyView()
             default:
-                Button("Connect") { model.install(agent) }.buttonStyle(.rowFilled).disabled(!found)
+                // Not on this Mac: nothing to do. Opening the popover looks
+                // again, so Connect appears once it's installed.
+                if found { Button("Connect") { model.install(agent) }.buttonStyle(.rowFilled) }
             }
         }
     }
@@ -114,8 +116,7 @@ struct SettingsPane: View {
         case .usb: "USB"
         case .none: ""
         }
-        let firmware = model.status?.device.map { ", firmware \($0.fw)" } ?? ""
-        let detail = connected ? "Connected over \(how)\(firmware)"
+        let detail = connected ? "Connected over \(how)"
             : model.link == .none ? "This copy of Boop runs without a device"
             : "Looking for it over \(how). Plug it into USB power."
         return Card(padding: 0) {
@@ -153,53 +154,66 @@ struct SettingsPane: View {
         Card(padding: 0) {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Picker("Mode", selection: Binding(get: { model.mode }, set: { model.setMode($0) })) {
-                        Text("Chatty").tag(Mode.chatty)
-                        Text("Normal").tag(Mode.normal)
-                        Text("Calm").tag(Mode.calm)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
+                    ModePicker(mode: Binding(get: { model.mode }, set: { model.setMode($0) }))
                     Text(about(model.mode))
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
                     if let note = brainNote {
                         Text(note)
-                            .font(.system(size: 11)).foregroundStyle(Theme.amberInk)
+                            .font(.system(size: 11)).foregroundStyle(Theme.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(12)
                 .disabled(model.status == nil)
-                Hairline().padding(.leading, 12)
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: Theme.gapSnug) {
-                        SecureField("Jev API key", text: $apiKey)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 12))
-                            .padding(.horizontal, 8).padding(.vertical, 5)
-                            .background(Theme.paper, in: RoundedRectangle(cornerRadius: 7))
-                            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Theme.hairlineStrong, lineWidth: 1))
-                            .onChange(of: apiKey) { keySaved = false }
-                        Button(keySaved ? "Saved" : "Save") {
-                            // Off the main thread, like the read above.
+                if model.mode == .normal { key }
+            }
+        }
+    }
+
+    /// Jev's key, only where it's used.
+    private var key: some View {
+        VStack(spacing: 0) {
+            Hairline().padding(.horizontal, 12)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: Theme.gapSnug) {
+                    // As tall as the Save button beside it.
+                    SecureField("Jev API key", text: $apiKey)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .padding(.horizontal, 8)
+                        .frame(height: 22)
+                        .background(Theme.paper, in: RoundedRectangle(cornerRadius: 7))
+                        .overlay(RoundedRectangle(cornerRadius: 7)
+                            .strokeBorder(keyFocused ? Theme.inkSoft : Theme.hairlineStrong, lineWidth: keyFocused ? 1.5 : 1))
+                        .focused($keyFocused)
+                        .onChange(of: apiKey) { keySaved = false }
+                    if keySaved {
+                        // Done, not disabled.
+                        Label("Saved", systemImage: "checkmark")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Theme.sageInk)
+                            .frame(height: 22)
+                            .transition(.opacity)
+                    } else {
+                        Button("Save") {
+                            // Off the main thread: the Keychain may stop to ask.
                             let key = apiKey
                             Task {
                                 keySaved = await Task.detached { Keychain.setKey(key, for: .jev) }.value
                                 if keySaved { model.jevKeyChanged(key.isEmpty ? nil : key) }
                             }
                         }
-                            .buttonStyle(.row)
-                            .disabled(keySaved)
+                        .buttonStyle(.row)
                     }
-                    Text("For Normal. Kept in your Keychain. With Jev, what happens and \(model.name)'s memory go to TypeSafe with each call.")
-                        .font(.system(size: 10)).foregroundStyle(Theme.inkSoft)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.horizontal, 12).padding(.vertical, 10)
+                Text("Kept in your Keychain. With Jev, what happens and \(model.name)'s memory go to TypeSafe with each call.")
+                    .font(.system(size: 10)).foregroundStyle(Theme.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(.horizontal, 12).padding(.vertical, 10)
         }
+        .transition(.opacity)
     }
 
     // MARK: Remembered
@@ -215,7 +229,7 @@ struct SettingsPane: View {
                         .padding(12)
                 }
                 ForEach(Array(model.remembered.enumerated()), id: \.element) { index, line in
-                    if index > 0 { Hairline().padding(.leading, 12) }
+                    if index > 0 { Hairline().padding(.horizontal, 12) }
                     HStack(alignment: .firstTextBaseline, spacing: Theme.gapSnug) {
                         Text(line).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
@@ -233,15 +247,45 @@ struct SettingsPane: View {
             }
         }
     }
+}
 
-    // MARK: About
+/// Chatty, Normal or Calm: three equal segments on a well, the chosen one
+/// raised on paper. Drawn here rather than the system's segmented control,
+/// which doesn't stretch, and draws grey in the popover's inactive window.
+struct ModePicker: View {
+    @Binding var mode: Mode
+    @Namespace private var chosen
 
-    private var about: some View {
-        Card(padding: 0) {
-            SettingRow(icon: "info.circle", title: "Version", detail: nil) {
-                Text(BoopVersion.current).font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach([Mode.chatty, .normal, .calm], id: \.self) { m in
+                let on = m == mode
+                Button {
+                    withAnimation(.boopSettle) { mode = m }
+                } label: {
+                    Text(m.rawValue.capitalized)
+                        .font(.system(size: 11, weight: on ? .semibold : .medium))
+                        .foregroundStyle(on ? Theme.ink : Theme.inkSoft)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                        .background {
+                            if on {
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Theme.paper)
+                                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.hairlineStrong, lineWidth: 1))
+                                    .matchedGeometryEffect(id: "chosen", in: chosen)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
+        .padding(2)
+        .background(Theme.well, in: RoundedRectangle(cornerRadius: Theme.wellRadius))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Mode")
     }
 }
 
@@ -263,12 +307,14 @@ struct SettingRow<Trailing: View>: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 12, weight: .medium))
                 if let detail {
-                    Text(detail).font(.system(size: 10.5)).foregroundStyle(detailTone)
+                    Text(detail).font(.system(size: 11)).foregroundStyle(detailTone)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer(minLength: Theme.gapSnug)
-            trailing
+            // The words take the room the control leaves, so they wrap only
+            // when they must.
+            .frame(maxWidth: .infinity, alignment: .leading)
+            trailing.fixedSize()
         }
         .padding(.horizontal, 12).padding(.vertical, 9)
     }

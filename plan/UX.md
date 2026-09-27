@@ -190,10 +190,12 @@ transcript, in memory only, until its window moves past it
 It never pops up by itself after setup and never sends notifications. The
 device does the nudging.
 
-**The menu-bar icon** is Boop's eyes and little smile, drawn from the
-device's face: closed while Boop is asleep, open while agents are idle,
-with a small dot while they work, amber when something needs you, and
-recording red with a bigger dot while the Mac's mic is on (§5).
+**The menu-bar icon** is Boop's window eyes and a pixel smile, drawn from
+the device's face on whole points so it's crisp at 1× and 2×: closed while
+Boop is asleep, open while agents are idle, with a small dot while they
+work, amber when something needs you, and recording red with a bigger dot
+while the Mac's mic is on (§5). On a light menu bar the amber is a deeper
+one that keeps 3:1, since the device's is too pale there.
 
 **The popover** is one 360 pt column on warm paper (the look below).
 Clicking the icon opens it on the overview. Settings and setup open inside
@@ -208,30 +210,40 @@ except Talk, which is there to be used in the moment.
 | --- | --- |
 | Header | A small copy of Boop's face on black glass (it blinks, glances about while agents work, looks up with an amber rim when something needs you, sleeps with its eyes closed, and looks up wide-eyed while listening), Boop's name, a tone dot with one short line ("Listening…", "Working on 2 sessions", "Needs you", "Hanging out", "Napping"), whether the body is connected ("Connected", "Looking…" or "No device"), and under it the Talk button (§5), which turns into a red Send while the mic is on. Which board it is never shows |
 | Modes | Small reminders only when something isn't the usual: Chatty or Calm (normal shows nothing), Quiet with minutes left, Muted |
-| Notices | "Restart your agent sessions" after hooks change (dismissable), why Boop couldn't start, or "*name* can't hear you" when push-to-talk can't use the mic (dismissable; the next Talk clears it) |
-| Needs you | An amber card: agent · project, "Answer it in the agent's window", and "+N more" |
-| Sessions | Grouped by agent: one row per project with a coloured edge and a status chip (needs you, working, idle). Empty: "No agents awake" |
-| Footer | Settings on the left, Quit on the right |
+| Notices | "Restart your agent sessions" after hooks change (dismissable), why Boop couldn't start (in plain words: another copy is running, or it can't listen for hooks, or look in `boop.log`), or "*name* can't hear you" when push-to-talk can't use the mic (dismissable; the next Talk clears it) |
+| Needs you | An amber card: agent · project (the agent alone when the project has no name), "Answer it in the agent's window", and "+N more" |
+| Sessions | Grouped by agent, Claude Code then Codex whatever their state: one row per session, waiting first, with a coloured edge and a status chip (needs you, working, idle). Empty: "No agents awake" |
+| Footer | Settings on the left, Quit on the right. In Settings, the left holds the app's version and the device's firmware |
 
 **Settings**, one scrolling pane with Back at the top:
 
 | Group | Controls |
 | --- | --- |
 | Sound | Volume (0–10, 0 shows "Off") |
-| Agents | Claude Code and Codex: connected, not connected, not found or needs a repair, with Connect, Repair or Remove. If `boop-hook` isn't built, each says so ("Run make build, then restart Boop") with no button. A Connect, Repair or Remove that fails says why on the row ("Couldn't change its hooks: …"), and only one that worked asks you to restart your agents |
-| Device | Whether Boop's body is connected and how (Bluetooth or USB), and its firmware version. Not its id. A Reconnect button drops the link and looks for the device again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
-| Mode | Chatty, Normal or Calm, one segmented control ([BEHAVIORS.md](BEHAVIORS.md) §6), with a line saying what the chosen one does. It takes effect at once. An amber line says when Apple's model can't run, so mumbles have no word; it reads the model's availability as it is now. Under it, the Jev API key, kept in the Keychain; its caption says it's for Normal and that with Jev, what happens and Boop's memory go to TypeSafe with each call. Saving it brings Jev in at once |
+| Agents | Claude Code and Codex: connected, not connected, not found or needs a repair, with Connect, Repair or Remove (not found has no button; opening the popover looks again). If `boop-hook` isn't built, each says so ("Run make build, then restart Boop") with no button. A Connect, Repair or Remove that fails says why on the row ("Couldn't change its hooks: …"), and only one that worked asks you to restart your agents |
+| Device | Whether Boop's body is connected and how (Bluetooth or USB); its firmware version is in the footer. Not its id. A Reconnect button drops the link and looks for the device again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
+| Mode | Chatty, Normal or Calm, one segmented control ([BEHAVIORS.md](BEHAVIORS.md) §6), with a line saying what the chosen one does. It takes effect at once. A line under it says when Apple's model can't run, so mumbles have no word; it reads the model's availability as it is now. In Normal only, the Jev API key under it, kept in the Keychain; its caption says that with Jev, what happens and Boop's memory go to TypeSafe with each call. Without a key, Normal decides with its own table on this Mac. Saving one brings Jev in at once |
 | What Boop remembers | Each line of About you and Preferences, the durable facts you told Boop, with a button to forget it. With none yet: "Nothing yet. Tell *name* something lasting about you, like "remember I ship on Fridays", and it keeps it here." |
-| About | The app's version |
 
 Name and nature are set once, at setup, and don't change.
 
-**The look** is gen-2's "Boop Cream", in light and dark: warm paper and
-ink, terracotta for actions and working, amber for needs you, sage for
-calm and connected, clay for trouble. Sections are separated by space and
-a small tracked-out label, not rules, and grouped into raised cards with a
-hairline edge. Names, titles and numbers use the rounded system face.
-Each coloured text tone clears 4.5:1 on its own paper; the faint tone is
-for decoration only. The face tile uses the device's own colours (black
-glass, warm-white window eyes, pink cheeks) and its face geometry (§2). Looping motion is limited to the face and the dot while
-something is live. Tokens live in `app/Boop/Views/Theme.swift`.
+**The look** is the device's "Warm Terminal" ([VISION.md](VISION.md)
+"Look"), in light and dark: warm paper and ink, black glass with an oat
+label for filled buttons (oat with a glass label on dark paper, where glass
+would read as a hole), and one amber accent, used
+only for needs you. Working and idle are greys, as on the device's status
+strip; sage means connected and a switch that's on, clay means trouble, and
+recording red means the mic is on. Sections are separated by space and a
+small tracked-out label, not rules, and grouped into raised cards with a
+hairline edge. Names, titles and numbers use the rounded system face. Every
+text tone, button labels included, clears 4.5:1 on what it sits on (the
+paper, a card, the well, its own chip), a filled button stands 3:1 off its
+card, and
+`Boop --snapshots` checks it; the faint tone is for decoration only.
+The face tile uses the device's own colours (black glass, warm-white
+window eyes, pink cheeks), its face geometry and its pixel mouths (§2),
+drawn in square blocks on a grid snapped to the screen's pixels: as crisp
+as the device, and moving a block at a time. Its looks follow the
+device's (working lowers the lids and looks down, needs you leans in).
+Looping motion is limited to the face and the dot while something is
+live. Tokens live in `app/Boop/Views/Theme.swift`.

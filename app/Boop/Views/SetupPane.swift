@@ -26,7 +26,7 @@ struct SetupPane: View {
             .clipped()
         }
         .frame(height: 448)
-        .padding(.horizontal, Theme.gutter + 4)
+        .padding(.horizontal, Theme.gutter)
         .padding(.bottom, Theme.gutter)
     }
 
@@ -34,7 +34,7 @@ struct SetupPane: View {
         HStack(spacing: 5) {
             ForEach(SetupDraft.Step.allCases, id: \.self) { s in
                 Capsule()
-                    .fill(s.rawValue <= step.rawValue ? Theme.accent : Theme.well)
+                    .fill(s.rawValue <= step.rawValue ? Theme.ink : Theme.hairlineStrong)
                     .frame(width: s == step ? 26 : 12, height: 5)
             }
         }
@@ -66,6 +66,9 @@ struct SetupPane: View {
                     .foregroundStyle(Theme.inkSoft)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    // Narrower than the column, so lines break evenly
+                    // instead of leaving one word on the last.
+                    .frame(maxWidth: 290)
             }
         }
     }
@@ -73,7 +76,8 @@ struct SetupPane: View {
     private func nav(back: SetupDraft.Step?, next: String, enabled: Bool = true, action: @escaping () -> Void) -> some View {
         HStack {
             if let back {
-                Button("Back") { go(back) }.buttonStyle(.quiet).font(.system(size: 12))
+                // Its hover padding hangs outside, so the word lines up with the column.
+                Button("Back") { go(back) }.buttonStyle(.quiet).font(.system(size: 12)).padding(.leading, -8)
             }
             Spacer()
             Button(next, action: action)
@@ -102,7 +106,7 @@ struct SetupPane: View {
     private var naming: some View {
         VStack(spacing: Theme.gap) {
             Spacer(minLength: 0)
-            BoopFace(mood: model.setup.nature == .cheeky ? .working : .happy, size: 64)
+            BoopFace(mood: model.setup.nature == .cheeky ? .cheeky : .happy, size: 88)
             title("What should I be called?")
             TextField("A name", text: Binding(
                 get: { model.setup.name },
@@ -113,15 +117,15 @@ struct SetupPane: View {
                 .padding(.vertical, 9)
                 .background(Theme.raised, in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(nameFocused ? Theme.accent : Theme.hairlineStrong, lineWidth: nameFocused ? 1.5 : 1))
+                    .strokeBorder(nameFocused ? Theme.inkSoft : Theme.hairlineStrong, lineWidth: nameFocused ? 1.5 : 1))
                 .focused($nameFocused)
                 .onAppear { nameFocused = true }
             Text("Names are for keeps, so pick one you love.")
-                .font(.system(size: 10.5)).foregroundStyle(Theme.inkSoft)
+                .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
             Text("Sweet or cheeky?").font(.system(size: 12, weight: .semibold)).padding(.top, Theme.gapSnug)
             HStack(spacing: Theme.gapSnug) {
-                natureCard(.sweet, "heart.fill", Theme.rose, "Sweet", "Warm and encouraging")
-                natureCard(.cheeky, "face.smiling.inverse", Theme.accent, "Cheeky", "Playful, a bit sassy")
+                natureCard(.sweet, "heart.fill", Theme.blush, "Sweet", "Warm and encouraging")
+                natureCard(.cheeky, "face.smiling.inverse", Theme.inkSoft, "Cheeky", "Playful, a bit sassy")
             }
             Spacer(minLength: 0)
             nav(back: .hello, next: "Continue", enabled: !model.setup.trimmedName.isEmpty) { go(.agents) }
@@ -141,9 +145,9 @@ struct SetupPane: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
-            .background(selected ? tone.opacity(0.1) : Theme.raised, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+            .background(selected ? Theme.well : Theme.raised, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
             .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius)
-                .strokeBorder(selected ? tone : Theme.hairline, lineWidth: selected ? 1.5 : 1))
+                .strokeBorder(selected ? Theme.ink : Theme.hairline, lineWidth: selected ? 1.5 : 1))
             .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius))
         }
         .buttonStyle(.plain)
@@ -164,25 +168,41 @@ struct SetupPane: View {
                 Text("boop-hook isn't built, so I can't add hooks yet. Run make build, restart Boop, then connect them in Settings.")
                     .font(.system(size: 11)).foregroundStyle(Theme.clayInk).multilineTextAlignment(.center)
             } else if !detected.isEmpty {
-                DisclosureGroup(isExpanded: $showHooks) {
-                    ScrollView {
-                        Text(detected.filter { model.setup.agents.contains($0) }.map { agent in
-                            "\(model.installer.configURL(agent).path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))\n"
-                                + model.installer.preview(agent)
-                        }.joined(separator: "\n\n"))
-                        .font(.system(size: 9.5, design: .monospaced))
+                // A disclosure of our own: the system's chevron ignores the
+                // tint and glares white on dark paper.
+                VStack(alignment: .leading, spacing: 4) {
+                    Button {
+                        withAnimation(.boopSettle) { showHooks.toggle() }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .semibold))
+                                .rotationEffect(.degrees(showHooks ? 90 : 0))
+                            Text("See exactly what gets added").font(.system(size: 11))
+                        }
                         .foregroundStyle(Theme.inkSoft)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
+                        .contentShape(Rectangle())
                     }
-                    .frame(height: 104)
-                    .background(Theme.well, in: RoundedRectangle(cornerRadius: Theme.wellRadius))
-                    .padding(.top, 4)
-                } label: {
-                    Text("See exactly what gets added").font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
+                    .buttonStyle(.plain)
+                    .accessibilityValue(showHooks ? "Shown" : "Hidden")
+                    if showHooks {
+                        ScrollView {
+                            Text(detected.filter { model.setup.agents.contains($0) }.map { agent in
+                                "\(model.installer.configURL(agent).path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))\n"
+                                    + model.installer.preview(agent)
+                            }.joined(separator: "\n\n"))
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(Theme.inkSoft)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                        }
+                        .frame(height: 104)
+                        .background(Theme.well, in: RoundedRectangle(cornerRadius: Theme.wellRadius))
+                        .transition(.opacity)
+                    }
                 }
-                .tint(Theme.inkSoft)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             Spacer(minLength: 0)
             nav(back: .name, next: "Continue") { go(.ready) }
@@ -200,6 +220,9 @@ struct SetupPane: View {
                     if value { model.setup.agents.insert(agent) } else { model.setup.agents.remove(agent) }
                 }))
                 .toggleStyle(.switch)
+                // On is sage, like connected. The popover's ink tint would be
+                // a near-white track under the white knob in dark.
+                .tint(Theme.sage)
                 .labelsHidden()
                 .disabled(!found || !model.installer.clientInPlace)
             }
@@ -231,7 +254,7 @@ struct SetupPane: View {
 
     private func tip(_ icon: String, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.gapSnug + 2) {
-            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(Theme.accentInk).frame(width: 16)
+            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(Theme.inkSoft).frame(width: 16)
             Text(text).font(.system(size: 12)).foregroundStyle(Theme.ink).fixedSize(horizontal: false, vertical: true)
         }
     }

@@ -30,7 +30,7 @@ struct PopoverView: View {
         .frame(width: Theme.width)
         .background(Theme.paper)
         .foregroundStyle(Theme.ink)
-        .tint(Theme.accent)
+        .tint(Theme.ink)
         .animation(.boopSettle, value: model.pane)
         .onExitCommand(perform: onClose)
     }
@@ -47,6 +47,12 @@ struct PopoverView: View {
                         Label("Settings", systemImage: "gearshape")
                     }
                     .keyboardShortcut(",", modifiers: .command)
+                } else if model.pane == .settings {
+                    // The versions, where Settings would be.
+                    Text("Boop \(BoopVersion.current)" + (model.status?.device.map { " · firmware \($0.fw)" } ?? ""))
+                        .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
+                        .padding(.leading, 8)
+                        .textSelection(.enabled)
                 }
                 Spacer()
                 Button("Quit") { NSApp.terminate(nil) }
