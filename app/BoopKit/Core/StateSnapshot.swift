@@ -6,8 +6,9 @@ public struct StateSnapshot: Equatable, Sendable {
         public var agent: String
         public var project: String
         public var more: Int
-        /// The request shown's number, counting up from 1 each launch: a
-        /// new one is a different request, which chirps (PROTOCOL.md §3).
+        /// The request shown's number, counting up from a random one each
+        /// launch: a new one is a different request, which chirps
+        /// (PROTOCOL.md §3).
         /// 0 sends none.
         public var id: Int
 
