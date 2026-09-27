@@ -89,11 +89,11 @@ Over USB, the firmware accepts every normal protocol message
 | `{"t":"dbg.ping"}` | `{"t":"dbg.ping","fw":…,"sha":…,"up":ms,"heap":…,"heap_min":…,"fps":…,"link":"usb\|ble\|none","ble":"off\|idle\|adv\|conn","name":"Boop-XXXX","voice":…,"w":320,"h":240}`. `ble` is Bluetooth's state (`idle` is neither advertising nor connected, so no Mac can find it), `name` the advertised name, `voice` the voice assets' version, and `w`/`h` the screen as drawn |
 | `{"t":"dbg.state"}` | `{"t":"dbg.state","screen":"face\|needs_you\|no_app\|pattern" (`no_app` draws the asleep face),"base":…,"attn":…,"moment":{"anim":…,"left_ms":…},"life":…,"quiet":…,"vol":0-10,"led":"#RRGGBB","audio":{"playing":…,"syllables":…},"last_input":…}` |
 | `{"t":"dbg.shot"}` | A header line `{"t":"dbg.shot","w":320,"h":240,"bytes":N,"crc":…}`, then one line of base64: 512 bytes of RGB565 palette (256 little-endian entries) followed by 76,800 bytes of pixel indexes, row by row. `crc` is the CRC-32 (as zlib's) of those bytes |
-| `{"t":"dbg.clock","freeze":T}` / `{"step":MS}` / `{"run":true}` | Freeze the clock at T (which also seeds randomness from T), step it, or let it run |
+| `{"t":"dbg.clock","freeze":T}` / `{"step":MS}` / `{"run":true}` | Freeze the clock at T (which also seeds randomness from T), step it, or let it run. A clock frozen this way or by `dbg.reset` runs again by itself, from where it stopped, after 60 s with no `dbg.*` message, so a tool that dies mid-run can't leave the board stopped |
 | `{"t":"dbg.press","ms":N}` / `{"t":"dbg.touch","x":…,"y":…,"ms":N}` | Inject input through the same code path as real input |
 | `{"t":"dbg.pattern"}` / `{"fill":N}` / `{"target":[x,y]}` | Show the test pattern, a solid screen of palette index N, or an amber calibration cross at (x, y) on black, until the next `state` |
 | `{"t":"dbg.touchcal"}` / `{"set":[ax,bx,cx,ay,by,cy]}` / `{"clear":true}` | Read, set or forget the touch calibration: x = (ax·raw x + bx·raw y + cx) / 65536, and y alike. The board keeps it in NVS with the screen size and rotation it was set on, and ignores a stored map for any other (the portrait build's, or one from before `kRotation` changed). It replies with `cal` (null when uncalibrated, which uses the default raw range turned with the rotation) |
-| `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Set the backlight and the RGB LED (both optional), for bring-up and webcam framing |
+| `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Set the backlight and the RGB LED (both optional) until the next `state`, for bring-up and webcam framing |
 | `{"t":"dbg.reset"}` | Forget everything the Mac has said, the moment and the local screen, and freeze the clock at 0. Every scenario starts with it |
 
 At 460800 baud a screenshot takes about 2.3 s. `dbg.ping` also reports
@@ -160,8 +160,8 @@ runs in the simulator and on the device:
 `input` lines don't move the clock: an injected press or touch stays down
 until the clock passes its duration (100 ms for a tap, 800 ms for a hold,
 or `"ms"`), so a scenario steps the clock past it. The simulator starts
-with its clock frozen at 0; the board's runs until the first `clock` line.
-Both runners send `dbg.reset` first, so the board starts each scenario
+with its clock frozen at 0. Both runners send `dbg.reset` first, which
+freezes the board's clock at 0 too, so the board starts each scenario
 exactly as a fresh simulator does. `boopctl run` plays each scenario in the simulator first, then on the
 board, and diffs every shot against the simulator's with threshold 0.
 

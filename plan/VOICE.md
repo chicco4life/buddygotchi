@@ -205,15 +205,16 @@ dialects, 5 came out as the safe hum (`VoiceTests`, 2026-09-27).
   syllable as it plays. It's the same trick Animal Crossing uses. Each
   syllable gets one beat of `ms` and the word two; a clip longer than its
   beat is cut with a 5 ms fade, and a long word speeds up to fit (at most
-  1.6×). The base pitch is fixed (§5), the tune bends it across the line, and the ±10% timing moves within pairs of
+  1.6×). A line cut short (hushed, or replaced by a new line or the chirp)
+  fades out over 4 ms under what comes next, so the cut doesn't click. The base pitch is fixed (§5), the tune bends it across the line, and the ±10% timing moves within pairs of
   beats, so a line lasts exactly beats × `ms`, the same time the mouth
   moves. A syllable the device doesn't know keeps its beat, silent. The sound
   cue (the needs-you chirp) is a synthesised tone. It only comes with
   "needs you", which already stops any line.
-- **Limits.** The device clamps `ms` to 60–400 and the base pitch to
-  60–160%, and plays at most 12 syllables of a line.
-- **On screen.** The mouth follows the syllables, open on vowels and closed
-  on `m`, `b` and `p`. The bubble shows only the real word, with small
+- **Limits.** The device clamps `ms` to 60–400 and plays at most 12
+  syllables of a line.
+- **On screen.** The mouth follows the syllables, opening and closing once
+  per beat. The bubble shows only the real word, with small
   squiggles for the gibberish around it. With the sound off, the bubble and
   mouth still play.
 - **Checking it.** Tests check playback through `dbg.state`
@@ -224,7 +225,8 @@ dialects, 5 came out as the safe hum (`VoiceTests`, 2026-09-27).
 
 ## 9. How often Boop talks
 
-Mumbles are occasional. Beyond reactions to events, Boop mutters about once
-every 2–4 minutes while agents work (*proposed*). It never mumbles while
-something needs you, and it's silent in quiet mode
-([BEHAVIORS.md](BEHAVIORS.md)).
+Mumbles are occasional. Beyond reactions to events, Boop mutters while
+agents work, as often as the mode says ([BEHAVIORS.md](BEHAVIORS.md) §2,
+§6). It never mumbles while something needs you or in quiet mode; in
+quiet mode the needs-you chirp still sounds ([BEHAVIORS.md](BEHAVIORS.md)
+§4).

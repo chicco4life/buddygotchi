@@ -44,7 +44,9 @@ you. It dims and brightens over the face's 150 ms blend
 
 **No app.** With no `state` from the Mac for 30 s the device shows the
 asleep look (backlight 60/255), with the unplugged icon in the strip so
-you can tell it from having no sessions (§3.4).
+you can tell it from having no sessions (§3.4). The strip drops the
+session counts and the quiet icon, which the device can no longer
+know.
 
 **Working chatter.** While agents work, the core has Boop mutter by rule,
 as often as the mode says: every 45–90 s in chatty, every 2–4 minutes in
@@ -131,15 +133,15 @@ milliseconds of audio at a time and keeps only that yes or no
 
 | When | Behaviour |
 | --- | --- |
-| No `state` for 30 s | The asleep look, with the unplugged icon (§2), for as long as the silence lasts |
-| Reconnect | Quick blink, then whatever the next `state` says |
+| No `state` for 30 s | The asleep look, with only the unplugged icon in the strip (§2), for as long as the silence lasts |
+| Reconnect | Whatever the next `state` says, blending from the asleep face |
 
 ## 4. Sound and light
 
 | Output | Used for | Never |
 | --- | --- | --- |
 | Mumbles | Working chatter, and the brain's reactions to agents and to what you say, as the mode allows (§6) | In quiet mode; while something needs you; while you talk, except the reply (§3.3) |
-| Chirp | Once when something starts needing you | Anything else |
+| Chirp | Once when something starts needing you, in quiet mode too: it's the one thing Boop must say | Anything else |
 | Amber light | Something needs you | Decoration |
 | Dimmed backlight | Asleep, no app | While something needs you |
 

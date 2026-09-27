@@ -16,7 +16,7 @@
 #include "voice/player.h"
 
 // A debug-only label: the face's state name in faint text at the top left
-// (plan/UX.md §2). The board build turns it on in platformio.ini.
+// (plan/UX.md §2). Off unless a build sets it (firmware/platformio.ini).
 #ifndef BOOP_DEBUG_LABEL
 #define BOOP_DEBUG_LABEL 0
 #endif
@@ -87,6 +87,9 @@ struct Hal {
 
 class Device {
  public:
+  // A panel touch ends after this long without contact (UX.md §4).
+  static constexpr uint32_t kTouchReleaseMs = 50;
+
   // `pixels` is the kWidth × kHeight canvas buffer, allocated by the caller.
   Device(Hal& hal, uint8_t* pixels, bool frozenClock);
 
@@ -131,7 +134,6 @@ class Device {
   void sendState(Link to);
   void sendShot(Link to);
   void reset();
-  void parseState(const char* line, size_t n, uint32_t at);
   void hush();
   void followSound(uint32_t t);
   Screen screenAt(uint32_t t) const { return pattern_ ? Screen::kPattern : b_.screen(t); }
@@ -146,7 +148,12 @@ class Device {
   Out* outs_[3] = {nullptr, nullptr, nullptr};
   Link link_ = Link::kNone;  // the link the Mac last spoke on
   uint32_t heardReal_ = 0;   // real time the Mac last spoke, for USB's "connect"
+  bool bleUp_ = false;       // a Mac is connected over Bluetooth
+  bool usbHeard_ = false;    // the Mac has spoken on USB, last at usbHeardReal_
+  uint32_t usbHeardReal_ = 0;
   uint32_t statusReal_ = 0;  // real time of the last status
+  uint32_t dbgReal_ = 0;     // real time of the last dbg.* message
+  bool toolFrozen_ = false;  // a dbg.* message froze the clock (not the simulator's start)
 
   Screen screen_ = Screen::kFace;
   bool pattern_ = false;  // dbg.pattern until the next state
@@ -157,6 +164,7 @@ class Device {
   int patternFill_ = -1;  // a solid dbg.pattern screen, or -1
   int targetX_ = -1, targetY_ = -1;  // a calibration target on dbg.pattern, or -1
   uint32_t drawnT_ = 0;   // the time of the last frame
+  uint32_t drawnReal_ = 0;  // and the real time it was drawn
   bool drawnMoving_ = false;  // it was mid-motion, so the next time step redraws
   bool dirty_ = true;
   bool frame_ = false;
@@ -168,8 +176,11 @@ class Device {
   bool injTouch_ = false;
   uint32_t injTouchUntil_ = 0;
   int injX_ = 0, injY_ = 0;
-  // The touch in progress.
+  // The touch in progress: from the panel (not injected), last in contact
+  // at touchSeenAt_.
   bool touchDown_ = false;
+  bool touchPanel_ = false;
+  uint32_t touchSeenAt_ = 0;
 
   // The line playing (its moment's number), and the last sound cue handled
   // (played or dropped).

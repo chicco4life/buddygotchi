@@ -110,18 +110,28 @@ void Behaviour::advance(uint32_t t, Rng& rng) {
 // Time-based changes at t: a moment that has ended (the blend starts from
 // its last pose), and the Mac's silence turning into "no app".
 void Behaviour::resync(uint32_t t) {
+  settle(t);
   change(t, [&] {
     if (moment_.anim != render::Anim::kNone && !within(t, moment_.at, moment_.ms)) moment_.anim = render::Anim::kNone;
     if (!stale_ && int32_t(t - lastState_) >= int32_t(kNoAppMs)) stale_ = true;
   });
 }
 
+// Clears timers that have run out, so none comes back when the clock's
+// differences wrap: the blend's signed compare after 2^31 ms (24.9 days),
+// the others after 2^32 (49.7 days). None of them is part of the source,
+// so the face doesn't change.
+void Behaviour::settle(uint32_t t) {
+  if (blending_ && !within(t, blendAt_, render::kBlendMs)) blend_ = render::Blend{}, blending_ = false;
+  if (say_.say.syllables > 0 && !within(t, say_.at, say_.ms)) say_ = Say{};
+  if (releaseAt_ && !within(t, releaseAt_, kPressEaseMs)) releaseAt_ = 0;
+  if (blFade_ && !within(t, blAt_, render::kBlendMs)) blFade_ = false;
+}
+
 // ---- Messages --------------------------------------------------------------
 
-void Behaviour::onState(const Model& m, uint32_t t, Rng& rng) {
-  (void)rng;
+void Behaviour::onState(const Model& m, uint32_t t) {
   change(t, [&] {
-    bool wasNoApp = noApp(t);
     bool had = model_.attn;
     bool fresh = m.attn && (!had || std::strncmp(model_.agent, m.agent, sizeof(m.agent)) ||
                             std::strncmp(model_.project, m.project, sizeof(m.project)));
@@ -134,12 +144,8 @@ void Behaviour::onState(const Model& m, uint32_t t, Rng& rng) {
       if (momentOn(t) && !overAttention(moment_.anim)) moment_.anim = render::Anim::kNone;
       say_ = Say{};  // no mumbles while something needs you
     }
-    // Answered on the Mac (`attn` leaves): the face just blends back.
-    if (wasNoApp && heard_ && !momentOn(t)) {  // reconnect: a quick blink
-      life_ = LifeEvent{};
-      life_.kind = Life::kBlink, life_.at = t, life_.ms = kBlinkMs;
-    }
-    heard_ = true;
+    // Answered on the Mac (`attn` leaves), or back after no app: the face
+    // just blends to what the state says.
   });
 }
 
@@ -148,28 +154,26 @@ void Behaviour::onState(const Model& m, uint32_t t, Rng& rng) {
 // it, except that it's the reply `listening` waits for, so it ends that,
 // even when it doesn't show (needs you, quiet). The empty moment ends
 // `listening` too, and nothing else (PROTOCOL.md §3).
-bool Behaviour::onMoment(const MomentIn& in, uint32_t t, Rng& rng) {
+bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
   bool anim = in.anim != render::Anim::kNone;
   if (anim && model_.attn && !noApp(t) && !overAttention(in.anim)) return false;
   bool mumble = in.syllables > 0 && !model_.attn && model_.quiet <= 0;
   bool ends = !anim && (in.syllables > 0 || in.empty) && momentOn(t) && moment_.anim == render::Anim::kListening;
   if (!anim && !mumble && !ends) return false;
-  (void)rng;
   change(t, [&] {
-    if (anim) play(in.anim, t, false);
+    if (anim) play(in.anim, t);
     else if (ends) moment_.anim = render::Anim::kNone;
     if (mumble) startSay(in, t);
   });
   return mumble;
 }
 
-void Behaviour::play(render::Anim a, uint32_t t, bool local) {
+void Behaviour::play(render::Anim a, uint32_t t) {
   moment_ = Moment{};
   ++momentSeq_;
   moment_.anim = a;
   moment_.at = t;
   moment_.ms = render::animDuration(a);
-  moment_.local = local;
   say_ = Say{};  // a new moment replaces the line
   life_ = LifeEvent{};
 }
@@ -204,22 +208,19 @@ void Behaviour::pressUp(uint32_t t) {
 }
 
 // While something needs you, a tap shows the press squash only.
-void Behaviour::tap(uint32_t t, Rng& rng) {
-  (void)rng;
+void Behaviour::tap(uint32_t t) {
   if (model_.attn && !noApp(t)) return;
-  change(t, [&] { play(render::Anim::kWiggle, t, true); });
+  change(t, [&] { play(render::Anim::kWiggle, t); });
 }
 
-void Behaviour::talkOn(uint32_t t, Rng& rng) {
-  (void)rng;
-  change(t, [&] { play(render::Anim::kListening, t, true); });
+void Behaviour::talkOn(uint32_t t) {
+  change(t, [&] { play(render::Anim::kListening, t); });
 }
 
 // Released: listening carries on, without a new blend, and waits at most
 // kReplyWaitMs for the reply (BEHAVIORS.md §3.3). If it isn't playing any
 // more (the 30 s cap, or the Mac replaced it), there's nothing to wait on.
-void Behaviour::talkOff(uint32_t t, Rng& rng) {
-  (void)rng;
+void Behaviour::talkOff(uint32_t t) {
   change(t, [&] {
     if (momentOn(t) && moment_.anim == render::Anim::kListening) moment_.ms = (t - moment_.at) + kReplyWaitMs;
   });
@@ -305,7 +306,7 @@ render::Pose Behaviour::sourcePose(const Source& s, uint32_t t) const {
 render::Pose Behaviour::pose(uint32_t t) const {
   render::Pose p = blended(t);
   int amt = 0;  // the press squish: feedback on the press itself
-  if (pressed_) amt = within(t, pressAt_, kPressEaseMs) ? render::ease(int(t - pressAt_), kPressEaseMs) : 1024;
+  if (pressed_) amt = pressEasing(t) ? render::ease(int(t - pressAt_), kPressEaseMs) : 1024;
   else if (within(t, releaseAt_, kPressEaseMs) && releaseAt_) amt = 1024 - render::ease(int(t - releaseAt_), kPressEaseMs);
   if (amt) {
     p.squash = int16_t(p.squash + 200 * amt / 1024);
@@ -317,10 +318,15 @@ render::Pose Behaviour::pose(uint32_t t) const {
 bool Behaviour::moving(uint32_t t) const {
   if (momentOn(t) || sayOn(t) || blend_.blending(t)) return true;
   if (life_.kind != Life::kNone && within(t, life_.at, life_.ms)) return true;
-  if (src_.anim == render::Anim::kNone && src_.look == render::Look::kAsleep) return true;
-  if (pressed_ ? within(t, pressAt_, kPressEaseMs) : (releaseAt_ && within(t, releaseAt_, kPressEaseMs))) return true;
+  // The looks with motion of their own: asleep breathes and says zzZZ,
+  // working strains and sweats (BEHAVIORS.md §2).
+  bool looping = src_.look == render::Look::kAsleep || src_.look == render::Look::kWorking;
+  if (src_.anim == render::Anim::kNone && looping) return true;
+  if (pressed_ ? pressEasing(t) : (releaseAt_ && within(t, releaseAt_, kPressEaseMs))) return true;
   return false;
 }
+
+bool Behaviour::pressEasing(uint32_t t) const { return pressed_ && within(t, pressAt_, kPressEaseMs); }
 
 const char* Behaviour::faceName(uint32_t t) const {
   Source s = sourceAt(t);
@@ -353,11 +359,14 @@ uint8_t Behaviour::blTarget(uint32_t t) const {
   return 255;
 }
 
+// With no app the Mac's counts and quiet are stale, so only the unplugged
+// icon shows (BEHAVIORS.md §3.4).
 render::Strip Behaviour::strip(uint32_t t) const {
   render::Strip s;
+  s.noApp = noApp(t);
+  if (s.noApp) return s;
   s.wait = model_.wait;
   s.busy = model_.busy;
-  s.noApp = noApp(t);
   s.quiet = model_.quiet > 0;
   return s;
 }

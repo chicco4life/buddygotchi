@@ -31,23 +31,23 @@ struct Rig {
     t = to;
     b.advance(t, rng);
   }
-  void state(Model m) { b.onState(m, t, rng); }
+  void state(Model m) { b.onState(m, t); }
   void moment(Anim a) {
     MomentIn m;
     m.anim = a;
-    b.onMoment(m, t, rng);
+    b.onMoment(m, t);
   }
   // The empty moment, {"t":"moment","ttl":5} (PROTOCOL.md §3).
   void stop() {
     MomentIn m;
     m.empty = true;
-    b.onMoment(m, t, rng);
+    b.onMoment(m, t);
   }
   // A mumble on its own: `syl` syllables of 100 ms, no word.
   bool say(int syl = 4) {
     MomentIn m;
     m.syllables = syl, m.ms = 100;
-    return b.onMoment(m, t, rng);
+    return b.onMoment(m, t);
   }
   Anim anim() {
     uint32_t left;
@@ -122,7 +122,7 @@ static void test_tap_during_needs_you_is_only_the_squash_and_stays_amber() {
   r.at(10100);
   TEST_ASSERT_TRUE(r.b.pose(r.t).squash > before.squash);  // the press shows
   r.b.pressUp(r.t);
-  r.b.tap(r.t, r.rng);
+  r.b.tap(r.t);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
   TEST_ASSERT_EQUAL(0u, r.b.momentSeq());
   TEST_ASSERT_EQUAL(Screen::kNeedsYou, r.b.screen(r.t));
@@ -165,7 +165,7 @@ static void test_attention_wins_over_moments() {
   TEST_ASSERT_NULL(r.b.mumble(r.t));
   MomentIn say;
   say.anim = Anim::kListening, say.syllables = 3;
-  r.b.onMoment(say, r.t, r.rng);
+  r.b.onMoment(say, r.t);
   TEST_ASSERT_EQUAL(Anim::kListening, r.anim());  // push-to-talk still works
   TEST_ASSERT_NULL(r.b.mumble(r.t));               // but never a mumble
   // A mumble that was showing goes when something starts needing you.
@@ -234,19 +234,19 @@ static void test_no_change_ever_cuts_hard() {
           r.at(500);
           switch (playing) {
             case kCheer: r.moment(Anim::kCheer); break;
-            case kWiggle: r.b.tap(r.t, r.rng); break;
-            case kListening: r.b.talkOn(r.t, r.rng); break;
+            case kWiggle: r.b.tap(r.t); break;
+            case kListening: r.b.talkOn(r.t); break;
             case kSay: r.say(6); break;
             case kCheerSay: {
               MomentIn m;
               m.anim = Anim::kCheer, m.syllables = 4, m.ms = 120;
-              r.b.onMoment(m, r.t, r.rng);
+              r.b.onMoment(m, r.t);
               break;
             }
             case kReplyWait:
-              r.b.talkOn(r.t, r.rng);
+              r.b.talkOn(r.t);
               r.at(900);
-              r.b.talkOff(r.t, r.rng);
+              r.b.talkOff(r.t);
               break;
             case kNoApp: r.at(500 + Behaviour::kNoAppMs); break;
             default: break;
@@ -258,9 +258,9 @@ static void test_no_change_ever_cuts_hard() {
           } else {
             switch (event - 7) {
               case 0: r.moment(Anim::kCheer); break;
-              case 1: r.b.tap(r.t, r.rng); break;
-              case 2: r.b.talkOn(r.t, r.rng); break;
-              case 3: r.b.talkOff(r.t, r.rng); break;
+              case 1: r.b.tap(r.t); break;
+              case 2: r.b.talkOn(r.t); break;
+              case 3: r.b.talkOff(r.t); break;
               case 4: r.say(3); break;
               default: r.stop(); break;
             }
@@ -281,15 +281,42 @@ static void test_no_change_ever_cuts_hard() {
 }
 
 // BEHAVIORS.md §3.4: no app holds however long the Mac stays away, even
-// past the 24.8 days where the clock's differences wrap.
+// past the 24.9 days where the clock's differences wrap, and whatever had
+// finished stays finished when they come round again at 49.7 days: the
+// asleep face, no old mumble, press squish or backlight fade.
 static void test_no_app_holds_for_weeks() {
   Rig r;
   r.state(base("working"));
+  r.at(1000);
+  TEST_ASSERT_TRUE(r.say(3));  // over by 2500
+  r.b.pressDown(r.t);
+  r.at(1100);
+  r.b.pressUp(r.t);
   r.at(Behaviour::kNoAppMs);
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
-  r.at(0x80000000u + 5000);
+  const uint32_t start = Behaviour::kNoAppMs + 200;
+  r.at(start);
+  const render::Pose asleep = r.b.pose(start);
+  TEST_ASSERT_EQUAL_INT(0, asleep.open);
+  // The clock moves on a minute at a time, as the ticks would take it.
+  uint64_t now = start;
+  auto walk = [&](uint64_t to) {
+    while (now + 60000 < to) now += 60000, r.at(uint32_t(now));
+    now = to;
+    r.at(uint32_t(now));
+  };
+  // The asleep face repeats every 12 s (breathing 4 s, zzZZ 2.4 s).
+  walk(start + 12000ull * 178957);  // 2^31 ms and a little after the blend to asleep
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
+  TEST_ASSERT_TRUE(asleep == r.b.pose(r.t));
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
+  walk(0x100000000ull + 1150);  // 2^32 ms after the release, 150 after the mumble started
+  TEST_ASSERT_NULL(r.b.mumble(r.t));
+  TEST_ASSERT_EQUAL_INT(asleep.squash, r.b.pose(r.t).squash);
+  TEST_ASSERT_EQUAL_INT(asleep.dy, r.b.pose(r.t).dy);
+  walk(0x100000000ull + Behaviour::kNoAppMs + 50);  // 2^32 ms after the dimming began
+  TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
+  TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
   r.state(base("idle"));
   TEST_ASSERT_EQUAL(Screen::kFace, r.b.screen(r.t));
 }
@@ -341,7 +368,7 @@ static void test_mumble_moves_the_mouth_and_respects_quiet() {
   r.state(base("idle"));
   MomentIn m;
   m.anim = Anim::kCheer, m.syllables = 4, m.word = "done", m.at = 4, m.ms = 100;
-  r.b.onMoment(m, r.t, r.rng);
+  r.b.onMoment(m, r.t);
   TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
   TEST_ASSERT_EQUAL_STRING("done", r.b.mumble(r.t)->word);
   TEST_ASSERT_TRUE(r.b.speaking(599));  // (4 syllables + 2 for the word) × 100 ms
@@ -354,7 +381,7 @@ static void test_mumble_moves_the_mouth_and_respects_quiet() {
   q.quiet = 5;
   r.at(5000);
   r.state(q);
-  r.b.onMoment(m, r.t, r.rng);
+  r.b.onMoment(m, r.t);
   TEST_ASSERT_EQUAL(Anim::kCheer, r.anim());
   TEST_ASSERT_NULL(r.b.mumble(r.t));
   TEST_ASSERT_FALSE(r.say());
@@ -391,7 +418,7 @@ static void test_a_mumble_alone_plays_over_the_face() {
   TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
   // A tap's wiggle replaces the moment, and the mumble with it.
   r.at(10600);
-  r.b.tap(r.t, r.rng);
+  r.b.tap(r.t);
   TEST_ASSERT_EQUAL(Anim::kWiggle, r.anim());
   TEST_ASSERT_NULL(r.b.mumble(r.t));
 
@@ -408,9 +435,9 @@ static void test_a_mumble_alone_plays_over_the_face() {
 static void test_a_reply_ends_listening() {
   Rig r;
   r.state(base("idle"));
-  r.b.talkOn(0, r.rng);
+  r.b.talkOn(0);
   r.at(1000);
-  r.b.talkOff(1000, r.rng);
+  r.b.talkOff(1000);
   r.at(3000);
   TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
   TEST_ASSERT_TRUE(r.say(3));
@@ -419,14 +446,14 @@ static void test_a_reply_ends_listening() {
   keepAlive(r, base("idle"), 1000 + Behaviour::kReplyWaitMs + 100);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
   // While held, too.
-  r.b.talkOn(r.t, r.rng);
+  r.b.talkOn(r.t);
   r.at(r.t + 500);
   r.say(2);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
   // A reply that can't show (needs you, or quiet) still ends it.
   Rig a;
   a.state(attn());
-  a.b.talkOn(0, a.rng);
+  a.b.talkOn(0);
   a.at(500);
   TEST_ASSERT_FALSE(a.say(2));
   TEST_ASSERT_EQUAL(Anim::kNone, a.anim());
@@ -445,9 +472,9 @@ static void test_the_empty_moment_ends_only_listening() {
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
   TEST_ASSERT_TRUE(r.b.moving(r.t));  // blending back
   // After the wait on release, too.
-  r.b.talkOn(r.t, r.rng);
+  r.b.talkOn(r.t);
   r.at(r.t + 1000);
-  r.b.talkOff(r.t, r.rng);
+  r.b.talkOff(r.t);
   r.at(r.t + 2000);
   r.stop();
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
@@ -477,7 +504,7 @@ static void test_the_empty_moment_ends_only_listening() {
   m.state(base("idle"));
   MomentIn in;
   in.anim = Anim::kListening, in.syllables = 4, in.ms = 100;
-  TEST_ASSERT_TRUE(m.b.onMoment(in, m.t, m.rng));
+  TEST_ASSERT_TRUE(m.b.onMoment(in, m.t));
   m.at(100);
   m.stop();
   TEST_ASSERT_EQUAL(Anim::kNone, m.anim());
@@ -542,6 +569,32 @@ static void test_asleep_breathes_and_never_blinks() {
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
 }
 
+// BEHAVIORS.md §2: working's strain and sweat drop move all the time, so
+// the face counts as moving and the board keeps redrawing it, as asleep;
+// idle only moves to blink.
+static void test_working_keeps_moving_and_idle_rests() {
+  Model w = base("working");
+  for (int busy : {1, 3}) {
+    w.busy = busy;
+    Rig r;
+    r.state(w);
+    for (uint32_t t = 1000; t <= 20000; t += 7) {
+      if (t % 10000 < 7) r.state(w);
+      r.at(t);
+      TEST_ASSERT_TRUE(r.b.moving(t));
+    }
+  }
+  Rig i;
+  i.state(base("idle"));
+  int resting = 0;
+  for (uint32_t t = 1000; t <= 20000; t += 7) {
+    if (t % 10000 < 7) i.state(base("idle"));
+    i.at(t);
+    resting += !i.b.moving(t);
+  }
+  TEST_ASSERT_TRUE(resting > 2000);
+}
+
 static void test_working_strains_and_sweats_and_asleep_says_zzz() {
   // Effort: over one 2.6 s cycle the working face strains for part of it
   // and rests the rest, with a sweat drop the whole time (BEHAVIORS.md §2).
@@ -574,20 +627,28 @@ static void test_working_strains_and_sweats_and_asleep_says_zzz() {
 
 // BEHAVIORS.md §3.4: with no state for 30 s the device shows the asleep
 // look (breathing, zzZZ, backlight 60), with the unplugged icon in the
-// strip; a reconnect blinks.
-static void test_no_app_at_30s_looks_asleep_and_reconnect_blinks() {
+// strip; on reconnect the face blends to whatever the next state says.
+static void test_no_app_at_30s_looks_asleep_and_reconnect_blends_back() {
   Rig r;
   r.at(1000);
-  r.state(attn());  // even a stale "needs you" gives way
+  Model m = attn();  // even a stale "needs you" gives way
+  m.wait = 1, m.busy = 2, m.quiet = 5;
+  r.state(m);
   r.at(30999);
   TEST_ASSERT_EQUAL(Screen::kNeedsYou, r.b.screen(r.t));
+  TEST_ASSERT_EQUAL(1, r.b.strip(r.t).wait);
   r.at(31000);
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
   TEST_ASSERT_EQUAL_STRING("asleep", r.b.faceName(r.t));
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t));  // dimming with the face's blend
   TEST_ASSERT_TRUE(r.b.backlight(r.t + render::kBlendMs / 2) < 255);
   TEST_ASSERT_EQUAL_HEX32(0, r.b.led(r.t));
-  TEST_ASSERT_TRUE(r.b.strip(r.t).noApp);
+  // The strip keeps only the unplugged icon: the counts and quiet are stale.
+  render::Strip strip = r.b.strip(r.t);
+  TEST_ASSERT_TRUE(strip.noApp);
+  TEST_ASSERT_EQUAL(0, strip.wait);
+  TEST_ASSERT_EQUAL(0, strip.busy);
+  TEST_ASSERT_FALSE(strip.quiet);
   r.at(31000 + render::kBlendMs);
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   render::Pose p = r.b.pose(r.t);
@@ -596,11 +657,14 @@ static void test_no_app_at_30s_looks_asleep_and_reconnect_blinks() {
   TEST_ASSERT_TRUE(p.zzz > 0);
   TEST_ASSERT_TRUE(r.b.moving(r.t));  // breathing
   r.at(40000);
+  const render::Pose before = r.b.pose(r.t);
   r.state(base("idle"));
-  r.at(40000);
   r.state(base("idle"));
   TEST_ASSERT_EQUAL(Screen::kFace, r.b.screen(r.t));
-  TEST_ASSERT_EQUAL(Life::kBlink, r.b.life(r.t));
+  TEST_ASSERT_EQUAL(Life::kNone, r.b.life(r.t));
+  TEST_ASSERT_TRUE(r.b.pose(r.t) == before);  // from the asleep face, no cut
+  TEST_ASSERT_TRUE(r.b.pose(r.t + render::kBlendMs / 2).open > 0);
+  TEST_ASSERT_EQUAL_INT(render::lookPose(render::Look::kIdle, 0).open, r.b.pose(r.t + render::kBlendMs).open);
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t + render::kBlendMs));
 }
@@ -611,13 +675,13 @@ static void test_no_app_at_30s_looks_asleep_and_reconnect_blinks() {
 static void test_push_to_talk_listens_then_waits() {
   Rig r;
   r.state(base("idle"));
-  r.b.talkOn(0, r.rng);
+  r.b.talkOn(0);
   TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
   r.at(2000);
   TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
   const render::Pose held = r.b.pose(r.t);
   const uint32_t seq = r.b.momentSeq();
-  r.b.talkOff(2000, r.rng);
+  r.b.talkOff(2000);
   TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
   TEST_ASSERT_EQUAL(seq, r.b.momentSeq());          // the same moment
   TEST_ASSERT_TRUE(r.b.pose(r.t) == held);          // no jump
@@ -635,9 +699,9 @@ static void test_push_to_talk_timeouts() {
   Rig r;
   Model m = base("idle");
   r.state(m);
-  r.b.talkOn(0, r.rng);
+  r.b.talkOn(0);
   keepAlive(r, m, 3000);
-  r.b.talkOff(r.t, r.rng);
+  r.b.talkOff(r.t);
   uint32_t left;
   TEST_ASSERT_EQUAL(Anim::kListening, r.b.moment(r.t, left));
   TEST_ASSERT_EQUAL_UINT32(8000, left);
@@ -649,9 +713,9 @@ static void test_push_to_talk_timeouts() {
   // Released late in the hold, the wait still runs its full 8 s past 30 s.
   Rig l;
   l.state(m);
-  l.b.talkOn(0, l.rng);
+  l.b.talkOn(0);
   keepAlive(l, m, 29000);
-  l.b.talkOff(l.t, l.rng);
+  l.b.talkOff(l.t);
   keepAlive(l, m, 29000 + 7999);
   TEST_ASSERT_EQUAL(Anim::kListening, l.anim());
   l.at(29000 + 8000);
@@ -660,13 +724,13 @@ static void test_push_to_talk_timeouts() {
   // nothing left to wait on.
   Rig c;
   c.state(m);
-  c.b.talkOn(0, c.rng);
+  c.b.talkOn(0);
   keepAlive(c, m, 29999);
   TEST_ASSERT_EQUAL(Anim::kListening, c.anim());
   c.at(30000);
   TEST_ASSERT_EQUAL(Anim::kNone, c.anim());  // the cap
   c.at(31000);
-  c.b.talkOff(c.t, c.rng);
+  c.b.talkOff(c.t);
   TEST_ASSERT_EQUAL(Anim::kNone, c.anim());
 }
 
@@ -792,7 +856,8 @@ int main() {
   RUN_TEST(test_life_is_blinks_at_their_pace);
   RUN_TEST(test_asleep_breathes_and_never_blinks);
   RUN_TEST(test_working_strains_and_sweats_and_asleep_says_zzz);
-  RUN_TEST(test_no_app_at_30s_looks_asleep_and_reconnect_blinks);
+  RUN_TEST(test_working_keeps_moving_and_idle_rests);
+  RUN_TEST(test_no_app_at_30s_looks_asleep_and_reconnect_blends_back);
   RUN_TEST(test_push_to_talk_listens_then_waits);
   RUN_TEST(test_push_to_talk_timeouts);
   RUN_TEST(test_press_shows_within_20ms);

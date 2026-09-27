@@ -788,6 +788,14 @@ matching spec first.
   session, so a Codex turn that leaves its tests failing still ends in a
   cheer ([ADAPTERS.md](ADAPTERS.md) §3). Recording one real Codex session
   with a failing test run would show whether it carries an exit code.
+- **A press shows at about 20 ms, not under it.** The press squish eases
+  in from nothing over 60 ms and the pixel face moves a block at a time,
+  so the first pixel it changes comes 20 ms after a BOOT press on the idle
+  face and 15 ms on the working face
+  (`test_the_redraw_cap_doesnt_delay_a_press`), and the board still has to
+  draw and push that frame ([DEVICE.md](DEVICE.md) §6).
+  [ARCHITECTURE.md](ARCHITECTURE.md) §9 and [UX.md](UX.md) §4 promise
+  under 20 ms. A squish that starts fast (an ease-out) would meet it.
 
 From the J3 report's known issues (numbered as there):
 

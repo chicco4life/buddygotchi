@@ -12,6 +12,9 @@ namespace {
 using voice_assets::Clip;
 
 constexpr uint32_t kFadeOut = kOutRate * 5 / 1000;  // a clip cut short fades over 5 ms
+// A line or cue cut short (hushed, or replaced) fades from where it was to
+// silence over 4 ms, under whatever comes next: a step in one sample clicks.
+constexpr uint32_t kCutFade = kOutRate * 4 / 1000;
 
 const Clip& clipAt(int i) {
   return i < voice_assets::kSyllables ? voice_assets::kSyllable[i] : voice_assets::kWord[i - voice_assets::kSyllables];
@@ -137,6 +140,8 @@ void Player::cue(Cue c, uint8_t vol) {
 }
 
 void Player::stop() {
+  fadeFrom_ = playing() || fade_ ? last_ : 0;
+  fade_ = fadeFrom_ ? kCutFade : 0;
   nSlots_ = slotAt_ = 0;
   pos_ = total_ = src_ = 0;
   cue_ = Cue::kNone;
@@ -180,7 +185,9 @@ size_t Player::render(uint8_t* out, size_t n) {
       ++made;
     }
     v = 128 + ((v * gain_) >> 8);
+    if (fade_) v += fadeFrom_ * int(fade_--) / int(kCutFade);  // what was cut, fading out
     out[j] = uint8_t(v < 0 ? 0 : v > 255 ? 255 : v);
+    last_ = out[j] - 128;
   }
   return made;
 }

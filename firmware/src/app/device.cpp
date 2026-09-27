@@ -16,6 +16,13 @@ namespace {
 
 constexpr uint32_t kDefaultPressMs = 100;
 constexpr uint32_t kStatusMs = 60000;  // PROTOCOL.md §4
+// Motion redraws at most this often, in real ms: about 60 fps, while the
+// pixel face changes at most about 32 times a second (DEVICE.md §6).
+constexpr uint32_t kFrameMs = 16;
+// A clock a tool froze runs again after this long, in real ms, with no
+// dbg.* message, so a tool that dies mid-run can't leave the board
+// stopped (VERIFICATION.md §3).
+constexpr uint32_t kThawMs = 60000;
 
 void copyStr(char* dst, size_t n, const char* src) { std::snprintf(dst, n, "%s", src ? src : ""); }
 
@@ -48,6 +55,7 @@ Device::Device(Hal& hal, uint8_t* pixels, bool frozenClock) : hal_(hal), canvas_
 // starts from the same place on the board and in the simulator.
 void Device::reset() {
   clock_.freeze(0);
+  toolFrozen_ = true;
   rng_.seed(0);
   b_.reset(0, rng_);
   hush();
@@ -55,7 +63,7 @@ void Device::reset() {
   pattern_ = false;
   patternFill_ = -1;
   targetX_ = targetY_ = -1;
-  injPress_ = injTouch_ = touchDown_ = false;
+  injPress_ = injTouch_ = touchDown_ = touchPanel_ = false;
   boot_ = ButtonGesture{};
   last_ = LastInput{};
   drawnT_ = 0;
@@ -69,10 +77,14 @@ void Device::reply(Link link, const char* text, size_t n) {
   out->write("\n", 1);
 }
 
+// On every live Mac link (PROTOCOL.md §4): Bluetooth while connected, and
+// USB while the Mac has spoken there within kNoAppMs. A tool's `moment`
+// over USB doesn't take the taps away from the app on Bluetooth.
 void Device::emit(const char* k) {
   char buf[48];
   int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"input\",\"k\":\"%s\"}", k);
-  reply(link_, buf, size_t(n));
+  if (bleUp_) reply(Link::kBle, buf, size_t(n));
+  if (usbHeard_ && hal_.realMs() - usbHeardReal_ < Behaviour::kNoAppMs) reply(Link::kUsb, buf, size_t(n));
 }
 
 void Device::input(const char* k, uint32_t t, int x, int y) {
@@ -92,6 +104,8 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
   bool hello = !debug && from == Link::kUsb &&
                (link_ != Link::kUsb || real - heardReal_ >= Behaviour::kNoAppMs);
   if (!debug) link_ = from, heardReal_ = real;
+  else dbgReal_ = real;
+  if (!debug && from == Link::kUsb) usbHeard_ = true, usbHeardReal_ = real;
   uint32_t at = now();
   b_.advance(at, rng_);
 
@@ -111,7 +125,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     m.wait = doc["wait"] | 0;
     m.quiet = doc["quiet"] | 0;
     m.vol = doc["vol"] | 6;
-    b_.onState(m, at, rng_);
+    b_.onState(m, at);
     if (m.attn || m.quiet > 0 || m.vol <= 0) hush();  // VOICE.md §9
     pattern_ = false;
     dirty_ = true;
@@ -148,7 +162,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
       line.ms = uint16_t(mo.ms < 60 ? 60 : mo.ms > 400 ? 400 : mo.ms);  // as the mouth
     }
     uint32_t seq = b_.momentSeq();
-    bool mumble = b_.onMoment(mo, at, rng_);  // copies the word
+    bool mumble = b_.onMoment(mo, at);  // copies the word
     const Model& m = b_.model();
     if (mumble && m.vol > 0) {
       line.vol = uint8_t(m.vol > 10 ? 10 : m.vol);
@@ -175,8 +189,9 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     int fill = doc["fill"] | -1;
     patternFill_ = fill;
     JsonArrayConst target = doc["target"];
-    targetX_ = target.size() == 2 ? target[0].as<int>() : -1;
-    targetY_ = target.size() == 2 ? target[1].as<int>() : -1;
+    auto onScreen = [](int v, int size) { return v < 0 ? 0 : v >= size ? size - 1 : v; };
+    targetX_ = target.size() == 2 ? onScreen(target[0].as<int>(), render::kWidth) : -1;
+    targetY_ = target.size() == 2 ? onScreen(target[1].as<int>(), render::kHeight) : -1;
     pattern_ = true;
     dirty_ = true;
     reply(from, "{\"t\":\"dbg.pattern\"}", 19);
@@ -185,10 +200,13 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
       uint32_t to = doc["freeze"];
       clock_.freeze(to);
       rng_.seed(to);
+      toolFrozen_ = true;
     } else if (doc["step"].is<uint32_t>()) {
       clock_.step(doc["step"].as<uint32_t>(), real);
+      toolFrozen_ = true;
     } else if (doc["run"].as<bool>()) {
       clock_.run(real);
+      toolFrozen_ = false;
     }
     char buf[64];
     int len = std::snprintf(buf, sizeof(buf), "{\"t\":\"dbg.clock\",\"now\":%lu,\"frozen\":%s}",
@@ -235,11 +253,13 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
 void Device::connected(Link link) {
   link_ = link;
   heardReal_ = hal_.realMs();
+  if (link == Link::kBle) bleUp_ = true;
   sendStatus(link);
 }
 
 void Device::disconnected(Link link) {
   if (link_ == link) link_ = Link::kNone;
+  if (link == Link::kBle) bleUp_ = false;
 }
 
 // BOOT and touch, turned into gestures (UX.md §4). Every press and touch
@@ -253,18 +273,18 @@ void Device::readInputs(uint32_t t) {
       break;
     case ButtonGesture::kTap:
       b_.pressUp(t);
-      b_.tap(t, rng_);
+      b_.tap(t);
       input("tap", t);
       emit("tap");
       break;
     case ButtonGesture::kHoldStart:
       b_.pressUp(t);
-      b_.talkOn(t, rng_);
+      b_.talkOn(t);
       input("talk_on", t);
       emit("talk_on");
       break;
     case ButtonGesture::kHoldEnd:
-      b_.talkOff(t, rng_);
+      b_.talkOff(t);
       input("talk_off", t);
       emit("talk_off");
       break;
@@ -273,10 +293,14 @@ void Device::readInputs(uint32_t t) {
   }
 
   // A touch anywhere is a tap, sent on release however long it was held.
-  // The press shows at once. The debug pattern ignores touches.
+  // The press shows at once. The panel misses readings under a light
+  // press, so its touch ends only after kTouchReleaseMs without contact;
+  // an injected one ends when it says. The debug pattern ignores touches.
   if (injTouch_ && int32_t(t - injTouchUntil_) >= 0) injTouch_ = false;
   int x = 0, y = 0;
-  bool touching = injTouch_ ? (x = injX_, y = injY_, true) : hal_.touch(x, y);
+  bool contact = injTouch_ ? (x = injX_, y = injY_, true) : hal_.touch(x, y);
+  if (contact) touchSeenAt_ = t, touchPanel_ = !injTouch_;
+  bool touching = contact || (touchDown_ && touchPanel_ && int32_t(t - touchSeenAt_) < int32_t(kTouchReleaseMs));
   bool faced = screenAt(t) != Screen::kPattern;
   if (touching && !touchDown_) {
     input("touch", t, x, y);
@@ -285,7 +309,7 @@ void Device::readInputs(uint32_t t) {
   if (!touching && touchDown_) {
     b_.pressUp(t);
     if (faced) {
-      b_.tap(t, rng_);
+      b_.tap(t);
       input("tap", t);
       emit("tap");
     }
@@ -296,6 +320,7 @@ void Device::readInputs(uint32_t t) {
 
 void Device::tick() {
   if (link_ != Link::kNone && hal_.realMs() - statusReal_ >= kStatusMs) sendStatus(link_);
+  if (toolFrozen_ && hal_.realMs() - dbgReal_ >= kThawMs) clock_.run(hal_.realMs()), toolFrozen_ = false;
   uint32_t t = now();
   b_.advance(t, rng_);
   readInputs(t);
@@ -310,7 +335,10 @@ void Device::tick() {
   if (screen != screen_) screen_ = screen, dirty_ = true;
   if (debugLabel(t) != labelDrawn_) dirty_ = true;
   bool moving = screen_ != Screen::kPattern && b_.moving(t);
-  if (dirty_ || ((moving || drawnMoving_) && t != drawnT_)) render(t);
+  // A frozen clock redraws on every step, so scenario frames stay exact,
+  // and the press squish on every pass, so the cap doesn't delay a press.
+  bool due = clock_.frozen() || b_.pressEasing(t) || hal_.realMs() - drawnReal_ >= kFrameMs;
+  if (dirty_ || ((moving || drawnMoving_) && t != drawnT_ && due)) render(t);
 }
 
 void Device::hush() {
@@ -363,6 +391,7 @@ void Device::render(uint32_t t) {
   if (labelDrawn_) canvas_.drawText(2, 2, labelDrawn_, render::inkAt(render::kInkDim, render::kLevels));
   drawnMoving_ = faced && b_.moving(t);
   drawnT_ = t;
+  drawnReal_ = hal_.realMs();
   dirty_ = false;
   frame_ = true;
 }

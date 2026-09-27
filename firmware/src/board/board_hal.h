@@ -35,8 +35,8 @@ class BoardHal : public app::Hal {
   const char* deviceId() override { return id_; }
   const char* bleState() override { return bleState_; }
   const char* bleName() override { return bleName_; }
-  const char* fwVersion() override { return BOOP_FW_VERSION; }
-  const char* gitSha() override { return BOOP_GIT_SHA; }
+  const char* fwVersion() override;
+  const char* gitSha() override;
 
  private:
   app::TouchCal cal_;         // from NVS; invalid until `boopctl calibrate` has run on this rotation

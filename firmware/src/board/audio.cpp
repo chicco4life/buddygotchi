@@ -143,7 +143,8 @@ void send(const Cmd& c) {
 
 bool audioBegin() {
   dac_continuous_config_t cfg = {};
-  cfg.chan_mask = DAC_CHANNEL_MASK_CH1;  // GPIO26 (DEVICE.md §2)
+  static_assert(pins::kDac == 26, "DAC_CHANNEL_MASK_CH1 is GPIO26 (DEVICE.md §2)");
+  cfg.chan_mask = DAC_CHANNEL_MASK_CH1;
   cfg.desc_num = kDmaBufs;
   cfg.buf_size = kDmaBytes;
   cfg.freq_hz = voice::kOutRate;

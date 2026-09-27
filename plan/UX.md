@@ -67,10 +67,11 @@ shows, the face eases up into the top 144 px at three-quarters size.
   word, or who needs you.
 - **Status strip.** How many sessions need you (amber, hidden at zero) and
   how many are working (grey), plus icons at the right for quiet and no
-  app.
+  app. With no app, only its icon shows.
 - **Debug label.** A debug-only aid, off unless the firmware is built with
-  `BOOP_DEBUG_LABEL=1` (the board build sets it in
-  `firmware/platformio.ini`). On the face, needs-you and no-app screens,
+  `BOOP_DEBUG_LABEL=1` (add it to the board's `build_flags` in
+  `firmware/platformio.ini` for a debugging session; the everyday build
+  leaves it off). On the face, needs-you and no-app screens,
   the name of what the face is showing sits in tiny faint 5×7 text at the
   top left: the moment's anim (`cheer`, `wiggle`, `listening`) or else the
   look (`idle`, `working`, `asleep`, `needs_you`; no app shows `asleep`). Frames drawn with a
@@ -94,7 +95,7 @@ shows, the face eases up into the top 144 px at three-quarters size.
 └──────────────────────────────────┘
 ```
 
-**No app.** The asleep face with an unplugged icon in the strip
+**No app.** The asleep face with only an unplugged icon in the strip
 ([BEHAVIORS.md](BEHAVIORS.md) §2).
 
 There are no other screens. The threads and stats screens are parked
@@ -113,7 +114,9 @@ agents.
 
 A press shorter than 400 ms is a tap, and holding BOOT for 400 ms or more
 starts push-to-talk until you let go. A touch is a tap however long it's
-held, and counts when you lift your finger. Every press and touch gets
+held, and counts when you lift your finger. The panel misses readings
+under a light press, so a touch counts as lifted only after 50 ms without
+contact. Every press and touch gets
 visible feedback within 20 ms, before the Mac hears about it: the face
 squashes a little.
 

@@ -4,11 +4,12 @@
 {"clock":1000}
 {"expect":{"screen":"needs_you"}}
 {"shot":"needs-you-long"}
-// The strip: amber needs-you count, grey working count, and the quiet and no-app icons at the right.
+// The strip: amber needs-you count, grey working count, and the quiet icon at the right.
 {"t":"state","v":1,"base":"working","busy":4,"wait":1,"quiet":10,"attn":{"agent":"claude","project":"jetpack","more":0}}
 {"clock":1200}
 {"shot":"strip-icons"}
+// With no app only the unplugged icon stays: the counts and quiet are stale.
 {"clock":31200}
 {"expect":{"screen":"no_app"}}
 {"clock":31400}
-{"shot":"strip-no-app-quiet"}
+{"shot":"strip-no-app"}
