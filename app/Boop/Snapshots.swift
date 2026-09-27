@@ -35,7 +35,6 @@ enum Snapshots {
                 }
                 for (name, model) in overviews(installer) { shot("overview-\(name)", model, pane: .overview) }
                 let settings = model(installer, status: status(sessions: [["codex", "landing", "work"]]))
-                settings.remembered = ["Ships on Fridays.", "Likes tests before lunch."]
                 try? installer.install(.claude)
                 settings.refreshHooks()
                 settings.restartAgents = true

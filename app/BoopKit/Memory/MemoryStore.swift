@@ -1,9 +1,9 @@
 import Foundation
 
 /// The only code that reads or writes the memory files (ARCHITECTURE.md §3.6,
-/// §4). It applies changes within each
-/// section's limits, writes atomically, snapshots the files to
-/// `history/<date>/`, and restores a file that won't parse.
+/// §4): who this Boop is, and which day it last saw. It writes atomically,
+/// snapshots the files to `history/<date>/`, and restores a file that won't
+/// parse.
 ///
 /// Hand edits are welcome: a file changed on disk is read again before the
 /// next change, so the edit isn't overwritten.
@@ -51,34 +51,15 @@ public final class MemoryStore {
         try snapshot(day: today)
     }
 
-    // MARK: Text for the prompt
-
-    public var longTermText: String { longTerm?.markdown ?? "" }
-
-    public var shortTermText: String { shortTerm?.markdown ?? "" }
-
     /// Today's date in `short-term.md`, for `Core.init`'s `lastActiveDay`.
     public var lastActiveDay: String? { shortTerm?.date }
 
     // MARK: Core effects
 
-    /// Applies the core's `.happened` and `.newDay`; ignores the rest.
+    /// Applies the core's `.newDay`; ignores the rest.
     public func apply(_ effect: CoreEffect) {
         refresh()
-        switch effect {
-        case .happened(let line):
-            guard var st = shortTerm else { return }
-            st.happened.append(line)
-            st.happened = Array(st.happened.suffix(MemoryLimits.happened))
-            while st.markdown.utf8.count > MemoryLimits.shortTermBytes && !st.happened.isEmpty {
-                st.happened.removeFirst()
-            }
-            save(st)
-        case .newDay(let date, let firstSeen):
-            startDay(date, firstSeen: firstSeen)
-        default:
-            break
-        }
+        if case .newDay(let date, let firstSeen) = effect { startDay(date, firstSeen: firstSeen) }
     }
 
     /// Snapshots both files to `history/<the old day>/` and starts
@@ -93,100 +74,6 @@ public final class MemoryStore {
         }
         save(ShortTerm(date: date, firstSeen: firstSeen))
     }
-
-    // MARK: Changes from actions
-
-    /// `remember` today: a line in today's Notes; the oldest drops past ten.
-    public func note(_ text: String) -> Result<String, Refusal> {
-        refresh()
-        guard var st = shortTerm else { return .failure(Refusal("no short-term memory yet")) }
-        let line: String
-        switch MemoryText.check(text, max: MemoryLimits.noteChars, names: false) {
-        case .failure(let why): return .failure(why)
-        case .success(let s): line = s
-        }
-        if st.notes.contains(where: { $0.lowercased() == line.lowercased() }) {
-            return .failure(Refusal("already noted"))
-        }
-        st.notes.append(line)
-        st.notes = Array(st.notes.suffix(MemoryLimits.notes))
-        while st.markdown.utf8.count > MemoryLimits.shortTermBytes && !st.happened.isEmpty {
-            st.happened.removeFirst()
-        }
-        save(st)
-        return .success(line)
-    }
-
-    public enum FactKind: String, CaseIterable, Sendable {
-        case aboutYou = "about_you"
-        case preference
-    }
-
-    /// `remember` a durable fact: a line in About you or Preferences.
-    public func remember(_ text: String, as kind: FactKind) -> Result<String, Refusal> {
-        refresh()
-        guard var lt = longTerm else { return .failure(Refusal("not set up")) }
-        let line: String
-        switch MemoryText.check(text, max: MemoryLimits.factChars, names: true, boopName: lt.name) {
-        case .failure(let why): return .failure(why)
-        case .success(let s): line = s
-        }
-        let all = lt.aboutYou + lt.preferences
-        if all.contains(where: { Self.same($0, line) }) { return .failure(Refusal("already remembered")) }
-        switch kind {
-        case .aboutYou:
-            guard lt.aboutYou.count < MemoryLimits.aboutYou else { return .failure(Refusal("About you is full")) }
-            lt.aboutYou.append(line)
-        case .preference:
-            guard lt.preferences.count < MemoryLimits.preferences else {
-                return .failure(Refusal("Preferences is full"))
-            }
-            lt.preferences.append(line)
-        }
-        return commit(lt).map { line }
-    }
-
-    /// `forget`: removes the About you or Preferences line that matches, or
-    /// the only one that contains the text.
-    public func forget(_ text: String) -> Result<String, Refusal> {
-        refresh()
-        guard var lt = longTerm else { return .failure(Refusal("not set up")) }
-        let needle = Self.key(text)
-        guard !needle.isEmpty else { return .failure(Refusal("empty")) }
-        let lists = [lt.aboutYou, lt.preferences]
-        var hits: [(list: Int, index: Int)] = []
-        for (l, list) in lists.enumerated() {
-            for (i, line) in list.enumerated() where Self.key(line) == needle { hits.append((l, i)) }
-        }
-        if hits.isEmpty {
-            for (l, list) in lists.enumerated() {
-                for (i, line) in list.enumerated() where Self.key(line).contains(needle) { hits.append((l, i)) }
-            }
-        }
-        guard hits.count == 1, let hit = hits.first else {
-            return .failure(Refusal(hits.isEmpty ? "nothing matches" : "\(hits.count) lines match"))
-        }
-        let removed: String
-        if hit.list == 0 { removed = lt.aboutYou.remove(at: hit.index) } else { removed = lt.preferences.remove(at: hit.index) }
-        return commit(lt).map { removed }
-    }
-
-    /// Writes long-term memory if it fits its budget.
-    func commit(_ lt: LongTerm) -> Result<Void, Refusal> {
-        guard lt.markdown.utf8.count <= MemoryLimits.longTermBytes else {
-            return .failure(Refusal("long-term memory is full"))
-        }
-        save(lt)
-        return .success(())
-    }
-
-    static func key(_ s: String) -> String {
-        s.lowercased().trimmingCharacters(in: looseEnds)
-    }
-
-    static let looseEnds = CharacterSet.whitespaces.union(CharacterSet(charactersIn: ".!?"))
-
-    static func same(_ a: String, _ b: String) -> Bool { key(a) == key(b) }
 
     // MARK: Files
 
@@ -275,15 +162,6 @@ public final class MemoryStore {
             try? write(longTerm.markdown, file)
         } else {
             log("memory: \(file) didn't read (\(error)) and there's no snapshot; kept it as \(file).broken")
-        }
-    }
-
-    func save(_ lt: LongTerm) {
-        do {
-            try write(lt.markdown, Self.longTermFile)
-            longTermValue = lt
-        } catch {
-            log("memory: writing \(Self.longTermFile) failed: \(error)")
         }
     }
 

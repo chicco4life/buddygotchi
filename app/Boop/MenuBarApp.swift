@@ -48,7 +48,6 @@ final class AppModel: ObservableObject {
     @Published var setup = SetupDraft()
     @Published var status: Runtime.Status?
     @Published var hooks: [HookInstaller.Agent: HookInstaller.Health] = [:]
-    @Published var remembered: [String] = []
     @Published var restartAgents = false
     /// Why the last Connect, Repair or Remove failed, per agent.
     @Published var hookErrors: [HookInstaller.Agent: String] = [:]
@@ -106,15 +105,6 @@ final class AppModel: ObservableObject {
             hookErrors[agent] = "\(error)"
         }
         refreshHooks()
-    }
-
-    func loadRemembered() {
-        runtime?.remembered { lines in Task { @MainActor in self.remembered = lines } }
-    }
-
-    func forget(_ line: String) {
-        runtime?.forget(line)
-        remembered.removeAll { $0 == line }
     }
 
     // The switches show the change at once; the runtime's next status confirms it.

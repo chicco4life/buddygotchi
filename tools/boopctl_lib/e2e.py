@@ -204,13 +204,7 @@ class Run:
 
 
 def check_after(run: Run, expected: dict[str, Any]) -> None:
-    """The memory files and logs once the app has stopped."""
-    short_term = (run.state / "short-term.md").read_text()
-    happened = short_term.split("## Happened", 1)[-1]
-    for want in expected["happened"]:
-        count = happened.count(want)
-        need = expected["happened"].count(want)
-        (run.say if count >= need else run.fail)(f"short-term Happened has {want!r} ×{count}")
+    """The app's files and logs once the app has stopped."""
     brain_log = run.debug_log.read_text() if run.debug_log.exists() else ""
     for want in expected["events"]:
         (run.say if want in brain_log else run.fail)(f"the harness saw an event with {want!r}: {want in brain_log}")

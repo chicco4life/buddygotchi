@@ -173,17 +173,11 @@ fixed. Pick one up by writing it into its spec first.
   answer only that subagent's request would clear it; it mustn't make an
   idle session working.
 - **Talk and memory are out of the brain.** Push-to-talk is inert, so
-  quiet mode has no way in, and nothing writes memory facts; both come
-  back as events and actions ([FUTURE.md](FUTURE.md)).
+  quiet mode has no way in, and memory keeps only Boop's name and the
+  day; both come back as events and actions ([FUTURE.md](FUTURE.md)).
 - **Some of Voice's words can't be picked.** The brain offers eleven of
   the 40 ([harness/DECISIONS.md](harness/DECISIONS.md) §3); the rest are
   recorded on the device for nothing until the lists grow.
-- **Temperament and Moments never change.** Nothing writes them since the
-  new day's reflection was parked. Decide whether they stay, go, or get a
-  writer ([FUTURE.md](FUTURE.md), "The new day's reflection").
-- **Memory's text checks are literal.** A duplicate has to be the same
-  text, so "landing launches on Monday" is kept beside "landing launches
-  Monday", and any `=` is refused as code ("jetpack = payments").
 - **A press takes about 20 ms to show, right at the budget**
   ([ARCHITECTURE.md](ARCHITECTURE.md) §9). The squish eases in over 60 ms,
   a block at a time, so its first changed pixel comes 20 ms after a BOOT

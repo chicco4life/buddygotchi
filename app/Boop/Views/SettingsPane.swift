@@ -19,7 +19,6 @@ struct SettingsPane: View {
                     PaneSection("Agents") { agents }
                     PaneSection("Device") { device }
                     PaneSection("Personality") { modes }
-                    PaneSection("What \(model.name) remembers") { remembered }
                 }
                 .padding(.horizontal, Theme.gutter)
                 .padding(.bottom, Theme.gapLoose)
@@ -206,38 +205,6 @@ struct SettingsPane: View {
             .padding(.horizontal, 12).padding(.vertical, 10)
         }
         .transition(.opacity)
-    }
-
-    // MARK: Remembered
-
-    private var remembered: some View {
-        Card(padding: 0) {
-            VStack(spacing: 0) {
-                if model.remembered.isEmpty {
-                    Text("Nothing yet. \(model.name) will keep what you tell it here once talking to it comes back.")
-                        .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                }
-                ForEach(Array(model.remembered.enumerated()), id: \.element) { index, line in
-                    if index > 0 { Hairline().padding(.horizontal, 12) }
-                    HStack(alignment: .firstTextBaseline, spacing: Theme.gapSnug) {
-                        Text(line).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
-                        Button {
-                            withAnimation(.boopSettle) { model.forget(line) }
-                        } label: {
-                            Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
-                        }
-                        .buttonStyle(.quiet)
-                        .help("Forget this")
-                        .accessibilityLabel("Forget “\(line)”")
-                    }
-                    .padding(.leading, 12).padding(.trailing, 4).padding(.vertical, 6)
-                }
-            }
-        }
     }
 }
 

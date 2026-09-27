@@ -1,4 +1,3 @@
 {
-  "happened": ["claude · jetpack · finished", "claude · jetpack · deploy · failed", "codex · landing · finished", "codex · landing · finished"],
-  "events": ["claude started turn 1 on", "claude finished turn 1 on", "failed (rate limit)", "codex finished turn 1 on"]
+  "events": ["claude started turn 1 on", "claude finished turn 1 on", "claude's deploy failed on", "failed (rate limit)", "codex finished turn 1 on"]
 }

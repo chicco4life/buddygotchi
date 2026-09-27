@@ -13,8 +13,6 @@ public enum CoreEffect: Equatable, Sendable {
     case mumble(feeling: String, word: String?)
     /// Something that happened, for the harness (harness/EVENTS.md).
     case event(Event)
-    /// A line for `short-term.md`'s Happened section.
-    case happened(String)
     /// The first activity of a new day: short-term starts fresh.
     case newDay(date: String, firstSeen: String)
     /// Push-to-talk: start (true) or stop listening on the Mac's mic.
@@ -30,7 +28,6 @@ public enum CoreEffect: Equatable, Sendable {
         case .moment(let anim): "moment \(anim)"
         case .mumble(let feeling, let word): "mumble \(feeling)" + (word.map { " \($0)" } ?? "")
         case .event(let e): "event " + e.summary
-        case .happened(let line): "happened \(line)"
         case .newDay(let date, let firstSeen): "new-day \(date) first seen \(firstSeen)"
         case .listen(let on): "listen \(on)"
         case .endListening: "moment empty"

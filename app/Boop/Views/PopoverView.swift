@@ -41,7 +41,6 @@ struct PopoverView: View {
             HStack {
                 if model.pane == .overview {
                     Button {
-                        model.loadRemembered()
                         model.pane = .settings
                     } label: {
                         Label("Settings", systemImage: "gearshape")

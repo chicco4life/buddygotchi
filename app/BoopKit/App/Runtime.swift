@@ -361,7 +361,7 @@ public final class Runtime: @unchecked Sendable {
                 playRule(DeviceMoment(say: voice.line(f, word: word, seed: chatterSeed)))
             case .event(let event):
                 harness.take(event)
-            case .happened, .newDay:
+            case .newDay:
                 memory.apply(effect)
             case .listen(let on):
                 // A brain mumble queued before the mic went on would end
@@ -502,21 +502,6 @@ public final class Runtime: @unchecked Sendable {
                 useBrain()
                 changed()
             }
-        }
-    }
-
-    /// What Boop remembers about you, for the settings screen.
-    public func remembered(_ done: @escaping @Sendable ([String]) -> Void) {
-        home.async { [self] in
-            let lt = memory.longTerm
-            done((lt?.aboutYou ?? []) + (lt?.preferences ?? []))
-        }
-    }
-
-    /// Deletes one remembered line, from the settings screen.
-    public func forget(_ line: String) {
-        home.async { [self] in
-            if case .failure(let why) = memory.forget(line) { options.log("settings: can't forget: \(why)") }
         }
     }
 

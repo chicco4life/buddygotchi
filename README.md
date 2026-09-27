@@ -80,7 +80,7 @@ tool is described in [plan/VERIFICATION.md](plan/VERIFICATION.md) §2.
 - **Are my agents' hooks reaching Boop?** Run `skills/doctor/doctor.sh`
   from inside the agent. It says what to do next.
 - **What is the board doing?** `tools/boopctl ping`, `state` or `shot`.
-- **What does Boop remember?** `long-term.md` and `short-term.md` in
+- **What does Boop remember?** Its name and voice in `long-term.md`, in
   `~/Library/Application Support/Boop`, next to `boop.log`.
 
 The specs start at [plan/README.md](plan/README.md), and the repo layout

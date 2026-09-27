@@ -77,7 +77,7 @@ talks to the device.
 | Brain | Jev: answers multiple-choice questions about a plain-text state, with probabilities | Everything else |
 | Actions | Carry out one call each, checking their own rules | Whether a rule or the brain called them |
 | Voice | Turns a feeling and an optional word into Minion speech | Who asked, or why |
-| Memory store | Reads and writes the memory files and their snapshots; supplies their text and applies changes within limits | Models, the device |
+| Memory store | Reads and writes the memory files and their snapshots | Models, the device |
 | Device link | Sends snapshots and moments, and receives taps, talk and the device's other messages, over Bluetooth or USB | What any of it means |
 
 ### 3.1 Adapters
@@ -97,8 +97,8 @@ streak into the brain's inputs ([HARNESS.md](harness/HARNESS.md) §2); taps and
 
 In code the core is a pure state machine. Each event, device input or
 one-second tick goes in with the time, and effects come out: a snapshot, a
-moment or a mumble to play, an event for the harness, a
-Happened line or a new day for the memory store, the mic on or off. The
+moment or a mumble to play, an event for the harness, a new day for the
+memory store, the mic on or off. The
 app hands each effect to the part that carries it out, so every rule is
 testable on a virtual clock. Timers run on a steady clock that never steps
 and keeps counting while the Mac sleeps, so setting the Mac's clock back
@@ -169,17 +169,18 @@ words go nowhere: talk is out of the brain until it comes back
 ## 4. Memory files
 
 Boop's memory is two Markdown files in the state directory (§4.4):
-`long-term.md`, who this Boop is and what it knows about you, and
-`short-term.md`, today, which starts fresh each day. They're out of the
-brain for now: nothing writes facts to them, and Jev's state doesn't
-include them ([FUTURE.md](FUTURE.md)). The steering files that shape the
+`long-term.md`, who this Boop is, and `short-term.md`, which day Boop last
+saw. They're out of the brain for now: Jev's state doesn't include them,
+and nothing writes what Boop learns about you ([FUTURE.md](FUTURE.md)).
+Files from before 2026-09-27 have more sections (Temperament, Moments,
+About you, Preferences, Notes, Happened); they still load, and the store
+leaves them be. The steering files that shape the
 brain are read-only and live with the app (§4.1).
 
 **A new day** starts at the day's first activity: an agent event, a tap or
 pressing Talk. The memory store snapshots both writable files to
 `history/<date>/`, where `<date>` is the day before (setup also snapshots,
-under the day Boop hatched), and `short-term.md` starts fresh. Nothing
-looks back on the day, so Temperament and Moments change only by hand.
+under the day Boop hatched), and `short-term.md` starts fresh.
 
 The files are plain text, and hand edits are welcome: the store reads a
 file again when it changes on disk, before its next change, so an edit
@@ -188,13 +189,6 @@ isn't overwritten. A file that won't parse is kept as `<file>.broken`.
 `short-term.md` snapshots are always of an earlier day, so it starts fresh
 instead, keeping the file's date if one can be found so the day doesn't
 start twice.
-
-Each file has a size budget, so it can go back into the brain's state
-without trimming: `long-term.md` at most 3,200
-bytes (about 800 tokens) and `short-term.md` at most 2,400 bytes (about
-600). The line limits below mostly keep them there; when they don't, a
-change to long-term memory is refused ("full") and short-term memory drops
-its oldest Happened lines.
 
 ### 4.1 The steering files
 
@@ -211,68 +205,25 @@ From the memory tests (`MemoryTests.sample`):
 ```markdown
 ## Boop
 name: Pip · hatched: 2026-10-02 · nature: cheeky · seed: 7f3a
-
-### Temperament
-Nosy and a bit smug. Trusts Codex more than it used to.
-Gets huffy about flaky tests.
-
-### Moments
-- 2026-10-09: first all-nighter together; the migration finally passed.
-
-## About you
-- Ships on Fridays.
-- Mostly works on landing and jetpack.
-
-## Preferences
-- Likes it quiet before 10am.
 ```
 
-| Section | Written by | Rule |
-| --- | --- | --- |
-| Boop (name line) | The app, at setup | Never changes. The name is 1–23 characters without `·` or `:`; `nature` is the person's one answer (sweet or cheeky); `seed` is random and picks Boop's voice dialect |
-| Temperament | You, by hand | Only the first five lines are kept |
-| Moments | You, by hand | Only the newest 20 are kept. Each starts with its date; one without makes the file unreadable |
-| About you | You, by hand; the brain again once memory writes come back ([FUTURE.md](FUTURE.md)) | At most 30 lines of at most 100 characters: durable facts about you. A new line when full is refused; you free room in Settings or by editing the file |
-| Preferences | You, by hand; the brain again later, as above | At most 15 lines; the same limits. How you like things done |
-
-A line's checks are simple rules in the memory store, and they err on the
-side of refusing: one line, nothing already there, no links or addresses,
-no code (backticks, braces, `=`, `;`, `$`, `<`, `>`), nothing path-shaped,
-nothing that looks like a key, and no capitalised word mid-sentence other
-than days, months, agents, acronyms and Boop's own name, since long-term
-memory keeps no one else's name.
-
-The Boop section is who this Boop is. It lives only on the Mac, so
-reflashing or replacing the device doesn't change it, and the app has no
-reset button. In Settings you can see and delete lines in About you and
-Preferences; the Boop section isn't shown.
+The app writes it at setup and never changes it. The name is 1–23
+characters without `·` or `:`; `nature` is the person's one answer (sweet
+or cheeky); `seed` is random and picks Boop's voice dialect. It lives only
+on the Mac, so reflashing or replacing the device doesn't change it, and
+the app has no reset button.
 
 ### 4.3 `short-term.md`
 
-From the test fixtures (`app/Tests/Fixtures/memory/short-term.md`):
+From the memory tests (`testANewDaySnapshotsAndStartsFresh`):
 
 ```markdown
 ## Today
-2026-10-14 · first seen 08:52
-
-## Notes
-- jetpack is the payments service
-- landing launches Monday
-- said "shut up for an hour" at 13:10
-
-## Happened
-- 09:13 claude · jetpack · finished (4 min)
-- 11:20 codex · landing · build · failed
-- 14:02 codex · landing · tests · failed
-- 14:05 claude · jetpack · finished (18 min)
-- 17:55 codex · jetpack · finished (26 min)
+2026-10-15 · first seen 09:01
 ```
 
-| Section | Written by | Rule |
-| --- | --- | --- |
-| Today | Core | The date and the time of the first activity |
-| Notes | You, by hand; the brain again later, as above | At most 10 lines of at most 80 characters: facts about a project or this session. The oldest drops first. The checks above, but names are fine |
-| Happened | Core | A line for each finish of 30 s or more and each failed turn; the last 40 |
+The core's new day writes it: the date and the time of the first
+activity. It's how a restart knows the day has already started.
 
 ### 4.4 State directory
 

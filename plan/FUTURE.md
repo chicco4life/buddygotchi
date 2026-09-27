@@ -31,7 +31,7 @@ example `git show v1-full:plan/BEHAVIORS.md`. Bring one back at a time.
 | `nod` | A nod when "needs you" cleared, and on a tap while it showed | `fd1c083` BEHAVIORS §5 |
 | `thinking` and `shrug` | A thinking face while waiting for the brain's reply, and a shrug when it was too slow or the mic couldn't start; `listening` now covers the wait | `fd1c083` BEHAVIORS §3.3 |
 | The no-app look | Eyes open, glancing about while waiting for the Mac; now the asleep face with the unplugged icon | `fd1c083` BEHAVIORS §2 |
-| The new day's reflection | At a day's first activity the brain looked back on yesterday and could keep a line about you, a preference, a temperament sentence or a moment in `long-term.md` (only Jev ever did). Without it Temperament and Moments don't change; About you and Preferences still grow when you tell Boop something lasting | `9bb8004` HARNESS §2, §5; ARCHITECTURE §4 |
+| The new day's reflection | At a day's first activity the brain looked back on yesterday and could keep a line about you, a preference, a temperament sentence or a moment in `long-term.md` (only Jev ever did). Its sections, and About you, Preferences, Notes and Happened, went with the memory store's writes on 2026-09-27 | `9bb8004` HARNESS §2, §5; ARCHITECTURE §4 |
 
 ## Character and growth
 
@@ -84,7 +84,8 @@ example `git show v1-full:plan/BEHAVIORS.md`. Bring one back at a time.
   Boop listens and doesn't reply. Bringing it back means a talk event,
   and actions for what the words ask: quiet mode for a while or its end,
   a hurt mumble when told off, and remembering a fact
-  ([BEHAVIORS.md](BEHAVIORS.md) §3.3 had the rules; git keeps the code).
+  ([BEHAVIORS.md](BEHAVIORS.md) §3.3 had the rules; the memory store's
+  fact writing and its privacy checks are at `8abb237`).
   Quiet mode has no other way in until then.
 - **`[PENDING]` in HISTORY.** Mark a brain mumble still waiting its turn
   or playing, so Jev doesn't pile a second one behind it. The moment's

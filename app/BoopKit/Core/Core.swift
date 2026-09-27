@@ -269,7 +269,6 @@ public final class Core {
                 // a finish.
                 s.topic = check.topic
                 sessions[key] = s
-                failed(s, durationMs: ms, error: nil, now, &fx)
                 turnEndEvent(s, outcome: "failed", error: nil, lengthMs: ms, reaction: nil, now, &fx)
             } else {
                 sessions[key] = s
@@ -284,7 +283,6 @@ public final class Core {
             s.check = nil
             s.lastTurnEndedAt = now
             sessions[key] = s
-            failed(s, durationMs: ms, error: event.detail.error, now, &fx)
             turnEndEvent(s, outcome: "failed", error: event.detail.error, lengthMs: ms, reaction: nil, now, &fx)
         case .sessionEnd:
             sessions[key] = nil
@@ -545,9 +543,6 @@ public final class Core {
     func finished(_ s: Session, durationMs ms: Int64, _ now: Int64, _ fx: inout [CoreEffect]) -> Bool {
         let cheer = config.rules.cheers(lengthMs: ms) && !talking(now)
         if cheer { play("cheer", &fx) }
-        if ms >= 30_000 {
-            fx.append(.happened("\(clock(now)) \(s.agent.short) · \(s.project) · finished (\(Band.took(ms)))"))
-        }
         return cheer
     }
 
@@ -583,13 +578,6 @@ public final class Core {
         pokedAt = now
         fx.append(.event(Event(.pokes, at: now, line: line, reaction: EventLine.wiggled,
                                wakesBrain: wakes(now), facts: facts)))
-    }
-
-    /// A failed turn: no moment of its own; the session just goes idle
-    /// (BEHAVIORS.md §3.1). The brain still hears of it.
-    func failed(_ s: Session, durationMs ms: Int64, error: String?, _ now: Int64, _ fx: inout [CoreEffect]) {
-        let topic = s.topic.map { " · \($0)" } ?? ""
-        fx.append(.happened("\(clock(now)) \(s.agent.short) · \(s.project)\(topic) · failed"))
     }
 
     /// Nothing wakes the brain while something needs you, or in quiet mode.

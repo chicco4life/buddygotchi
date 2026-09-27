@@ -1,77 +1,34 @@
 import Foundation
 
-/// The limits on the memory files (ARCHITECTURE.md §4.2–4.3). The byte
-/// budgets keep each file within its share of the prompt (HARNESS.md §4), at
-/// about four bytes a token.
-public enum MemoryLimits {
-    public static let temperamentSentences = 5
-    public static let moments = 20
-    public static let aboutYou = 30
-    public static let preferences = 15
-    public static let factChars = 100
-    public static let notes = 10
-    public static let noteChars = 80
-    public static let happened = 40
-    /// About 800 tokens.
-    public static let longTermBytes = 3200
-    /// About 600 tokens.
-    public static let shortTermBytes = 2400
-}
-
 public struct MemoryParseError: Error, Equatable, CustomStringConvertible {
     public var description: String
     init(_ description: String) { self.description = description }
 }
 
-/// `long-term.md`: who this Boop has become (ARCHITECTURE.md §4.2).
+/// `long-term.md`: who this Boop is (ARCHITECTURE.md §4.2).
 public struct LongTerm: Equatable, Sendable {
     public enum Nature: String, Sendable { case sweet, cheeky }
-
-    public struct Moment: Equatable, Sendable {
-        public var date: String
-        public var text: String
-    }
 
     public var name: String
     public var hatched: String
     public var nature: Nature
     /// Picks the voice dialect. Written as hex.
     public var seed: UInt64
-    public var temperament: [String]
-    public var moments: [Moment]
-    public var aboutYou: [String]
-    public var preferences: [String]
 
-    public init(name: String, hatched: String, nature: Nature, seed: UInt64, temperament: [String] = [],
-                moments: [Moment] = [], aboutYou: [String] = [], preferences: [String] = []) {
+    public init(name: String, hatched: String, nature: Nature, seed: UInt64) {
         self.name = name
         self.hatched = hatched
         self.nature = nature
         self.seed = seed
-        self.temperament = temperament
-        self.moments = moments
-        self.aboutYou = aboutYou
-        self.preferences = preferences
     }
 
     public var markdown: String {
-        var out = "## Boop\n"
-        out += "name: \(name) · hatched: \(hatched) · nature: \(nature.rawValue) · seed: \(String(seed, radix: 16))\n"
-        out += "\n### Temperament\n"
-        out += temperament.map { $0 + "\n" }.joined()
-        out += "\n### Moments\n"
-        out += moments.map { "- \($0.date): \($0.text)\n" }.joined()
-        out += "\n## About you\n"
-        out += aboutYou.map { "- \($0)\n" }.joined()
-        out += "\n## Preferences\n"
-        out += preferences.map { "- \($0)\n" }.joined()
-        return out
+        "## Boop\nname: \(name) · hatched: \(hatched) · nature: \(nature.rawValue) · seed: \(String(seed, radix: 16))\n"
     }
 
     /// Reads the file. Hand edits are fine as long as the Boop line still
-    /// reads; list items may drop their `- `. Anything past a section's limit
-    /// is left out, and so is a section this version doesn't know, like the
-    /// Growth section files from before 2026-09-26 have.
+    /// reads. Other sections, like the ones files from before 2026-09-27
+    /// have, are left out and left alone.
     public static func parse(_ text: String) throws -> LongTerm {
         let sections = MarkdownSections(text)
         guard let boop = sections["Boop"]?.first(where: { !$0.isEmpty }) else {
@@ -82,20 +39,7 @@ public struct LongTerm: Equatable, Sendable {
               let nature = fields["nature"].flatMap(Nature.init(rawValue:)),
               let seed = fields["seed"].flatMap({ UInt64($0, radix: 16) })
         else { throw MemoryParseError("the Boop line doesn't read: \(boop)") }
-
-        var moments: [Moment] = []
-        for line in items(sections["Moments"]) {
-            guard let colon = line.firstIndex(of: ":") else { throw MemoryParseError("a moment has no date: \(line)") }
-            let date = line[..<colon].trimmingCharacters(in: .whitespaces)
-            guard LocalTime.isDay(date) else { throw MemoryParseError("a moment has no date: \(line)") }
-            moments.append(Moment(date: date, text: line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)))
-        }
-        return LongTerm(
-            name: name, hatched: hatched, nature: nature, seed: seed,
-            temperament: Array(items(sections["Temperament"]).prefix(MemoryLimits.temperamentSentences)),
-            moments: Array(moments.suffix(MemoryLimits.moments)),
-            aboutYou: Array(items(sections["About you"]).prefix(MemoryLimits.aboutYou)),
-            preferences: Array(items(sections["Preferences"]).prefix(MemoryLimits.preferences)))
+        return LongTerm(name: name, hatched: hatched, nature: nature, seed: seed)
     }
 }
 
@@ -103,27 +47,17 @@ public struct LongTerm: Equatable, Sendable {
 public struct ShortTerm: Equatable, Sendable {
     public var date: String
     public var firstSeen: String
-    public var notes: [String]
-    public var happened: [String]
 
-    public init(date: String, firstSeen: String, notes: [String] = [], happened: [String] = []) {
+    public init(date: String, firstSeen: String) {
         self.date = date
         self.firstSeen = firstSeen
-        self.notes = notes
-        self.happened = happened
     }
 
-    public var markdown: String {
-        var out = "## Today\n\(date) · first seen \(firstSeen)\n"
-        out += "\n## Notes\n"
-        out += notes.map { "- \($0)\n" }.joined()
-        out += "\n## Happened\n"
-        out += happened.map { "- \($0)\n" }.joined()
-        return out
-    }
+    public var markdown: String { "## Today\n\(date) · first seen \(firstSeen)\n" }
 
     /// Reads the file. Anything else on the Today line, like the `mood:`
-    /// files from before 2026-09-26 have, is left out.
+    /// files from before 2026-09-26 have, and other sections, like the
+    /// Notes and Happened of files from before 2026-09-27, are left out.
     public static func parse(_ text: String) throws -> ShortTerm {
         let sections = MarkdownSections(text)
         guard let today = sections["Today"]?.first(where: { !$0.isEmpty }) else {
@@ -137,19 +71,7 @@ public struct ShortTerm: Equatable, Sendable {
         for part in parts.dropFirst() where part.hasPrefix("first seen ") {
             firstSeen = String(part.dropFirst("first seen ".count))
         }
-        return ShortTerm(date: date, firstSeen: firstSeen,
-                         notes: Array(items(sections["Notes"]).suffix(MemoryLimits.notes)),
-                         happened: Array(items(sections["Happened"]).suffix(MemoryLimits.happened)))
-    }
-}
-
-/// The non-empty lines of a section, without their `- `.
-func items(_ lines: [String]?) -> [String] {
-    (lines ?? []).compactMap { line in
-        var s = Substring(line)
-        if s.hasPrefix("- ") || s.hasPrefix("* ") { s = s.dropFirst(2) }
-        let t = s.trimmingCharacters(in: .whitespaces)
-        return t.isEmpty ? nil : t
+        return ShortTerm(date: date, firstSeen: firstSeen)
     }
 }
 

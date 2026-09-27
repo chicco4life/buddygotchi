@@ -278,8 +278,7 @@ an agent can't use. `make e2e` (`tools/boopctl e2e`) does all of it:
    hook), `wait_ms`, and `advance_ms` (moves the app's clock).
 4. Latency runs from launching `boop-hook` to the board's `rx.state` going
    up. A hook that changes nothing sends no `state` and is left out.
-5. Afterwards it checks the memory's Happened lines and the harness's
-   events against the fixtures' `expect.json`, that no `PRIVATE_` marker from the
+5. Afterwards it checks the harness's events against the fixtures' `expect.json`, that no `PRIVATE_` marker from the
    fixtures reached any app file (`debug.jsonl` included), and, from
    `boop.log`, that every brain moment came after the rules' reaction and
    didn't cut a rule moment short.

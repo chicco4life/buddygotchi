@@ -114,7 +114,6 @@ final class CoreAgentWorkTests: XCTestCase {
         let rig = CoreRig()
         let fx = rig.turn(1_200_000)
         XCTAssertEqual(moments(fx), ["cheer"], "one size")
-        XCTAssertTrue(fx.contains(.happened("14:20 claude · landing · finished (20 min)")))
         XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": done after 20 min, a very long turn, 0 tools."#])
         XCTAssertEqual(events(fx).first?.reaction, "Boop cheered on its own.")
         XCTAssertEqual(events(fx).first?.facts["length_ms"], .int(1_200_000))
@@ -156,7 +155,6 @@ final class CoreAgentWorkTests: XCTestCase {
         XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"]])
         XCTAssertEqual(moments(fx), [])
         XCTAssertEqual(events(fx).map { $0.facts["outcome"] }, ["stopped"])
-        XCTAssertFalse(fx.contains { if case .happened = $0 { return true } else { return false } })
         XCTAssertEqual(mumbles(rig.wait(10 * 60_000)), [], "no working chatter")
 
         rig.send(.turnStart, session: "s2")
@@ -206,7 +204,6 @@ final class CoreAgentWorkTests: XCTestCase {
         let fx = rig.send(.turnFailed)
         XCTAssertEqual(moments(fx), [])
         XCTAssertEqual(rig.state.base, "idle")
-        XCTAssertTrue(fx.contains(.happened("14:01 claude · landing · tests · failed")))
         XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": failed after 1 min, a long turn, 0 tools."#])
         XCTAssertNil(events(fx).first?.reaction, "the rules did nothing")
         XCTAssertEqual(moments(rig.wait(5000)), [], "nothing follows")
@@ -227,7 +224,6 @@ final class CoreAgentWorkTests: XCTestCase {
         let fx = rig.send(.turnEnd)
         XCTAssertEqual(moments(fx), [])
         XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": failed after 1 min, a long turn, 4 tools (1 failed). Tests failing, docs edited."#])
-        XCTAssertTrue(fx.contains(.happened("14:01 claude · landing · tests · failed")))
         XCTAssertEqual(moments(rig.wait(2000)), [])
     }
 
