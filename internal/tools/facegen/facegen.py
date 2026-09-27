@@ -63,7 +63,7 @@ BLINK_KEYS = [0.0, 0.76, 0.79, 1.0]
 # rounding.
 SAMPLES = [0, 150, 420, 700, 1100, 1650, 2300, 3100, 4200, 5500, 7300, 9900]
 # A design with nothing moving but the blink, or nothing at all, still
-# loops, in this time.
+# loops, in this time (plan/UX.md §2).
 STILL_LOOP_MS = 1000
 
 
@@ -135,8 +135,7 @@ class Scene:
         these. It doesn't check that the design ends as it starts."""
         timed = [tr.dur for g in self.groups if g.role not in ("eyes_open", "eyes_closed")
                  for tr in (g.move, g.show) if tr]
-        blinks = [tr.dur for g in self.groups if g.role in ("eyes_open", "eyes_closed") for tr in (g.move, g.show) if tr]
-        return max(timed or blinks or [STILL_LOOP_MS])
+        return max(timed or [STILL_LOOP_MS])
 
 
 # ---- Reading the SVGs --------------------------------------------------------

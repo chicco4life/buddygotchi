@@ -82,13 +82,13 @@ and a mood change mid-cheer keeps its clock too.
 
 **Loops.** A design's loop is how long it takes to play once through:
 its longest animation, leaving out the blink, which the device times on
-its own. `facegen` reads it from each SVG's timing, so a new design
-brings its own, and writes it for the device and the Mac alike
-([DEVICE.md](DEVICE.md) §6). Loops are what moments are counted in: the
-cheer plays a number of them, and a reaction's face holds a number of
-loops of the design it's drawn in, ending on a boundary of that
-design's clock, where a design made to loop is back at its start
-([PROTOCOL.md](PROTOCOL.md) §3).
+its own (1 s for a design with nothing else moving). `facegen` reads it
+from each SVG's timing, so a new design brings its own, and writes it
+for the device and the Mac alike ([DEVICE.md](DEVICE.md) §6). Loops
+are what moments are counted in: the cheer plays a number of them, and
+a reaction's face holds a number of loops of the design it's drawn in,
+ending on a boundary of that design's clock, where a design made to
+loop is back at its start ([PROTOCOL.md](PROTOCOL.md) §3).
 
 ### What the device adds
 

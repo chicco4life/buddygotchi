@@ -184,10 +184,9 @@ drops it rather than send it more than 5 s late
 with neither `anim` nor `say`.
 
 On the device, a moment plays as it arrives. A design's loop is how long
-it takes to play once through: its longest animation, leaving out the
-blink, which the device times on its own (`loopMs` in `faces.h`,
-[DEVICE.md](DEVICE.md) §6; the Mac has the same numbers in
-`FaceLoops`).
+it takes to play once through ([UX.md](UX.md) §2): `loopMs` in
+`faces.h` ([DEVICE.md](DEVICE.md) §6), and the same numbers on the Mac
+in `FaceLoops`.
 
 - An animation replaces the moment playing, and stops any line. The
   cheer plays its `loops` of its design, which starts over each time,
