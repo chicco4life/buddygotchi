@@ -13,7 +13,7 @@ from boopctl_lib import cli  # noqa: E402
 from fake_board import FakeBoard  # noqa: E402
 
 COMMANDS = ["ping", "state", "shot", "send", "play", "mumble", "sim", "run", "perf", "soak", "e2e", "bridge",
-            "cam", "dash", "calibrate"]
+            "cam", "dash", "day", "calibrate"]
 
 
 class CLITests(unittest.TestCase):

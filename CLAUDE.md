@@ -153,6 +153,7 @@ unpushed local `main`.
 | `Makefile`, `internal/Makefile`, `internal/tools/`, `internal/app/BoopDev/`, `internal/skills/`, tests | `VERIFICATION.md`, this file, `README.md` |
 | `internal/app/Boop/` (`--headless`, `--snapshots`), `internal/app/BoopDevKit/Replay.swift`, `internal/firmware/sim/`, `internal/firmware/test/` | `VERIFICATION.md` |
 | `internal/tools/boopctl_lib/dash/`, the dev lines and the dashboard's lines in `debug.jsonl` | `DASHBOARD.md` (and `harness/HARNESS.md` §9) |
+| `internal/tools/boopctl_lib/day.py`, or any `debug.jsonl` line it reads | `harness/HARNESS.md` §9 (A day's summary), `VERIFICATION.md` §2 |
 | `internal/app/BoopDevKit/Eval/`, `internal/app/Evals/` | `EVALS.md` |
 | `Package.swift`, what goes in `internal/` | `ARCHITECTURE.md` §10, `internal/README.md`, this file |
 | Structure, boundaries or a budget | `ARCHITECTURE.md` |

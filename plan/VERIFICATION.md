@@ -46,6 +46,7 @@ launch the menu-bar app or run the whole eval.
 | `make run` | Builds, then runs the menu-bar app with Bluetooth. The owner's; never from an agent's shell |
 | `make debug` | The same with `--debug` |
 | `make dash` | The dashboard ([DASHBOARD.md](DASHBOARD.md)) for the app `make debug` started, in a second terminal |
+| `make day` | What the everyday app did in a day, and why, from the logs `make debug` leaves (`boopctl day`, below); `DATE=YYYY-MM-DD` picks the day, the newest line's by default |
 | `make flash` | Builds the firmware and uploads it over USB; `BOOP_PORT` picks the port |
 | `make eval` | Builds, then runs the eval scenarios against Jev, 3 runs each (L5); fails without `BOOP_JEV_KEY` |
 | `make clean` | Deletes `.build` and `firmware/.pio` |
@@ -56,10 +57,10 @@ launch the menu-bar app or run the whole eval.
 | `make -C internal e2e` | Builds, then runs the pipeline check (L4) |
 | `make -C internal faces` | Regenerates the faces (`firmware/assets/faces.h`, the popover's `app/Boop/Views/FaceDesigns.swift`, the designs' loops for the Mac in `app/BoopKit/Core/FaceLoops.swift`, and the frames `fw-test` checks) from the mood designs in `internal/tools/facegen/design/svg/`. It first draws each design at a dozen moments in Google Chrome and fails unless facegen's own drawing matches pixel for pixel |
 | `make -C internal tools` | Makes or refreshes `internal/tools/.venv` (pyserial, Pillow, Textual). `internal/tools/boopctl` makes it on first run |
-| `make -C internal tools-test` | The tools' own tests, with no board or camera: `boopctl`'s commands and link, the dashboard (`test_dash.py`) and the webcam recorder on synthetic video |
+| `make -C internal tools-test` | The tools' own tests, with no board or camera: `boopctl`'s commands and link, the dashboard (`test_dash.py`), the day's summary (`test_day.py`) and the webcam recorder on synthetic video |
 
-**`internal/tools/boopctl`**, the board over USB, the simulator and the
-dashboard. `--port PORT` picks the serial port (default `$BOOP_PORT` or
+**`internal/tools/boopctl`**, the board over USB, the simulator, the
+dashboard and the day's summary. `--port PORT` picks the serial port (default `$BOOP_PORT` or
 the first `/dev/cu.usbserial-*`). Without it, while a bridge runs (below),
 commands go through the bridge.
 
@@ -79,6 +80,7 @@ commands go through the bridge.
 | `bridge [--socket PATH] [--quiet]` | Owns the serial port and shares it on a Unix socket (below) |
 | `cam frame\|pattern\|clip [name]` | The webcam helpers (L3). `--seconds N` for a clip (8, at most 10), `--usb bottom\|right\|top\|left` for framing, `--camera ID` (default `$BOOP_CAMERA` or the built-in camera) |
 | `dash [--state-dir DIR] [--socket PATH]` | The live dashboard ([DASHBOARD.md](DASHBOARD.md)) |
+| `day [--state-dir DIR] [--date YYYY-MM-DD] [file…]` | What Boop did in a day, and why, from debug mode's logs: the state directory's `debug.jsonl` and the earlier launches' kept beside it, oldest first (the everyday app's by default), or the files named, oldest launch first. A table by the hour (cheers, chatter, reactions and their faces, chirps, mood changes, passes, dropped passes, reactions that didn't happen, taps and minutes needing you), then the brain's passes, each mood change and what made it, each time something needed you and how long it took to clear, and why reactions didn't happen ([harness/HARNESS.md](harness/HARNESS.md) §9). `--date` defaults to the newest line's day; it exits 1 when that day has no lines |
 | `calibrate` | Touch calibration: a person taps crosses on the screen (L6). `--show` prints the stored map, `--show --clear` forgets it |
 
 **`.build/debug/boopdev`**, the developer CLI.
@@ -326,7 +328,9 @@ Only a person can check Bluetooth (`make run`), real touches and
 calibration (`boopctl calibrate`), sound by ear (`boopctl mumble`,
 `mumble --board-volume`, `mumble --levels`, `play needs`), real Claude
 Code and Codex sessions, the Mac app in the real menu bar, and how Boop
-feels. The checks still waiting are in [PLAN.md](PLAN.md).
+feels. A day of real use under `make debug` reads back with `make day`:
+what Boop did each hour and why, relaunches included. The checks still
+waiting are in [PLAN.md](PLAN.md).
 
 ## 6. Webcam
 

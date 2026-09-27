@@ -70,6 +70,31 @@ def cmd_dash(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_day(args: argparse.Namespace) -> int:
+    """What Boop did in a day, and why, from debug mode's logs
+    (plan/harness/HARNESS.md §9)."""
+    from boopctl_lib import day
+
+    if args.file:
+        paths = [Path(f).expanduser() for f in args.file]
+    else:
+        state = Path(args.state_dir).expanduser() if args.state_dir else EVERYDAY_STATE
+        paths = day.launch_files(state)
+        if not paths:
+            print(f"boopctl day: no debug.jsonl in {state}. Boop writes it with --debug (make debug).", file=sys.stderr)
+            return 1
+    status, text = day.run(paths, args.date)
+    print(text)
+    return status
+
+
+def a_date(text: str) -> str:
+    try:
+        return time.strftime("%Y-%m-%d", time.strptime(text, "%Y-%m-%d"))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} isn't a date like 2026-09-28")
+
+
 def cmd_calibrate(args: argparse.Namespace) -> int:
     from boopctl_lib import calibrate
 
@@ -658,6 +683,13 @@ def build_parser() -> argparse.ArgumentParser:
                                        "(default: the everyday app's, ~/Library/Application Support/Boop)")
     p.add_argument("--socket", help="the app's hook socket (default: STATE-DIR/boop.sock)")
     p.set_defaults(func=cmd_dash)
+    p = sub.add_parser("day", help="what Boop did in a day, and why, by the hour: from debug.jsonl and the "
+                                   "earlier launches' debug.<n>.jsonl")
+    p.add_argument("--state-dir", help="the app's state directory (default: the everyday app's, "
+                                       "~/Library/Application Support/Boop)")
+    p.add_argument("--date", type=a_date, help="the local day, YYYY-MM-DD (default: the newest line's)")
+    p.add_argument("file", nargs="*", help="read these debug logs instead, oldest launch first")
+    p.set_defaults(func=cmd_day)
     p = sub.add_parser("calibrate", help="touch calibration: tap 4 crosses (needs a person); kept in NVS")
     p.add_argument("--show", action="store_true", help="print the stored calibration instead")
     p.add_argument("--clear", action="store_true", help="with --show: forget it (back to the default raw range)")

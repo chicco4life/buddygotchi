@@ -1,7 +1,7 @@
 # Boop v1. Run from the repo root. See README.md and plan/VERIFICATION.md.
 # The development targets (tests, simulator, tools) are in internal/Makefile:
 # make -C internal <target>.
-.PHONY: build run debug dash flash eval clean
+.PHONY: build run debug dash day flash eval clean
 
 PIO := firmware/tools/pio.sh
 
@@ -32,6 +32,12 @@ debug: build
 # Run it in a second terminal.
 dash:
 	internal/tools/boopctl dash
+
+# What Boop did in a day, and why, by the hour, from the logs `make debug`
+# leaves (plan/harness/HARNESS.md §9). DATE=YYYY-MM-DD picks the day; the
+# newest line's by default.
+day:
+	internal/tools/boopctl day $(if $(DATE),--date $(DATE))
 
 # The harness eval scenarios (plan/EVALS.md), each run 3 times against Jev.
 # They need Jev's key in BOOP_JEV_KEY and fail without it

@@ -48,8 +48,9 @@ public enum DebugLog {
     }
 
     /// How many earlier launches' files are kept beside the file, so a
-    /// relaunch mid-day doesn't lose the morning: `debug.1.jsonl` is the
-    /// launch before this one, up to `debug.10.jsonl`.
+    /// relaunch mid-day doesn't lose the morning (`boopctl day` reads them
+    /// all): `debug.1.jsonl` is the launch before this one, up to
+    /// `debug.10.jsonl`.
     public static let keptLaunches = 10
 
     /// Where launch `n` before this one is kept: `debug.<n>.jsonl` beside

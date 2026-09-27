@@ -47,12 +47,15 @@ From the repo root:
 | Run Boop, in the menu bar over Bluetooth | `make run` |
 | Run Boop and print everything it sees and decides | `make debug` |
 | Watch and poke it live in the debug dashboard | `make dash`, in a second terminal while `make debug` runs |
+| See what it did in a day of `make debug`, and why | `make day` (`DATE=2026-09-28` for another day) |
 | Check the brain against the eval scenarios | `make eval` |
 
 `make run` and `make debug` use Bluetooth, so start them from your own
 terminal, not an agent's. The dashboard shows the face, the brain's latest
 pass and a timeline, and can force a mood, a reaction or an animation
-([plan/DASHBOARD.md](plan/DASHBOARD.md)).
+([plan/DASHBOARD.md](plan/DASHBOARD.md)). `make day` sums up a day by the
+hour, relaunches included: cheers, mumbles, faces, mood changes and what
+made them, and how long each "needs you" took to clear.
 
 `make eval` reads Jev's key only from the environment. To use the key you
 saved in Settings:

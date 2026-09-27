@@ -461,6 +461,21 @@ no device (`--link none`), so the reaction never played
 {"received_at_ms":1790523308919,"seq":3,"settle":{"by":"dashboard","end":"failed","for":2,"why":"no device connected"}}
 ```
 
+**A day's summary.** `boopctl day` (`make day` for the everyday app,
+[VERIFICATION.md](../VERIFICATION.md) §2) reads `debug.jsonl` and the
+kept launches', oldest first, and sums up one local day by the hour from
+the lines alone:
+
+| It counts | From |
+| --- | --- |
+| Cheers, working chatter and the brain's reactions | A `sent` moment: `anim` `cheer`, and a `say` without a `mood` (chatter) or with one (a reaction, in that face) |
+| Chirps, and each time something needed you | A `sent` state whose `attn` is new or names a different agent or project ([PROTOCOL.md](../PROTOCOL.md) §3). Needing you lasts from the `state` that brings `attn` to the first without it, or to the end of its launch |
+| Mood changes, and what made each | A `sent` state's `mood`, and the `mood` action entry right after it: its event, or `by` |
+| Brain passes, dropped ones, and ones that chose `none` | `pass` lines with a `brain`; forced ones are counted apart. An event that woke the brain with no `pass` for it was replaced by a newer one while a pass ran |
+| Reactions that didn't happen, and why | A `react` action with `ok: false` (its message is the reason), or a `settle` that isn't `done` (its `why`) |
+| Taps | `tap` and `pokes` events |
+| Time running, and with the device connected | Each launch's first and last lines, and `status` lines' `connected` |
+
 ## 10. Where it lives
 
 | Part | File | Job |

@@ -1,0 +1,396 @@
+"""`boopctl day` (plan/VERIFICATION.md §2): what Boop did in a day, and why,
+from debug mode's logs (plan/harness/HARNESS.md §9). It reads the state dir's
+debug.jsonl and the earlier launches' debug.<n>.jsonl, oldest first, and
+sums up one local day by the hour: cheers, working chatter, the brain's
+reactions and their faces, chirps, mood changes, passes, and reactions that
+didn't happen; then each mood change with its cause, each time something
+needed you and how long it took to clear, and why reactions didn't happen.
+
+It reads only the lines, like the dashboard (dash/feed.py): what was sent
+to the device (`sent`), the transcript (`event`, `pass`, `action`,
+`settle`) and `status`. A failed action's message is its reason
+(harness/HARNESS.md §4), so that one is shown; no other message is parsed."""
+from __future__ import annotations
+
+import json
+import re
+import statistics
+import time
+from collections import Counter
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from boopctl_lib.dash.feed import kind
+
+Line = dict[str, Any]
+LOG = "debug.jsonl"
+KEPT = re.compile(r"debug\.(\d+)\.jsonl")
+
+
+def launch_files(state_dir: Path) -> list[Path]:
+    """The state dir's debug logs, oldest launch first: debug.<n>.jsonl from
+    the highest n down, then debug.jsonl."""
+    kept = sorted(((int(m.group(1)), p) for p in state_dir.glob("debug.*.jsonl") if (m := KEPT.fullmatch(p.name))),
+                  reverse=True)
+    return [p for _, p in kept] + ([state_dir / LOG] if (state_dir / LOG).exists() else [])
+
+
+@dataclass
+class Launch:
+    """One run of the app: a file, or the part of one from a `questions` line
+    (each launch writes one first) to the next."""
+    name: str
+    lines: list[Line]
+
+
+def read_launches(paths: list[Path]) -> list[Launch]:
+    launches: list[Launch] = []
+    for path in paths:
+        current = None
+        with path.open("rb") as f:
+            for raw in f:
+                try:
+                    line = json.loads(raw)
+                except ValueError:
+                    continue  # a line cut short by a crash
+                if not isinstance(line, dict) or not isinstance(line.get("received_at_ms"), int):
+                    continue
+                if current is None or ("questions" in line and current.lines):
+                    current = Launch(path.name, [])
+                    launches.append(current)
+                current.lines.append(line)
+    return launches
+
+
+def day_of(ms: int) -> str:
+    return time.strftime("%Y-%m-%d", time.localtime(ms / 1000))
+
+
+def day_bounds(date: str) -> tuple[int, int]:
+    """[start, end) of a local day, in ms."""
+    y, m, d = (int(x) for x in date.split("-"))
+    start = time.mktime((y, m, d, 0, 0, 0, 0, 0, -1))
+    end = time.mktime((y, m, d + 1, 0, 0, 0, 0, 0, -1))
+    return int(start * 1000), int(end * 1000)
+
+
+def hour_of(ms: int) -> int:
+    return time.localtime(ms / 1000).tm_hour
+
+
+def next_hour(ms: int) -> int:
+    t = time.localtime(ms / 1000)
+    return int(time.mktime((t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour + 1, 0, 0, 0, 0, -1)) * 1000)
+
+
+@dataclass
+class Hour:
+    cheers: int = 0
+    chatter: int = 0
+    reactions: int = 0
+    faces: Counter = field(default_factory=Counter)
+    chirps: int = 0
+    moods: int = 0
+    passes: int = 0
+    dropped: int = 0
+    missed: int = 0
+    taps: int = 0
+    needs_ms: int = 0
+    lines: int = 0
+
+
+@dataclass
+class MoodChange:
+    at: int
+    before: str
+    after: str
+    why: str | None = None
+
+
+@dataclass
+class NeedsYou:
+    """From a `state` bringing `attn` to the first one without it."""
+    start: int
+    end: int = 0
+    who: list[str] = field(default_factory=list)
+    chirps: int = 0
+    open: bool = False  # still up when its launch's log ends
+
+
+@dataclass
+class Miss:
+    at: int
+    name: str
+    why: str
+
+
+@dataclass
+class Day:
+    date: str
+    launches: list[tuple[str, int, int, list[str]]] = field(default_factory=list)  # (file, first, last, brains)
+    hours: dict[int, Hour] = field(default_factory=dict)
+    moods: list[MoodChange] = field(default_factory=list)
+    needs: list[NeedsYou] = field(default_factory=list)
+    misses: list[Miss] = field(default_factory=list)
+    drops: list[Miss] = field(default_factory=list)
+    forced: int = 0
+    quiet: int = 0
+    skipped: int = 0
+    latencies: list[int] = field(default_factory=list)
+    connected_ms: int = 0
+    running_ms: int = 0
+
+    def total(self) -> Hour:
+        out = Hour()
+        for h in self.hours.values():
+            for name in vars(out):
+                setattr(out, name, getattr(out, name) + getattr(h, name))
+        return out
+
+
+def summarise(launches: list[Launch], date: str) -> Day:
+    start, end = day_bounds(date)
+    day = Day(date)
+
+    def hour(ms: int) -> Hour | None:
+        return day.hours.setdefault(hour_of(ms), Hour()) if start <= ms < end else None
+
+    def clip(a: int, b: int) -> tuple[int, int]:
+        return max(a, start), min(b, end)
+
+    mood = None  # carried across launches: the mood file outlives them
+    for launch in launches:
+        times = [line["received_at_ms"] for line in launch.lines]
+        first, last = min(times), max(times)
+        a, b = clip(first, last)
+        if a <= b:
+            day.running_ms += b - a
+        brains: list[str] = []
+        attn = None  # (agent, project) shown
+        episode: NeedsYou | None = None
+        changed: MoodChange | None = None  # waiting for the mood action that made it
+        seen_state = False
+        events: dict[int, Line] = {}
+        event_at: dict[int, int] = {}
+        passed: set[int] = set()
+        names: dict[int, str] = {}
+        up_since = None
+        for line in launch.lines:
+            t, k = line["received_at_ms"], kind(line)
+            body, seq = line.get(k), line.get("seq")
+            h = hour(t)
+            if h:
+                h.lines += 1
+            if k == "sent" and body.get("t") == "state":
+                shown = (body["attn"].get("agent"), body["attn"].get("project")) if body.get("attn") else None
+                if shown and shown != attn:  # a new one, or a different one: one chirp (PROTOCOL.md §3)
+                    if episode is None:
+                        episode = NeedsYou(t)
+                    episode.who.append(" · ".join(map(str, shown)))
+                    if h:
+                        h.chirps += 1
+                        episode.chirps += 1
+                if not shown and episode:
+                    episode.end = t
+                    day.needs.append(episode)
+                    episode = None
+                attn = shown
+                now = body.get("mood")
+                if mood is not None and now != mood:
+                    # The mood action saves the mood, the state carries it
+                    # at once, and the action's entry follows with its cause.
+                    changed = MoodChange(t, mood, now, None if seen_state else "between launches")
+                    if h:
+                        h.moods += 1
+                        day.moods.append(changed)
+                mood, seen_state = now, True
+            elif k == "sent" and body.get("t") == "moment" and h:
+                if body.get("anim") == "cheer":
+                    h.cheers += 1
+                if body.get("say") and body.get("mood"):
+                    h.reactions += 1
+                    h.faces[body["mood"]] += 1
+                elif body.get("say"):
+                    h.chatter += 1
+            elif k == "event":
+                events[seq], event_at[seq] = body, t
+                if h and body.get("kind") in ("tap", "pokes"):
+                    h.taps += 1
+            elif k == "pass":
+                passed.add(body.get("for"))
+                if not h:
+                    continue
+                if not body.get("brain"):
+                    day.forced += 1
+                    continue
+                h.passes += 1
+                day.latencies.append(body.get("latency_ms", 0))
+                if body.get("dropped"):
+                    h.dropped += 1
+                    day.drops.append(Miss(t, body["brain"], body["dropped"]))
+                elif (body.get("answers") or {}).get("react", {}).get("choice") == "none":
+                    day.quiet += 1
+            elif k == "action":
+                names[seq] = body.get("name", "?")
+                if body.get("name") == "mood" and body.get("ok") and changed and changed.why is None \
+                        and t - changed.at < 1000:
+                    changed.why = cause(body, events)
+                if body.get("name") == "react" and not body.get("ok") and h:
+                    h.missed += 1
+                    day.misses.append(Miss(t, "react", body.get("message", "?")))
+            elif k == "settle":
+                if body.get("end") != "done" and h:
+                    h.missed += 1
+                    day.misses.append(Miss(t, names.get(body.get("for"), "?"), body.get("why") or "?"))
+            elif k == "status":
+                if body.get("brain") not in (None, "none") and body["brain"] not in brains:
+                    brains.append(body["brain"])
+                if body.get("connected") and up_since is None:
+                    up_since = t
+                elif not body.get("connected") and up_since is not None:
+                    a, b = clip(up_since, t)
+                    day.connected_ms += max(0, b - a)
+                    up_since = None
+        if up_since is not None:
+            a, b = clip(up_since, last)
+            day.connected_ms += max(0, b - a)
+        if episode:
+            episode.end, episode.open = last, True
+            day.needs.append(episode)
+        day.skipped += sum(1 for seq, event in events.items()
+                           if event.get("wakes_brain") and seq not in passed and start <= event_at[seq] < end)
+        if start <= last and first < end:
+            day.launches.append((launch.name, max(first, start), min(last, end - 1), brains))
+
+    day.needs = [n for n in day.needs if n.start < end and n.end >= start]
+    for n in day.needs:
+        a, b = clip(n.start, n.end)
+        while a < b:
+            cut = min(next_hour(a), b)
+            day.hours.setdefault(hour_of(a), Hour()).needs_ms += cut - a
+            a = cut
+    return day
+
+
+def cause(action: Line, events: dict[int, Line]) -> str:
+    """What made a mood action run: a forced pass or mood, or its event."""
+    if action.get("by"):
+        return f"forced from the {action['by']}"
+    event = events.get(action.get("for"))
+    return f"{event['kind']}: {event['line']}" if event else "?"
+
+
+# Text.
+
+def clock(ms: int) -> str:
+    return time.strftime("%H:%M", time.localtime(ms / 1000))
+
+
+def span(ms: int) -> str:
+    s = round(ms / 1000)
+    if s < 60:
+        return f"{s} s"
+    if s < 3600:
+        return f"{s // 60} min" + (f" {s % 60} s" if s % 60 and s < 600 else "")
+    return f"{s // 3600} h {s % 3600 // 60:02d} min"
+
+
+def minutes(ms: int) -> str:
+    return "" if not ms else f"{ms / 60000:.0f} min" if ms >= 60000 else "<1 min"
+
+
+def faces(c: Counter) -> str:
+    return ", ".join(f"{name} {n}" for name, n in sorted(c.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
+COLUMNS = [("cheers", "cheers"), ("chatter", "chatter"), ("reactions", "reacts"), ("chirps", "chirps"),
+           ("moods", "moods"), ("passes", "passes"), ("dropped", "dropped"), ("missed", "missed"), ("taps", "taps")]
+
+
+def render(day: Day) -> str:
+    out: list[str] = []
+    weekday = time.strftime("%A", time.strptime(day.date, "%Y-%m-%d"))
+    first, last = day.launches[0][1], day.launches[-1][2]
+    out.append(f"Boop's day: {weekday} {day.date}, {clock(first)}–{clock(last)}, {len(day.launches)} launch"
+               + ("es" if len(day.launches) != 1 else ""))
+    for name, a, b, brains in day.launches:
+        out.append(f"  {name:<15} {clock(a)}–{clock(b)}  brain {', '.join(brains) or 'none'}")
+    out.append(f"  running {span(day.running_ms)}, the device connected for {span(day.connected_ms)} of it")
+    out.append("")
+
+    head = ["hour"] + [title for _, title in COLUMNS] + ["needs you", "faces"]
+    rows = []
+    hours = sorted(day.hours)
+    for hr in range(hours[0], hours[-1] + 1) if hours else []:
+        h = day.hours.get(hr)
+        if not h or not h.lines:
+            rows.append([f"{hr:02d}"] + [""] * len(COLUMNS) + ["", "(no log: Boop wasn't running with --debug)"])
+            continue
+        rows.append([f"{hr:02d}"] + [str(getattr(h, name) or "") for name, _ in COLUMNS]
+                    + [minutes(h.needs_ms), faces(h.faces)])
+    t = day.total()
+    rows.append(["all"] + [str(getattr(t, name)) for name, _ in COLUMNS] + [span(t.needs_ms), faces(t.faces)])
+    widths = [max(len(r[i]) for r in rows + [head]) for i in range(len(head) - 1)]
+    for r in [head] + rows:
+        cells = [r[0].ljust(widths[0])] + [c.rjust(w) for c, w in zip(r[1:-1], widths[1:])]
+        out.append("  ".join(cells + [r[-1]]).rstrip())
+    out.append("")
+    out.append("reacts are the brain's reactions sent to the device, with the faces they wore; chatter is the "
+               "rules' working chatter;")
+    out.append("chirps are states bringing a new needs-you or a different one; missed are reactions that didn't "
+               "happen (below).")
+
+    out.append("")
+    passes = len(day.latencies)
+    lat = f" (median {statistics.median(day.latencies):.0f} ms, slowest {max(day.latencies)} ms)" if passes else ""
+    out.append(f"Brain: {passes} passes{lat}, {len(day.drops)} dropped, {day.quiet} chose no reaction; "
+               f"and {day.forced} forced from the dashboard")
+    for why, n in Counter(d.why for d in day.drops).most_common():
+        out.append(f"  dropped {n}×: {why}")
+    if day.skipped:
+        out.append(f"  {day.skipped} events woke it but got no pass: a newer one took their place while a pass ran")
+
+    out.append("")
+    out.append(f"Mood changes: {len(day.moods)}")
+    for m in day.moods:
+        out.append(f"  {clock(m.at)}  {m.before} → {m.after}  ({m.why or '?'})")
+
+    out.append("")
+    cleared = [n.end - n.start for n in day.needs if not n.open]
+    stats = f"; cleared in {span(min(cleared))} to {span(max(cleared))}, median {span(statistics.median(cleared))}" \
+        if cleared else ""
+    out.append(f"Needs you: {len(day.needs)} times, {span(t.needs_ms)} in all{stats}")
+    who = max((len(" → ".join(n.who)) for n in day.needs), default=0)
+    for n in day.needs:
+        took = f"{span(n.end - n.start)}" + (" (still up when the log ends)" if n.open else "")
+        out.append(f"  {clock(n.start)}  {' → '.join(n.who):<{who}}  {took}" + (f", {n.chirps} chirps" if n.chirps > 1 else ""))
+
+    out.append("")
+    out.append(f"Reactions that didn't happen: {len(day.misses)}")
+    for why, group in group_by_why(day.misses):
+        out.append(f"  {len(group)}× {why}: " + ", ".join(clock(m.at) for m in group))
+    return "\n".join(out)
+
+
+def group_by_why(misses: list[Miss]) -> list[tuple[str, list[Miss]]]:
+    groups: dict[str, list[Miss]] = {}
+    for m in misses:
+        groups.setdefault(m.why if m.name == "react" else f"{m.name}: {m.why}", []).append(m)
+    return sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+
+
+def run(paths: list[Path], date: str | None) -> tuple[int, str]:
+    """(exit status, text) for the files, oldest launch first."""
+    launches = read_launches(paths)
+    if not launches:
+        return 1, "No debug log lines in " + ", ".join(map(str, paths)) + ". Is Boop running with --debug?"
+    newest = max(line["received_at_ms"] for line in launches[-1].lines)
+    summary = summarise(launches, date or day_of(newest))
+    if not summary.launches:
+        oldest = min(line["received_at_ms"] for line in launches[0].lines)
+        stamp = "%Y-%m-%d %H:%M"
+        return 1, (f"Nothing in the debug logs on {summary.date}: they run from "
+                   f"{time.strftime(stamp, time.localtime(oldest / 1000))} to "
+                   f"{time.strftime(stamp, time.localtime(newest / 1000))}.")
+    return 0, render(summary)
