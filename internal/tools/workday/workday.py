@@ -45,7 +45,7 @@ from typing import Any, Iterable
 
 REPO = Path(__file__).resolve().parents[3]
 BIN = REPO / ".build" / "debug"
-MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad"]
+MOODS = ["happy", "excited", "proud", "determined", "grumpy", "sad"]
 
 # A turn this long or longer, ending, is a big moment, not routine
 # (the steering's "a turn of 10 minutes or more").

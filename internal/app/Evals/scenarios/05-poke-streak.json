@@ -1,7 +1,7 @@
 {
   "name": "Poked again and again, Boop is grumpy",
-  "why": "PERSONALITY's Examples and the react question: being poked too much is grumpy, with 'nope', held once",
+  "why": "PERSONALITY's Examples and the react question: being poked too much is grumpy, with 'nope', held once. A poke streak never changes the mood (harness/EVENTS.md §6), so it stays happy",
   "steps": [
-    {"event": "pokes", "at": "0s", "expect": {"react": "grumpy", "word": "nope|ugh|none", "loops": "once"}}
+    {"event": "pokes", "at": "0s", "expect": {"react": "grumpy", "word": "nope|ugh|none", "loops": "once", "mood": "happy"}}
   ]
 }

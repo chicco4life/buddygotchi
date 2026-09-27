@@ -115,8 +115,9 @@ static void test_every_anim_has_a_name_and_ends() {
   TEST_ASSERT_EQUAL_UINT32(700, kWiggleMs);
 }
 
-// harness/DECISIONS.md §2.3: the seven moods, by the names the Mac sends
-// (PROTOCOL.md §3); a missing or unknown one is happy.
+// harness/DECISIONS.md §2.3: the six moods, by the names the Mac sends,
+// and curious, whose designs the device keeps though the Mac never sends
+// it (PROTOCOL.md §3); a missing or unknown one is happy.
 static void test_every_mood_has_a_name() {
   TEST_ASSERT_EQUAL_INT(7, int(Mood::kCount));
   for (int i = 0; i < int(Mood::kCount); ++i) TEST_ASSERT_TRUE(moodFromName(moodName(Mood(i))) == Mood(i));

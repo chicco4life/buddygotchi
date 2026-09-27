@@ -7,6 +7,6 @@
     {"event": "command", "at": "2m", "topic": "tests", "failed": true},
     {"event": "command", "at": "3m", "topic": "tests", "failed": true, "expect": {"mood": "grumpy"}},
     {"event": "turn failed", "at": "4m", "error": "api_error"},
-    {"event": "wait", "at": "1h5m", "expect": {"react": "none|happy|curious", "mood": "happy"}}
+    {"event": "wait", "at": "1h5m", "expect": {"react": "none|happy", "mood": "happy"}}
   ]
 }

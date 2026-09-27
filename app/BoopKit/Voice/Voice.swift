@@ -82,7 +82,7 @@ public struct Voice: Sendable {
     /// feeling of the same name, and annoyed for grumpy.
     public static func feeling(forMood mood: String) -> Feeling {
         switch mood {
-        case "happy", "excited", "proud", "curious", "sad": Feeling(rawValue: mood)!
+        case "happy", "excited", "proud", "sad": Feeling(rawValue: mood)!
         case "grumpy": .annoyed
         // Temporary: a mood with no voice of its own (determined) mumbles in this one until the audio is tuned.
         default: .happy

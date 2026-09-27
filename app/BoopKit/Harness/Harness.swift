@@ -44,7 +44,7 @@ public final class Harness: @unchecked Sendable {
     public var mayStart: () -> Bool = { true }
 
     /// The whole pass must finish within this.
-    public static let deadlineMs = 1250
+    public static let deadlineMs = 1500
     /// An action taking longer than this is logged: it should hand slow work off.
     public static let actionSlowMs = 300
     /// A started action still in progress this long after its result is
@@ -154,10 +154,12 @@ public final class Harness: @unchecked Sendable {
         }
     }
 
-    /// Step 3, on `home`: the state and every action's questions.
+    /// Step 3, on `home`: the state and every action's questions, but
+    /// those of the actions the event says sit its pass out.
     func prepare(_ entry: Transcript.Entry, brain: any Brain) -> Job {
         let state = StateText.build(transcript.entries, now: entry, at: clock(), parts(entry))
-        return Job(brain: brain, state: state, questions: actions.flatMap { $0.questions() },
+        let sitsOut = if case .event(let event) = entry.body { event.sitsOut } else { Set<String>() }
+        return Job(brain: brain, state: state, questions: actions.filter { !sitsOut.contains($0.name) }.flatMap { $0.questions() },
                    seen: transcript.entries.last?.seq ?? entry.seq)
     }
 
@@ -182,7 +184,8 @@ public final class Harness: @unchecked Sendable {
         } else {
             record(.pass(pass), extra: ["brain": brainID ?? brain?.id ?? "none"])
         }
-        let ran = pass.dropped == nil ? runActions(pass.answers, forSeq: entry.seq, skipping: changedDuringPass) : []
+        let ran = pass.dropped == nil
+            ? runActions(pass.answers, forSeq: entry.seq, skipping: changedDuringPass, leavingOut: event.sitsOut) : []
         let record = Record(event: event, pass: pass, actions: ran)
         if let dropped = pass.dropped { log("harness: \(event.kind.rawValue) dropped: \(dropped)") }
         onRecord?(record)
@@ -190,10 +193,12 @@ public final class Harness: @unchecked Sendable {
 
     /// Hands each action its own answers, in order, and records what each
     /// reports. The ones named in `skipping` sit out: they changed since
-    /// the state the answers are about.
-    func runActions(_ answers: Answers, forSeq: Int?, skipping: Set<String> = []) -> [Transcript.ActionRecord] {
+    /// the state the answers are about. The ones in `leavingOut` sit out
+    /// too, unlogged: the event said so, and their questions weren't asked.
+    func runActions(_ answers: Answers, forSeq: Int?, skipping: Set<String> = [],
+                    leavingOut: Set<String> = []) -> [Transcript.ActionRecord] {
         var ran: [Transcript.ActionRecord] = []
-        for action in actions {
+        for action in actions where !leavingOut.contains(action.name) {
             if skipping.contains(action.name) {
                 log("harness: \(action.name) sat out the pass: the dashboard changed it while the pass ran")
                 continue
@@ -332,7 +337,7 @@ public final class Harness: @unchecked Sendable {
     }
 
     /// How late the deadline's timer may fire: the system's default leeway
-    /// let it fire up to 7% late, 1.33 s for 1.25 s.
+    /// let it fire up to 7% late, 1.6 s for 1.5 s.
     static let deadlineLeewayMs = 5
 
     /// `work`, raced against a deadline and cancelling. Past the deadline,

@@ -73,7 +73,7 @@ with less personality.
 | --- | --- | --- | --- | --- |
 | Reflex | Device | < 20 ms | Tap feedback, blinks, playing moments, the needs-you chirp and light | Wait for the Mac |
 | Reactive | Core → device link | < 200 ms p95 | Hook → rule → `state` or moment | Wait for the brain |
-| Deliberative | Harness + Jev → actions | A pass has 1.25 s; its mumble then waits up to 5 s for its turn | A change of mood, a mumble with character | Block the reactive loop |
+| Deliberative | Harness + Jev → actions | A pass has 1.5 s; its mumble then waits up to 5 s for its turn | A change of mood, a mumble with character | Block the reactive loop |
 
 ## 3. Components and boundaries
 
@@ -238,7 +238,7 @@ order:
 
 | Action | Effect | Its own rules |
 | --- | --- | --- |
-| `mood` | Saves the new mood to the `mood` file; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the seven moods, and only a change |
+| `mood` | Saves the new mood to the `mood` file; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the six moods, and only a change |
 | `react` | Queues a moment in the moment schedule: the chosen mood as its face, held for the loops Jev picked, and Voice's mumble in that mood's feeling, with the chosen word if Jev is sure enough. It's started, not done, until the device says how the moment ended | Nothing while something needs you |
 
 The rules' own moments (the cheer, working chatter) don't go through them.
@@ -464,7 +464,7 @@ personality or memory, only its touch calibration. What it does is in
 | Hook overhead | Single-digit ms. Connecting and writing share 50 ms, then the hook gives up; it exits within 1 s whatever happens. It reads at most 256 KB and keeps fields of at most 200 characters |
 | Hook entry timeout | 5 s in the agent's settings; never reached |
 | Hook server | A connection is read until it closes, is quiet for 200 ms, or reaches 64 KB |
-| Brain, per pass | Jev's answer within 1.25 s, one retry included ([harness/HARNESS.md](harness/HARNESS.md) §7). A late answer is dropped |
+| Brain, per pass | Jev's answer within 1.5 s, one retry included ([harness/HARNESS.md](harness/HARNESS.md) §7). A late answer is dropped |
 | A brain moment's wait | 5 s, then it's dropped |
 | An action | Logged if it takes over 300 ms |
 | `state` keepalive | Every 10 s; the device gives up on the app after 30 s |
@@ -574,3 +574,6 @@ which also has the full log up to 2026-09-27.
 | 2026-09-28 | A pass's request goes on past the deadline, off the pass, so the log says when the brain answered; the answer is still thrown away. This replaces cancelling it | A dropped pass's latency was only the deadline's timer, so the night's evidence took the timer's 1.3 s for Jev's | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | 2026-09-28 | A routine finish gets a face only when it has something to show (40 s of work or more, or checks passing), and the faces lean strong: excited at a clean win, proud at a hard-won one, curious with "hmm" at a stopped turn, and never grumpy at a win. "yay" is kept for bigger wins; a routine face says its topic, or no word. Proud's file ties its staying to HISTORY still showing the change. All steering text | The first tuning left 68% of a working day's faces happy and "yay" in 80% of reactions, where the owner asked for vivid reactions that use grumpy, sad, proud, excited and determined where they fit. In the scripted day happy went to 35% of the faces, those five to 64%, and "yay" to 34% of the reactions with a word, while every notable line still got a face and the mood changed 16–18 times a day (16 before). Without the change to proud's file, the new personality kept Boop proud past its HISTORY in `13-proud-fades` | [harness/DECISIONS.md](harness/DECISIONS.md) §2, [evidence](evidence/2026-09-28-tonight/tune2/README.md) |
 | 2026-09-28 | A sad Boop stays sad through more failures, and leaves only for proud when what failed works, or back to happy as it fades; it no longer turns determined at the next failure. Steering text | In the scripted working day, Jev took sad's old way out to determined at the next failure in 3 of 6 runs of the second tuning, a coin flip in the check's reruns (determined 0.45 and 0.53 against sad 0.49 and 0.39), one mood change a day over the calm the owner asked for. With the change it stays sad there at 0.96–0.97, goes straight to proud at the fix, and both reruns changed mood 16 times | [harness/DECISIONS.md](harness/DECISIONS.md) §2.3, [evidence](evidence/2026-09-28-tonight/tune2-check/README.md) |
+| 2026-09-28 | A poke streak never changes Boop's mood: the core names the `mood` action in the event's `sitsOut`, and the harness leaves that action's question out of the pass. Jev still picks the face and word | Steering alone couldn't stop Jev turning a first streak grumpy (0.65–0.91 over four wordings), and a grumpy mood then outlasted the poke by 20–30 minutes. Leaving the question out makes it certain, and the harness stays generic | [harness/EVENTS.md](harness/EVENTS.md) §6, [harness/HARNESS.md](harness/HARNESS.md) §3 |
+| 2026-09-28 | The deadline for a pass is 1.5 s, not 1.25 s, with no warm-up pass | Jev's first answers on new steering, and a few in a working day, came just past 1.25 s and were dropped | [harness/HARNESS.md](harness/HARNESS.md) §7 |
+| 2026-09-28 | Jev chooses among six moods: curious is gone from the `mood` and `react` options and its steering file. The device keeps its curious designs and draws them if a state or moment names it; the Mac never sends it, and a saved `mood` file saying curious reads as happy | Nothing in the steering led to the curious mood, and its face was only ever the stopped turn's; an option with no way in is only noise to the other choices. boop's stopped turn is now a happy face with "hmm" | [harness/DECISIONS.md](harness/DECISIONS.md) §2.3, [PROTOCOL.md](PROTOCOL.md) §3 |

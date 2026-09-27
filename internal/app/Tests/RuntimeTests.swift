@@ -448,7 +448,7 @@ final class RuntimeTests: XCTestCase {
         let bundled = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .appendingPathComponent("../../../app/Boop/Resources/steering").standardizedFileURL
         let files = try XCTUnwrap(FileManager.default.subpaths(atPath: Self.steeringDir.path)).filter { $0.hasSuffix(".md") }.sorted()
-        XCTAssertEqual(files, ["guide.md", "mood/curious.md", "mood/determined.md", "mood/excited.md", "mood/grumpy.md",
+        XCTAssertEqual(files, ["guide.md", "mood/determined.md", "mood/excited.md", "mood/grumpy.md",
                                "mood/happy.md", "mood/proud.md", "mood/sad.md", "personality/boop.md", "personality/chatter.md"])
         for file in files {
             try XCTAssertEqual(try String(contentsOf: bundled.appendingPathComponent(file), encoding: .utf8),
@@ -1034,7 +1034,7 @@ final class RuntimeTests: XCTestCase {
         react("proud")
         XCTAssertEqual(moments(), 1, "plays at once")
         clock.now += 1000
-        react("curious")
+        react("happy")
         XCTAssertEqual(moments(), 1, "waits for the first's face")
         device(#"{"t":"ended","id":\#(transport.momentIds[0]),"how":"done"}"#)
         XCTAssertEqual(moments(), 2, "the device says the first is over: the second goes at once")
@@ -1412,7 +1412,7 @@ final class RuntimeTests: XCTestCase {
 
         react("proud")
         clock.now += 1000
-        react("curious")
+        react("happy")
         XCTAssertEqual(pumpAt(), clock.now + MomentSchedule.maxWaitMs + 1, "the second waits, at most until it's too old")
         clock.now += 60_000  // the Mac slept, and the timer with it
         react("grumpy")  // the second is dropped, and this one plays

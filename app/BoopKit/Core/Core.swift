@@ -202,6 +202,10 @@ public final class Core {
     /// either way round (ADAPTERS.md §4).
     static let noticeLagMs: Int64 = 5000
 
+    /// A poke streak never changes Boop's lasting mood: the mood action
+    /// sits its pass out, so no answer can (EVENTS.md §6).
+    public static let pokesSitOut: Set<String> = ["mood"]
+
     // MARK: - Inputs
 
     /// An agent event from an adapter.
@@ -694,7 +698,7 @@ public final class Core {
         }
         pokedAt = now
         fx.append(.event(Event(.pokes, at: now, line: line, reaction: EventLine.wiggled,
-                               wakesBrain: wakes, facts: facts)))
+                               wakesBrain: wakes, facts: facts, sitsOut: Core.pokesSitOut)))
     }
 
     /// Runs every timer due by `now`, in order, but shows no Codex request

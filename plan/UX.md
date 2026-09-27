@@ -36,8 +36,9 @@ black, which the backlit panel shows as black glass.
 
 ### The designs
 
-**The face is its mood's design.** Each of the seven moods has four
-designs: idle, working, needs you, and task complete for the cheer.
+**The face is its mood's design.** Each of the six moods has four
+designs, and so does curious, which the device still draws though the
+Mac never sends it ([PROTOCOL.md](PROTOCOL.md) §3): idle, working, needs you, and task complete for the cheer.
 Asleep and no app are one design each, shared by every mood: 30 in all.
 They're the designer's animated SVGs in `internal/tools/facegen/design/`
 (its README says what each shows). `facegen` turns them into

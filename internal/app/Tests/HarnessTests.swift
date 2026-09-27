@@ -171,6 +171,53 @@ final class HarnessTests: XCTestCase {
         }
     }
 
+    /// HARNESS.md §3, EVENTS.md §6: the actions an event says sit its pass
+    /// out aren't asked, get no answers and don't run, whatever the brain
+    /// says; the harness doesn't know why.
+    func testTheActionsAnEventLeavesOutSitItsPassOut() async throws {
+        let seen = Lines()
+        let brain = ScriptedBrain { _, questions in
+            seen.add(questions.map(\.key).joined(separator: ","))
+            return ["one": Answer(choice: "a"), "three": Answer(choice: "a")]
+        }
+        let first = Recorder("first", keys: ["one"], result: .done("Boop did one."))
+        let second = Recorder("second", keys: ["three"], result: .done("Boop did three."))
+        let (h, _) = harness(brain, [first, second])
+        var e = event(.pokes, at: 0, "You poked Boop 4 times in 3 s.")
+        e.sitsOut = ["first"]
+        let recorded = await h.respond(to: e)
+        let record = try XCTUnwrap(recorded)
+        XCTAssertEqual(seen.all, ["three"], "its questions aren't asked")
+        XCTAssertEqual(first.got, [], "it doesn't run")
+        XCTAssertEqual(record.actions.map(\.name), ["second"])
+    }
+
+    /// EVENTS.md §6, DECISIONS.md §4: a poke streak never changes the
+    /// mood: its pass asks no mood question, so even a brain that would
+    /// pick grumpy leaves it happy. Other events still ask it.
+    func testAPokeStreakNeverChangesTheMood() async throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = MoodStore(stateDir: dir)
+        let seen = Lines()
+        let brain = ScriptedBrain { _, questions in
+            seen.add(questions.map(\.key).joined(separator: ","))
+            return ["mood": Answer(choice: "grumpy")]
+        }
+        let (h, _) = harness(brain, [MoodAction(store: store)])
+        var pokes = event(.pokes, at: 0, "You poked Boop 4 times in 3 s.")
+        pokes.sitsOut = Core.pokesSitOut
+        let pass = await h.respond(to: pokes)
+        let poked = try XCTUnwrap(pass)
+        XCTAssertEqual(seen.all, [""], "no mood question")
+        XCTAssertEqual(poked.actions, [])
+        XCTAssertEqual(store.current, "happy", "the mood stays")
+        _ = await h.respond(to: event(.turnEnd, at: 1, "claude finished turn 1."))
+        XCTAssertEqual(seen.all.last, "mood", "other events ask it")
+        XCTAssertEqual(store.current, "grumpy")
+    }
+
     /// An event that doesn't wake the brain, or no brain, gets no pass; a
     /// brain that fails drops the pass and runs no action.
     func testNoPassWithoutWakingOrABrainAndNoActionWhenItFails() async throws {
@@ -190,18 +237,18 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(record.logLine, "brain turn_start \(record.pass.latencyMs) ms → dropped: jev: HTTP 500")
     }
 
-    /// HARNESS.md §7: a pass that runs past 1.25 s is dropped.
+    /// HARNESS.md §7: a pass that runs past 1.5 s is dropped.
     func testALateAnswerIsDropped() async throws {
-        XCTAssertEqual(Harness.deadlineMs, 1250)
+        XCTAssertEqual(Harness.deadlineMs, 1500)
         let (h, _) = harness(SlowBrain(ms: 3000), [Recorder("a", keys: ["k"], result: .done("x"))])
         let recordResult = await h.respond(to: event(.turnStart, at: 0, "x"))
         let record = try XCTUnwrap(recordResult)
-        XCTAssertEqual(record.pass.dropped, "late: no answer within 1250 ms")
+        XCTAssertEqual(record.pass.dropped, "late: no answer within 1500 ms")
     }
 
-    /// HARNESS.md §7: the deadline cuts a pass off at 1.25 s. Its timer
-    /// had the system's default leeway, so it fired at 1.25–1.33 s: an
-    /// answer at 1.3 s was kept or dropped by chance, and every dropped
+    /// HARNESS.md §7: the deadline cuts a pass off at 1.5 s. Its timer
+    /// had the system's default leeway, so it fired up to 7% late: an
+    /// answer just past it was kept or dropped by chance, and every dropped
     /// pass logged the timer's time as the brain's.
     func testTheDeadlineComesOnTime() async {
         let ms = await withTaskGroup(of: Int.self) { group in
@@ -243,11 +290,16 @@ final class HarnessTests: XCTestCase {
 
         let logged = Lines()
         let home = DispatchQueue(label: "test.home")
-        let h = Harness(brain: SlowBrain(ms: 1400), actions: [Recorder("a", keys: ["k"], result: .done("x"))],
+        let h = Harness(brain: SlowBrain(ms: 1700), actions: [Recorder("a", keys: ["k"], result: .done("x"))],
                         parts: { _ in Self.parts }, home: home, clock: { harnessT0 }, log: { logged.add($0) })
         home.sync { h.take(event(.turnStart, at: 0, "x")) }
-        eventually("the late answer's line", timeout: 4) { logged.all.contains { $0.hasPrefix("harness: slow answered after 14") } }
-        XCTAssertTrue(logged.all.contains { $0.hasSuffix("dropped: late: no answer within 1250 ms") }, "\(logged.all)")
+        eventually("the late answer's line", timeout: 4) {
+            logged.all.contains { line in
+                line.hasPrefix("harness: slow answered after ")
+                    && (Int(line.dropFirst(29).prefix { $0.isNumber }).map { $0 >= 1700 } ?? false)
+            }
+        }
+        XCTAssertTrue(logged.all.contains { $0.hasSuffix("dropped: late: no answer within 1500 ms") }, "\(logged.all)")
     }
 
     /// HARNESS.md §2: one pass runs at a time, and a newer event replaces
@@ -620,8 +672,8 @@ final class HarnessTests: XCTestCase {
              "▸ 4 tap (no pass): You tapped Boop."),
             (#"{"pass":{"answers":{"mood":{"choice":"cheerful","p":{"cheerful":0.9,"grumpy":0.1}},"react":{"choice":"excited","p":{"excited":1}}},"brain":"scripted","dropped":null,"for":3,"latency_ms":12,"questions":["mood","react"],"state":""# + stateJSON + #""},"received_at_ms":7,"seq":5}"#,
              "  pass scripted 12 ms: mood cheerful 0.90 · react excited 1.00\n    │ You are.\n    │ PERSONALITY\n    │ x\n    │ \n    │ HISTORY (oldest first)\n    │ h\n    │ \n    │ NOW (14:23, Tuesday)\n    │ n"),
-            (#"{"pass":{"answers":{},"brain":"jev:jev-latest","dropped":"late: no answer within 1250 ms","for":3,"latency_ms":1250,"questions":["mood"],"state":""# + stateJSON + #""},"received_at_ms":8,"seq":6}"#,
-             "  pass jev:jev-latest 1250 ms: dropped: late: no answer within 1250 ms\n    │ HISTORY (oldest first)\n    │ h\n    │ \n    │ NOW (14:23, Tuesday)\n    │ n"),
+            (#"{"pass":{"answers":{},"brain":"jev:jev-latest","dropped":"late: no answer within 1500 ms","for":3,"latency_ms":1500,"questions":["mood"],"state":""# + stateJSON + #""},"received_at_ms":8,"seq":6}"#,
+             "  pass jev:jev-latest 1500 ms: dropped: late: no answer within 1500 ms\n    │ HISTORY (oldest first)\n    │ h\n    │ \n    │ NOW (14:23, Tuesday)\n    │ n"),
             (#"{"action":{"for":3,"latency_ms":0,"message":"Boop made an excited face and mumbled \"…yay!\"","name":"react","ok":true},"received_at_ms":9,"seq":7}"#,
              "  ✓ react: Boop made an excited face and mumbled \"…yay!\""),
             (#"{"action":{"for":3,"latency_ms":0,"message":"changed 3 min ago","name":"mood","ok":false},"received_at_ms":9,"seq":8}"#,
@@ -681,15 +733,15 @@ final class HarnessTests: XCTestCase {
         starts(["react": a("grumpy"), "word.feeling": a("again", 0.57), "word.about": a("tests", 0.81),
                 "react.loops": a("twice")],
                #"Boop made a grumpy face, held twice, and mumbled "…again!""#)
-        starts(["react": a("curious"), "word.feeling": a("again", 0.31), "word.about": a("tests", 0.79)],
-               #"Boop made a curious face, held once, and mumbled "…tests!""#)
+        starts(["react": a("proud"), "word.feeling": a("again", 0.31), "word.about": a("tests", 0.79)],
+               #"Boop made a proud face, held once, and mumbled "…tests!""#)
         starts(["react": a("happy"), "word.feeling": a("none"), "word.about": a("docs", 0.2), "react.loops": a("four times")],
                "Boop made a happy face, held four times, and mumbled.")
         XCTAssertEqual(sent.count, 3)
         XCTAssertEqual(Set(queued.map { ObjectIdentifier($0.pending) }).count, 3, "a handle each")
         XCTAssertEqual(sent[0].say?.word, "again")
         XCTAssertNil(sent[0].anim, "a mumble plays over the face")
-        XCTAssertEqual(sent.map(\.mood), ["grumpy", "curious", "happy"], "each wears its face")
+        XCTAssertEqual(sent.map(\.mood), ["grumpy", "proud", "happy"], "each wears its face")
         XCTAssertEqual(sent.map(\.loops), [2, 1, 4], "for its loops")
         XCTAssertEqual(sent[0].say?.tune, .flat, "grumpy mumbles in annoyed's voice")
         XCTAssertTrue(sent[0].jsonLine.hasSuffix(#","mood":"grumpy","loops":2}"#), sent[0].jsonLine)
@@ -704,7 +756,8 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(sent.count, 3, "no face or mumble while something needs you")
         XCTAssertEqual(react.questions().map(\.key), ["react", "react.loops", "word.feeling", "word.about"])
         XCTAssertEqual(react.questions()[0].options.map(\.name), ["none"] + MoodAction.moods.map(\.name),
-                       "the faces are the seven moods'")
+                       "the faces are the six moods'")
+        XCTAssertNil(react.run(["react": a("curious")]), "curious isn't a face the brain can pick (DECISIONS.md §3)")
         XCTAssertEqual(react.questions()[1].options.map(\.name), ["once", "twice", "three times", "four times"])
         XCTAssertEqual(react.questions()[2].options.map(\.name), ["none", "finally", "yay", "oops", "again", "ugh", "nope", "hmm"])
         XCTAssertEqual(react.questions()[3].options.map(\.name), ["none", "tests", "build", "deploy", "docs"])
@@ -722,7 +775,7 @@ final class HarnessTests: XCTestCase {
     /// temporary default, happy's.
     func testEachMoodHasAVoice() {
         let voices = Dictionary(uniqueKeysWithValues: MoodAction.moods.map { ($0.name, Voice.feeling(forMood: $0.name)) })
-        XCTAssertEqual(voices, ["happy": .happy, "excited": .excited, "proud": .proud, "curious": .curious,
+        XCTAssertEqual(voices, ["happy": .happy, "excited": .excited, "proud": .proud,
                                 "determined": .happy, "grumpy": .annoyed, "sad": .sad])
     }
 
@@ -736,11 +789,11 @@ final class HarnessTests: XCTestCase {
                        #"{"t":"moment","say":{"syl":"bi-da","tune":"bounce","ms":125},"mood":"grumpy"}"#)
     }
 
-    /// DECISIONS.md §4: the seven moods; the current mood is nothing to do,
+    /// DECISIONS.md §2.3, §4: the six moods; the current mood is nothing to do,
     /// and any other changes the file, and MOOD with it, however recently
     /// it last changed (how long a mood lasts is the steering's call).
     func testMood() throws {
-        XCTAssertEqual(MoodAction.moods.map(\.name), ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad"])
+        XCTAssertEqual(MoodAction.moods.map(\.name), ["happy", "excited", "proud", "determined", "grumpy", "sad"])
         let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -758,6 +811,9 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(MoodStore(stateDir: dir).current, "grumpy", "it survives a restart")
         try Data("cheerful\n".utf8).write(to: dir.appendingPathComponent("mood"))
         XCTAssertEqual(MoodStore(stateDir: dir).current, "happy", "cheerful, its old name, reads as happy")
+        try Data("curious\n".utf8).write(to: dir.appendingPathComponent("mood"))
+        XCTAssertEqual(MoodStore(stateDir: dir).current, "happy", "curious, no longer a mood, reads as happy")
+        XCTAssertNil(mood.run(["mood": a("curious")]), "curious isn't a mood")
         try Data("delighted\n".utf8).write(to: dir.appendingPathComponent("mood"))
         XCTAssertEqual(MoodStore(stateDir: dir).current, "happy", "an unknown one reads as happy")
     }
@@ -813,7 +869,7 @@ final class HarnessTests: XCTestCase {
             calls.add(request.value(forHTTPHeaderField: "Authorization") ?? "")
             return calls.all.count == 1 ? (Data("PRIVATE".utf8), 429) : (good, 200)
         }
-        let answers = try await jev.answer(state: "s", questions: q, deadline: .milliseconds(1250))
+        let answers = try await jev.answer(state: "s", questions: q, deadline: .milliseconds(Harness.deadlineMs))
         XCTAssertEqual(answers["react"]?.choice, "proud")
         XCTAssertEqual(calls.all, ["Bearer k", "Bearer k"])
         // No retry the deadline would cut off: it would only cost a request.
@@ -832,7 +888,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(slow.all, ["sent"], "150 ms, and 300 more, is past the 400")
         let down = JevBrain(key: "k") { _ in (Data("PRIVATE".utf8), 500) }
         do {
-            _ = try await down.answer(state: "s", questions: q, deadline: .milliseconds(1250))
+            _ = try await down.answer(state: "s", questions: q, deadline: .milliseconds(Harness.deadlineMs))
             XCTFail("no answer")
         } catch let error as BrainError {
             XCTAssertEqual(error.description, "jev: HTTP 500", "only the status")

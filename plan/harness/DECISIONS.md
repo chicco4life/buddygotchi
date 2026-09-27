@@ -15,7 +15,8 @@ Two actions, registered in this order (`Runtime`):
 | `mood` (§4) | Whether Boop's mood changes, and to what | `mood` | The `mood` file; MOOD from the next pass; the device's set of faces |
 | `react` (§5) | Whether Boop reacts, with which mood's face, for how long, and with which real word | `react`, `react.loops`, `word.feeling`, `word.about` | The device draws the look in that mood's design for the loops picked, and at least while a Minion line plays |
 
-All five questions go in one request, and Jev answers each on its own
+All five questions (four on a poke streak's pass, which leaves out
+`mood`, §4) go in one request, and Jev answers each on its own
 ([HARNESS.md](HARNESS.md) §7). So both actions are judged against the
 mood as it stood: on a pass that changes the mood, the reaction is still
 judged by the old one. The guide asks for the two to fit together, and
@@ -74,7 +75,7 @@ event. It has two parts:
 
 | Personality | For | Its text |
 | --- | --- | --- |
-| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted and a little smug, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a first failure is determined with "oops", held once; a third grumpy with "again", twice; a fix after failures proud with "finally", twice, and a comeback finish three times; a turn of 10 minutes or more finishing clean excited with "yay", three times, and failing sad, three times; a failed turn grumpy with "ugh", a poke streak grumpy with "nope", and a stopped turn curious with "hmm", once. A routine finish gets a face only when it has something to show: a turn of a few minutes an excited "yay"; one under a minute a small happy face with no word if it ran 40 s or more, or an excited one with its topic ("tests") and no exclamation if its checks passed; otherwise nothing. The exclamation is kept for what stands out. A turn start and a heartbeat get nothing |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted and a little smug, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a first failure is determined with "oops", held once; a third grumpy with "again", twice; a fix after failures proud with "finally", twice, and a comeback finish three times; a turn of 10 minutes or more finishing clean excited with "yay", three times, and failing sad, three times; a failed turn grumpy with "ugh", a poke streak grumpy with "nope", and a stopped turn happy with "hmm", once. A routine finish gets a face only when it has something to show: a turn of a few minutes an excited "yay"; one under a minute a small happy face with no word if it ran 40 s or more, or an excited one with its topic ("tests") and no exclamation if its checks passed; otherwise nothing. The exclamation is kept for what stands out. A turn start and a heartbeat get nothing |
 | [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses and heartbeats included, always picks a word if one fits, and holds its faces long: twice for routine lines, up to four times for a comeback or a third failure |
 
 "Never stays quiet" is still Jev's call: `none` stays an option, and the
@@ -82,9 +83,11 @@ moods still apply.
 
 ### 2.3 MOOD
 
-`mood/<mood>.md`, the current mood's file. There are seven moods
+`mood/<mood>.md`, the current mood's file. There are six moods
 (`MoodAction.moods`), each with its own set of faces on the device
-([UX.md](../UX.md) §2). Each file says which faces Boop makes in its
+([UX.md](../UX.md) §2). Curious, whose faces the device keeps, isn't
+one: nothing led to it ([PROTOCOL.md](../PROTOCOL.md) §3). Each file
+says which faces Boop makes in its
 reactions while in that mood (a happy Boop's wins mostly get an excited
 face, and a grumpy Boop gives a win a grudging proud, never a grumpy
 face), what it mumbles at most and the words it likes ("yay" only at a
@@ -94,18 +97,18 @@ judges by. No timer holds or ends a mood: how long one lasts is the
 steering's to say. Only something lasting moves it: a run of failures
 (two in a row, three), a fix after one, or a turn of 10 minutes or more
 ending; never a routine turn, even one of a few minutes, a first
-failure, a stopped turn or a first poke streak. And every mood but happy
+failure or a stopped turn. A poke streak can't move it at all: its pass
+doesn't ask the `mood` question ([EVENTS.md](EVENTS.md) §6). And every mood but happy
 goes back to happy once HISTORY no longer shows Boop's mood changing to
 it (§2.1).
 
 | Mood | Its meaning (the `mood` option) | Leaves for (its file) |
 | --- | --- | --- |
-| `happy` | Good spirits: things are going fine | When a turn of 10 minutes or more ends: `excited` if nothing failed, `proud` if it fought through failures, `sad` if it failed. `determined` when the same thing fails twice in a row; `grumpy` at 3 or more in a row, or when poked again right after the last time; `proud` when what failed twice or more in a row finally works |
+| `happy` | Good spirits: things are going fine | When a turn of 10 minutes or more ends: `excited` if nothing failed, `proud` if it fought through failures, `sad` if it failed. `determined` when the same thing fails twice in a row; `grumpy` at 3 or more in a row; `proud` when what failed twice or more in a row finally works |
 | `excited` | Thrilled: something big went right, such as a turn of 10 minutes or more finishing clean. Not for routine wins, however many | `determined` at two failures in a row; `grumpy` at 3 or more; `sad` when a turn of 10 minutes or more ends failing; `happy` once HISTORY no longer shows the change |
 | `proud` | Something hard-won finished: a comeback, or a very long turn that fought through failures. Not for a routine finish, however long | The same as `excited` |
-| `curious` | Unsure how things are going: mixed results, or something unusual. Not for a routine turn start, or a failure | `determined` at two failures in a row; `grumpy` at 3 or more; `proud` when what failed finally works; `happy` once HISTORY no longer shows the change. Nothing in the steering leads to it today |
 | `determined` | Working through a failure: the same thing failed twice in a row and the agent is retrying. Not for a turn that has ended | `proud` when it finally works; `grumpy` when it fails again; `sad` when a turn of 10 minutes or more ends still failing; `happy` once HISTORY no longer shows the change |
-| `grumpy` | Fed up: 3 or more failures in a row, or poked again right after the last time. Not for a single failure, or one poke streak | `proud` when what failed twice or more in a row finally works; `sad` when a turn of 10 minutes or more ends failing; `happy` once HISTORY no longer shows the change |
+| `grumpy` | Fed up: 3 or more failures in a row. Not for a single failure | `proud` when what failed twice or more in a row finally works; `sad` when a turn of 10 minutes or more ends failing; `happy` once HISTORY no longer shows the change |
 | `sad` | Deflated: a turn of 10 minutes or more ended failing, or was stopped with failures left | `proud` when what failed finally works, staying sad through more failures before it; `happy` once HISTORY no longer shows the change |
 
 And from any mood, `happy` after an hour with nothing happening (the
@@ -115,7 +118,8 @@ guide).
 ([ARCHITECTURE.md](../ARCHITECTURE.md) §4.4), which only the mood store
 (`MoodStore`) reads and writes, so it survives a restart. A new state
 directory starts `happy` (`MoodAction.initial`), and a missing or unknown
-word reads as `happy`. The core puts the mood in every `state` it sends
+word reads as `happy`, `curious` included. The core puts the mood in
+every `state` it sends
 ([PROTOCOL.md](../PROTOCOL.md) §3).
 
 ## 3. The questions
@@ -125,13 +129,13 @@ meaning is its criterion.
 
 | Key | Asked by | Text | About | Judged by | Options |
 | --- | --- | --- | --- | --- | --- |
-| `mood` | `mood` | After NOW, what is Boop's mood? | the NOW and HISTORY sections | the MOOD section, its reason to leave | The seven moods (§2.3) |
-| `react` | `react` | How should Boop react to NOW, if at all? It makes this face for a moment, with a mumble. | the NOW section | the PERSONALITY and MOOD sections, PERSONALITY's Examples first | `none` and the seven moods' faces |
+| `mood` | `mood` | After NOW, what is Boop's mood? | the NOW and HISTORY sections | the MOOD section, its reason to leave | The six moods (§2.3). Not asked on a poke streak's pass |
+| `react` | `react` | How should Boop react to NOW, if at all? It makes this face for a moment, with a mumble. | the NOW section | the PERSONALITY and MOOD sections, PERSONALITY's Examples first | `none` and the six moods' faces |
 | `react.loops` | `react` | If Boop reacts, how long does it hold the face? | the NOW section | as `react` | Four lengths, once to four times |
 | `word.feeling` | `react` | If Boop mumbles, which exclamation fits NOW? | the NOW section | as `react` | `none` and seven exclamations |
 | `word.about` | `react` | If Boop mumbles, which topic word is NOW about? | the NOW section | the PERSONALITY section's Examples | `none` and four topics |
 
-**`react` picks a face.** Its options are `none` and the seven moods,
+**`react` picks a face.** Its options are `none` and the six moods,
 and a reaction is that mood's face for a moment: the device draws
 whatever look is showing (working, idle, the cheer) in that mood's
 design for the loops `react.loops` picks, and at least while the mumble
@@ -151,7 +155,6 @@ disagree (a "no" with a confident "proud"); one choice can't.
 | `happy` | A happy face: pleased, a turn went fine or a small win |
 | `excited` | An excited face: something big just went right |
 | `proud` | A proud face: something long or hard just finished, or finally worked |
-| `curious` | A curious face: something new started, or it's not clear how it's going |
 | `determined` | A determined face: something failed and the agent is trying again. Not for a turn that has ended, or the same failure 3 or more times in a row |
 | `grumpy` | A grumpy face: a turn failed, the same thing keeps failing, or Boop is poked too much |
 | `sad` | A sad face: a turn of 10 minutes or more ended failing, or was stopped with failures left. Not for a short turn failing, or a single failure |
@@ -203,7 +206,9 @@ the next `state` carries it.
 | Another mood | Saves it, tells the core, and returns `ok`, `Boop's mood changed: happy → grumpy.` MOOD is the new mood's file from the next pass, and a new `state` goes to the device at once |
 | Another mood, but the file can't be written | `ok: false`, `couldn't save the mood: …`, and nothing changes |
 
-A mood can change on any pass, even straight after another change.
+A mood can change on any pass that asks, even straight after another
+change. A poke streak's pass doesn't: the event says `mood` sits it out,
+so the action gets no answer and isn't run ([HARNESS.md](HARNESS.md) §3).
 
 **The dashboard** sets a mood through the same change
 ([HARNESS.md](HARNESS.md) §9), and gets a refusal where Jev's answer would
@@ -244,7 +249,7 @@ gate, which says when something needs you.
    it, and the action returns without waiting for the moment.
 5. **The message:** started (`.started`) with that handle, as
    `Boop made a proud face, held three times, and mumbled "…finally!"`,
-   or `Boop made a curious face, held once, and mumbled.` with no word.
+   or `Boop made a happy face, held once, and mumbled.` with no word.
 
 **How a reaction ends.** HISTORY shows its line `(in progress)` until
 whoever holds the moment ends the handle ([HARNESS.md](HARNESS.md) §4,

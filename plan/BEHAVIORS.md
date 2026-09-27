@@ -74,8 +74,8 @@ another mood, blinks into the new design rather than cutting
 
 ### Mood
 
-The mood is one of seven: happy, excited, proud, curious, determined,
-grumpy or sad ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). Only
+The mood is one of six: happy, excited, proud, determined, grumpy or
+sad ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). Only
 the brain's mood action changes it (§4 there; the dashboard can force
 one), and a new Boop starts happy. The next
 `state` carries it and the device blinks into the new set of faces. No
@@ -157,7 +157,7 @@ The light stays steady and nothing repeats. The brain is never involved.
 | --- | --- |
 | You press BOOT or touch the screen | The face dips 2 px at once, until you let go |
 | You let go: a tap | `wiggle`, replacing whatever is playing, a cheer or a mumble included. Asleep and with no app too. The Mac hears of it; the brain doesn't |
-| 4 taps within 3 s: a poke streak | A `wiggle`, as always. The brain hears of the streak and may grumble, at most once a minute (`pokeTaps`, `pokeWindowMs`, `pokedEveryMs`); a sooner streak is only recorded. The count starts again after each streak |
+| 4 taps within 3 s: a poke streak | A `wiggle`, as always. The brain hears of the streak and may grumble, at most once a minute (`pokeTaps`, `pokeWindowMs`, `pokedEveryMs`); a sooner streak is only recorded. A streak never changes Boop's mood: its pass asks nothing about the mood ([harness/EVENTS.md](harness/EVENTS.md) §6). The count starts again after each streak |
 | A tap while something needs you | The press dip only, and the count starts again: there a tap means "I saw it" |
 
 ### 3.4 The link
@@ -210,7 +210,7 @@ mood for the loops of its design that Jev picked, at least while the
 mumble plays, then Boop's own mood comes back
 ([PROTOCOL.md](PROTOCOL.md) §3). Happy and working, a failing test gets
 a loop of working × grumpy with "…ugh!", then working × happy again;
-curious when a long turn finishes, the cheer shows in proud's face while
+determined when a long turn finishes, the cheer shows in proud's face while
 Boop mumbles "…finally!", held three times. The brain has no animations
 of its own: a reaction is all it can add, and to stay quiet it doesn't
 react at all.

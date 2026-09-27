@@ -1,7 +1,7 @@
 import Foundation
 
 /// Whether Boop reacts to NOW, with which face, for how long, and with
-/// which real word (harness/DECISIONS.md §5). The face is one of the seven
+/// which real word (harness/DECISIONS.md §5). The face is one of the six
 /// moods': the device borrows that mood's design of whatever look is
 /// showing, for a number of its loops (PROTOCOL.md §3). It comes with a
 /// Minion line from Voice, and goes as a moment with no animation, so it
@@ -33,7 +33,6 @@ public final class ReactAction: Action {
         Option("happy", "A happy face: pleased, a turn went fine or a small win."),
         Option("excited", "An excited face: something big just went right."),
         Option("proud", "A proud face: something long or hard just finished, or finally worked."),
-        Option("curious", "A curious face: something new started, or it's not clear how it's going."),
         Option("determined", "A determined face: something failed and the agent is trying again.",
                notFor: "A turn that has ended, or the same failure 3 or more times in a row."),
         Option("grumpy", "A grumpy face: a turn failed, the same thing keeps failing, or Boop is poked too much."),

@@ -28,9 +28,14 @@ public struct Event: Equatable, Sendable {
     /// heartbeats.
     public var about: String?
     public var facts: [String: JSONValue]
+    /// The actions that sit this event's pass out, by name, as the core
+    /// decides: their questions aren't asked and they don't run (a poke
+    /// streak leaves the mood alone, EVENTS.md §6). The harness honours it
+    /// without knowing why.
+    public var sitsOut: Set<String>
 
     public init(_ kind: Kind, at ms: Int64, line: String, reaction: String? = nil, wakesBrain: Bool,
-                about: String? = nil, facts: [String: JSONValue] = [:]) {
+                about: String? = nil, facts: [String: JSONValue] = [:], sitsOut: Set<String> = []) {
         self.kind = kind
         self.receivedAtMs = ms
         self.line = line
@@ -38,6 +43,7 @@ public struct Event: Equatable, Sendable {
         self.wakesBrain = wakesBrain
         self.about = about
         self.facts = facts
+        self.sitsOut = sitsOut
     }
 
     /// The event as one JSON object, for `debug.jsonl`.

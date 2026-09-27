@@ -45,7 +45,7 @@ public struct StateSnapshot: Equatable, Sendable {
 
     /// `asleep`, `idle` or `working`.
     public var base: String
-    /// Boop's mood, one of the seven (harness/DECISIONS.md §2.3), which
+    /// Boop's mood, one of the six (harness/DECISIONS.md §2.3), which
     /// picks the set of faces the device draws everything in.
     public var mood: String
     public var attn: Attention?

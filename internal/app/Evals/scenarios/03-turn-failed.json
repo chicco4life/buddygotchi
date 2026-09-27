@@ -3,6 +3,6 @@
   "why": "the react question's meanings: a turn that failed is grumpy; a happy Boop shrugs off one failure: a turn of two minutes failing is no reason to be sad, and determined is for a turn still retrying (plan/steering/mood/happy.md)",
   "steps": [
     {"event": "turn started", "at": "0s"},
-    {"event": "turn failed", "at": "2m", "error": "rate_limit", "expect": {"react": "grumpy|none|curious", "word": "none|oops|ugh|again", "mood": "happy"}}
+    {"event": "turn failed", "at": "2m", "error": "rate_limit", "expect": {"react": "grumpy|none", "word": "none|oops|ugh|again", "mood": "happy"}}
   ]
 }

@@ -1,6 +1,6 @@
 # Boop: vision
 
-Updated 2026-09-27. Why Boop exists, who it's for, what v1 does, and the
+Updated 2026-09-28. Why Boop exists, who it's for, what v1 does, and the
 promises it keeps. How it all works is in the other specs
 ([README.md](README.md)).
 
@@ -46,7 +46,7 @@ but how Boop reacts to it is a question of character.
 - **Lasting.** Boop lives on your Mac, and the device is just its body.
   Reflash the device or replace it, and it's still the same Boop.
 - **Shown, never told.** Its feelings come out in how it moves, looks and
-  sounds: seven moods, each with its own face. You never see a mood meter,
+  sounds: six moods, each with its own face. You never see a mood meter,
   a trait score, or a line saying "I've noticed you seem stressed."
 - **Sassy about the world, kind to you.** It grumbles at a failed test or a
   stubborn agent, never at you. It never guilt-trips you, never dies of

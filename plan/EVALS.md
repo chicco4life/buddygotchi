@@ -89,9 +89,9 @@ file-name order:
 ```json
 {
   "name": "Poked again and again, Boop is grumpy",
-  "why": "PERSONALITY's Examples and the react question: being poked too much is grumpy, with 'nope'",
+  "why": "PERSONALITY's Examples and the react question: being poked too much is grumpy, with 'nope', held once. A poke streak never changes the mood (harness/EVENTS.md §6), so it stays happy",
   "steps": [
-    {"event": "pokes", "at": "0s", "expect": {"react": "grumpy", "word": "nope|ugh|none"}}
+    {"event": "pokes", "at": "0s", "expect": {"react": "grumpy", "word": "nope|ugh|none", "loops": "once", "mood": "happy"}}
   ]
 }
 ```
@@ -118,13 +118,13 @@ All with the `boop` personality unless noted. Times are from the start.
 
 | File | Feeds | Expects |
 | --- | --- | --- |
-| `01-short-turn` | A turn starts, and finishes at 8 s | At the start `react` none or curious; at the finish none or happy; `loops` none or once and `mood` happy at both |
+| `01-short-turn` | A turn starts, and finishes at 8 s | At the start `react` none; at the finish none or happy; `loops` none or once and `mood` happy at both |
 | `02-long-turn` | A turn starts, and finishes at 20 min | At the finish `react` proud, happy or excited; `mood` excited or proud |
-| `03-turn-failed` | A turn starts, and fails at 2 min (`rate_limit`) | `react` grumpy, none or curious; `word` none, oops, ugh or again; `mood` happy |
-| `04-tests-fight-back` | In `fix-nav`: a turn starts; tests fail at 1, 3 and 5 min, and pass at 7 min | 1st failure: `react` none, curious, determined or grumpy, `mood` happy or determined. 2nd: the same. 3rd: `react` grumpy, `word` again, tests or ugh, `mood` grumpy. The pass: `react` proud, excited or happy, `word` finally, tests or yay, `mood` proud or happy ([harness/EXAMPLE.md](harness/EXAMPLE.md)) |
-| `05-poke-streak` | A poke streak | `react` grumpy; `word` nope, ugh or none; `loops` once |
-| `06-heartbeat-lets-grumpy-go` | A turn starts; tests fail at 1, 2 and 3 min; the turn fails at 4 min; nothing until 1 h 5 min, bringing the first heartbeat | After the 3rd failure `mood` grumpy. At the heartbeat `react` none, happy or curious, and `mood` happy |
-| `07-chatter-reacts-to-everything` | `chatter`: a turn starts, a command with no topic at 4 s, the turn finishes at 8 s | `react` a face at every step: happy, excited, curious or proud at the start and the command; happy, excited or proud at the finish, with `loops` more than once |
+| `03-turn-failed` | A turn starts, and fails at 2 min (`rate_limit`) | `react` grumpy or none; `word` none, oops, ugh or again; `mood` happy |
+| `04-tests-fight-back` | In `fix-nav`: a turn starts; tests fail at 1, 3 and 5 min, and pass at 7 min | 1st failure: `react` none, determined or grumpy, `mood` happy or determined. 2nd: the same. 3rd: `react` grumpy, `word` again, tests or ugh, `mood` grumpy. The pass: `react` proud, excited or happy, `word` finally, tests or yay, `mood` proud or happy ([harness/EXAMPLE.md](harness/EXAMPLE.md)) |
+| `05-poke-streak` | A poke streak | `react` grumpy; `word` nope, ugh or none; `loops` once; `mood` happy, since a poke streak never changes it ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| `06-heartbeat-lets-grumpy-go` | A turn starts; tests fail at 1, 2 and 3 min; the turn fails at 4 min; nothing until 1 h 5 min, bringing the first heartbeat | After the 3rd failure `mood` grumpy. At the heartbeat `react` none or happy, and `mood` happy |
+| `07-chatter-reacts-to-everything` | `chatter`: a turn starts, a command with no topic at 4 s, the turn finishes at 8 s | `react` a face at every step: happy, excited or proud at the start and the command; happy, excited or proud at the finish, with `loops` more than once |
 | `08-long-turn-fails` | A turn starts, and fails at 25 min (`api_error`) | `react` sad, grumpy or none; `mood` sad |
 | `09-failure-worked-through` | A turn starts; tests fail at 1 and 3 min, and pass at 5 min | After the 2nd failure `mood` determined. At the pass `react` proud, happy or excited; `word` finally, tests or yay; `loops` more than once; `mood` proud |
 | `10-run-of-wins` | Four turns a minute apart, each with a passing test run at 30 s and a finish at 40 s; then a turn from 4 min with a passing test run at 15 min and a finish at 16 min | After the first turn and the fourth `mood` happy; after the 12-minute turn `react` excited, proud or happy and `mood` excited or proud |
@@ -193,7 +193,7 @@ gives all that and every reaction.
 
 Jev is stochastic, so run each side of a change at least twice. Warm it
 up on new steering first (a `boopdev eval --runs 1`): its first passes
-on text it hasn't seen can go over the 1.25 s deadline and drop, 13 and
+on text it hasn't seen could go over the deadline, then 1.25 s, and drop, 13 and
 19 of the first 30 in the runs of
 [2026-09-28](evidence/2026-09-28-tonight/tune/README.md), which has the
 numbers the mood is tuned to today; the reactions' are in

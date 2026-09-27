@@ -1228,8 +1228,13 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertEqual(moments(soon), [])
         XCTAssertEqual(events(soon).last?.kind, .pokes)
         rig.wait(60_000)
-        _ = streak()
+        let again = streak()
         XCTAssertEqual(pokes.count, 2)
+        XCTAssertEqual(events(again).last?.sitsOut, ["mood"], "a poke streak never changes the mood (EVENTS.md §6)")
+        XCTAssertTrue(events(again).filter { $0.kind == .tap }.allSatisfy(\.sitsOut.isEmpty), "taps leave nothing out")
+        let started = events(rig.send(.turnStart))
+        XCTAssertFalse(started.isEmpty)
+        XCTAssertTrue(started.allSatisfy(\.sitsOut.isEmpty), "other events leave nothing out")
     }
 
     func testSlowPokesNeverAnnoyIt() {

@@ -49,7 +49,7 @@ Examples:
   → proud, "finally", twice
 - NOW: claude finished turn 4 on "api": stopped after 1 min, a very
   long turn, 5 tools.
-  → curious, "hmm", once
+  → happy, "hmm", once
 - NOW: claude finished turn 5 on "api": failed (rate limit) after 40 s,
   a long turn, 2 tools.
   → grumpy, "ugh", once

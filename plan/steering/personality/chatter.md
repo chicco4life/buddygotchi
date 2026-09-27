@@ -17,7 +17,7 @@ Examples:
 - NOW: claude edited a file on "api".
   → excited, "yay", twice
 - NOW: codex ran a command on "api".
-  → curious, "hmm", twice
+  → happy, "hmm", twice
 - NOW: claude ran a command on "api". It failed.
   → grumpy, "oops", twice
 - NOW: claude's tests failed on "api".
@@ -30,4 +30,4 @@ Examples:
 - NOW: You poked Boop 5 times in 3 s.
   → grumpy, "nope", three times
 - NOW: Nothing has happened for 1 hour.
-  → curious, "hmm", twice
+  → happy, "hmm", twice

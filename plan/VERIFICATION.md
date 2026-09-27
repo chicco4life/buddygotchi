@@ -347,7 +347,7 @@ retried once and counted as a link glitch.
    before against after.
 
 **Pass:** every scenario passes in every run; no pass is dropped; the
-slowest pass is under the 1.25 s deadline; and the sample reads well.
+slowest pass is under the 1.5 s deadline; and the sample reads well.
 
 ### L6: the owner
 

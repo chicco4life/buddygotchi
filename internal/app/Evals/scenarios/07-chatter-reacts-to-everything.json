@@ -3,8 +3,8 @@
   "why": "harness/DECISIONS.md §2.2: chatter never stays quiet, even for a routine turn start, a routine command or a short finish, and holds its faces long: more than once for a finish (its Examples)",
   "personality": "chatter",
   "steps": [
-    {"event": "turn started", "at": "0s", "expect": {"react": "happy|excited|curious|proud"}},
-    {"event": "command", "at": "4s", "expect": {"react": "happy|excited|curious|proud"}},
+    {"event": "turn started", "at": "0s", "expect": {"react": "happy|excited|proud"}},
+    {"event": "command", "at": "4s", "expect": {"react": "happy|excited|proud"}},
     {"event": "turn finished", "at": "8s", "expect": {"react": "happy|excited|proud", "loops": "twice|three times|four times"}}
   ]
 }

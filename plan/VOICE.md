@@ -1,6 +1,6 @@
 # Boop: voice
 
-Updated 2026-09-27. How Boop's gibberish is built on the Mac, kept
+Updated 2026-09-28. How Boop's gibberish is built on the Mac, kept
 unintelligible, and played on the device. The code is the source:
 `app/BoopKit/Voice/` on the Mac, `firmware/src/voice/` and
 `firmware/src/board/audio.*` on the device, and
@@ -112,10 +112,10 @@ and the tune (§5). There are eight feelings:
 | Sad | Rounded `u` and `o`, ending on a bare `u` or `o` | 30% | 160 | `down` |
 | Sleepy | The hums, and `mu mo nu no` | 10% | 170 | `down` |
 
-**The brain's reactions** are the seven moods' faces
+**The brain's reactions** are the six moods' faces
 ([harness/DECISIONS.md](harness/DECISIONS.md) §3), and each mumbles in a
-feeling (`Voice.feeling(forMood:)`): happy, excited, proud, curious and
-sad in the feeling of the same name, and grumpy in annoyed's. Determined
+feeling (`Voice.feeling(forMood:)`): happy, excited, proud and sad in
+the feeling of the same name, and grumpy in annoyed's. Determined
 has no voice of its own yet and mumbles in the temporary default,
 happy's: the audio is still being tuned, and the face is what the
 reaction means. Working chatter uses curious and happy
