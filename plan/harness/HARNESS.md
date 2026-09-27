@@ -60,7 +60,12 @@ What the picture leaves out:
   passes still see it in HISTORY. The app log says
   `harness: turn_start replaced by a newer tool_use`.
 - The state and the questions are fixed when a pass starts, so a mood
-  that changes meanwhile doesn't change what it sent.
+  that changes meanwhile doesn't change what it sent. An action the
+  dashboard makes act meanwhile (a mood it sets, or a forced pass's
+  result that's `ok`) sits that pass's answers out, since they're about
+  the state from before the change: Jev's "stay happy" from a state that
+  showed happy would undo the dashboard's grumpy. The app log says
+  `harness: mood sat out the pass: the dashboard changed it while the pass ran`.
 - After every pass, dropped ones included, the runtime hears of it
   (`onRecord`) and writes its app log line (§9). Then the waiting
   event's pass starts.

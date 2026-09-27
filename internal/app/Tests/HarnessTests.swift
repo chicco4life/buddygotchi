@@ -266,6 +266,41 @@ final class HarnessTests: XCTestCase {
         XCTAssertTrue(home.sync { h.idle })
     }
 
+    /// HARNESS.md §2: a pass's state is fixed when it starts, so an action
+    /// the dashboard makes act while the pass runs (a mood it sets, or a
+    /// forced pass's) has changed since the state the pass's answers are
+    /// about. That action sits the pass's answers out: "stay happy" from a
+    /// state that showed happy would otherwise undo the dashboard's grumpy.
+    /// The other actions, and the next pass, get theirs as usual.
+    func testAnActionTheDashboardChangedDuringAPassSitsItOut() throws {
+        let gate = DispatchSemaphore(value: 0)
+        let brain = ScriptedBrain { _, _ in
+            gate.wait()
+            return ["k": Answer(choice: "a"), "j": Answer(choice: "b")]
+        }
+        let a = Recorder("a", keys: ["k"], result: .done("Boop did a."))
+        let b = Recorder("b", keys: ["j"], result: .done("Boop did b."))
+        let refused = Recorder("refused", keys: ["r"], result: .failed("not now"))
+        let (h, home) = harness(brain, [a, b, refused])
+        var records: [Harness.Record] = []
+        home.sync {
+            h.onRecord = { records.append($0) }
+            h.take(event(.turnStart, at: 0, "first"))
+            XCTAssertEqual(h.force(a) { .done("The dashboard did a.") }, .done("The dashboard did a."))
+            XCTAssertEqual(h.force(refused) { .failed("not now") }, .failed("not now"), "refused, so it changed nothing")
+        }
+        gate.signal()
+        eventually("the pass") { home.sync { records.count } == 1 }
+        XCTAssertEqual(a.got, [], "a sat it out")
+        XCTAssertEqual(b.got.count, 1)
+        XCTAssertEqual(refused.got.count, 1)
+        XCTAssertEqual(records.first?.actions.map(\.name), ["b", "refused"])
+        home.sync { h.take(event(.turnEnd, at: 1, "next")) }
+        gate.signal()
+        eventually("the next pass") { home.sync { records.count } == 2 }
+        XCTAssertEqual(a.got.count, 1, "the next pass's state saw the change")
+    }
+
     // MARK: Started actions (HARNESS.md §4–5)
 
     /// HISTORY as a pass a minute after `t0` would show it, for a NOW that

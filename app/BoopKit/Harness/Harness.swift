@@ -50,6 +50,9 @@ public final class Harness: @unchecked Sendable {
 
     var running: Int?
     var waiting: Transcript.Entry?
+    /// The actions the dashboard made act while the running pass ran: the
+    /// pass's state is from before, so they sit its answers out (§2).
+    var changedDuringPass: Set<String> = []
 
     /// A started action, still in progress: its name, when its result was
     /// recorded, and whether it was forced.
@@ -122,6 +125,7 @@ public final class Harness: @unchecked Sendable {
         nextPass += 1
         let id = nextPass
         running = id
+        changedDuringPass = []
         let job = prepare(entry, brain: brain)
         Task { [self] in
             let (result, ms) = await Harness.ask(job)
@@ -129,6 +133,7 @@ public final class Harness: @unchecked Sendable {
                 guard running == id else { return }
                 running = nil
                 finish(entry, job, result, latencyMs: ms)
+                changedDuringPass = []
                 if let next = waiting {
                     waiting = nil
                     start(next)
@@ -158,17 +163,22 @@ public final class Harness: @unchecked Sendable {
         }
         record(.pass(pass), extra: ["state": job.state, "questions": job.questions.map(\.key), "brain": job.brain.id,
                                     "seen": job.seen])
-        let ran = pass.dropped == nil ? runActions(pass.answers, forSeq: entry.seq) : []
+        let ran = pass.dropped == nil ? runActions(pass.answers, forSeq: entry.seq, skipping: changedDuringPass) : []
         let record = Record(event: event, pass: pass, actions: ran)
         if let dropped = pass.dropped { log("harness: \(event.kind.rawValue) dropped: \(dropped)") }
         onRecord?(record)
     }
 
     /// Hands each action its own answers, in order, and records what each
-    /// reports.
-    func runActions(_ answers: Answers, forSeq: Int?) -> [Transcript.ActionRecord] {
+    /// reports. The ones named in `skipping` sit out: they changed since
+    /// the state the answers are about.
+    func runActions(_ answers: Answers, forSeq: Int?, skipping: Set<String> = []) -> [Transcript.ActionRecord] {
         var ran: [Transcript.ActionRecord] = []
         for action in actions {
+            if skipping.contains(action.name) {
+                log("harness: \(action.name) sat out the pass: the dashboard changed it while the pass ran")
+                continue
+            }
             let own = Dictionary(uniqueKeysWithValues: action.questions().compactMap { q in answers[q.key].map { (q.key, $0) } })
             let started = ContinuousClock.now
             let result = action.run(own)
@@ -225,7 +235,15 @@ public final class Harness: @unchecked Sendable {
         })
         if answers.count < choices.count { log("harness: forced answers left out: \(Set(choices.keys).subtracting(answers.keys).sorted())") }
         record(.pass(Transcript.Pass(forSeq: nil, answers: answers, dropped: nil, latencyMs: 0)), extra: ["questions": asked.map(\.key)])
-        return runActions(answers, forSeq: nil)
+        let ran = runActions(answers, forSeq: nil)
+        for a in ran where a.result.ok { changedOutsidePass(a.name) }
+        return ran
+    }
+
+    /// An action acted outside any pass: if a pass is running, its state is
+    /// from before, so the action sits that pass's answers out (§2).
+    func changedOutsidePass(_ name: String) {
+        if running != nil { changedDuringPass.insert(name) }
     }
 
     /// One action doing `body` outside any pass, such as setting the mood
@@ -236,6 +254,7 @@ public final class Harness: @unchecked Sendable {
         let started = ContinuousClock.now
         guard let result = body() else { return nil }
         record(Transcript.ActionRecord(forSeq: nil, name: action.name, result: result, latencyMs: (ContinuousClock.now - started).ms))
+        if result.ok { changedOutsidePass(action.name) }
         return result
     }
 

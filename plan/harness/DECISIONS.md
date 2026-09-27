@@ -204,7 +204,9 @@ A mood can change on any pass, even straight after another change.
 **The dashboard** sets a mood through the same change
 ([HARNESS.md](HARNESS.md) §9), and gets a refusal where Jev's answer would
 get `nil`: `already grumpy` for the current mood, and
-`sulky isn't a mood` for a word that isn't one, each `ok: false`.
+`sulky isn't a mood` for a word that isn't one, each `ok: false`. A pass
+that was running when the dashboard changed the mood leaves it alone:
+its answer is about the mood before ([HARNESS.md](HARNESS.md) §2).
 
 ## 5. The `react` action
 
