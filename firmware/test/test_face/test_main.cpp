@@ -284,6 +284,43 @@ static void test_lids_cut_whole_rows_flat() {
   TEST_ASSERT_EQUAL_INT(topAt(f, fe.x0 + 3), topAt(f, fe.x1 - 3));
 }
 
+static void test_a_lid_never_leaves_a_sliver() {
+  // A lid or a squint that leaves a pane less than two blocks tall takes
+  // the whole pane (UX.md §2): down any column of an eye, every lit run is
+  // at least 6 px.
+  auto check = [](const Pose& q, const char* what) {
+    Pose p = q;
+    p.dx = 0, p.dy = 0, p.mouthOpen = 0, p.mouthCurve = 0;
+    Buf b = face(p);
+    EyeBox e = eyeBox(b, false);
+    if (e.n == 0) return;
+    for (int x : {e.x0 + e.w() / 4, e.x1 - e.w() / 4}) {
+      int run = 0;
+      for (int y = 0; y <= kEyeRows; ++y) {
+        bool lit = y < kEyeRows && x < kWidth / 2 && b.c.get(x, y) == inkAt(kInkEye, kLevels);
+        if (lit) {
+          ++run;
+        } else if (run) {
+          TEST_ASSERT_TRUE_MESSAGE(run >= 6, what);
+          run = 0;
+        }
+      }
+    }
+  };
+  for (int v = 0; v <= 1000; v += 25) {
+    Pose lid, squint;
+    lid.lidTop = int16_t(v), squint.lidBot = int16_t(v);
+    check(lid, "lid");
+    check(squint, "squint");
+  }
+  Pose strain = lookPose(Look::kWorking, 1);  // the working strain at its peak
+  strain.lidTop = int16_t(strain.lidTop + 170), strain.squash = 240;
+  check(strain, "strain");
+  Buf b = face(strain);  // it takes the top panes off, and keeps the bottom ones
+  EyeBox e = eyeBox(b, false);
+  TEST_ASSERT_TRUE(e.n > 0 && e.h() <= 18);
+}
+
 static void test_a_look_up_keeps_full_panes_and_working_looks_down() {
   // With no pupils to roll, lids alone would make these the same hooded
   // eyes in two places. Working is lidded and sits low; a look up and
@@ -542,6 +579,7 @@ int main(int, char**) {
   RUN_TEST(test_a_look_moves_the_whole_eye_with_perspective);
   RUN_TEST(test_eye_size_changes_only_the_eyes);
   RUN_TEST(test_lids_cut_whole_rows_flat);
+  RUN_TEST(test_a_lid_never_leaves_a_sliver);
   RUN_TEST(test_a_look_up_keeps_full_panes_and_working_looks_down);
   RUN_TEST(test_closed_eyes_are_a_line);
   RUN_TEST(test_happy_eyes_squint_and_the_smile_stays_small);

@@ -21,6 +21,7 @@ constexpr int kLookX = 24, kLookY = 15;  // a full look moves the whole eye this
 constexpr int kTurn = 110;               // permille: a full sideways look grows the near eye this much
                                          // and shrinks the far one, like a head turning
 constexpr int kPaneMin = 3;              // blocks: a pane thinner than this and the eye is one bar
+constexpr int kPaneRows = 2;             // blocks: a lid or squint leaving fewer rows of a pane takes it all
 constexpr int kMouthFollow = 450;        // permille of the eyes' move the mouth follows
 // The mouth: a flat bar as wide as an eye, two blocks thick, level with the
 // cheeks. Past kMouthCurveAt it's a small smile or frown, and past
@@ -114,27 +115,29 @@ Eye makeEye(const Pose& p, int cx, int cy, int s, bool right) {
 }
 
 // An open eye is four panes around a one-block cross; the upper lid cuts
-// whole rows of blocks off the top. Too thin for panes, it's one solid bar.
-// Each pane, or the bar, gets softened corners.
+// whole rows of blocks off the top, and the squint off the bottom. A pane
+// they leave thinner than kPaneRows goes, so no sliver of it floats like a
+// brow. Too thin for panes, the eye is one solid bar. Each pane, or the
+// bar, gets softened corners.
 void drawEye(Canvas& c, const Eye& e, uint8_t color) {
   const int x0 = e.bx - e.wb / 2, x1 = e.bx + e.wb / 2, y0 = e.by - e.hb / 2, y1 = e.by + e.hb / 2;
   const bool panes = e.hb >= 2 * kPaneMin + 1 && e.wb >= 2 * kPaneMin + 1;
-  for (int bx = x0; bx <= x1; ++bx) {
-    if (panes && bx == e.bx) continue;
-    for (int by = y0; by <= y1; ++by) {
-      if (panes && by == e.by) continue;
-      if (centreOf(by) < e.lidY || centreOf(by) > e.botY) continue;
-      block(c, bx, by, color);
+  // Fills columns bx0..bx1 of rows by0..by1, less what the lids take.
+  auto part = [&](int bx0, int by0, int bx1, int by1, int least) {
+    int top = by0, bot = by1;
+    while (top <= bot && centreOf(top) < e.lidY) ++top;
+    while (bot >= top && centreOf(bot) > e.botY) --bot;
+    if (bot - top + 1 < least) return;
+    for (int by = top; by <= bot; ++by) {
+      for (int bx = bx0; bx <= bx1; ++bx) block(c, bx, by, color);
     }
-  }
-  auto soften = [&](int bx0, int by0, int bx1, int by1) {
     roundCorners(c, bx0 * kBlock, by0 * kBlock, (bx1 + 1) * kBlock - 1, (by1 + 1) * kBlock - 1, color);
   };
-  if (!panes) return soften(x0, y0, x1, y1);
-  soften(x0, y0, e.bx - 1, e.by - 1);
-  soften(e.bx + 1, y0, x1, e.by - 1);
-  soften(x0, e.by + 1, e.bx - 1, y1);
-  soften(e.bx + 1, e.by + 1, x1, y1);
+  if (!panes) return part(x0, y0, x1, y1, 1);
+  part(x0, y0, e.bx - 1, e.by - 1, kPaneRows);
+  part(e.bx + 1, y0, x1, e.by - 1, kPaneRows);
+  part(x0, e.by + 1, e.bx - 1, y1, kPaneRows);
+  part(e.bx + 1, e.by + 1, x1, y1, kPaneRows);
 }
 
 // A small sprite of `rows`, one character per block ('X' filled), drawn

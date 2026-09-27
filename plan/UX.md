@@ -49,7 +49,9 @@ shows, the face eases up into the top 144 px at three-quarters size.
   crossing 3, eases from the frame that was showing. The backlight eases
   over the same 150 ms. A blink shrinks the eye towards a one-block bar;
   an eye too thin for its panes is drawn as one bar. A lid takes whole rows
-  of blocks off the top, straight across the eye. To look somewhere
+  of blocks off the top, straight across the eye, and a pane it leaves
+  less than two blocks tall goes altogether, so no sliver floats like a
+  brow. To look somewhere
   the whole eye moves, and the eye on the side it looks towards grows a
   little, as if Boop turned its head. Every expression keeps the window
   eyes: arches and wide grins on boxy eyes read as uncanny (the owner,
