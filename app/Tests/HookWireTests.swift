@@ -166,6 +166,8 @@ final class HookWireTests: XCTestCase {
             ("env -i PATH=/usr/bin make test", "tests"), ("(cd app && cargo test --release)", "tests"),
             ("xcodebuild -scheme Boop -destination 'platform=macOS' test", "tests"),
             ("bash -lc 'cd app && go test ./...'", "tests"), ("make build && make test", "tests"),
+            ("bash --norc -c \"pytest -x\"", "tests"), ("zsh --no-rcs -c 'npm test'", "tests"),
+            ("bash --rcfile x -c 'go test ./...'", "tests"), ("bash -o pipefail -c 'make test'", "tests"),
             ("cd /Users/me/src/landing && npm run build 2>&1 | tail -40", "build"),
             ("make 2>&1 | grep -i error", "build"), ("sudo make install", "build"),
             ("git push heroku main", "deploy"), ("npx vercel --prod", "deploy"),
@@ -199,6 +201,7 @@ final class HookWireTests: XCTestCase {
         }
         XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["grep", "-rn", "make test", "docs"]]), nil)
         XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["zsh", "-c", "npm run build"]]), "build")
+        XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["bash", "--noprofile", "--norc", "-c", "cargo test"]]), "tests")
     }
 
     func testEditsToMarkdownOrTextAreDocs() {

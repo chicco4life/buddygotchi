@@ -68,8 +68,7 @@ public enum Topic {
     /// that aren't flags (`make -C firmware test`).
     static func rule(_ words: [String]) -> Int? {
         guard let (program, args) = unwrap(words) else { return nil }
-        if shells.contains(program), let at = args.firstIndex(where: { $0.hasPrefix("-") && $0.contains("c") }),
-           at + 1 < args.count {
+        if shells.contains(program), let at = args.firstIndex(where: isDashC), at + 1 < args.count {
             // `bash -lc "cargo test -q"`: the script is the command.
             return commands(args[at + 1]).compactMap(rule).min()
         }
@@ -84,6 +83,11 @@ public enum Topic {
     }
 
     static let shells: Set<String> = ["sh", "bash", "zsh"]
+    /// A shell's `-c`, alone or among other short options (`-lc`), and not
+    /// a long option such as `--norc` or `--rcfile`.
+    static func isDashC(_ word: String) -> Bool {
+        word.hasPrefix("-") && !word.hasPrefix("--") && word.contains("c")
+    }
     /// Shell words that start a command without being its program:
     /// `do make test`, `then make test`, `{ make test; }`, `! make test`.
     static let reserved: Set<String> = ["if", "then", "elif", "else", "do", "while", "until", "!", "{"]
