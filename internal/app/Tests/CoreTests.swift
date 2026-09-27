@@ -259,6 +259,50 @@ final class CoreAgentWorkTests: XCTestCase {
         XCTAssertEqual(rig.state.base, "working", "a call that starts afterwards")
     }
 
+    /// ADAPTERS.md §4: Claude's idle notice means it has sat at its prompt
+    /// for a minute, so one that lands less than 30 s after a turn started
+    /// is from before it: you typed a new prompt just as the minute after
+    /// an Esc ran out. It's ignored, and the new turn goes on working.
+    func testAStaleIdleNoticeDoesntStopANewTurn() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.needsYou, tool: "Bash")
+        rig.wait(59_500)  // Esc on the prompt: no hook
+        rig.send(.turnStart)
+        rig.now += 10
+        let fx = rig.send(.turnStopped, notice: true)
+        XCTAssertEqual(events(fx), [])
+        XCTAssertEqual(rig.state.base, "working")
+        rig.wait(30_000)
+        rig.send(.turnStopped, notice: true)  // no stale notice waits this long
+        XCTAssertEqual(rig.state.base, "idle")
+
+        rig.send(.turnStart, .codex, session: "c")
+        rig.now += 10
+        rig.send(.turnStopped, .codex, session: "c")  // Codex's Interrupt is never stale
+        XCTAssertEqual(rig.state.base, "idle")
+    }
+
+    /// Claude gives a subagent's hooks its parent's session, and the hooks
+    /// that end, fail or start a turn say so with the subagent's
+    /// `agent_id` when one sends them. They're that subagent's: they
+    /// answer its own request, as its end does, and leave the session's
+    /// turn and everyone else's requests alone.
+    func testASubagentsTurnLevelHooksAreItsOwn() {
+        for kind in [BoopEvent.Kind.turnFailed, .turnEnd, .sessionStart, .turnStart, .sessionEnd] {
+            let rig = CoreRig()
+            rig.send(.turnStart)
+            rig.send(.activity, tool: "Agent")
+            rig.send(.needsYou, subagent: "A", tool: "Bash")
+            let fx = rig.send(kind, subagent: "B")
+            XCTAssertNotNil(rig.state.attn, "\(kind.rawValue): A's prompt is still up")
+            XCTAssertEqual(events(fx), [], kind.rawValue)
+            rig.send(kind, subagent: "A")
+            XCTAssertNil(rig.state.attn, "\(kind.rawValue): A's own answers it")
+            XCTAssertEqual(rig.sessions, [["claude", "landing", "working"]], "\(kind.rawValue): the turn goes on")
+        }
+    }
+
     func testFailedTurnPlaysNoMomentAndGoesIdle() {
         let rig = CoreRig()
         rig.send(.turnStart)

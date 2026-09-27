@@ -163,6 +163,14 @@ public final class Core {
     /// doesn't say who asked: any event from the session answers it.
     static let anyone = "*"
 
+    /// The kinds that start or end a turn or a session: from inside a
+    /// subagent, only that subagent's.
+    static let turnLevel: Set<BoopEvent.Kind> = [.sessionStart, .turnStart, .turnEnd, .turnFailed, .sessionEnd]
+
+    /// Claude's idle notice comes after a minute at its prompt, so one
+    /// sooner than this after a turn started is from before it.
+    static let idleNoticeMinMs: Int64 = 30_000
+
     /// How far apart a request's own hook and its `Notification` may land,
     /// either way round (ADAPTERS.md §4).
     static let noticeLagMs: Int64 = 5000
@@ -194,6 +202,13 @@ public final class Core {
         var s = sessions[key] ?? Session(agent: event.agent, id: event.session, project: event.project,
                                          lastEventAt: now, order: takeOrder())
         let waiting = s.needsSince != nil || s.pendingSince != nil
+        // Claude's idle notice means it has sat at its prompt for a minute,
+        // so one within 30 s of a turn's start is from before that turn: a
+        // new prompt typed just as the minute ran out (ADAPTERS.md §4).
+        if event.event == .turnStopped, event.detail.notice, let started = s.turnStartedAt,
+           now - started < Core.idleNoticeMinMs {
+            return
+        }
         // A session is where its events come from, except while a request
         // waits: the strip names where that was made, whatever folder a
         // sibling subagent works in meanwhile (BEHAVIORS.md §3.2).
@@ -240,7 +255,7 @@ public final class Core {
             return
         }
 
-        if event.event == .subagentEnd {
+        if event.event == .subagentEnd || (event.subagent != nil && Core.turnLevel.contains(event.event)) {
             // A subagent that has finished can't be waiting on a prompt, so
             // its end answers its own request: denied, it carried on and
             // ended without another tool call. It answers nobody else, not
@@ -248,7 +263,9 @@ public final class Core {
             // start working and its clock doesn't move, so it can't make an
             // idle or stale session look busy. Once no asker is left, the
             // session works again only if its turn is still going
-            // (ADAPTERS.md §4).
+            // (ADAPTERS.md §4). A turn-level hook from inside a subagent
+            // (its `agent_id` on a `StopFailure`, say) is the same: that
+            // subagent's alone, not the session's turn.
             if waiting, let id = event.subagent, s.askers.removeValue(forKey: id) != nil {
                 if s.askers.isEmpty {
                     clearRequest(&s, now)

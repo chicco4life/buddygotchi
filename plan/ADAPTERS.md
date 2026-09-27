@@ -208,8 +208,9 @@ still counts as working. Which of them the device shows is
 | `turn_start`, `activity` | Works |
 | `activity` that's a call's result, once its turn has ended or stopped, for a call that started before then | Stays as it is. The result landed late: you pressed Esc as a parallel call finished, a subagent's call raced the interrupt, or Codex reported the command its `Interrupt` aborted. It still counts for the thread ([harness/EVENTS.md](harness/EVENTS.md) §4), but it doesn't start the turn again, so a stopped turn isn't recorded twice |
 | `turn_end`, `turn_failed` | Goes idle |
-| `turn_stopped` | Goes idle if it was working, with no rule reaction (the brain hears of a stopped turn, [harness/EVENTS.md](harness/EVENTS.md) §4) |
+| `turn_stopped` | Goes idle if it was working, with no rule reaction (the brain hears of a stopped turn, [harness/EVENTS.md](harness/EVENTS.md) §4). Claude's `idle_prompt` less than 30 s after the session's turn started (`Core.idleNoticeMinMs`) is ignored: it comes after a minute at the prompt, so it's from before that turn, a new prompt typed just as the minute ran out |
 | `subagent_end` | Stays as it is: a subagent finishing isn't activity, and it doesn't count as an event for the timers below, so it can't make an idle or stale session look busy. It can answer a request (below) |
+| `session_start`, `turn_start`, `turn_end`, `turn_failed` or `session_end` from inside a subagent (with its `agent_id`) | The same as `subagent_end`: that subagent's alone, not the session's turn |
 | `needs_you` | Needs you (below) |
 | `session_end` | Is forgotten |
 | No event for 1 hour (`staleWorkMs`) | Counts as idle if it was working |
