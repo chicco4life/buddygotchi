@@ -1,20 +1,27 @@
 # Morning report: the night of 2026-09-28
 
 Good morning. Overnight, seven lanes of work went onto local `main`, one
-after another, and everything was checked again together at the end. Nothing
-is pushed.
+after another, and everything was checked again together. Then a second
+round ran two more: another race hunt (hunt2) and another tuning pass
+(tune2), each with its own check. Everything was checked together once
+more at the end. Nothing is pushed.
 
 The short version: Boop should feel calmer and more expressive today.
 Its mood now changes only for something that lasts (16 times over a scripted
-working day, down from 52), and everything that stands out gets a strong
-face that fits.
-Behind that, a lot of small races between hooks were fixed, so the screen
-and what Boop remembers agree. The board runs `main`'s firmware and passes
-the pipeline check, and the Jev evals pass 14 of 14 in all 3 runs.
+working day, down from 52). The second tuning made the faces vivid: happy
+went from two thirds of the faces to a third, and "yay" from 83% of the
+worded reactions to 38%, so failures, fixes and big wins each get their
+own face and word. The cost is fewer reactions to quick routine turns.
+Behind that, a lot of small races between hooks were fixed, 34 in the
+first hunt and 17 in the second, so the screen and what Boop remembers
+agree, even across a Mac asleep, a relaunch or a session that ended.
+The board runs `main`'s firmware (round 2 changed none) and passed the
+pipeline check in round 1. The Jev evals passed 14 of 14 in 2 of 3
+full runs this morning; the third lost one pass to Jev's deadline.
 
 Your checks from last evening (1, 2, 3, 4, 5 and 9, nothing noted as off)
 are recorded in [PLAN.md](../../PLAN.md) §2. Tonight's work changed what
-checks 6, 7, 9, 10 and 12 expect, and their text now says so.
+checks 6, 7, 8, 9, 10 and 12 expect, and their text now says so.
 
 ## Start here
 
@@ -62,8 +69,15 @@ python3 internal/tools/workday/workday.py report /tmp/tn-out/1/debug.jsonl /tmp/
 `make eval` builds first, and the working day needs that build, since it
 runs the headless app. Each day takes about 5 minutes. Run it twice,
 because Jev varies, and compare against tonight's numbers below or the
-hour-by-hour reports in [tune/day-reports.md](tune/day-reports.md). Without
-a key, `workday.py run --brain scripted` checks the plumbing only.
+hour-by-hour reports in [tune2-check/day-reports.md](tune2-check/day-reports.md)
+(the steering on `main`). The report now lists the words mumbled too.
+Without a key, `workday.py run --brain scripted` checks the plumbing only.
+
+`boop.md` is at exactly its 600-token budget, so a new Example needs a
+trim first. The two cheapest knobs are in it: the "40 s" bar decides how
+often a quick routine finish gets a face (30 s gave about half, 40 s a
+third), and the 2-minute Example's "yay" is where most of the "yay"s come
+from.
 
 ## What to watch for today
 
@@ -77,20 +91,33 @@ a key, `workday.py run --brain scripted` checks the plumbing only.
   face only with something to show (40 s of work or checks passing), so
   about a third of them do. The second tuning (round 2,
   [tune2](tune2/README.md), [check](tune2-check/README.md)) took happy
-  from 67% to about a third of the faces and "yay" from 80% to about
-  35% of the reactions with a word. Watch for the same excited
+  from 67% to about a third of the faces and "yay" from 83% to 38% of
+  the reactions with a word. Watch for the same excited
   "…tests!" over and over on a run of quick passing turns: it's an open
   item.
 - **A first poke streak makes Boop grumpy.** It's known, and text alone
   couldn't fix it (below).
 - **Dropped passes.** When Jev answers after 1.25 s, `make debug` prints a
   dropped pass, and that reaction never comes. Expect a few in clusters,
-  and more in the first minutes after a steering edit.
+  and more in the first minutes after a steering edit. The app's
+  `boop.log` now also says when Jev did answer
+  (`answered after N ms, too late for …`), which is the number to judge
+  decision 2 by.
+- **Quieter after sleep and restarts.** A turn no longer counts the time
+  the Mac slept, so opening the lid shouldn't bring a "very long turn"
+  cheer. A session that ended stays ended, so a late hook can't bring it
+  back as working or needing you. After a relaunch, a turn Boop only
+  joined halfway still cheers when it's done, but the brain isn't told
+  about it.
 - **Reactions that didn't happen.** `make day` lists them with the
   reason. "waited too long" right after a face over the idle look is the
   known 9-second item.
 - **Chirps.** A different request now chirps even when it's the same agent
-  and project, such as two worktrees of one repo (check 6).
+  and project, such as two worktrees of one repo (check 6), and also
+  the first request after you relaunch the app.
+- **Codex's automatic reviewer.** A command it approves that runs past
+  2 s shows "needs you" and chirps until it ends (check 8). If you see
+  it, note it: it's the first real sign of what Codex sends then.
 - **A denied subagent** should drop "needs you" as soon as it ends
   (check 7). That's the first real `SubagentStop` Boop will see.
 
@@ -100,22 +127,28 @@ a key, `workday.py run --brain scripted` checks the plumbing only.
    the text says (five tries). Either leave pokes out of the mood
    question, so they get a face only, or have the event line say it's the
    first streak ([tune-check](tune-check/README.md)).
-2. **Jev's deadline.** Even warmed up, Jev drops 2 to 8 passes over a
-   day, all at 1.28–1.33 s, just past the 1.25 s deadline. One of them was
-   the day's 16-minute finish. Raising the deadline to 1.5 s probably
-   costs nothing, since no reflex waits on the brain, but measure it
-   first. A throwaway pass at launch would cover the cold start.
+2. **Jev's deadline.** Even warmed up, Jev drops a few passes over a
+   day; one of them was the day's 16-minute finish, and this morning one
+   cost a full eval run a scenario. The first round read these as Jev
+   taking 1.28–1.33 s, but hunt2 found that was the deadline's own timer
+   firing late. It now fires on time and `boop.log` records when Jev
+   really answered, so a day of `make debug` gives the number to decide
+   on. Raising the deadline probably costs nothing, since no reflex waits
+   on the brain. A throwaway pass at launch would cover the cold start.
 3. **Two parallel subagents' test results.** Today the one that lands
    last decides whether the turn failed. The alternative is to fail any
    turn that leaves a check failing, but that changes sequential turns
    too (race report 29, [core](core/README.md)).
-4. **Curious has no way in.** Nothing leads to the curious mood, and its
-   face never showed in the scripted day. Give it a reason (a turn after
-   a long break, mixed results), or drop it.
-5. **A face over the idle look lasts up to 9 s**, because the idle designs
-   loop every 9 s. A reaction arriving in its first few seconds can be
-   dropped. The options are a shorter idle loop, or a cap on a face's
-   first loop.
+4. **Curious has no way in as a mood.** Its face now shows at a stopped
+   turn, with "…hmm", but nothing leads to the mood. Give it a reason
+   (a turn after a long break, mixed results), or drop it.
+5. **A face held for its loops blocks the next reaction.** Over the idle
+   look one loop lasts up to 9 s, since the idle designs loop every 9 s,
+   and a face Jev holds two to four times holds the line for 16–36 s.
+   Another reaction waits at most 5 s, so another thread's failure
+   meanwhile gets no face. The options are a shorter idle loop, a cap on
+   a face's first loop, or letting the next reaction end a held face
+   once its mumble has played ([hunt2](hunt2/README.md), report 16).
 6. **When "needs you" starts, a waiting reaction** is sent at once for the
    board to skip, as [harness/DECISIONS.md](../../harness/DECISIONS.md) §5
    says. It could stay queued instead, and play if "needs you" clears
@@ -124,14 +157,42 @@ a key, `workday.py run --brain scripted` checks the plumbing only.
    starts over. The rules' cheer is one loop, so only the dashboard and
    `play cheer --loops` show it. Fix it only if you see it on the panel
    ([firmware](firmware/README.md)).
+8. **Jev repeats a reaction once the last one has ended.** A run of
+   quick turns with their tests passing gets the same excited "…tests!"
+   up to 8 times in a row, and a comeback's finish repeats the fix's
+   proud "…finally!" under a minute later. Text didn't stop it. Either
+   the state names Boop's last reaction and how long ago it was, or those
+   quick passes get no face (then happy climbs to about 42% of faces)
+   ([tune2-check](tune2-check/README.md)).
+9. **Fewer reactions, stronger ones.** Round 2 reacts to 0.47–0.49 of
+   finished turns, from 0.70 after round 1. Every notable moment and
+   nearly every turn of a few minutes still gets one; the drop is all
+   quick routine turns, which now get a face only with something to
+   show. If Boop feels too quiet, lower boop.md's "40 s" bar.
+10. **A `Stop` another hook blocks still cheers twice.** Keeping
+    `stop_hook_active` through `boop-hook` and ending such a turn with
+    no second cheer would make one prompt one turn. It touches the hook,
+    the adapter and the core, so the spec first ([hunt2](hunt2/README.md),
+    report 21).
+11. **A brain pass already running when "needs you" starts** can still
+    change the mood when it lands, which redraws the needs-you face. The
+    mood could sit out passes while something needs you (report 15's
+    other half).
+12. **An ended session ignores its hooks for a day** unless it starts
+    again. That hides a real request only if an agent asks after its own
+    `SessionEnd` with no `SessionStart` first, which no recording shows.
+    Accept it, or record a session that exits with a background
+    subagent running ([hunt2](hunt2/README.md)).
 
 ## Still open, no decision needed
 
 - **Some things need a real session recorded.** These are what a message
   queued mid-turn sends, what a background subagent sends after the
   main `Stop`, a real `SubagentStop`, and a real Codex session with an
-  approval and a failing test. Three race reports (16, 24, 28) wait on
-  these.
+  approval, a failing test and its automatic reviewer on. Three race
+  reports from round 1 (16, 24, 28) and two from round 2 (8, the
+  reviewer, and 12, a Codex request landing just after its own
+  `Interrupt`) wait on these.
 - **The pipeline check cuts one reaction for no real reason.** Its
   fixture jumps the app's clock 40 s while a reaction plays, so the app
   stops waiting and the next reaction cuts it. Tonight's run showed it
@@ -140,13 +201,18 @@ a key, `workday.py run --brain scripted` checks the plumbing only.
   up to the repo.
 - **The dashboard's recorded test run is old.** It has no started
   actions, loops or `attn.id`, and should be recorded again.
-- **The webcam check (L3) wasn't run.** It needs you to ask for it in a
-  session you open.
+- **The webcam check (L3) was a short one.** At about 05:10 the cheer,
+  two held reactions, a tap and four moods' looks all passed on camera
+  ([webcam](webcam/review.md)), but sad's tears were too faint to see
+  and nothing asleep, without the app, or over Bluetooth was filmed.
+  The board was yours from 06:25, so round 2's final check didn't rerun
+  the pipeline check; round 2 changed no firmware.
 - **Heap headroom is about 14 KB** over the 60 KB target, so anything that
   adds RAM needs measuring.
 - **USB drops the odd byte**, which is why the soak retries a reply.
 
-All but the webcam are open items in [PLAN.md](../../PLAN.md) §3.
+All but the webcam are open items in [PLAN.md](../../PLAN.md) §3, as
+are the decisions above other than 6 and 9.
 
 ## The numbers
 
@@ -155,7 +221,9 @@ All but the webcam are open items in [PLAN.md](../../PLAN.md) §3.
 The scripted day has 193 turns on four threads, with a test fight, a
 22-minute turn, lunch, poke streaks, a 14-minute turn that fails, and an
 hour of quick wins. It ran twice on each side, with the same seed. Pairs
-below are the two runs ([tune](tune/README.md)).
+below are the two runs.
+
+**Round 1, the mood** ([tune](tune/README.md)):
 
 | Hour | Turns | Mood changes, before | after | Reactions, before | after |
 | --- | --- | --- | --- | --- | --- |
@@ -195,10 +263,63 @@ below are the two runs ([tune](tune/README.md)).
 - **The check's reruns** agreed: 14 and 16 mood changes, 150 and 156
   reactions ([tune-check](tune-check/README.md)).
 
+**Round 2, the faces and words.** Round 1 left the faces mostly a happy
+"yay". The second pass, text only, asked for a strong face wherever one
+fits, and a face on a quick routine turn only with something to show.
+Before is `main` after round 1 ([tune2](tune2/README.md)); after is the
+steering on `main` now, with its check's fix for sad
+([tune2-check](tune2-check/README.md)).
+
+| Hour | Turns | Mood changes, before | after | Reactions, before | after |
+| --- | --- | --- | --- | --- | --- |
+| 09:00 | 22 | 0, 0 | 0, 0 | 17, 17 | 15, 15 |
+| 10:00 | 29 | 5, 5 | 5, 5 | 26, 26 | 17, 17 |
+| 11:00 | 36 | 2, 2 | 2, 2 | 27, 27 | 17, 17 |
+| 12:00 | 6 | 0, 0 | 0, 0 | 6, 6 | 5, 5 |
+| 13:00 | 6 | 2, 2 | 2, 2 | 8, 8 | 9, 9 |
+| 14:00 | 34 | 4, 4 | 4, 4 | 29, 30 | 16, 16 |
+| 15:00 | 15 | 1, 1 | 1, 1 | 9, 9 | 7, 7 |
+| 16:00 | 38 | 0, 0 | 0, 0 | 25, 25 | 21, 17 |
+| 17:00 | 7 | 1, 1 | 1, 1 | 5, 5 | 4, 4 |
+| 18:00 | 0 | 1, 1 | 1, 1 | 0, 0 | 0, 0 |
+| **Day** | **193** | **16, 16** | **16, 16** | **152, 153** | **111, 107** |
+
+- **The faces**, both runs together:
+
+  | | happy | excited | proud | grumpy | determined | sad | curious |
+  | --- | --- | --- | --- | --- | --- | --- | --- |
+  | Before (305) | 67% | 14% | 8% | 8% | 3% | 1% | 0 |
+  | After (218) | 33% | 39% | 12% | 10% | 4% | 1% | 1% |
+
+- **The words.** "Yay" went from 83% of the reactions with a word to
+  38%. After, over both runs: yay 58, tests 46, finally 14, again 14,
+  oops 8, nope 6, ugh 4, hmm 2, and 66 with no word.
+- **Where they go.** Every failure, fix, comeback, poke and failed turn
+  still gets its face (26 of 26 notable lines). A quick finish with its
+  tests passing gets an excited "…tests!"; one with 40 s of work gets a
+  small happy face and no word; the rest get nothing, so about a third
+  of quick finishes react. The stopped turn is a curious "…hmm". Nothing
+  is absurd: no sad or grumpy face at a clean finish, no happy one at a
+  failure, and nothing at turn starts or heartbeats.
+- **The mood stays calm**: 16 changes a day, as before. The lane's text
+  first let a sad Boop turn determined at the next failure, in half the
+  runs; the check's line in `sad.md` holds it sad at 0.96.
+- **The cost.** 0.47–0.49 reactions a finished turn, from 0.70, all of
+  it quick routine turns (decision 9). And the same excited "…tests!"
+  can come up to 8 times in a row (decision 8).
+
 ### Evals
 
-`BOOP_JEV_KEY=… make eval` on the final `main`: **14/14 scenarios in all
+`BOOP_JEV_KEY=… make eval` on round 1's `main`: **14/14 scenarios in all
 3 runs**, median 228 ms, slowest 568 ms ([final/eval.txt](final/eval.txt)).
+Both round-2 lanes and the tune2 check passed 14/14 in all 3 runs, each
+on its own text.
+
+On the final `main`, three full runs this morning: 14/14 twice (medians
+212 and 220 ms, slowest 336 ms), and once 13/14, because one pass of
+`02-long-turn` came after the 1.25 s deadline and was dropped
+([final/eval-round2.txt](final/eval-round2.txt)). Every answer Jev did
+give was right. It's decision 2 again, now in an eval.
 
 Scenarios whose expectations changed tonight:
 
@@ -211,7 +332,10 @@ Scenarios whose expectations changed tonight:
   repeated a proud "finally" that was still on screen. `react`'s `none`
   option now covers a reaction Boop is still making.
 - New `13-proud-fades` and `14-minutes-turn-is-routine`
-  ([tune](tune/README.md)).
+  ([tune](tune/README.md)). The second tuning broke 13 at first (proud
+  stopped fading); `proud.md` now ties staying proud to HISTORY still
+  showing the change, and it passes again. No scenario changed in
+  round 2.
 
 No scenario that tests a rule was loosened.
 
@@ -241,23 +365,23 @@ No scenario that tests a rule was loosened.
 
 ### The final check, on `main`
 
-Everything ran on `e13cc124`, the last lane's merge. The build, tests,
-simulator, tools' tests and facegen ran again on this report's commits,
-which change only `boopctl day` and docs.
+Round 1's check ran on `e13cc124`; round 2's on `9146e378`, after both
+round-2 lanes merged. Where a row has two results, round 2's is second.
+Round 2 changed no firmware, designs or simulator code.
 
 | Check | Result |
 | --- | --- |
-| `make build` | Builds |
-| `make -C internal test` | 242 of 242 |
-| `make -C internal fw-test` | 114 of 114 |
-| `make -C internal sim` | 11 scenarios, 0 expect failures, 0 changed pictures |
-| boopctl, webcam and workday tests | 53, 3 and 9 OK |
-| `facegen.py --check` | 337 frames of 30 scenes match Chrome; nothing changed |
-| `make flash`, `boopctl ping` | Firmware `e13cc1245e`, heap 74,076 B free, 73,960 B at the least |
-| `make -C internal e2e` | PASS: 17 of 17 checkpoints, 5 of 5 expected events, hook to board p50 39 ms and p95 64 ms. All 9 brain moments got their `ended`: 7 done, 2 cut, one by the Codex cheer and one by the clock-jump artefact ([final/e2e.txt](final/e2e.txt)) |
-| `make eval` with Jev | 14/14 in all 3 runs |
-| Scripted working day | 193 turns, 403 passes, 0 dropped, all 403 reactions `done`, in 2 min 39 s ([final/workday-scripted.md](final/workday-scripted.md)) |
-| `cmp CLAUDE.md AGENTS.md`, `diff -r plan/steering app/Boop/Resources/steering` | Both silent |
+| `make build` | Builds, both rounds |
+| `make -C internal test` | 242 of 242; then 258 of 258 (16 new from hunt2) |
+| `make -C internal fw-test` | 114 of 114, both rounds |
+| `make -C internal sim` | 11 scenarios, 0 expect failures, 0 changed pictures, both rounds |
+| boopctl, webcam and workday tests | 53, 3 and 9 OK; then 53, 3 and 10 OK |
+| `facegen.py --check` | 337 frames of 30 scenes match Chrome (round 1 only) |
+| `make flash`, `boopctl ping` | Firmware `e13cc1245e`, heap 74,076 B free, 73,960 B at the least. Still `main`'s firmware; not reflashed in round 2 |
+| `make -C internal e2e` | Round 1: PASS, 17 of 17 checkpoints, 5 of 5 expected events, hook to board p50 39 ms and p95 64 ms. All 9 brain moments got their `ended`: 7 done, 2 cut, one by the Codex cheer and one by the clock-jump artefact ([final/e2e.txt](final/e2e.txt)). Round 2: skipped, because you had the board from 06:25 |
+| `make eval` with Jev | 14/14 in all 3 runs; then 14/14, 14/14 and 13/14 over three full runs (one late pass, above) |
+| Scripted working day | 193 turns, 403 passes, 0 dropped, all 403 reactions `done`, both rounds; 2 min 21 s in round 2 ([final/workday-scripted.md](final/workday-scripted.md)) |
+| `cmp CLAUDE.md AGENTS.md`, `diff -r plan/steering app/Boop/Resources/steering` | Both silent, both rounds |
 
 ## Bugs found and fixed
 
@@ -336,6 +460,48 @@ in step.
 | Dropping `idle` from `state` would have hidden a second idle session from the popover | Reading what the count did | `testASessionListChangeTheSnapshotDoesntShow`, `testASecondIdleSessionReachesTheStatusNotTheDevice` |
 | `workday.py` moved the clock before a reaction's `ended`, so 7–12 reactions a run looked unplayed | Tracing one moment in `boop.log` | `SettleTests` |
 
+**Round 2: the second race hunt** ([hunt2](hunt2/README.md), its
+check in the lane's notes). Five hunters filed 22 more reports, each
+reproduced by a second agent. 17 were real bugs, now fixed; one was a slip in a spec;
+four are open (report 8, 12, 16, and the rest of 21). Most were the core
+losing track of a turn at its edges. The check reverted each fix in turn
+and saw its test fail.
+
+| What was wrong | Pinned by |
+| --- | --- |
+| After the 10-minute safety net, Esc or an interrupt was dropped, and the stopped call's late result restarted the turn: "working" and chatter for up to an hour (reports 1, 9) | `CoreAgentWorkTests.testAStopAfterTheSafetyNetEndsTheOpenTurn` |
+| A Mac asleep mid-turn counted as turn time, so a 2-minute turn read "done after 8 h, a very long turn" and Jev reacted to a big finish (2) | `CoreAgentWorkTests.testTheMacAsleepIsntTurnTime`, `RuntimeTests.testTheCoreHearsHowLongTheMacSlept` |
+| A `Stop` with no turn open read "turn 0 … after 0 s" and cheered; a turn Boop joined after a relaunch was timed from the relaunch (3, 11, 22, part of 21) | `testAFinishWithNoTurnOpenIsNothing`, `testATurnBoopJoinedPartwayEndsWithoutAnEvent`, `testATurnACallOpensCountsItsOwnTools` |
+| A hook arriving after `SessionEnd` brought the session back: needing you (10 minutes of amber, silencing others), working for an hour, or idle at full backlight for a day (10, 18, 19, 20) | `CoreAgentWorkTests.testALateHookAfterSessionEndDoesntBringItBack` |
+| A relaunched app numbered its first request 1 again, so it didn't chirp (7) | `RuntimeTests.testRequestNumbersDifferEachLaunch` |
+| A 1 s link blip, or a tap the board handled first, freed a reaction's line on the Mac, so the next reaction cut one still playing (5, 6) | `RuntimeTests.testALinkBlipKeepsTheLineForTheReactionPlaying`, `testATapLeavesTheLineToTheDevicesEnded` |
+| A mood set from the dashboard during a brain pass was undone by that pass (13) | `HarnessTests.testAnActionTheDashboardChangedDuringAPassSitsItOut` |
+| The 1.25 s deadline fired at up to 1.33 s, and a dropped pass logged the timer's time as Jev's (14) | `HarnessTests.testTheDeadlineComesOnTime`, `testALateAnswerIsStillTimed`, `testJevsAnswerAndRetry`, `test_day.py` |
+| A pass that waited behind another started, and asked the brain, while something needed you (15) | `HarnessTests.testAWaitingPassDoesntStartWhileSomethingNeedsYou`, `RuntimeTests.testNoWaitingPassStartsWhileSomethingNeedsYou` |
+| With chatter, a face still playing fell out of HISTORY after 40 newer events (17) | `HarnessTests.testAReactionInProgressStaysInHistory` |
+| ARCHITECTURE.md §4 put a new day's snapshot under "the day before" (4), and ADAPTERS.md §4 said a request Codex's reviewer approves never shows (8) | Wording only |
+| The check found two leftovers: ARCHITECTURE.md's moment-pump row and a code comment still described the old line and request numbers | Wording only |
+
+**Round 2: the second tuning** ([tune2](tune2/README.md),
+[tune2-check](tune2-check/README.md)). All steering text, checked with
+the working day and the evals rather than unit tests:
+
+- Most faces were a happy "yay" (67% and 83%); now they fit the moment
+  (above).
+- Quick routine finishes got a face every time; now only with something
+  to show.
+- In one draft a grumpy Boop made a grumpy face at a clean win.
+  `grumpy.md` now says a win gets a grudging proud.
+- A stopped turn got a wordless grumpy face; it's a curious "…hmm" now.
+- The new text stopped proud fading (`13-proud-fades`, 0 of 3); fixed in
+  `proud.md`, 3 of 3.
+- A sad Boop turned determined at the next failure in half the runs;
+  fixed in `sad.md` by the check.
+- `workday.py report` couldn't show the words; it does now, pinned by a
+  new workday test.
+- [harness/EXAMPLE.md](../../harness/EXAMPLE.md) and HARNESS.md §9
+  quoted the old personality text; both are re-recorded from a real eval.
+
 **Fixed while merging, and in this final check:**
 
 - The recorded day for `boopctl day` still sent `idle` and `wait`
@@ -351,6 +517,9 @@ in step.
   now chirps whenever `attn.id` changes (`8560cf59`). Found by reading
   the merged code. Pinned by `test_a_different_request_with_the_same_names_chirps`
   in `test_day.py`, which fails on the old count.
+- Round 2's merges had one conflict: both lanes added decision-log rows
+  at the end of ARCHITECTURE.md, and the merge kept all of them. The final check found nothing
+  broken; its only finding is the late eval pass above.
 
 ## What merged
 
@@ -449,6 +618,41 @@ These are the started actions, `(in progress)`, the board's `ended`, and loops.
 - This report, PLAN.md's status, owner checks and open items, and
   [final/](final/)'s outputs
 
+**webcam** ([review](webcam/review.md)):
+
+- `5079f71b` The webcam check: looks, the cheer, reactions held for their loops, and a tap
+
+**hunt2**, round 2 ([README](hunt2/README.md)):
+
+- `0056e0a2` An interrupt after the safety net still stops the open turn
+- `e06ad535` A finish with no turn open is nothing, and the brain hears only of turns Boop saw start
+- `1b6109b6` A session that ended stays ended until it starts again
+- `8cdbf80e` A launch numbers its requests from somewhere random
+- `7c1b9e0c` A reaction the device may still be playing keeps the line: across a link blip, and past a tap
+- `f6e2f30f` A pass leaves alone what the dashboard changed while it ran
+- `4e2f461b` The brain's deadline fires on time, and a late answer's real time is logged
+- `927e3175` HISTORY keeps an event whose reaction is still in progress past the newest 40
+- `cd8d5492` A turn's length leaves out the time the Mac slept
+- `b2da4941` The specs say where a new day's snapshot goes, and what Codex's grace can't see
+- `9efb5d1c` A pass that waited doesn't start while something needs you
+- `94c3a1d8` boopctl day times only the passes answered in time
+- `6616e90e` The decision log says why four of the race fixes replace what the spec said
+- `41da3ff1` The second race hunt's evidence, and the open items it leaves
+- `801c5a27` A pass that couldn't start keeps its brain's name, so boopctl day counts it as the brain's
+- `cc5dc953` The hunt2 evidence names the follow-up commit for report 15
+- `fe17a2a4` Two leftovers of the hunt say what the code now does (the check)
+
+**tune2**, round 2 ([README](tune2/README.md), [check](tune2-check/README.md)):
+
+- `29e327b9` The working day's report counts the words the reactions mumbled
+- `a30e4cad` Boop's reactions lean strong, and a routine one comes only with something to show
+- `27ea3c93` A sad Boop stays sad through more failures, and the second tuning is checked
+- `dfff2a82` Jev making a reaction again once it has ended is an open item
+- `9146e378` PLAN.md and the morning report say what the second tuning changed (merge follow-up)
+
+**final2**: this report's round-2 update, PLAN.md's rows for round 2,
+and [final/eval-round2.txt](final/eval-round2.txt).
+
 ## Ideas the lanes left
 
 These aren't open items, just worth a look:
@@ -463,3 +667,11 @@ These aren't open items, just worth a look:
   now it's the `rsync` above.
 - Give `boopctl sim` a per-checkout output folder instead of the shared
   `/tmp/boop-sim`.
+- Give `Boop --headless` a `--steering DIR` flag, passed through by
+  `workday.py run`, so a steering draft can run a day without copying it
+  into the app and rebuilding. And `boopdev watch --once`.
+- Have `workday.py report` split quick finishes by whether tests passed,
+  and print the longest run of one word. Both tune2 and its check wrote
+  their own scripts for it.
+- Let `internal/app/tools/test.py` run one test or a pattern; hunt2
+  regenerated the runner by hand to see each test fail alone.

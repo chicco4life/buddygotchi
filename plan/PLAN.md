@@ -25,9 +25,10 @@ milestone's evidence says which ones ran.
 | A12 | Live dashboard: `internal/tools/boopctl dash` shows the state and face, the harness's passes and a timeline, and forces a mood, a reaction or an animation ([DASHBOARD.md](DASHBOARD.md)) | Done, headless; check 20 is the owner's | [evidence](evidence/2026-09-27-dashboard/README.md) |
 | A13 | Reaction faces: `react` picks one of the seven moods' faces, and the device draws the look in it while the mumble plays (since A14, for the loops Jev picks) ([harness/DECISIONS.md](harness/DECISIONS.md) §3, [PROTOCOL.md](PROTOCOL.md) §3) | Done in code and the simulator; `make eval` passed 10/10 in all 3 runs; watching it on the board (check 1) is the owner's | [evidence](evidence/2026-09-27-reaction-faces/README.md) |
 | A14 | Loops and pending: every animation can loop and whoever plays one says how many times; HISTORY shows what Boop started as in progress until it really ended, and the device says when a moment ended ([harness/HARNESS.md](harness/HARNESS.md) §4–5) | Done, and checked on the board over USB. The harness's started actions (`.started` with a `Pending`, `settle` entries, a ceiling on waiting, and HISTORY's `(in progress)` and `(didn't happen: …)`); `react` is started, and ends when the device says how its moment ended (`ended`: done, cut short and by what, or skipped, [PROTOCOL.md](PROTOCOL.md) §4), or `failed` when dropped, with no device, on a disconnect or when no `ended` comes in time ([harness/DECISIONS.md](harness/DECISIONS.md) §5). Loops: a `moment` says how many loops of its design play (`loops`, [PROTOCOL.md](PROTOCOL.md) §3); the cheer plays enough for 2 s, and a reaction's face holds the loops Jev picks (`react.loops`), from the loop lengths facegen reads from the designs for both sides. Reviewed overnight (2026-09-28), and its eight real problems fixed: a reaction on the board holds the next one until its `ended`, and whatever frees the line sends the next at once; the Mac's schedule follows taps and "needs you"; each launch's moment ids start at a random number; a face cut after its mumble played counts as `done`. `make eval` passes 14/14 in all 3 runs and `make -C internal e2e` passes on the board. "Done, not reviewed" sessions are out of scope | [ended and loops](evidence/2026-09-28-tonight/loops-pending/README.md), [review](evidence/2026-09-28-tonight/review/README.md), [its check](evidence/2026-09-28-tonight/review-check/README.md) |
-| | Overnight pass (2026-09-28): the lanes below, merged onto one `main` and checked together | Done. On the final `main` the build, 242 Swift tests, 114 firmware tests, the simulator, the tools' tests and facegen pass; the board runs its firmware and passes `make -C internal e2e`; `make eval` passes 14/14 in all 3 runs | [morning report](evidence/2026-09-28-tonight/README.md) |
+| | Overnight pass (2026-09-28): the lanes below, merged onto one `main` and checked together, in two rounds | Done. Round 1: the build, 242 Swift tests, 114 firmware tests, the simulator, the tools' tests and facegen pass; the board runs its firmware and passes `make -C internal e2e`; `make eval` passes 14/14 in all 3 runs. Round 2 (hunt2, tune2) on `9146e378`: the build, 258 Swift tests, 114 firmware tests, the simulator and the tools' tests pass; no firmware changed and the board, reserved by the owner, wasn't rerun; `make eval` passed 14/14 in 2 of 3 full runs, and the third lost one pass to the deadline (§3) | [morning report](evidence/2026-09-28-tonight/README.md), [round 2's evals](evidence/2026-09-28-tonight/final/eval-round2.txt) |
 | | The core under racing hooks: 38 reports from five race hunters, 34 fixed and 1 in part; a denied subagent's request clears when it ends (`SubagentStop`); each request shown has a number (`attn.id`), so a different one chirps; a fuzz test keeps HISTORY and the screen in step ([ADAPTERS.md](ADAPTERS.md) §4) | Done, headless and on the board's pipeline check; checks 6 and 7 are the owner's; three hook orders need a recording (§3) | [race hunt](evidence/2026-09-28-tonight/core/README.md), [SubagentStop](evidence/2026-09-28-tonight/core-subagentstop/README.md), [check](evidence/2026-09-28-tonight/core-check/README.md) |
-| | Firmware hardening: ASan, UBSan and TSan, a frame-by-frame motion sweep, a 35-minute soak with reactions, `perf --motion`'s rule, and `loops`, `vol` and a mumble's numbers held to their ranges whatever is sent ([DEVICE.md](DEVICE.md) §6) | Done; the webcam check (L3) waits for the owner | [firmware](evidence/2026-09-28-tonight/firmware/README.md), [check](evidence/2026-09-28-tonight/firmware-check/README.md) |
+| | The second race hunt (hunt2): 22 reports, 17 fixed and 1 in part, and a doc slip. A stop after the safety net ends the open turn; a finish with no turn open is nothing, and a turn Boop joined partway tells the brain nothing; an ended session stays ended for a day; a turn's length leaves out the Mac asleep; request numbers start at random each launch; a reaction keeps its line across a link blip and past a tap; the brain's deadline fires on time and logs Jev's real time; a waiting pass doesn't start under "needs you"; the dashboard's changes sit out a running pass; HISTORY keeps a reaction in progress past the newest 40 ([ARCHITECTURE.md](ARCHITECTURE.md) §11) | Done, headless; each fix's test seen failing without it, by the lane and again by its check. Reports 8 and 12 need a Codex recording, and 16, 21 and the rest of 15 a decision (§3) | [hunt2](evidence/2026-09-28-tonight/hunt2/README.md), [reruns](evidence/2026-09-28-tonight/hunt2/reruns.txt) |
+| | Firmware hardening: ASan, UBSan and TSan, a frame-by-frame motion sweep, a 35-minute soak with reactions, `perf --motion`'s rule, and `loops`, `vol` and a mumble's numbers held to their ranges whatever is sent ([DEVICE.md](DEVICE.md) §6) | Done; a short webcam check (L3) passed: the cheer, two held reactions, a tap and four moods' looks | [firmware](evidence/2026-09-28-tonight/firmware/README.md), [check](evidence/2026-09-28-tonight/firmware-check/README.md), [webcam](evidence/2026-09-28-tonight/webcam/review.md) |
 | | A day in the logs: debug mode keeps the last 10 launches' `debug.jsonl`, and `boopctl day` (`make day`) sums a day up by the hour ([harness/HARNESS.md](harness/HARNESS.md) §9) | Done | [daylog](evidence/2026-09-28-tonight/daylog/README.md), [check](evidence/2026-09-28-tonight/daylog-check/README.md) |
 | | `state` without `idle` and `wait` ([PROTOCOL.md](PROTOCOL.md) §3) | Done | [tidy](evidence/2026-09-28-tonight/tidy/README.md) |
 | | Tuned for a working day: the mood changes only for something lasting (16 a day, from 52–53), reactions come with a face that fits, and `workday.py` replays a scripted day ([EVALS.md](EVALS.md) §5) | Done; a first poke streak still makes Boop grumpy (§3). A second pass (tune2) made the faces vivid: happy went from 67% to 33–35% of a day's faces, "yay" from 83% to 34–38% of worded reactions, and a quick routine finish gets a face only with something to show, at 0.44–0.52 reactions a finished turn (0.70 before) and still 16 mood changes a day; Jev repeating a reaction once it ended is open (§3) | [tune](evidence/2026-09-28-tonight/tune/README.md), [check](evidence/2026-09-28-tonight/tune-check/README.md), [tune2](evidence/2026-09-28-tonight/tune2/README.md), [its check](evidence/2026-09-28-tonight/tune2-check/README.md) |
@@ -96,9 +97,10 @@ faces in 9, 10 and 12, as they now say.
    needs Claude's new `SubagentStop` hook: the app adds it at its first
    launch since and asks you to restart open sessions
    ([ADAPTERS.md](ADAPTERS.md) §5).
-8. **A Codex approval.** Amber about 2 s after Codex asks; one its
-   automatic reviewer handles never lights up. This is Boop's first real
-   Codex session (§3).
+8. **A Codex approval.** Amber about 2 s after Codex asks. One its
+   automatic reviewer handles lights up only if the command runs past
+   those 2 s, and then stays amber until it ends (§3). This is Boop's
+   first real Codex session (§3).
 9. **A Claude task that runs past a minute.** The working face (the
    keyboard, in Boop's mood), then a cheer that switches to an excited
    or happy face while its mumble plays, nearly always with "yay"
@@ -188,6 +190,22 @@ fixed. Pick one up by writing it into its spec first.
   ([ADAPTERS.md](ADAPTERS.md) §4). The recorded Codex session above
   would show whether there's a signal to wait for
   ([evidence](evidence/2026-09-28-tonight/hunt2/README.md)).
+- **A Codex request just after its own `Interrupt` shows for 10
+  minutes.** If a `PermissionRequest` lands a few milliseconds after the
+  `Interrupt` that stopped its call, no turn is open and the request
+  shows amber until the safety net, a new prompt or Esc. Treating it as
+  late, like a result, risks hiding a real request, since requests carry
+  no `tool_use_id`; the Codex recording above would show whether this
+  order happens (report 12,
+  [evidence](evidence/2026-09-28-tonight/hunt2/README.md)).
+- **An ended session ignores its hooks for a day.** Since hunt2, hooks
+  from a session that sent `SessionEnd` are ignored until it sends
+  `SessionStart` or a prompt, for `forgetMs`
+  ([ADAPTERS.md](ADAPTERS.md) §4). That would hide a real request only if
+  an agent asked after its own `SessionEnd` without a `SessionStart`;
+  Claude's resume and clear, and Codex's, send one. A recorded session
+  that exits with a background subagent still running would confirm it
+  ([evidence](evidence/2026-09-28-tonight/hunt2/README.md)).
 - **A reaction's face in the idle look holds up to 9 s.** Today's idle
   designs rise once every 9 s, so that's their loop, and a face held
   once there lasts until the idle clock's next boundary, however short
@@ -244,20 +262,23 @@ fixed. Pick one up by writing it into its spec first.
   the text isn't the lever. Leaving the poke out of the mood's options,
   or telling Jev in the line that it's the first, would settle it.
 - **Jev drops its first passes on new steering.** After a steering
-  change, its first 13–19 answers took over the 1.25 s deadline (about
-  1.3 s) and were dropped, then fell to about 200 ms: a cold start on
+  change, its first 13–19 answers took over the 1.25 s deadline and were
+  dropped, then fell to about 200 ms: a cold start on
   text it hasn't seen. The owner's first minutes after a steering edit
   would lose their reactions. A throwaway pass at launch would warm it
   ([EVALS.md](EVALS.md) §5). It isn't only a cold start, though: on
   steering Jev had just seen, two later runs of the working day dropped
-  2 and 8 passes in clusters of 2 to 4, at the same 1.28–1.33 s,
-  one of them the day's 16-minute finish
-  ([evidence](evidence/2026-09-28-tonight/tune-check/README.md)). So a
+  2 and 8 passes in clusters of 2 to 4, one of them the day's
+  16-minute finish
+  ([evidence](evidence/2026-09-28-tonight/tune-check/README.md)), and
+  on the final `main` one full `make eval` run failed `02-long-turn` on
+  a pass dropped at 1255 ms
+  ([evidence](evidence/2026-09-28-tonight/final/eval-round2.txt)). So a
   warm-up alone won't do; whether the deadline should sit above Jev's
   slow answers is the open question.
 - **The dropped passes' 1.3 s was the deadline's timer, not Jev.** The
-  item above reads the dropped passes' 1.28–1.33 s as Jev's time, but
-  that was when the deadline's timer fired: it had the system's default
+  first round logged the dropped passes above at 1.28–1.33 s, as if
+  that were Jev's time, but that was when the deadline's timer fired: it had the system's default
   leeway, and a late pass logged the timer's time whatever Jev did. The
   timer now fires within 5 ms, and the app log says when Jev did answer
   a pass it was late for (`harness: jev:jev-latest answered after N ms,
@@ -279,6 +300,13 @@ fixed. Pick one up by writing it into its spec first.
   `stop_hook_active`, and ending such a turn with no second cheer, would
   fix it; it needs a spec decision
   ([evidence](evidence/2026-09-28-tonight/hunt2/README.md)).
+- **A pass already running when "needs you" starts can change the
+  mood.** A waiting pass no longer starts under "needs you", but one
+  already asking Jev lands and acts: in a hunter's run it changed the
+  mood happy → determined 0.55 s into the amber, which redraws the
+  needs-you face. Having `mood` sit out while something needs you would
+  stop it; it's a behaviour choice (report 15,
+  [evidence](evidence/2026-09-28-tonight/hunt2/README.md)).
 - **Curious has no way in as a mood.** No mood file leaves for curious.
   Its face now shows at a stopped turn, with "…hmm", about once in the
   scripted day ([evidence](evidence/2026-09-28-tonight/tune2/README.md)),

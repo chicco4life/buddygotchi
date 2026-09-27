@@ -1,0 +1,63 @@
+# Round 2: BOOP_JEV_KEY=… make eval three times on main 9146e378, 2026-09-28 06:58–07:01; the build's output is left out.
+
+# First run: 13/14. One pass in 02-long-turn was dropped late (1255 ms); every answer Jev gave was right.
+.build/debug/boopdev eval
+every entry goes to /tmp/boop-eval/20260928-065816-71951.jsonl
+pass  01-short-turn.json  A quick turn is routine  (3/3 runs)
+FAIL  02-long-turn.json  A very long turn that finishes is worth a mumble  (2/3 runs)
+  step 2: claude finished turn 1 on "landing": done after 20 min, a very long turn, 0 tools.
+    wanted react excited|happy|proud, mood excited|proud; got dropped: late: no answer within 1250 ms
+pass  03-turn-failed.json  A failed turn is grumpy, or a shrug  (3/3 runs)
+pass  04-tests-fight-back.json  Tests that keep failing make Boop grumpy, and passing at last makes it proud  (3/3 runs)
+pass  05-poke-streak.json  Poked again and again, Boop is grumpy  (3/3 runs)
+pass  06-heartbeat-lets-grumpy-go.json  An hour of nothing lets a grumpy mood go  (3/3 runs)
+pass  07-chatter-reacts-to-everything.json  The chatter personality reacts to everything  (3/3 runs)
+pass  08-long-turn-fails.json  A very long turn that fails makes Boop sad  (3/3 runs)
+pass  09-failure-worked-through.json  A failure being worked through makes Boop determined, and the fix makes it proud  (3/3 runs)
+pass  10-run-of-wins.json  Routine wins keep Boop happy, however many; a big clean finish makes it excited  (3/3 runs)
+pass  11-comeback-still-showing.json  A comeback still showing isn't made again when the turn finishes  (3/3 runs)
+pass  12-comeback-that-didnt-happen.json  A comeback that didn't happen is made when the turn finishes  (3/3 runs)
+pass  13-proud-fades.json  A proud mood fades back to happy once its reason has left HISTORY  (3/3 runs)
+pass  14-minutes-turn-is-routine.json  A turn of a few minutes gets a face but leaves the mood alone  (3/3 runs)
+13/14 passed in all 3 runs with jev:jev-latest
+latency: median 214 ms, slowest 1255 ms (deadline 1250 ms)
+
+# Second run
+.build/debug/boopdev eval
+every entry goes to /tmp/boop-eval/20260928-065919-72620.jsonl
+pass  01-short-turn.json  A quick turn is routine  (3/3 runs)
+pass  02-long-turn.json  A very long turn that finishes is worth a mumble  (3/3 runs)
+pass  03-turn-failed.json  A failed turn is grumpy, or a shrug  (3/3 runs)
+pass  04-tests-fight-back.json  Tests that keep failing make Boop grumpy, and passing at last makes it proud  (3/3 runs)
+pass  05-poke-streak.json  Poked again and again, Boop is grumpy  (3/3 runs)
+pass  06-heartbeat-lets-grumpy-go.json  An hour of nothing lets a grumpy mood go  (3/3 runs)
+pass  07-chatter-reacts-to-everything.json  The chatter personality reacts to everything  (3/3 runs)
+pass  08-long-turn-fails.json  A very long turn that fails makes Boop sad  (3/3 runs)
+pass  09-failure-worked-through.json  A failure being worked through makes Boop determined, and the fix makes it proud  (3/3 runs)
+pass  10-run-of-wins.json  Routine wins keep Boop happy, however many; a big clean finish makes it excited  (3/3 runs)
+pass  11-comeback-still-showing.json  A comeback still showing isn't made again when the turn finishes  (3/3 runs)
+pass  12-comeback-that-didnt-happen.json  A comeback that didn't happen is made when the turn finishes  (3/3 runs)
+pass  13-proud-fades.json  A proud mood fades back to happy once its reason has left HISTORY  (3/3 runs)
+pass  14-minutes-turn-is-routine.json  A turn of a few minutes gets a face but leaves the mood alone  (3/3 runs)
+14/14 passed in all 3 runs with jev:jev-latest
+latency: median 212 ms, slowest 336 ms (deadline 1250 ms)
+
+# Third run
+.build/debug/boopdev eval
+every entry goes to /tmp/boop-eval/20260928-070009-72981.jsonl
+pass  01-short-turn.json  A quick turn is routine  (3/3 runs)
+pass  02-long-turn.json  A very long turn that finishes is worth a mumble  (3/3 runs)
+pass  03-turn-failed.json  A failed turn is grumpy, or a shrug  (3/3 runs)
+pass  04-tests-fight-back.json  Tests that keep failing make Boop grumpy, and passing at last makes it proud  (3/3 runs)
+pass  05-poke-streak.json  Poked again and again, Boop is grumpy  (3/3 runs)
+pass  06-heartbeat-lets-grumpy-go.json  An hour of nothing lets a grumpy mood go  (3/3 runs)
+pass  07-chatter-reacts-to-everything.json  The chatter personality reacts to everything  (3/3 runs)
+pass  08-long-turn-fails.json  A very long turn that fails makes Boop sad  (3/3 runs)
+pass  09-failure-worked-through.json  A failure being worked through makes Boop determined, and the fix makes it proud  (3/3 runs)
+pass  10-run-of-wins.json  Routine wins keep Boop happy, however many; a big clean finish makes it excited  (3/3 runs)
+pass  11-comeback-still-showing.json  A comeback still showing isn't made again when the turn finishes  (3/3 runs)
+pass  12-comeback-that-didnt-happen.json  A comeback that didn't happen is made when the turn finishes  (3/3 runs)
+pass  13-proud-fades.json  A proud mood fades back to happy once its reason has left HISTORY  (3/3 runs)
+pass  14-minutes-turn-is-routine.json  A turn of a few minutes gets a face but leaves the mood alone  (3/3 runs)
+14/14 passed in all 3 runs with jev:jev-latest
+latency: median 220 ms, slowest 291 ms (deadline 1250 ms)
