@@ -5,11 +5,12 @@
 #      (the installer's own check, through boopdev: run make build first).
 #   2. The app is running and its socket accepts.
 #   3. A synthetic event goes from boop-hook to the app (seen in its log).
-#   4. A harmless command run in the agent shows up in Boop (--confirm).
+#   4. A harmless command run in the agent shows up in Boop as a hook from
+#      this agent's own session (--confirm).
 #
 # Usage:
 #   skills/doctor/doctor.sh [--agent claude|codex] [--state-dir DIR]
-#   skills/doctor/doctor.sh --confirm [--state-dir DIR]
+#   skills/doctor/doctor.sh --confirm [--agent claude|codex] [--state-dir DIR]
 #   skills/doctor/doctor.sh --headless     # checks 1–3 against a throwaway headless app
 #
 # Exit 0 healthy, 1 broken, 2 armed and waiting for the live step: run one
@@ -25,7 +26,7 @@ while [ $# -gt 0 ]; do
     --state-dir) STATE="$2"; shift 2 ;;
     --confirm) CONFIRM=1; shift ;;
     --headless) HEADLESS=1; shift ;;
-    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
+    -h|--help) awk 'NR > 1 && /^#/ { print; next } NR > 1 { exit }' "$0"; exit 0 ;;
     *) echo "unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -63,17 +64,34 @@ ARM="$STATE/doctor-armed"
 # --- live confirm -----------------------------------------------------------
 if [ $CONFIRM -eq 1 ]; then
   hdr "Boop doctor: confirm ($AGENT)"
+  # Only this agent's own hooks count: the owner often has other sessions
+  # busy, and theirs say nothing about this one. The session id is the
+  # one this agent's hooks carry.
+  case "$AGENT" in
+    claude) sid="${CLAUDE_CODE_SESSION_ID:-}" ;;
+    codex)  sid="${CODEX_THREAD_ID:-}" ;;
+    *) bad "can't tell which agent this is; pass --agent claude|codex"; exit 1 ;;
+  esac
   if [ ! -f "$ARM" ]; then bad "not armed; run doctor.sh first"; exit 1; fi
   # Only what the log gained since arming: it keeps earlier days' lines,
-  # stamped with the time of day alone.
+  # stamped with the time of day alone. Lines read
+  # "HH:MM:SS.mmm hook: <agent> <hook> <session>".
   since=$(cat "$ARM")
   rm -f "$ARM"
-  seen=$(tail -c +$((since + 1)) "$LOG" 2>/dev/null | grep ' hook: ' | grep -v 'doctor-' | tail -1)
-  if [ -n "$seen" ]; then
-    ok "this agent's hooks reached Boop: $(echo "$seen" | cut -d' ' -f3-5)"
-    exit 0
+  new=$(tail -c +$((since + 1)) "$LOG" 2>/dev/null | awk -v a="$AGENT" '$2 == "hook:" && $3 == a && $5 !~ /^doctor-/')
+  if [ -z "$sid" ]; then
+    seen=$(printf '%s\n' "$new" | sed '/^$/d' | tail -1)
+    [ -n "$seen" ] && { ok "a $AGENT hook reached Boop (no session id here to check it's this one's): $(echo "$seen" | cut -d' ' -f3-5)"; exit 0; }
+  else
+    seen=$(printf '%s\n' "$new" | awk -v s="$sid" '$5 == s' | tail -1)
+    [ -n "$seen" ] && { ok "this session's hooks reached Boop: $(echo "$seen" | cut -d' ' -f3-5)"; exit 0; }
+    others=$(printf '%s\n' "$new" | awk 'NF { print $5 }' | sort -u | paste -sd' ' -)
+    if [ -n "$others" ]; then
+      bad "only other $AGENT sessions' hooks reached Boop since arming ($others), none from this one ($sid)"
+      exit 1
+    fi
   fi
-  bad "no hook from the agent reached Boop since arming"
+  bad "no hook from $AGENT reached Boop since arming"
   exit 1
 fi
 
@@ -87,11 +105,15 @@ hdr "Boop doctor (agent: $AGENT, state: $STATE)"
 hdr "Hooks"
 BOOPDEV="$REPO/app/.build/debug/boopdev"
 [ -x "$BOOPDEV" ] || { bad "no $BOOPDEV to check the hooks with; run make build"; exit 1; }
-HOOK_BIN=""
+HOOK_BIN=""; hooked=0; before=$fail
 for agent in claude codex; do
   case $agent in claude) name="Claude Code"; file="$HOME/.claude/settings.json" ;;
                  codex) name="Codex"; file="$HOME/.codex/hooks.json" ;; esac
-  if [ ! -f "$file" ]; then info "$name: no $file"; continue; fi
+  if [ ! -f "$file" ]; then
+    # Missing for the agent running this, it can't have Boop's hooks.
+    if [ "$agent" = "$AGENT" ]; then bad "$name: no $file, so this agent has no Boop hooks"; else info "$name: no $file"; fi
+    continue
+  fi
   health=""; first=""
   for bin in "$HOME/Library/Application Support/Boop/bin/boop-hook" "$REPO/app/.build/debug/boop-hook"; do
     health=$("$BOOPDEV" hooks status $agent --home "$HOME" --hook "$bin" 2>&1 | sed "s/^$agent: //")
@@ -100,14 +122,18 @@ for agent in claude codex; do
   done
   # The app's copy gone says more than hooks that don't call the repo's build.
   if [ "$first" = clientMissing ] && [ "$health" = outdated ]; then health=clientMissing; fi
+  # The everyday app repairs outdated hooks at launch (ADAPTERS.md §5), so
+  # after a new build they're outdated until Boop restarts.
+  repair=""; [ $HEADLESS -eq 0 ] && repair="; Boop repairs them when it next starts, so ask the owner to restart it (make run)"
   case "$health" in
-    installed) ok "$name: every hook registered, calling $HOOK_BIN" ;;
+    installed) ok "$name: every hook registered, calling $HOOK_BIN"; hooked=1 ;;
     notInstalled) bad "$name: no Boop hooks in $file" ;;
-    outdated) bad "$name: Boop's hooks in $file are missing, old or point at another boop-hook" ;;
+    outdated) bad "$name: Boop's hooks in $file are missing, old or point at another boop-hook$repair" ;;
     clientMissing) bad "$name: the app's boop-hook ($HOME/Library/Application Support/Boop/bin) is missing" ;;
     *) bad "$name: $health" ;;
   esac
 done
+[ $hooked -eq 1 ] || [ $fail -gt $before ] || bad "no agent has Boop's hooks"
 [ -n "$HOOK_BIN" ] || HOOK_BIN="$REPO/app/.build/debug/boop-hook"
 
 # --- 2. the app -------------------------------------------------------------

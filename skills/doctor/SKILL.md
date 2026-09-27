@@ -41,15 +41,20 @@ first, and only reads `~/.claude` and `~/.codex`.
    skills/doctor/doctor.sh --confirm
    ```
 
-   Exit `0` means this harness's hooks reached Boop.
+   Exit `0` means this session's hooks reached Boop. Only this agent's
+   own hooks count, matched by its session id (`CLAUDE_CODE_SESSION_ID`
+   or `CODEX_THREAD_ID`) when the shell has one, so other sessions busy at
+   the same time can't make it pass.
 
 `--headless` runs checks 1–3 against a throwaway headless app instead of
-the everyday one, and exits `0` when they pass. With a temporary `HOME` it
-checks the installer without touching the owner's setup:
+the everyday one, and exits `0` when they pass. It fails when the agent
+running it, or every agent, has no Boop hooks. With a temporary `HOME` it
+checks the installer without touching the owner's setup. With no agent
+named, `boopdev` installs both, so this works from Claude or Codex:
 
 ```sh
 H=$(mktemp -d /tmp/boop-h.XXXX)
-app/.build/debug/boopdev hooks install claude --home "$H"
+app/.build/debug/boopdev hooks install --home "$H"
 HOME="$H" skills/doctor/doctor.sh --headless
 ```
 
@@ -58,17 +63,21 @@ HOME="$H" skills/doctor/doctor.sh --headless
 - **No socket, or the socket doesn't accept.** The app isn't running. Ask
   the owner to start Boop (`make run`). Don't launch it yourself: an
   agent-launched Boop is killed on its first Bluetooth use.
-- **Hooks missing, old, or calling another `boop-hook`.** Boop → Settings →
-  Agents → Connect (or Repair) for this agent, then restart the agent's
-  sessions so they reload their hook config.
+- **Hooks old, or calling another `boop-hook`.** Common after a new
+  build: Boop repairs them when it next starts, so ask the owner to
+  restart it (`make run`), then restart the agent's sessions so they
+  reload their hook config.
+- **Hooks missing.** Boop → Settings → Agents → Connect for this agent,
+  then restart the agent's sessions.
 - **The app's `boop-hook` is missing.** The app copies it into
   `~/Library/Application Support/Boop/bin/` at launch, from the one built
   next to it. Run `make build` if it isn't built, then ask the owner to
   restart Boop.
 - **Round trip fails but the socket accepts.** Another Boop owns the socket,
   or `boop.log` belongs to a different state directory.
-- **Confirm fails.** The harness didn't fire its hooks: it was started
-  before the hooks were installed, or it reads a different config.
+- **Confirm fails.** This session didn't fire its hooks, even if others
+  did: it was started before the hooks were installed, or it reads a
+  different config.
 
 ## Report back
 

@@ -231,7 +231,8 @@ The `doctor` skill (`skills/doctor/doctor.sh`) checks four things:
    exists.
 2. The app is running and its socket accepts.
 3. A synthetic event from `boop-hook` reaches the app (seen in its log).
-4. With `--confirm`, a harmless command run in the agent shows up in Boop.
+4. With `--confirm`, a harmless command run in the agent shows up in Boop
+   as a hook from this agent's own session.
 
 `--headless` runs checks 1–3 against a throwaway headless app. The app
 logs hook lines only while the doctor has armed it, by writing
