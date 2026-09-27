@@ -67,19 +67,21 @@ final class LogFile: @unchecked Sendable {
 
     func write(_ message: String) {
         lock.withLock {
-            let line = format.string(from: Date()) + " " + message + "\n"
+            let line = stamped(message)
             // The throwing write: the old one raises an Objective-C exception
             // (a crash) on any error, such as a full disk.
-            try? handle?.write(contentsOf: Data(line.utf8))
-            if echo { try? FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
+            try? handle?.write(contentsOf: line)
+            if echo { try? FileHandle.standardError.write(contentsOf: line) }
         }
     }
 
     func echo(_ message: String) {
-        lock.withLock {
-            let line = format.string(from: Date()) + " " + message + "\n"
-            try? FileHandle.standardError.write(contentsOf: Data(line.utf8))
-        }
+        lock.withLock { try? FileHandle.standardError.write(contentsOf: stamped(message)) }
+    }
+
+    /// The message as a line, after the time. Only under `lock`.
+    private func stamped(_ message: String) -> Data {
+        Data((format.string(from: Date()) + " " + message + "\n").utf8)
     }
 }
 
