@@ -272,10 +272,10 @@ frames stay exact) and a press draws at once for its first 60 ms
 | Measure | Value | Source |
 | --- | --- | --- |
 | Firmware size | 1.10 MB | The board build, 2026-09-27 |
-| Minimum free heap, through `perf --motion` and a pipeline soak | 74.0 KB | The bench board, [2026-09-26](evidence/2026-09-26-e2e-hardening/README.md) |
-| Frames a second through `perf --motion`'s cheers and wiggles | 23 on average, 18 at the least (the simulator: 15–30, 21 on average) | The bench board, firmware `c0baa57`, 20 s, 2026-09-27 |
-| Drawing and pushing one changed frame (`draw_us`, `push_us`) | 1.2 ms and 4.5 ms | The same |
-| Minimum free heap in motion | 73.8 KB | The same |
+| Minimum free heap, through a 35-minute soak with brain reactions | 73.7 KB, 24 B below where it stood after the first minute | The bench board, firmware `c6ccb03`, [2026-09-28](evidence/2026-09-28-tonight/firmware/README.md) |
+| Frames a second through `perf --motion`'s cheers and wiggles | 15.5 on average, 6 at the least: 6–7 in a second of the cheer and 20–24 in a wiggle's, as in the simulator (14.4 on average) | The bench board, firmware `3284d55`, 60 s, the same |
+| Drawing and pushing one changed frame (`draw_us`, `push_us`), through the soak | 1.0 ms and 8.8 ms typically; 2.1 ms and 22.5 ms at the most | The same, firmware `c6ccb03` |
+| Minimum free heap in motion | 73.8 KB | `perf --motion`, the same |
 
 `fps` in `dbg.ping` counts frames drawn, so it says how often the picture
 changed; `draw_us` and `push_us` say how fast the board draws.

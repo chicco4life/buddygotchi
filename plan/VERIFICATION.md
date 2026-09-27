@@ -242,10 +242,13 @@ accepted.
    silently replaces the test's.
 2. `internal/tools/boopctl run`: every `expect` passes, and every
    screenshot is identical to the simulator's.
-3. `internal/tools/boopctl perf --motion`: at least 10 fps while moving (a
-   frame is drawn only when the picture changes, [DEVICE.md](DEVICE.md)
-   §6), no sampled frame taking over 40 ms to draw and push, at least
-   60 KB minimum free heap, and no reset (uptime keeps rising).
+3. `internal/tools/boopctl perf --motion`: a frame drawn in every second
+   while moving, no sampled frame taking over 40 ms to draw and push, at
+   least 60 KB minimum free heap, and no reset (uptime keeps rising). A
+   frame is drawn only when the picture changes, and the designs step a
+   few times a second, so `fps` follows the design rather than the board:
+   about 14 a second through `perf`'s turns, 6–7 in a second of the
+   cheer ([DEVICE.md](DEVICE.md) §6).
 4. When a change could leak memory or wedge the board:
    `internal/tools/boopctl soak` (20 minutes by default, with one 35 s
    silence halfway) ends with no reset, the minimum heap within 2 KB of

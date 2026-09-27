@@ -2,6 +2,7 @@
 set stays the one plan/VERIFICATION.md §2 lists. Needs no board."""
 import contextlib
 import io
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -76,6 +77,47 @@ class PlayTests(unittest.TestCase):
         self.assertEqual([m.get("loops") for m in self.board.sent if m["t"] == "moment"], [None])
         with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
             cli.build_parser().parse_args(["play", "cheer", "--loops", "7"])
+
+
+class PerfTests(unittest.TestCase):
+    """perf --motion's rule (VERIFICATION.md L2): a frame drawn in every
+    second and none over 40 ms. fps follows the design, so 6 a second, a
+    second of the cheer, passes."""
+
+    def perf(self, fps: int, frame_us: int) -> dict:
+        up = [0]
+
+        def answer(msg: dict) -> bytes:
+            if msg["t"] == "dbg.ping":
+                up[0] += 1000
+                reply = {"t": "dbg.ping", "up": up[0], "heap": 74000, "heap_min": 73800, "fps": fps,
+                         "draw_us": 1000, "push_us": frame_us - 1000}
+            elif msg["t"].startswith("dbg."):
+                reply = {"t": msg["t"]}
+            else:
+                return b""
+            return json.dumps(reply).encode() + b"\n"
+
+        class Clock:  # perf's seconds pass at once
+            now = 0.0
+
+            def monotonic(self) -> float:
+                return self.now
+
+            def sleep(self, s: float) -> None:
+                self.now += s
+
+        board = FakeBoard(answer)
+        out = io.StringIO()
+        with mock.patch.object(cli, "Device", lambda port: board), mock.patch.object(cli, "time", Clock()), \
+                contextlib.redirect_stdout(out):
+            cli.cmd_perf(cli.build_parser().parse_args(["perf", "--motion", "--seconds", "5"]))
+        return json.loads(out.getvalue())
+
+    def test_a_slow_design_passes_and_a_stalled_or_slow_board_fails(self):
+        self.assertTrue(self.perf(6, 14200)["ok"])
+        self.assertFalse(self.perf(0, 14200)["ok"])  # nothing drawn in a second of motion
+        self.assertFalse(self.perf(20, 41000)["ok"])  # a frame over 40 ms
 
 
 class SoakTests(unittest.TestCase):

@@ -211,7 +211,7 @@ fixed. Pick one up by writing it into its spec first.
   (two debug replies and 23 characters in a 31-minute soak), and lines
   have no sequence numbers, so a lost tap is gone. Bluetooth doesn't go
   through it. Number the board's lines, or drop to 230400 baud.
-- **About 14 KB of heap headroom.** The minimum free heap, 74 KB, is
+- **About 14 KB of heap headroom.** The minimum free heap, 73.7 KB, is
   only just over the 60 KB target ([DEVICE.md](DEVICE.md) §6), so
   anything that adds RAM needs measuring.
 - **A freshly built `boop-hook` is slow once:** about 250 ms on its first
