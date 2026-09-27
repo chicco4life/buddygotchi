@@ -1,0 +1,24 @@
+{"hook_event_name": "SessionStart", "session_id": "ck-a", "cwd": "/tmp/alpha", "source": "startup"}
+{"wait_ms": 400}
+{"hook_event_name": "SessionStart", "session_id": "ck-b", "cwd": "/tmp/beta", "source": "startup"}
+{"wait_ms": 400}
+{"hook_event_name": "SessionStart", "session_id": "ck-c", "cwd": "/tmp/gamma", "source": "startup"}
+{"wait_ms": 400}
+{"hook_event_name": "UserPromptSubmit", "session_id": "ck-c", "cwd": "/tmp/gamma", "prompt": "x"}
+{"wait_ms": 400}
+{"hook_event_name": "UserPromptSubmit", "session_id": "ck-a", "cwd": "/tmp/alpha", "prompt": "x"}
+{"hook_event_name": "PreToolUse", "session_id": "ck-a", "cwd": "/tmp/alpha", "tool_name": "Bash", "tool_input": {"command": "ls"}}
+{"hook_event_name": "PermissionRequest", "session_id": "ck-a", "cwd": "/tmp/alpha", "tool_name": "Bash", "tool_input": {"command": "ls"}}
+{"wait_ms": 400}
+{"hook_event_name": "SessionStart", "session_id": "ck-d", "cwd": "/tmp/delta", "source": "startup"}
+{"hook_event_name": "UserPromptSubmit", "session_id": "ck-d", "cwd": "/tmp/delta", "prompt": "x"}
+{"hook_event_name": "PreToolUse", "session_id": "ck-d", "cwd": "/tmp/delta", "tool_name": "Bash", "tool_input": {"command": "ls"}}
+{"hook_event_name": "PermissionRequest", "session_id": "ck-d", "cwd": "/tmp/delta", "tool_name": "Bash", "tool_input": {"command": "ls"}}
+{"wait_ms": 1500}
+{"hook_event_name": "PostToolUse", "session_id": "ck-a", "cwd": "/tmp/alpha", "tool_name": "Bash", "tool_response": "ok"}
+{"wait_ms": 400}
+{"hook_event_name": "Stop", "session_id": "ck-a", "cwd": "/tmp/alpha", "last_assistant_message": "done"}
+{"hook_event_name": "Stop", "session_id": "ck-c", "cwd": "/tmp/gamma", "last_assistant_message": "done"}
+{"wait_ms": 1500}
+{"hook_event_name": "SessionEnd", "session_id": "ck-b", "cwd": "/tmp/beta", "reason": "exit"}
+{"wait_ms": 1000}

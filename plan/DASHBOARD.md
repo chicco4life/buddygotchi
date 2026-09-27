@@ -191,12 +191,11 @@ face, in the bubble's band, so only `z` shows it.
 - **`make -C internal tools-test`**
   (`internal/tools/boopctl_lib/tests/test_dash.py`): the feed against
   `tests/fixtures/headless-debug.jsonl`, recorded from a real headless
-  run (its `state` lines since without the `idle` and `wait` the app no
-  longer sends); the counts from `attn` and the sessions; a started
-  action and its settles; restarts; the downsampling,
-  and every golden frame's face inside the crop; the dev lines built
-  from the `questions` line; Preview's lines; and the app's panes and
-  keys through Textual's pilot.
+  run and since edited to drop the `idle` and `wait` its `state` lines
+  had; the counts from `attn` and the sessions; a started action and its
+  settles; restarts; the downsampling, and every golden frame's face
+  inside the crop; the dev lines built from the `questions` line;
+  Preview's lines; and the app's panes and keys through Textual's pilot.
 - **Live:** a headless app with the scripted brain, the e2e Claude
   session replayed into it, and the dashboard forcing a mood, a reaction
   and a cheer ([evidence](evidence/2026-09-27-dashboard/README.md)).

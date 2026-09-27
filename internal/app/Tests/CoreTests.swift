@@ -722,7 +722,7 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(mumbles(rig.wait(600_000)), [])
     }
 
-    /// PROTOCOL.md §3: the `state` message carries only the counts and
+    /// PROTOCOL.md §3: the `state` message carries only the busy count and
     /// the oldest session that needs you; the list is the popover's.
     func testSnapshotShapeAndSessionList() {
         let rig = CoreRig()

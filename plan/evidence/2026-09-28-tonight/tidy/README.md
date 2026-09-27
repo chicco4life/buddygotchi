@@ -116,3 +116,57 @@ it showed `idle · busy 0 · idle 0 · waiting 1` and `needs you` =
 - `make -C internal sim` writes to a fixed `/tmp/boop-sim`, which
   parallel worktrees share (left as a breadcrumb). It could be keyed
   by checkout.
+
+## An independent check
+
+A second pass over this branch, after the commits above.
+
+**Nothing reads `idle` or `wait` any more.** A grep of the Mac app,
+the firmware (`device.cpp` reads `base`, `mood`, `attn`, `busy` and
+`vol`), `boopctl` (soak, the webcam clips, `show_state`, the dashboard),
+the e2e steps (they match `dbg.state`, which has neither), the
+scenarios, the fixtures, the skills, the READMEs and `plan/` found only
+`base` values of `idle` and the 2026-09-27 decision-log row, which is
+history. The fixture's 16 edited lines lost exactly `idle` and `wait`,
+each `wait` was 1 + `attn.more`, and each old `idle` equals the idle
+count in the `status` line that follows it.
+
+**The counts on a busier run.** A headless app (`--brain scripted
+--link none --debug`, state in `/tmp`) took
+[check/four-sessions.jsonl](check/four-sessions.jsonl) through
+`boopdev replay --socket`: four Claude sessions, two of them asking at
+once, then turns ending and one session leaving. The dashboard's
+`Board` on its `debug.jsonl`, each fact once it settled:
+
+| After | `base` | `needs you` |
+| --- | --- | --- |
+| Three sessions start | `idle · busy 0 · idle 3 · waiting 0` | no |
+| gamma, then alpha, work | `working · busy 2 · idle 1 · waiting 0` | no |
+| alpha asks | `working · busy 1 · idle 1 · waiting 1` | `claude · alpha` |
+| delta starts, works and asks | `working · busy 1 · idle 1 · waiting 2` | `claude · alpha (+1)` |
+| alpha's tool finishes | `working · busy 2 · idle 1 · waiting 1` | `claude · delta` |
+| alpha and gamma stop | `idle · busy 0 · idle 3 · waiting 1` | `claude · delta` |
+| beta ends | `idle · busy 0 · idle 2 · waiting 1` | `claude · delta` |
+
+beta's and gamma's starts, delta's start and beta's end sent no
+`state` and each wrote a `status` line. Between a `state` and the
+`status` right after it, `base` can mix the new busy count with the old
+idle one for the few microseconds between the two writes. The dashboard
+applies each read's lines before it draws, every 0.25 s, so that isn't
+worth a change.
+
+**Mutations again.** With the runtime ignoring `sessions`,
+`testASecondIdleSessionReachesTheStatusNotTheDevice` fails; with the
+core's `sessions` branch gone, `testASessionListChangeTheSnapshotDoesntShow`
+fails. Both were restored and rebuilt before the checks below.
+
+**Checks that ran:** `make build`; `make -C internal test` (207
+passed); `make -C internal fw-test` (111/111); `make -C internal sim`
+(11 scenarios, 0 expect failures, 0 changed pictures); the boopctl
+tests (28 OK); the webcam tests (3 OK); `facegen.py --check` (337
+frames match); `Boop --snapshots` (the crowded overview says "Needs
+you").
+
+**Fixed here:** CoreTests' comment on the `state` shape still said it
+carries "the counts", and DASHBOARD.md §7's sentence about the edited
+fixture didn't parse.
