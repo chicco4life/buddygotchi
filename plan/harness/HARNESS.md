@@ -468,11 +468,12 @@ the lines alone:
 
 | It counts | From |
 | --- | --- |
-| Cheers, working chatter and the brain's reactions | A `sent` moment: `anim` `cheer`, and a `say` without a `mood` (chatter) or with one (a reaction, in that face) |
+| Cheers and working chatter | A `sent` moment: `anim` `cheer`, or a `say` without a `mood`. A cheer the dashboard played counts too, since only its `sent` line records it |
+| The brain's reactions, and their faces | A `react` action entry for a Jev pass, started or refused, in the face its pass's `react` answer chose. Those with `by` were forced, and are counted apart |
 | Chirps, and each time something needed you | A `sent` state whose `attn` is new or names a different agent or project ([PROTOCOL.md](../PROTOCOL.md) §3). Needing you lasts from the `state` that brings `attn` to the first without it, or to the end of its launch |
-| Mood changes, and what made each | A `sent` state's `mood`, and the `mood` action entry right after it: its event, or `by` |
+| Mood changes, and what made each | A `sent` state's `mood`, and the `mood` action entry right after it: its event, or `by`. A launch's first `state` in a mood other than the last launch's changed between launches |
 | Brain passes, dropped ones, and ones that chose `none` | `pass` lines with a `brain`; forced ones are counted apart. An event that woke the brain with no `pass` for it was replaced by a newer one while a pass ran |
-| Reactions that didn't happen, and why | A `react` action with `ok: false` (its message is the reason), or a `settle` that isn't `done` (its `why`) |
+| Reactions that didn't happen, and why | A `react` action with `ok: false` (its message is the reason), or a `settle` that isn't `done` (its `why`); the forced ones apart |
 | Taps | `tap` and `pokes` events |
 | Time running, and with the device connected | Each launch's first and last lines, and `status` lines' `connected` |
 

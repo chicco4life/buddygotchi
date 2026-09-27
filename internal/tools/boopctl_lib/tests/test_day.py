@@ -83,16 +83,24 @@ class FixtureTests(unittest.TestCase):
     def test_what_boop_did_by_the_hour(self):
         t = self.day.total()
         self.assertEqual((t.cheers, t.chatter, t.reactions, t.chirps, t.moods, t.passes, t.dropped, t.missed, t.taps),
-                         (3, 17, 20, 4, 6, 15, 0, 7, 5))
+                         (3, 17, 15, 4, 6, 15, 0, 2, 5))
         self.assertEqual(sorted(self.day.hours), [1, 2, 3, 4, 5, 6])
-        self.assertEqual(dict(t.faces), {"excited": 14, "curious": 2, "determined": 1, "happy": 1, "proud": 1, "sad": 1})
-        self.assertEqual(self.day.forced, 9)
+        self.assertEqual([self.day.hours[h].reactions for h in range(1, 7)], [5, 5, 1, 3, 1, 0])
+        self.assertEqual(dict(t.faces), {"excited": 15}, "the scripted brain always answers excited")
+        self.assertEqual((self.day.forced, self.day.forced_reacts), (9, 8))
 
-    def test_chatter_and_reactions_are_the_sent_mumbles_without_and_with_a_face(self):
+    def test_the_brains_reactions_are_its_react_actions_and_forced_ones_are_apart(self):
+        """20 moments with a face were sent (counted by hand): 14 of the
+        brain's 15 reactions (02:11's never reached the device) and 6 of the
+        8 forced (01:48's was refused and 04:48's excited one waited too
+        long). Chatter and cheers are the sent moments."""
         sent = [json.loads(line)["sent"] for f in ("debug.1.jsonl", "debug.jsonl")
                 for line in (FIXTURE / f).read_text().splitlines() if line.startswith('{"sent":{"t":"moment"')]
         t = self.day.total()
-        self.assertEqual(t.reactions, sum(1 for s in sent if s.get("say") and s.get("mood")))
+        faces = [s["mood"] for s in sent if s.get("say") and s.get("mood")]
+        self.assertEqual(len(faces), (t.reactions - 1) + (self.day.forced_reacts - 2))
+        self.assertEqual(sorted(f for f in faces if f != "excited"), ["curious", "curious", "determined", "happy",
+                                                                      "proud", "sad"], "the forced ones")
         self.assertEqual(t.chatter, sum(1 for s in sent if s.get("say") and not s.get("mood")))
         self.assertEqual(t.cheers, sum(1 for s in sent if s.get("anim") == "cheer"))
 
@@ -120,9 +128,10 @@ class FixtureTests(unittest.TestCase):
     def test_reactions_that_didnt_happen_and_why(self):
         # Every end harness/DECISIONS.md §5 lists that the run could bring
         # about, and the action's own refusal.
-        self.assertEqual(sorted(m.why for m in self.day.misses), [
-            "cut short: you tapped Boop", "no device connected", "no word it finished", "something needs you",
-            "the device disconnected", "the device never said it ended", "waited too long"])
+        self.assertEqual(sorted((m.forced, m.why) for m in self.day.misses), [
+            (False, "no device connected"), (False, "no word it finished"),
+            (True, "cut short: you tapped Boop"), (True, "something needs you"), (True, "the device disconnected"),
+            (True, "the device never said it ended"), (True, "waited too long")])
 
     def test_the_relaunch_keeps_the_morning(self):
         """Without debug.1.jsonl (before HARNESS.md §9 kept it), the first
@@ -142,7 +151,112 @@ class FixtureTests(unittest.TestCase):
                                                "dropped", "missed", "taps", "needs", "you", "faces"])
         self.assertEqual([x.split()[0] for x in lines[head + 1:head + 8]], ["01", "02", "03", "04", "05", "06", "all"])
         self.assertIn("  01:47  codex · landing → claude · jetpack  6 min 4 s, 2 chirps", lines)
-        self.assertIn("  1× cut short: you tapped Boop: 01:53", lines)
+        self.assertIn("  1× cut short: you tapped Boop (forced): 01:53", lines)
+        self.assertIn("Reactions that didn't happen: 2 of the brain's 15, and 5 of the 8 forced from the dashboard",
+                      lines)
+
+
+def event(t: int, seq: int, kind: str, wakes: bool = True) -> dict:
+    return {"event": {"kind": kind, "line": f"a {kind}.", "wakes_brain": wakes}, "seq": seq, "received_at_ms": t}
+
+
+def a_pass(t: int, seq: int, for_: int | None, **choices: str) -> dict:
+    body = {"for": for_, "dropped": None, "latency_ms": 0 if for_ is None else 700,
+            "answers": {k: {"choice": v, "p": {v: 1}} for k, v in choices.items()}}
+    body.update({"by": "dashboard"} if for_ is None else {"brain": "jev:jev-latest"})
+    return {"pass": body, "seq": seq, "received_at_ms": t}
+
+
+def action(t: int, seq: int, for_: int | None, name: str, ok: bool = True, message: str = "", pending: bool = False):
+    body = {"for": for_, "name": name, "ok": ok, "message": message, "latency_ms": 0,
+            **({"pending": True} if pending else {}), **({"by": "dashboard"} if for_ is None else {})}
+    return {"action": body, "seq": seq, "received_at_ms": t}
+
+
+def status(t: int, connected: bool) -> dict:
+    return {"status": {"brain": "jev:jev-latest", "connected": connected, "personality": "boop", "sessions": []},
+            "received_at_ms": t}
+
+
+class SmallDayTests(unittest.TestCase):
+    """Three launches counted by hand. The first ends while something
+    needs you; the second starts disconnected and connects later; the
+    third starts in a mood set while no debug log ran."""
+
+    @classmethod
+    def setUpClass(cls):
+        first = [
+            {"questions": [], "received_at_ms": at("09:00:00")}, status(at("09:00:00"), True), state(at("09:00:00")),
+            event(at("09:05:00"), 1, "turn_start"),
+            a_pass(at("09:05:01"), 2, 1, mood="grumpy", react="grumpy"),
+            state(at("09:05:01"), mood="grumpy"),  # the mood action's state goes out before its entry
+            action(at("09:05:01"), 3, 1, "mood", message="Boop's mood changed: happy → grumpy."),
+            action(at("09:05:01"), 4, 1, "react", pending=True),
+            {"settle": {"for": 4, "end": "done"}, "seq": 5, "received_at_ms": at("09:05:03")},
+            state(at("09:10:00"), ("claude", "a"), mood="grumpy"),  # needs you: a chirp
+            state(at("09:20:00"), ("claude", "a"), mood="excited"),  # the dashboard's mood line
+            action(at("09:20:00"), 6, None, "mood", message="Boop's mood changed: grumpy → excited."),
+            a_pass(at("09:30:00"), 7, None, react="happy"),
+            action(at("09:30:00"), 8, None, "react", ok=False, message="something needs you"),
+            state(at("09:40:00"), ("claude", "a"), mood="excited"),  # the launch ends: still up
+        ]
+        second = [
+            {"questions": [], "received_at_ms": at("10:00:00")}, status(at("10:00:00"), False),
+            state(at("10:00:00"), mood="excited"),  # carried over: no change
+            status(at("10:10:00"), True),
+            state(at("10:15:00"), ("claude", "a"), mood="excited"),  # a chirp again: 10:00's state had no attn
+            state(at("10:20:00"), mood="excited"),
+            event(at("10:30:00"), 1, "tool_use"),
+            a_pass(at("10:30:01"), 2, 1, react="curious"),
+            action(at("10:30:01"), 3, 1, "react", pending=True),
+            {"settle": {"for": 3, "end": "failed", "why": "waited too long"}, "seq": 4, "received_at_ms": at("10:30:07")},
+            state(at("10:45:00"), mood="excited"),
+        ]
+        third = [{"questions": [], "received_at_ms": at("11:00:00")}, state(at("11:00:00"), mood="sad"),
+                 state(at("11:05:00"), mood="sad")]
+        cls.tmp = tempfile.TemporaryDirectory()
+        for name, lines in (("debug.2.jsonl", first), ("debug.1.jsonl", second), ("debug.jsonl", third)):
+            (Path(cls.tmp.name) / name).write_text("".join(json.dumps(x) + "\n" for x in lines))
+        cls.day = day.summarise(day.read_launches(day.launch_files(Path(cls.tmp.name))), "2026-09-28")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_the_hours(self):
+        row = lambda h: (h.reactions, dict(h.faces), h.chirps, h.moods, h.passes, h.missed, h.needs_ms // 60_000)
+        self.assertEqual({hr: row(h) for hr, h in self.day.hours.items()}, {
+            9: (1, {"grumpy": 1}, 1, 2, 1, 0, 30),
+            10: (1, {"curious": 1}, 1, 0, 1, 1, 5),
+            11: (0, {}, 0, 1, 0, 0, 0),
+        })
+        self.assertEqual((self.day.forced, self.day.forced_reacts), (1, 1))
+
+    def test_moods_by_the_brain_the_dashboard_and_between_launches(self):
+        self.assertEqual([(day.clock(m.at), m.before, m.after, m.why) for m in self.day.moods], [
+            ("09:05", "happy", "grumpy", "turn_start: a turn_start."),
+            ("09:20", "grumpy", "excited", "forced from the dashboard"),
+            ("11:00", "excited", "sad", "between launches"),
+        ])
+
+    def test_needs_you_across_the_relaunch(self):
+        self.assertEqual([(day.clock(n.start), n.end - n.start, n.chirps, n.open) for n in self.day.needs], [
+            ("09:10", 30 * 60_000, 1, True), ("10:15", 5 * 60_000, 1, False)])
+
+    def test_running_and_connected(self):
+        self.assertEqual([(name, day.clock(a), day.clock(b)) for name, a, b, _ in self.day.launches], [
+            ("debug.2.jsonl", "09:00", "09:40"), ("debug.1.jsonl", "10:00", "10:45"), ("debug.jsonl", "11:00", "11:05")])
+        self.assertEqual((self.day.running_ms, self.day.connected_ms), (90 * 60_000, 75 * 60_000))
+
+    def test_what_didnt_happen(self):
+        text = day.render(self.day).splitlines()
+        self.assertIn("Reactions that didn't happen: 1 of the brain's 2, and 1 of the 1 forced from the dashboard", text)
+        self.assertIn("  1× waited too long: 10:30", text)
+        self.assertIn("  1× something needs you (forced): 09:30", text)
+        self.assertIn("  09:10  claude · a  30 min (still up when the log ends)", text)
+        self.assertIn("Needs you: 2 times, 35 min in all; cleared in 5 min", text)
+        self.assertIn("Brain: 2 passes (median 700 ms, slowest 700 ms), 0 dropped, 0 chose no reaction; "
+                      "and 1 forced from the dashboard, asking for 1 reaction", text)
 
 
 class RuleTests(unittest.TestCase):
@@ -187,7 +301,8 @@ class RuleTests(unittest.TestCase):
         )], "2026-09-28")
         self.assertEqual((d.total().passes, d.total().dropped, d.quiet, d.skipped), (2, 1, 1, 1))
         text = day.render(d)
-        self.assertIn("Brain: 2 passes (median 4450 ms, slowest 8000 ms), 1 dropped, 1 chose no reaction", text)
+        self.assertIn("Brain: 2 passes (median 4450 ms, slowest 8000 ms), 1 dropped, 1 chose no reaction; "
+                      "none forced from the dashboard", text.splitlines())
         self.assertIn("  dropped 1×: timed out after 8000 ms", text)
         self.assertIn("  1 events woke it but got no pass", text)
 

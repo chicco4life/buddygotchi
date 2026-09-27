@@ -2,9 +2,10 @@
 from debug mode's logs (plan/harness/HARNESS.md §9). It reads the state dir's
 debug.jsonl and the earlier launches' debug.<n>.jsonl, oldest first, and
 sums up one local day by the hour: cheers, working chatter, the brain's
-reactions and their faces, chirps, mood changes, passes, and reactions that
-didn't happen; then each mood change with its cause, each time something
-needed you and how long it took to clear, and why reactions didn't happen.
+reactions and their faces, chirps, mood changes, passes, and the brain's
+reactions that didn't happen; then each mood change with its cause, each
+time something needed you and how long it took to clear, and why reactions
+didn't happen. What the dashboard forced is counted apart from the brain.
 
 It reads only the lines, like the dashboard (dash/feed.py): what was sent
 to the device (`sent`), the transcript (`event`, `pass`, `action`,
@@ -123,6 +124,7 @@ class Miss:
     at: int
     name: str
     why: str
+    forced: bool = False
 
 
 @dataclass
@@ -134,7 +136,8 @@ class Day:
     needs: list[NeedsYou] = field(default_factory=list)
     misses: list[Miss] = field(default_factory=list)
     drops: list[Miss] = field(default_factory=list)
-    forced: int = 0
+    forced: int = 0  # passes forced from the dashboard
+    forced_reacts: int = 0  # the reactions they asked for
     quiet: int = 0
     skipped: int = 0
     latencies: list[int] = field(default_factory=list)
@@ -175,6 +178,7 @@ def summarise(launches: list[Launch], date: str) -> Day:
         event_at: dict[int, int] = {}
         passed: set[int] = set()
         names: dict[int, str] = {}
+        last_pass: Line = {}  # an action's pass: its entries follow the pass's
         up_since = None
         for line in launch.lines:
             t, k = line["received_at_ms"], kind(line)
@@ -206,18 +210,18 @@ def summarise(launches: list[Launch], date: str) -> Day:
                         day.moods.append(changed)
                 mood, seen_state = now, True
             elif k == "sent" and body.get("t") == "moment" and h:
+                # A moment with a face is a reaction, the brain's or forced,
+                # counted from its react action below, which says which.
                 if body.get("anim") == "cheer":
                     h.cheers += 1
-                if body.get("say") and body.get("mood"):
-                    h.reactions += 1
-                    h.faces[body["mood"]] += 1
-                elif body.get("say"):
+                if body.get("say") and not body.get("mood"):
                     h.chatter += 1
             elif k == "event":
                 events[seq], event_at[seq] = body, t
                 if h and body.get("kind") in ("tap", "pokes"):
                     h.taps += 1
             elif k == "pass":
+                last_pass = body
                 passed.add(body.get("for"))
                 if not h:
                     continue
@@ -233,16 +237,26 @@ def summarise(launches: list[Launch], date: str) -> Day:
                     day.quiet += 1
             elif k == "action":
                 names[seq] = body.get("name", "?")
+                forced = bool(body.get("by"))
                 if body.get("name") == "mood" and body.get("ok") and changed and changed.why is None \
                         and t - changed.at < 1000:
                     changed.why = cause(body, events)
-                if body.get("name") == "react" and not body.get("ok") and h:
-                    h.missed += 1
-                    day.misses.append(Miss(t, "react", body.get("message", "?")))
+                if body.get("name") == "react" and h:
+                    # Started, or refused by the action's own rule: either
+                    # way the brain (or the dashboard) asked for this face.
+                    if forced:
+                        day.forced_reacts += 1
+                    else:
+                        h.reactions += 1
+                        h.faces[((last_pass.get("answers") or {}).get("react") or {}).get("choice", "?")] += 1
+                    if not body.get("ok"):
+                        h.missed += not forced
+                        day.misses.append(Miss(t, "react", body.get("message", "?"), forced))
             elif k == "settle":
                 if body.get("end") != "done" and h:
-                    h.missed += 1
-                    day.misses.append(Miss(t, names.get(body.get("for"), "?"), body.get("why") or "?"))
+                    forced = bool(body.get("by"))
+                    h.missed += not forced
+                    day.misses.append(Miss(t, names.get(body.get("for"), "?"), body.get("why") or "?", forced))
             elif k == "status":
                 if body.get("brain") not in (None, "none") and body["brain"] not in brains:
                     brains.append(body["brain"])
@@ -336,16 +350,17 @@ def render(day: Day) -> str:
         cells = [r[0].ljust(widths[0])] + [c.rjust(w) for c, w in zip(r[1:-1], widths[1:])]
         out.append("  ".join(cells + [r[-1]]).rstrip())
     out.append("")
-    out.append("reacts are the brain's reactions sent to the device, with the faces they wore; chatter is the "
-               "rules' working chatter;")
-    out.append("chirps are states bringing a new needs-you or a different one; missed are reactions that didn't "
-               "happen (below).")
+    out.append("reacts are the reactions the brain asked for, with their faces, and missed the ones of them that "
+               "didn't happen (below);")
+    out.append("chatter is the rules' working chatter; chirps are states bringing a new needs-you or a different one.")
 
     out.append("")
     passes = len(day.latencies)
     lat = f" (median {statistics.median(day.latencies):.0f} ms, slowest {max(day.latencies)} ms)" if passes else ""
-    out.append(f"Brain: {passes} passes{lat}, {len(day.drops)} dropped, {day.quiet} chose no reaction; "
-               f"and {day.forced} forced from the dashboard")
+    forced = "none forced from the dashboard" if not day.forced else \
+        f"and {day.forced} forced from the dashboard, asking for {day.forced_reacts} " \
+        + ("reaction" if day.forced_reacts == 1 else "reactions")
+    out.append(f"Brain: {passes} passes{lat}, {len(day.drops)} dropped, {day.quiet} chose no reaction; {forced}")
     for why, n in Counter(d.why for d in day.drops).most_common():
         out.append(f"  dropped {n}×: {why}")
     if day.skipped:
@@ -358,8 +373,8 @@ def render(day: Day) -> str:
 
     out.append("")
     cleared = [n.end - n.start for n in day.needs if not n.open]
-    stats = f"; cleared in {span(min(cleared))} to {span(max(cleared))}, median {span(statistics.median(cleared))}" \
-        if cleared else ""
+    stats = "" if not cleared else f"; cleared in {span(cleared[0])}" if len(cleared) == 1 else \
+        f"; cleared in {span(min(cleared))} to {span(max(cleared))}, median {span(statistics.median(cleared))}"
     out.append(f"Needs you: {len(day.needs)} times, {span(t.needs_ms)} in all{stats}")
     who = max((len(" → ".join(n.who)) for n in day.needs), default=0)
     for n in day.needs:
@@ -367,17 +382,22 @@ def render(day: Day) -> str:
         out.append(f"  {clock(n.start)}  {' → '.join(n.who):<{who}}  {took}" + (f", {n.chirps} chirps" if n.chirps > 1 else ""))
 
     out.append("")
-    out.append(f"Reactions that didn't happen: {len(day.misses)}")
+    forced = sum(m.forced for m in day.misses)
+    out.append(f"Reactions that didn't happen: {len(day.misses) - forced} of the brain's {t.reactions}"
+               + (f", and {forced} of the {day.forced_reacts} forced from the dashboard" if day.forced_reacts else ""))
     for why, group in group_by_why(day.misses):
         out.append(f"  {len(group)}× {why}: " + ", ".join(clock(m.at) for m in group))
     return "\n".join(out)
 
 
 def group_by_why(misses: list[Miss]) -> list[tuple[str, list[Miss]]]:
-    groups: dict[str, list[Miss]] = {}
+    """The brain's first, then the forced ones, each by how often."""
+    groups: dict[tuple[bool, str], list[Miss]] = {}
     for m in misses:
-        groups.setdefault(m.why if m.name == "react" else f"{m.name}: {m.why}", []).append(m)
-    return sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+        why = m.why if m.name == "react" else f"{m.name}: {m.why}"
+        groups.setdefault((m.forced, why), []).append(m)
+    ordered = sorted(groups.items(), key=lambda kv: (kv[0][0], -len(kv[1]), kv[0][1]))
+    return [(why + (" (forced)" if forced else ""), group) for (forced, why), group in ordered]
 
 
 def run(paths: list[Path], date: str | None) -> tuple[int, str]:
