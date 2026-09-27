@@ -35,6 +35,7 @@ milestone's evidence says which ones ran.
 | C1 | Cut to 4 states and 3 animations | Done | [cut](evidence/2026-09-26-minimal-cut/README.md), [on the board](evidence/2026-09-26-e2e-hardening/README.md) |
 | A9 | Modes: chatty, normal and calm | Done; checks 16 and 17 | [evidence](evidence/2026-09-26-modes/README.md) |
 | | Overnight pass (2026-09-27): reliability, behaviour and polish across the core, brain, firmware, face, Mac app and tools | Done. The final firmware `cf6d8ae` matches the simulator on the board in all 10 scenarios, `perf --motion` passes and `make e2e` passes; the new looks still need watching in motion (check 1) | [evidence](evidence/2026-09-27-overnight/) |
+| A10 | Jev-only harness: typed events and transcript, a plain-text state, mood, `[PENDING]` ([HARNESS.md](HARNESS.md)) | Spec written; code in progress (§3, "Harness rework") | |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks
@@ -149,6 +150,18 @@ that's off becomes an open item (§3).
 
 Known work that isn't a milestone yet, including drift found and not
 fixed. Pick one up by writing it into its spec first.
+
+- **Harness rework (A10).** [HARNESS.md](HARNESS.md) describes the
+  Jev-only harness, and the code still runs the two-stage one. Until it
+  lands, these still describe the old harness and move with the code:
+  `plan/steering.md` (splits into `plan/steering/`), the `steering.md`
+  rule in CLAUDE.md, [ARCHITECTURE.md](ARCHITECTURE.md) §3.2–3.3 and §4
+  (bursts, the stages, memory writes), [BEHAVIORS.md](BEHAVIORS.md) §3.3
+  and §6 (talk, modes), [VOICE.md](VOICE.md) §6 (who picks the word),
+  [ADAPTERS.md](ADAPTERS.md) §2–3 (the extra hook fields, the workspace,
+  Codex's `Interrupt`), [EVALS.md](EVALS.md) and
+  [UX.md](UX.md) §7 (Mode becomes Personality). Talk and memory writes
+  come back after it.
 
 - **Release.** There's no signing, notarisation, app icon or release
   pipeline yet. Gen-2's list is in
