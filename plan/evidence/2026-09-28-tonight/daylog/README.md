@@ -30,7 +30,8 @@ Yes, for every question the summary asks; nothing new had to be logged.
 | Events, their kinds and lines | `event` (`kind`, `line`, `reaction`, `wakes_brain`) |
 | Passes and their answers, dropped ones and why | `pass` (`answers`, `dropped`, `brain` or `by`, `latency_ms`) |
 | Actions, started ones, and how they ended | `action` (`ok`, `message`, `pending`) and `settle` (`end`, `why`) |
-| Cheers, chatter, reactions and their faces | `sent` moments (`anim`, `say`, `mood`) |
+| Cheers and chatter | `sent` moments (`anim`, `say`, `mood`) |
+| The brain's reactions and their faces, forced ones apart | `react` actions (`by`), and their pass's `react` answer |
 | Needs-you, chirps and mood changes | `sent` states (`attn`, `mood`), keepalives included |
 | Brain, sessions, the device connected | `status` |
 
@@ -92,18 +93,18 @@ Boop's day: Monday 2026-09-28, 01:34–06:01, 2 launches
   running 4 h 26 min, the device connected for 4 h 06 min of it
 
 hour  cheers  chatter  reacts  chirps  moods  passes  dropped  missed  taps  needs you  faces
-01         1        4       7       3      2       5                2     1      6 min  excited 5, curious 1, proud 1
-02         1        4       6              2       5                2                   excited 4, curious 1, determined 1
+01         1        4       5       3      2       5                      1      6 min  excited 5
+02         1        4       5              2       5                1                   excited 5
 03                          1                      1                1                   excited 1
-04                  3       5              2       3                2     4             excited 3, happy 1, sad 1
+04                  3       3              2       3                      4             excited 3
 05         1        6       1       1              1                             7 min  excited 1
 06
-all        3       17      20       4      6      15        0       7     5     13 min  excited 14, curious 2, determined 1, happy 1, proud 1, sad 1
+all        3       17      15       4      6      15        0       2     5     13 min  excited 15
 
-reacts are the brain's reactions sent to the device, with the faces they wore; chatter is the rules' working chatter;
-chirps are states bringing a new needs-you or a different one; missed are reactions that didn't happen (below).
+reacts are the reactions the brain asked for, with their faces, and missed the ones of them that didn't happen (below);
+chatter is the rules' working chatter; chirps are states bringing a new needs-you or a different one.
 
-Brain: 15 passes (median 0 ms, slowest 0 ms), 0 dropped, 0 chose no reaction; and 9 forced from the dashboard
+Brain: 15 passes (median 0 ms, slowest 0 ms), 0 dropped, 0 chose no reaction; and 9 forced from the dashboard, asking for 8 reactions
 
 Mood changes: 6
   01:35  happy → proud  (forced from the dashboard)
@@ -118,22 +119,25 @@ Needs you: 3 times, 13 min in all; cleared in 12 s to 7 min 2 s, median 6 min 4 
   01:47  codex · landing → claude · jetpack  6 min 4 s, 2 chirps
   05:13  claude · jetpack                    7 min 2 s
 
-Reactions that didn't happen: 7
-  1× cut short: you tapped Boop: 01:53
+Reactions that didn't happen: 2 of the brain's 15, and 5 of the 8 forced from the dashboard
   1× no device connected: 03:12
   1× no word it finished: 02:16
-  1× something needs you: 01:48
-  1× the device disconnected: 02:52
-  1× the device never said it ended: 04:48
-  1× waited too long: 04:48
+  1× cut short: you tapped Boop (forced): 01:53
+  1× something needs you (forced): 01:48
+  1× the device disconnected (forced): 02:52
+  1× the device never said it ended (forced): 04:48
+  1× waited too long (forced): 04:48
 ```
 
 Read against the driver: 3 cheers (a Claude turn in each launch and the
 Codex turn; the rate-limited turn doesn't cheer), 4 chirps (Claude in
 launch 1, Codex, the switch to Claude, the afternoon's), the 6 mood
 changes and their causes, and one of each way a reaction can fail. The
-scripted brain always answers an excited "yay" and a happy mood, so the
-faces lean excited and every forced mood is undone by the next pass.
+scripted brain always answers an excited "yay" and a happy mood, so its
+15 reactions are all excited and every forced mood is undone by the next
+pass. The other faces sent (proud, curious twice, determined, sad,
+happy) were the dashboard's, counted apart since the
+[independent check](../daylog-check/README.md).
 Without `debug.1.jsonl` the morning's needs-you, cheer and proud mood
 are gone (`test_the_relaunch_keeps_the_morning`).
 
