@@ -167,3 +167,19 @@ Also, the fixture's 40 s clock jump makes the app give up on a
 reaction still on the board ("the device never said it ended"), just
 before the board's `ended` arrives and is ignored. Only a moved clock
 does that.
+
+## The whole change, checked again
+
+2026-09-28, 01:05, on `32a18547` (steps 1–4 and their follow-ups), the
+board still on the firmware flashed for step 4 (nothing under
+`firmware/` changed since).
+
+| Check | Result |
+| --- | --- |
+| `make build` | Builds |
+| `make -C internal test` | 205 of 205 pass |
+| `make -C internal fw-test` | 111 of 111 pass |
+| `make -C internal sim` | 11 scenarios, no expectation fails, no picture changed |
+| tools tests | 27 and 3 pass, run as `make -C internal tools-test` runs them (its venv step can't run in this worktree) |
+| `make -C internal e2e` | Every checkpoint passes (17), p95 68 ms from hook to board, and all 7 brain moments sent got their `ended`: 6 `done` and 1 `cut (moment)`, the fixture's clock jump again. It fails only the old deploy expectation (above) |
+| `cmp CLAUDE.md AGENTS.md`, `diff -r plan/steering app/Boop/Resources/steering` | Silent |

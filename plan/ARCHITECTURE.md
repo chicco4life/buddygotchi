@@ -54,13 +54,13 @@ approve on the Mac as you normally would.
    finished turn 3 on "landing": done after 18 min, a very long turn, 24
    tools.` The event wakes the brain, so the harness asks **Jev** every
    action's questions about it in one request, and Jev answers, say,
-   `react: proud` and `word.feeling: yay`.
+   `react: proud`, `react.loops: once` and `word.feeling: yay`.
 5. The **`react` action** asks **Voice** for Minion speech in proud's
-   voice (*"ma-po li… yay!"*) and queues it with proud as its face. No
-   line is playing, so the **device link** sends it at once, and the
-   device shows the rest of the cheer in proud's face while Boop mumbles.
-   When the mumble is over, the device says so (`ended`), and HISTORY
-   stops showing the reaction as in progress.
+   voice (*"ma-po li… yay!"*) and queues it with proud as its face, held
+   once. No line is playing, so the **device link** sends it at once, and
+   the device shows the rest of the cheer in proud's face while Boop
+   mumbles. When the face and the mumble are over, the device says so
+   (`ended`), and HISTORY stops showing the reaction as in progress.
 
 The brain never sits between an event and the screen. Rules give the
 immediate reaction, and the brain adds character a second or two later. If
@@ -125,7 +125,7 @@ clock.
 | Effect | Carried out by |
 | --- | --- |
 | `state(snapshot)`, only when something on it changed | The device link, and the menu bar's status |
-| `moment(anim, loops)`: a rule's `cheer`, with enough loops of the mood's design to last at least 2 s ([BEHAVIORS.md](BEHAVIORS.md) §5) | The device link at once, cutting off whatever plays; the moment schedule notes it |
+| `moment(anim, loops)`: a rule's `cheer`, with enough loops of the mood's design for its length ([BEHAVIORS.md](BEHAVIORS.md) §5) | The device link at once, cutting off whatever plays; the moment schedule notes it |
 | `mumble(feeling, word)`: working chatter | Voice, then the device link, but only when nothing plays, no brain moment waits and nothing needs you |
 | `event(Event)` | The harness ([harness/EVENTS.md](harness/EVENTS.md)) |
 | `newDay(date)`: the first hook or tap of a new local day | The memory store (§4) |
