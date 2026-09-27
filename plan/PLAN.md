@@ -280,6 +280,17 @@ fixed. Pick one up by writing it into its spec first.
   working day Jev never picked its face either, since a turn start gets
   nothing. It needs a reason (mixed results across threads, a turn after
   a long break) or to go.
+- **Jev makes a reaction again once it has ended.** The guide says not
+  to repeat what Boop just did, but once a reaction has played out, Jev
+  makes the same one when the next line calls for it. In the scripted
+  day a run of quick turns with their tests passing gets the same
+  excited "…tests!" nearly every time (21–27 a day, up to 8 in a row in
+  the 16:00 hour), and a comeback's finish repeats the fix's proud
+  "…finally!", held three times, under a minute later. Text alone
+  hasn't stopped it: an Example with no word for a quick test pass still
+  got "yay" or "tests", since the topic question names what NOW is
+  about, and giving those turns no face would push happy past 40% of the
+  faces ([evidence](evidence/2026-09-28-tonight/tune2-check/README.md)).
 - **How fast a press shows on the board hasn't been measured since the
   dip.** A press now dips the face 2 px at once, so its first changed
   pixel comes on the press's own ms in the simulator
