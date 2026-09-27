@@ -103,8 +103,8 @@ the tune (§5):
 | Sad | Rounded `u` and `o`, ending on a bare `u` or `o` | 30% | 160 | `down` |
 | Sleepy | The hums, and `mu mo nu no` | 10% | 170 | `down` |
 
-`react` has ten feelings: `smug` mumbles like proud and `sulky` like sad
-([HARNESS.md](harness/HARNESS.md) §5).
+The brain's `react` offers five of these: happy, excited, proud, curious
+and annoyed ([harness/DECISIONS.md](harness/DECISIONS.md) §3).
 
 Some real lines, from `boopdev voice <feeling> [word] --seed N` with its
 default dialect: happy `done` (seed 2) *"la-la la… done!"*, curious

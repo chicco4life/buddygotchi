@@ -1,0 +1,11 @@
+{
+  "name": "A failure being worked through makes Boop determined, and the fix makes it proud",
+  "why": "plan/steering/mood/: happy leaves for determined when a failure is being worked through, and determined leaves for proud when what kept failing finally works",
+  "steps": [
+    {"event": "turn started", "at": "0s"},
+    {"event": "command", "at": "1m", "topic": "tests", "failed": true},
+    {"event": "command", "at": "3m", "topic": "tests", "failed": true, "expect": {"mood": "determined"}},
+    {"event": "command", "at": "5m", "topic": "tests", "failed": false,
+     "expect": {"react": "proud|happy|excited", "word": "finally|tests|yay", "mood": "proud"}}
+  ]
+}

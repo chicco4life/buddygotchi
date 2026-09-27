@@ -28,9 +28,9 @@ final class EvalTests: XCTestCase {
                 return ["mood": a("grumpy"), "react": a("annoyed"), "word.feeling": a("again"), "word.about": a("tests")]
             }
             if now.contains("passed") {
-                return ["mood": a("cheerful"), "react": a("proud"), "word.feeling": a("finally"), "word.about": a("tests")]
+                return ["mood": a("proud"), "react": a("proud"), "word.feeling": a("finally"), "word.about": a("tests")]
             }
-            return ["mood": a(state.contains("MOOD\nGrumpy") ? "grumpy" : "cheerful"), "react": a("none"),
+            return ["mood": a(state.contains("MOOD\nGrumpy") ? "grumpy" : "happy"), "react": a("none"),
                     "word.feeling": a("none"), "word.about": a("none")]
         }
         let steering = try Steering(directory: RuntimeTests.steeringDir)
@@ -40,7 +40,7 @@ final class EvalTests: XCTestCase {
         XCTAssertTrue(result.passed, result.checks.filter { !$0.passed }.map(\.summary).joined(separator: "\n"))
         XCTAssertEqual(result.checks[2].word, "again")
         XCTAssertEqual(result.checks[2].mood, "grumpy")
-        XCTAssertEqual(result.checks[3].mood, "cheerful", "16 minutes on, past the 10-minute limit")
+        XCTAssertEqual(result.checks[3].mood, "proud", "2 minutes after turning grumpy: no rule holds a mood")
     }
 
     /// A brain that stays quiet fails what should mumble, and the report
@@ -52,7 +52,7 @@ final class EvalTests: XCTestCase {
         XCTAssertFalse(result.passed)
         let report = Eval.report([[result]])
         XCTAssertEqual(report.first, "FAIL  05-poke-streak.json  Poked again and again, Boop is annoyed")
-        XCTAssertTrue(report[1].contains("wanted react annoyed, word none|nope|ugh; got react none, word none, mood cheerful"), report[1])
+        XCTAssertTrue(report[1].contains("wanted react annoyed, word none|nope|ugh; got react none, word none, mood happy"), report[1])
         XCTAssertEqual(report.last, "0/1 passed")
     }
 }

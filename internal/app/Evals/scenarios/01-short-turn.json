@@ -1,8 +1,8 @@
 {
   "name": "A quick turn is routine",
-  "why": "harness/DECISIONS.md §2.2: boop stays quiet during routine work; a short turn start or finish is nothing to mumble about, and the mood stays cheerful",
+  "why": "harness/DECISIONS.md §2.2: boop stays quiet during routine work; a short turn start or finish is nothing to mumble about, and the mood stays happy: a routine turn start is no reason to be curious (plan/steering/mood/curious.md)",
   "steps": [
-    {"event": "turn started", "at": "0s", "expect": {"react": "none|curious", "mood": "cheerful"}},
-    {"event": "turn finished", "at": "8s", "expect": {"react": "none|happy", "mood": "cheerful"}}
+    {"event": "turn started", "at": "0s", "expect": {"react": "none|curious", "mood": "happy"}},
+    {"event": "turn finished", "at": "8s", "expect": {"react": "none|happy", "mood": "happy"}}
   ]
 }

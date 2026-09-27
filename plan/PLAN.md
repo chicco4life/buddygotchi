@@ -37,6 +37,7 @@ milestone's evidence says which ones ran.
 | | Overnight pass (2026-09-27): reliability, behaviour and polish across the core, brain, firmware, face, Mac app and tools | Done. The final firmware `cf6d8ae` matches the simulator on the board in all 10 scenarios, `perf --motion` passes and `make e2e` passes; the new looks still need watching in motion (check 1) | [evidence](evidence/2026-09-27-overnight/) |
 | A10 | Jev-only harness: typed events and transcript, a plain-text state, mood and personalities ([harness/](harness/HARNESS.md)) | Done; the evals pass against Jev; checks 12–17 are the owner's | [evidence](evidence/2026-09-27-jev-harness/README.md) |
 | | Production and internal code split: what doesn't ship moves to `internal/`, `Package.swift` to the root ([internal/README.md](../internal/README.md)) | Done; the evals pass against Jev, 7/7 in all 3 runs | [evidence](evidence/2026-09-27-internal-split/README.md) |
+| A11 | Seven moods, drawn from the mood SVGs: Jev picks the mood, and the device shows each state and reaction in it | In progress. Jev chooses among the seven moods with no minimum time between changes, and the evals pass against Jev (10/10 in all 3 runs); nothing reaches the device yet | [moods](evidence/2026-09-27-seven-moods/README.md) |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks
@@ -113,8 +114,8 @@ that's off becomes an open item (§3).
 14. **Let tests fail three times in a row, then pass.** On the third
     failure an annoyed mumble ("…again!" or "…tests!") and Boop turns
     grumpy (the `mood` file in `~/Library/Application Support/Boop/`);
-    when they pass more than ten minutes later, a proud "…finally!" and
-    cheerful again ([harness/EXAMPLE.md](harness/EXAMPLE.md)).
+    when they pass, a proud "…finally!" and Boop turns proud
+    ([harness/EXAMPLE.md](harness/EXAMPLE.md)).
 15. **`Boop --debug` (`make debug`) through a turn.** The terminal shows
     each event, the pass with Jev's whole state the first time and its
     answers, and what the actions did; `boop.log` has one `brain …` line
@@ -198,6 +199,10 @@ fixed. Pick one up by writing it into its spec first.
   anything that adds RAM needs measuring.
 - **A freshly built `boop-hook` is slow once:** about 250 ms on its first
   launch while macOS checks it, then a few milliseconds.
+- **[harness/EXAMPLE.md](harness/EXAMPLE.md) predates the seven moods.**
+  Its story stays happy through the second failure; with today's steering
+  Boop turns determined there. It's still hand-written, with made-up
+  odds; regenerate it from a real Jev run.
 - **`swift build` rebuilds for no reason.** It alternates between a
   no-op (0.4 s) and a 6–9 s rebuild with nothing changed, so build
   timings are noisy until the cause is found.

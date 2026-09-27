@@ -52,7 +52,7 @@ public struct Steering: Equatable, Sendable {
         personalities[p.rawValue] ?? PersonalityFile(rules: Personality.Rules(), text: "")
     }
 
-    public func mood(_ name: String) -> String { moods[name] ?? moods["cheerful"] ?? "" }
+    public func mood(_ name: String) -> String { moods[name] ?? moods[MoodAction.initial] ?? "" }
 
     /// Splits a leading `---` block from the rest.
     static func frontMatter(_ text: String) -> (String, String) {

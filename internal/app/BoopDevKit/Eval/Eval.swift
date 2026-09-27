@@ -190,7 +190,7 @@ public struct Eval {
         let mood = MoodStore(stateDir: dir)
         let home = DispatchQueue(label: "boop.eval")
         let actions: [any Action] = [
-            MoodAction(store: mood, now: { clock.now }),
+            MoodAction(store: mood),
             ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _ in }, blocked: { core.mumbleBlock(at: clock.now) }),
         ]
         let steering = self.steering

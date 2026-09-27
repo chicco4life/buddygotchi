@@ -144,7 +144,7 @@ final class RuntimeTests: XCTestCase {
             ((try? String(contentsOf: debugLog, encoding: .utf8)) ?? "").split(separator: "\n").filter { $0.contains("\"pass\":") }
         }
         wait("the second pass") { passes().count == 2 }
-        XCTAssertTrue(passes()[0].contains("Cheerful. Boop is in good spirits"), "the first pass read cheerful")
+        XCTAssertTrue(passes()[0].contains("Happy. Boop is in good spirits"), "the first pass read happy")
         XCTAssertTrue(passes()[1].contains("Grumpy. Boop is fed up"), "the next reads the new mood's file")
         XCTAssertTrue(passes()[1].contains(#"Boop mumbled, annoyed: \"…again!\""#), "HISTORY shows what the actions did")
         XCTAssertFalse(lines.lock.withLock { lines.log.contains { $0.contains("PERSONALITY") } }, "the state stays out of boop.log")
@@ -256,7 +256,8 @@ final class RuntimeTests: XCTestCase {
         let bundled = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .appendingPathComponent("../../../app/Boop/Resources/steering").standardizedFileURL
         let files = try XCTUnwrap(FileManager.default.subpaths(atPath: Self.steeringDir.path)).filter { $0.hasSuffix(".md") }.sorted()
-        XCTAssertEqual(files, ["guide.md", "mood/cheerful.md", "mood/grumpy.md", "personality/boop.md", "personality/chatter.md"])
+        XCTAssertEqual(files, ["guide.md", "mood/curious.md", "mood/determined.md", "mood/excited.md", "mood/grumpy.md",
+                               "mood/happy.md", "mood/proud.md", "mood/sad.md", "personality/boop.md", "personality/chatter.md"])
         for file in files {
             try XCTAssertEqual(try String(contentsOf: bundled.appendingPathComponent(file), encoding: .utf8),
                                try String(contentsOf: Self.steeringDir.appendingPathComponent(file), encoding: .utf8),

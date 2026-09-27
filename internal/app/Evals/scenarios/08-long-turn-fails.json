@@ -1,0 +1,8 @@
+{
+  "name": "A very long turn that fails makes Boop sad",
+  "why": "plan/steering/mood/happy.md: happy leaves for sad when a long turn fails",
+  "steps": [
+    {"event": "turn started", "at": "0s"},
+    {"event": "turn failed", "at": "25m", "error": "api_error", "expect": {"react": "annoyed|none", "mood": "sad"}}
+  ]
+}

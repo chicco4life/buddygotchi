@@ -13,5 +13,8 @@ How to choose:
 - A mumble is about NOW: its feeling and word should fit it.
 - Boop's mood and its mumble go together. A mood changes only when NOW
   gives MOOD's reason to leave it, and then the mumble should fit that
-  change: a grumpy Boop doesn't gush, and a cheerful one doesn't sulk
+  change: a grumpy Boop doesn't gush, and a happy one doesn't sulk
   over one failure.
+- Moods last. Change one only when things have clearly turned, never
+  for a single moment. After an hour with nothing happening, any mood
+  goes back to happy.

@@ -44,7 +44,7 @@ final class HarnessTests: XCTestCase {
     }
 
     static let parts = StateText.Parts(guide: "You are the mind of Boop.", personality: "PERSONALITY\nCurious.",
-                                       mood: "MOOD\nCheerful.", status: "Working now: nothing else.",
+                                       mood: "MOOD\nHappy.", status: "Working now: nothing else.",
                                        workingSince: nil, clock: "14:23, Tuesday")
 
     /// harness/HARNESS.md §5.3: HISTORY and NOW, built step by step from
@@ -58,7 +58,7 @@ final class HarnessTests: XCTestCase {
         let failed = t.append(.event(event(.toolUse, at: 14, #"claude's tests failed again on "fix-nav" (landing), 2 in a row."#)),
                               at: Self.t0 + 14 * 60_000)
         t.append(.action(.init(forSeq: failed.seq, name: "react", result: .done(#"Boop mumbled, annoyed: "…tests!""#), latencyMs: 1)), at: Self.t0)
-        t.append(.action(.init(forSeq: failed.seq, name: "mood", result: .failed("changed 4 min ago"), latencyMs: 1)), at: Self.t0)
+        t.append(.action(.init(forSeq: failed.seq, name: "mood", result: .failed("couldn't save the mood: disk full"), latencyMs: 1)), at: Self.t0)
         t.append(.event(event(.tap, at: 19, "You tapped Boop.", reaction: "Boop wiggled on its own.", wakes: false)),
                  at: Self.t0 + 19 * 60_000)
         let end = t.append(.event(event(.turnEnd, at: 23, #"claude finished turn 7 on "fix-nav" (landing): done."#,
@@ -75,7 +75,7 @@ final class HarnessTests: XCTestCase {
             Curious.
 
             MOOD
-            Cheerful.
+            Happy.
 
             HISTORY (oldest first; indented lines are what Boop did)
             18 min ago: claude started turn 7 on "fix-nav" (landing).
@@ -210,7 +210,7 @@ final class HarnessTests: XCTestCase {
     static func realActions() -> [any Action] {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return [MoodAction(store: MoodStore(stateDir: dir), now: { 0 }),
+        return [MoodAction(store: MoodStore(stateDir: dir)),
                 ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _ in }, blocked: { nil })]
     }
 
@@ -247,29 +247,28 @@ final class HarnessTests: XCTestCase {
         }
     }
 
-    /// DECISIONS.md §4: the current mood is nothing to do; a change within
-    /// 10 minutes fails; otherwise the file changes, and MOOD with it.
+    /// DECISIONS.md §4: the seven moods; the current mood is nothing to do,
+    /// and any other changes the file, and MOOD with it, however recently
+    /// it last changed (how long a mood lasts is the steering's call).
     func testMood() throws {
-        XCTAssertEqual(MoodAction.minimumGapMs, 600_000)
+        XCTAssertEqual(MoodAction.moods.map(\.name), ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad"])
         let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
-        var now: Int64 = 0
         let store = MoodStore(stateDir: dir)
-        XCTAssertEqual(store.current, "cheerful", "a new state directory starts cheerful")
-        let mood = MoodAction(store: store, now: { now })
-        XCTAssertNil(mood.run(["mood": a("cheerful")]))
-        XCTAssertEqual(mood.run(["mood": a("grumpy")]), .done("Boop's mood changed: cheerful → grumpy."))
-        try XCTAssertEqual(try String(contentsOf: dir.appendingPathComponent("mood"), encoding: .utf8), "grumpy\n")
-        now = 4 * 60_000
-        XCTAssertEqual(mood.run(["mood": a("cheerful")]), .failed("changed 4 min ago"))
-        now = 10 * 60_000
-        XCTAssertEqual(mood.run(["mood": a("cheerful")]), .done("Boop's mood changed: grumpy → cheerful."))
+        XCTAssertEqual(store.current, "happy", "a new state directory starts happy")
+        let mood = MoodAction(store: store)
+        XCTAssertNil(mood.run(["mood": a("happy")]))
+        XCTAssertEqual(mood.run(["mood": a("determined")]), .done("Boop's mood changed: happy → determined."))
+        XCTAssertEqual(mood.run(["mood": a("proud")]), .done("Boop's mood changed: determined → proud."), "straight after, too")
+        try XCTAssertEqual(try String(contentsOf: dir.appendingPathComponent("mood"), encoding: .utf8), "proud\n")
         XCTAssertNil(mood.run(["mood": a("sulky")]), "not a mood")
         try Data("grumpy\n".utf8).write(to: dir.appendingPathComponent("mood"))
         XCTAssertEqual(MoodStore(stateDir: dir).current, "grumpy", "it survives a restart")
+        try Data("cheerful\n".utf8).write(to: dir.appendingPathComponent("mood"))
+        XCTAssertEqual(MoodStore(stateDir: dir).current, "happy", "cheerful, its old name, reads as happy")
         try Data("delighted\n".utf8).write(to: dir.appendingPathComponent("mood"))
-        XCTAssertEqual(MoodStore(stateDir: dir).current, "cheerful", "an unknown one reads as cheerful")
+        XCTAssertEqual(MoodStore(stateDir: dir).current, "happy", "an unknown one reads as happy")
     }
 
     // MARK: Jev (HARNESS.md §7)

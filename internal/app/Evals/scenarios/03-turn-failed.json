@@ -1,8 +1,8 @@
 {
   "name": "A failed turn is annoying, or a shrug",
-  "why": "the react question's meanings: a turn that failed is annoyed; a cheerful Boop may shrug off one failure",
+  "why": "the react question's meanings: a turn that failed is annoyed; a happy Boop shrugs off one failure: a turn of two minutes failing is no reason to be sad, and determined is for a turn still retrying (plan/steering/mood/happy.md)",
   "steps": [
     {"event": "turn started", "at": "0s"},
-    {"event": "turn failed", "at": "2m", "error": "rate_limit", "expect": {"react": "annoyed|none|curious", "word": "none|oops|ugh|again", "mood": "cheerful"}}
+    {"event": "turn failed", "at": "2m", "error": "rate_limit", "expect": {"react": "annoyed|none|curious", "word": "none|oops|ugh|again", "mood": "happy"}}
   ]
 }

@@ -53,7 +53,7 @@ extension ScriptedBrain {
     /// scripted`): every pass, an excited mumble with "yay", and no mood
     /// change.
     public static let pipelineCheck = ScriptedBrain(id: "scripted", always: [
-        "mood": Answer(choice: "cheerful", probabilities: ["cheerful": 1]),
+        "mood": Answer(choice: "happy", probabilities: ["happy": 1]),
         "react": Answer(choice: "excited", probabilities: ["excited": 1]),
         "word.feeling": Answer(choice: "yay", probabilities: ["yay": 1]),
         "word.about": Answer(choice: "none", probabilities: ["none": 1]),

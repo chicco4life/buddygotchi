@@ -1,0 +1,18 @@
+{
+  "name": "A run of wins makes Boop excited, but one win doesn't",
+  "why": "plan/steering/guide.md and plan/steering/mood/happy.md: moods last, so one clean turn keeps Boop happy, and a run of them makes it excited",
+  "steps": [
+    {"event": "turn started", "at": "0s"},
+    {"event": "command", "at": "30s", "topic": "tests", "failed": false},
+    {"event": "turn finished", "at": "40s", "expect": {"mood": "happy"}},
+    {"event": "turn started", "at": "1m"},
+    {"event": "command", "at": "1m30s", "topic": "tests", "failed": false},
+    {"event": "turn finished", "at": "1m40s"},
+    {"event": "turn started", "at": "2m"},
+    {"event": "command", "at": "2m30s", "topic": "tests", "failed": false},
+    {"event": "turn finished", "at": "2m40s"},
+    {"event": "turn started", "at": "3m"},
+    {"event": "command", "at": "3m30s", "topic": "tests", "failed": false},
+    {"event": "turn finished", "at": "3m40s", "expect": {"mood": "excited"}}
+  ]
+}

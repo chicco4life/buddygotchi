@@ -1,0 +1,12 @@
+pass  01-short-turn.json  A quick turn is routine  (3/3 runs)
+pass  02-long-turn.json  A very long turn that finishes is worth a mumble  (3/3 runs)
+pass  03-turn-failed.json  A failed turn is annoying, or a shrug  (3/3 runs)
+pass  04-tests-fight-back.json  Tests that keep failing make Boop grumpy, and passing at last makes it proud  (3/3 runs)
+pass  05-poke-streak.json  Poked again and again, Boop is annoyed  (3/3 runs)
+pass  06-heartbeat-lets-grumpy-go.json  An hour of nothing lets a grumpy mood go  (3/3 runs)
+pass  07-chatter-reacts-to-everything.json  The chatter personality reacts to everything  (3/3 runs)
+pass  08-long-turn-fails.json  A very long turn that fails makes Boop sad  (3/3 runs)
+pass  09-failure-worked-through.json  A failure being worked through makes Boop determined, and the fix makes it proud  (3/3 runs)
+pass  10-run-of-wins.json  A run of wins makes Boop excited, but one win doesn't  (3/3 runs)
+10/10 passed in all 3 runs with jev:jev-latest
+latency: median 209 ms, slowest 388 ms (deadline 1250 ms)

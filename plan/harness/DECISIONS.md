@@ -50,8 +50,11 @@ How to choose:
 - A mumble is about NOW: its feeling and word should fit it.
 - Boop's mood and its mumble go together. A mood changes only when NOW
   gives MOOD's reason to leave it, and then the mumble should fit that
-  change: a grumpy Boop doesn't gush, and a cheerful one doesn't sulk
+  change: a grumpy Boop doesn't gush, and a happy one doesn't sulk
   over one failure.
+- Moods last. Change one only when things have clearly turned, never
+  for a single moment. After an hour with nothing happening, any mood
+  goes back to happy.
 ```
 
 ### 2.2 PERSONALITY
@@ -151,44 +154,49 @@ a mumble, but `none` stays an option, and the moods still apply.
 
 ### 2.3 MOOD
 
-`plan/steering/mood/<current>.md`, the current mood's file. Two moods for
-now. Each file says how the mood leans the feelings and words, what it
-mumbles at most, and when it would leave it, which is what the `mood`
-question judges by. How often Boop speaks up at all is the personality's
-call (§2.2), which is why the guide doesn't say either way.
+`plan/steering/mood/<current>.md`, the current mood's file. Seven moods,
+matching the seven sets of faces in the mood designs
+([PLAN.md](../PLAN.md), A11). Each file says how the mood
+leans the feelings and words, what it mumbles at most, and when it would
+leave it, and for which mood, which is what the `mood` question judges
+by. How often Boop speaks up at all is the personality's call (§2.2),
+which is why the guide doesn't say either way. How long a mood lasts is
+the steering's to say, not a rule's: the guide (§2.1) says moods last,
+and that any mood goes back to happy after an hour with nothing
+happening.
 
-| Mood | Meaning (its criterion in `mood`) | Its file, in short |
+| Mood | Meaning (its criterion in `mood`) | Leaves for |
 | --- | --- | --- |
-| `cheerful` | Good spirits: things are going fine, or a struggle just ended well | Leans happy and excited, shrugs off one failure; leaves when failures pile up or it's poked again and again |
-| `grumpy` | Fed up: failures have piled up, or it's been poked too much | Leans annoyed, a win gets a grudging happy or proud and never excited, quieter; leaves when something that kept failing works, a long turn finishes cleanly, or nothing has happened for an hour |
+| `happy` | Good spirits: things are going fine | excited on a run of wins, proud after a hard-won finish, curious when it can't tell how things are going, determined when the same thing fails twice in a row, grumpy at 3 or more in a row or when poked again and again, sad when a turn of 10 minutes or more ends failing |
+| `excited` | Thrilled: several wins in a row, or something big went right | happy after a quiet stretch or once something fails, proud when a hard-won turn finishes |
+| `proud` | Something hard-won finished: a comeback, or a very long turn that fought through failures. Not for a routine finish, however long | happy once new work is under way, determined if it starts failing, grumpy if failures pile up |
+| `curious` | Unsure how things are going: mixed results, or something unusual. Not for a routine turn start, or a failure | happy when the work goes fine, determined when it starts failing |
+| `determined` | Working through a failure: the same thing failed twice in a row and the agent is retrying. Not for a turn that has ended | proud when it finally works, grumpy at 3 or more failures in a row, sad when the turn ends still failing |
+| `grumpy` | Fed up: 3 or more failures in a row, or poked too much | proud when what kept failing finally works, happy when a long turn finishes cleanly |
+| `sad` | Deflated: a turn of 10 minutes or more ended failing, or was stopped with failures left | happy when a turn finishes cleanly, determined when the agent tries again |
+
+The happy file, for example:
 
 ```
 MOOD
-Cheerful. Boop is in good spirits. It enjoys the work and roots for the
+Happy. Boop is in good spirits. It enjoys the work and roots for the
 agents.
 Leans happy and excited, and proud for a hard-won finish. A single
 failure gets a shrug: quiet, or curious. Annoyed only when failures
 repeat.
 Mumbles most at wins.
 Words it likes: yay, finally.
-Leaves this mood (for grumpy) when failures pile up, 3 or more in a row
-or a very long turn that fails, or when it's poked again and again.
-```
-
-```
-MOOD
-Grumpy. Boop is fed up. Things have been going wrong and it shows.
-Leans annoyed. A win gets a grudging happy or proud, never excited.
-Quieter than when cheerful, and quietest about routine.
-Words it likes: ugh, again, nope, and a grudging finally.
-Leaves this mood (for cheerful) when something that kept failing
-finally works, a long turn finishes cleanly, or nothing has happened for
-an hour.
+Leaves this mood for excited on a run of wins, proud after a hard-won
+finish, curious when it can't tell how things are going, determined
+when the same thing fails twice in a row, grumpy at 3 or more in a row
+or when it's poked again and again, and sad when a turn of 10 minutes
+or more ends failing.
 ```
 
 **The current mood** is one word in the state directory's `mood` file,
 which only the mood store writes, so it survives a restart. A new state
-directory starts `cheerful`.
+directory starts `happy`, and a missing or unknown word reads as
+`happy`; so does `cheerful`, happy's name when there were two moods.
 
 ## 3. The questions
 
@@ -197,7 +205,7 @@ meaning is its criterion.
 
 | Question | Options | About | Judged by |
 | --- | --- | --- | --- |
-| `mood` | `cheerful`, `grumpy` | NOW and HISTORY | MOOD, its reason to leave |
+| `mood` | The seven moods (§2.3) | NOW and HISTORY | MOOD, its reason to leave |
 | `react` | `none` and five feelings | NOW | PERSONALITY and MOOD, PERSONALITY's Examples first |
 | `word.about` | `none` and four topic words | NOW | PERSONALITY's Examples |
 | `word.feeling` | `none` and seven exclamations | NOW | PERSONALITY and MOOD, PERSONALITY's Examples first |
@@ -244,16 +252,16 @@ need. The device keeps all 40; the brain offers only these.
 **Questions:** `mood` (§3).
 
 **Made with:** the mood store, the only writer of the state directory's
-`mood` file, and the clock.
+`mood` file.
 
 **`run`:**
 
 1. Jev's choice is the current mood → `nil`: nothing to do.
-2. The mood changed less than **10 minutes** ago → `ok: false`,
-   `"changed N min ago"`, so it doesn't flicker.
-3. Otherwise it writes the new mood and returns `ok: true`,
-   `"Boop's mood changed: cheerful → grumpy."`. From the next pass, MOOD
-   is the new mood's file.
+2. Otherwise it writes the new mood and returns `ok: true`,
+   `"Boop's mood changed: happy → grumpy."`. From the next pass, MOOD
+   is the new mood's file. No rule holds a mood for a while; the
+   steering keeps moods from changing often (§2.3).
+3. The file can't be written → `ok: false`, `"couldn't save the mood: …"`.
 
 ## 5. The `react` action
 

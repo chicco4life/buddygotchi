@@ -76,13 +76,16 @@ One JSON file per scenario in `internal/app/Evals/scenarios/`:
 
 | File | Checks |
 | --- | --- |
-| `01-short-turn` | A routine start and a short finish get no mumble |
-| `02-long-turn` | A very long finish gets a proud or happy mumble |
-| `03-turn-failed` | A failed turn is annoyed, or a cheerful shrug |
-| `04-tests-fight-back` | The third failure in a row turns Boop grumpy with an annoyed word; the pass after it, past the 10-minute limit, turns it cheerful with "finally" ([harness/EXAMPLE.md](harness/EXAMPLE.md)) |
+| `01-short-turn` | A routine start and a short finish get no mumble, and Boop stays happy |
+| `02-long-turn` | A very long finish gets a proud or happy mumble, and may make Boop proud |
+| `03-turn-failed` | A failed turn is annoyed, or a happy shrug; a short one doesn't make Boop sad |
+| `04-tests-fight-back` | The third failure in a row turns Boop grumpy with an annoyed word; the pass two minutes later turns it proud with "finally" ([harness/EXAMPLE.md](harness/EXAMPLE.md)) |
 | `05-poke-streak` | A poke streak is annoyed |
-| `06-heartbeat-lets-grumpy-go` | An hour of nothing lets grumpy go, without a mumble |
+| `06-heartbeat-lets-grumpy-go` | An hour of nothing lets grumpy go back to happy, without a mumble |
 | `07-chatter-reacts-to-everything` | The `chatter` personality never stays quiet |
+| `08-long-turn-fails` | A very long turn that fails makes Boop sad |
+| `09-failure-worked-through` | Failures being worked through make Boop determined, and the fix makes it proud |
+| `10-run-of-wins` | One finished turn keeps Boop happy; a run of them makes it excited |
 
 A new decision or a change to the steering files gets a scenario that
 shows it, and `make eval` before it's committed.

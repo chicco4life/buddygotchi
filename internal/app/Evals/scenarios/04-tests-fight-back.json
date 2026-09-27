@@ -1,15 +1,15 @@
 {
   "name": "Tests that keep failing make Boop grumpy, and passing at last makes it proud",
-  "why": "harness/EXAMPLE.md: the third failure in a row turns a cheerful Boop grumpy, with an annoyed 'again'; the pass after it is a comeback, 'finally', and grumpy leaves once something that kept failing works (more than 10 minutes after it came)",
+  "why": "harness/EXAMPLE.md and plan/steering/mood/: a failure being worked through may make Boop determined, the third in a row turns it grumpy with an annoyed 'again', and the pass after it is a comeback, 'finally', that leaves grumpy for proud straight away",
   "steps": [
     {"event": "turn started", "at": "0s", "workspace": "fix-nav"},
     {"event": "command", "at": "1m", "workspace": "fix-nav", "topic": "tests", "failed": true,
-     "expect": {"react": "none|curious|annoyed", "mood": "cheerful"}},
+     "expect": {"react": "none|curious|annoyed", "mood": "happy|determined"}},
     {"event": "command", "at": "3m", "workspace": "fix-nav", "topic": "tests", "failed": true,
-     "expect": {"react": "annoyed|curious|none", "mood": "cheerful"}},
+     "expect": {"react": "annoyed|curious|none", "mood": "happy|determined"}},
     {"event": "command", "at": "5m", "workspace": "fix-nav", "topic": "tests", "failed": true,
      "expect": {"react": "annoyed", "word": "again|tests|ugh", "mood": "grumpy"}},
-    {"event": "command", "at": "16m", "workspace": "fix-nav", "topic": "tests", "failed": false,
-     "expect": {"react": "proud|excited|happy", "word": "finally|tests|yay", "mood": "cheerful"}}
+    {"event": "command", "at": "7m", "workspace": "fix-nav", "topic": "tests", "failed": false,
+     "expect": {"react": "proud|excited|happy", "word": "finally|tests|yay", "mood": "proud|happy"}}
   ]
 }

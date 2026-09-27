@@ -26,7 +26,7 @@ public enum DebugLog {
     ///
     ///     ▸ 12 tool_use: claude's tests failed again on "fix-nav" (landing), 3 in a row.
     ///       pass jev:jev-latest 240 ms: mood grumpy 0.69 · react annoyed 0.63 · word.feeling again 0.57 · word.about tests 0.81
-    ///       ✓ mood: Boop's mood changed: cheerful → grumpy.
+    ///       ✓ mood: Boop's mood changed: happy → grumpy.
     ///       ✓ react: Boop mumbled, annoyed: "…again!"
     public final class Printer {
         var shownFullState = false

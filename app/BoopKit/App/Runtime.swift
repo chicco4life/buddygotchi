@@ -64,7 +64,7 @@ public final class Runtime: @unchecked Sendable {
         public var mood: String
 
         public init(snapshot: StateSnapshot, sessions: [SessionSummary], connected: Bool, device: DeviceStatus?,
-                    personality: Personality, brain: String, mood: String = "cheerful") {
+                    personality: Personality, brain: String, mood: String = MoodAction.initial) {
             self.snapshot = snapshot
             self.sessions = sessions
             self.connected = connected
@@ -184,7 +184,7 @@ public final class Runtime: @unchecked Sendable {
         let moments = self.moments
         let home = self.home
         let actions: [any Action] = [
-            MoodAction(store: mood, now: clock),
+            MoodAction(store: mood),
             ReactAction(voice: voice, queue: { moment in
                 moments.schedule.brain(moment, now: clock())
                 Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
