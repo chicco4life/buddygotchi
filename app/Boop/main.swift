@@ -11,19 +11,18 @@ let usage = """
                The menu-bar app. The owner runs this; it uses Bluetooth by default. With a --state-dir
                other than the everyday one it never installs or repairs the hooks in ~/.claude and
                ~/.codex: they keep reporting to the everyday app's socket, not this one.
-           Boop --headless --state-dir DIR [--link usb:SOCKET|none] [--socket PATH] [--mode chatty|normal|calm]
-                [--classifier \(Brains.classifiers.joined(separator: "|"))] [--writer \(Brains.writers.joined(separator: "|"))]
-                [--name NAME] [--nature sweet|cheeky] [--debug]
+           Boop --headless --state-dir DIR [--link usb:SOCKET|none] [--socket PATH] [--personality boop|chatter]
+                [--brain jev|scripted] [--name NAME] [--nature sweet|cheeky] [--debug]
                No UI and no Bluetooth. The hook socket defaults to DIR/boop.sock. A new state directory
-               is set up with --name (default Boop). --mode, --classifier and --writer override the saved
-               mode and its brain for this run only. Normal decides with Jev only when BOOP_JEV_KEY
-               holds its key: headless never reads the Keychain. Stops cleanly on SIGINT or SIGTERM.
-               {"dev":"advance","ms":N} on the socket moves the clock forward.
+               is set up with --name (default Boop). --personality overrides the saved one for this run only.
+               --brain jev (the default) asks Jev only when BOOP_JEV_KEY holds its key, since headless never
+               reads the Keychain; without it Boop does only its rule reactions. --brain scripted answers
+               every pass the same way without a network: an excited mumble with "yay", for pipeline checks.
+               Stops cleanly on SIGINT or SIGTERM. {"dev":"advance","ms":N} on the socket moves the clock forward.
            --debug prints everything to this terminal as it happens: each hook and what Boop made of it,
-               the core's decisions, every line sent to the device, and every brain pass (the input, the
-               memory and window the brains read, what Stage 1 decided and why, Stage 2's words, what ran).
-               The passes also go to DIR/debug.jsonl, started afresh each launch (boopdev watch reads it).
-               What you said and what the brain wrote never reach boop.log.
+               the core's decisions, every line sent to the device, and every event, pass (with Jev's whole
+               state) and action. They also go to DIR/debug.jsonl, started afresh each launch (boopdev watch
+               reads it). Jev's state never reaches boop.log.
            Boop --snapshots DIR
                Renders the popover's panes and the menu-bar icons to PNGs from fixtures, then exits.
                No runtime, no Bluetooth.
@@ -37,11 +36,12 @@ func fail(_ message: String) -> Never {
 }
 
 
-/// `steering.md` as bundled with the app (a copy of `plan/steering.md`).
-func bundledSteering() -> String {
-    guard let url = Bundle.module.url(forResource: "steering", withExtension: "md"),
-          let text = try? String(contentsOf: url, encoding: .utf8) else { fail("steering.md is missing from the app") }
-    return text
+/// The steering folder as bundled with the app (a copy of `plan/steering/`).
+func bundledSteering() -> Steering {
+    guard let url = Bundle.module.url(forResource: "steering", withExtension: nil) else {
+        fail("the steering folder is missing from the app")
+    }
+    do { return try Steering(directory: url) } catch { fail("the app's steering folder is broken: \(error)") }
 }
 
 /// Appends to `DIR/boop.log`, and echoes to stderr when asked. `echo`
@@ -94,7 +94,7 @@ enum Launch {
     var options: Set<String> {
         switch self {
         case .menuBar: ["--state-dir", "--link"]
-        case .headless: ["--state-dir", "--link", "--socket", "--mode", "--classifier", "--writer", "--name", "--nature"]
+        case .headless: ["--state-dir", "--link", "--socket", "--personality", "--brain", "--name", "--nature"]
         case .snapshots: ["--snapshots"]
         }
     }

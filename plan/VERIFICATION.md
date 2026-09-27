@@ -40,8 +40,8 @@ starts, so a typo can't launch the menu-bar app or run the whole eval.
 | --- | --- |
 | `make build` | Builds the Mac app, `boop-hook` and `boopdev` in one `swift build`, then runs `make sign` |
 | `make sign` | Re-signs `Boop` with the "Boop Dev" code-signing certificate (or `SIGN_IDENTITY`) when the login keychain has one, so the Keychain keeps trusting the app across rebuilds and stops asking for the Jev key. Otherwise the build stays ad-hoc signed. The owner makes the certificate once in Keychain Access → Certificate Assistant → Create a Certificate…, type Code Signing |
-| `make test` | Swift unit tests, the eval scenarios included, through the XCTest shim (`python3 app/tools/test.py`), since there's no Xcode |
-| `make eval` | The harness eval scenarios ([EVALS.md](EVALS.md)); `REAL=1` runs the real brains (L5) |
+| `make test` | Swift unit tests, the eval runner with a scripted brain included, through the XCTest shim (`python3 app/tools/test.py`), since there's no Xcode |
+| `make eval` | The harness eval scenarios against Jev, 3 runs each (L5, [EVALS.md](EVALS.md)); needs `BOOP_JEV_KEY` and fails without it |
 | `make run` / `make debug` | The Mac app with Bluetooth, for the owner; `debug` adds `--debug` |
 | `make fw` / `make flash` | Builds the firmware; `flash` also uploads it over USB (`BOOP_PORT` picks the port) |
 | `make fw-test` | Firmware unit tests on the Mac (`pio test -e native`) |
@@ -70,14 +70,13 @@ starts, so a typo can't launch the menu-bar app or run the whole eval.
 
 | Other tool | What it does |
 | --- | --- |
-| `Boop --headless` | The whole runtime with its own state directory, no UI and no Bluetooth (L4). On its hook socket, `{"dev":"advance","ms":N}` moves its clock and `{"dev":"talk","words":…}` hands it what you said |
+| `Boop --headless` | The whole runtime with its own state directory, no UI and no Bluetooth (L4). `--brain scripted` answers every pass the same way with no network, for pipeline checks; `--personality` overrides the saved one. On its hook socket, `{"dev":"advance","ms":N}` moves its clock |
 | `Boop --debug` | Prints every hook, decision, device line and brain pass as it happens ([HARNESS.md](harness/HARNESS.md) §9) |
 | `Boop --snapshots DIR` | Renders the popover's panes and the menu-bar icons to PNGs, light and dark, from fixtures, and fails on low contrast (L0). No runtime, Bluetooth or microphone |
-| `boopdev eval` | The eval scenarios ([EVALS.md](EVALS.md)); `--real` is L5 |
+| `boopdev eval` | The eval scenarios against Jev ([EVALS.md](EVALS.md)), L5 |
 | `boopdev watch [FILE]` | Prints a `debug.jsonl` readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's |
 | `boopdev replay <fixture>` | Runs recorded hook payloads through the hook's field picking, the adapter and the core on a virtual clock, printing every decision; with `--socket`, through the real `boop-hook` to a running app, timing each `boop-hook` from launch to exit |
 | `boopdev voice <feeling> [word]` | Prints the Minion lines `react` would build |
-| `boopdev talk "<words>" --socket PATH` | Hands a push-to-talk transcript to a running headless app |
 | `boopdev hooks status\|install\|remove --home DIR` | The hook installer, against any HOME |
 | `skills/doctor/doctor.sh` | Checks from inside an agent that its hooks reach Boop ([ADAPTERS.md](ADAPTERS.md) §6) |
 | `tools/webcam/webcam.sh` | The camera recorder ([its README](../tools/webcam/README.md)); `boopctl cam` wraps it |
@@ -189,8 +188,8 @@ gets at least one scenario. Their pictures are the golden images in
 ### L0: unit tests
 
 - **Swift (`make test`):** every part in [ARCHITECTURE.md](ARCHITECTURE.md)
-  §3 has tests, each brain runs with no model or network, and the eval
-  scenarios run in every mode ([EVALS.md](EVALS.md)).
+  §3 has tests, the harness and actions run with a scripted brain and no
+  network, and the eval runner is tested the same way ([EVALS.md](EVALS.md)).
 - **Firmware (`make fw-test`):** line reassembly across BLE packets, the
   device's messages and debug channel, the behaviour state machine
   (including `test_no_change_ever_cuts_hard`: nothing in any state cuts the
@@ -268,9 +267,9 @@ an agent can't use. `make e2e` (`tools/boopctl e2e`) does all of it:
 1. `boopctl bridge` owns the serial port on `/tmp/boop-e2e/usb.sock`.
 2. The app runs headless with its own state and sockets, never the
    everyday ones:
-   `Boop --headless --state-dir /tmp/boop-e2e/state --link usb:/tmp/boop-e2e/usb.sock --socket /tmp/boop-e2e/boop.sock --mode chatty --writer none --name Pip --debug`.
-   Chatty's if-else table with no writer makes runs repeatable;
-   `--writer apple` lets Apple's model write the words.
+   `Boop --headless --state-dir /tmp/boop-e2e/state --link usb:/tmp/boop-e2e/usb.sock --socket /tmp/boop-e2e/boop.sock --brain scripted --name Pip --debug`.
+   The scripted brain makes runs repeatable; `boopctl e2e --brain jev`
+   asks Jev, with `BOOP_JEV_KEY`.
 3. The fixtures in `app/Tests/Fixtures/hooks/e2e/` go through the real
    `boop-hook`: a Claude session, a Codex approval answered within the 2 s
    grace period, and one left for 10 s. Between payloads they hold
@@ -280,8 +279,8 @@ an agent can't use. `make e2e` (`tools/boopctl e2e`) does all of it:
    hook), `wait_ms`, and `advance_ms` (moves the app's clock).
 4. Latency runs from launching `boop-hook` to the board's `rx.state` going
    up. A hook that changes nothing sends no `state` and is left out.
-5. Afterwards it checks the memory's Happened lines and the brain's inputs
-   against the fixtures' `expect.json`, that no `PRIVATE_` marker from the
+5. Afterwards it checks the memory's Happened lines and the harness's
+   events against the fixtures' `expect.json`, that no `PRIVATE_` marker from the
    fixtures reached any app file (`debug.jsonl` included), and, from
    `boop.log`, that every brain moment came after the rules' reaction and
    didn't cut a rule moment short.
@@ -299,21 +298,16 @@ once and counted as a link glitch.
 
 ### L5: brain
 
-1. `make eval REAL=1` (`boopdev eval --real`) runs every eval scenario in
-   every mode with its real brains, 3 times each: Apple's model writes,
-   and normal decides with Jev when `BOOP_JEV_KEY` is set (its table
-   otherwise). What it reports is in [EVALS.md](EVALS.md) §2.
-2. Read about 20 of its passes (`boopdev watch` on the file it names)
-   against `steering.md`: are the decisions in character and never
-   nagging, the words right for what happened, and the memory lines worth
-   keeping?
+1. `make eval` (`boopdev eval`, with `BOOP_JEV_KEY`) runs every eval
+   scenario against Jev, 3 times each. What it reports is in
+   [EVALS.md](EVALS.md) §2.
+2. Read a sample of its passes (`boopdev watch` on the file it names)
+   against the steering files (`plan/steering/`): are the reactions and
+   mood changes in character and never nagging, and the words right for
+   what happened?
 
-**Pass:** every scenario passes in every run; Stage 1 answered on the menu
-for every pass it didn't refuse; actions dropped fewer than 5% of the
-calls handed to them; every input kind's p95 latency is under its
-deadline; and the sample reads well. Refusals (a model's guardrail
-declining) are reported, not failed: Boop keeps the rules' reaction, and a
-refused write leaves the words empty.
+**Pass:** every scenario passes in every run; no pass is dropped; the
+slowest pass is under the 1.25 s deadline; and the sample reads well.
 
 ### L6: the owner
 

@@ -1,23 +1,8 @@
 {
-  "name": "Short turns: a mumble in chatty, the cheer alone in normal, nothing in calm",
-  "why": "BEHAVIORS.md §6 and HARNESS.md §6: chatty mumbles at every start and finish (happy for a short turn); normal and calm leave a start or a short finish to the rules, and only calm has no cheer under a minute",
-  "rules": true,
+  "name": "A quick turn is routine",
+  "why": "harness/DECISIONS.md §2.2: boop stays quiet during routine work; a short turn start or finish is nothing to mumble about, and the mood stays cheerful",
   "steps": [
-    {"input": {"at": "0s", "event": "turn started", "agent": "claude", "project": "jetpack"},
-     "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
-                "normal": ["agent started → nothing"],
-                "calm": ["agent started → nothing"]}},
-    {"input": {"at": "8s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": {"chatty": ["rules → cheer", "agent finished → react(feeling: happy, word: yay|done|good|nice|okay|yes|whee|hooray|none)"],
-                "normal": ["rules → cheer", "agent finished → nothing"],
-                "calm": ["agent finished → nothing"]}},
-    {"input": {"at": "20s", "event": "turn started", "agent": "claude", "project": "jetpack"},
-     "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
-                "normal": ["agent started → nothing"],
-                "calm": ["agent started → nothing"]}},
-    {"input": {"at": "32s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": {"chatty": ["rules → cheer", "agent finished → react(feeling: happy, word: yay|done|good|nice|okay|yes|whee|hooray|none)"],
-                "normal": ["rules → cheer", "agent finished → nothing"],
-                "calm": ["agent finished → nothing"]}}
+    {"event": "turn started", "at": "0s", "expect": {"react": "none|curious", "mood": "cheerful"}},
+    {"event": "turn finished", "at": "8s", "expect": {"react": "none|happy", "mood": "cheerful"}}
   ]
 }

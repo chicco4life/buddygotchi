@@ -7,9 +7,8 @@ what Boop decides, and how, is in [DECISIONS.md](DECISIONS.md); and
 [EXAMPLE.md](EXAMPLE.md) follows one turn through all of it. This file
 names neither events nor decisions.
 
-This spec is ahead of the code: the harness is being reworked to match it
-([PLAN.md](../PLAN.md) §3, "Harness rework"). Talk and memory writes are
-out of this version and come back later.
+Talk and memory writes are out of this version and come back later
+([FUTURE.md](../FUTURE.md)).
 
 ## 1. What this is
 
@@ -80,6 +79,7 @@ struct Event {
     let reaction: String?       // what Boop already did by rule, as its line:
                                 // "Boop cheered on its own." (nil: nothing)
     let wakesBrain: Bool        // opens a pass; false: recorded and shown only
+    let about: String?          // the thread it's about, opaque to the harness
     let facts: [String: JSONValue]
                                 // the kind's own fields, for logs and evals;
                                 // the harness never reads them
@@ -99,9 +99,10 @@ struct Event {
   you, quiet mode, no key). An event that doesn't wake it, like a tap,
   still gets its line in HISTORY, so the next pass knows it happened.
 - **The status line.** The core also gives the harness one line of live
-  state for the end of HISTORY, the threads working now, through
-  `status() -> String`. The harness calls it when it builds a state and
-  never keeps it.
+  state for the end of HISTORY, the threads working now but NOW's,
+  through `status(excluding: about) -> String`, and how far back the
+  oldest working turn began. The harness asks when it builds a state,
+  hands back NOW's `about` without reading it, and keeps neither.
 
 What each kind carries, its line and when it wakes the brain are in
 [EVENTS.md](EVENTS.md).
@@ -120,7 +121,7 @@ protocol Action {
     func questions() -> [Question]
     /// Jev's answers to this action's own questions. Returns nil when they
     /// mean "do nothing".
-    func run(_ answers: Answers) async -> ActionResult?
+    func run(_ answers: Answers) -> ActionResult?   // on the harness's queue
 }
 
 struct Question {
@@ -155,10 +156,10 @@ struct ActionResult {
 
 - Its questions are asked in the same request as every other action's.
 - It gets the answers to its own questions only, and all of them.
-- Actions run one at a time, in the order they're registered, each with a
-  **300 ms** timeout. A body that throws or runs late counts as
-  `ok: false` with the reason. A body with slow work (a mumble that plays
-  for seconds) hands it off and returns.
+- Actions run one at a time, in the order they're registered, on the
+  harness's queue. A body with slow work (a mumble that plays for
+  seconds) hands it off and returns at once; one that takes more than
+  **300 ms** is logged, since it holds up everything behind it.
 - A result is recorded as an `action` entry (§5); `nil` records nothing.
 - A successful result's message becomes its line in HISTORY, indented
   under the event it answered. A failed one is logged but never shown to
@@ -461,7 +462,7 @@ their messages, as in `brain turn_end 240 ms → react`.
 | Part | File | Job |
 | --- | --- | --- |
 | Harness | `app/BoopKit/Harness/Harness.swift` | One pass running and one waiting; asks, hands out answers, records |
-| Contracts | `app/BoopKit/Harness/Contracts.swift` | `Event`, `Action`, `Question`, `Option`, `Answer`, `ActionResult` |
+| Contracts | `app/BoopKit/Harness/Contracts.swift`, `app/BoopKit/Core/Event.swift` | `Action`, `Question`, `Option`, `Answer`, `ActionResult`; `Event` |
 | Transcript | `app/BoopKit/Harness/Transcript.swift` | The typed entries (§5.2) |
 | State text | `app/BoopKit/Harness/StateText.swift` | Builds HISTORY, NOW and the guide's reading part, and puts the state together; pure |
 | Steering | `app/BoopKit/Harness/Steering.swift` | Loads the static sections from the bundle, read-only, and checks their budgets |

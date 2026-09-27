@@ -41,12 +41,12 @@ enum Snapshots {
                 settings.restartAgents = true
                 shot("settings", settings, pane: .settings)
                 try? installer.remove(.claude)
-                let chatty = model(installer, status: status(mode: .chatty))
-                chatty.mode = .chatty
-                shot("settings-chatty", chatty, pane: .settings)
+                let chatter = model(installer, status: status(personality: .chatter))
+                chatter.personality = .chatter
+                shot("settings-chatter", chatter, pane: .settings)
                 shot("settings-no-hook", model(unbuilt, status: status()), pane: .settings)
-                // Normal without Jev's key, the body away and Claude's hooks needing a repair.
-                let offline = model(installer, status: status(connected: false, classifier: "chatty@1"))
+                // No Jev key, the body away and Claude's hooks needing a repair.
+                let offline = model(installer, status: status(connected: false, brain: "none"))
                 offline.hooks[.claude] = .outdated
                 shot("settings-offline-nokey", offline, pane: .settings)
 
@@ -84,8 +84,8 @@ enum Snapshots {
 
     /// `sessions` are agent, project and `wait`, `work` or `idle`.
     static func status(base: String = "working", sessions rows: [[String]] = [], quiet: Int = 0, vol: Int = 6,
-                       connected: Bool = true, listening: Bool = false, mode: Mode = .normal,
-                       name: String = "Mochi", classifier: String? = nil) -> Runtime.Status {
+                       connected: Bool = true, listening: Bool = false, personality: Personality = .boop,
+                       name: String = "Mochi", brain: String = "jev:jev-latest") -> Runtime.Status {
         let statuses: [String: SessionSummary.Status] = ["wait": .waiting, "work": .working, "idle": .idle]
         let sessions = rows.map { SessionSummary(agent: $0[0], project: $0[1], status: statuses[$0[2]]!) }
         let wait = sessions.filter { $0.status == .waiting }
@@ -99,9 +99,7 @@ enum Snapshots {
             wait: wait.count, quiet: quiet, vol: vol)
         return Runtime.Status(snapshot: snapshot, sessions: sessions, connected: connected,
                               device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0") : nil,
-                              mode: mode,
-                              classifier: classifier ?? (mode == .calm ? "calm@1" : mode == .chatty ? "chatty@1" : "jev:jev-latest"),
-                              writer: "apple:26.4", listening: listening)
+                              personality: personality, brain: brain, listening: listening)
     }
 
     static func overviews(_ installer: HookInstaller) -> [(String, AppModel)] {
@@ -116,7 +114,7 @@ enum Snapshots {
                 ["codex", "buddygotchi", "work"], ["claude", "notes", "idle"],
             ], quiet: 8))),
             ("listening", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], listening: true))),
-            ("calm", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], mode: .calm))),
+            ("chatter", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], personality: .chatter))),
             ("mic-refused", {
                 let m = model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]]))
                 m.talkError = "Allow Boop in System Settings → Privacy & Security → Microphone."
@@ -138,7 +136,7 @@ enum Snapshots {
                                                           connected: false), link: .none)),
             // Every mode chip at once, under the longest kind of name.
             ("all-chips", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], quiet: 12, vol: 0,
-                                                          mode: .chatty, name: "Wobblebottom McSnugs"))),
+                                                          personality: .chatter, name: "Wobblebottom McSnugs"))),
             // Many sessions, a long project, two in one project, and one
             // needing you from a project with no name.
             ("crowded", model(installer, status: status(sessions: [

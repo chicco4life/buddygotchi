@@ -2,7 +2,7 @@ import BoopKit
 import SwiftUI
 
 /// Settings, inside the popover (UX.md §7): sound, agents and hooks, the
-/// device, the mode (and in Normal, Jev's key), and what Boop remembers.
+/// device, the personality and Jev's key, and what Boop remembers.
 struct SettingsPane: View {
     @ObservedObject var model: AppModel
     var maxHeight: CGFloat
@@ -18,7 +18,7 @@ struct SettingsPane: View {
                     PaneSection("Sound") { sound }
                     PaneSection("Agents") { agents }
                     PaneSection("Device") { device }
-                    PaneSection("Mode") { modes }
+                    PaneSection("Personality") { modes }
                     PaneSection("What \(model.name) remembers") { remembered }
                 }
                 .padding(.horizontal, Theme.gutter)
@@ -130,32 +130,28 @@ struct SettingsPane: View {
         }
     }
 
-    // MARK: Mode
+    // MARK: Personality
 
-    /// What each mode does, in one line (BEHAVIORS.md §6).
-    private func about(_ mode: Mode) -> String {
-        switch mode {
-        case .chatty: "A mumble and a word for every turn, and chatter while agents work. Decides with plain rules on this Mac."
-        case .normal: "A balance. TypeSafe's Jev decides, online, with your API key below; without one, plain rules on this Mac."
-        case .calm: "Only what you need: something needs you, a turn failed, or a long one finished. Decides with plain rules on this Mac."
+    /// What each personality does, in one line (BEHAVIORS.md §6).
+    private func about(_ personality: Personality) -> String {
+        switch personality {
+        case .boop: "Speaks up when something stands out, and stays quiet during routine work."
+        case .chatter: "For debugging: reacts to everything, over the top, and chatters while agents work."
         }
     }
 
-    /// Why mumbles have no word, if they don't.
+    /// Why Boop only reacts by rule, if it does.
     private var brainNote: String? {
-        guard let status = model.status else { return nil }
-        if status.writer == "none" || status.writer.hasPrefix("apple") && model.appleUnavailable != nil {
-            return "Apple's model can't run here, so mumbles have no word."
-        }
-        return nil
+        guard let status = model.status, status.brain == "none" else { return nil }
+        return "Without a Jev API key, \(model.name) only cheers, wiggles and chatters by rule."
     }
 
     private var modes: some View {
         Card(padding: 0) {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 8) {
-                    ModePicker(mode: Binding(get: { model.mode }, set: { model.setMode($0) }))
-                    Text(about(model.mode))
+                    ModePicker(personality: Binding(get: { model.personality }, set: { model.setPersonality($0) }))
+                    Text(about(model.personality))
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
                     if let note = brainNote {
@@ -166,7 +162,7 @@ struct SettingsPane: View {
                 }
                 .padding(12)
                 .disabled(model.status == nil)
-                if model.mode == .normal { key }
+                key
             }
         }
     }
@@ -203,7 +199,7 @@ struct SettingsPane: View {
                         .buttonStyle(.row)
                     }
                 }
-                Text("Kept in your Keychain. With Jev, what happens and \(model.name)'s memory go to TypeSafe with each call.")
+                Text("Kept in your Keychain. With Jev, what happens and \(model.name)'s personality and mood go to TypeSafe with each call.")
                     .font(.system(size: 10)).foregroundStyle(Theme.inkSoft)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -218,7 +214,7 @@ struct SettingsPane: View {
         Card(padding: 0) {
             VStack(spacing: 0) {
                 if model.remembered.isEmpty {
-                    Text("Nothing yet. Tell \(model.name) something lasting about you, like \"remember I ship on Fridays\", and it keeps it here.")
+                    Text("Nothing yet. \(model.name) will keep what you tell it here once talking to it comes back.")
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -245,19 +241,19 @@ struct SettingsPane: View {
     }
 }
 
-/// Chatty, Normal or Calm: three equal segments on a well, the chosen one
-/// raised on paper. Drawn here rather than the system's segmented control,
+/// Boop or Chatter: equal segments on a well, the chosen one raised on
+/// paper. Drawn here rather than the system's segmented control,
 /// which doesn't stretch, and draws grey in the popover's inactive window.
 struct ModePicker: View {
-    @Binding var mode: Mode
+    @Binding var personality: Personality
     @Namespace private var chosen
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(Mode.allCases, id: \.self) { m in
-                let on = m == mode
+            ForEach(Personality.allCases, id: \.self) { m in
+                let on = m == personality
                 Button {
-                    withAnimation(.boopSettle) { mode = m }
+                    withAnimation(.boopSettle) { personality = m }
                 } label: {
                     Text(m.rawValue.capitalized)
                         .font(.system(size: 11, weight: on ? .semibold : .medium))
@@ -281,7 +277,7 @@ struct ModePicker: View {
         .padding(2)
         .background(Theme.well, in: RoundedRectangle(cornerRadius: Theme.wellRadius))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Mode")
+        .accessibilityLabel("Personality")
     }
 }
 

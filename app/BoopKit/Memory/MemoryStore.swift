@@ -1,7 +1,7 @@
 import Foundation
 
 /// The only code that reads or writes the memory files (ARCHITECTURE.md §3.6,
-/// §4). It supplies their text for prompts, applies changes within each
+/// §4). It applies changes within each
 /// section's limits, writes atomically, snapshots the files to
 /// `history/<date>/`, and restores a file that won't parse.
 ///
@@ -13,8 +13,6 @@ public final class MemoryStore {
     public static let historyDir = "history"
 
     public let directory: URL
-    /// `steering.md`, read-only. The app passes its bundled copy.
-    public let steering: String
     let log: (String) -> Void
 
     var longTermValue: LongTerm?
@@ -32,9 +30,8 @@ public final class MemoryStore {
     }
     var stamps: [String: Date] = [:]
 
-    public init(directory: URL, steering: String, log: @escaping (String) -> Void = { _ in }) throws {
+    public init(directory: URL, log: @escaping (String) -> Void = { _ in }) throws {
         self.directory = directory
-        self.steering = steering
         self.log = log
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         reload()
@@ -303,14 +300,5 @@ public final class MemoryStore {
     func write(_ text: String, _ file: String) throws {
         try Data(text.utf8).write(to: url(file), options: .atomic)
         stamps[file] = stamp(file)
-    }
-}
-
-extension MemoryStore {
-    /// The memory text for a pass (HARNESS.md §4).
-    public func promptMemory() -> Prompt.Memory {
-        refresh()
-        return Prompt.Memory(steering: steering, longTerm: longTermValue?.markdown ?? "",
-                             shortTerm: shortTermValue?.markdown ?? "", boopName: longTermValue?.name)
     }
 }

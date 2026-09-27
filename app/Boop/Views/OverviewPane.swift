@@ -77,14 +77,13 @@ struct OverviewPane: View {
 
     private let faceSize: CGFloat = 46
 
-    /// Small reminders of the modes set in Settings, so a silent Boop never
-    /// looks broken. Nothing shows when everything is normal.
+    /// Small reminders of what's set in Settings, so a silent Boop never
+    /// looks broken. Nothing shows when everything is the usual.
     @ViewBuilder private var modes: some View {
         if let status = model.status {
             let s = status.snapshot
             let all: [(String, String)?] = [
-                status.mode == .chatty ? ("bubble.left.and.bubble.right.fill", "Chatty") : nil,
-                status.mode == .calm ? ("leaf.fill", "Calm") : nil,
+                status.personality == .chatter ? ("bubble.left.and.bubble.right.fill", "Chatter") : nil,
                 s.quiet > 0 ? ("zzz", "Quiet · \(s.quiet) min") : nil,
                 s.vol == 0 ? ("speaker.slash.fill", "Muted") : nil,
             ]

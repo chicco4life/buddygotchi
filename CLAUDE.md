@@ -47,16 +47,14 @@ app/.build/debug/Boop --snapshots DIR                     # the popover's panes 
   builds the package in one `swift build` and runs
   `app/.build/debug/BoopTests`.
 - Command Line Tools lack some Swift macro plugins, so SwiftUI's `@State`
-  and Foundation Models' `@Generable`/`@Guide` don't compile. Write
-  `@ViewState` (the alias in `app/Boop/Views/ViewState.swift`), and build
-  answer schemas at runtime with `DynamicGenerationSchema`, as
-  `app/BoopKit/Brains/Writers/AppleWriter.swift` does.
+  doesn't compile. Write `@ViewState` (the alias in
+  `app/Boop/Views/ViewState.swift`).
 - If a SwiftPM build fails before compiling, with module-cache errors under
   `~/.cache/clang` or `~/Library/org.swift.swiftpm`, rerun it outside the
   sandbox before investigating the source.
-- Apple's Foundation Models runs from the shell (8K context).
 - `boopdev` and `Boop --headless` read Jev's API key only from
-  `BOOP_JEV_KEY`, so Jev runs need the owner to supply it. Never read the
+  `BOOP_JEV_KEY`, so Jev runs (`make eval`) need the owner to supply it.
+  `Boop --headless --brain scripted` runs the whole pipeline without it. Never read the
   Keychain from an agent shell, and don't go looking for the key.
 - PlatformIO is `/opt/homebrew/bin/pio`. Call it through
   `firmware/tools/pio.sh` (the make targets do), which keeps its packages
@@ -90,21 +88,21 @@ The full picture is in [plan/ARCHITECTURE.md](plan/ARCHITECTURE.md). The
 rules that are easy to break:
 
 - **Decisions and effects are separate.** The core and the brain decide.
-  Actions (`react`, `quiet`, `remember`) carry out effects and check their
-  own rules.
-- **The harness is generic.** It runs the brain's two stages, checks their
-  answers against the menu and hands each call to its action. It never
-  builds Minion speech, writes files or talks to the device.
+  Actions (`mood`, `react`) carry out effects and check their own rules.
+- **The harness is generic.** It records events, asks every action's
+  questions in one request and hands each action its own answers. It
+  never reads an event's facts, builds Minion speech, writes files or
+  talks to the device.
 - **Only Voice knows Minion speech.** Only the memory store reads and writes
   the memory files. Only the device link knows Bluetooth or USB.
 - **The brain is never on the event path.** Rules give the immediate
   reaction, and the brain adds character later or not at all.
-- **The brain is assumed to be small.** Plain rules or Jev decide, and
-  Apple's on-device model writes the words. Keep outputs few and flat,
-  with mostly multiple-choice arguments, and keep deciding and writing
-  apart.
-- **`steering.md` is read-only at runtime.** `plan/steering.md` is the
-  single source, and the app bundles a copy.
+- **The brain is Jev: multiple choice only.** It answers questions about
+  a plain-text state; there's no free text. Keep questions few, with
+  options that say what they're not.
+- **The steering files are read-only at runtime.** `plan/steering/` is
+  the single source, and the app bundles a copy in
+  `app/Boop/Resources/steering/`.
 - **No code, file contents, prompts or agent transcripts go to the brain.**
   The only exception is the person's own words on push-to-talk.
 - **"Needs you" and the screen priority are plain rules in the core.**
@@ -130,9 +128,9 @@ unpushed local `main`.
 | `app/BoopKit/Core/`, `firmware/src/app/behaviour.*` | `BEHAVIORS.md` |
 | `app/Boop/`, `firmware/src/render/`, `firmware/src/app/gesture.*` | `UX.md` |
 | `app/HookWire/`, `app/BoopHook/`, `app/BoopKit/Adapters/`, `app/BoopKit/Install/` | `ADAPTERS.md` |
-| `app/BoopKit/Harness/`, `app/BoopKit/Brains/` | `harness/HARNESS.md`, `steering.md` |
-| `app/BoopKit/Core/Input.swift` (becoming `Event.swift`) | `harness/EVENTS.md` |
-| `app/BoopKit/Actions/` | `harness/DECISIONS.md`, `steering.md` |
+| `app/BoopKit/Harness/`, `app/BoopKit/Brains/` | `harness/HARNESS.md` |
+| `app/BoopKit/Core/Event.swift` | `harness/EVENTS.md` |
+| `app/BoopKit/Actions/`, `plan/steering/` | `harness/DECISIONS.md` (and the app's copy of `plan/steering/`) |
 | `app/BoopKit/Memory/`, `app/BoopKit/App/` | `ARCHITECTURE.md` §3–4 |
 | `app/BoopKit/Voice/`, `firmware/src/voice/`, `tools/voicegen/` | `VOICE.md` |
 | `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/{device.cpp,packets.h,link_silence.h}`, `tools/boopctl_lib/` | `PROTOCOL.md` |

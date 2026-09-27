@@ -1,0 +1,12 @@
+{
+  "name": "An hour of nothing lets a grumpy mood go",
+  "why": "harness/DECISIONS.md §2.3: grumpy leaves when nothing has happened for an hour; the heartbeat is the event that brings it, and a heartbeat itself is no reason to mumble",
+  "steps": [
+    {"event": "turn started", "at": "0s"},
+    {"event": "command", "at": "1m", "topic": "tests", "failed": true},
+    {"event": "command", "at": "2m", "topic": "tests", "failed": true},
+    {"event": "command", "at": "3m", "topic": "tests", "failed": true, "expect": {"mood": "grumpy"}},
+    {"event": "turn failed", "at": "4m", "error": "api_error"},
+    {"event": "wait", "at": "1h5m", "expect": {"react": "none|happy|curious", "mood": "cheerful"}}
+  ]
+}

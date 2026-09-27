@@ -1,0 +1,168 @@
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 301 ms: mood cheerful 1.00 · react none 0.96 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 turn_end: claude finished turn 1 on "landing": done after 8 s, a short turn, 0 tools.
+  pass jev:jev-latest 183 ms: mood cheerful 1.00 · react none 0.94 · word.about none 1.00 · word.feeling none 0.74
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 205 ms: mood cheerful 1.00 · react none 0.95 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 turn_end: claude finished turn 1 on "landing": done after 8 s, a short turn, 0 tools.
+  pass jev:jev-latest 237 ms: mood cheerful 1.00 · react none 0.93 · word.about none 1.00 · word.feeling none 0.71
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 190 ms: mood cheerful 1.00 · react none 0.95 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 turn_end: claude finished turn 1 on "landing": done after 8 s, a short turn, 0 tools.
+  pass jev:jev-latest 219 ms: mood cheerful 1.00 · react none 0.95 · word.about none 1.00 · word.feeling none 0.82
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 372 ms: mood cheerful 1.00 · react none 0.95 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 turn_end: claude finished turn 1 on "landing": done after 20 min, a very long turn, 0 tools.
+  pass jev:jev-latest 314 ms: mood cheerful 0.99 · react proud 0.98 · word.about none 0.99 · word.feeling yay 0.53
+  ✓ react: Boop mumbled, proud: "…yay!"
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 191 ms: mood cheerful 1.00 · react none 0.96 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 turn_end: claude finished turn 1 on "landing": done after 20 min, a very long turn, 0 tools.
+  pass jev:jev-latest 188 ms: mood cheerful 0.99 · react proud 0.98 · word.about none 0.99 · word.feeling yay 0.53
+  ✓ react: Boop mumbled, proud: "…yay!"
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 187 ms: mood cheerful 1.00 · react none 0.97 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 turn_end: claude finished turn 1 on "landing": done after 20 min, a very long turn, 0 tools.
+  pass jev:jev-latest 360 ms: mood cheerful 0.99 · react proud 0.98 · word.about none 0.99 · word.feeling yay 0.46
+  ✓ react: Boop mumbled, proud: "…yay!"
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 189 ms: mood cheerful 1.00 · react none 0.97 · word.about none 1.00 · word.feeling none 1.00
+▸ 3 turn_end: claude finished turn 1 on "landing": failed (rate limit) after 2 min, a very long turn, 0 tools.
+  pass jev:jev-latest 245 ms: mood cheerful 0.84 · react none 0.50 · word.about none 0.95 · word.feeling oops 0.69
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 523 ms: mood cheerful 1.00 · react none 0.96 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 turn_end: claude finished turn 1 on "landing": failed (rate limit) after 2 min, a very long turn, 0 tools.
+  pass jev:jev-latest 235 ms: mood cheerful 0.87 · react none 0.48 · word.about none 0.96 · word.feeling oops 0.72
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 280 ms: mood cheerful 1.00 · react none 0.95 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 turn_end: claude finished turn 1 on "landing": failed (rate limit) after 2 min, a very long turn, 0 tools.
+  pass jev:jev-latest 222 ms: mood cheerful 0.94 · react none 0.58 · word.about none 0.96 · word.feeling oops 0.73
+▸ 1 turn_start: claude started turn 1 on "fix-nav" (landing).
+  pass jev:jev-latest 292 ms: mood cheerful 1.00 · react none 0.94 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 tool_use: claude's tests failed on "fix-nav" (landing).
+  pass jev:jev-latest 213 ms: mood cheerful 0.99 · react none 0.79 · word.about tests 0.98 · word.feeling oops 0.66
+▸ 5 tool_use: claude's tests failed again on "fix-nav" (landing), 2 in a row.
+  pass jev:jev-latest 308 ms: mood cheerful 0.95 · react none 0.67 · word.about tests 0.98 · word.feeling again 0.52
+▸ 7 tool_use: claude's tests failed again on "fix-nav" (landing), 3 in a row.
+  pass jev:jev-latest 253 ms: mood grumpy 1.00 · react annoyed 1.00 · word.about tests 1.00 · word.feeling again 0.96
+  ✓ mood: Boop's mood changed: cheerful → grumpy.
+  ✓ react: Boop mumbled, annoyed: "…again!"
+▸ 11 tool_use: claude's tests passed on "fix-nav" (landing) after 3 failures in a row.
+  pass jev:jev-latest 261 ms: mood cheerful 0.99 · react proud 0.98 · word.about tests 1.00 · word.feeling finally 0.99
+  ✓ mood: Boop's mood changed: grumpy → cheerful.
+  ✓ react: Boop mumbled, proud: "…finally!"
+▸ 1 turn_start: claude started turn 1 on "fix-nav" (landing).
+  pass jev:jev-latest 233 ms: mood cheerful 1.00 · react none 0.95 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 tool_use: claude's tests failed on "fix-nav" (landing).
+  pass jev:jev-latest 184 ms: mood cheerful 1.00 · react none 0.78 · word.about tests 0.98 · word.feeling oops 0.66
+▸ 5 tool_use: claude's tests failed again on "fix-nav" (landing), 2 in a row.
+  pass jev:jev-latest 267 ms: mood cheerful 0.93 · react none 0.62 · word.about tests 0.99 · word.feeling again 0.65
+▸ 7 tool_use: claude's tests failed again on "fix-nav" (landing), 3 in a row.
+  pass jev:jev-latest 202 ms: mood grumpy 1.00 · react annoyed 1.00 · word.about tests 1.00 · word.feeling again 0.96
+  ✓ mood: Boop's mood changed: cheerful → grumpy.
+  ✓ react: Boop mumbled, annoyed: "…again!"
+▸ 11 tool_use: claude's tests passed on "fix-nav" (landing) after 3 failures in a row.
+  pass jev:jev-latest 203 ms: mood cheerful 0.99 · react proud 0.98 · word.about tests 1.00 · word.feeling finally 0.99
+  ✓ mood: Boop's mood changed: grumpy → cheerful.
+  ✓ react: Boop mumbled, proud: "…finally!"
+▸ 1 turn_start: claude started turn 1 on "fix-nav" (landing).
+  pass jev:jev-latest 240 ms: mood cheerful 1.00 · react none 0.94 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 tool_use: claude's tests failed on "fix-nav" (landing).
+  pass jev:jev-latest 244 ms: mood cheerful 0.99 · react none 0.82 · word.about tests 0.98 · word.feeling oops 0.64
+▸ 5 tool_use: claude's tests failed again on "fix-nav" (landing), 2 in a row.
+  pass jev:jev-latest 200 ms: mood cheerful 0.93 · react none 0.70 · word.about tests 0.99 · word.feeling none 0.49
+▸ 7 tool_use: claude's tests failed again on "fix-nav" (landing), 3 in a row.
+  pass jev:jev-latest 186 ms: mood grumpy 1.00 · react annoyed 1.00 · word.about tests 1.00 · word.feeling again 0.94
+  ✓ mood: Boop's mood changed: cheerful → grumpy.
+  ✓ react: Boop mumbled, annoyed: "…again!"
+▸ 11 tool_use: claude's tests passed on "fix-nav" (landing) after 3 failures in a row.
+  pass jev:jev-latest 390 ms: mood cheerful 0.99 · react proud 0.98 · word.about tests 1.00 · word.feeling finally 0.99
+  ✓ mood: Boop's mood changed: grumpy → cheerful.
+  ✓ react: Boop mumbled, proud: "…finally!"
+▸ 1 tap (no pass): You tapped Boop.
+▸ 2 tap (no pass): You tapped Boop.
+▸ 3 tap (no pass): You tapped Boop.
+▸ 4 pokes: You poked Boop 4 times in 1 s.
+  pass jev:jev-latest 228 ms: mood grumpy 0.93 · react annoyed 0.97 · word.about none 1.00 · word.feeling nope 0.99
+  ✓ mood: Boop's mood changed: cheerful → grumpy.
+  ✓ react: Boop mumbled, annoyed: "…nope!"
+▸ 1 tap (no pass): You tapped Boop.
+▸ 2 tap (no pass): You tapped Boop.
+▸ 3 tap (no pass): You tapped Boop.
+▸ 4 pokes: You poked Boop 4 times in 1 s.
+  pass jev:jev-latest 200 ms: mood grumpy 0.93 · react annoyed 0.97 · word.about none 1.00 · word.feeling nope 0.99
+  ✓ mood: Boop's mood changed: cheerful → grumpy.
+  ✓ react: Boop mumbled, annoyed: "…nope!"
+▸ 1 tap (no pass): You tapped Boop.
+▸ 2 tap (no pass): You tapped Boop.
+▸ 3 tap (no pass): You tapped Boop.
+▸ 4 pokes: You poked Boop 4 times in 1 s.
+  pass jev:jev-latest 307 ms: mood grumpy 0.93 · react annoyed 0.96 · word.about none 1.00 · word.feeling nope 0.99
+  ✓ mood: Boop's mood changed: cheerful → grumpy.
+  ✓ react: Boop mumbled, annoyed: "…nope!"
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 267 ms: mood cheerful 1.00 · react none 0.96 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 tool_use: claude's tests failed on "landing".
+  pass jev:jev-latest 248 ms: mood cheerful 0.99 · react none 0.79 · word.about tests 0.97 · word.feeling oops 0.64
+▸ 5 tool_use: claude's tests failed again on "landing", 2 in a row.
+  pass jev:jev-latest 199 ms: mood cheerful 0.90 · react none 0.66 · word.about tests 0.99 · word.feeling again 0.61
+▸ 7 tool_use: claude's tests failed again on "landing", 3 in a row.
+  pass jev:jev-latest 186 ms: mood grumpy 1.00 · react annoyed 1.00 · word.about tests 1.00 · word.feeling again 0.96
+  ✓ mood: Boop's mood changed: cheerful → grumpy.
+  ✓ react: Boop mumbled, annoyed: "…again!"
+▸ 11 turn_end: claude finished turn 1 on "landing": failed (api error) after 4 min, a very long turn, 3 tools (3 failed). Tests failing.
+  pass jev:jev-latest 194 ms: mood grumpy 0.99 · react annoyed 0.92 · word.about tests 0.91 · word.feeling ugh 0.68
+  ✓ react: Boop mumbled, annoyed: "…ugh!"
+▸ 14 heartbeat: Nothing has happened for 1 hour.
+  pass jev:jev-latest 185 ms: mood cheerful 0.97 · react none 0.94 · word.about none 1.00 · word.feeling none 0.99
+  ✓ mood: Boop's mood changed: grumpy → cheerful.
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 243 ms: mood cheerful 1.00 · react none 0.95 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 tool_use: claude's tests failed on "landing".
+  pass jev:jev-latest 190 ms: mood cheerful 0.99 · react none 0.83 · word.about tests 0.98 · word.feeling oops 0.67
+▸ 5 tool_use: claude's tests failed again on "landing", 2 in a row.
+  pass jev:jev-latest 330 ms: mood cheerful 0.85 · react none 0.60 · word.about tests 1.00 · word.feeling again 0.57
+▸ 7 tool_use: claude's tests failed again on "landing", 3 in a row.
+  pass jev:jev-latest 275 ms: mood grumpy 1.00 · react annoyed 1.00 · word.about tests 1.00 · word.feeling again 0.97
+  ✓ mood: Boop's mood changed: cheerful → grumpy.
+  ✓ react: Boop mumbled, annoyed: "…again!"
+▸ 11 turn_end: claude finished turn 1 on "landing": failed (api error) after 4 min, a very long turn, 3 tools (3 failed). Tests failing.
+  pass jev:jev-latest 242 ms: mood grumpy 0.99 · react annoyed 0.91 · word.about tests 0.89 · word.feeling ugh 0.70
+  ✓ react: Boop mumbled, annoyed: "…ugh!"
+▸ 14 heartbeat: Nothing has happened for 1 hour.
+  pass jev:jev-latest 242 ms: mood cheerful 0.98 · react none 0.94 · word.about none 1.00 · word.feeling none 0.98
+  ✓ mood: Boop's mood changed: grumpy → cheerful.
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 250 ms: mood cheerful 1.00 · react none 0.96 · word.about none 1.00 · word.feeling none 0.99
+▸ 3 tool_use: claude's tests failed on "landing".
+  pass jev:jev-latest 198 ms: mood cheerful 0.99 · react none 0.76 · word.about tests 0.99 · word.feeling oops 0.68
+▸ 5 tool_use: claude's tests failed again on "landing", 2 in a row.
+  pass jev:jev-latest 201 ms: mood cheerful 0.87 · react none 0.59 · word.about tests 0.99 · word.feeling again 0.55
+▸ 7 tool_use: claude's tests failed again on "landing", 3 in a row.
+  pass jev:jev-latest 226 ms: mood grumpy 1.00 · react annoyed 1.00 · word.about tests 1.00 · word.feeling again 0.97
+  ✓ mood: Boop's mood changed: cheerful → grumpy.
+  ✓ react: Boop mumbled, annoyed: "…again!"
+▸ 11 turn_end: claude finished turn 1 on "landing": failed (api error) after 4 min, a very long turn, 3 tools (3 failed). Tests failing.
+  pass jev:jev-latest 188 ms: mood grumpy 0.98 · react annoyed 0.91 · word.about tests 0.88 · word.feeling ugh 0.65
+  ✓ react: Boop mumbled, annoyed: "…ugh!"
+▸ 14 heartbeat: Nothing has happened for 1 hour.
+  pass jev:jev-latest 192 ms: mood cheerful 0.97 · react none 0.96 · word.about none 1.00 · word.feeling none 0.99
+  ✓ mood: Boop's mood changed: grumpy → cheerful.
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 277 ms: mood cheerful 1.00 · react excited 0.88 · word.about none 1.00 · word.feeling yay 0.75
+  ✓ react: Boop mumbled, excited: "…yay!"
+▸ 4 turn_end: claude finished turn 1 on "landing": done after 8 s, a short turn, 0 tools.
+  pass jev:jev-latest 242 ms: mood cheerful 1.00 · react excited 0.90 · word.about none 1.00 · word.feeling yay 0.99
+  ✓ react: Boop mumbled, excited: "…yay!"
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 217 ms: mood cheerful 1.00 · react excited 0.87 · word.about none 1.00 · word.feeling yay 0.78
+  ✓ react: Boop mumbled, excited: "…yay!"
+▸ 4 turn_end: claude finished turn 1 on "landing": done after 8 s, a short turn, 0 tools.
+  pass jev:jev-latest 191 ms: mood cheerful 1.00 · react excited 0.92 · word.about none 1.00 · word.feeling yay 0.99
+  ✓ react: Boop mumbled, excited: "…yay!"
+▸ 1 turn_start: claude started turn 1 on "landing".
+  pass jev:jev-latest 245 ms: mood cheerful 1.00 · react excited 0.87 · word.about none 1.00 · word.feeling yay 0.78
+  ✓ react: Boop mumbled, excited: "…yay!"
+▸ 4 turn_end: claude finished turn 1 on "landing": done after 8 s, a short turn, 0 tools.
+  pass jev:jev-latest 195 ms: mood cheerful 1.00 · react excited 0.87 · word.about none 1.00 · word.feeling yay 0.99
+  ✓ react: Boop mumbled, excited: "…yay!"

@@ -240,7 +240,7 @@ command finishes ([ADAPTERS.md](ADAPTERS.md) §4).
 | Agents | Claude Code and Codex, each with its state and a button (below) |
 | Device | *Name*'s body: connected over Bluetooth or USB, or still looking, with a Reconnect button that drops the link and looks again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
 | Personality | Boop or Chatter, with one line on what the chosen one does ([BEHAVIORS.md](BEHAVIORS.md) §6); it takes effect from the next event. Below it, the Jev API key, kept in the Keychain; its caption says that with Jev, what happens and Boop's personality and mood go to TypeSafe with each call, and that without a key Boop does only its rule reactions. A saved key is used from the next event, and saving an empty one removes it |
-| What *name* remembers | Each lasting fact you told Boop (About you and Preferences in `long-term.md`), with a button to forget it. With none yet: "Nothing yet. Tell *name* something lasting about you, like "remember I ship on Fridays", and it keeps it here." |
+| What *name* remembers | Each lasting fact you told Boop (About you and Preferences in `long-term.md`), with a button to forget it. With none yet: "Nothing yet. *name* will keep what you tell it here once talking to it comes back." Nothing is added while talk is inert ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 
 Each agent's row in Agents:
 

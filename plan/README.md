@@ -17,7 +17,7 @@ with the vision.
 | [harness/EVENTS.md](harness/EVENTS.md) | The events the core hands the harness, which wake the brain, and their lines |
 | [harness/DECISIONS.md](harness/DECISIONS.md) | What Boop decides: the steering files, the questions, how answers are read, and the actions |
 | [harness/EXAMPLE.md](harness/EXAMPLE.md) | One turn end to end: hooks, events, transcript, state, Jev's answers and what Boop does |
-| [steering.md](steering.md) | The brain's read-only instructions, bundled in the app |
+| [steering/](steering/guide.md) | The guide, personalities and moods Jev reads, read-only and bundled in the app ([harness/DECISIONS.md](harness/DECISIONS.md) §2) |
 | [PROTOCOL.md](PROTOCOL.md) | The messages between the Mac and the device, over Bluetooth or USB |
 | [DEVICE.md](DEVICE.md) | The board, pins, firmware stack and bring-up |
 | [VERIFICATION.md](VERIFICATION.md) | How everything is checked (L0–L6), and every tool |

@@ -24,7 +24,7 @@ to the films.
 
 | Step | Done by |
 | --- | --- |
-| Decide to mumble: a feeling and maybe one word | A rule (working chatter) or the brain (its classifier picks the feeling, its writer the word), either way through the `react` action |
+| Decide to mumble: a feeling and maybe one word | A rule (working chatter), or the brain: Jev picks the feeling and the word, and the `react` action plays it ([harness/DECISIONS.md](harness/DECISIONS.md) §5) |
 | Build the line (syllables, where the word goes, tune and tempo) and check it isn't accidentally a word (§7) | Voice, on the Mac |
 | Send it to the device | `react`, through the device link, as a `moment`'s `say` ([PROTOCOL.md](PROTOCOL.md) §3) |
 | Play it, with the mouth in time | The device (§8) |
@@ -148,9 +148,10 @@ fixed vocabulary of 40 English words (`Sounds.vocabulary`):
   wow yes no nope okay again nice ugh boo whee hooray thanks hello more
   snack nap play good oh what`.
 
-The same list is the choices for `react`'s `word`, which the brain's
-writer picks ([HARNESS.md](harness/HARNESS.md) §5), so the brain can't ask for a
-word Boop can't say, and Voice leaves out any word that isn't on it. The
+The brain's words come from this list: its word questions offer eleven
+of them for now ([harness/DECISIONS.md](harness/DECISIONS.md) §3), so it
+can't ask for a word Boop can't say, and Voice leaves out any word that
+isn't on it. The
 vocabulary is English everywhere: the gibberish needs no translation, and
 a stray English word is part of the charm. Adding a word means adding it
 to `Sounds.swift`, regenerating the assets (§8) and reflashing.

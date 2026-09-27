@@ -1,22 +1,8 @@
 {
-  "name": "A long turn is celebrated, and a very long one with a word",
-  "why": "BEHAVIORS.md §6 and HARNESS.md §6: a long turn (15 s or more) is react(proud) in chatty and normal, and a very long one (over a minute) always gets its word (steering.md, Writing), excited in chatty; calm leaves every finish to the rules",
+  "name": "A very long turn that finishes is worth a mumble",
+  "why": "PERSONALITY's Examples: something long finishing is proud or happy; the rule already cheered, so the mumble is on top",
   "steps": [
-    {"input": {"at": "0s", "event": "turn started", "agent": "claude", "project": "jetpack"},
-     "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
-                "normal": ["agent started → nothing"],
-                "calm": ["agent started → nothing"]}},
-    {"input": {"at": "20s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": {"chatty": ["agent finished → react(feeling: proud, word: yay|done|finally|hooray|whee|nice|good|wow|none)"],
-                "normal": ["agent finished → react(feeling: proud, word: yay|done|finally|hooray|whee|nice|good|wow|none)"],
-                "calm": ["agent finished → nothing"]}},
-    {"input": {"at": "1m", "event": "turn started", "agent": "claude", "project": "jetpack"},
-     "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
-                "normal": ["agent started → nothing"],
-                "calm": ["agent started → nothing"]}},
-    {"input": {"at": "4m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": {"chatty": ["agent finished → react(feeling: excited, word: finally|yay|hooray|whee|wow|done|nice|good)"],
-                "normal": ["agent finished → react(feeling: proud, word: finally|done|yay|hooray|whee|nice|good|wow)"],
-                "calm": ["agent finished → nothing"]}}
+    {"event": "turn started", "at": "0s"},
+    {"event": "turn finished", "at": "20m", "expect": {"react": "proud|happy|excited", "mood": "cheerful"}}
   ]
 }

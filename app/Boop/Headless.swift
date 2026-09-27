@@ -26,13 +26,12 @@ enum Headless {
         }
         // Every value is checked before anything is written, so a typo
         // doesn't leave a set-up Boop behind for the next run to keep.
-        let mode = args.choice("--mode", of: Mode.allCases.map(\.rawValue)).flatMap(Mode.init(rawValue:))
-        let classifier = args.choice("--classifier", of: Brains.classifiers)
-        let writer = args.choice("--writer", of: Brains.writers)
+        let personality = args.choice("--personality", of: Personality.allCases.map(\.rawValue)).flatMap(Personality.init(rawValue:))
+        let brain = args.choice("--brain", of: ["jev", "scripted"]) ?? "jev"
         guard let nature = LongTerm.Nature(rawValue: args["--nature"] ?? "sweet") else { fail("--nature is sweet or cheeky") }
         let log = LogFile(directory: stateDir, echo: true)
 
-        let memory = try? MemoryStore(directory: stateDir, steering: "")
+        let memory = try? MemoryStore(directory: stateDir)
         if memory?.isSetUp != true {
             let name = args["--name"] ?? "Boop"
             do {
@@ -47,8 +46,13 @@ enum Headless {
                                       socketPath: socketPath,
                                       link: transport, steering: bundledSteering())
         // Jev's key only from BOOP_JEV_KEY, as boopdev: a run from an agent
-        // shell must never use the owner's key from the Keychain (HARNESS.md §6).
-        options.readJevKey = { Brains.environmentJevKey() }
+        // shell must never use the owner's key from the Keychain
+        // (harness/HARNESS.md §7).
+        options.readJevKey = { JevKey.environment() }
+        if brain == "scripted" {
+            options.readJevKey = { "scripted" }
+            options.brain = { _ in ScriptedBrain.pipelineCheck }
+        }
         // The clock can be moved forward with `{"dev":"advance","ms":N}`, so
         // the pipeline check can finish a 6-minute turn without waiting it out.
         let skew = Skew()
@@ -58,9 +62,7 @@ enum Headless {
         options.advance = { skew.add($0) }
         options.debug = args.has("--debug")
         options.debugPrint = { log.echo($0) }
-        if let mode { options.mode = mode }
-        options.classifier = classifier
-        options.writer = writer
+        if let personality { options.personality = personality }
         options.devLines = true
         options.log = { log.write($0) }
         let runtime: Runtime

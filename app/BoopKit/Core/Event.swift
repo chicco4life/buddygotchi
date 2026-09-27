@@ -152,6 +152,18 @@ public enum EventLine {
         "Nothing has happened for \(hours) hour\(hours == 1 ? "" : "s")."
     }
 
+    /// The words the lines use, as the guide explains them after how to
+    /// read the layout (EVENTS.md §8.1). Kept here, next to the lines.
+    public static let words = """
+        - claude and codex are the person's coding agents.
+        - A thread is one conversation with an agent, named after its workspace:
+          "fix-nav" (landing) is the thread fix-nav in the project landing.
+        - A turn is one request to a thread. It ends done, failed or stopped.
+        - Tests, build, deploy and docs are what a command was about; failed
+          means it ended with an error. A comeback passed after failing.
+        - Turns are short (under 15 s), long (under a minute) or very long.
+        """
+
     public static let tap = "You tapped Boop."
 
     public static func needsYou(agent: String, thread: String) -> String {

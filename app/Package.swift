@@ -40,7 +40,7 @@ var packageTargets: [Target] = [
         dependencies: ["BoopKit"],
         path: "Boop",
         exclude: ["Info.plist"],
-        resources: [.copy("Resources/steering.md")],
+        resources: [.copy("Resources/steering")],
         linkerSettings: [.unsafeFlags([
             "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist",
             "-Xlinker", Context.packageDirectory + "/Boop/Info.plist",

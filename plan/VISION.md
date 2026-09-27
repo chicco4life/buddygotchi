@@ -128,11 +128,12 @@ Calm mode keeps its grumbles to itself ([BEHAVIORS.md](BEHAVIORS.md)
 - **Reacts like a creature.** A face that sleeps, idles, works and looks
   at you, mumbles while agents work, and the hero moments above.
 - **Listens.** Hold its button, or click Talk in the Mac app, and speak.
-  Boop mumbles back, goes quiet when asked, and keeps the facts you tell
-  it: today's for today, lasting ones about you for good (you can see and
-  remove those in Settings).
-- **Reacts as much as you like:** chatty, normal or calm
-  ([BEHAVIORS.md](BEHAVIORS.md) §6).
+  For now Boop only listens; mumbling back, going quiet when asked and
+  keeping the facts you tell it come back later ([FUTURE.md](FUTURE.md)).
+- **Has a personality and moods:** its everyday self, or an over-the-top
+  one for debugging, and a mood that sours when things keep failing and
+  lifts when they work ([BEHAVIORS.md](BEHAVIORS.md) §6,
+  [harness/DECISIONS.md](harness/DECISIONS.md)).
 
 Its name, its sweet or cheeky nature and its voice are set when it
 hatches. Nothing else about its character changes in v1.
@@ -195,11 +196,11 @@ changes.
 7. **Private by construction.** There is no camera and no wake word. The
    mic is on only while you hold the button or until you click Send.
    Nothing logs your keystrokes. Boop's memory lives on your Mac, and
-   without an API key everything runs there. With a Jev key (normal mode),
-   each decision goes to TypeSafe with Boop's memory, `steering.md`, short
-   lines about what just happened and what you said to Boop. Your code,
-   prompts and agents' transcripts never leave the Mac
-   ([HARNESS.md](harness/HARNESS.md) §6).
+   without an API key everything runs there. With a Jev key, each
+   decision goes to TypeSafe with Boop's steering (its guide, personality
+   and mood) and short lines about what just happened. Your code,
+   prompts, agents' transcripts and what you say never leave the Mac
+   ([harness/HARNESS.md](harness/HARNESS.md) §5).
 8. **Never nags, never guilts.** One chirp per request, and the Mac app
    never sends notifications. When hunger comes back, it will show only
    when you look: no sound, no notification, no interruption.
@@ -207,9 +208,9 @@ changes.
 10. **It's your pet, not a brand mascot.** Boop is never branded as Claude
     or Codex. You name it.
 11. **It changes only in a release, as far as we control it.**
-    `steering.md` and the voice ship with the app. The models aren't pinned
-    yet (Jev is TypeSafe's latest, and Apple's model updates with macOS),
-    so Boop's choices and words can shift a little when they change.
+    The steering files and the voice ship with the app. The model isn't
+    pinned yet (Jev is TypeSafe's latest), so Boop's choices and words can
+    shift a little when it changes.
     Pinning them is the goal.
 
 ## What it is not

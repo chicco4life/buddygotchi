@@ -30,20 +30,21 @@ milestone's evidence says which ones ran.
 | F6 | Landscape screen and cuter eyes | Done; C1's pixel face replaced the eyes | [F6](evidence/v1-build/F6/README.md), [gen-2 look](evidence/2026-09-26-gen2-look/README.md) |
 | A5 | Mac app look and flow | Done; the owner still has to check the look (check 18) | [A5](evidence/v1-build/A5/README.md) |
 | A6 | Brain conversation | Superseded by A7 | [evidence](evidence/2026-09-26-brain-conversation/README.md) |
-| A7 | Two-stage brain | Done; checks 13–15 | [brain](evidence/2026-09-26-two-stage-brain/README.md), [evals](evidence/2026-09-26-eval-iteration/README.md) |
+| A7 | Two-stage brain | Superseded by A10 | [brain](evidence/2026-09-26-two-stage-brain/README.md), [evals](evidence/2026-09-26-eval-iteration/README.md) |
 | A8 | Hero moments | Done, as C1 trimmed them; checks 4, 9, 10 and 13 | [evidence](evidence/2026-09-26-hero-moments/README.md) |
 | C1 | Cut to 4 states and 3 animations | Done | [cut](evidence/2026-09-26-minimal-cut/README.md), [on the board](evidence/2026-09-26-e2e-hardening/README.md) |
-| A9 | Modes: chatty, normal and calm | Done; checks 16 and 17 | [evidence](evidence/2026-09-26-modes/README.md) |
+| A9 | Modes: chatty, normal and calm | Superseded by A10: personalities replace modes | [evidence](evidence/2026-09-26-modes/README.md) |
 | | Overnight pass (2026-09-27): reliability, behaviour and polish across the core, brain, firmware, face, Mac app and tools | Done. The final firmware `cf6d8ae` matches the simulator on the board in all 10 scenarios, `perf --motion` passes and `make e2e` passes; the new looks still need watching in motion (check 1) | [evidence](evidence/2026-09-27-overnight/) |
-| A10 | Jev-only harness: typed events and transcript, a plain-text state, mood ([harness/](harness/HARNESS.md)) | Spec written; code in progress (§3, "Harness rework") | |
+| A10 | Jev-only harness: typed events and transcript, a plain-text state, mood and personalities ([harness/](harness/HARNESS.md)) | Done; the evals pass against Jev; checks 12–17 are the owner's | [evidence](evidence/2026-09-27-jev-harness/README.md) |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks
 
 What only a person can check: Bluetooth, the mic, sound and light, the
 real screen and menu bar, and Jev with the owner's key. What Boop should
-do is in [BEHAVIORS.md](BEHAVIORS.md) and [UX.md](UX.md). The app is in
-normal mode with no Jev key unless a check says otherwise. Anything
+do is in [BEHAVIORS.md](BEHAVIORS.md) and [UX.md](UX.md). The app runs
+the `boop` personality with the owner's Jev key unless a check says
+otherwise. Anything
 that's off becomes an open item (§3).
 
 **The board and the app**
@@ -97,37 +98,36 @@ that's off becomes an open item (§3).
 11. **Esc while Claude is between tool calls.** Within about a minute Boop
     goes idle, with no cheer or mumble; at once if a tool was running.
 
-**Talking to Boop**
+**Push-to-talk, personalities and the brain**
 
-12. **Hold BOOT: "be quiet for fifteen minutes".** The quiet icon on the
-    strip, "Quiet · 15 min" in the popover, and no mumbles until it ends.
-    An approval still chirps. Then hold BOOT: "you can talk again". The
-    icon goes and Boop mumbles happily.
-13. **Hold BOOT and snap "shut up"; then yell something neutral.** A sad
-    mumble each time, and no quiet. If your normal voice counts as a yell,
-    or a real yell doesn't, tune the threshold
-    ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
-14. **Hold BOOT: "remember I ship on Fridays", then "remember the demo is
-    on Thursday".** A happy mumble each time. The first shows in Settings
-    under What Boop remembers, the second in today's notes
-    (`~/Library/Application Support/Boop/short-term.md`).
-15. **Click Talk in the popover, say "good job", click Send; then Talk and
-    say nothing.** macOS asks for Speech Recognition and the Microphone
-    the first time. While the mic is on, the menu-bar eyes turn red with a
-    bigger dot, the popover says "Listening…" over a red Send, macOS shows
-    its mic indicator, and the device shows `listening`, with no chatter
-    cutting in. After Send, a proud mumble within a few seconds; left
-    alone, everything goes back after 30 s.
-16. **Settings → Mode: Chatty for a while, then Calm.** Chatty mumbles
-    when an agent starts, with every cheer and every minute or so, and
-    shows a "Chatty" chip. Calm has no cheer under a minute, no chatter
-    and no grumble at a poke streak, and shows a "Calm" chip; needs you
-    and failed turns still come through. Each takes effect at once
+12. **Hold BOOT and speak; then click Talk, speak and click Send.** macOS
+    asks for Speech Recognition and the Microphone the first time. While
+    the mic is on, the menu-bar eyes turn red, the popover says
+    "Listening…", and the device shows `listening` with no chatter
+    cutting in. When the mic goes off, `listening` ends at once and Boop
+    doesn't reply: talk is inert for now ([BEHAVIORS.md](BEHAVIORS.md)
+    §3.3).
+13. **Paste Jev's key in Settings, then work normally for a while.** The
+    Personality card loses its "Without a Jev API key" line. Routine
+    turns go by quietly; a very long finish gets a proud mumble on top of
+    the cheer ([harness/DECISIONS.md](harness/DECISIONS.md)).
+14. **Let tests fail three times in a row, then pass.** On the third
+    failure an annoyed mumble ("…again!" or "…tests!") and Boop turns
+    grumpy (the `mood` file in `~/Library/Application Support/Boop/`);
+    when they pass more than ten minutes later, a proud "…finally!" and
+    cheerful again ([harness/EXAMPLE.md](harness/EXAMPLE.md)).
+15. **`Boop --debug` (`make debug`) through a turn.** The terminal shows
+    each event, the pass with Jev's whole state the first time and its
+    answers, and what the actions did; `boop.log` has one `brain …` line
+    per pass and none of the state ([harness/HARNESS.md](harness/HARNESS.md)
+    §9).
+16. **Settings → Personality: Chatter for a while, then Boop.** Chatter
+    shows a "Chatter" chip, mumbles at nearly everything, including
+    routine tool use, and chatters every 30–60 s while agents work. Boop
+    is back to speaking up only when something stands out
     ([BEHAVIORS.md](BEHAVIORS.md) §6).
-17. **`BOOP_JEV_KEY=… make eval REAL=1`, then paste the key in Settings
-    under Normal.** The evals pass with Jev deciding normal mode
-    ([EVALS.md](EVALS.md)), and the app decides with Jev from the next
-    input.
+17. **`BOOP_JEV_KEY=… make eval`.** Every scenario passes in all three
+    runs ([EVALS.md](EVALS.md)).
 
 **The Mac app and the link**
 
@@ -151,18 +151,6 @@ that's off becomes an open item (§3).
 Known work that isn't a milestone yet, including drift found and not
 fixed. Pick one up by writing it into its spec first.
 
-- **Harness rework (A10).** [plan/harness/](harness/HARNESS.md)
-  describes the Jev-only harness, and the code still runs the two-stage
-  one. The personalities that replace modes, and inert push-to-talk, are
-  written into [BEHAVIORS.md](BEHAVIORS.md) §3.3 and §6 and
-  [UX.md](UX.md) §7. Until the code lands, these still describe the old
-  harness and move with it: `plan/steering.md` (splits into
-  `plan/steering/`), the `steering.md` rule in CLAUDE.md,
-  [ARCHITECTURE.md](ARCHITECTURE.md) §3.2–3.3 and §4 (bursts, the stages,
-  memory writes), [VOICE.md](VOICE.md) §6 (who picks the word),
-  and [EVALS.md](EVALS.md). Talk and memory writes
-  come back after it ([FUTURE.md](FUTURE.md)).
-
 - **Release.** There's no signing, notarisation, app icon or release
   pipeline yet. Gen-2's list is in
   [archived/docs/TODO-gen2.md](../archived/docs/TODO-gen2.md).
@@ -184,20 +172,12 @@ fixed. Pick one up by writing it into its spec first.
   ([ADAPTERS.md](ADAPTERS.md) §4). Hooking `SubagentStop` and letting it
   answer only that subagent's request would clear it; it mustn't make an
   idle session working.
-- **A failed test turn's word is on a knife-edge.** Apple's writer picks
-  the right source (the failed topic) but flips between "tests" and "ugh"
-  with small, unrelated prompt changes; evals 06 and 13 accept both.
-  Supplying the topic word when that source is picked would make it
-  "tests" every time
-  ([evidence](evidence/2026-09-27-overnight/brain/README.md)).
-- **Complaints and sarcasm.** "ugh, the tests are flaky again" is curious
-  in the if-else tables but annoyed in `steering.md`'s example, and
-  "great, the build broke again" is praise. Decide whether a complaint
-  row, before praise, belongs in the phrase table
-  ([HARNESS.md](harness/HARNESS.md) §6).
-- **A waiting input's deadline starts late.** An agent input held behind a
-  pass for what you said gets its 5 s only when its own pass starts, so
-  its mumble can land well after the event ([HARNESS.md](harness/HARNESS.md) §3).
+- **Talk and memory are out of the brain.** Push-to-talk is inert, so
+  quiet mode has no way in, and nothing writes memory facts; both come
+  back as events and actions ([FUTURE.md](FUTURE.md)).
+- **Some of Voice's words can't be picked.** The brain offers eleven of
+  the 40 ([harness/DECISIONS.md](harness/DECISIONS.md) §3); the rest are
+  recorded on the device for nothing until the lists grow.
 - **Temperament and Moments never change.** Nothing writes them since the
   new day's reflection was parked. Decide whether they stay, go, or get a
   writer ([FUTURE.md](FUTURE.md), "The new day's reflection").

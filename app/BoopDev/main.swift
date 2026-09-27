@@ -2,8 +2,8 @@ import BoopKit
 import Foundation
 import HookWire
 
-// Developer CLI (VERIFICATION.md §2): eval, watch, replay, voice, talk and
-// hooks, as `usage` describes.
+// Developer CLI (VERIFICATION.md §2): replay, voice, eval, watch and hooks,
+// as `usage` describes.
 
 /// Each subcommand's usage, in the order `boopdev --help` lists them.
 let usages: [(command: String, text: String)] = [
@@ -21,36 +21,24 @@ let usages: [(command: String, text: String)] = [
         Prints Minion lines as the react action would build them.
     """),
     ("eval", """
-    boopdev eval [--real] [--mode chatty|normal|calm] [--classifier \(Brains.classifiers.joined(separator: "|"))] [--writer \(Brains.writers.joined(separator: "|"))]
-         [--runs N] [--only TEXT] [--json FILE] [--scenarios DIR] [--memory DIR] [--steering FILE]
-        Runs the harness eval scenarios in each mode: events, taps and talk on a virtual clock through a
-        fresh core, the real harness and actions, each step checked against the passes it should lead to
-        in that mode (plan/EVALS.md). By default each mode with an if-else table and no writer, which is
-        deterministic; --classifier jev decides with Jev and needs BOOP_JEV_KEY. With a model, --runs
-        runs each scenario N times, and it passes only if every run does. Every pass goes to the run's
-        own file in /tmp/boop-eval, named at the start, each scenario's run under a header (boopdev watch
-        FILE prints it). Exits 1 if any fails. The scenarios, sample memory and steering.md default to
-        the Boop repo's, found from the working directory or from boopdev's own place in it.
-        --real runs every mode with its real brains (VERIFICATION.md L5): Apple's model writes, normal
-        decides with Jev alone (with BOOP_JEV_KEY; else its table), 3 runs each; then refusals, the writer's
-        slots, calls actions dropped and each input kind's latency against its deadline, which must hold
-        too. Steps that script a stage are left out of that.
+    boopdev eval [--runs N] [--only TEXT] [--scenarios DIR] [--steering DIR]
+        Runs the harness eval scenarios (plan/EVALS.md): hook-level steps on a virtual clock through a fresh
+        core, the real harness and actions, and Jev, each pass checked against what it should come to (the
+        reaction, the word and the mood). Needs Jev's key in BOOP_JEV_KEY and fails without it. --runs runs
+        each scenario N times (default 3); it passes only if every run does. Every entry goes to the run's
+        own file in /tmp/boop-eval (boopdev watch FILE prints it). Exits 1 if any fails. The scenarios and
+        steering default to the Boop repo's, found from the working directory or from boopdev's own place.
     """),
     ("watch", """
     boopdev watch [FILE] [--new]
         Follows debug mode's log (Boop --debug writes STATE-DIR/debug.jsonl; the default is the
-        everyday app's) and prints each pass and aside readably, as Boop --debug does in its own
-        terminal, waiting for FILE if it isn't there yet. --new skips what's already in the file.
+        everyday app's) and prints each event, pass and action readably, as Boop --debug does in its
+        own terminal, waiting for FILE if it isn't there yet. --new skips what's already in the file.
     """),
     ("hooks", """
     boopdev hooks status|install|remove [claude|codex] --home DIR [--hook PATH]
         The installer, against any HOME (tests use a temporary one). --hook defaults to the boop-hook
         next to boopdev.
-    """),
-    ("talk", """
-    boopdev talk "<words>" [--yelled] --socket PATH
-        Hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic
-        (--yelled: as if you yelled it).
     """),
 ]
 
@@ -202,23 +190,83 @@ func voice(_ raw: [String]) {
     }
 }
 
-/// The Boop repo: the nearest folder with `plan/steering.md` above the
-/// working directory, or else above boopdev itself (`app/.build/debug`).
+/// The Boop repo: the nearest folder with `plan/steering/guide.md` above
+/// the working directory, or else above boopdev itself (`app/.build/debug`).
 func findRepo() -> URL? {
     let starts = [URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
                   URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()]
     for start in starts {
         var dir = start.standardizedFileURL
         for _ in 0..<8 {
-            if FileManager.default.fileExists(atPath: dir.appendingPathComponent("plan/steering.md").path) { return dir }
+            if FileManager.default.fileExists(atPath: dir.appendingPathComponent("plan/steering/guide.md").path) { return dir }
             dir = dir.deletingLastPathComponent()
         }
     }
     return nil
 }
 
-/// `boopdev watch [FILE]`: follows debug mode's log (HARNESS.md §8) and
-/// prints each pass and aside as it lands, as `Boop --debug` does. The app
+func eval(_ raw: [String]) async {
+    let args = arguments("eval", raw, options: ["--runs", "--only", "--scenarios", "--steering"])
+    guard let key = JevKey.environment() else {
+        fail("boopdev eval asks Jev, and needs its API key in \(JevKey.variable)")
+    }
+    let repo = findRepo()
+    func path(_ option: String, _ inRepo: String) -> URL {
+        if let given = args[option] { return URL(fileURLWithPath: given) }
+        guard let repo else { fail("boopdev eval: can't find the Boop repo; run it inside the repo, or pass --scenarios and --steering") }
+        return repo.appendingPathComponent(inRepo)
+    }
+    let steering: Steering
+    do { steering = try Steering(directory: path("--steering", "plan/steering")) } catch { fail("\(error)") }
+    var list: [Scenario]
+    let scenarios = path("--scenarios", "app/Evals/scenarios")
+    do { list = try Scenario.load(directory: scenarios) } catch { fail("can't read the scenarios: \(error)") }
+    if let only = args["--only"] {
+        list = list.filter { $0.name.localizedCaseInsensitiveContains(only) || $0.file.contains(only) }
+    }
+    guard !list.isEmpty else { fail("no scenarios in \(scenarios.path)") }
+    guard let runs = Int(args["--runs"] ?? "3"), runs >= 1 else { fail("--runs is a count, 1 or more") }
+    var runner = Eval(brain: JevBrain(key: key), steering: steering)
+    let log = evalDebugLog()
+    DebugLog.start(log)
+    runner.debugLog = log
+    print("every entry goes to \(log.path)")
+    var results: [[Eval.Result]] = []
+    for scenario in list {
+        var rs: [Eval.Result] = []
+        for _ in 1...runs {
+            do { rs.append(try await runner.run(scenario)) } catch { fail("\(error)") }
+        }
+        results.append(rs)
+        for line in Eval.report([rs]).dropLast() { print(line) }
+    }
+    let passed = results.filter { $0.allSatisfy(\.passed) }.count
+    print("\(passed)/\(results.count) passed" + (runs > 1 ? " in all \(runs) runs" : "") + " with jev:jev-latest")
+    let latencies = results.flatMap { $0.flatMap { $0.checks.map(\.latencyMs) } }.sorted()
+    if !latencies.isEmpty {
+        print("latency: median \(latencies[latencies.count / 2]) ms, slowest \(latencies.last!) ms (deadline \(Harness.deadlineMs) ms)")
+    }
+    print("every entry: boopdev watch \(log.path)")
+    exit(passed == results.count ? 0 : 1)
+}
+
+/// A file of the run's own (harness/HARNESS.md §9), so runs side by side
+/// don't write over each other. Runs over a day old are cleared away.
+func evalDebugLog() -> URL {
+    let dir = URL(fileURLWithPath: "/tmp/boop-eval")
+    let fm = FileManager.default
+    let dayAgo = Date().addingTimeInterval(-86_400)
+    for file in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+    where (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate).flatMap { $0 < dayAgo } == true {
+        try? fm.removeItem(at: file)
+    }
+    let stamp = DateFormatter()
+    stamp.dateFormat = "yyyyMMdd-HHmmss"
+    return dir.appendingPathComponent("\(stamp.string(from: Date()))-\(getpid()).jsonl")
+}
+
+/// `boopdev watch [FILE]`: follows debug mode's log (harness/HARNESS.md §9)
+/// and prints each entry as it lands, as `Boop --debug` does. The app
 /// empties the file when it starts, so a shorter file, or a new one at the
 /// path, starts it again.
 func watch(_ raw: [String]) {
@@ -266,134 +314,6 @@ func watch(_ raw: [String]) {
     }
 }
 
-func eval(_ raw: [String]) async {
-    let args = arguments("eval", raw, options: ["--mode", "--classifier", "--writer", "--runs", "--only", "--json",
-                                                 "--scenarios", "--memory", "--steering"], flags: ["--real"])
-    // The defaults are the repo's, wherever boopdev runs from.
-    let repo = findRepo()
-    func path(_ option: String, _ inRepo: String) -> URL {
-        if let given = args[option] { return URL(fileURLWithPath: given) }
-        guard let repo else { fail("boopdev eval: can't find the Boop repo (no plan/steering.md above here); run it inside the repo, or pass --scenarios, --memory and --steering") }
-        return repo.appendingPathComponent(inRepo)
-    }
-    let scenarios = path("--scenarios", "app/Evals/scenarios")
-    let memoryDir = path("--memory", "app/Tests/Fixtures/memory")
-    let steeringPath = path("--steering", "plan/steering.md")
-    guard let steering = try? String(contentsOf: steeringPath, encoding: .utf8) else { fail("can't read \(steeringPath.path)") }
-    guard FileManager.default.fileExists(atPath: memoryDir.appendingPathComponent("long-term.md").path) else {
-        fail("no sample memory (long-term.md) in \(memoryDir.path)")
-    }
-    // --real: every mode with the brains the app would run (VERIFICATION.md L5).
-    let real = args.has("--real")
-    var modes = Mode.allCases
-    if let mode = args.choice("--mode", of: modes.map(\.rawValue)).flatMap(Mode.init(rawValue:)) { modes = [mode] }
-    let override = args.choice("--classifier", of: Brains.classifiers)
-    // Each mode's classifier by name: Jev only when asked for, or for normal
-    // in a real run with its key, so a key in the environment doesn't make
-    // the default run a live one. A real run asks for Jev by name: Jev alone
-    // decides normal, which is what L5 checks. Without the key, normal's
-    // table decides it.
-    let envKey = Brains.environmentJevKey()
-    if envKey == nil, override == "jev" { fail("Jev needs its API key in \(Brains.jevKeyVariable)") }
-    let pick: @Sendable (Mode) -> String = { mode in override ?? (real && mode == .normal && envKey != nil ? "jev" : mode.rawValue) }
-    if real, override == nil, envKey == nil, modes.contains(.normal) {
-        print("normal: decided by its table; with Jev's API key in \(Brains.jevKeyVariable), Jev decides it")
-    }
-    let writer = args.choice("--writer", of: Brains.writers) ?? (real ? "apple" : "none")
-    if writer == "apple", let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }
-    var list: [Scenario]
-    do { list = try Scenario.load(directory: scenarios) } catch {
-        fail("can't read the scenarios in \(scenarios.path): \((error as NSError).localizedDescription)")
-    }
-    if let only = args["--only"] {
-        list = list.filter { $0.name.localizedCaseInsensitiveContains(only) || $0.file.contains(only) }
-    }
-    guard !list.isEmpty else { fail("no scenarios in \(scenarios.path)") }
-    guard let runs = Int(args["--runs"] ?? (real ? "3" : "1")), runs >= 1 else { fail("--runs is a count, 1 or more") }
-    var runner = Eval(
-        classifier: { mode in Brains.classifier(for: mode, override: pick(mode), key: { envKey }) },
-        writer: { mode in Brains.writer(for: mode, override: writer) },
-        steering: steering, memory: memoryDir)
-    let log = evalDebugLog()
-    runner.debugLog = log
-    DebugLog.start(log)
-    print("every pass goes to \(log.path)")
-    // One entry per scenario and mode: its runs.
-    var results: [[Eval.Result]] = []
-    for mode in modes {
-        for scenario in list where scenario.modes.contains(mode) {
-            var rs: [Eval.Result] = []
-            for run in 1...runs {
-                do { rs.append(try await runner.run(scenario, mode: mode, run: run)) } catch { fail("\(scenario.file): \(error)") }
-            }
-            results.append(rs)
-            let passed = rs.filter(\.passed).count
-            let tally = runs > 1 ? "  (\(passed)/\(runs) runs)" : ""
-            print((passed == runs ? "pass  " : "FAIL  ") + "\(mode.rawValue)  \(scenario.file)  \(scenario.name)\(tally)")
-            // Each different failure once, most common first.
-            var diffs: [String: Int] = [:]
-            for r in rs where !r.passed { diffs[Eval.diff(r), default: 0] += 1 }
-            for (diff, n) in diffs.sorted(by: { $0.value > $1.value }) {
-                if runs > 1 { print("  in \(n) of \(runs) runs:") }
-                print(diff)
-            }
-        }
-    }
-    let passed = results.filter { $0.allSatisfy(\.passed) }.count
-    let every = runs > 1 ? " in all \(runs) runs" : ""
-    let brains = modes.map { mode in
-        let r = results.first { $0.first?.mode == mode }?.first
-        return "\(mode.rawValue) \(r?.classifier ?? "?") + \(r?.writer ?? "?")"
-    }
-    print("\(passed)/\(results.count) passed\(every): " + brains.joined(separator: ", "))
-    if let out = args["--json"] {
-        do { try Eval.json(results).write(toFile: out, atomically: true, encoding: .utf8) }
-        catch { fail("can't write \(out): \(error)") }
-    }
-    var summaryHolds = true
-    if real {
-        let summary = Eval.Summary(results.flatMap { $0.flatMap(\.brainPasses) })
-        summary.lines.forEach { print($0) }
-        summaryHolds = summary.holds
-        // One verdict for both halves, so a report that held can't read as
-        // a pass under failed scenarios.
-        var failed: [String] = []
-        if passed < results.count { failed.append("\(results.count - passed) of \(results.count) scenarios failed") }
-        if !summaryHolds { failed.append("the report didn't hold") }
-        print(failed.isEmpty ? "passed: every scenario, and the report; now read a sample of the passes (VERIFICATION.md L5)"
-                             : "did NOT pass: " + failed.joined(separator: ", "))
-    }
-    print("every pass: boopdev watch \(log.path)")
-    exit(passed == results.count && summaryHolds ? 0 : 1)
-}
-
-/// A file of the run's own for every pass (HARNESS.md §8), so runs side by
-/// side don't write over each other. Runs over a day old are cleared away.
-func evalDebugLog() -> URL {
-    let dir = URL(fileURLWithPath: "/tmp/boop-eval")
-    let fm = FileManager.default
-    let dayAgo = Date().addingTimeInterval(-86_400)
-    for file in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
-    where (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate).flatMap { $0 < dayAgo } == true {
-        try? fm.removeItem(at: file)
-    }
-    let stamp = DateFormatter()
-    stamp.dateFormat = "yyyyMMdd-HHmmss"
-    return dir.appendingPathComponent("\(stamp.string(from: Date()))-\(getpid()).jsonl")
-}
-
-func talk(_ raw: [String]) {
-    let args = arguments("talk", raw, options: ["--socket"], flags: ["--yelled"], words: .max)
-    guard let socket = args["--socket"] else { fail("boopdev talk: which app? pass --socket PATH") }
-    let words = args.words.joined(separator: " ")
-    let yelled = args.has("--yelled")
-    guard !words.isEmpty || yelled else { fail("boopdev talk: what was said? give the words, or --yelled") }
-    let line = (try? JSONSerialization.data(withJSONObject: ["dev": "talk", "words": words, "yelled": yelled] as [String: Any]))
-        ?? Data()
-    sendDev(line, to: socket)
-    print("sent talk \"\(words)\"\(yelled ? " (yelled)" : "")")
-}
-
 func hooks(_ raw: [String]) {
     let args = arguments("hooks", raw, options: ["--home", "--hook"], words: 2)
     guard let action = args.words.first, ["status", "install", "remove"].contains(action) else {
@@ -431,8 +351,6 @@ case "eval":
     await eval(Array(args.dropFirst()))
 case "watch":
     watch(Array(args.dropFirst()))
-case "talk":
-    talk(Array(args.dropFirst()))
 case "hooks":
     hooks(Array(args.dropFirst()))
 case nil, "-h", "--help", "help":

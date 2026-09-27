@@ -1,88 +1,61 @@
 import Foundation
 
-/// Stage 1 of the brain (HARNESS.md §6): decides what Boop does about an
-/// input. It picks outputs from the menu and fills in every argument the
-/// menu marks as decided; it never writes words. Staying quiet is no calls.
-public protocol Classifier: Sendable {
-    /// e.g. `chatty@1`, `jev:jev-latest`.
+/// The brain (harness/HARNESS.md §7): answers multiple-choice questions
+/// about a plain-text state, with probabilities. Jev in the app,
+/// `ScriptedBrain` in tests.
+public protocol Brain: Sendable {
+    /// For logs: `jev:jev-latest`, `scripted`.
     var id: String { get }
-    /// May throw; the harness drops the pass and logs why.
-    func classify(_ context: Context, _ menu: Menu, deadline: Duration) async throws -> Classification
-}
-
-/// Stage 2 (HARNESS.md §6): writes the words for what Stage 1 decided, and
-/// nothing else. It fills slots: it can't add, drop or reorder decisions.
-public protocol Writer: Sendable {
-    /// e.g. `apple:26.4`, `none`.
-    var id: String { get }
-    /// Values by slot key. A slot left out, empty or `none` is left empty.
-    /// May throw; the harness then treats every slot as empty.
-    func write(_ context: Context, _ slots: [Slot], deadline: Duration) async throws -> Writing
-    /// What `write` asks for these slots, besides its instructions, for the
-    /// debug log (HARNESS.md §8); nil when it asks nothing.
-    func prompt(_ context: Context, _ slots: [Slot]) -> String?
-}
-
-extension Writer {
-    public func prompt(_ context: Context, _ slots: [Slot]) -> String? { nil }
-}
-
-/// What a brain gets for one pass: the input, the memory text and the
-/// transcript's window (HARNESS.md §4), oldest first. The window ends with
-/// this input's own entries; the writer's also has Stage 1's `decided`.
-public struct Context: Equatable, Sendable {
-    public var input: Input
-    public var memory: Prompt.Memory
-    public var window: [Transcript.Entry]
-
-    public init(input: Input, memory: Prompt.Memory, window: [Transcript.Entry]) {
-        self.input = input
-        self.memory = memory
-        self.window = window
-    }
-}
-
-/// Stage 1's answer: the calls, with only decided arguments, and how it got
-/// there (the rule that matched, Jev's answers) for the transcript and the log.
-public struct Classification: Equatable, Sendable {
-    public var calls: [ToolCall]
-    public var evidence: String?
-    /// What a model answered that couldn't be used, when a table decided
-    /// instead, for the debug log.
-    public var raw: String?
-
-    public init(calls: [ToolCall], evidence: String? = nil, raw: String? = nil) {
-        self.calls = calls
-        self.evidence = evidence
-        self.raw = raw
-    }
-}
-
-/// Stage 2's answer: a value for each slot it filled, and what the model
-/// returned, for the debug log.
-public struct Writing: Equatable, Sendable {
-    public var values: [String: String]
-    public var raw: String?
-
-    public init(values: [String: String], raw: String? = nil) {
-        self.values = values
-        self.raw = raw
-    }
+    func answer(state: String, questions: [Question], deadline: Duration) async throws -> Answers
 }
 
 public struct BrainError: Error, Equatable, CustomStringConvertible {
     public var description: String
-    /// What the model answered, when it answered something unusable.
+    /// What came back, when it couldn't be used, for debug mode.
     public var raw: String?
 
     public init(_ description: String, raw: String? = nil) {
         self.description = description
         self.raw = raw
     }
+}
 
-    /// The model declined to answer (a guardrail). Handled like any error,
-    /// but counted apart in L5.
-    public static func refused(_ why: String) -> BrainError { BrainError(refusedPrefix + why) }
-    static let refusedPrefix = "refused: "
-    public var refused: Bool { description.hasPrefix(BrainError.refusedPrefix) }
+/// Answers from a script: for tests and replays. The script sees the state
+/// and the questions and returns the answers, or throws.
+public struct ScriptedBrain: Brain {
+    public let id: String
+    let script: @Sendable (String, [Question]) throws -> Answers
+
+    public init(id: String = "scripted", _ script: @escaping @Sendable (String, [Question]) throws -> Answers) {
+        self.id = id
+        self.script = script
+    }
+
+    /// The same answers every time, by question key; a question it has no
+    /// answer for gets its first option.
+    public init(id: String = "scripted", always answers: Answers) {
+        self.init(id: id) { _, questions in
+            var out: Answers = [:]
+            for q in questions {
+                out[q.key] = answers[q.key] ?? q.options.first.map { Answer(choice: $0.name, probabilities: [$0.name: 1]) }
+            }
+            return out
+        }
+    }
+
+    public func answer(state: String, questions: [Question], deadline: Duration) async throws -> Answers {
+        try script(state, questions)
+    }
+}
+
+extension ScriptedBrain {
+    /// For pipeline checks with no network (`Boop --headless --brain
+    /// scripted`): every pass, an excited mumble with "yay", and no mood
+    /// change.
+    public static let pipelineCheck = ScriptedBrain(id: "scripted", always: [
+        "mood": Answer(choice: "cheerful", probabilities: ["cheerful": 1]),
+        "react": Answer(choice: "excited", probabilities: ["excited": 1]),
+        "word.feeling": Answer(choice: "yay", probabilities: ["yay": 1]),
+        "word.about": Answer(choice: "none", probabilities: ["none": 1]),
+    ])
 }

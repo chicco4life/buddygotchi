@@ -63,7 +63,7 @@ final class EventTests: XCTestCase {
     func testRoutineToolUsesAreCountedOrWithAllBecomeEvents() {
         hook(.turnStart)
         XCTAssertEqual(hook(.activity, tool: "Edit", done: true), [])
-        rig.core.setToolUses(.all)
+        rig.core.setRules(Personality.Rules(toolUses: .all))
         XCTAssertEqual(hook(.activity, tool: "Edit", failed: false, done: true).map(\.line),
                        [#"claude edited a file on "fix-nav" (landing)."#])
         XCTAssertEqual(hook(.activity, tool: "mcp__x__y", failed: true, done: true, toolError: "other").map(\.line),
@@ -76,7 +76,7 @@ final class EventTests: XCTestCase {
     func testCodexToolUsesAreUnknown() {
         hook(.turnStart, agent: .codex, session: "c1")
         XCTAssertEqual(hook(.activity, agent: .codex, session: "c1", tool: "shell", topic: "tests", done: true), [])
-        rig.core.setToolUses(.all)
+        rig.core.setRules(Personality.Rules(toolUses: .all))
         let e = hook(.activity, agent: .codex, session: "c1", tool: "shell", topic: "tests", done: true)
         XCTAssertEqual(e.first?.facts["result"], "unknown")
     }

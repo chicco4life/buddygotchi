@@ -18,7 +18,7 @@ final class MemoryRig {
     }
 
     func reopen() throws {
-        store = try MemoryStore(directory: dir, steering: "# Boop\n", log: { [weak self] in self?.logs.append($0) })
+        store = try MemoryStore(directory: dir, log: { [weak self] in self?.logs.append($0) })
     }
 
     func file(_ name: String) -> String { (try? String(contentsOf: dir.appendingPathComponent(name), encoding: .utf8)) ?? "" }
@@ -141,8 +141,7 @@ final class MemoryTests: XCTestCase {
         try XCTAssertThrowsError(try rig.store.setUp(name: "Bo", nature: .sweet, seed: 1, today: "2026-10-14"))
         XCTAssertEqual(rig.store.lastActiveDay, "2026-10-14")
         XCTAssertEqual(Dialect(seed: rig.store.longTerm!.seed), Dialect(seed: 0x7f3a))
-        // The brains get Boop's name with the memory (HARNESS.md §6).
-        XCTAssertEqual(rig.store.promptMemory().boopName, "Pip")
+        XCTAssertEqual(rig.store.longTerm?.name, "Pip")
     }
 
     func testNamesThatBreakTheBoopLineAreRefused() throws {

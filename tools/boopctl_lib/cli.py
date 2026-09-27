@@ -262,7 +262,7 @@ def cmd_soak(args: argparse.Namespace) -> int:
     if args.pipeline:
         from boopctl_lib import e2e
 
-        return e2e.soak(Path(args.out or "/tmp/boop-e2e-out"), args.writer, args.port, args.minutes)
+        return e2e.soak(Path(args.out or "/tmp/boop-e2e-out"), args.brain, args.port, args.minutes)
     rng = random.Random(args.seed)
     samples, log_lines = [], []
     with Device(args.port) as dev:
@@ -345,7 +345,7 @@ def cmd_e2e(args: argparse.Namespace) -> int:
     from boopctl_lib import cam, e2e
 
     cam.CAMERA = args.camera or cam.CAMERA
-    return e2e.main(Path(args.out), args.writer, args.port, args.fixture or None, args.clip)
+    return e2e.main(Path(args.out), args.brain, args.port, args.fixture or None, args.clip)
 
 
 def cmd_bridge(args: argparse.Namespace) -> int:
@@ -658,11 +658,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", help="write the result as JSON here (--pipeline: a directory, default /tmp/boop-e2e-out)")
     p.add_argument("--pipeline", action="store_true",
                    help="through the headless app: hooks, a tap between rounds, then a quiet minute (J2)")
-    p.add_argument("--writer", default="none", choices=["none", "apple"], help="with --pipeline (default: none)")
+    p.add_argument("--brain", default="scripted", choices=["scripted", "jev"],
+                   help="with --pipeline: the headless app's brain; jev needs BOOP_JEV_KEY (default: scripted)")
     p.set_defaults(func=cmd_soak)
     p = sub.add_parser("e2e", help="the pipeline check: hooks → headless app → bridge → board (L4)")
-    p.add_argument("--writer", default="none", choices=["none", "apple"],
-                   help="the brain's writer; the classifier is always the rules (default: none)")
+    p.add_argument("--brain", default="scripted", choices=["scripted", "jev"],
+                   help="the headless app's brain: scripted answers every pass the same way; jev needs BOOP_JEV_KEY "
+                        "(default: scripted)")
     p.add_argument("--out", default="/tmp/boop-e2e-out", help="results, logs and screenshots")
     p.add_argument("fixture", nargs="*", help="paths under app/Tests/Fixtures/hooks/e2e (default: all three)")
     p.add_argument("--clip", action="store_true",

@@ -52,15 +52,12 @@ final class AppModel: ObservableObject {
     @Published var restartAgents = false
     /// Why the last Connect, Repair or Remove failed, per agent.
     @Published var hookErrors: [HookInstaller.Agent: String] = [:]
-    /// How much Boop reacts, chosen in settings; `status` has the brain it runs.
-    @Published var mode = Mode.normal
+    /// Who Boop is, chosen in settings; `status` has the brain it runs.
+    @Published var personality = Personality.boop
     @Published var nature = LongTerm.Nature.sweet
     @Published var startError: String?
     /// Why push-to-talk couldn't hear you, until the next try.
     @Published var talkError: String?
-    /// Why Apple's model can't run, or nil: asked when the popover opens,
-    /// not on every redraw.
-    @Published var appleUnavailable = AppleWriter.unavailableReason
 
     let installer: HookInstaller
     /// False on a folder other than the everyday one: then this copy never
@@ -142,17 +139,17 @@ final class AppModel: ObservableObject {
         runtime?.setListening(on)
     }
 
-    /// Takes effect at once (BEHAVIORS.md §6).
-    func setMode(_ mode: Mode) {
-        guard mode != self.mode else { return }
-        self.mode = mode
-        status?.mode = mode
-        runtime?.setMode(mode)
+    /// Takes effect from the next event (BEHAVIORS.md §6).
+    func setPersonality(_ personality: Personality) {
+        guard personality != self.personality else { return }
+        self.personality = personality
+        status?.personality = personality
+        runtime?.setPersonality(personality)
     }
 
-    /// Jev's key changed: normal mode decides with it from the next input.
+    /// Jev's key changed: the brain uses it from the next event.
     func jevKeyChanged(_ key: String?) {
-        runtime?.reloadBrains(jevKey: key)
+        runtime?.reloadBrain(jevKey: key)
     }
 
     /// What "Boop couldn't start" says, in plain words; the log keeps the
@@ -170,7 +167,7 @@ final class AppModel: ObservableObject {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let stateDir: URL
     let link: LinkSetting
-    /// Debug mode (HARNESS.md §8): everything printed to the terminal that
+    /// Debug mode (harness/HARNESS.md §9): everything printed to the terminal that
     /// started the app, and every pass to `debug.jsonl`.
     let debug: Bool
     let log: LogFile
@@ -250,7 +247,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.animates = false
         popover.delegate = self
 
-        let memory = try? MemoryStore(directory: stateDir, steering: "")
+        let memory = try? MemoryStore(directory: stateDir)
         if memory?.isSetUp == true {
             startRuntime()
         } else {
@@ -327,7 +324,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             // Read before start: from then on the runtime's state belongs to
             // its own queue.
-            model.mode = runtime.settings.mode
+            model.personality = runtime.settings.personality
             model.nature = runtime.memory.longTerm?.nature ?? .sweet
             try runtime.start()
             self.runtime = runtime
@@ -365,7 +362,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     func showPopover() {
         guard let button = statusItem?.button else { return }
         model.refreshHooks()
-        model.appleUnavailable = AppleWriter.unavailableReason
         runtime?.refresh()
         NSApp.activate()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)

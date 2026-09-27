@@ -2,475 +2,327 @@ import Foundation
 import XCTest
 @testable import BoopKit
 
-/// A classifier that answers from a script, after a delay, and keeps what it saw.
-final class FakeClassifier: Classifier, @unchecked Sendable {
-    let id = "fake-classifier@1"
-    let delayMs: Int
-    let answer: @Sendable (Input) throws -> [ToolCall]
-    let lock = NSLock()
-    var seen: [Context] = []
+/// The harness, its state text, the actions and Jev's wire format
+/// (harness/HARNESS.md, harness/DECISIONS.md).
+let harnessT0: Int64 = 1_790_000_000_000
 
-    init(delayMs: Int = 0, _ answer: @escaping @Sendable (Input) throws -> [ToolCall]) {
-        self.delayMs = delayMs
-        self.answer = answer
+/// An action that records the answers it gets. Not nested in a test: the
+/// shim's runner generator would take it for the test class.
+final class Recorder: Action {
+    let name: String
+    let keys: [String]
+    var got: [Answers] = []
+    var result: ActionResult?
+    init(_ name: String, keys: [String], result: ActionResult?) {
+        self.name = name
+        self.keys = keys
+        self.result = result
     }
-
-    func classify(_ context: Context, _ menu: Menu, deadline: Duration) async throws -> Classification {
-        lock.withLock { seen.append(context) }
-        if delayMs > 0 { try await Task.sleep(for: .milliseconds(delayMs)) }
-        return Classification(calls: try answer(context.input), evidence: "scripted")
+    func questions() -> [Question] {
+        keys.map { Question(key: $0, text: "?", about: "the NOW section", judgeBy: "x", options: [Option("a", "A"), Option("b", "B")]) }
+    }
+    func run(_ answers: Answers) -> ActionResult? {
+        got.append(answers)
+        return result
     }
 }
 
-/// A writer that fills slots from a script, and keeps what it was asked.
-final class FakeWriter: Writer, @unchecked Sendable {
-    let id = "fake-writer@1"
-    let answer: @Sendable ([Slot]) throws -> [String: String]
-    let lock = NSLock()
-    var asked: [(context: Context, slots: [Slot])] = []
-
-    init(_ answer: @escaping @Sendable ([Slot]) throws -> [String: String] = { _ in [:] }) {
-        self.answer = answer
+struct SlowBrain: Brain {
+    let id = "slow"
+    let ms: Int
+    func answer(state: String, questions: [Question], deadline: Duration) async throws -> Answers {
+        try await Task.sleep(for: .milliseconds(ms))
+        return [:]
     }
-
-    func write(_ context: Context, _ slots: [Slot], deadline: Duration) async throws -> Writing {
-        lock.withLock { asked.append((context, slots)) }
-        return Writing(values: try answer(slots), raw: "scripted")
-    }
-
-    var calls: Int { lock.withLock { asked.count } }
-}
-
-/// Records what the harness hands off, touched only on the harness's queue.
-final class HarnessRig: @unchecked Sendable {
-    let home = DispatchQueue(label: "test.harness")
-    var handled: [ToolCall] = []
-    var records: [Harness.Record] = []
-    var logs: [String] = []
-    var memory = Prompt.Memory(steering: "# Boop\n", longTerm: "## Boop\n", shortTerm: "## Today\n")
-    var harness: Harness!
-
-    init(classifier: any Classifier, writer: any Writer = FakeWriter(), debugLog: URL? = nil) {
-        let tools = [
-            ToolDefinition(name: "react", description: "React.", parameters: [
-                .init("feeling", .choice(["happy", "sulky", "proud"])),
-                .init("word", .choice(["hi", "finally"]), optional: true, role: .written),
-            ]),
-            ToolDefinition(name: "quiet", description: "Quiet.", parameters: [.init("minutes", .number([15, 30]))]),
-            ToolDefinition(name: "remember", description: "Remember.", parameters: [
-                .init("where", .choice(["today", "about_you", "preference"])),
-                .init("text", .text(maxLength: 20, by: "where", limits: ["today": 10]), role: .written),
-            ]),
-        ].map { d in Harness.Tool(definition: d, handle: { [unowned self] call in handled.append(call); return .done("ok") }) }
-        harness = Harness(classifier: classifier, writer: writer, tools: tools, memory: { [unowned self] in self.memory },
-                          home: home, debugLog: debugLog, log: { [unowned self] in logs.append($0) })
-        harness.onRecord = { [unowned self] in records.append($0) }
-    }
-
-    func submit(_ input: Input) { home.sync { harness.submit(input) } }
-
-    /// Waits until nothing is running or waiting.
-    func settle(timeoutMs: Int = 3000) async {
-        for _ in 0..<(timeoutMs / 10) {
-            if home.sync(execute: { harness.idle }) { return }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        XCTFail("harness didn't settle")
-    }
-
-    var snapshot: (handled: [ToolCall], records: [Harness.Record]) { home.sync { (handled, records) } }
-    var entries: [Transcript.Entry] { home.sync { harness.transcript.entries } }
-}
-
-func input(_ kind: Input.Kind, words: String? = nil, yelled: Bool = false, outcome: Input.Outcome? = nil,
-           tookMs: Int64? = nil, rules: String? = nil, at minutes: Double = 0) -> Input {
-    Input(kind, agent: kind == .agentStarted || kind == .agentFinished ? "claude" : nil,
-          project: kind == .agentStarted || kind == .agentFinished ? "jetpack" : nil,
-          outcome: kind == .agentFinished ? outcome ?? .done : nil, tookMs: tookMs, words: words, yelled: yelled,
-          clock: "14:05", weekday: "Tuesday", rules: rules, ts: Int64(minutes * 60_000))
 }
 
 final class HarnessTests: XCTestCase {
-    static let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures")
-    static let steering = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        .appendingPathComponent("../../plan/steering.md").standardizedFileURL
+    static var t0: Int64 { harnessT0 }
 
-    func run(_ rig: HarnessRig, _ inputs: [Input]) async -> [Harness.Record] {
-        for i in inputs {
-            rig.submit(i)
-            await rig.settle()
+    func event(_ kind: Event.Kind, at minutes: Int64, _ line: String, reaction: String? = nil, wakes: Bool = true) -> Event {
+        Event(kind, at: Self.t0 + minutes * 60_000, line: line, reaction: reaction, wakesBrain: wakes)
+    }
+
+    static let parts = StateText.Parts(guide: "You are the mind of Boop.", personality: "PERSONALITY\nCurious.",
+                                       mood: "MOOD\nCheerful.", status: "Working now: nothing else.",
+                                       workingSince: nil, clock: "14:23, Tuesday")
+
+    /// harness/HARNESS.md §5.3: HISTORY and NOW, built step by step from
+    /// the typed entries: only events, oldest first, relative times, what
+    /// Boop did indented under what it answered (its rule reaction first,
+    /// then its successful actions), failed actions and passes left out.
+    func testTheTextFormFollowsTheSteps() {
+        let t = Transcript()
+        let start = t.append(.event(event(.turnStart, at: 5, #"claude started turn 7 on "fix-nav" (landing)."#)), at: Self.t0 + 5 * 60_000)
+        t.append(.pass(.init(forSeq: start.seq, answers: [:], dropped: nil, latencyMs: 200)), at: Self.t0)
+        let failed = t.append(.event(event(.toolUse, at: 14, #"claude's tests failed again on "fix-nav" (landing), 2 in a row."#)),
+                              at: Self.t0 + 14 * 60_000)
+        t.append(.action(.init(forSeq: failed.seq, name: "react", result: .done(#"Boop mumbled, annoyed: "…tests!""#), latencyMs: 1)), at: Self.t0)
+        t.append(.action(.init(forSeq: failed.seq, name: "mood", result: .failed("changed 4 min ago"), latencyMs: 1)), at: Self.t0)
+        t.append(.event(event(.tap, at: 19, "You tapped Boop.", reaction: "Boop wiggled on its own.", wakes: false)),
+                 at: Self.t0 + 19 * 60_000)
+        let end = t.append(.event(event(.turnEnd, at: 23, #"claude finished turn 7 on "fix-nav" (landing): done."#,
+                                        reaction: "Boop cheered on its own.")), at: Self.t0 + 23 * 60_000)
+        var parts = Self.parts
+        parts.workingSince = Self.t0 + 5 * 60_000  // the turn is still working, so HISTORY reaches back to its start
+        let state = StateText.build(t.entries, now: end, at: Self.t0 + 23 * 60_000 + 5000, parts)
+        XCTAssertEqual(state, """
+            You are the mind of Boop.
+            \(StateText.reading)
+            \(EventLine.words)
+
+            PERSONALITY
+            Curious.
+
+            MOOD
+            Cheerful.
+
+            HISTORY (oldest first; indented lines are what Boop did)
+            18 min ago: claude started turn 7 on "fix-nav" (landing).
+            9 min ago: claude's tests failed again on "fix-nav" (landing), 2 in a row.
+              Boop mumbled, annoyed: "…tests!"
+            4 min ago: You tapped Boop.
+              Boop wiggled on its own.
+            Working now: nothing else.
+
+            NOW (14:23, Tuesday)
+            claude finished turn 7 on "fix-nav" (landing): done.
+            Boop cheered on its own.
+            """)
+    }
+
+    /// §5.3: HISTORY reaches back 10 minutes, or to the oldest working
+    /// turn, whichever is further, and holds at most 40 events.
+    func testHistoryReachesBackTenMinutesOrToTheOldestWorkingTurn() {
+        XCTAssertEqual(StateText.historyMs, 600_000)
+        XCTAssertEqual(StateText.historyLimit, 40)
+        let t = Transcript()
+        let old = t.append(.event(event(.turnStart, at: 0, "old")), at: Self.t0)
+        _ = old
+        for i in 1...50 { t.append(.event(event(.tap, at: 20, "tap \(i)", wakes: false)), at: Self.t0 + 20 * 60_000) }
+        let now = t.append(.event(event(.heartbeat, at: 21, "now")), at: Self.t0 + 21 * 60_000)
+        let recent = StateText.history(t.entries, now: now, at: Self.t0 + 21 * 60_000, status: "s", workingSince: nil)
+        XCTAssertFalse(recent.contains(": old"), "21 minutes ago is past the 10")
+        XCTAssertEqual(recent.split(separator: "\n").count, 1 + 40 + 1, "a heading, 40 events, the status line")
+        XCTAssertTrue(recent.contains("tap 50") && !recent.contains("tap 10\n"), "the newest 40")
+        let working = StateText.history(t.entries, now: now, at: Self.t0 + 21 * 60_000, status: "s", workingSince: Self.t0)
+        XCTAssertTrue(working.contains("21 min ago: old") || !working.contains("tap 1\n"), "the working turn's start counts, within the 40")
+        XCTAssertEqual(StateText.ago(59_999), "just now")
+        XCTAssertEqual(StateText.ago(9 * 60_000), "9 min ago")
+        XCTAssertEqual(StateText.ago(2 * 3_600_000 + 5), "2 h ago")
+    }
+
+    // MARK: The harness
+
+    func harness(_ brain: (any Brain)?, _ actions: [any Action]) -> (Harness, DispatchQueue) {
+        let home = DispatchQueue(label: "test.home")
+        let h = Harness(brain: brain, actions: actions, parts: { _ in Self.parts }, home: home, clock: { harnessT0 })
+        return (h, home)
+    }
+
+    /// HARNESS.md §3–4: one request with every action's questions; each
+    /// action gets only its own answers, in order; a nil result records
+    /// nothing, and every result is recorded under its event.
+    func testAPassAsksEveryQuestionAndHandsEachActionItsOwn() async throws {
+        let seen = Lines()
+        let brain = ScriptedBrain { state, questions in
+            seen.add(questions.map(\.key).joined(separator: ","))
+            XCTAssertTrue(state.hasSuffix("NOW (14:23, Tuesday)\nit happened\nBoop did nothing on its own."))
+            return ["one": Answer(choice: "a"), "two": Answer(choice: "b"), "three": Answer(choice: "a")]
         }
-        return rig.snapshot.records
-    }
-
-    // MARK: One pass
-
-    /// HARNESS.md §3: Stage 1's calls run in the menu's order (quiet, react,
-    /// remember), with Stage 2's words filled in.
-    func testCallsRunInTheMenusOrderWithTheirWords() async {
-        let writer = FakeWriter { slots in Dictionary(uniqueKeysWithValues: slots.map { ($0.key, $0.key == "react.word" ? "hi" : "demo Thu") }) }
-        let rig = HarnessRig(classifier: FakeClassifier { _ in
-            [remember("today"), react("happy"), ToolCall("quiet", ["minutes": .number(30)])]
-        }, writer: writer)
-        let records = await run(rig, [input(.said, words: "be quiet, the demo is on Thursday")])
-        XCTAssertEqual(rig.snapshot.handled, [ToolCall("quiet", ["minutes": .number(30)]), react("happy", word: "hi"),
-                                              remember("today", "demo Thu")])
-        XCTAssertEqual(records[0].slots, ["react.word", "remember.text"])
-        XCTAssertEqual(records[0].wrote, ["react.word": "hi", "remember.text": "demo Thu"])
-        XCTAssertTrue(records[0].answered)
-        XCTAssertEqual(records[0].logLine, "brain you said \(records[0].latencyMs) ms → quiet, react, remember")
-    }
-
-    /// HARNESS.md §3 step 5: Stage 2 runs only when something needs words.
-    func testAQuietNeedsNoWriter() async {
-        let writer = FakeWriter()
-        let rig = HarnessRig(classifier: FakeClassifier { _ in [ToolCall("quiet", ["minutes": .number(15)])] }, writer: writer)
-        _ = await run(rig, [input(.said, words: "be quiet")])
-        XCTAssertEqual(writer.calls, 0)
-        XCTAssertEqual(rig.snapshot.handled.count, 1)
-    }
-
-    /// The writer sees everything: the input, the rules' reaction, and
-    /// Stage 1's decision it's writing for.
-    func testTheWriterSeesTheDecision() async throws {
-        let writer = FakeWriter { _ in ["react.word": "finally"] }
-        let rig = HarnessRig(classifier: FakeClassifier { _ in [react("proud")] }, writer: writer)
-        let finished = input(.agentFinished, tookMs: 1_080_000, rules: "cheer")
-        _ = await run(rig, [finished])
-        let asked = try XCTUnwrap(writer.asked.first)
-        XCTAssertEqual(asked.context.window, [.input(finished), .rules("cheer"),
-                                              .decided(by: "fake-classifier@1", [react("proud")], evidence: "scripted")])
-        XCTAssertEqual(asked.slots.map(\.key), ["react.word"])
-        XCTAssertEqual(asked.slots[0].kind, .word(["hi", "finally"]))
-        XCTAssertEqual(rig.entries.suffix(2), [.wrote(by: "fake-writer@1", ["react.word": "finally"]),
-                                               .ran(react("proud", word: "finally"), .done("ok"))])
-    }
-
-    /// HARNESS.md §3 step 4: one bad call drops them all.
-    func testCallsOffTheMenuAreAllDropped() async {
-        let cases: [(Input, [ToolCall], String)] = [
-            (input(.agentFinished), [react("happy"), ToolCall("quiet", ["minutes": .number(15)])], "quiet isn't on the menu"),
-            // HARNESS.md §2: quiet is on the menu only when the words ask for it.
-            (input(.said, words: "shut up"), [ToolCall("quiet", ["minutes": .number(15)])], "quiet isn't on the menu"),
-            (input(.said), [react("happy", word: "hi")], "react: word is the writer's"),
-            (input(.said), [remember("moment")], "remember: where isn't one of its choices"),
-            (input(.said), [remember("today", "x")], "remember: text is the writer's"),
-            (input(.said), [react("happy"), react("happy")], "react twice"),
-            (input(.said), [react("happy"), react("sulky")], "react twice"),
-            (input(.said), [react("angry")], "react: feeling isn't one of its choices"),
-            (input(.said), [ToolCall("react")], "react: feeling is missing"),
-        ]
-        for (i, calls, why) in cases {
-            let rig = HarnessRig(classifier: FakeClassifier { _ in calls })
-            let records = await run(rig, [i])
-            XCTAssertEqual(records.first?.dropped, "off the menu: \(why)")
-            XCTAssertEqual(rig.snapshot.handled, [])
-            XCTAssertEqual(rig.entries.last, .dropped("off the menu: \(why)"))
-        }
-    }
-
-    /// A line left empty drops only its own call.
-    func testAnEmptyLineDropsOnlyItsCall() async {
-        let writer = FakeWriter { _ in ["react.word": "hi"] }
-        let rig = HarnessRig(classifier: FakeClassifier { _ in [react("happy"), remember("today")] }, writer: writer)
-        let records = await run(rig, [input(.said, words: "remember")])
-        XCTAssertEqual(records[0].slots, ["react.word", "remember.text"])
-        XCTAssertEqual(records[0].ran.map(\.outcome), [.done("ok"), .dropped("nothing was written")])
-        XCTAssertEqual(rig.snapshot.handled, [react("happy", word: "hi")])
-    }
-
-    /// A text that doesn't fit its section's limit counts as empty.
-    func testWordsThatDontFitAreLeftEmpty() async {
-        let writer = FakeWriter { _ in ["react.word": "kubernetes", "remember.text": "far too long for today"] }
-        let rig = HarnessRig(classifier: FakeClassifier { _ in [react("happy"), remember("today")] }, writer: writer)
-        let records = await run(rig, [input(.said, words: "hi")])
-        XCTAssertEqual(records[0].wrote, ["react.word": "", "remember.text": ""])
-        XCTAssertEqual(rig.snapshot.handled, [react("happy")])
-    }
-
-    /// HARNESS.md §3: when Stage 2 fails, a mumble goes without its word and
-    /// nothing is remembered.
-    /// HARNESS.md §6: when Jev doesn't answer in its share of the deadline,
-    /// the table decides and the writer still has time for a memory line,
-    /// which takes Apple's model about 1.6–2.2 s.
-    func testAfterAModelTimesOutTheWriterStillHasTimeToRemember() async {
-        struct Slow: Writer {
-            let id = "slow@1"
-            func write(_ context: Context, _ slots: [Slot], deadline: Duration) async throws -> Writing {
-                try await Task.sleep(for: .milliseconds(2200))
-                return Writing(values: ["react.word": "hi", "remember.text": "pairs"])
-            }
-        }
-        let silent = FakeClassifier(delayMs: 10_000) { _ in [] }
-        let rig = HarnessRig(classifier: FallbackClassifier(silent, else: Rules(.normal)), writer: Slow())
-        rig.submit(input(.said, words: "remember I always pair on Mondays"))
-        await rig.settle(timeoutMs: 5000)
-        XCTAssertNil(rig.snapshot.records.first?.writeFailed)
-        XCTAssertEqual(rig.snapshot.handled.map(\.name), ["react", "remember"])
-    }
-
-    func testAFailedWriterLeavesEverySlotEmpty() async {
-        let writer = FakeWriter { _ in throw BrainError("offline") }
-        let rig = HarnessRig(classifier: FakeClassifier { _ in [react("happy"), remember("today")] }, writer: writer)
-        let records = await run(rig, [input(.said, words: "remember x")])
-        XCTAssertEqual(records[0].writeFailed, "offline")
-        XCTAssertEqual(rig.snapshot.handled, [react("happy")])
-        XCTAssertEqual(records[0].ran.last?.outcome, .dropped("nothing was written"))
-        XCTAssertTrue(rig.entries.contains(.writeFailed(by: "fake-writer@1", "offline")))
-        XCTAssertTrue(records[0].logLine.hasSuffix("→ react, remember (dropped) (writer failed: offline)"), records[0].logLine)
-    }
-
-    func testClassifierErrorsAndLateAnswersAreDropped() async {
-        let failing = HarnessRig(classifier: FakeClassifier { _ in throw BrainError("offline") })
-        let records = await run(failing, [input(.agentStarted)])
-        XCTAssertEqual(records.first?.dropped, "offline")
-        XCTAssertEqual(failing.entries.last, .dropped("offline"))
-
-        // Work that ignores its deadline: the answer comes too late.
-        let start = ContinuousClock.now
-        let late: Result<Int, BrainError> = await Harness.race(50) {
-            try await Task.sleep(for: .seconds(60))
-            return 1
-        }
-        XCTAssertEqual(late.failureReason, "late: no answer within 50 ms")
-        XCTAssertLessThan(ContinuousClock.now - start, .seconds(2))
-    }
-
-    func testStayingQuietIsNoCalls() async {
-        let rig = HarnessRig(classifier: FakeClassifier { _ in [] })
-        let records = await run(rig, [input(.agentStarted)])
-        XCTAssertTrue(records[0].silent)
-        XCTAssertTrue(records[0].logLine.hasSuffix(" ms → nothing"), records[0].logLine)
-        XCTAssertEqual(rig.entries.last, .decided(by: "fake-classifier@1", [], evidence: "scripted"))
-    }
-
-    // MARK: Scheduling
-
-    func testANewerInputReplacesTheWaitingOne() async {
-        let rig = HarnessRig(classifier: FakeClassifier(delayMs: 150) { i in i.kind == .agentFinished ? [react("happy")] : [] })
-        rig.submit(input(.agentStarted))
-        rig.submit(input(.agentStarted))
-        rig.submit(input(.agentFinished))
-        await rig.settle()
-        let records = rig.snapshot.records
-        XCTAssertEqual(records.map(\.input.kind), [.agentStarted, .agentFinished])
-        XCTAssertEqual(rig.snapshot.handled, [react("happy")])
-        XCTAssertTrue(rig.home.sync { rig.logs.contains("harness: agent started replaced by a newer agent finished") })
-    }
-
-    /// HARNESS.md §4: asides don't move the window, so at most eight follow
-    /// an input; a burst of taps can't crowd out the prompt.
-    func testABurstOfAsidesIsCapped() async {
-        let rig = HarnessRig(classifier: FakeClassifier { _ in [] })
-        for i in 0..<30 { rig.home.sync { rig.harness.note("tapped \(i)", at: Int64(i)) } }
-        XCTAssertEqual(rig.entries.count, Transcript.asidesPerInput)
-        _ = await run(rig, [input(.agentStarted)])
-        rig.home.sync { rig.harness.note("tapped again", at: 99) }
-        XCTAssertTrue(rig.entries.contains(.aside("tapped again", ts: 99)), "an input makes room again")
-    }
-
-    func testYouTalkingCancelsWhateverIsRunning() async {
-        let rig = HarnessRig(classifier: FakeClassifier(delayMs: 300) { i in
-            i.kind == .said ? [react("sulky")] : [react("happy")]
-        })
-        rig.submit(input(.agentStarted))
-        try? await Task.sleep(for: .milliseconds(50))
-        rig.submit(input(.said, words: "hush"))
-        await rig.settle()
-        try? await Task.sleep(for: .milliseconds(400)) // the cancelled pass's answer would be in by now
-        let (handled, records) = rig.snapshot
-        XCTAssertEqual(handled, [react("sulky")])
-        XCTAssertEqual(records.map(\.input.kind), [.agentStarted, .said])
-        XCTAssertEqual(records[0].dropped, "cancelled by you talking")
-        XCTAssertTrue(rig.entries.contains(.dropped("cancelled by you talking")))
-    }
-
-    /// Taps and "needs you" go in the transcript, and start no pass.
-    func testAsidesJoinTheTranscriptOnly() async {
-        let classifier = FakeClassifier { _ in [] }
-        let rig = HarnessRig(classifier: classifier)
-        rig.home.sync { rig.harness.note("tapped · 14:07 Tuesday: Boop wiggled", at: 60_000) }
-        _ = await run(rig, [input(.agentStarted, at: 2)])
-        XCTAssertEqual(rig.snapshot.records.count, 1)
-        XCTAssertEqual(classifier.seen.first?.window.first, .aside("tapped · 14:07 Tuesday: Boop wiggled", ts: 60_000))
-    }
-
-    /// BEHAVIORS.md §6: a new mode's brains take the next pass; one already
-    /// running finishes with the brains it started with.
-    func testNewBrainsTakeTheNextPass() async {
-        let old = FakeClassifier(delayMs: 200) { _ in [react("happy")] }
-        let new = FakeClassifier { _ in [react("sulky")] }
-        let rig = HarnessRig(classifier: old)
-        rig.submit(input(.agentStarted))
-        rig.home.sync { rig.harness.use(new, FakeWriter()) }
-        rig.submit(input(.agentFinished))
-        await rig.settle()
-        XCTAssertEqual(rig.snapshot.handled, [react("happy"), react("sulky")])
-        XCTAssertEqual(old.seen.count, 1)
-        XCTAssertEqual(new.seen.map(\.input.kind), [.agentFinished])
-    }
-
-    // MARK: Logging
-
-    func testDebugModeLogsOneJSONLinePerPass() async throws {
-        let log = FileManager.default.temporaryDirectory.appendingPathComponent("boop-harness-\(UUID().uuidString).jsonl")
-        defer { try? FileManager.default.removeItem(at: log) }
-        let rig = HarnessRig(classifier: FakeClassifier { _ in [react("proud")] }, writer: FakeWriter { _ in ["react.word": "finally"] },
-                             debugLog: log)
-        _ = await run(rig, [input(.agentFinished, tookMs: 600_000), input(.said, words: "hi")])
-        let lines = try String(contentsOf: log, encoding: .utf8).split(separator: "\n")
-        XCTAssertEqual(lines.count, 2)
-        let first = try JSONSerialization.jsonObject(with: Data(lines[0].utf8)) as! [String: Any]
-        XCTAssertEqual(first["classifier"] as? String, "fake-classifier@1")
-        XCTAssertEqual(first["writer"] as? String, "fake-writer@1")
-        XCTAssertEqual(first["decided"] as? [String], ["react(feeling: proud)"])
-        XCTAssertEqual(first["wrote"] as? [String: String], ["react.word": "finally"])
-        XCTAssertEqual(first["window"] as? Int, 1)
-        // The memory and Stage 1's window, as debug mode prints them.
-        XCTAssertNotNil((first["memory"] as? [String: String])?["short_term"])
-        XCTAssertEqual((first["context"] as? [String])?.count, 1)
-        XCTAssertEqual((first["input"] as? [String: Any])?["line"] as? String,
-                       "agent finished · done · claude · jetpack · a very long turn (10 min) · 14:05 Tuesday")
-        XCTAssertNotNil(first["latency_ms"])
-        let second = try JSONSerialization.jsonObject(with: Data(lines[1].utf8)) as! [String: Any]
-        XCTAssertEqual(second["window"] as? Int, 2)
-    }
-
-    /// HARNESS.md §8: the record says what each stage was handed: the
-    /// writer's prompt, and what Stage 1's model answered when it couldn't
-    /// be used, whether the pass was dropped or a table decided instead.
-    func testTheRecordHasEachStagesOwnContext() async throws {
-        struct Prompted: Writer {
-            let id = "prompted@1"
-            func write(_ context: Context, _ slots: [Slot], deadline: Duration) async throws -> Writing {
-                Writing(values: ["react.word": "hi"])
-            }
-            func prompt(_ context: Context, _ slots: [Slot]) -> String? { "write " + slots.map(\.key).joined() }
-        }
-        struct Garbled: Classifier {
-            let id = "garbled@1"
-            func classify(_ context: Context, _ menu: Menu, deadline: Duration) async throws -> Classification {
-                throw BrainError("no answers", raw: "{\"oops\": 1}")
-            }
-        }
-        let written = await run(HarnessRig(classifier: FakeClassifier { _ in [react("happy")] }, writer: Prompted()),
-                                [input(.said, words: "hi")])
-        XCTAssertEqual(written[0].writerPrompt, "write react.word")
-        XCTAssertTrue(written[0].json.contains("\"writer_prompt\":\"write react.word\""))
-        let dropped = await run(HarnessRig(classifier: Garbled()), [input(.agentStarted)])
-        XCTAssertEqual(dropped[0].classifierRaw, "{\"oops\": 1}")
-        XCTAssertTrue(dropped[0].json.contains("\"classifier_raw\""))
-        let fallback = FallbackClassifier(Garbled(), else: FakeClassifier { _ in [] })
-        let decided = await run(HarnessRig(classifier: fallback), [input(.agentStarted)])
-        XCTAssertNil(decided[0].dropped)
-        XCTAssertEqual(decided[0].classifierRaw, "{\"oops\": 1}")
-    }
-
-    /// HARNESS.md §8: the printer shows the memory in full once, then only
-    /// the lines that changed.
-    func testThePrinterShowsOnlyWhatChangedInMemory() throws {
-        func pass(_ shortTerm: String) throws -> String {
-            let o: [String: Any] = ["input": ["line": "agent started"], "memory": ["long_term": "## Boop\nname: Pip", "short_term": shortTerm]]
-            return String(decoding: try JSONSerialization.data(withJSONObject: o), as: UTF8.self)
-        }
-        let printer = DebugLog.Printer()
-        let first = printer.readable(try pass("## Happened\n- 14:00 started"))
-        XCTAssertTrue(first.contains("    memory\n      ## Boop\n      name: Pip\n\n      ## Happened\n      - 14:00 started"), first)
-        let same = printer.readable(try pass("## Happened\n- 14:00 started"))
-        XCTAssertTrue(same.contains("    memory   the same as the pass before"), same)
-        let grown = printer.readable(try pass("## Happened\n- 14:00 started\n- 14:05 finished"))
-        XCTAssertTrue(grown.contains("    memory   1 line changed since the pass before\n      + - 14:05 finished"), grown)
-        XCTAssertFalse(grown.contains("name: Pip"), grown)
-        let rolled = printer.readable(try pass("## Happened\n- 14:05 finished\n- 14:09 finished"))
-        XCTAssertTrue(rolled.contains("2 lines changed since the pass before\n      - - 14:00 started\n      + - 14:09 finished"), rolled)
-    }
-
-    func testWithoutDebugModeNothingIsWritten() async {
-        let rig = HarnessRig(classifier: FakeClassifier { _ in [] })
-        XCTAssertNil(rig.harness.debugLog)
-        _ = await run(rig, [input(.agentStarted)])
-        XCTAssertEqual(rig.snapshot.records.count, 1)
-    }
-
-    /// HARNESS.md §8: outside debug mode, what you said and what the brain
-    /// wrote never reach the log. The app's log gets each pass's line, the
-    /// harness's own lines and every action's drop reasons: they name
-    /// outputs and reasons, never an argument's text.
-    func testTheLogNeverGetsWhatYouSaid() async throws {
-        final class Lines: @unchecked Sendable {
-            let lock = NSLock()
-            var all: [String] = []
-            func add(_ line: String) { lock.withLock { all.append(line) } }
-        }
-        let said = "PRIVATE_sam moves to Lisbon"
-        // A note that's kept, then the same note again, which the store
-        // refuses, then one it refuses as code.
-        let notes = [said, said, said + " `x`"]
-        let memory = try MemoryRig()
-        let lines = Lines()
-        for note in notes {
-            let context = ActionContext(send: { _ in }, log: lines.add)
-            let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 1)), memory: memory.store)
-            let harness = Harness(classifier: FakeClassifier { _ in [react("happy"), remember("today")] },
-                                  writer: FakeWriter { _ in ["react.word": "hi", "remember.text": note] },
-                                  tools: actions.map(Harness.Tool.init), memory: { memory.store.promptMemory() },
-                                  home: DispatchQueue(label: "test.log"), log: lines.add)
-            harness.onRecord = { lines.add($0.logLine) }  // as the Runtime wires it
-            _ = await harness.respond(to: input(.said, words: said))
-        }
-        XCTAssertEqual(memory.store.shortTerm?.notes, [said], "the note itself was kept")
-        let logged = lines.lock.withLock { lines.all }
-        for line in logged { XCTAssertFalse(line.contains("PRIVATE_") || line.contains("Lisbon"), line) }
-        let brain = logged.filter { $0.hasPrefix("brain you said ") }
-        XCTAssertEqual(brain.count, 3)
-        XCTAssertTrue(brain[0].hasSuffix(" ms → react, remember"), brain[0])
-        XCTAssertTrue(brain[1].hasSuffix(" ms → react, remember (dropped)"), brain[1])
-        XCTAssertTrue(logged.contains("remember: dropped: already noted"), "\(logged)")
-        XCTAssertTrue(logged.contains("remember: dropped: looks like code"), "\(logged)")
-    }
-
-    // MARK: Budgets and fixtures
-
-    /// The real steering.md and the sample memory fit every budget in
-    /// HARNESS.md §4, with every input in the fixtures.
-    func testTheSampleFitsTheBudgets() throws {
-        let steering = try String(contentsOf: Self.steering, encoding: .utf8)
-        let rig = try MemoryRig(setUp: false)
-        for file in ["long-term.md", "short-term.md"] {
-            try FileManager.default.copyItem(at: Self.fixtures.appendingPathComponent("memory/" + file),
-                                             to: rig.dir.appendingPathComponent(file))
-        }
-        let store = try MemoryStore(directory: rig.dir, steering: steering)
-        XCTAssertNotNil(store.longTerm)
-        XCTAssertNotNil(store.shortTerm)
-        for i in try Self.fixtureInputs() {
-            XCTAssertEqual(Prompt.overBudget(i, store.promptMemory()), [], i.line)
+        let first = Recorder("first", keys: ["one", "two"], result: .done("Boop did one."))
+        let second = Recorder("second", keys: ["three"], result: nil)
+        let (h, home) = harness(brain, [first, second])
+        let recordResult = await h.respond(to: event(.turnStart, at: 0, "it happened"))
+        let record = try XCTUnwrap(recordResult)
+        XCTAssertEqual(seen.all, ["one,two,three"], "one request")
+        XCTAssertEqual(first.got, [["one": Answer(choice: "a"), "two": Answer(choice: "b")]])
+        XCTAssertEqual(second.got, [["three": Answer(choice: "a")]])
+        XCTAssertEqual(record.actions.map(\.name), ["first"], "nil is nothing to record")
+        XCTAssertEqual(record.logLine, "brain turn_start \(record.pass.latencyMs) ms → first")
+        home.sync {
+            XCTAssertEqual(h.transcript.entries.count, 3, "the event, the pass, one action")
+            if case .action(let a) = h.transcript.entries[2].body { XCTAssertEqual(a.forSeq, 1) } else { XCTFail() }
         }
     }
 
-    static func fixtureInputs() throws -> [Input] {
-        let dir = fixtures.appendingPathComponent("inputs")
-        var out: [Input] = []
-        for file in try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted() where file.hasSuffix(".jsonl") {
-            for line in try String(contentsOf: dir.appendingPathComponent(file), encoding: .utf8).split(separator: "\n") {
-                out.append(try XCTUnwrap(Input.fixture(String(line)), String(line)))
-            }
+    /// An event that doesn't wake the brain, or no brain, gets no pass; a
+    /// brain that fails drops the pass and runs no action.
+    func testNoPassWithoutWakingOrABrainAndNoActionWhenItFails() async throws {
+        let a = Recorder("a", keys: ["k"], result: .done("x"))
+        let (h, _) = harness(ScriptedBrain(always: [:]), [a])
+        let tap = await h.respond(to: event(.tap, at: 0, "You tapped Boop.", wakes: false))
+        XCTAssertNil(tap)
+        let (none, _) = harness(nil, [a])
+        let nothing = await none.respond(to: event(.turnStart, at: 0, "x"))
+        XCTAssertNil(nothing)
+        let (broken, _) = harness(ScriptedBrain { _, _ in throw BrainError("jev: HTTP 500") }, [a])
+        let recordResult = await broken.respond(to: event(.turnStart, at: 0, "x"))
+        let record = try XCTUnwrap(recordResult)
+        XCTAssertEqual(record.pass.dropped, "jev: HTTP 500")
+        XCTAssertEqual(record.actions, [])
+        XCTAssertEqual(a.got.count, 0)
+        XCTAssertEqual(record.logLine, "brain turn_start \(record.pass.latencyMs) ms → dropped: jev: HTTP 500")
+    }
+
+    /// HARNESS.md §7: a pass that runs past 1.25 s is dropped.
+    func testALateAnswerIsDropped() async throws {
+        XCTAssertEqual(Harness.deadlineMs, 1250)
+        let (h, _) = harness(SlowBrain(ms: 3000), [Recorder("a", keys: ["k"], result: .done("x"))])
+        let recordResult = await h.respond(to: event(.turnStart, at: 0, "x"))
+        let record = try XCTUnwrap(recordResult)
+        XCTAssertEqual(record.pass.dropped, "late: no answer within 1250 ms")
+    }
+
+    /// HARNESS.md §3: one pass runs at a time, and a newer event replaces
+    /// one that's waiting; the replaced one is still recorded.
+    func testOnePassAtATimeAndTheNewestWaits() throws {
+        let seen = Lines()
+        let gate = DispatchSemaphore(value: 0)
+        let brain = ScriptedBrain { state, _ in
+            seen.add(String(state.split(separator: "\n").reversed()[1]))
+            if seen.all.count == 1 { gate.wait() }
+            return [:]
         }
-        return out
+        let (h, home) = harness(brain, [Recorder("a", keys: ["k"], result: nil)])
+        var records: [Harness.Record] = []
+        home.sync {
+            h.onRecord = { records.append($0) }
+            h.take(event(.turnStart, at: 0, "first"))
+            h.take(event(.turnStart, at: 0, "second"))
+            h.take(event(.turnStart, at: 0, "third"))
+        }
+        Thread.sleep(forTimeInterval: 0.1)
+        gate.signal()
+        let deadline = Date().addingTimeInterval(3)
+        while home.sync(execute: { records.count }) < 2 && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
+        XCTAssertEqual(seen.all, ["first", "third"], "second was replaced while it waited")
+        home.sync {
+            XCTAssertTrue(h.idle)
+            XCTAssertEqual(h.transcript.entries.filter { if case .event = $0.body { true } else { false } }.count, 3)
+        }
     }
 
-    func testThereAreFiftyFixtureInputsOfEveryKind() throws {
-        let inputs = try Self.fixtureInputs()
-        XCTAssertGreaterThanOrEqual(inputs.count, 50)
-        XCTAssertEqual(Set(inputs.map(\.kind)), Set(Input.Kind.allCases))
-        XCTAssertTrue(inputs.contains { $0.outcome == .failed })
-        XCTAssertTrue(inputs.filter { $0.kind == .said }.allSatisfy { $0.words != nil })
+    func testQuestionKeysMustBeUniqueAcrossActions() {
+        XCTAssertEqual(Set(Self.realActions().flatMap { $0.questions().map(\.key) }).count, 4)
     }
-}
 
-extension Result where Failure == BrainError {
-    var failureReason: String? {
-        if case .failure(let e) = self { return e.description }
-        return nil
+    static func realActions() -> [any Action] {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return [MoodAction(store: MoodStore(stateDir: dir), now: { 0 }),
+                ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _ in }, blocked: { nil })]
+    }
+
+    // MARK: The actions (DECISIONS.md §4–5)
+
+    func a(_ choice: String, _ p: Double = 0.9) -> Answer { Answer(choice: choice, probabilities: [choice: p]) }
+
+    /// DECISIONS.md §5: `none` does nothing; the word is the exclamation
+    /// over 0.35, else the topic, else none; quiet mode and the like fail.
+    func testReact() {
+        XCTAssertEqual(ReactAction.wordFloor, 0.35)
+        var sent: [DeviceMoment] = []
+        var why: String?
+        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { sent.append($0) }, blocked: { why })
+        XCTAssertNil(react.run(["react": a("none")]))
+        XCTAssertEqual(react.run(["react": a("annoyed"), "word.feeling": a("again", 0.57), "word.about": a("tests", 0.81)]),
+                       .done(#"Boop mumbled, annoyed: "…again!""#))
+        XCTAssertEqual(react.run(["react": a("curious"), "word.feeling": a("again", 0.31), "word.about": a("tests", 0.79)]),
+                       .done(#"Boop mumbled, curious: "…tests!""#))
+        XCTAssertEqual(react.run(["react": a("happy"), "word.feeling": a("none"), "word.about": a("docs", 0.2)]),
+                       .done("Boop mumbled, happy."))
+        XCTAssertEqual(sent.count, 3)
+        XCTAssertEqual(sent[0].say?.word, "again")
+        XCTAssertNil(sent[0].anim, "a mumble plays over the face")
+        why = "quiet mode"
+        XCTAssertEqual(react.run(["react": a("proud")]), .failed("quiet mode"))
+        XCTAssertEqual(sent.count, 3)
+        XCTAssertEqual(react.questions().map(\.key), ["react", "word.feeling", "word.about"])
+        XCTAssertEqual(react.questions()[0].options.map(\.name), ["none", "happy", "excited", "proud", "curious", "annoyed"])
+        XCTAssertEqual(react.questions()[1].options.map(\.name), ["none", "finally", "yay", "oops", "again", "ugh", "nope", "hmm"])
+        XCTAssertEqual(react.questions()[2].options.map(\.name), ["none", "tests", "build", "deploy", "docs"])
+        for word in ReactAction.exclamations.map(\.name) + ReactAction.topics.map(\.name) {
+            XCTAssertTrue(Sounds.vocabulary.contains(word), "\(word) is one of Voice's words")
+        }
+    }
+
+    /// DECISIONS.md §4: the current mood is nothing to do; a change within
+    /// 10 minutes fails; otherwise the file changes, and MOOD with it.
+    func testMood() throws {
+        XCTAssertEqual(MoodAction.minimumGapMs, 600_000)
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var now: Int64 = 0
+        let store = MoodStore(stateDir: dir)
+        XCTAssertEqual(store.current, "cheerful", "a new state directory starts cheerful")
+        let mood = MoodAction(store: store, now: { now })
+        XCTAssertNil(mood.run(["mood": a("cheerful")]))
+        XCTAssertEqual(mood.run(["mood": a("grumpy")]), .done("Boop's mood changed: cheerful → grumpy."))
+        try XCTAssertEqual(try String(contentsOf: dir.appendingPathComponent("mood"), encoding: .utf8), "grumpy\n")
+        now = 4 * 60_000
+        XCTAssertEqual(mood.run(["mood": a("cheerful")]), .failed("changed 4 min ago"))
+        now = 10 * 60_000
+        XCTAssertEqual(mood.run(["mood": a("cheerful")]), .done("Boop's mood changed: grumpy → cheerful."))
+        XCTAssertNil(mood.run(["mood": a("sulky")]), "not a mood")
+        try Data("grumpy\n".utf8).write(to: dir.appendingPathComponent("mood"))
+        XCTAssertEqual(MoodStore(stateDir: dir).current, "grumpy", "it survives a restart")
+        try Data("delighted\n".utf8).write(to: dir.appendingPathComponent("mood"))
+        XCTAssertEqual(MoodStore(stateDir: dir).current, "cheerful", "an unknown one reads as cheerful")
+    }
+
+    // MARK: Jev (HARNESS.md §7)
+
+    /// Each `Question` becomes a choice question: its options' meanings are
+    /// the criteria, with `not_for` when there is one.
+    func testJevsRequest() throws {
+        let q = Question(key: "word.feeling", text: "Which exclamation fits NOW?", about: "the NOW section",
+                         judgeBy: "the PERSONALITY section", options: [Option("none", "No exclamation fits NOW."),
+                                                                       Option("finally", "Something worked after failing.", notFor: "A first try.")])
+        let body = JevBrain.body(model: "jev-latest", state: "STATE", questions: [q])
+        let o = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(o["model"] as? String, "jev-latest")
+        XCTAssertEqual(o["state"] as? String, "STATE")
+        let question = try XCTUnwrap((o["questions"] as? [String: Any])?["word.feeling"] as? [String: Any])
+        XCTAssertEqual(question["type"] as? String, "choice")
+        let criteria = try XCTUnwrap(question["criteria"] as? [String: Any])
+        XCTAssertEqual(criteria["none"] as? String, "No exclamation fits NOW.")
+        XCTAssertEqual(criteria["finally"] as? [String: String], ["what": "Something worked after failing.", "not_for": "A first try."])
+        XCTAssertEqual(question["instructions"] as? [String: String],
+                       ["question": "Which exclamation fits NOW?", "about": "the NOW section", "judge_by": "the PERSONALITY section"])
+    }
+
+    /// The answer's choices and probabilities; one missing, or off its
+    /// options, fails it. A 429 is tried once more; only the status is kept.
+    func testJevsAnswerAndRetry() async throws {
+        let q = [Question(key: "react", text: "?", about: "a", judgeBy: "b", options: [Option("none", "n"), Option("proud", "p")])]
+        let good = Data(#"{"answers":{"react":{"choice":"proud","probabilities":{"proud":0.7,"none":0.3}}}}"#.utf8)
+        try XCTAssertEqual(try JevBrain.answers(good, q), ["react": Answer(choice: "proud", probabilities: ["proud": 0.7, "none": 0.3])])
+        try XCTAssertThrowsError(try JevBrain.answers(Data(#"{"answers":{"react":{"choice":"sad"}}}"#.utf8), q))
+        try XCTAssertThrowsError(try JevBrain.answers(Data(#"{"answers":{}}"#.utf8), q))
+        let calls = Lines()
+        let jev = JevBrain(key: "k") { request in
+            calls.add(request.value(forHTTPHeaderField: "Authorization") ?? "")
+            return calls.all.count == 1 ? (Data("PRIVATE".utf8), 429) : (good, 200)
+        }
+        let answers = try await jev.answer(state: "s", questions: q, deadline: .milliseconds(1250))
+        XCTAssertEqual(answers["react"]?.choice, "proud")
+        XCTAssertEqual(calls.all, ["Bearer k", "Bearer k"])
+        let down = JevBrain(key: "k") { _ in (Data("PRIVATE".utf8), 500) }
+        do {
+            _ = try await down.answer(state: "s", questions: q, deadline: .milliseconds(1250))
+            XCTFail("no answer")
+        } catch let error as BrainError {
+            XCTAssertEqual(error.description, "jev: HTTP 500", "only the status")
+        }
+    }
+
+    /// The transcript keeps its newest thousand entries.
+    func testTheTranscriptLetsTheOldestGo() {
+        let t = Transcript()
+        for i in 0..<1005 { t.append(.event(event(.tap, at: 0, "\(i)", wakes: false)), at: 0) }
+        XCTAssertEqual(t.entries.count, 1000)
+        XCTAssertEqual(t.entries.first?.seq, 6)
     }
 }

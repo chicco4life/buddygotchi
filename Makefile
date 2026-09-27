@@ -40,13 +40,11 @@ debug: build
 test:
 	python3 app/tools/test.py
 
-# The harness eval scenarios (plan/EVALS.md): every scenario in every mode,
-# each with its if-else table and no writer, deterministic. REAL=1 (or yes or
-# true; REAL=0 doesn't) runs the real brains (Apple's model; Jev for normal
-# with BOOP_JEV_KEY), 3 runs each, and reports refusals and latency
+# The harness eval scenarios (plan/EVALS.md), each run 3 times against Jev.
+# They need Jev's key in BOOP_JEV_KEY and fail without it
 # (plan/VERIFICATION.md L5).
 eval: build
-	app/.build/debug/boopdev eval $(if $(filter 1 yes true,$(REAL)),--real)
+	app/.build/debug/boopdev eval
 
 # tools/.venv with pyserial and Pillow, for boopctl. tools/boopctl makes it
 # by itself when it's missing; this also refreshes it after

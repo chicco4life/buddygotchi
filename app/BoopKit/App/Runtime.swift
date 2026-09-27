@@ -2,9 +2,9 @@ import Foundation
 import HookWire
 
 /// Everything the app runs, wired together (ARCHITECTURE.md §1): the hook
-/// socket feeds the adapters and the core; the core's effects go to the
-/// actions, the harness, the memory store and the device link; the device's
-/// inputs come back to the core. The menu-bar app and `Boop --headless` both
+/// socket feeds the adapters and the core; the core's events go to the
+/// harness, its moments to the device link and the rest to the memory
+/// store; the device's inputs come back to the core. The menu-bar app and `Boop --headless` both
 /// run one of these.
 ///
 /// All state lives on `home`, one serial queue, which is also the harness's.
@@ -13,38 +13,37 @@ public final class Runtime: @unchecked Sendable {
         public var stateDir: URL
         public var socketPath: String
         public var link: DeviceTransport?
-        public var steering: String
-        /// Override the mode in `settings.json` for this run only.
-        public var mode: Mode?
-        /// Override the mode's brain for this run only (HARNESS.md §6):
-        /// `Brains.classifiers` and `Brains.writers`.
-        public var classifier: String?
-        public var writer: String?
+        /// The static parts of Jev's state: a copy of `plan/steering/`.
+        public var steering: Steering
+        /// Override the personality in `settings.json` for this run only.
+        public var personality: Personality?
+        /// Builds the brain from Jev's key; nil for no brain. Tests pass
+        /// their own (harness/HARNESS.md §7).
+        public var brain: @Sendable (String?) -> (any Brain)? = { key in key.map { JevBrain(key: $0) } }
         public var time = LocalTime()
         /// Milliseconds for every duration: a steady clock by default.
         public var clock: @Sendable () -> Int64 = Runtime.steadyClock()
         /// Milliseconds since 1970, for days and times of day.
         public var wallClock: @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }
-        /// Accept `{"dev":"talk","words":…,"yelled":…}` and `{"dev":"advance","ms":…}`
-        /// on the hook socket (headless only).
+        /// Accept `{"dev":"advance","ms":…}` on the hook socket (headless only).
         public var devLines = false
         /// Moves `clock` forward, for `{"dev":"advance"}`; nil ignores it.
         public var advance: (@Sendable (Int64) -> Void)?
-        /// Debug mode (HARNESS.md §8): logs every hook with what the adapter
-        /// made of it and every line sent to the device, starts
-        /// `debug.jsonl` afresh in the state directory with every brain
-        /// pass and aside, and hands those and the core's decisions to
-        /// `debugPrint`, readably.
+        /// Debug mode (harness/HARNESS.md §9): logs every hook with what the
+        /// adapter made of it and every line sent to the device, starts
+        /// `debug.jsonl` afresh in the state directory with every transcript
+        /// entry, and hands those and the core's decisions to `debugPrint`,
+        /// readably.
         public var debug = false
         /// Where debug mode prints (the terminal). Never the log file: it
-        /// carries what you said and what the brain wrote.
+        /// carries Jev's whole state.
         public var debugPrint: @Sendable (String) -> Void = { _ in }
-        /// Reads Jev's key, off `home` and the main thread, the first time
-        /// the mode needs it: the Keychain may stop to ask for access.
-        public var readJevKey: @Sendable () -> String? = { Brains.jevKey() }
+        /// Reads Jev's key, off `home` and the main thread: the Keychain may
+        /// stop to ask for access.
+        public var readJevKey: @Sendable () -> String? = { JevKey.read() }
         public var log: @Sendable (String) -> Void = { _ in }
 
-        public init(stateDir: URL, socketPath: String, link: DeviceTransport?, steering: String) {
+        public init(stateDir: URL, socketPath: String, link: DeviceTransport?, steering: Steering) {
             self.stateDir = stateDir
             self.socketPath = socketPath
             self.link = link
@@ -59,22 +58,22 @@ public final class Runtime: @unchecked Sendable {
         public var sessions: [SessionSummary]
         public var connected: Bool
         public var device: DeviceStatus?
-        public var mode: Mode
-        /// The brain's two stages as they run, e.g. `jev:jev-latest` and `apple:26.4`.
-        public var classifier: String
-        public var writer: String
+        public var personality: Personality
+        /// The brain as it runs: `jev:jev-latest`, or `none` without a key.
+        public var brain: String
+        public var mood: String
         /// The Mac's mic is on for push-to-talk.
         public var listening: Bool
 
         public init(snapshot: StateSnapshot, sessions: [SessionSummary], connected: Bool, device: DeviceStatus?,
-                    mode: Mode, classifier: String, writer: String, listening: Bool = false) {
+                    personality: Personality, brain: String, mood: String = "cheerful", listening: Bool = false) {
             self.snapshot = snapshot
             self.sessions = sessions
             self.connected = connected
             self.device = device
-            self.mode = mode
-            self.classifier = classifier
-            self.writer = writer
+            self.personality = personality
+            self.brain = brain
+            self.mood = mood
             self.listening = listening
         }
     }
@@ -94,7 +93,7 @@ public final class Runtime: @unchecked Sendable {
     /// How long an arm lasts (ADAPTERS.md §6): one the doctor never
     /// confirms is removed, so hooks aren't logged from then on.
     public static let doctorArmSeconds: TimeInterval = 10 * 60
-    /// Debug mode's log of every pass and aside, in the state directory.
+    /// Debug mode's log of every transcript entry, in the state directory.
     public let debugLogURL: URL
     /// The doctor's arm (`doctorArm`), in the state directory.
     let doctorArmPath: String
@@ -104,12 +103,13 @@ public final class Runtime: @unchecked Sendable {
     public let memory: MemoryStore
     public let link: DeviceLink
     public private(set) var settings: AppSettings
-    /// The mode running now, touched only on `home`. Starts as the saved one,
-    /// unless this run overrides it.
-    public private(set) var mode: Mode
+    /// The personality running now, touched only on `home`. Starts as the
+    /// saved one, unless this run overrides it.
+    public private(set) var personality: Personality
     let core: Core
     let harness: Harness
-    let react: ReactAction
+    let mood: MoodStore
+    let voice: Voice
     let lock: InstanceLock
     var server: HookServer?
     var timer: DispatchSourceTimer?
@@ -117,16 +117,13 @@ public final class Runtime: @unchecked Sendable {
     var activity: NSObjectProtocol?
     let places = Adapter.Places()
     /// Jev's key, touched only on `home`: nil until read, and then the key
-    /// or none. Until then normal decides with its table.
+    /// or none. Until then no event wakes the brain.
     var jevKey: String??
     var readingJevKey = false
-    /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): a
-    /// moment an action sends outside the core's effects is the brain's, and
-    /// waits its turn in `schedule` behind the rules' moments and the
-    /// brain's earlier ones.
+    /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): the
+    /// rules' moments play at once, and the brain's wait their turn in
+    /// `schedule` behind them and the brain's earlier ones.
     final class Moments {
-        /// Above zero while the core's effects are carried out.
-        var inRules = 0
         var schedule = MomentSchedule()
         /// A timer is set for the next brain moment's turn.
         var pumpDue = false
@@ -142,8 +139,7 @@ public final class Runtime: @unchecked Sendable {
 
     /// A clock that never steps and keeps counting while the Mac sleeps,
     /// starting at the wall clock's time: the keepalive, the mic's 30 s
-    /// limit, held inputs, the reply wait and moments' turns are measured on
-    /// it, so setting the Mac's clock back can't stall them
+    /// limit and moments' turns are measured on it, so setting the Mac's clock back can't stall them
     /// (ARCHITECTURE.md §3.2).
     public static func steadyClock() -> @Sendable () -> Int64 {
         let wall = Int64(Date().timeIntervalSince1970 * 1000)
@@ -153,7 +149,7 @@ public final class Runtime: @unchecked Sendable {
 
     /// Sets up a new Boop: name and sweet-or-cheeky, asked once (UX.md §6).
     public static func setUp(stateDir: URL, name: String, nature: LongTerm.Nature, today: String) throws {
-        let store = try MemoryStore(directory: stateDir, steering: "")
+        let store = try MemoryStore(directory: stateDir)
         try store.setUp(name: name, nature: nature, seed: UInt64.random(in: 1...0xFFFF), today: today)
     }
 
@@ -164,7 +160,7 @@ public final class Runtime: @unchecked Sendable {
         guard let lock = InstanceLock(directory: options.stateDir) else { throw OpenError.locked(options.stateDir.path) }
         self.lock = lock
         let log = options.log
-        memory = try MemoryStore(directory: options.stateDir, steering: options.steering, log: log)
+        memory = try MemoryStore(directory: options.stateDir, log: log)
         guard let longTerm = memory.longTerm else { throw OpenError.notSetUp }
         settings = AppSettings.load(from: options.stateDir)
         link = DeviceLink(transport: options.link, log: log)
@@ -174,58 +170,53 @@ public final class Runtime: @unchecked Sendable {
         }
 
         let now = options.clock()
-        mode = options.mode ?? settings.mode
-        var config = Core.Config(name: longTerm.name, volume: settings.volume, mode: mode, time: options.time,
+        personality = options.personality ?? settings.personality
+        let rules = options.steering.personality(personality).rules
+        var config = Core.Config(name: longTerm.name, volume: settings.volume, rules: rules, time: options.time,
                                  seed: longTerm.seed ^ UInt64(now))
-        config.name = longTerm.name
+        config.brain = false  // until Jev's key is read
         core = Core(config: config, lastActiveDay: memory.lastActiveDay)
         core.setWallClock(options.wallClock(), at: now)
+        mood = MoodStore(stateDir: options.stateDir)
+        voice = Voice(dialect: Dialect(seed: longTerm.seed))
+        for over in options.steering.overBudget() { log("steering: over budget: \(over)") }
 
-        // Actions reach the rest through closures that are only ever called
-        // on `home`, from the core's effects or the harness.
-        var route: ([CoreEffect]) -> Void = { _ in }
+        // The actions (harness/DECISIONS.md), in the order they run. Their
+        // closures are only ever called on `home`.
         let core = self.core
         let link = self.link
         let clock = options.clock
-        let context = ActionContext(
-            send: { [moments, home] moment in
-                let now = clock()
-                if moments.inRules > 0 {
-                    link.play(moment)
-                    moments.schedule.rule(moment, now: now)
-                    return
-                }
-                moments.schedule.brain(moment, now: now)
+        let moments = self.moments
+        let home = self.home
+        let actions: [any Action] = [
+            MoodAction(store: mood, now: clock),
+            ReactAction(voice: voice, queue: { moment in
+                moments.schedule.brain(moment, now: clock())
                 Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
-            },
-            mumblesAllowed: { core.canMumble(at: clock()) },
-            setQuiet: { route(core.setQuiet(minutes: $0, at: clock())) },
-            quietAsked: { core.quietAsked },
-            log: log)
-        let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: memory)
-        react = actions.compactMap { $0 as? ReactAction }.first!
-        let memory = self.memory
-        // Jev's key isn't read yet: `start` begins reading it (`readJevKey`).
-        let (classifier, writer) = Runtime.brains(mode, options, jevKey: nil)
-        harness = Harness(classifier: classifier, writer: writer,
-                          tools: actions.map(Harness.Tool.init), memory: { memory.promptMemory() },
-                          home: home, debugLog: options.debug ? debugLogURL : nil, log: log)
-        // Tool names only: arguments can carry what you said (HARNESS.md §8).
-        // A pass for what you said that sent no mumble ends `listening` now:
-        // only `react` sends a moment during a pass.
-        harness.onRecord = { [weak self] record in
-            log(record.logLine)
-            guard record.input.kind == .said, let self else { return }
-            let mumbled = record.ran.contains { $0.call.name == "react" && $0.outcome.isDone }
-            run(core.replied(to: record.input.ts, mumbled: mumbled, at: clock()))
-        }
+            }, blocked: { core.mumbleBlock(at: clock()) }),
+        ]
+        let steering = options.steering
+        let mood = self.mood
+        let time = options.time
+        var personalityNow: () -> Personality = { .boop }
+        harness = Harness(brain: nil, actions: actions, parts: { entry in
+            let now = clock()
+            let wall = options.wallClock()
+            guard case .event(let event) = entry.body else { preconditionFailure("a pass is for an event") }
+            return StateText.Parts(guide: steering.guide, personality: steering.personality(personalityNow()).text,
+                                   mood: steering.mood(mood.current),
+                                   status: core.statusLine(excluding: event.about, at: now),
+                                   workingSince: core.workingSince(at: now),
+                                   clock: "\(time.clock(wall)), \(time.weekday(wall))")
+        }, home: home, clock: clock, debugLog: options.debug ? debugLogURL : nil, log: log)
+        harness.onRecord = { record in log(record.logLine) }
         if options.debug {
             DebugLog.start(debugLogURL)
             let printer = DebugLog.Printer()
             let print = options.debugPrint
             harness.onDebugLine = { line in print(printer.readable(line)) }
         }
-        route = { [weak self] in self?.run($0) }
+        personalityNow = { [weak self] in self?.personality ?? .boop }
     }
 
     // MARK: Running
@@ -263,7 +254,7 @@ public final class Runtime: @unchecked Sendable {
         timer.resume()
         self.timer = timer
         // From here on the harness and the callbacks are touched only on
-        // `home`: reading Jev's key swaps the brains and calls `onChange`,
+        // `home`: reading Jev's key sets the brain and calls `onChange`,
         // so it starts now, after the app has set its callbacks.
         home.async { [self] in
             readJevKey()
@@ -271,8 +262,8 @@ public final class Runtime: @unchecked Sendable {
             link.update(core.snapshot(at: options.clock()), now: options.clock())
             changed()
             options.log("boop: running on \(options.stateDir.path), socket \(options.socketPath), "
-                        + "link \(options.link?.name ?? "none"), mode \(mode.rawValue), "
-                        + "brain \(harness.classifier.id) + \(harness.writer.id)"
+                        + "link \(options.link?.name ?? "none"), personality \(personality.rawValue), "
+                        + "mood \(mood.current), brain \(harness.brain?.id ?? "none (reading Jev's key)")"
                         + (options.debug ? ", debug log \(debugLogURL.path)" : ""))
         }
     }
@@ -325,13 +316,8 @@ public final class Runtime: @unchecked Sendable {
 
     func dev(_ data: Data) {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
-        if object["dev"] as? String == "talk", let words = object["words"] as? String {
-            let yelled = object["yelled"] as? Bool == true
-            // Not the words: they reach only the brain, and debug mode's print.
-            options.log("dev: talk, \(words.count) characters\(yelled ? ", yelled" : "")")
-            talkNow(words, yelled: yelled)
-        } else if object["dev"] as? String == "advance", let ms = (object["ms"] as? NSNumber)?.int64Value,
-                  ms > 0, let advance = options.advance {
+        if object["dev"] as? String == "advance", let ms = (object["ms"] as? NSNumber)?.int64Value,
+           ms > 0, let advance = options.advance {
             advance(ms)
             options.log("dev: clock advanced \(ms) ms")
             tick()
@@ -354,8 +340,6 @@ public final class Runtime: @unchecked Sendable {
                 options.debugPrint("core: " + effect.summary)
             }
         }
-        moments.inRules += 1
-        defer { moments.inRules -= 1 }
         var stateChanged = false
         var listenChanged = false
         for effect in effects {
@@ -364,28 +348,24 @@ public final class Runtime: @unchecked Sendable {
                 link.update(snapshot, now: options.clock())
                 stateChanged = true
             case .moment(let anim):
-                react.play(anim)
+                playRule(DeviceMoment(anim: anim))
             case .endListening:
-                react.endListening()
+                playRule(.empty)
             case .mumble(let feeling, let word):
                 // Working chatter is filler: it never cuts a moment that's
-                // playing, such as the brain's reply, or jumps one waiting
-                // its turn (BEHAVIORS.md §2).
-                guard moments.schedule.idle(now: options.clock()) else { continue }
-                var arguments: [String: ToolValue] = ["feeling": .string(feeling)]
-                if let word { arguments["word"] = .string(word) }
-                react.run(ToolCall("react", arguments))
-            case .input(let input):
-                harness.submit(input)
-            case .aside(let line):
-                harness.note(line, at: options.clock())
-            case .event:
-                break  // The new harness takes these (harness/HARNESS.md); not wired yet.
+                // playing, such as a brain mumble, or jumps one waiting its
+                // turn (BEHAVIORS.md §2).
+                guard moments.schedule.idle(now: options.clock()), core.mumbleBlock(at: options.clock()) == nil,
+                      let f = Feeling(rawValue: feeling) else { continue }
+                chatterSeed += 1
+                playRule(DeviceMoment(say: voice.line(f, word: word, seed: chatterSeed)))
+            case .event(let event):
+                harness.take(event)
             case .happened, .newDay:
                 memory.apply(effect)
             case .listen(let on):
                 // A brain mumble queued before the mic went on would end
-                // `listening` before the reply (BEHAVIORS.md §3.3).
+                // `listening` (BEHAVIORS.md §3.3).
                 if on {
                     for moment in moments.schedule.dropWaiting() {
                         options.log("react: dropped a brain moment waiting when the mic went on: \(moment.jsonLine)")
@@ -396,6 +376,16 @@ public final class Runtime: @unchecked Sendable {
             }
         }
         if stateChanged || listenChanged { changed() }
+    }
+
+    /// Seeds working chatter's lines.
+    var chatterSeed: UInt64 = 0
+
+    /// A rule moment: it plays at once, and anything the brain has waiting
+    /// waits for it too.
+    func playRule(_ moment: DeviceMoment) {
+        link.play(moment)
+        moments.schedule.rule(moment, now: options.clock())
     }
 
     /// Plays the brain's next moment if its turn has come, and sets a timer
@@ -424,12 +414,8 @@ public final class Runtime: @unchecked Sendable {
     func changed() {
         let now = options.clock()
         onChange?(Status(snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
-                         connected: link.connected, device: link.status, mode: mode, classifier: harness.classifier.id,
-                         writer: harness.writer.id, listening: core.listening != nil))
-    }
-
-    func talkNow(_ words: String, yelled: Bool = false) {
-        run(core.talk(words, yelled: yelled, at: options.clock()))
+                         connected: link.connected, device: link.status, personality: personality,
+                         brain: harness.brain?.id ?? "none", mood: mood.current, listening: core.listening != nil))
     }
 
     func saveSettings(_ change: (inout AppSettings) -> Void) {
@@ -439,11 +425,9 @@ public final class Runtime: @unchecked Sendable {
 
     // MARK: From the menu bar (any thread)
 
-    /// The transcript from push-to-talk, and whether you yelled it. It
-    /// reaches the harness and is then dropped (ARCHITECTURE.md §3.8).
-    public func talk(_ words: String, yelled: Bool = false) {
-        home.async { [self] in talkNow(words, yelled: yelled) }
-    }
+    /// What push-to-talk heard. Talk is inert for now (BEHAVIORS.md §3.3):
+    /// the words go nowhere.
+    public func talk(_ words: String, yelled: Bool = false) {}
 
     /// The Talk button: start or stop listening (UX.md §5).
     public func setListening(_ on: Bool) {
@@ -455,10 +439,9 @@ public final class Runtime: @unchecked Sendable {
         home.async { [self] in run(core.micFailed(at: options.clock())) }
     }
 
-    /// The mic went off and heard nothing, so no words are coming.
-    public func heardNothing() {
-        home.async { [self] in run(core.heardNothing(at: options.clock())) }
-    }
+    /// The mic went off and heard nothing. Nothing to do: `listening` has
+    /// already ended with the mic.
+    public func heardNothing() {}
 
     /// Drops the device link and looks for the device again now.
     public func reconnectDevice() {
@@ -472,54 +455,41 @@ public final class Runtime: @unchecked Sendable {
         }
     }
 
-    /// A new mode, at once (BEHAVIORS.md §6): the core's rules from the next
-    /// event, the brain from the next input. A pass already running
-    /// finishes with the brain it started with.
-    public func setMode(_ mode: Mode) {
+    /// A new personality (BEHAVIORS.md §6): the core's rules and Jev's
+    /// state from the next event.
+    public func setPersonality(_ personality: Personality) {
         home.async { [self] in
-            self.mode = mode
-            saveSettings { $0.mode = mode }
-            core.setMode(mode)
-            useBrains()
+            self.personality = personality
+            saveSettings { $0.personality = personality }
+            core.setRules(options.steering.personality(personality).rules)
+            options.log("personality \(personality.rawValue)")
             changed()
         }
     }
 
-    /// Builds the mode's brain again with the Jev key Settings just saved
-    /// (nil when it was cleared); `BOOP_JEV_KEY` still wins.
-    public func reloadBrains(jevKey key: String?) {
+    /// Jev's key as Settings just saved it (nil when it was cleared);
+    /// `BOOP_JEV_KEY` still wins. Used from the next event.
+    public func reloadBrain(jevKey key: String?) {
         home.async { [self] in
-            jevKey = .some(Brains.jevKey(else: key))
-            useBrains()
+            jevKey = .some(JevKey.read(else: key))
+            useBrain()
             changed()
         }
     }
 
-    /// The mode's brains, on `home`. A mode that wants Jev's key before it's
-    /// been read starts it reading and decides with its table meanwhile.
-    func useBrains() {
-        readJevKey()
-        let (classifier, writer) = Runtime.brains(mode, options, jevKey: jevKey)
-        harness.use(classifier, writer)
-        options.log("mode \(mode.rawValue), brain \(harness.classifier.id) + \(harness.writer.id)")
+    /// The brain for Jev's key as far as it's been read. On `home`.
+    func useBrain() {
+        let brain = options.brain(jevKey ?? nil)
+        harness.use(brain)
+        core.setBrain(brain != nil)
+        options.log("brain \(brain?.id ?? "none")" + (brain == nil ? ": no Jev key, so Boop does only its rule reactions" : ""))
     }
 
-    /// The mode's two stages with Jev's key as far as it's been read (nil
-    /// until then): a mode or `--classifier` that wants Jev decides with
-    /// normal's table until it's read.
-    static func brains(_ mode: Mode, _ options: Options, jevKey: String??) -> (any Classifier, any Writer) {
-        let reading = jevKey == nil && Brains.wantsJevKey(mode, override: options.classifier)
-        let key = jevKey ?? nil
-        return (Brains.classifier(for: mode, override: reading ? "normal" : options.classifier, key: { key }, log: options.log),
-                Brains.writer(for: mode, override: options.writer, log: options.log))
-    }
-
-    /// Reads Jev's key off `home` (HARNESS.md §6), if the mode wants it and
-    /// it isn't read yet: a Keychain prompt there would stall every hook,
-    /// tick and device line until it's answered. Then the brains are built
-    /// again with it. On `home`.
+    /// Reads Jev's key off `home` (harness/HARNESS.md §7): a Keychain prompt
+    /// there would stall every hook, tick and device line until it's
+    /// answered. Then the brain is built with it. On `home`.
     func readJevKey() {
-        guard jevKey == nil, !readingJevKey, Brains.wantsJevKey(mode, override: options.classifier) else { return }
+        guard jevKey == nil, !readingJevKey else { return }
         readingJevKey = true
         let read = options.readJevKey
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -529,7 +499,7 @@ public final class Runtime: @unchecked Sendable {
                 readingJevKey = false
                 // A key Settings saved meanwhile wins.
                 if jevKey == nil { jevKey = .some(key) }
-                useBrains()
+                useBrain()
                 changed()
             }
         }

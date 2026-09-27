@@ -13,8 +13,9 @@ public final class Core {
     public struct Config: Sendable {
         public var name: String
         public var volume: Int
-        /// How much Boop reacts: its chatter and which finishes cheer.
-        public var mode: Mode
+        /// The personality's settings: which finishes cheer, how often
+        /// chatter plays and which tool uses wake the brain (BEHAVIORS.md §6).
+        public var rules: Personality.Rules
         public var time: LocalTime
         public var seed: UInt64
         /// Codex's grace period before "needs you" shows (ADAPTERS.md §4).
@@ -26,17 +27,12 @@ public final class Core {
         public var staleWorkMs: Int64 = 60 * 60 * 1000
         /// A session with no events for this long is forgotten.
         public var forgetMs: Int64 = 24 * 60 * 60 * 1000
-        /// Agent inputs within this window merge into one.
-        public var mergeMs: Int64 = 3000
         /// A poke streak is this many taps within `pokeWindowMs`, and it
         /// reaches the brain at most once every `pokedEveryMs`
         /// (BEHAVIORS.md §3.3).
         public var pokeTaps = 4
         public var pokeWindowMs: Int64 = 3000
         public var pokedEveryMs: Int64 = 60_000
-        /// Which tool uses become events for the brain: the notable ones, or
-        /// all (the personality's `tool_uses`, harness/EVENTS.md §4).
-        public var toolUses: ToolUses = .notable
         /// Whether there's a brain to wake: false without Jev's key, so no
         /// event wakes it (harness/EVENTS.md §6).
         public var brain = true
@@ -44,10 +40,11 @@ public final class Core {
         /// and again every time as long again passes (harness/EVENTS.md §4).
         public var heartbeatMs: Int64 = 60 * 60 * 1000
 
-        public init(name: String, volume: Int = 6, mode: Mode = .normal, time: LocalTime = LocalTime(), seed: UInt64 = 1) {
+        public init(name: String, volume: Int = 6, rules: Personality.Rules = Personality.Rules(), time: LocalTime = LocalTime(),
+                    seed: UInt64 = 1) {
             self.name = name
             self.volume = volume
-            self.mode = mode
+            self.rules = rules
             self.time = time
             self.seed = seed
         }
@@ -95,9 +92,10 @@ public final class Core {
         var comeback: String?
         /// Failures in a row of each check topic, across turns.
         var failRuns: [String: Int] = [:]
-        /// When each running tool call started, by `tool_use_id`.
-        var toolStarts: [String: Int64] = [:]
-        var lastToolStart: Int64?
+        /// Each running tool call's start and topic, by `tool_use_id`, and the
+        /// last one's, for a result that carries no ID or topic.
+        var toolStarts: [String: (at: Int64, topic: String?)] = [:]
+        var lastToolStart: (at: Int64, topic: String?)?
 
         /// What lines call the thread: its workspace, or its project.
         var name: String { workspace ?? project }
@@ -119,10 +117,6 @@ public final class Core {
     /// The wall clock less the steady one, for days and times of day.
     var wallOffsetMs: Int64 = 0
 
-    // Merging bursts of agent inputs.
-    var lastInputAt: Int64 = -1_000_000
-    var heldInput: (input: Input, rank: Int, count: Int)?
-
     // Push-to-talk (UX.md §5).
     /// Who turned the Mac's mic on: the device's BOOT button or the app's
     /// Talk button.
@@ -131,26 +125,6 @@ public final class Core {
     public static let listenLimitMs: Int64 = 30_000
     /// While the Mac's mic is on: who turned it on, and when.
     public private(set) var listening: (by: Talker, since: Int64)?
-    /// After the mic goes off, the device's `listening` face waits at most
-    /// this long for the reply: after the Talk button, the empty moment ends
-    /// it then (BEHAVIORS.md §3.3). The device's own button has the same
-    /// cap. A pass that decides on no mumble ends it sooner (`replied`).
-    public static let replyWaitMs: Int64 = 8_000
-    /// When that empty moment is due.
-    var listeningEndsAt: Int64?
-    /// From the mic going off until the reply, at most `replyWaitMs`, for
-    /// either button: when the wait ends, and when the words it waits on
-    /// arrived (their input's `ts`). While the mic is on or this wait lasts,
-    /// there's no working chatter, and no brain mumble until the words have
-    /// arrived, since until then it can only be about an agent: either would
-    /// end the `listening` face before the reply (BEHAVIORS.md §3.3).
-    var replyWait: (until: Int64, words: Int64?)?
-
-    /// Whether the last thing you said asked for quiet or for it to end
-    /// (nil for neither): only then may the `quiet` action run, and only
-    /// that way (BEHAVIORS.md §3.3).
-    public private(set) var quietAsked: Input.QuietAsk?
-
     // Poke streaks (BEHAVIORS.md §3.3).
     var taps: [Int64] = []
     var pokedAt: Int64?
@@ -215,7 +189,6 @@ public final class Core {
                 } else {
                     s.needsSince = now
                     s.status = .waiting
-                    fx.append(.aside(needsYouLine(s, now)))
                     needsYouEvent(s, now, &fx)
                 }
             }
@@ -263,20 +236,25 @@ public final class Core {
             s.topicStates = []
             s.comeback = nil
             sessions[key] = s
-            agentInput(.agentStarted, s, rules: nil, rank: 1, now, &fx)
             turnStartEvent(s, gap: gap, now, &fx)
         case .activity:
             s.status = .working
             if s.turnStartedAt == nil { s.turnStartedAt = now }
+            var event = event
+            if event.detail.done {
+                // A result may come without its call's topic: it's the
+                // `PreToolUse`'s, by ID or else the last one.
+                let started = event.detail.toolUseID.flatMap { s.toolStarts.removeValue(forKey: $0) } ?? s.lastToolStart
+                if event.detail.topic == nil { event.detail.topic = started?.topic }
+                toolDone(&s, event, started: started?.at, now, &fx)
+            } else if event.detail.tool != nil {
+                let start = (at: now, topic: event.detail.topic)
+                if let id = event.detail.toolUseID { s.toolStarts[id] = start }
+                s.lastToolStart = start
+            }
             if let topic = event.detail.topic { s.topic = topic }
             if let topic = event.detail.topic, let failed = event.detail.failed, Core.checks.contains(topic) {
                 s.check = (topic, failed)
-            }
-            if event.detail.done {
-                toolDone(&s, event, now, &fx)
-            } else if event.detail.tool != nil {
-                if let id = event.detail.toolUseID { s.toolStarts[id] = now }
-                s.lastToolStart = now
             }
             sessions[key] = s
         case .turnEnd:
@@ -357,26 +335,14 @@ public final class Core {
         return fx
     }
 
-    /// What the person said on push-to-talk, and whether they yelled it
-    /// (BEHAVIORS.md §3.3). Always reaches the brain.
+    /// What the person said on push-to-talk. Talk is inert for now
+    /// (BEHAVIORS.md §3.3): the words go nowhere.
     @discardableResult
-    public func talk(_ words: String, yelled: Bool = false, at now: Int64) -> [CoreEffect] {
-        var fx: [CoreEffect] = []
-        advance(to: now, &fx)
-        startDayIfNew(now, &fx)
-        let input = Input(.said, words: words, yelled: yelled, clock: clock(now), weekday: weekday(now),
-                          rules: "listening", ts: now)
-        replyWait?.words = now
-        quietAsked = input.quietAsk
-        fx.append(.input(input))
-        publish(now, &fx)
-        return fx
-    }
+    public func talk(_ words: String, yelled: Bool = false, at now: Int64) -> [CoreEffect] { [] }
 
     /// The app's Talk button: start or stop listening. The device shows
-    /// `listening` from the mic turning on until the reply, or until the
-    /// empty moment `replyWaitMs` after the mic goes off, as it does for its
-    /// own button (BEHAVIORS.md §3.3).
+    /// `listening` while the mic is on; the Mac ends it when the mic goes
+    /// off, since no reply is coming (BEHAVIORS.md §3.3).
     @discardableResult
     public func listen(_ on: Bool, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
@@ -394,32 +360,6 @@ public final class Core {
         return fx
     }
 
-    /// The brain's pass for what you said is over (HARNESS.md §2): `words`
-    /// is its input's `ts`, and `mumbled` whether it sent a mumble, which
-    /// ends `listening` on the device. Without one (asked for quiet, told
-    /// off in calm, quiet mode, the pass dropped), nothing else would end
-    /// it for up to 8 s, so the empty moment ends it now. A pass for older
-    /// words, or while the mic is on again, changes nothing
-    /// (BEHAVIORS.md §3.3).
-    @discardableResult
-    public func replied(to words: Int64, mumbled: Bool, at now: Int64) -> [CoreEffect] {
-        guard let wait = replyWait, wait.words == words else { return [] }
-        replyWait = nil
-        guard !mumbled else { return [] }
-        listeningEndsAt = nil
-        return [.endListening]
-    }
-
-    /// The mic went off and heard nothing, not even a yell: no words are
-    /// coming, so the empty moment ends `listening` now.
-    @discardableResult
-    public func heardNothing(at now: Int64) -> [CoreEffect] {
-        guard listening == nil, let wait = replyWait, wait.words == nil else { return [] }
-        replyWait = nil
-        listeningEndsAt = nil
-        return [.endListening]
-    }
-
     /// The link to the device dropped, so its button's release can't arrive:
     /// stop listening now. The app's Talk button carries on.
     @discardableResult
@@ -429,18 +369,17 @@ public final class Core {
         return fx
     }
 
-    /// The Mac's mic or speech recognition couldn't start: as when it heard
-    /// nothing, the empty moment ends the device's `listening` face at once,
-    /// after either button.
+    /// The Mac's mic or speech recognition couldn't start: the device's
+    /// `listening` face ends at once, after either button.
     @discardableResult
     public func micFailed(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
-        stopListening(now, &fx)
-        return fx + heardNothing(at: now)
+        if listening == nil { fx.append(.endListening) } else { stopListening(now, &fx) }
+        return fx
     }
 
-    /// The `quiet` action: no mumbles for `minutes` (0 ends it). The strip's
-    /// quiet icon is its only sign; the `zip` animation is parked.
+    /// Quiet mode: no mumbles for `minutes` (0 ends it). Nothing turns it on
+    /// while talk is inert (BEHAVIORS.md §4).
     @discardableResult
     public func setQuiet(minutes: Int, at now: Int64) -> [CoreEffect] {
         quietUntil = minutes > 0 ? now + Int64(minutes) * 60_000 : 0
@@ -463,30 +402,24 @@ public final class Core {
         wallOffsetMs = wallMs - now
     }
 
-    /// A new mode (BEHAVIORS.md §6), from the next event on. Working chatter
-    /// starts its wait again at the new mode's pace.
-    public func setMode(_ mode: Mode) {
-        config.mode = mode
+    /// A new personality's settings (BEHAVIORS.md §6), from the next event
+    /// on. Working chatter starts its wait again at the new pace.
+    public func setRules(_ rules: Personality.Rules) {
+        config.rules = rules
         nextChatterAt = nil
     }
-
-    /// Which tool uses become events: the personality's `tool_uses`.
-    public func setToolUses(_ toolUses: ToolUses) { config.toolUses = toolUses }
 
     /// Whether there's a brain to wake: Jev's key saved or removed.
     public func setBrain(_ available: Bool) { config.brain = available }
 
     /// Timers: the Codex grace period, the safety net, quiet running out,
-    /// merged inputs, chatter, the push-to-talk limit and the Talk button's
-    /// wait for the reply.
+    /// chatter, heartbeats and the push-to-talk limit.
     @discardableResult
     public func tick(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
         if let l = listening, now - l.since >= Self.listenLimitMs {
-            // What was heard still goes to Boop. The device's own button
-            // hits the same limit; the Talk button waits for the reply as
-            // after Send.
+            // The device's own button hits the same limit.
             stopListening(now, &fx)
         }
         publish(now, &fx)
@@ -525,12 +458,14 @@ public final class Core {
             + idle.map { SessionSummary($0, .idle) }
     }
 
-    /// False in quiet mode, while something needs you, and while you talk:
-    /// from the mic turning on until your words arrive, so a brain mumble
-    /// about an agent can't end the `listening` face before the reply
-    /// (BEHAVIORS.md §3.3). The reply itself may mumble.
-    public func canMumble(at now: Int64) -> Bool {
-        mumblesAllowed(now) && listening == nil && (replyWait == nil || replyWait?.words != nil)
+    /// Why a mumble can't play now, or nil: quiet mode, something needs
+    /// you, or the mic is on, since a mumble would end `listening`
+    /// (BEHAVIORS.md §3.3).
+    public func mumbleBlock(at now: Int64) -> String? {
+        if needsYouShowing { return "something needs you" }
+        if quietLeft(now) > 0 { return "quiet mode" }
+        if listening != nil { return "the mic is on" }
+        return nil
     }
 
     // MARK: - Rules
@@ -564,10 +499,8 @@ public final class Core {
         quietLeft(now) == 0 && !needsYouShowing
     }
 
-    /// The mic is on, or Boop is waiting for the reply to what it heard.
-    func talking(_ now: Int64) -> Bool {
-        listening != nil || replyWait.map { now < $0.until } == true
-    }
+    /// The mic is on.
+    func talking(_ now: Int64) -> Bool { listening != nil }
 
     /// Nobody is waiting on the session any more.
     func clearRequest(_ s: inout Session, _ now: Int64) {
@@ -588,21 +521,16 @@ public final class Core {
     func startListening(by talker: Talker, _ now: Int64, _ fx: inout [CoreEffect]) {
         guard listening == nil else { return }
         listening = (talker, now)
-        // A new `listening` face mustn't be ended by the last one's stop.
-        listeningEndsAt = nil
-        replyWait = nil
         fx.append(.listen(true))
     }
 
-    /// Turns the mic off, if it's on. After the Talk button, the empty
-    /// moment follows `replyWaitMs` later; it's harmless if the reply
-    /// already came.
+    /// Turns the mic off, if it's on, and ends `listening` at once: no
+    /// reply is coming while talk is inert.
     func stopListening(_ now: Int64, _ fx: inout [CoreEffect]) {
-        guard let l = listening else { return }
+        guard listening != nil else { return }
         listening = nil
         fx.append(.listen(false))
-        replyWait = (now + Self.replyWaitMs, nil)
-        if l.by == .app { listeningEndsAt = now + Self.replyWaitMs }
+        fx.append(.endListening)
     }
 
     /// Plays a rule moment now. The device replaces one that's playing.
@@ -611,36 +539,32 @@ public final class Core {
     }
 
     /// A finished turn: a cheer, even while other sessions are still
-    /// working, when it's long enough for the mode (BEHAVIORS.md §3.1).
+    /// working, as the personality allows (BEHAVIORS.md §3.1).
     /// None while you talk to Boop (BEHAVIORS.md §3.3).
     @discardableResult
     func finished(_ s: Session, durationMs ms: Int64, _ now: Int64, _ fx: inout [CoreEffect]) -> Bool {
-        let cheer = config.mode.cheers(Input.Length(ms: ms)) && !talking(now)
+        let cheer = config.rules.cheers(lengthMs: ms) && !talking(now)
         if cheer { play("cheer", &fx) }
         if ms >= 30_000 {
-            fx.append(.happened("\(clock(now)) \(s.agent.short) · \(s.project) · finished (\(Input.took(ms)))"))
+            fx.append(.happened("\(clock(now)) \(s.agent.short) · \(s.project) · finished (\(Band.took(ms)))"))
         }
-        agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: cheer ? "cheer" : nil,
-                   rank: Input.Length(ms: ms) == .short ? 2 : 3, now, &fx)
         return cheer
     }
 
-    /// A tap is the rules' alone: the device wiggles, and the brain's
-    /// transcript only hears of it. The fourth tap within 3 s is a poke
-    /// streak (BEHAVIORS.md §3.3): an input for the brain, at most once a
+    /// A tap is the rules' alone: the device wiggles, and the brain only
+    /// hears of it. The fourth tap within 3 s is a poke streak
+    /// (BEHAVIORS.md §3.3): an event that wakes the brain, at most once a
     /// minute, which may grumble back with a mumble. The rules add no
     /// animation of their own: the device has already wiggled. While
     /// something needs you a tap means "I saw it", so it isn't counted.
     func tapped(_ now: Int64, _ fx: inout [CoreEffect]) {
         guard !needsYouShowing else {
             taps.removeAll()
-            fx.append(.aside("tapped while something needs you · \(timeLine(now))"))
             fx.append(.event(Event(.tap, at: now, line: EventLine.tap, wakesBrain: false)))
             return
         }
         taps = taps.filter { now - $0 < config.pokeWindowMs } + [now]
         guard taps.count >= config.pokeTaps else {
-            fx.append(.aside("tapped · \(timeLine(now)): Boop wiggled"))
             fx.append(.event(Event(.tap, at: now, line: EventLine.tap, reaction: EventLine.wiggled, wakesBrain: false)))
             return
         }
@@ -653,12 +577,10 @@ public final class Core {
         let facts: [String: JSONValue] = ["count": .int(Int64(count)), "seconds": .int(Int64(seconds)),
                                           "since_last": .of(sinceLast)]
         if tooSoon {
-            fx.append(.aside("poked again and again · \(timeLine(now)): Boop wiggled"))
             fx.append(.event(Event(.pokes, at: now, line: line, reaction: EventLine.wiggled, wakesBrain: false, facts: facts)))
             return
         }
         pokedAt = now
-        fx.append(.input(Input(.poked, clock: clock(now), weekday: weekday(now), rules: "wiggle", ts: now)))
         fx.append(.event(Event(.pokes, at: now, line: line, reaction: EventLine.wiggled,
                                wakesBrain: wakes(now), facts: facts)))
     }
@@ -668,48 +590,11 @@ public final class Core {
     func failed(_ s: Session, durationMs ms: Int64, error: String?, _ now: Int64, _ fx: inout [CoreEffect]) {
         let topic = s.topic.map { " · \($0)" } ?? ""
         fx.append(.happened("\(clock(now)) \(s.agent.short) · \(s.project)\(topic) · failed"))
-        agentInput(.agentFinished, s, outcome: .failed, tookMs: ms, error: error, rules: nil, rank: 4, now, &fx)
     }
 
-    func timeLine(_ now: Int64) -> String {
-        "\(clock(now)) \(weekday(now))"
-    }
-
-    /// "claude needs you · jetpack · 14:07 Tuesday", for the brain's transcript.
-    func needsYouLine(_ s: Session, _ now: Int64) -> String {
-        "\(s.agent.short) needs you · \(s.project) · \(timeLine(now))"
-    }
-
-    func agentInput(_ kind: Input.Kind, _ s: Session, outcome: Input.Outcome? = nil, tookMs: Int64? = nil,
-                    error: String? = nil, rules: String?, rank: Int, _ now: Int64, _ fx: inout [CoreEffect]) {
-        let input = Input(kind, agent: s.agent.short, project: s.project, outcome: outcome,
-                          topic: kind == .agentFinished ? s.topic : nil, tookMs: tookMs, error: error,
-                          clock: clock(now), weekday: weekday(now), rules: rules, ts: now)
-        offer(input, rank: rank, now, &fx)
-    }
-
-    /// While something needs you, and in quiet mode, only what you said
-    /// reaches the brain.
+    /// Nothing wakes the brain while something needs you, or in quiet mode.
     func inputsAllowed(_ now: Int64) -> Bool {
         !needsYouShowing && quietLeft(now) == 0
-    }
-
-    /// Sends an agent input now, or holds it to merge with the burst it's
-    /// part of: failed beats a finish of 15 seconds or more, which beats a
-    /// shorter finish, which beats a start. The held one goes out when the
-    /// window ends, with how many others it stands for.
-    func offer(_ input: Input, rank: Int, _ now: Int64, _ fx: inout [CoreEffect]) {
-        guard inputsAllowed(now) else { return }
-        if now - lastInputAt >= config.mergeMs && heldInput == nil {
-            lastInputAt = now
-            fx.append(.input(input))
-            return
-        }
-        if let held = heldInput {
-            heldInput = rank >= held.rank ? (input, rank, held.count + 1) : (held.input, held.rank, held.count + 1)
-        } else {
-            heldInput = (input, rank, 1)
-        }
     }
 
     /// Runs every timer due by `now`, in order.
@@ -720,7 +605,6 @@ public final class Core {
                 s.pendingSince = nil
                 s.needsSince = pending + config.codexGraceMs
                 s.status = .waiting
-                fx.append(.aside(needsYouLine(s, now)))
                 needsYouEvent(s, now, &fx)
             }
             if silent && (s.needsSince != nil || s.pendingSince != nil) {
@@ -739,35 +623,19 @@ public final class Core {
             }
         }
         if quietUntil != 0 && quietUntil <= now { quietUntil = 0 }
-        if let due = listeningEndsAt, now >= due {
-            listeningEndsAt = nil
-            fx.append(.endListening)
-        }
-        if let wait = replyWait, now >= wait.until { replyWait = nil }
-
-        // Merged bursts.
-        if let held = heldInput, now - lastInputAt >= config.mergeMs {
-            heldInput = nil
-            lastInputAt = now
-            if inputsAllowed(now) {
-                var input = held.input
-                input.more = held.count - 1
-                fx.append(.input(input))
-            }
-        }
 
         chatter(now, &fx)
         heartbeat(now, &fx)
     }
 
     /// Working chatter (BEHAVIORS.md §2): while agents work, a mumble every
-    /// so often, as the mode sets (none in calm). About half the time it asks
+    /// so often, as the personality sets. About half the time it asks
     /// about a working session's latest topic (`curious`); otherwise it's
     /// `happy`, with no word. None while you talk to Boop: it would end the
     /// `listening` face before the reply.
     func chatter(_ now: Int64, _ fx: inout [CoreEffect]) {
         let working = sessions.values.filter { isWorking($0, now) && $0.needsSince == nil }
-        guard !working.isEmpty, let gap = config.mode.chatterMs else {
+        guard !working.isEmpty, let gap = config.rules.chatterMs else {
             nextChatterAt = nil
             return
         }
@@ -829,9 +697,8 @@ public final class Core {
 
     /// A finished tool call: counted for the turn, and an event when it's
     /// notable, or for every one with `tool_uses: all` (EVENTS.md §4).
-    func toolDone(_ s: inout Session, _ event: BoopEvent, _ now: Int64, _ fx: inout [CoreEffect]) {
+    func toolDone(_ s: inout Session, _ event: BoopEvent, started: Int64?, _ now: Int64, _ fx: inout [CoreEffect]) {
         let d = event.detail
-        let started = d.toolUseID.flatMap { s.toolStarts.removeValue(forKey: $0) } ?? s.lastToolStart
         let tookMs = started.map { max(0, now - $0) }
         s.tools += 1
         if d.failed == true { s.toolsFailed += 1 }
@@ -856,7 +723,7 @@ public final class Core {
                 setTopic(&s, topic, "edited")
             }
         }
-        guard notable || config.toolUses == .all else { return }
+        guard notable || config.rules.toolUses == .all else { return }
 
         let category = EventLine.category(tool: d.tool)
         let result = d.failed.map { $0 ? "failed" : "ok" } ?? "unknown"
@@ -899,6 +766,12 @@ public final class Core {
         heartbeats = Int(hours)
         fx.append(.event(Event(.heartbeat, at: now, line: EventLine.heartbeat(hours: Int(hours)),
                                wakesBrain: wakes(now), facts: ["idle_hours": .int(hours)])))
+    }
+
+    /// When the oldest turn still working began, or nil: HISTORY reaches
+    /// back at least that far (harness/HARNESS.md §5.3).
+    public func workingSince(at now: Int64) -> Int64? {
+        sessions.values.filter { isWorking($0, now) }.compactMap(\.turnStartedAt).min()
     }
 
     /// The status line that closes HISTORY: every thread working now but

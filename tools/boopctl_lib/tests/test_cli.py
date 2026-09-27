@@ -43,7 +43,7 @@ class CLITests(unittest.TestCase):
         self.assertEqual(parse(["play", "needs", "--seconds", "3"]).seconds, 3)
         self.assertEqual(parse(["mumble", "--levels", "1", "10"]).levels, [1, 10])
         self.assertTrue(parse(["mumble", "happy", "--board-volume"]).board_volume)
-        self.assertTrue(parse(["soak", "--pipeline", "--minutes", "30", "--writer", "apple"]).pipeline)
+        self.assertTrue(parse(["soak", "--pipeline", "--minutes", "30", "--brain", "jev"]).pipeline)
         self.assertEqual(parse(["cam", "clip", "cheer", "--camera", "X"]).camera, "X")
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             parse(["mumble", "--levels", "1", "--board-volume"])

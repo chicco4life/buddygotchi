@@ -1,130 +1,81 @@
 import Foundation
 
-/// The brain's transcript (HARNESS.md §4): one append-only list of what
-/// happened, shared by both stages. Each pass appends its input, the rules'
-/// reaction, what Stage 1 decided, what Stage 2 wrote and what ran; taps and
-/// "needs you" are noted as asides. Nothing in it is ever changed.
-///
-/// Brains see a window onto it: at most `windowInputs` inputs. When one more
-/// arrives, the window starts again from the last `keptInputs`, so Boop
-/// still knows what was just said. That is the only rule: nothing is
-/// summarized, and the window just moves its start. Asides don't move it, so
-/// at most `asidesPerInput` follow one input and later ones aren't noted: a
-/// burst of taps can't crowd out the prompt. Kept in memory only, and
-/// touched only on the harness's queue.
+/// Boop's record of what happened and what it did (harness/HARNESS.md §5):
+/// one append-only list of typed entries. The state's HISTORY and NOW are
+/// built from it for each pass (`StateText`); `debug.jsonl` logs every entry.
+/// Nothing in it is ever changed. Kept in memory only, touched only on the
+/// harness's queue.
 public final class Transcript: @unchecked Sendable {
-    public enum Entry: Equatable, Sendable {
-        /// An input reached the pipeline.
-        case input(Input)
-        /// The rules' instant reaction to that input, e.g. `cheer`.
-        case rules(String)
-        /// Something only the rules handled, e.g. `tapped · 14:07 Tuesday: Boop wiggled`.
-        case aside(String, ts: Int64)
-        /// Stage 1's calls, and how it got there.
-        case decided(by: String, [ToolCall], evidence: String?)
-        /// The pass produced nothing: Stage 1 failed, was late or cancelled,
-        /// or answered off the menu.
-        case dropped(String)
-        /// Stage 2's values by slot key; an empty value was left empty.
-        case wrote(by: String, [String: String])
-        /// Stage 2 failed or was late; every slot was left empty.
-        case writeFailed(by: String, String)
-        /// A call went to its action.
-        case ran(ToolCall, ActionOutcome)
+    public struct Entry: Equatable, Sendable {
+        public let seq: Int
+        public let receivedAtMs: Int64
+        public let body: Body
     }
 
-    public static let windowInputs = 8
-    public static let keptInputs = 2
-    public static let asidesPerInput = 8
-    /// Entries before the window are never read again; past this many they're let go.
-    static let behindLimit = 1000
+    public enum Body: Equatable, Sendable {
+        case event(Event)
+        case pass(Pass)
+        case action(ActionRecord)
+    }
+
+    /// What the brain was asked and answered for one event.
+    public struct Pass: Equatable, Sendable {
+        public var forSeq: Int
+        public var answers: Answers
+        /// Why nothing ran: Jev failed, was late, or had no answer.
+        public var dropped: String?
+        public var latencyMs: Int
+    }
+
+    /// What one action reported.
+    public struct ActionRecord: Equatable, Sendable {
+        public var forSeq: Int
+        public var name: String
+        public var result: ActionResult
+        public var latencyMs: Int
+    }
+
+    /// Past this many entries the oldest are let go; nothing is summarised.
+    public static let limit = 1000
 
     public private(set) var entries: [Entry] = []
-    public private(set) var windowStart = 0
-    /// How many times the window started again, for L5.
-    public private(set) var restarts = 0
+    var nextSeq = 1
 
     public init() {}
 
-    /// The entries brains see, oldest first.
-    public var window: [Entry] { Array(entries[windowStart...]) }
-
-    /// How many inputs the window holds.
-    public var inputs: Int { window.filter { if case .input = $0 { true } else { false } }.count }
-
-    /// A pass starts: moves the window first when it's full, then appends
-    /// the input and the rules' reaction.
-    func begin(_ input: Input) {
-        let starts = entries.indices.filter { i in
-            if i >= windowStart, case .input = entries[i] { return true }
-            return false
-        }
-        if starts.count >= Transcript.windowInputs {
-            restarts += 1
-            windowStart = starts[starts.count - Transcript.keptInputs]
-        }
-        append(.input(input))
-        if let rules = input.rules { append(.rules(rules)) }
-        if windowStart > Transcript.behindLimit {
-            entries.removeFirst(windowStart)
-            windowStart = 0
-        }
-    }
-
-    func append(_ entry: Entry) {
-        entries.append(entry)
-    }
-
-    /// An aside, unless `asidesPerInput` already follow the last input.
-    /// Returns whether it was noted.
     @discardableResult
-    func note(_ aside: String, at ts: Int64) -> Bool {
-        var since = 0
-        for entry in entries.reversed() {
-            if case .input = entry { break }
-            if case .aside = entry { since += 1 }
+    public func append(_ body: Body, at ms: Int64) -> Entry {
+        let entry = Entry(seq: nextSeq, receivedAtMs: ms, body: body)
+        nextSeq += 1
+        entries.append(entry)
+        if entries.count > Transcript.limit { entries.removeFirst(entries.count - Transcript.limit) }
+        return entry
+    }
+
+    public func entry(_ seq: Int) -> Entry? { entries.first { $0.seq == seq } }
+
+    /// The entry as one JSON line for `debug.jsonl` (§9).
+    public static func json(_ entry: Entry, extra: [String: Any] = [:]) -> String {
+        var o: [String: Any] = ["seq": entry.seq, "received_at_ms": entry.receivedAtMs]
+        switch entry.body {
+        case .event(let e):
+            o["event"] = e.json
+        case .pass(let p):
+            var pass: [String: Any] = ["for": p.forSeq, "latency_ms": p.latencyMs, "dropped": p.dropped ?? NSNull(),
+                                       "answers": Transcript.json(p.answers)]
+            for (k, v) in extra { pass[k] = v }
+            o["pass"] = pass
+        case .action(let a):
+            o["action"] = ["for": a.forSeq, "name": a.name, "ok": a.result.ok, "message": a.result.message,
+                           "latency_ms": a.latencyMs] as [String: Any]
         }
-        guard since < Transcript.asidesPerInput else { return false }
-        append(.aside(aside, ts: ts))
-        return true
+        let data = (try? JSONSerialization.data(withJSONObject: o, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
+        return String(decoding: data, as: UTF8.self)
     }
 
-    // MARK: As text
-
-    /// Text on one line, with double quotes made single, to quote in a prompt.
-    static func oneLine(_ s: String) -> String {
-        s.replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "\"", with: "'")
-    }
-
-    // MARK: Grouped
-
-    /// One input and what followed it, or an aside, for brains that read
-    /// structure rather than text (Jev).
-    public struct Group: Equatable, Sendable {
-        public var ts: Int64
-        public var happened: String
-        public var words: String?
-        public var rules: String?
-        /// Calls that ran, nil for an aside.
-        public var did: [ToolCall]?
-    }
-
-    public static func groups(_ window: [Entry]) -> [Group] {
-        var groups: [Group] = []
-        for entry in window {
-            switch entry {
-            case .input(let input):
-                groups.append(Group(ts: input.ts, happened: input.line, words: input.words, rules: input.rules, did: []))
-            case .aside(let what, let ts):
-                groups.append(Group(ts: ts, happened: what, did: nil))
-            case .ran(let call, let outcome):
-                if outcome.isDone, let last = groups.indices.last(where: { groups[$0].did != nil }) {
-                    groups[last].did?.append(call)
-                }
-            case .rules, .decided, .dropped, .wrote, .writeFailed:
-                continue
-            }
+    static func json(_ answers: Answers) -> [String: Any] {
+        answers.mapValues { a in
+            ["choice": a.choice, "p": a.probabilities.mapValues { ($0 * 1000).rounded() / 1000 }] as [String: Any]
         }
-        return groups
     }
 }
