@@ -166,6 +166,8 @@ class Device {
   uint32_t drawnT_ = 0;   // the time of the last frame
   uint32_t drawnReal_ = 0;  // and the real time it was drawn
   bool drawnMoving_ = false;  // it was mid-motion, so the next time step redraws
+  render::FaceLayout drawnFace_{};  // its face, block by block
+  bool drawnBubble_ = false;  // and whether the bubble was up
   bool dirty_ = true;
   bool frame_ = false;
   const char* labelDrawn_ = nullptr;  // the debug label on screen, or null

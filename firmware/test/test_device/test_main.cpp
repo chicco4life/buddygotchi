@@ -459,26 +459,79 @@ static void test_light_sets_the_led() {
 }
 
 // DEVICE.md §6: with the clock running, motion redraws at most every
-// 16 ms of real time, however fast the loop runs. A frozen clock redraws
-// on every step, so scenario frames stay exact.
+// 16 ms of real time, however fast the loop runs. A frozen clock checks
+// on every step, so scenario frames stay exact. A cheer's parts cross
+// block lines a few ms apart, so uncapped its picture changes faster.
 static void test_motion_redraws_at_most_every_16ms() {
-  Rig r;
-  r.usbLine("{\"t\":\"state\",\"base\":\"asleep\"}");  // breathing: always moving
-  r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
-  r.dev.takeFrame();
-  int frames = 0;
-  for (int ms = 0; ms < 1000; ++ms) {
-    ++r.hal.real;
-    r.dev.tick();
-    frames += r.dev.takeFrame();
+  for (bool running : {true, false}) {
+    Rig r;
+    r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
+    r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\"}");
+    if (running) r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
+    r.dev.takeFrame();
+    int frames = 0, last = 0, gap = 1000;
+    for (int ms = 1; ms <= 1000; ++ms) {
+      if (running) ++r.hal.real, r.dev.tick();
+      else r.usbLine("{\"t\":\"dbg.clock\",\"step\":1}");
+      if (!r.dev.takeFrame()) continue;
+      ++frames;
+      if (ms - last < gap) gap = ms - last;
+      last = ms;
+    }
+    TEST_ASSERT_TRUE(frames > 10);
+    if (running) TEST_ASSERT_GREATER_OR_EQUAL(16, gap);
+    else TEST_ASSERT_LESS_THAN(16, gap);
   }
-  TEST_ASSERT_EQUAL(1000 / 16, frames);
-  frames = 0;
-  for (int step = 0; step < 20; ++step) {
-    r.usbLine("{\"t\":\"dbg.clock\",\"step\":1}");
-    frames += r.dev.takeFrame();
+}
+
+// DEVICE.md §6: a frame is drawn only when the picture changes. The face
+// moves a block at a time, so with the clock running every frame drawn is
+// a new picture, a few a second asleep or listening. And the screen always
+// shows what drawing afresh would: stepping a frozen clock, which checks
+// on every step, it matches a second rig that takes a dbg.shot (which
+// draws afresh) after every step, pixel for pixel.
+static void test_a_still_picture_isnt_redrawn() {
+  struct Case {
+    const char* base;
+    const char* moment;
+    int ms;
+    int most;  // frames in 3 s; 3000 / 16 = 187 without the check
+  };
+  const Case cases[] = {
+      {"{\"t\":\"state\",\"base\":\"asleep\"}", nullptr, 2400, 20},
+      {"{\"t\":\"state\",\"base\":\"idle\"}", "{\"t\":\"moment\",\"anim\":\"listening\"}", 1200, 20},
+      {"{\"t\":\"state\",\"base\":\"working\",\"busy\":3}", nullptr, 1200, 40},
+      {"{\"t\":\"state\",\"base\":\"working\"}", "{\"t\":\"moment\",\"anim\":\"cheer\"}", 1200, 90},
+  };
+  for (const Case& c : cases) {
+    const std::string name = std::string(c.base) + (c.moment ? c.moment : "");
+    Rig r, fresh;
+    for (Rig* x : {&r, &fresh}) {
+      x->usbLine(c.base);
+      if (c.moment) x->usbLine(c.moment);
+    }
+    for (int ms = 2; ms <= c.ms + 2; ms += 2) {
+      r.usbLine("{\"t\":\"dbg.clock\",\"step\":2}");
+      fresh.usbLine("{\"t\":\"dbg.clock\",\"step\":2}");
+      fresh.usb.text.clear();
+      fresh.usbLine("{\"t\":\"dbg.shot\"}");
+      if (r.px != fresh.px) TEST_FAIL_MESSAGE(("stale frame at " + std::to_string(ms) + " ms: " + name).c_str());
+    }
+    if (c.moment) r.usbLine(c.moment);  // from the start again, with the clock running
+    r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
+    r.dev.takeFrame();
+    std::vector<uint8_t> last = r.px;
+    int frames = 0, pictures = 0;
+    for (int ms = 0; ms < 3000; ++ms) {
+      ++r.hal.real;
+      r.dev.tick();
+      if (!r.dev.takeFrame()) continue;
+      ++frames;
+      if (r.px != last) ++pictures, last = r.px;
+    }
+    TEST_ASSERT_EQUAL_MESSAGE(pictures, frames, name.c_str());
+    TEST_ASSERT_TRUE_MESSAGE(frames > 0 && frames <= c.most, name.c_str());
   }
-  TEST_ASSERT_EQUAL(20, frames);
 }
 
 // ARCHITECTURE.md §9, UX.md §4: a press shows within 20 ms, and the 16 ms
@@ -827,6 +880,7 @@ int main() {
   RUN_TEST(test_shot_is_header_then_base64);
   RUN_TEST(test_light_sets_the_led);
   RUN_TEST(test_motion_redraws_at_most_every_16ms);
+  RUN_TEST(test_a_still_picture_isnt_redrawn);
   RUN_TEST(test_the_redraw_cap_doesnt_delay_a_press);
   RUN_TEST(test_attention_shows_needs_you_and_chirps_once);
   RUN_TEST(test_no_app_after_30s_of_silence);

@@ -59,7 +59,7 @@ Run a tool with `--help` for its flags: `tools/boopctl` (and
 | `mumble [feeling…]` | Plays the Mac's Voice lines for each feeling, without and with a word, and checks each in `audio.out`: syllables, word, and the DAC's time within 10% of beats × `ms`. Then checks that a muted line moves the mouth silently. `--board-volume` and `--levels` are for listening by ear |
 | `sim [scenario…]` | Plays scenarios in the simulator and compares them with the goldens (L1); `--accept` copies the pictures in |
 | `run [scenario…]` | Plays scenarios on the board and diffs each screenshot against the simulator's, threshold 0 (L2), then lets the clock run again |
-| `perf` | Samples fps and heap once a second; `--motion` keeps the face moving (L2) |
+| `perf` | Samples fps, frame time and heap once a second; `--motion` keeps the face moving (L2) |
 | `soak` | Random, realistic traffic and inputs for `--minutes` (L2); `--pipeline` loops the L4 fixtures through the headless app instead |
 | `e2e [fixture…]` | The pipeline check (L4) |
 | `bridge` | Owns the serial port and shares it on a Unix socket (below) |
@@ -223,8 +223,10 @@ accepted.
    replaces the test's.
 2. `tools/boopctl run`: every `expect` passes, and every screenshot is
    identical to the simulator's.
-3. `tools/boopctl perf --motion`: at least 25 fps while moving, at least
-   60 KB minimum free heap, and no reset (uptime keeps rising).
+3. `tools/boopctl perf --motion`: at least 10 fps while moving (a frame
+   is drawn only when the picture changes, [DEVICE.md](DEVICE.md) §6), no
+   sampled frame taking over 40 ms to draw and push, at least 60 KB
+   minimum free heap, and no reset (uptime keeps rising).
 4. When a change could leak memory or wedge the board: `tools/boopctl soak`
    (20 minutes by default, with one 35 s silence) ends with no reset, the
    minimum heap within 2 KB of where it stood after the first minute, the

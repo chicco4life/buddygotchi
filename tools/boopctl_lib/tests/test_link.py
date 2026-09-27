@@ -30,7 +30,7 @@ class FakeBoard(Link):
         return out
 
 
-PING = b'{"t":"dbg.ping","up":5,"heap":90000,"heap_min":80000,"fps":62,"fw":"t"}\n'
+PING = b'{"t":"dbg.ping","fw":"t","up":5,"heap":90000,"heap_min":80000,"fps":21,"draw_us":812,"push_us":2690}\n'
 
 
 class LinkTests(unittest.TestCase):
@@ -42,7 +42,7 @@ class LinkTests(unittest.TestCase):
         board = FakeBoard([b'{"t":"dbg.pi', PING])  # the first reply loses its end
         seen: list[Exception] = []
         board.retries, board.on_retry = 1, seen.append
-        self.assertEqual(board.vitals(), {"up": 5, "heap": 90000, "heap_min": 80000, "fps": 62})
+        self.assertEqual(board.vitals(), {"up": 5, "heap": 90000, "heap_min": 80000, "fps": 21, "draw_us": 812, "push_us": 2690})
         self.assertEqual(len(board.sent), 2)
         self.assertEqual(len(seen), 1)
 

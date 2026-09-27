@@ -143,9 +143,17 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 1 if failures or differ else 0
 
 
+# perf --motion's moments, each replacing the last: the two that move the
+# face most. The board draws only when the picture changes, so fps reads
+# about 20 through them, and draw_us + push_us says how fast it draws
+# (DEVICE.md §6).
+MOTION = ["cheer", "wiggle"]
+
+
 def cmd_perf(args: argparse.Namespace) -> int:
-    """Samples fps and heap once a second with the clock running. With
-    --motion, it plays moments back to back, so every sample is mid-motion."""
+    """Samples fps, frame time and heap once a second with the clock
+    running. With --motion, it plays a moment every second over the
+    working face, so every sample is mid-motion."""
     samples = []
     with Device(args.port) as dev:
         dev.request({"t": "dbg.clock", "run": True})
@@ -155,24 +163,24 @@ def cmd_perf(args: argparse.Namespace) -> int:
         i = 0
         while (elapsed := time.monotonic() - start) < args.seconds:
             if args.motion and elapsed - last_moment >= 1.0:
-                dev.send({"t": "moment", "anim": ANIMS[i % len(ANIMS)], "ttl": 5})
+                dev.send({"t": "moment", "anim": MOTION[i % len(MOTION)], "ttl": 5})
                 dev.send({"t": "state", "v": 1, "base": "working", "busy": 1})
                 last_moment, i = elapsed, i + 1
             time.sleep(1.0)
             samples.append(dev.vitals())
-        if args.motion:
-            dev.send({"t": "moment", "ttl": 5})  # the empty moment: ends a listening left playing
     fps = [s["fps"] for s in samples[1:]] or [0]  # the first second includes the start
     ups = [s["up"] for s in samples]
     result = {
         "samples": len(samples),
         "fps_min": min(fps),
         "fps_mean": round(sum(fps) / len(fps), 1),
+        "frame_ms_max": round(max((s["draw_us"] + s["push_us"]) / 1000 for s in samples), 1),
         "heap_min": min(s["heap_min"] for s in samples),
         "reset": any(b <= a for a, b in zip(ups, ups[1:])),
         "motion": args.motion,
     }
-    result["ok"] = (not args.motion or result["fps_min"] >= 25) and result["heap_min"] >= 60000 and not result["reset"]
+    moving = result["fps_min"] >= 10 and result["frame_ms_max"] <= 40  # VERIFICATION.md L2
+    result["ok"] = (not args.motion or moving) and result["heap_min"] >= 60000 and not result["reset"]
     emit(result)
     return 0 if result["ok"] else 1
 
@@ -639,7 +647,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("run", help="play scenarios on the device and compare with the simulator (L2)")
     p.add_argument("scenario", nargs="*", help="names or paths (default: all)")
     p.set_defaults(func=cmd_run)
-    p = sub.add_parser("perf", help="sample fps and heap; --motion keeps the face moving")
+    p = sub.add_parser("perf", help="sample fps, frame time and heap; --motion keeps the face moving")
     p.add_argument("--seconds", type=int, default=30)
     p.add_argument("--motion", action="store_true")
     p.set_defaults(func=cmd_perf)

@@ -138,10 +138,10 @@ class Link:
         return self._retrying(once)
 
     def vitals(self) -> dict[str, int]:
-        """Uptime, free heap, its lowest and fps, from dbg.ping: what perf
-        and the soaks sample."""
+        """Uptime, free heap, its lowest, fps and the last frame's drawing
+        and pushing time, from dbg.ping: what perf and the soaks sample."""
         ping = self.request({"t": "dbg.ping"})
-        return {k: ping[k] for k in ("up", "heap", "heap_min", "fps")}
+        return {k: ping[k] for k in ("up", "heap", "heap_min", "fps", "draw_us", "push_us")}
 
     def shot(self) -> tuple[list[int], bytes, tuple[int, int]]:
         """The canvas: 256 RGB565 palette entries, one index per pixel, and

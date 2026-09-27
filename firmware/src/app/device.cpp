@@ -16,8 +16,9 @@ namespace {
 
 constexpr uint32_t kDefaultPressMs = 100;
 constexpr uint32_t kStatusMs = 60000;  // PROTOCOL.md §4
-// Motion redraws at most this often, in real ms: about 60 fps, while the
-// pixel face changes at most about 32 times a second (DEVICE.md §6).
+// Motion redraws at most this often, in real ms: about 60 fps. Parts of
+// the face that cross block lines a few ms apart show together
+// (DEVICE.md §6).
 constexpr uint32_t kFrameMs = 16;
 // A clock a tool froze runs again after this long, in real ms, with no
 // dbg.* message, so a tool that dies mid-run can't leave the board
@@ -341,7 +342,7 @@ void Device::tick() {
   if (screen != screen_) screen_ = screen, dirty_ = true;
   if (debugLabel(t) != labelDrawn_) dirty_ = true;
   bool moving = screen_ != Screen::kPattern && b_.moving(t);
-  // A frozen clock redraws on every step, so scenario frames stay exact,
+  // A frozen clock looks on every step, so scenario frames stay exact,
   // and the press squish on every pass, so the cap doesn't delay a press.
   bool due = clock_.frozen() || b_.pressEasing(t) || hal_.realMs() - drawnReal_ >= kFrameMs;
   if (dirty_ || ((moving || drawnMoving_) && t != drawnT_ && due)) render(t);
@@ -365,10 +366,24 @@ void Device::followSound(uint32_t t) {
   if (k && m.vol > 0) hal_.cue(voice::cueFromName(k), uint8_t(m.vol > 10 ? 10 : m.vol));
 }
 
+// Draws the frame for t, unless nothing on it can have changed since the
+// last one (DEVICE.md §6): no message or input since (dirty_), the face
+// laid out on the same blocks and the bubble still up or still down. The
+// pixel face moves a block at a time, so most passes in motion find the
+// picture unchanged.
 void Device::render(uint32_t t) {
+  render::Pose pose = b_.pose(t);
+  const render::Mumble* mumble = b_.mumble(t);
+  render::FaceLayout face = render::faceLayout(pose);
+  bool same = !dirty_ && face == drawnFace_ && (mumble != nullptr) == drawnBubble_;
+  drawnMoving_ = screen_ != Screen::kPattern && b_.moving(t);
+  drawnT_ = t;
+  drawnReal_ = hal_.realMs();
+  if (same) return;
+  drawnFace_ = face;
+  drawnBubble_ = mumble != nullptr;
   render::Strip strip = b_.strip(t);
   const Model& m = b_.model();
-  bool faced = false;
   switch (screen_) {
     case Screen::kPattern:
       if (targetX_ >= 0) {
@@ -384,20 +399,15 @@ void Device::render(uint32_t t) {
     case Screen::kNeedsYou: {
       render::Attention a;
       a.agent = m.agent, a.project = m.project, a.more = m.more;
-      render::drawNeedsYou(canvas_, b_.pose(t), a, strip);
-      faced = true;
+      render::drawNeedsYou(canvas_, pose, a, strip);
       break;
     }
     default:
-      render::drawFaceScreen(canvas_, b_.pose(t), b_.mumble(t), strip);
-      faced = true;
+      render::drawFaceScreen(canvas_, pose, mumble, strip);
       break;
   }
   labelDrawn_ = debugLabel(t);
   if (labelDrawn_) canvas_.drawText(2, 2, labelDrawn_, render::inkAt(render::kInkDim, render::kLevels));
-  drawnMoving_ = faced && b_.moving(t);
-  drawnT_ = t;
-  drawnReal_ = hal_.realMs();
   dirty_ = false;
   frame_ = true;
 }
@@ -533,6 +543,7 @@ void Device::sendShot(Link to) {
   Out* out = outs_[int(to)];
   if (!out) return;
   screen_ = screenAt(now());
+  dirty_ = true;
   render(now());
   uint8_t pal[512];
   for (int i = 0; i < 256; ++i) {
