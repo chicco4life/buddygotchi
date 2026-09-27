@@ -79,12 +79,16 @@ struct SettingsPane: View {
     private func agentRow(_ agent: HookInstaller.Agent) -> some View {
         let health = model.hooks[agent]
         let found = model.installer.detected(agent)
-        let (text, tone): (String, Color) = switch health {
-        case .installed?: ("Connected", Theme.sageInk)
-        case .outdated?: ("Needs a repair", Theme.amberInk)
-        case .unreadable(let why)?: ("Can't read its settings: \(why)", Theme.clayInk)
-        case .clientMissing?: ("boop-hook isn't built. Run make build, then restart Boop.", Theme.clayInk)
-        default: found ? ("Not connected", Theme.inkSoft) : ("Not found on this Mac", Theme.inkFaint)
+        let (text, tone): (String, Color) = if let why = model.hookErrors[agent] {
+            ("Couldn't change its hooks: \(why)", Theme.clayInk)
+        } else {
+            switch health {
+            case .installed?: ("Connected", Theme.sageInk)
+            case .outdated?: ("Needs a repair", Theme.amberInk)
+            case .unreadable(let why)?: ("Can't read its settings: \(why)", Theme.clayInk)
+            case .clientMissing?: ("boop-hook isn't built. Run make build, then restart Boop.", Theme.clayInk)
+            default: found ? ("Not connected", Theme.inkSoft) : ("Not found on this Mac", Theme.inkFaint)
+            }
         }
         return SettingRow(icon: agentSymbol(agent == .claude ? "claude" : "codex"), title: agent.displayName,
                           detail: text, detailTone: tone) {

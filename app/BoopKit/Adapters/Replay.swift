@@ -52,7 +52,6 @@ public struct Replay {
         let today = time.day(now)
         let core = Core(config: .init(name: "Pip", time: time), lastActiveDay: newDay ? nil : today)
         var out: [String] = []
-        var projects: [String: String] = [:]
 
         func emit(_ effects: [CoreEffect]) {
             for effect in effects {
@@ -78,12 +77,10 @@ public struct Replay {
                     if !statesOnly { out.append("# skipped: not a hook payload") }
                     continue
                 }
-                let key = line.agent + "/" + line.session
-                guard let event = Adapter.event(from: line, knownProject: projects[key]) else {
+                guard let event = Adapter.event(from: line) else {
                     if !statesOnly { out.append("# ignored hook \(line.hook)") }
                     continue
                 }
-                projects[key] = event.project
                 if !statesOnly { out.append("event " + event.jsonLine) }
                 emit(core.handle(event))
                 advance(gapMs)

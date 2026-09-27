@@ -50,6 +50,8 @@ final class AppModel: ObservableObject {
     @Published var hooks: [HookInstaller.Agent: HookInstaller.Health] = [:]
     @Published var remembered: [String] = []
     @Published var restartAgents = false
+    /// Why the last Connect, Repair or Remove failed, per agent.
+    @Published var hookErrors: [HookInstaller.Agent: String] = [:]
     /// How much Boop reacts, chosen in settings; `status` has the brain it runs.
     @Published var mode = Mode.normal
     @Published var nature = LongTerm.Nature.sweet
@@ -78,14 +80,23 @@ final class AppModel: ObservableObject {
     }
 
     func install(_ agent: HookInstaller.Agent) {
-        try? installer.install(agent)
-        restartAgents = true
-        refreshHooks()
+        changeHooks(agent) { try installer.install(agent) }
     }
 
     func remove(_ agent: HookInstaller.Agent) {
-        try? installer.remove(agent)
-        restartAgents = true
+        changeHooks(agent) { try installer.remove(agent) }
+    }
+
+    /// Only a change that worked asks for a restart; one that failed says
+    /// why on the agent's row.
+    private func changeHooks(_ agent: HookInstaller.Agent, _ change: () throws -> Void) {
+        do {
+            try change()
+            hookErrors[agent] = nil
+            restartAgents = true
+        } catch {
+            hookErrors[agent] = "\(error)"
+        }
         refreshHooks()
     }
 
@@ -274,6 +285,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                             runtime.talk(words ?? "", yelled: yelled)
                         } else {
                             log.write("talk: heard nothing")
+                            runtime.heardNothing()
                         }
                     }
                 }

@@ -28,6 +28,20 @@ final class ReplayTests: XCTestCase {
         ])
     }
 
+    /// ADAPTERS.md §4: two parallel subagents in one session; a1 waits on
+    /// a permission prompt while a2 keeps reading and editing. "Needs you"
+    /// stays until a1's call runs.
+    func testASiblingSubagentKeepsWorkingWhileOneWaits() throws {
+        let got = try summary("claude-code/synthetic/subagents.jsonl", agent: "claude")
+        XCTAssertEqual(got, [
+            "+0.0s idle - 0",
+            "+1.0s working - 0",
+            "+3.0s idle claude/landing 1",
+            "+71.0s working - 0",
+            "+72.0s idle - 0",
+        ])
+    }
+
     func testCodexRequestItsReviewerHandlesNeverShows() throws {
         let got = try summary("codex/synthetic/approval-reviewed.jsonl", agent: "codex")
         XCTAssertEqual(got, [

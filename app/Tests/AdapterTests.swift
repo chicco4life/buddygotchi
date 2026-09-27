@@ -34,6 +34,20 @@ final class AdapterTests: XCTestCase {
         XCTAssertNil(Adapter.event(from: line("claude", "Notification", kind: "idle_prompt"))?.detail.tool)
     }
 
+    /// ADAPTERS.md §2: a Claude subagent's id rides on the event; Codex
+    /// has none.
+    func testASubagentsEventsSayWhichSubagent() {
+        var sub = line("claude", "PreToolUse", tool: "Read")
+        sub.agentID = "a1"
+        XCTAssertEqual(Adapter.event(from: sub)?.subagent, "a1")
+        XCTAssertEqual(Adapter.event(from: sub)?.session, "s1", "the parent's session")
+        XCTAssertTrue(Adapter.event(from: sub)?.jsonLine.contains(#""subagent":"a1""#) == true)
+        XCTAssertNil(Adapter.event(from: line("claude", "PreToolUse", tool: "Read"))?.subagent)
+        var codex = line("codex", "PreToolUse", tool: "shell")
+        codex.agentID = "a1"
+        XCTAssertNil(Adapter.event(from: codex)?.subagent)
+    }
+
     func testCodexMapping() {
         let table: [(String, BoopEvent.Kind?)] = [
             ("SessionStart", .sessionStart), ("UserPromptSubmit", .turnStart), ("PreToolUse", .activity),
@@ -78,10 +92,12 @@ final class AdapterTests: XCTestCase {
         XCTAssertTrue(event.jsonLine.contains(#""detail":{"failed":true,"tool":"Bash","topic":"tests"}"#), event.jsonLine)
     }
 
+    /// ARCHITECTURE.md §5's example is this adapter output.
     func testEventJSONShape() throws {
-        let event = BoopEvent(agent: .codex, session: "a1b2", project: "landing", event: .turnEnd,
-                              detail: .init(durationS: 1080, topic: "tests"), ts: 1_790_000_000_123)
-        XCTAssertEqual(event.jsonLine, #"{"agent":"codex","detail":{"duration_s":1080,"topic":"tests"},"event":"turn_end","project":"landing","session":"a1b2","ts":1790000000123}"#)
+        let line = HookLine(agent: "claude", hook: "PreToolUse", session: "a1b2", cwd: "/Users/me/src/landing",
+                            tool: "Bash", topic: "tests", ts: 1_790_000_000_123)
+        let event = try XCTUnwrap(Adapter.event(from: line))
+        XCTAssertEqual(event.jsonLine, #"{"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"landing","session":"a1b2","ts":1790000000123}"#)
     }
 
     func testProjectNames() {
@@ -102,6 +118,28 @@ final class AdapterTests: XCTestCase {
         try "gitdir: /Users/me/src/jetpack/.git/worktrees/feature-x\n"
             .write(to: tree.appendingPathComponent(".git"), atomically: true, encoding: .utf8)
         XCTAssertEqual(Adapter.projectName(cwd: tree.path), "jetpack")
+    }
+
+    /// ADAPTERS.md §3: a worktree's `.git` is read once per folder, not on
+    /// every hook, and the cache starts again past 512 folders. A line
+    /// without a `cwd` is `unknown`; the core keeps the session's project.
+    func testProjectNamesAreCachedPerFolder() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-wt-\(UUID().uuidString)")
+        let tree = root.appendingPathComponent("feature-x")
+        try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let git = tree.appendingPathComponent(".git")
+        try "gitdir: /Users/me/src/jetpack/.git/worktrees/feature-x\n".write(to: git, atomically: true, encoding: .utf8)
+        let names = Adapter.ProjectNames()
+        XCTAssertEqual(names.name(cwd: tree.path), "jetpack")
+        try FileManager.default.removeItem(at: git)
+        XCTAssertEqual(names.name(cwd: tree.path), "jetpack", "not read again")
+        for i in 0..<Adapter.ProjectNames.limit { _ = names.name(cwd: "/w/p\(i)") }
+        XCTAssertEqual(names.name(cwd: tree.path), "feature-x", "read again once the cache starts over")
+        XCTAssertLessThanOrEqual(names.names.count, Adapter.ProjectNames.limit)
+        var line = line("claude", "PreToolUse", tool: "Bash")
+        line.cwd = nil
+        XCTAssertEqual(Adapter.event(from: line)?.project, "unknown")
     }
 
     func testRecordedClaudeSessionMapsInOrder() throws {

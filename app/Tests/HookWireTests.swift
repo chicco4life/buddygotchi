@@ -79,6 +79,26 @@ final class HookWireTests: XCTestCase {
         XCTAssertGreaterThan(lines, 40)
     }
 
+    /// ADAPTERS.md §2: a subagent's hooks carry the parent's session plus
+    /// its `agent_id`, which the line keeps (an opaque id; `agent_type` is
+    /// dropped), even from a payload cut off at the cap.
+    func testASubagentsIDIsKept() throws {
+        let raw = payload([
+            "hook_event_name": "PreToolUse", "session_id": "s1", "agent_id": "a1b2", "agent_type": "general-purpose",
+            "tool_name": "Read", "tool_input": ["file_path": "/w/x.swift"],
+        ])
+        let line = try XCTUnwrap(HookLine.extract(agent: "claude", payload: raw, ts: 0))
+        XCTAssertEqual(line.agentID, "a1b2")
+        XCTAssertEqual(HookLine.decode(line.encoded()), line)
+        XCTAssertFalse(String(decoding: line.encoded(), as: UTF8.self).contains("general-purpose"))
+        let main = try XCTUnwrap(HookLine.extract(agent: "claude", payload: payload(["hook_event_name": "Stop", "session_id": "s1"]), ts: 0))
+        XCTAssertNil(main.agentID)
+        XCTAssertFalse(String(decoding: main.encoded(), as: UTF8.self).contains("agent_id"))
+        let big = String(repeating: "x", count: 300_000)
+        let cut = Data(#"{"session_id": "s1", "agent_id": "a1b2", "hook_event_name": "PostToolUse", "tool_name": "Read", "tool_response": "\#(big)"}"#.utf8).prefix(256 * 1024)
+        XCTAssertEqual(HookLine.extract(agent: "claude", payload: Data(cut), ts: 0)?.agentID, "a1b2")
+    }
+
     func testPayloadWithoutHookNameOrSessionIsDropped() {
         XCTAssertNil(HookLine.extract(agent: "claude", payload: payload(["session_id": "s"]), ts: 0))
         XCTAssertNil(HookLine.extract(agent: "claude", payload: payload(["hook_event_name": "Stop"]), ts: 0))
@@ -94,6 +114,18 @@ final class HookWireTests: XCTestCase {
         XCTAssertEqual(line.hook, "PostToolUse")
         XCTAssertEqual(line.session, "s9")
         XCTAssertNil(line.topic)
+    }
+
+    /// ADAPTERS.md §2: a cut that lands inside a multibyte character still
+    /// gives the event (a Write of 300 KB of accented text).
+    func testACutInsideACharacterStillGivesTheEvent() throws {
+        let big = String(repeating: "é", count: 200_000)
+        let raw = Data(#"{"session_id": "s9", "hook_event_name": "PostToolUse", "tool_name": "Write", "tool_input": {"content": "\#(big)"}}"#.utf8)
+        for cut in [256 * 1024, 256 * 1024 - 1] {
+            let line = try XCTUnwrap(HookLine.extract(agent: "claude", payload: Data(raw.prefix(cut)), ts: 1), "\(cut)")
+            XCTAssertEqual(line.hook, "PostToolUse")
+            XCTAssertEqual(line.tool, "Write")
+        }
     }
 
     func testCodexShellArgvAndPatchesGetTopics() {
@@ -117,6 +149,56 @@ final class HookWireTests: XCTestCase {
         for (command, topic) in cases {
             XCTAssertEqual(Topic.tag(command: command), topic, command)
         }
+    }
+
+    /// ADAPTERS.md §3: the topic comes from what the command runs, after
+    /// `VAR=value`, `cd … &&` and wrappers, never from a word in its
+    /// arguments, quoted text or a heredoc. A failing grep for "make test"
+    /// must not fail a turn, and a commit message about pytest must not
+    /// hide one. Real commands, as agents write them.
+    func testTopicComesFromWhatTheCommandRuns() {
+        let cases: [(String, String?)] = [
+            // What runs.
+            ("cd app && swift test", "tests"), ("FOO=1 npm test", "tests"), ("CI=true npx vitest run", "tests"),
+            ("uv run pytest -q tests/test_api.py", "tests"), ("python3 -m pytest -x", "tests"),
+            ("bundle exec rspec spec/models", "tests"), ("make -C firmware test", "tests"),
+            ("swift test 2>&1 | tail -20", "tests"), ("timeout 600 make fw-test", "tests"),
+            ("env -i PATH=/usr/bin make test", "tests"), ("(cd app && cargo test --release)", "tests"),
+            ("xcodebuild -scheme Boop -destination 'platform=macOS' test", "tests"),
+            ("bash -lc 'cd app && go test ./...'", "tests"), ("make build && make test", "tests"),
+            ("cd /Users/me/src/landing && npm run build 2>&1 | tail -40", "build"),
+            ("make 2>&1 | grep -i error", "build"), ("sudo make install", "build"),
+            ("git push heroku main", "deploy"), ("npx vercel --prod", "deploy"),
+            ("gcloud app deploy --quiet", "deploy"), ("make test && vercel --prod", "deploy"),
+            // Inside shell syntax, behind a wrapper's flag value, or run by
+            // a package manager or a container.
+            ("for i in 1 2 3; do make test || break; done", "tests"), ("if [ -f Makefile ]; then make test; fi", "tests"),
+            ("{ make test; } 2>&1 | tee out.log", "tests"), ("! make test", "tests"),
+            ("while ! make fw-test; do sleep 5; done", "tests"), ("timeout -s KILL 600 make test", "tests"),
+            ("sudo -u ci make test", "tests"), ("env -u DEBUG cargo test", "tests"), ("yarn jest --ci", "tests"),
+            ("pnpm vitest run", "tests"), ("bun x vitest", "tests"), ("yarn test --watch=false", "tests"),
+            ("bun test", "tests"), ("bun run build", "build"), ("yarn tsc --noEmit", "build"),
+            ("docker compose run --rm web pytest", "tests"), ("docker exec -it api make test", "tests"),
+            ("docker compose -f compose.test.yml run -e CI=1 web bundle exec rspec", "tests"),
+            ("docker build -t app .", "build"),
+            // Only mentioned.
+            ("grep -rn \"make webcam-test\" README.md plan/", nil), ("grep -n 'make test' Makefile", nil),
+            ("git commit -m \"run pytest in CI\"", nil), ("python3 -c \"import pytest\"", nil),
+            ("which tsc", nil), ("ls node_modules/.bin/jest", nil), ("rg -l 'cargo test' docs", nil),
+            ("echo \"now run: make test\"", nil), ("go run ./cmd/test", nil),
+            ("git log --oneline | grep -i vercel", nil), ("cat package.json | jq .scripts.test", nil),
+            ("git commit -F - <<'EOF'\nmake test passes again\n\nCo-Authored-By: x\nEOF", nil),
+            ("git commit -m \"$(cat <<'EOF'\nFix: pytest runs in CI\nEOF\n)\"", nil),
+            ("cat > /tmp/run.sh <<EOF\nnpm test\nEOF\nchmod +x /tmp/run.sh", nil),
+            ("command -v pytest", nil), ("command -v make >/dev/null || brew install make", nil), ("type jest", nil),
+            ("hash tsc", nil), ("for f in *.test.js; do echo $f; done", nil), ("docker compose up -d", nil),
+            ("if grep -q 'make test' Makefile; then echo yes; fi", nil),
+        ]
+        for (command, topic) in cases {
+            XCTAssertEqual(Topic.tag(command: command), topic, command)
+        }
+        XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["grep", "-rn", "make test", "docs"]]), nil)
+        XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["zsh", "-c", "npm run build"]]), "build")
     }
 
     func testEditsToMarkdownOrTextAreDocs() {

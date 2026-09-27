@@ -1,6 +1,6 @@
 # Boop: protocol
 
-Updated 2026-09-26. Every message between the Boop Mac app and the device,
+Updated 2026-09-27. Every message between the Boop Mac app and the device,
 over Bluetooth or USB.
 
 ## 1. The idea
@@ -130,9 +130,11 @@ something needs you, when only the moments in [BEHAVIORS.md](BEHAVIORS.md)
 
 **The empty moment,** `{"t":"moment","ttl":5}` with no `anim` and no
 `say`, ends `listening` and does nothing else: it never ends a cheer, a
-wiggle or a mumble. The Mac sends it 8 s after Send in the popover, and at
-once when the mic can't start ([BEHAVIORS.md](BEHAVIORS.md) §3.3). A
-mumble also ends `listening`: it's the reply.
+wiggle or a mumble. The Mac sends it 8 s after Send in the popover, at
+once when the mic can't start or heard nothing, and as soon as Boop
+decides not to mumble back, after either button
+([BEHAVIORS.md](BEHAVIORS.md) §3.3). A mumble also ends `listening`: it's
+the reply, and the Mac sends no other mumble while you talk.
 
 ## 4. Device → Mac
 

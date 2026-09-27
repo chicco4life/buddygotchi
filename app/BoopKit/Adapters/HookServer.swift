@@ -69,12 +69,17 @@ public final class HookServer: @unchecked Sendable {
 
     deinit { stop() }
 
+    /// Runs until `stop()`. Any other failed `accept` (out of file
+    /// descriptors, an aborted connection) is waited out, so hooks keep
+    /// arriving once it passes.
     private func acceptLoop(_ fd: Int32) {
         while true {
             let client = accept(fd, nil, nil)
             if client < 0 {
-                if errno == EINTR { continue }
-                return  // closed by stop()
+                let error = errno
+                if lock.withLock({ listener }) != fd { return }  // closed by stop()
+                if error != EINTR { usleep(10_000) }
+                continue
             }
             handle(client)
         }

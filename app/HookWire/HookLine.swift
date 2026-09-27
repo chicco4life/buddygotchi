@@ -19,11 +19,16 @@ public struct HookLine: Equatable, Sendable {
     public var kind: String?
     /// `PostToolUseFailure` because you interrupted the call.
     public var interrupt: Bool
+    /// Claude's `agent_id`: which subagent the hook fired in. Claude gives a
+    /// subagent's hooks the parent's session, so this tells siblings apart;
+    /// nil for the main agent.
+    public var agentID: String?
     /// When the hook ran, in milliseconds.
     public var ts: Int64
 
     public init(agent: String, hook: String, session: String, cwd: String? = nil, tool: String? = nil,
-                topic: String? = nil, error: String? = nil, kind: String? = nil, interrupt: Bool = false, ts: Int64) {
+                topic: String? = nil, error: String? = nil, kind: String? = nil, interrupt: Bool = false,
+                agentID: String? = nil, ts: Int64) {
         self.agent = agent
         self.hook = hook
         self.session = session
@@ -33,6 +38,7 @@ public struct HookLine: Equatable, Sendable {
         self.error = error
         self.kind = kind
         self.interrupt = interrupt
+        self.agentID = agentID
         self.ts = ts
     }
 
@@ -53,7 +59,8 @@ public struct HookLine: Equatable, Sendable {
         guard let hook = string(json["hook_event_name"]) ?? string(json["hookEventName"]),
               let session = string(json["session_id"]) ?? string(json["thread_id"]) ?? string(json["conversation_id"])
         else { return nil }
-        var line = HookLine(agent: agent, hook: hook, session: session, cwd: string(json["cwd"]), ts: ts)
+        var line = HookLine(agent: agent, hook: hook, session: session, cwd: string(json["cwd"]),
+                            agentID: string(json["agent_id"]), ts: ts)
         switch hook {
         case "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest":
             line.tool = string(json["tool_name"])
@@ -73,9 +80,10 @@ public struct HookLine: Equatable, Sendable {
 
     /// A payload over the 256 KB cap is cut off and won't parse. The fields we
     /// need come early, so pick them out of the prefix; the topic is lost.
+    /// The cut can land inside a character, so bad bytes are replaced
+    /// rather than losing the line.
     static func salvage(agent: String, payload: Data, ts: Int64) -> HookLine? {
-        guard let text = String(data: payload, encoding: .utf8) ?? String(data: payload.prefix(65536), encoding: .utf8)
-        else { return nil }
+        let text = String(decoding: payload, as: UTF8.self)
         func field(_ name: String) -> String? {
             guard let regex = try? NSRegularExpression(pattern: "\"\(name)\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.){0,400})\"")
             else { return nil }
@@ -85,7 +93,8 @@ public struct HookLine: Equatable, Sendable {
             return string(String(text[value]))
         }
         guard let hook = field("hook_event_name"), let session = field("session_id") else { return nil }
-        var line = HookLine(agent: agent, hook: hook, session: session, cwd: field("cwd"), ts: ts)
+        var line = HookLine(agent: agent, hook: hook, session: session, cwd: field("cwd"),
+                            agentID: field("agent_id"), ts: ts)
         if ["PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest"].contains(hook) {
             line.tool = field("tool_name")
         }
@@ -107,7 +116,10 @@ public struct HookLine: Equatable, Sendable {
         if let error { object["error"] = error }
         if let kind { object["kind"] = kind }
         if interrupt { object["interrupt"] = true }
-        var data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
+        if let agentID { object["agent_id"] = agentID }
+        // No `.sortedKeys`: nothing reads the order, and sorting loads
+        // locale-aware comparison, about half of a hook's few milliseconds.
+        var data = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
         data.append(0x0A)
         return data
     }
@@ -120,6 +132,6 @@ public struct HookLine: Equatable, Sendable {
         return HookLine(agent: agent, hook: hook, session: session, cwd: string(object["cwd"]),
                         tool: string(object["tool"]), topic: string(object["topic"]),
                         error: string(object["error"]), kind: string(object["kind"]),
-                        interrupt: object["interrupt"] as? Bool == true, ts: ts)
+                        interrupt: object["interrupt"] as? Bool == true, agentID: string(object["agent_id"]), ts: ts)
     }
 }

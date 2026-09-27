@@ -40,7 +40,6 @@ public struct BoopEvent: Equatable, Sendable {
 
     /// Small and event-specific. Never prompt text, commands or file contents.
     public struct Detail: Equatable, Sendable {
-        public var durationS: Int?
         public var tool: String?
         public var topic: String?
         public var error: String?
@@ -49,9 +48,7 @@ public struct BoopEvent: Equatable, Sendable {
         /// call you interrupted. Nil when unknown.
         public var failed: Bool?
 
-        public init(durationS: Int? = nil, tool: String? = nil, topic: String? = nil, error: String? = nil,
-                    failed: Bool? = nil) {
-            self.durationS = durationS
+        public init(tool: String? = nil, topic: String? = nil, error: String? = nil, failed: Bool? = nil) {
             self.tool = tool
             self.topic = topic
             self.error = error
@@ -61,15 +58,20 @@ public struct BoopEvent: Equatable, Sendable {
 
     public var agent: Agent
     public var session: String
+    /// The Claude subagent the event came from, which shares its parent's
+    /// session; nil for the main agent and for Codex.
+    public var subagent: String?
     public var project: String
     public var event: Kind
     public var detail: Detail
     /// Milliseconds.
     public var ts: Int64
 
-    public init(agent: Agent, session: String, project: String, event: Kind, detail: Detail = Detail(), ts: Int64) {
+    public init(agent: Agent, session: String, subagent: String? = nil, project: String, event: Kind,
+                detail: Detail = Detail(), ts: Int64) {
         self.agent = agent
         self.session = session
+        self.subagent = subagent
         self.project = project
         self.event = event
         self.detail = detail
@@ -79,15 +81,15 @@ public struct BoopEvent: Equatable, Sendable {
     /// The event as one JSON line, in the shape of ARCHITECTURE.md §5.
     public var jsonLine: String {
         var detailObject: [String: Any] = [:]
-        if let durationS = detail.durationS { detailObject["duration_s"] = durationS }
         if let tool = detail.tool { detailObject["tool"] = tool }
         if let topic = detail.topic { detailObject["topic"] = topic }
         if let error = detail.error { detailObject["error"] = error }
         if let failed = detail.failed { detailObject["failed"] = failed }
-        let object: [String: Any] = [
+        var object: [String: Any] = [
             "agent": agent.rawValue, "session": session, "project": project,
             "event": event.rawValue, "detail": detailObject, "ts": ts,
         ]
+        if let subagent { object["subagent"] = subagent }
         let data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
         return String(decoding: data, as: UTF8.self)
     }

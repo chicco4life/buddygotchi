@@ -21,9 +21,23 @@ public struct MomentSchedule {
         busyUntil = max(busyUntil, now + moment.playMs)
     }
 
+    /// Nothing is playing and no brain moment is waiting its turn.
+    public func idle(now: Int64) -> Bool {
+        now >= busyUntil && waiting.isEmpty
+    }
+
     /// A moment from the brain, to play when its turn comes.
     public mutating func brain(_ moment: DeviceMoment, now: Int64) {
         waiting.append((moment, now))
+    }
+
+    /// Drops every brain moment still waiting its turn, and returns them.
+    /// The mic turning on does this: a moment queued before it can only be
+    /// about an agent, and would end `listening` before the reply
+    /// (BEHAVIORS.md §3.3).
+    public mutating func dropWaiting() -> [DeviceMoment] {
+        defer { waiting = [] }
+        return waiting.map(\.moment)
     }
 
     /// The brain moment to play now, if one's turn has come (at most one),

@@ -27,11 +27,13 @@ public struct HookInstaller {
     }
 
     /// The hooks each agent gets, with a matcher where one is needed.
+    /// Claude matches `Notification` on its type, so the matcher lists every
+    /// type the adapter maps (ADAPTERS.md §3, §5).
     static let events: [Agent: [(event: String, matcher: String?)]] = [
         .claude: [
             ("SessionStart", nil), ("UserPromptSubmit", nil), ("PreToolUse", nil), ("PostToolUse", nil),
             ("PostToolUseFailure", nil), ("PermissionRequest", nil),
-            ("Notification", "permission_prompt|elicitation_dialog"), ("Elicitation", nil),
+            ("Notification", "permission_prompt|elicitation_dialog|idle_prompt"), ("Elicitation", nil),
             ("ElicitationResult", nil), ("Stop", nil), ("StopFailure", nil), ("SessionEnd", nil),
         ],
         .codex: [
@@ -97,8 +99,14 @@ public struct HookInstaller {
     public func preview(_ agent: Agent) -> String {
         var text = Self.events[agent]!.map { "\($0.event)\($0.matcher.map { " (\($0))" } ?? "") → \(command(agent))" }
             .joined(separator: "\n")
-        if agent == .codex, Self.enablingCodexHooks(in: codexConfigText) != nil {
-            text += "\n\nIn \(codexConfigURL.path), under [features]:\ncodex_hooks = true"
+        if agent == .codex {
+            switch Result(catching: { try Self.enablingCodexHooks(in: codexConfigText) }) {
+            case .success(nil): break
+            case .success: text += "\n\nIn \(codexConfigURL.path), under [features]:\ncodex_hooks = true"
+            case .failure(let why):
+                let place = why as? Refusal == Self.inlineFeatures ? "inside features = { … }" : "under [features] (\(why))"
+                text += "\n\nNothing is added until you put this in \(codexConfigURL.path), \(place):\ncodex_hooks = true"
+            }
         }
         return text
     }
@@ -106,12 +114,14 @@ public struct HookInstaller {
     // MARK: Changing
 
     /// Adds Boop's entries, replacing any older ones. For Codex it also turns
-    /// hooks on in `config.toml`. Refuses while `boop-hook` isn't in place.
+    /// hooks on in `config.toml`, and writes nothing at all when it won't edit
+    /// that file. Refuses while `boop-hook` isn't in place.
     public func install(_ agent: Agent) throws {
         guard clientInPlace else { throw Refusal("there's no boop-hook at \(hookPath)") }
         let root = try read(agent).get()
+        let config = agent == .codex ? try Self.enablingCodexHooks(in: codexConfigText) : nil
         try write(installing(agent, into: root), agent)
-        if agent == .codex { try enableCodexHooks() }
+        if let config { try config.write(to: codexConfigURL.resolvingSymlinksInPath(), atomically: true, encoding: .utf8) }
     }
 
     /// Removes Boop's entries, current and old, and nothing else.
@@ -198,8 +208,9 @@ public struct HookInstaller {
         return .success(object)
     }
 
+    /// Writes through a symlink (a dotfiles setup) rather than replacing it.
     func write(_ root: [String: Any], _ agent: Agent) throws {
-        let url = configURL(agent)
+        let url = configURL(agent).resolvingSymlinksInPath()
         if case .success(let old) = read(agent), NSDictionary(dictionary: old).isEqual(to: root),
            FileManager.default.fileExists(atPath: url.path) || root.isEmpty { return }
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -209,45 +220,84 @@ public struct HookInstaller {
         try data.write(to: url, options: .atomic)
     }
 
-    /// Codex runs hooks only with `codex_hooks = true` under `[features]`.
-    /// Boop adds the line if it's missing and never removes it: other hooks
-    /// may rely on it.
-    func enableCodexHooks() throws {
-        guard let updated = Self.enablingCodexHooks(in: codexConfigText) else { return }
-        try updated.write(to: codexConfigURL, atomically: true, encoding: .utf8)
-    }
-
     var codexConfigURL: URL { home.appendingPathComponent(".codex/config.toml") }
 
     /// `config.toml` as it is now; empty if it isn't there.
     var codexConfigText: String { (try? String(contentsOf: codexConfigURL, encoding: .utf8)) ?? "" }
 
-    /// `toml` with `codex_hooks = true` in `[features]`, or nil if it's
-    /// already there.
-    static func enablingCodexHooks(in toml: String) -> String? {
+    /// Codex runs hooks only with `codex_hooks = true` under `[features]`.
+    /// Boop adds the line if it's missing and never removes it: other hooks
+    /// may rely on it.
+    ///
+    /// `toml` with `codex_hooks = true` in `features`, or nil if it's
+    /// already there. It finds the table however it's written (`[features]`,
+    /// `[ features ] # note`, or top-level `features.x = …` keys) and never
+    /// declares it twice, which Codex refuses to load. It throws for a shape
+    /// it won't edit (an inline `features = {…}` without the key), so the
+    /// line is added by hand.
+    static func enablingCodexHooks(in toml: String) throws -> String? {
         var lines = toml.components(separatedBy: "\n")
-        var section = ""
+        var section: String?  // nil at the top level
         var featuresAt: Int?
+        var lastDotted: Int?
         for (i, raw) in lines.enumerated() {
-            let line = raw.trimmingCharacters(in: .whitespaces)
+            let line = uncommented(raw).trimmingCharacters(in: .whitespaces)
             if line.hasPrefix("[") {
-                section = line
-                if line == "[features]" { featuresAt = i }
+                section = line.filter { !$0.isWhitespace }
+                if section == "[features]" { featuresAt = i }
                 continue
             }
-            if section == "[features]", line.replacingOccurrences(of: " ", with: "").hasPrefix("codex_hooks=") {
-                if line.replacingOccurrences(of: " ", with: "") == "codex_hooks=true" { return nil }
-                lines[i] = "codex_hooks = true"
+            guard let eq = line.firstIndex(of: "=") else { continue }
+            let key = line[..<eq].filter { !$0.isWhitespace }
+            let value = line[line.index(after: eq)...].trimmingCharacters(in: .whitespaces)
+            switch (section, key) {
+            case ("[features]", "codex_hooks"), (nil, "features.codex_hooks"):
+                if value == "true" { return nil }
+                lines[i] = section == nil ? "features.codex_hooks = true" : "codex_hooks = true"
                 return lines.joined(separator: "\n")
+            case (nil, "features"):
+                if value.range(of: #"[{,]\s*codex_hooks\s*=\s*true\s*[,}]"#, options: .regularExpression) != nil {
+                    return nil
+                }
+                throw inlineFeatures
+            case (nil, _) where key.hasPrefix("features."):
+                lastDotted = i
+            default:
+                break
             }
         }
-        if let featuresAt {
-            lines.insert("codex_hooks = true", at: featuresAt + 1)
+        switch (featuresAt, lastDotted) {
+        case (.some, .some):
+            throw Refusal("features is declared twice already")
+        case (.some(let at), nil):
+            lines.insert("codex_hooks = true", at: at + 1)
             return lines.joined(separator: "\n")
+        case (nil, .some(let at)):
+            lines.insert("features.codex_hooks = true", at: at + 1)
+            return lines.joined(separator: "\n")
+        case (nil, nil):
+            var out = toml
+            if !out.isEmpty && !out.hasSuffix("\n") { out += "\n" }
+            if !out.isEmpty { out += "\n" }
+            return out + "[features]\ncodex_hooks = true\n"
         }
-        var out = toml
-        if !out.isEmpty && !out.hasSuffix("\n") { out += "\n" }
-        if !out.isEmpty { out += "\n" }
-        return out + "[features]\ncodex_hooks = true\n"
+    }
+
+    static let inlineFeatures = Refusal("features is an inline table")
+
+    /// A TOML line without its `# comment`, leaving a `#` inside quotes.
+    static func uncommented(_ line: String) -> Substring {
+        var quote: Character?
+        for i in line.indices {
+            let ch = line[i]
+            if let q = quote {
+                if ch == q { quote = nil }
+            } else if ch == "\"" || ch == "'" {
+                quote = ch
+            } else if ch == "#" {
+                return line[..<i]
+            }
+        }
+        return line[...]
     }
 }

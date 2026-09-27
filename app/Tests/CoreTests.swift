@@ -20,9 +20,9 @@ final class CoreRig {
     }
 
     @discardableResult
-    func send(_ kind: BoopEvent.Kind, _ agent: Agent = .claudeCode, session: String = "s1", project: String = "landing",
-              tool: String? = nil, topic: String? = nil, failed: Bool? = nil) -> [CoreEffect] {
-        let fx = core.handle(BoopEvent(agent: agent, session: session, project: project, event: kind,
+    func send(_ kind: BoopEvent.Kind, _ agent: Agent = .claudeCode, session: String = "s1", subagent: String? = nil,
+              project: String = "landing", tool: String? = nil, topic: String? = nil, failed: Bool? = nil) -> [CoreEffect] {
+        let fx = core.handle(BoopEvent(agent: agent, session: session, subagent: subagent, project: project, event: kind,
                                        detail: .init(tool: tool, topic: topic, failed: failed), ts: now))
         log += fx
         return fx
@@ -310,6 +310,62 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertNotNil(rig.state.attn)
     }
 
+    /// ADAPTERS.md §4: Claude gives a subagent's hooks its parent's session.
+    /// A sibling's tool calls don't answer another agent's request; only the
+    /// asker's own next event, or a turn-level one, does.
+    func testASiblingSubagentsToolsDontAnswerTheRequest() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, subagent: "a1", tool: "Bash")
+        rig.send(.needsYou, subagent: "a1", tool: "Bash")
+        XCTAssertNotNil(rig.state.attn)
+        rig.wait(500)
+        rig.send(.activity, subagent: "a2", tool: "Read")
+        rig.send(.activity, tool: "Agent")  // the main agent: another subagent came back
+        XCTAssertNotNil(rig.state.attn, "a sibling kept working")
+        rig.wait(5500)
+        XCTAssertEqual(states(rig.send(.needsYou)), [], "its Notification is the same request")
+        rig.wait(60_000)
+        rig.send(.activity, subagent: "a2", tool: "Read")
+        XCTAssertNotNil(rig.state.attn)
+        let fx = rig.send(.activity, subagent: "a1", tool: "Bash")  // approved
+        XCTAssertNil(states(fx).last?.attn)
+        XCTAssertEqual(states(fx).last?.base, "working")
+    }
+
+    /// Two subagents asking at once: "needs you" stays until both are
+    /// answered, and a turn-level event answers everyone.
+    func testEveryAskerMustBeAnswered() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.needsYou, subagent: "a1", tool: "Bash")
+        rig.send(.needsYou, subagent: "a2", tool: "Edit")
+        XCTAssertEqual(rig.state.attn?.more, 0, "one session")
+        rig.send(.activity, subagent: "a1", tool: "Bash")
+        XCTAssertNotNil(rig.state.attn, "a2 still waits")
+        rig.send(.activity, subagent: "a2", tool: "Edit")
+        XCTAssertNil(rig.state.attn)
+        for turnLevel in [BoopEvent.Kind.turnEnd, .turnFailed, .sessionEnd] {
+            rig.send(.turnStart)
+            rig.send(.needsYou, subagent: "a1", tool: "Bash")
+            rig.send(.activity, subagent: "a2", tool: "Read")
+            XCTAssertNotNil(rig.state.attn, turnLevel.rawValue)
+            rig.send(turnLevel)
+            XCTAssertNil(rig.state.attn, turnLevel.rawValue)
+        }
+    }
+
+    /// A request that came as a Notification alone doesn't say who asked, so
+    /// any event from the session answers it, as before subagents.
+    func testANotificationAloneIsAnsweredByAnyEvent() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.needsYou)
+        XCTAssertNotNil(rig.state.attn)
+        rig.send(.activity, subagent: "a2", tool: "Read")
+        XCTAssertNil(rig.state.attn)
+    }
+
     func testMoreThanOneShowsTheOldestWithACount() {
         let rig = CoreRig()
         rig.send(.needsYou, .claudeCode, session: "a", project: "jetpack", tool: "Bash")
@@ -320,14 +376,22 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(rig.state.attn, StateSnapshot.Attention(agent: "claude", project: "landing", more: 0))
     }
 
+    /// ADAPTERS.md §4: after 10 minutes with no events "needs you" clears,
+    /// and the session goes idle rather than back to working: no sweat drop
+    /// and no chatter while the agent may still be waiting on its prompt.
     func testSafetyNetClearsAfterTenQuietMinutes() {
-        let rig = CoreRig()
+        XCTAssertEqual(Core.Config(name: "Pip").safetyNetMs, 600_000)
+        let rig = CoreRig(mode: .chatty)
         rig.send(.turnStart)
         rig.send(.needsYou, tool: "Bash")
         rig.wait(599_000)
         XCTAssertNotNil(rig.state.attn)
         rig.wait(1000)
         XCTAssertNil(rig.state.attn)
+        XCTAssertEqual(rig.state.base, "idle")
+        XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"]])
+        XCTAssertEqual(mumbles(rig.wait(600_000)), [], "no working chatter")
+        XCTAssertEqual(states(rig.send(.activity, tool: "Bash")).last?.base, "working", "until the agent acts again")
     }
 
     func testWhileSomethingNeedsYouOnlyWhatYouSayReachesTheBrain() {
@@ -532,6 +596,128 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertFalse(rig.wait(Core.replyWaitMs).contains(.endListening))
     }
 
+    /// BEHAVIORS.md §3.3: while the mic is on, and after it goes off while
+    /// Boop waits for the reply (at most 8 s), there's no working chatter,
+    /// with either button: a mumble would end `listening` before the reply.
+    func testNoChatterWhileYouTalk() {
+        for button in [Core.Talker.device, .app] {
+            let rig = CoreRig(seed: 7, mode: .chatty)
+            rig.send(.turnStart)
+            rig.send(.activity, tool: "Bash", topic: "tests")
+            rig.wait(1000)
+            func talk(_ on: Bool) {
+                if button == .device { rig.input(on ? .talkOn : .talkOff) } else { rig.core.listen(on, at: rig.now) }
+            }
+            talk(true)
+            rig.core.nextChatterAt = rig.now + 1000  // chatter is due while the mic is on
+            XCTAssertEqual(mumbles(rig.wait(5000)), [], "\(button): mic on")
+            talk(false)
+            rig.core.nextChatterAt = rig.now + 1000
+            XCTAssertEqual(mumbles(rig.wait(Core.replyWaitMs - 1000)), [], "\(button): waiting for the reply")
+            rig.core.nextChatterAt = rig.now + 1000
+            XCTAssertEqual(mumbles(rig.wait(2000)).count, 1, "\(button): chatter again after 8 s")
+        }
+    }
+
+    /// BEHAVIORS.md §3.3: from the mic turning on until the words arrive, a
+    /// brain mumble can only be about an agent, and would end `listening`
+    /// before the reply, so none plays. Once the words arrive the pass
+    /// running is theirs, and the reply may mumble.
+    func testOnlyTheReplyMumblesWhileYouTalk() {
+        let rig = CoreRig()
+        XCTAssertTrue(rig.core.canMumble(at: rig.now))
+        rig.input(.talkOn)
+        XCTAssertFalse(rig.core.canMumble(at: rig.now), "mic on")
+        rig.wait(2000)
+        rig.input(.talkOff)
+        XCTAssertFalse(rig.core.canMumble(at: rig.now), "the words haven't arrived")
+        rig.wait(1000)
+        rig.core.talk("good job", at: rig.now)
+        XCTAssertTrue(rig.core.canMumble(at: rig.now), "the reply")
+        rig.input(.talkOn)
+        XCTAssertFalse(rig.core.canMumble(at: rig.now), "talking again")
+        rig.input(.talkOff)
+        rig.wait(Core.replyWaitMs - 1000)
+        XCTAssertFalse(rig.core.canMumble(at: rig.now))
+        rig.wait(1000)
+        XCTAssertTrue(rig.core.canMumble(at: rig.now), "heard nothing: after 8 s the wait is over")
+        rig.core.listen(true, at: rig.now)
+        XCTAssertFalse(rig.core.canMumble(at: rig.now), "the Talk button too")
+        rig.core.micFailed(at: rig.now)
+        XCTAssertTrue(rig.core.canMumble(at: rig.now), "a mic that can't start waits for nothing")
+        rig.core.talk("hi", at: rig.now)  // the dev talk line, with no mic
+        XCTAssertTrue(rig.core.canMumble(at: rig.now))
+    }
+
+    /// BEHAVIORS.md §3.3: when the pass for what you said decides on no
+    /// mumble ("be quiet", told off in calm, quiet mode, a dropped pass),
+    /// the empty moment ends `listening` at once, not up to 8 s later, for
+    /// either button.
+    func testNoReplyEndsListeningAtOnce() {
+        for button in [Core.Talker.device, .app] {
+            let rig = CoreRig()
+            if button == .device { rig.input(.talkOn); rig.wait(2000); rig.input(.talkOff) }
+            else { rig.core.listen(true, at: rig.now); rig.wait(2000); rig.core.listen(false, at: rig.now) }
+            rig.wait(1000)
+            let said = inputs(rig.core.talk("be quiet", at: rig.now))[0]
+            rig.wait(1000)
+            XCTAssertEqual(rig.core.replied(to: said.ts, mumbled: false, at: rig.now), [.endListening], "\(button)")
+            XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening), "\(button): only once")
+            XCTAssertEqual(rig.core.replied(to: said.ts, mumbled: false, at: rig.now), [], "\(button): only once")
+        }
+    }
+
+    /// A mumbled reply ends `listening` on the device by itself. After the
+    /// Talk button the 8 s empty moment still follows, harmlessly.
+    func testAReplyEndsListeningItself() {
+        let rig = CoreRig()
+        rig.input(.talkOn)
+        rig.input(.talkOff)
+        let said = inputs(rig.core.talk("good job", at: rig.now))[0]
+        XCTAssertEqual(rig.core.replied(to: said.ts, mumbled: true, at: rig.now), [])
+        XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening))
+        rig.core.listen(true, at: rig.now)
+        rig.core.listen(false, at: rig.now)
+        let again = inputs(rig.core.talk("good job", at: rig.now))[0]
+        XCTAssertEqual(rig.core.replied(to: again.ts, mumbled: true, at: rig.now), [])
+        XCTAssertEqual(rig.wait(Core.replyWaitMs).filter { $0 == .endListening }.count, 1)
+    }
+
+    /// A pass for older words doesn't end a new talk's `listening`: not
+    /// while the mic is on again, nor while the new words are on their way
+    /// (the new words cancel the old pass, whose end comes then).
+    func testAnOlderPassDoesntEndANewTalk() {
+        let rig = CoreRig()
+        rig.input(.talkOn)
+        rig.input(.talkOff)
+        let first = inputs(rig.core.talk("hello", at: rig.now))[0]
+        rig.wait(1000)
+        rig.input(.talkOn)
+        XCTAssertEqual(rig.core.replied(to: first.ts, mumbled: false, at: rig.now), [], "mic on")
+        rig.wait(2000)
+        rig.input(.talkOff)
+        XCTAssertEqual(rig.core.replied(to: first.ts, mumbled: false, at: rig.now), [], "the new words are coming")
+        rig.wait(1000)
+        let second = inputs(rig.core.talk("be quiet", at: rig.now))[0]
+        XCTAssertEqual(rig.core.replied(to: first.ts, mumbled: false, at: rig.now), [], "cancelled by the new words")
+        XCTAssertEqual(rig.core.replied(to: second.ts, mumbled: false, at: rig.now), [.endListening])
+    }
+
+    /// A mic that heard nothing, not even a yell, sends no words: the empty
+    /// moment ends `listening` at once.
+    func testHearingNothingEndsListeningAtOnce() {
+        let rig = CoreRig()
+        rig.input(.talkOn)
+        XCTAssertEqual(rig.core.heardNothing(at: rig.now), [], "the mic is still on")
+        rig.input(.talkOff)
+        XCTAssertEqual(rig.core.heardNothing(at: rig.now), [.endListening])
+        XCTAssertEqual(rig.core.heardNothing(at: rig.now), [])
+        rig.core.listen(true, at: rig.now)
+        rig.core.listen(false, at: rig.now)
+        XCTAssertEqual(rig.core.heardNothing(at: rig.now), [.endListening])
+        XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening), "and not again at 8 s")
+    }
+
     /// BEHAVIORS.md §3.3: a Mac mic that can't start ends the Talk button's
     /// `listening` at once with the empty moment. The device's own button
     /// ends its face by itself.
@@ -554,6 +740,56 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertEqual(moments(fx), [])
         XCTAssertEqual(moments(rig.wait(2000)), [])
         XCTAssertFalse(rig.send(.turnStart).contains { if case .newDay = $0 { true } else { false } }, "only the first activity")
+    }
+
+    /// ARCHITECTURE.md §4: talking to Boop is activity too, so the popover's
+    /// Talk button or a talk line as the day's first activity starts the day
+    /// before its words reach the brain, and a note lands in today.
+    func testTalkingStartsTheDayBeforeItsWords() {
+        let newDay = CoreEffect.newDay(date: "2026-10-15", firstSeen: "14:00")
+        let rig = CoreRig()
+        rig.now += CoreRig.day
+        let on = rig.core.listen(true, at: rig.now)
+        XCTAssertEqual(on.first { if case .newDay = $0 { true } else { false } }, newDay)
+        XCTAssertFalse(rig.core.talk("hi", at: rig.now).contains(newDay), "only once")
+        let talked = CoreRig()
+        talked.now += CoreRig.day
+        let fx = talked.core.talk("remember the demo is on Thursday", at: talked.now)
+        let day = fx.firstIndex(of: newDay)
+        let said = fx.firstIndex { if case .input = $0 { true } else { false } }
+        XCTAssertNotNil(day)
+        XCTAssertLessThan(day ?? .max, said ?? .max, "the day starts before the words reach the brain")
+    }
+
+    /// ARCHITECTURE.md §3.2: timers run on the steady time the core is
+    /// given, and days and times of day on the wall clock the app reports.
+    /// Setting the Mac's clock back an hour doesn't stretch the mic's 30 s
+    /// limit or a merge window; moving it past midnight starts a new day.
+    func testTimersFollowTheSteadyClockAndDaysTheWallClock() {
+        let rig = CoreRig()
+        rig.input(.talkOn)
+        rig.wait(10_000)
+        rig.core.setWallClock(rig.now - 3_600_000, at: rig.now)  // the Mac's clock set back an hour
+        XCTAssertEqual(inputs(rig.core.talk("hi", at: rig.now)).first?.line, "you said · 13:00 Wednesday")
+        XCTAssertTrue(rig.wait(20_000).contains(.listen(false)), "the 30 s limit, on time")
+        XCTAssertEqual(rig.state.time, (rig.now - 3_600_000) / 1000, "the snapshot's time is the wall clock's")
+        rig.core.setWallClock(rig.now + CoreRig.day, at: rig.now)
+        let fx = rig.send(.sessionStart)
+        XCTAssertTrue(fx.contains(.newDay(date: "2026-10-15", firstSeen: "14:00")))
+    }
+
+    /// The runtime's steady clock starts at the wall clock's time and never
+    /// goes back.
+    func testTheSteadyClockStartsAtTheWallClockAndNeverStepsBack() {
+        let wall = Int64(Date().timeIntervalSince1970 * 1000)
+        let clock = Runtime.steadyClock()
+        var last = clock()
+        XCTAssertLessThan(abs(last - wall), 100)
+        for _ in 0..<1000 {
+            let now = clock()
+            XCTAssertGreaterThanOrEqual(now, last)
+            last = now
+        }
     }
 
     /// A new day starts short-term memory fresh; nothing about it reaches

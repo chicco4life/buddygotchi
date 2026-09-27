@@ -6,6 +6,9 @@ import Foundation
 ///
 /// It's a pure state machine: every call takes the time and returns effects
 /// for the app to carry out. Call `tick` about once a second for the timers.
+/// The time is a steady clock, so a change to the Mac's clock can't stretch
+/// a timer; days and times of day follow the wall clock the app reports
+/// with `setWallClock`.
 public final class Core {
     public struct Config: Sendable {
         public var name: String
@@ -16,7 +19,8 @@ public final class Core {
         public var seed: UInt64
         /// Codex's grace period before "needs you" shows (ADAPTERS.md §4).
         public var codexGraceMs: Int64 = 2000
-        /// "Needs you" clears anyway after this long with no events.
+        /// "Needs you" clears anyway after this long with no events, and
+        /// the session goes idle (ADAPTERS.md §4).
         public var safetyNetMs: Int64 = 10 * 60 * 1000
         /// A working session with no events for this long counts as idle.
         public var staleWorkMs: Int64 = 60 * 60 * 1000
@@ -59,6 +63,11 @@ public final class Core {
         var pendingSince: Int64?
         /// When "needs you" last cleared, to drop a late duplicate.
         var clearedAt: Int64?
+        /// Who is asking, while "needs you" waits: `""` for the main agent,
+        /// a Claude subagent's id, or `Core.anyone` for a `Notification` with
+        /// no request before it. Only an asker's own next event answers it
+        /// (ADAPTERS.md §4).
+        var askers: Set<String> = []
         let order: Int
 
         var key: String { Core.key(agent, id) }
@@ -75,6 +84,8 @@ public final class Core {
     var lastActiveDay: String?
     var lastPublished: StateSnapshot?
     var nextChatterAt: Int64?
+    /// The wall clock less the steady one, for days and times of day.
+    var wallOffsetMs: Int64 = 0
 
     // Merging bursts of agent inputs.
     var lastInputAt: Int64 = -1_000_000
@@ -88,12 +99,20 @@ public final class Core {
     public static let listenLimitMs: Int64 = 30_000
     /// While the Mac's mic is on: who turned it on, and when.
     public private(set) var listening: (by: Talker, since: Int64)?
-    /// After the Talk button's mic goes off, the device's `listening` face
-    /// waits this long for the reply; then the empty moment ends it
-    /// (BEHAVIORS.md §3.3). The device's own button has the same cap.
+    /// After the mic goes off, the device's `listening` face waits at most
+    /// this long for the reply: after the Talk button, the empty moment ends
+    /// it then (BEHAVIORS.md §3.3). The device's own button has the same
+    /// cap. A pass that decides on no mumble ends it sooner (`replied`).
     public static let replyWaitMs: Int64 = 8_000
     /// When that empty moment is due.
     var listeningEndsAt: Int64?
+    /// From the mic going off until the reply, at most `replyWaitMs`, for
+    /// either button: when the wait ends, and when the words it waits on
+    /// arrived (their input's `ts`). While the mic is on or this wait lasts,
+    /// there's no working chatter, and no brain mumble until the words have
+    /// arrived, since until then it can only be about an agent: either would
+    /// end the `listening` face before the reply (BEHAVIORS.md §3.3).
+    var replyWait: (until: Int64, words: Int64?)?
 
     /// Whether the last thing you said asked for quiet: only then may the
     /// `quiet` action run (BEHAVIORS.md §3.3).
@@ -116,6 +135,10 @@ public final class Core {
     /// The topics whose failing command fails a turn (BEHAVIORS.md §3.1).
     static let checks: Set<String> = ["tests", "build", "deploy"]
 
+    /// The asker of a request that came as a `Notification` alone, which
+    /// doesn't say who asked: any event from the session answers it.
+    static let anyone = "*"
+
     // MARK: - Inputs
 
     /// An agent event from an adapter.
@@ -133,11 +156,16 @@ public final class Core {
         let waiting = s.needsSince != nil || s.pendingSince != nil
 
         if event.event == .needsYou {
-            // A second one while waiting is the same request (PermissionRequest
-            // and its Notification). A tool-less one just after a clear is the
-            // Notification arriving late.
+            // A tool-less one while waiting is the same request (PermissionRequest
+            // and its Notification), and one just after a clear is the
+            // Notification arriving late. A request from another agent in the
+            // session (a sibling subagent) joins the one waiting.
+            let asker = event.detail.tool == nil ? Core.anyone : event.subagent ?? ""
             let lateDuplicate = event.detail.tool == nil && s.clearedAt.map { now - $0 < 5000 } == true
-            if !waiting && !lateDuplicate {
+            if waiting {
+                if event.detail.tool != nil { s.askers.insert(asker) }
+            } else if !lateDuplicate {
+                s.askers = [asker]
                 if event.agent == .codex {
                     s.pendingSince = now
                     s.status = .working
@@ -153,15 +181,21 @@ public final class Core {
             return fx
         }
 
-        // Any other event from the session means it moved on, except Claude's
-        // idle notice (`turn_stopped` with no tool), which isn't the session
-        // acting: a request still waiting stays (ADAPTERS.md §3).
+        // The asker's next event means it moved on, and so does any
+        // turn-level event. A sibling subagent's tool calls don't answer
+        // another agent's request, and Claude's idle notice (`turn_stopped`
+        // with no tool) isn't the session acting (ADAPTERS.md §3–4).
         let idleNotice = event.event == .turnStopped && event.detail.tool == nil
         if waiting && !idleNotice {
-            s.needsSince = nil
-            s.pendingSince = nil
-            s.clearedAt = now
-            s.status = .working
+            if event.event != .activity || s.askers.contains(Core.anyone) {
+                s.askers.removeAll()
+            } else {
+                s.askers.remove(event.subagent ?? "")
+            }
+            if s.askers.isEmpty {
+                clearRequest(&s, now)
+                s.status = .working
+            }
         }
         s.lastEventAt = now
 
@@ -255,8 +289,10 @@ public final class Core {
     public func talk(_ words: String, yelled: Bool = false, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
-        let input = Input(.said, words: words, yelled: yelled, clock: config.time.clock(now),
-                          weekday: config.time.weekday(now), rules: "listening", ts: now)
+        startDayIfNew(now, &fx)
+        let input = Input(.said, words: words, yelled: yelled, clock: config.time.clock(wall(now)),
+                          weekday: config.time.weekday(wall(now)), rules: "listening", ts: now)
+        if replyWait != nil { replyWait?.words = now }
         quietAsked = input.asksForQuiet
         fx.append(.input(input))
         publish(now, &fx)
@@ -271,6 +307,7 @@ public final class Core {
     public func listen(_ on: Bool, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
+        startDayIfNew(now, &fx)
         if on {
             if listening == nil {
                 startListening(by: .app, now, &fx)
@@ -281,6 +318,32 @@ public final class Core {
         }
         publish(now, &fx)
         return fx
+    }
+
+    /// The brain's pass for what you said is over (HARNESS.md §2): `words`
+    /// is its input's `ts`, and `mumbled` whether it sent a mumble, which
+    /// ends `listening` on the device. Without one (asked for quiet, told
+    /// off in calm, quiet mode, the pass dropped), nothing else would end
+    /// it for up to 8 s, so the empty moment ends it now. A pass for older
+    /// words, or while the mic is on again, changes nothing
+    /// (BEHAVIORS.md §3.3).
+    @discardableResult
+    public func replied(to words: Int64, mumbled: Bool, at now: Int64) -> [CoreEffect] {
+        guard let wait = replyWait, wait.words == words else { return [] }
+        replyWait = nil
+        guard !mumbled else { return [] }
+        listeningEndsAt = nil
+        return [.endListening]
+    }
+
+    /// The mic went off and heard nothing, not even a yell: no words are
+    /// coming, so the empty moment ends `listening` now.
+    @discardableResult
+    public func heardNothing(at now: Int64) -> [CoreEffect] {
+        guard listening == nil, let wait = replyWait, wait.words == nil else { return [] }
+        replyWait = nil
+        listeningEndsAt = nil
+        return [.endListening]
     }
 
     /// The link to the device dropped, so its button's release can't arrive:
@@ -300,6 +363,7 @@ public final class Core {
         var fx: [CoreEffect] = []
         let byApp = listening?.by == .app
         stopListening(now, &fx)
+        replyWait = nil  // no words are coming
         if byApp {
             listeningEndsAt = nil
             fx.append(.endListening)
@@ -323,6 +387,12 @@ public final class Core {
         var fx: [CoreEffect] = []
         publish(now, &fx)
         return fx
+    }
+
+    /// The wall clock's time at the steady time `now`: days and times of
+    /// day follow it, and timers don't (ARCHITECTURE.md §3.2).
+    public func setWallClock(_ wallMs: Int64, at now: Int64) {
+        wallOffsetMs = wallMs - now
     }
 
     /// A new mode (BEHAVIORS.md §6), from the next event on. Working chatter
@@ -367,7 +437,7 @@ public final class Core {
             StateSnapshot.Attention(agent: $0.agent.short, project: StateSnapshot.clip($0.project), more: waiting.count - 1)
         }
         return StateSnapshot(
-            time: now / 1000, name: StateSnapshot.clip(config.name), base: base, attn: attn,
+            time: wall(now) / 1000, name: StateSnapshot.clip(config.name), base: base, attn: attn,
             busy: working.count, idle: idle.count, wait: waiting.count,
             quiet: quietLeft(now), vol: config.volume)
     }
@@ -380,10 +450,18 @@ public final class Core {
             + idle.map { SessionSummary($0, .idle) }
     }
 
-    /// False in quiet mode, or while something needs you.
-    public func canMumble(at now: Int64) -> Bool { mumblesAllowed(now) }
+    /// False in quiet mode, while something needs you, and while you talk:
+    /// from the mic turning on until your words arrive, so a brain mumble
+    /// about an agent can't end the `listening` face before the reply
+    /// (BEHAVIORS.md §3.3). The reply itself may mumble.
+    public func canMumble(at now: Int64) -> Bool {
+        mumblesAllowed(now) && listening == nil && (replyWait == nil || replyWait?.words != nil)
+    }
 
     // MARK: - Rules
+
+    /// The wall clock at steady time `now`.
+    func wall(_ now: Int64) -> Int64 { now + wallOffsetMs }
 
     func takeOrder() -> Int {
         nextOrder += 1
@@ -405,12 +483,25 @@ public final class Core {
         quietLeft(now) == 0 && !needsYouShowing
     }
 
+    /// The mic is on, or Boop is waiting for the reply to what it heard.
+    func talking(_ now: Int64) -> Bool {
+        listening != nil || replyWait.map { now < $0.until } == true
+    }
+
+    /// Nobody is waiting on the session any more.
+    func clearRequest(_ s: inout Session, _ now: Int64) {
+        s.needsSince = nil
+        s.pendingSince = nil
+        s.askers.removeAll()
+        s.clearedAt = now
+    }
+
     /// The first activity of a new day: short-term memory starts fresh.
     func startDayIfNew(_ now: Int64, _ fx: inout [CoreEffect]) {
-        let today = config.time.day(now)
+        let today = config.time.day(wall(now))
         guard today != lastActiveDay else { return }
         lastActiveDay = today
-        fx.append(.newDay(date: today, firstSeen: config.time.clock(now)))
+        fx.append(.newDay(date: today, firstSeen: config.time.clock(wall(now))))
     }
 
     func startListening(by talker: Talker, _ now: Int64, _ fx: inout [CoreEffect]) {
@@ -418,6 +509,7 @@ public final class Core {
         listening = (talker, now)
         // A new `listening` face mustn't be ended by the last one's stop.
         listeningEndsAt = nil
+        replyWait = nil
         fx.append(.listen(true))
     }
 
@@ -428,6 +520,7 @@ public final class Core {
         guard let l = listening else { return }
         listening = nil
         fx.append(.listen(false))
+        replyWait = (now + Self.replyWaitMs, nil)
         if l.by == .app { listeningEndsAt = now + Self.replyWaitMs }
     }
 
@@ -442,7 +535,7 @@ public final class Core {
         let cheer = config.mode.cheers(Input.Length(ms: ms))
         if cheer { play("cheer", &fx) }
         if ms >= 30_000 {
-            fx.append(.happened("\(config.time.clock(now)) \(s.agent.short) · \(s.project) · finished (\(took(ms)))"))
+            fx.append(.happened("\(config.time.clock(wall(now))) \(s.agent.short) · \(s.project) · finished (\(Input.took(ms)))"))
         }
         agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: cheer ? "cheer" : nil,
                    rank: Input.Length(ms: ms) == .short ? 2 : 3, now, &fx)
@@ -471,7 +564,7 @@ public final class Core {
             return
         }
         pokedAt = now
-        fx.append(.input(Input(.poked, clock: config.time.clock(now), weekday: config.time.weekday(now),
+        fx.append(.input(Input(.poked, clock: config.time.clock(wall(now)), weekday: config.time.weekday(wall(now)),
                                rules: "wiggle", ts: now)))
     }
 
@@ -479,16 +572,12 @@ public final class Core {
     /// (BEHAVIORS.md §3.1). The brain still hears of it.
     func failed(_ s: Session, durationMs ms: Int64, error: String?, _ now: Int64, _ fx: inout [CoreEffect]) {
         let topic = s.topic.map { " · \($0)" } ?? ""
-        fx.append(.happened("\(config.time.clock(now)) \(s.agent.short) · \(s.project)\(topic) · failed"))
+        fx.append(.happened("\(config.time.clock(wall(now))) \(s.agent.short) · \(s.project)\(topic) · failed"))
         agentInput(.agentFinished, s, outcome: .failed, tookMs: ms, error: error, rules: nil, rank: 4, now, &fx)
     }
 
-    func took(_ ms: Int64) -> String {
-        ms < 60_000 ? "\(ms / 1000) s" : "\(ms / 60_000) min"
-    }
-
     func timeLine(_ now: Int64) -> String {
-        "\(config.time.clock(now)) \(config.time.weekday(now))"
+        "\(config.time.clock(wall(now))) \(config.time.weekday(wall(now)))"
     }
 
     /// "claude needs you · jetpack · 14:07 Tuesday", for the brain's transcript.
@@ -500,7 +589,7 @@ public final class Core {
                     error: String? = nil, rules: String?, rank: Int, _ now: Int64, _ fx: inout [CoreEffect]) {
         let input = Input(kind, agent: s.agent.short, project: s.project, outcome: outcome,
                           topic: kind == .agentFinished ? s.topic : nil, tookMs: tookMs, error: error,
-                          clock: config.time.clock(now), weekday: config.time.weekday(now), rules: rules,
+                          clock: config.time.clock(wall(now)), weekday: config.time.weekday(wall(now)), rules: rules,
                           ts: now)
         offer(input, rank: rank, now, &fx)
     }
@@ -535,6 +624,7 @@ public final class Core {
             if let pending = s.pendingSince {
                 if now - s.lastEventAt >= config.safetyNetMs {
                     s.pendingSince = nil
+                    s.askers.removeAll()
                 } else if now - pending >= config.codexGraceMs {
                     s.pendingSince = nil
                     s.needsSince = pending + config.codexGraceMs
@@ -543,9 +633,12 @@ public final class Core {
                 }
             }
             if s.needsSince != nil && now - s.lastEventAt >= config.safetyNetMs {
-                s.needsSince = nil
-                s.clearedAt = now
-                s.status = .working
+                // Ten silent minutes: the agent is still waiting on its
+                // prompt, or gone. Either way it isn't working, so no
+                // sweat drop and no chatter. Its turn, if it goes on,
+                // still counts from its start.
+                clearRequest(&s, now)
+                s.status = .idle
             }
             if now - s.lastEventAt >= config.forgetMs {
                 sessions[key] = nil
@@ -558,6 +651,7 @@ public final class Core {
             listeningEndsAt = nil
             fx.append(.endListening)
         }
+        if let wait = replyWait, now >= wait.until { replyWait = nil }
 
         // Merged bursts.
         if let held = heldInput, now - lastInputAt >= config.mergeMs {
@@ -576,7 +670,8 @@ public final class Core {
     /// Working chatter (BEHAVIORS.md §2): while agents work, a mumble every
     /// so often, as the mode sets (none in calm). About half the time it asks
     /// about a working session's latest topic (`curious`); otherwise it's
-    /// `happy`, with no word.
+    /// `happy`, with no word. None while you talk to Boop: it would end the
+    /// `listening` face before the reply.
     func chatter(_ now: Int64, _ fx: inout [CoreEffect]) {
         let working = sessions.values.filter { isWorking($0, now) && $0.needsSince == nil }
         guard !working.isEmpty, let gap = config.mode.chatterMs else {
@@ -589,7 +684,7 @@ public final class Core {
         }
         guard now >= due else { return }
         nextChatterAt = now + Int64(rng.int(in: gap))
-        guard mumblesAllowed(now) else { return }
+        guard mumblesAllowed(now), !talking(now) else { return }
         let topics = working.sorted { $0.order < $1.order }.compactMap(\.topic)
         let word = !topics.isEmpty && rng.chance(50) ? topics[rng.int(in: 0...(topics.count - 1))] : nil
         fx.append(.mumble(feeling: word == nil ? "happy" : "curious", word: word))

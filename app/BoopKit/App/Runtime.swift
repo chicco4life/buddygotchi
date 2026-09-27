@@ -21,7 +21,10 @@ public final class Runtime: @unchecked Sendable {
         public var classifier: String?
         public var writer: String?
         public var time = LocalTime()
-        public var clock: @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }
+        /// Milliseconds for every duration: a steady clock by default.
+        public var clock: @Sendable () -> Int64 = Runtime.steadyClock()
+        /// Milliseconds since 1970, for days and times of day.
+        public var wallClock: @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }
         /// Accept `{"dev":"talk","words":…,"yelled":…}` and `{"dev":"advance","ms":…}`
         /// on the hook socket (headless only).
         public var devLines = false
@@ -95,7 +98,9 @@ public final class Runtime: @unchecked Sendable {
     let lock: InstanceLock
     var server: HookServer?
     var timer: DispatchSourceTimer?
-    var projects: [String: String] = [:]
+    /// Keeps macOS from napping the app while it runs.
+    var activity: NSObjectProtocol?
+    let projectNames = Adapter.ProjectNames()
     /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): a
     /// moment an action sends outside the core's effects is the brain's, and
     /// waits its turn in `schedule` behind the rules' moments and the
@@ -108,6 +113,9 @@ public final class Runtime: @unchecked Sendable {
         var pumpDue = false
         /// True while a brain moment is being sent (for `trace`).
         var brainSending = false
+        /// Brain moments sent since the last harness pass ended. Only a
+        /// pass's actions send them, so at its end this is what it sent.
+        var brainSent = 0
     }
     let moments = Moments()
 
@@ -115,6 +123,20 @@ public final class Runtime: @unchecked Sendable {
     public var onListen: ((Bool) -> Void)?
     /// After every change the menu bar might show. Called on `home`.
     public var onChange: ((Status) -> Void)?
+
+    /// A clock that never steps and keeps counting while the Mac sleeps,
+    /// starting at the wall clock's time: the keepalive, the mic's 30 s
+    /// limit, held inputs, the reply wait and moments' turns are measured on
+    /// it, so setting the Mac's clock back can't stall them
+    /// (ARCHITECTURE.md §3.2).
+    public static func steadyClock() -> @Sendable () -> Int64 {
+        let wall = Int64(Date().timeIntervalSince1970 * 1000)
+        let start = ContinuousClock.now
+        return {
+            let (seconds, attoseconds) = (ContinuousClock.now - start).components
+            return wall + seconds * 1000 + attoseconds / 1_000_000_000_000_000
+        }
+    }
 
     /// Sets up a new Boop: name and sweet-or-cheeky, asked once (UX.md §6).
     public static func setUp(stateDir: URL, name: String, nature: LongTerm.Nature, today: String) throws {
@@ -142,6 +164,7 @@ public final class Runtime: @unchecked Sendable {
                                  seed: longTerm.seed ^ UInt64(now))
         config.name = longTerm.name
         core = Core(config: config, lastActiveDay: memory.lastActiveDay)
+        core.setWallClock(options.wallClock(), at: now)
 
         // Actions reach the rest through closures that are only ever called
         // on `home`, from the core's effects or the harness.
@@ -150,6 +173,7 @@ public final class Runtime: @unchecked Sendable {
         let link = self.link
         let time = options.time
         let clock = options.clock
+        let wallClock = options.wallClock
         let context = ActionContext(
             send: { [moments, home] moment in
                 let now = clock()
@@ -159,12 +183,13 @@ public final class Runtime: @unchecked Sendable {
                     return
                 }
                 moments.schedule.brain(moment, now: now)
+                moments.brainSent += 1
                 Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
             },
             mumblesAllowed: { core.canMumble(at: clock()) },
             setQuiet: { route(core.setQuiet(minutes: $0, at: clock())) },
             quietAsked: { core.quietAsked },
-            today: { time.day(clock()) },
+            today: { time.day(wallClock()) },
             log: log)
         let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: memory)
         react = actions.compactMap { $0 as? ReactAction }.first!
@@ -174,7 +199,15 @@ public final class Runtime: @unchecked Sendable {
                           tools: actions.map(Harness.Tool.init), memory: { _ in memory.promptMemory() },
                           home: home, debugLog: options.debugLog, log: log)
         // Tool names only: arguments can carry what you said (HARNESS.md §8).
-        harness.onRecord = { record in log(record.logLine) }
+        // A pass for what you said that sent no mumble ends `listening` now.
+        let moments = self.moments
+        harness.onRecord = { [weak self] record in
+            log(record.logLine)
+            let mumbled = moments.brainSent > 0
+            moments.brainSent = 0
+            guard record.input.kind == .said, let self else { return }
+            run(core.replied(to: record.input.ts, mumbled: mumbled, at: clock()))
+        }
         route = { [weak self] in self?.run($0) }
     }
 
@@ -202,6 +235,11 @@ public final class Runtime: @unchecked Sendable {
                     self.changed()
                 }
             })
+        // A menu-bar app with its popover closed is a candidate for App Nap,
+        // which coalesces timers; the 10 s keepalive must beat the device's
+        // 30 s no-app timeout. This doesn't keep the Mac awake.
+        activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep,
+                                                         reason: "Keeps Boop's device in sync")
         let timer = DispatchSource.makeTimerSource(queue: home)
         timer.schedule(deadline: .now() + 1, repeating: 1)
         timer.setEventHandler { [weak self] in self?.tick() }
@@ -220,6 +258,8 @@ public final class Runtime: @unchecked Sendable {
     public func stop() {
         timer?.cancel()
         timer = nil
+        if let activity { ProcessInfo.processInfo.endActivity(activity) }
+        activity = nil
         server?.stop()
         server = nil
         options.link?.stop()
@@ -233,9 +273,7 @@ public final class Runtime: @unchecked Sendable {
         if options.trace || FileManager.default.fileExists(atPath: options.stateDir.appendingPathComponent(Self.doctorArm).path) {
             options.log("hook: \(line.agent) \(line.hook) \(line.session)")
         }
-        let key = line.agent + "/" + line.session
-        guard let event = Adapter.event(from: line, receivedAt: received, knownProject: projects[key]) else { return }
-        projects[key] = event.project
+        guard let event = Adapter.event(from: line, receivedAt: received, project: projectNames.name) else { return }
         run(core.handle(event))
     }
 
@@ -264,6 +302,7 @@ public final class Runtime: @unchecked Sendable {
 
     func tick() {
         let now = options.clock()
+        core.setWallClock(options.wallClock(), at: now)
         run(core.tick(at: now))
         link.tick(now: now, current: core.snapshot(at: now))
     }
@@ -284,6 +323,10 @@ public final class Runtime: @unchecked Sendable {
             case .endListening:
                 react.endListening()
             case .mumble(let feeling, let word):
+                // Working chatter is filler: it never cuts a moment that's
+                // playing, such as the brain's reply, or jumps one waiting
+                // its turn (BEHAVIORS.md §2).
+                guard moments.schedule.idle(now: options.clock()) else { continue }
                 var arguments: [String: ToolValue] = ["feeling": .string(feeling), "voice": .string("mumble")]
                 if let word { arguments["word"] = .string(word) }
                 react.run(ToolCall("react", arguments))
@@ -294,6 +337,13 @@ public final class Runtime: @unchecked Sendable {
             case .happened, .newDay:
                 memory.apply(effect)
             case .listen(let on):
+                // A brain mumble queued before the mic went on would end
+                // `listening` before the reply (BEHAVIORS.md §3.3).
+                if on {
+                    for moment in moments.schedule.dropWaiting() {
+                        options.log("react: dropped a brain moment waiting when the mic went on: \(moment.jsonLine)")
+                    }
+                }
                 onListen?(on)
                 listenChanged = true
             }
@@ -356,6 +406,11 @@ public final class Runtime: @unchecked Sendable {
     /// The mic or speech recognition couldn't start.
     public func micFailed() {
         home.async { [self] in run(core.micFailed(at: options.clock())) }
+    }
+
+    /// The mic went off and heard nothing, so no words are coming.
+    public func heardNothing() {
+        home.async { [self] in run(core.heardNothing(at: options.clock())) }
     }
 
     /// Drops the device link and looks for the device again now.

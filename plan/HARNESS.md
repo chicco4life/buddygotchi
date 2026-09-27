@@ -1,6 +1,6 @@
 # Boop: harness and brain
 
-Updated 2026-09-26. How something that happened becomes a decision and a
+Updated 2026-09-27. How something that happened becomes a decision and a
 few words, and how they're handed off.
 
 ## 1. What this is
@@ -216,7 +216,7 @@ can come from, in order (the writer picks one before the value, §7).
 
 | Output | Decided | Written | What it does |
 | --- | --- | --- | --- |
-| `react` | `feeling`, one of ten; `voice`: `silent` or `mumble` | `word`, only for a mumble: `none` or one of Voice's 40 words ([VOICE.md](VOICE.md) §6), from what they said, the failed topic, how the turn went or the feeling (`steering.md`, Writing) | For a mumble, a Minion line from Voice in the feeling's sound, with the word, played over whatever face is showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so `silent` shows nothing. A mumble is dropped in quiet mode or while something needs you |
+| `react` | `feeling`, one of ten; `voice`: `silent` or `mumble` | `word`, only for a mumble: `none` or one of Voice's 40 words ([VOICE.md](VOICE.md) §6), from what they said, the failed topic, how the turn went or the feeling (`steering.md`, Writing) | For a mumble, a Minion line from Voice in the feeling's sound, with the word, played over whatever face is showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so `silent` shows nothing. A mumble is dropped in quiet mode, while something needs you, and while you talk until your words arrive ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 | `quiet` | `minutes`: 15, 30, 60 or 120 | — | The core's quiet mode: no mumbles, and agent inputs skip the brain. The action runs only when the last thing you said asked for quiet ("quiet" in your words), whichever classifier decided ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 | `remember` | `where`: `today`, `about_you` or `preference` | `text` | A line in that part of memory, under its own rules |
 
