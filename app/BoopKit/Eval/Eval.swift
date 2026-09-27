@@ -283,7 +283,7 @@ public struct Eval: Sendable {
                 send: { _ in },
                 mumblesAllowed: { core.canMumble(at: clock.now) },
                 setQuiet: { pending.effects += core.setQuiet(minutes: $0, at: clock.now) },
-                quietAsked: { core.quietAsked }, today: { time.day(clock.now) })
+                quietAsked: { core.quietAsked })
             let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: store)
             let harness = Harness(classifier: ScriptedClassifier(base: classifier(mode), script: script),
                                   writer: ScriptedWriter(base: writer(mode), script: script),

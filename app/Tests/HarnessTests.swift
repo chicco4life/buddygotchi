@@ -341,7 +341,7 @@ final class HarnessTests: XCTestCase {
         let memory = try MemoryRig()
         let lines = Lines()
         for note in notes {
-            let context = ActionContext(send: { _ in }, today: { "2026-10-14" }, log: lines.add)
+            let context = ActionContext(send: { _ in }, log: lines.add)
             let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 1)), memory: memory.store)
             let harness = Harness(classifier: FakeClassifier { _ in [react("happy"), remember("today")] },
                                   writer: FakeWriter { _ in ["react.word": "hi", "remember.text": note] },

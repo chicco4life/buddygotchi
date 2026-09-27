@@ -186,9 +186,7 @@ public final class Runtime: @unchecked Sendable {
         var route: ([CoreEffect]) -> Void = { _ in }
         let core = self.core
         let link = self.link
-        let time = options.time
         let clock = options.clock
-        let wallClock = options.wallClock
         let context = ActionContext(
             send: { [moments, home] moment in
                 let now = clock()
@@ -204,7 +202,6 @@ public final class Runtime: @unchecked Sendable {
             mumblesAllowed: { core.canMumble(at: clock()) },
             setQuiet: { route(core.setQuiet(minutes: $0, at: clock())) },
             quietAsked: { core.quietAsked },
-            today: { time.day(wallClock()) },
             log: log)
         let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: memory)
         react = actions.compactMap { $0 as? ReactAction }.first!
