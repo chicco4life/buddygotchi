@@ -267,6 +267,54 @@ final class CoreAgentWorkTests: XCTestCase {
         XCTAssertEqual(rig.state.base, "working", "a call that starts afterwards")
     }
 
+    /// ADAPTERS.md §4: the safety net clears a request after ten silent
+    /// minutes and makes the session idle, but its turn is still open: you
+    /// may have approved (which sends no hook) and the command run on. So
+    /// an interrupt after it still ends that turn as stopped, and the
+    /// brain hears of it (harness/EVENTS.md §4.1), and the aborted call's
+    /// result is then a late one that doesn't start the turn again. Before,
+    /// the stop was dropped for a session no longer working, and the late
+    /// result made it work, with chatter, for up to an hour.
+    func testAStopAfterTheSafetyNetEndsTheOpenTurn() {
+        let rig = CoreRig(rules: .chatty)
+        rig.send(.turnStart, .codex, session: "c")
+        rig.send(.activity, .codex, session: "c", tool: "shell", id: "c1")
+        rig.send(.needsYou, .codex, session: "c", tool: "shell")
+        rig.wait(3000)
+        XCTAssertNotNil(rig.state.attn)
+        rig.wait(660_000)
+        XCTAssertNil(rig.state.attn, "the safety net")
+        XCTAssertEqual(rig.state.base, "idle")
+        let fx = rig.send(.turnStopped, .codex, session: "c")  // Interrupt
+        XCTAssertEqual(woke(fx), [#"codex finished turn 1 on "landing": stopped after 11 min, a very long turn, 0 tools."#])
+        rig.now += 50
+        rig.send(.activity, .codex, session: "c", tool: "shell", id: "c1", done: true)
+        XCTAssertEqual(rig.state.base, "idle", "the aborted command's result is late")
+        XCTAssertEqual(mumbles(rig.wait(30 * 60_000)), [], "no working chatter")
+        XCTAssertEqual(rig.state.base, "idle")
+
+        // Claude: a subagent asks, the safety net clears it, and Esc
+        // interrupts the subagent's call while a sibling's result races it;
+        // or Claude's idle notice comes instead.
+        for stop in ["interrupt", "idle notice"] {
+            let rig = CoreRig(rules: .chatty)
+            rig.send(.turnStart)
+            rig.send(.activity, tool: "Task", id: "t")
+            rig.send(.activity, subagent: "a1", tool: "Bash", id: "b")
+            rig.send(.needsYou, subagent: "a1", tool: "Bash")
+            rig.send(.needsYou)
+            rig.send(.activity, subagent: "a2", tool: "Grep", id: "g")
+            rig.wait(12 * 60_000 + 30_000)
+            XCTAssertNil(rig.state.attn, stop)
+            let fx = stop == "interrupt" ? rig.send(.turnStopped, subagent: "a1", tool: "Bash")
+                : rig.send(.turnStopped, notice: true)
+            XCTAssertEqual(events(fx).map { $0.facts["outcome"] }, ["stopped"], stop)
+            rig.send(.activity, subagent: "a2", tool: "Grep", failed: false, id: "g")
+            XCTAssertEqual(rig.state.base, "idle", stop)
+            XCTAssertEqual(events(rig.send(.turnStopped, notice: true)), [], "\(stop): one stopped turn, not two")
+        }
+    }
+
     /// ADAPTERS.md §4: Claude's idle notice means it has sat at its prompt
     /// for a minute, so one that lands less than 30 s after a turn started
     /// is from before it: you typed a new prompt just as the minute after

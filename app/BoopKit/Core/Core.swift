@@ -406,15 +406,17 @@ public final class Core {
             sessions[key] = nil
         case .turnStopped:
             // Over without finishing (ADAPTERS.md §3): a working session goes
-            // idle, with no reaction and nothing for the brain.
-            if s.working {
-                let ms = s.turnStartedAt.map { now - $0 } ?? 0
-                s.working = false
+            // idle, with no reaction. A turn still open ends as stopped, and
+            // the brain hears of it, even once the safety net has made the
+            // session idle: its turn went on (you approved, which sends no
+            // hook), so a call's result after the stop is a late one.
+            s.working = false
+            if let started = s.turnStartedAt {
                 s.turnStartedAt = nil
                 s.check = nil
                 s.lastTurnEndedAt = now
                 if s.turns > 0 {
-                    turnEndEvent(s, outcome: "stopped", error: nil, lengthMs: ms, reaction: nil, now, &fx)
+                    turnEndEvent(s, outcome: "stopped", error: nil, lengthMs: now - started, reaction: nil, now, &fx)
                 }
             }
             sessions[key] = s

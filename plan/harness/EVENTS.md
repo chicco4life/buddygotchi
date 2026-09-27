@@ -93,7 +93,7 @@ such as `claude_code/s1`.
 
 **A turn's outcome** is `failed` when the agent reports an API error, or
 when the turn ends while its last test, build or deploy command failed
-([BEHAVIORS.md](../BEHAVIORS.md) §3.1); `stopped` when a working turn is
+([BEHAVIORS.md](../BEHAVIORS.md) §3.1); `stopped` when a turn still open is
 interrupted ([ADAPTERS.md](../ADAPTERS.md) §3); and `done` otherwise,
 the only outcome the rule cheers.
 
@@ -155,7 +155,7 @@ it.
 
 **Never an event:** a session starting or ending, a tool call starting,
 a routine tool use under `notable`, "needs you" clearing, and a stop
-while the thread isn't working. These reach Jev only as counts and
+with no turn open. These reach Jev only as counts and
 topics in other lines, and in the status line. Working chatter, the
 rules' own mumble ([BEHAVIORS.md](../BEHAVIORS.md) §2), never reaches
 Jev at all.

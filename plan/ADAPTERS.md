@@ -208,7 +208,7 @@ still counts as working. Which of them the device shows is
 | `turn_start`, `activity` | Works |
 | `activity` that's a call's result, once its turn has ended or stopped, for a call that started before then | Stays as it is. The result landed late: you pressed Esc as a parallel call finished, a subagent's call raced the interrupt, or Codex reported the command its `Interrupt` aborted. It still counts for the thread ([harness/EVENTS.md](harness/EVENTS.md) §4), but it doesn't start the turn again, so a stopped turn isn't recorded twice |
 | `turn_end`, `turn_failed` | Goes idle |
-| `turn_stopped` | Goes idle if it was working, with no rule reaction (the brain hears of a stopped turn, [harness/EVENTS.md](harness/EVENTS.md) §4). Claude's `idle_prompt` less than 30 s after the session's last `turn_start` (`Core.idleNoticeMinMs`) is ignored: it comes after a minute at the prompt, so it's from before that prompt, one typed just as the minute ran out. A turn that a call started, with no prompt (a background subagent's after the main agent stopped), has nothing for the notice to race |
+| `turn_stopped` | Goes idle, with no rule reaction. If its turn is still open, even after the safety net (below) made the session idle, that turn ends as stopped and the brain hears of it ([harness/EVENTS.md](harness/EVENTS.md) §4), so a call's result after it is a late one (above). Claude's `idle_prompt` less than 30 s after the session's last `turn_start` (`Core.idleNoticeMinMs`) is ignored: it comes after a minute at the prompt, so it's from before that prompt, one typed just as the minute ran out. A turn that a call started, with no prompt (a background subagent's after the main agent stopped), has nothing for the notice to race |
 | `subagent_end` | Stays as it is: a subagent finishing isn't activity, and it doesn't count as an event for the timers below, so it can't make an idle or stale session look busy. It can answer a request (below) |
 | `session_start`, `turn_start`, `turn_end`, `turn_failed` or `session_end` from inside a subagent (with its `agent_id`) | The same as `subagent_end`: that subagent's alone, not the session's turn |
 | `needs_you` | Needs you (below) |
@@ -254,7 +254,7 @@ otherwise goes idle.
 | Timer | Value | What happens |
 | --- | --- | --- |
 | Codex grace (`codexGraceMs`) | 2 s | A Codex request nothing has answered shows at the first tick past its grace (2–3 s after it arrived), dated 2 s after it arrived. One the reviewer handled is answered by the session's next event within the grace, and never shows. So is one that event answers after the grace but before a tick showed it: the core records no `needs_you` for it, since the screen never showed it |
-| Safety net (`safetyNetMs`) | 10 min with no events from the session | The request clears, shown or still in its grace, and the session goes idle: by then the agent is still waiting at its prompt or gone. This covers a grace no tick saw through, as when the Mac sleeps right after Codex asks. The session's next event makes it working again |
+| Safety net (`safetyNetMs`) | 10 min with no events from the session | The request clears, shown or still in its grace, and the session goes idle: by then the agent is still waiting at its prompt or gone. This covers a grace no tick saw through, as when the Mac sleeps right after Codex asks. The turn stays open, since you may have approved (which sends no hook) and the command run on: the session's next event makes it working again, and an interrupt still stops the turn |
 
 **What it can't see.**
 
