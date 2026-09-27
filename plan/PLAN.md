@@ -24,7 +24,13 @@ milestone's evidence says which ones ran.
 | A11 | Seven moods, drawn from the mood SVGs: Jev picks the mood, and the device shows each state and reaction in it | In progress. Jev chooses among the seven moods with no minimum time between changes (evals 10/10 in all 3 runs); every `state` carries the mood; the device draws each look and the cheer as the mood's design, exactly as Chrome draws the SVGs. The popover's tile shows the same faces. Still to do: watching it on the board | [moods](evidence/2026-09-27-seven-moods/README.md), [faces](evidence/2026-09-27-mood-faces/README.md) |
 | A12 | Live dashboard: `internal/tools/boopctl dash` shows the state and face, the harness's passes and a timeline, and forces a mood, a reaction or an animation ([DASHBOARD.md](DASHBOARD.md)) | Done, headless; check 20 is the owner's | [evidence](evidence/2026-09-27-dashboard/README.md) |
 | A13 | Reaction faces: `react` picks one of the seven moods' faces, and the device draws the look in it while the mumble plays (since A14, for the loops Jev picks) ([harness/DECISIONS.md](harness/DECISIONS.md) §3, [PROTOCOL.md](PROTOCOL.md) §3) | Done in code and the simulator; `make eval` passed 10/10 in all 3 runs; watching it on the board (check 1) is the owner's | [evidence](evidence/2026-09-27-reaction-faces/README.md) |
-| A14 | Loops and pending: every animation can loop and whoever plays one says how many times; HISTORY shows what Boop started as in progress until it really ended, and the device says when a moment ended ([harness/HARNESS.md](harness/HARNESS.md) §4–5) | Done, and checked on the board over USB. The harness's started actions (`.started` with a `Pending`, `settle` entries, a ceiling on waiting, and HISTORY's `(in progress)` and `(didn't happen: …)`); `react` is started, and ends when the device says how its moment ended (`ended`: done, cut short and by what, or skipped, [PROTOCOL.md](PROTOCOL.md) §4), or `failed` when dropped, with no device, on a disconnect or when no `ended` comes in time ([harness/DECISIONS.md](harness/DECISIONS.md) §5). Loops: a `moment` says how many loops of its design play (`loops`, [PROTOCOL.md](PROTOCOL.md) §3); the cheer plays enough for 2 s, and a reaction's face holds the loops Jev picks (`react.loops`), from the loop lengths facegen reads from the designs for both sides. `make eval` passed 10/10 in all 3 runs. "Done, not reviewed" sessions are out of scope | [ended and loops](evidence/2026-09-28-tonight/loops-pending/README.md) |
+| A14 | Loops and pending: every animation can loop and whoever plays one says how many times; HISTORY shows what Boop started as in progress until it really ended, and the device says when a moment ended ([harness/HARNESS.md](harness/HARNESS.md) §4–5) | Done, and checked on the board over USB. The harness's started actions (`.started` with a `Pending`, `settle` entries, a ceiling on waiting, and HISTORY's `(in progress)` and `(didn't happen: …)`); `react` is started, and ends when the device says how its moment ended (`ended`: done, cut short and by what, or skipped, [PROTOCOL.md](PROTOCOL.md) §4), or `failed` when dropped, with no device, on a disconnect or when no `ended` comes in time ([harness/DECISIONS.md](harness/DECISIONS.md) §5). Loops: a `moment` says how many loops of its design play (`loops`, [PROTOCOL.md](PROTOCOL.md) §3); the cheer plays enough for 2 s, and a reaction's face holds the loops Jev picks (`react.loops`), from the loop lengths facegen reads from the designs for both sides. Reviewed overnight (2026-09-28), and its eight real problems fixed: a reaction on the board holds the next one until its `ended`, and whatever frees the line sends the next at once; the Mac's schedule follows taps and "needs you"; each launch's moment ids start at a random number; a face cut after its mumble played counts as `done`. `make eval` passes 14/14 in all 3 runs and `make -C internal e2e` passes on the board. "Done, not reviewed" sessions are out of scope | [ended and loops](evidence/2026-09-28-tonight/loops-pending/README.md), [review](evidence/2026-09-28-tonight/review/README.md), [its check](evidence/2026-09-28-tonight/review-check/README.md) |
+| | Overnight pass (2026-09-28): the lanes below, merged onto one `main` and checked together | Done. On the final `main` the build, 242 Swift tests, 114 firmware tests, the simulator, the tools' tests and facegen pass; the board runs its firmware and passes `make -C internal e2e`; `make eval` passes 14/14 in all 3 runs | [morning report](evidence/2026-09-28-tonight/README.md) |
+| | The core under racing hooks: 38 reports from five race hunters, 34 fixed and 1 in part; a denied subagent's request clears when it ends (`SubagentStop`); each request shown has a number (`attn.id`), so a different one chirps; a fuzz test keeps HISTORY and the screen in step ([ADAPTERS.md](ADAPTERS.md) §4) | Done, headless and on the board's pipeline check; checks 6 and 7 are the owner's; three hook orders need a recording (§3) | [race hunt](evidence/2026-09-28-tonight/core/README.md), [SubagentStop](evidence/2026-09-28-tonight/core-subagentstop/README.md), [check](evidence/2026-09-28-tonight/core-check/README.md) |
+| | Firmware hardening: ASan, UBSan and TSan, a frame-by-frame motion sweep, a 35-minute soak with reactions, `perf --motion`'s rule, and `loops`, `vol` and a mumble's numbers held to their ranges whatever is sent ([DEVICE.md](DEVICE.md) §6) | Done; the webcam check (L3) waits for the owner | [firmware](evidence/2026-09-28-tonight/firmware/README.md), [check](evidence/2026-09-28-tonight/firmware-check/README.md) |
+| | A day in the logs: debug mode keeps the last 10 launches' `debug.jsonl`, and `boopctl day` (`make day`) sums a day up by the hour ([harness/HARNESS.md](harness/HARNESS.md) §9) | Done | [daylog](evidence/2026-09-28-tonight/daylog/README.md), [check](evidence/2026-09-28-tonight/daylog-check/README.md) |
+| | `state` without `idle` and `wait` ([PROTOCOL.md](PROTOCOL.md) §3) | Done | [tidy](evidence/2026-09-28-tonight/tidy/README.md) |
+| | Tuned for a working day: the mood changes only for something lasting (16 a day, from 52–53), reactions come with a face that fits, and `workday.py` replays a scripted day ([EVALS.md](EVALS.md) §5) | Done; a first poke streak still makes Boop grumpy (§3) | [tune](evidence/2026-09-28-tonight/tune/README.md), [check](evidence/2026-09-28-tonight/tune-check/README.md) |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks
@@ -35,6 +41,11 @@ do is in [BEHAVIORS.md](BEHAVIORS.md) and [UX.md](UX.md). The app runs
 the `boop` personality with the owner's Jev key unless a check says
 otherwise. Anything
 that's off becomes an open item (§3).
+
+**Run so far.** The owner ran checks 1, 2, 3, 4, 5 and 9 on the evening
+of 2026-09-27, and noted nothing off. The overnight work of 2026-09-28
+came after that run: it changed what checks 6 and 7 expect, and the
+faces in 9, 10 and 12, as they now say.
 
 **The board and the app**
 
@@ -77,20 +88,24 @@ that's off becomes an open item (§3).
    [ADAPTERS.md](ADAPTERS.md) §4); pressing Esc on the prompt instead
    leaves it amber until it goes idle about a minute later.
 6. **Approvals in two sessions.** One chirp, and "+1" in the strip. Answer the
-   first and the strip moves to the other, chirping if it's another agent
-   or project.
+   first and the strip moves to the other, with another chirp, even when
+   it's the same agent and project (two worktrees of one repo).
 7. **Two Claude subagents at once, one asking permission.** Boop stays
    amber while the other keeps running tools, until you answer. Deny it
-   instead, and Boop goes back to working once that subagent ends.
+   instead, and Boop goes back to working once that subagent ends. This
+   needs Claude's new `SubagentStop` hook: the app adds it at its first
+   launch since and asks you to restart open sessions
+   ([ADAPTERS.md](ADAPTERS.md) §5).
 8. **A Codex approval.** Amber about 2 s after Codex asks; one its
    automatic reviewer handles never lights up. This is Boop's first real
    Codex session (§3).
 9. **A Claude task that runs past a minute.** The working face (the
-   keyboard, in Boop's mood), then a cheer that switches to proud's cheer
-   while a proud mumble plays, nearly always with a word.
-10. **Ask Claude to run a failing test, then stop.** No cheer: Boop goes
-    idle, then a grumpy face and mumble ("tests" or "ugh"), and back to
-    its mood's face.
+   keyboard, in Boop's mood), then a cheer that switches to an excited
+   or happy face while its mumble plays, nearly always with "yay"
+   ([harness/DECISIONS.md](harness/DECISIONS.md) §2.2).
+10. **Ask Claude to run a failing test, then stop.** A determined or
+    grumpy face and mumble at the failure ("oops" or "tests"), and maybe
+    at the stop. No cheer: Boop goes idle, and back to its mood's face.
 11. **Esc while Claude is between tool calls.** Within about a minute Boop
     goes idle, with no cheer; at once if a tool was running.
 
@@ -99,8 +114,10 @@ that's off becomes an open item (§3).
 12. **Paste Jev's key in Settings, then work normally for a while.** The
     Personality card loses its "Without a Jev API key, … only cheers,
     wiggles and chatters by rule" line. Routine
-    turns go by quietly; a very long finish gets a proud face and mumble
-    on top of the cheer ([harness/DECISIONS.md](harness/DECISIONS.md)).
+    turns get a small face; a finish of 10 minutes or more gets an
+    excited face and "yay", held three times, on top of the cheer (proud
+    if it fought through failures), and Boop turns excited
+    ([harness/DECISIONS.md](harness/DECISIONS.md)).
 13. **Let tests fail three times in a row, then pass.** On the third
     failure a grumpy face and mumble ("…again!" or "…tests!") and Boop
     turns grumpy (the `mood` file in `~/Library/Application Support/Boop/`);
@@ -172,8 +189,8 @@ fixed. Pick one up by writing it into its spec first.
 - **The dashboard's recorded run predates started actions and loops.**
   `internal/tools/boopctl_lib/tests/fixtures/headless-debug.jsonl` has
   `react` lines with no `"pending":true`, no `settle` lines, no
-  `react.loops` question and no `loops` on its moments; `test_dash.py`
-  checks those with lines of its own. The next recording of the fixture
+  `react.loops` question, no `loops` on its moments and no `attn.id`;
+  `test_dash.py` checks those with lines of its own. The next recording of the fixture
   ([DASHBOARD.md](DASHBOARD.md) §7) brings them in.
 - **Some Claude hook orders are guessed, not recorded.** The race hunt
   ([evidence](evidence/2026-09-28-tonight/core/README.md)) left three
@@ -183,12 +200,21 @@ fixed. Pick one up by writing it into its spec first.
   background subagent sends after the main `Stop`, and whether it can
   prompt (today its calls keep the session working for up to an hour);
   and which of two parallel subagents' check results should decide
-  whether a turn failed.
+  whether a turn failed. `SubagentStop` itself hasn't been recorded
+  either: its fixture follows Claude's hook reference, and check 7 is
+  the first real one.
 - **A session's project follows its `cwd` into subfolders.** The project
   is the folder's own name unless it's a worktree
   ([ADAPTERS.md](ADAPTERS.md) §3), so a Claude session that `cd`s into
   `landing/web` becomes `web`. Walking up to the nearest `.git`, cached
   per folder as now, would keep it `landing`.
+- **The pipeline check's clock jump cuts one reaction.** The Claude
+  fixture moves the app's clock 40 s while a reaction plays, so the app
+  stops waiting for its `ended` and the next reaction cuts it:
+  `make -C internal e2e` reports one `cut (moment)` it shouldn't
+  ([evidence](evidence/2026-09-28-tonight/review/README.md)). Only a
+  moved clock does this; moving the jump to while nothing plays would
+  end it.
 - **Determined has no voice.** Its reactions mumble in the temporary
   default, happy's, while the audio is tuned ([VOICE.md](VOICE.md) §4).
 - **Most of Voice's words can't be picked.** The `react` action offers

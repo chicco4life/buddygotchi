@@ -1,0 +1,78 @@
+# make -C internal e2e on main e13cc124 (its firmware, e13cc1245e, flashed), 2026-09-28 04:39; the build's output is left out
+cd /Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_016HR6gNMek7C7oc86wLyo81 && internal/tools/boopctl e2e
+bridge and headless app up (brain scripted, state /tmp/boop-e2e/state)
+## internal/app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 16 ms, state on the device after 37 ms
+  claude UserPromptSubmit: boop-hook 16 ms, state on the device after 37 ms
+  ok {"base": "working", "attn": null} after 28 ms
+  claude PreToolUse: boop-hook 17 ms, no new state
+  claude PostToolUse: boop-hook 19 ms, no new state
+  claude PreToolUse: boop-hook 18 ms, no new state
+  claude PostToolUse: boop-hook 20 ms, no new state
+  claude PreToolUse: boop-hook 20 ms, no new state
+  claude PermissionRequest: boop-hook 20 ms, state on the device after 44 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}} after 30 ms
+  claude Notification: boop-hook 18 ms, no new state
+  ok {"screen": "needs_you"} after 19 ms
+  shot /tmp/boop-e2e-out/claude-needs-you.png
+  claude PostToolUse: boop-hook 16 ms, state on the device after 37 ms
+  ok {"base": "working", "attn": null} after 30 ms
+  app clock +400 s
+  claude Stop: boop-hook 19 ms, state on the device after 63 ms
+  ok {"moment": {"anim": "cheer"}} after 24 ms
+  claude UserPromptSubmit: boop-hook 19 ms, state on the device after 64 ms
+  ok {"base": "working"} after 25 ms
+  claude PreToolUse: boop-hook 20 ms, no new state
+  app clock +40 s
+  claude PostToolUseFailure: boop-hook 20 ms, no new state
+  claude StopFailure: boop-hook 18 ms, state on the device after 38 ms
+  ok {"base": "idle", "attn": null} after 28 ms
+## internal/app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 19 ms, no new state
+  codex UserPromptSubmit: boop-hook 21 ms, state on the device after 42 ms
+  ok {"base": "working"} after 35 ms
+  codex PreToolUse: boop-hook 20 ms, no new state
+  codex PermissionRequest: boop-hook 21 ms, no new state
+  codex PostToolUse: boop-hook 21 ms, no new state
+  ok not {"screen": "needs_you"} until 3510 ms after the last hook
+  ok {"base": "working", "attn": null} after 18 ms
+  app clock +45 s
+  codex Stop: boop-hook 14 ms, state on the device after 39 ms
+  ok {"moment": {"anim": "cheer"}} after 30 ms
+## internal/app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 15 ms, no new state
+  codex UserPromptSubmit: boop-hook 20 ms, state on the device after 56 ms
+  ok {"base": "working"} after 27 ms
+  codex PreToolUse: boop-hook 21 ms, no new state
+  codex PermissionRequest: boop-hook 20 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 853 ms
+  ok {"screen": "needs_you"} after 19 ms
+  shot /tmp/boop-e2e-out/codex-needs-you.png
+  codex PostToolUse: boop-hook 18 ms, state on the device after 39 ms
+  ok {"base": "working", "attn": null} after 28 ms
+  app clock +45 s
+  codex Stop: boop-hook 20 ms, state on the device after 59 ms
+  ok {"moment": {"anim": "cheer"}} after 32 ms
+Boop exit 0
+boopctl exit 0
+/tmp/boop-e2e/boop.sock removed: True
+/tmp/boop-e2e/usb.sock removed: True
+latency, hook launch to state on the device: n 12/27 hooks, p50 39 ms, p95 64 ms, max 64 ms
+the harness saw an event with 'claude started turn 1 on': True
+the harness saw an event with 'claude finished turn 1 on': True
+the harness saw an event with "claude's deploy failed on": True
+the harness saw an event with 'failed (rate limit)': True
+the harness saw an event with 'codex finished turn 1 on': True
+PRIVATE_ markers in app files or the brain log: none
+  04:39:27.885 brain mumble: 6 ms after the rules' reaction to claude UserPromptSubmit e2e-claude-1 → turn_start jetpack; last rule moment None, its line ended None ms before; the device said it ended done
+  04:39:36.957 brain mumble: 2 ms after the rules' reaction to claude Stop e2e-claude-1 → turn_end jetpack; last rule moment cheer, its line ended 2 ms before; the device said it ended done
+  04:39:41.066 brain mumble: 3 ms after the rules' reaction to claude UserPromptSubmit e2e-claude-1 → turn_start jetpack; last rule moment cheer, its line ended 4111 ms before; the device said it ended cut (moment)
+  04:39:42.007 brain mumble: 350 ms after the rules' reaction to claude PreToolUse e2e-claude-1 → activity jetpack · tool Bash, topic deploy; last rule moment cheer, its line ended 5052 ms before; the device said it ended done
+  04:39:44.149 brain mumble: 1622 ms after the rules' reaction to claude StopFailure e2e-claude-1 → turn_failed jetpack · error rate_limit; last rule moment cheer, its line ended 7194 ms before; the device said it ended done
+  04:39:51.543 brain mumble: 4392 ms after the rules' reaction to codex UserPromptSubmit e2e-codex-quick → turn_start landing; last rule moment cheer, its line ended 14588 ms before; the device said it ended cut (moment)
+  04:39:52.653 brain mumble: 5 ms after the rules' reaction to codex Stop e2e-codex-quick → turn_end landing; last rule moment cheer, its line ended 15698 ms before; the device said it ended done
+  04:39:57.286 brain mumble: 3 ms after the rules' reaction to codex UserPromptSubmit e2e-codex-slow → turn_start landing; last rule moment cheer, its line ended 20331 ms before; the device said it ended done
+  04:40:09.309 brain mumble: 4 ms after the rules' reaction to codex Stop e2e-codex-slow → turn_end landing; last rule moment cheer, its line ended 32354 ms before; the device said it ended done
+brain moments: 9, early: 0, cut short by a newer moment: ['04:39:41.066 mumble (1945852361)', '04:39:51.543 mumble (1945852364)'], with no `ended` from the device: 0
+PASS
