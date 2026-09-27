@@ -205,6 +205,20 @@ fixed. Pick one up by writing it into its spec first.
   the core records "failed (rate limit)" instead. Every checkpoint
   passes. Drop the expectation, or give the fixture a failed deploy
   result ([evidence](evidence/2026-09-28-tonight/loops-pending/README.md)).
+- **Some Claude hook orders are guessed, not recorded.** The race hunt
+  ([evidence](evidence/2026-09-28-tonight/core/README.md)) left three
+  cases open for a recording to settle: whether a message queued
+  mid-turn sends `UserPromptSubmit` (if not, a new prompt soon after Esc
+  between tools could close the interrupted turn as stopped); what a
+  background subagent sends after the main `Stop`, and whether it can
+  prompt (today its calls keep the session working for up to an hour);
+  and which of two parallel subagents' check results should decide
+  whether a turn failed.
+- **A session's project follows its `cwd` into subfolders.** The project
+  is the folder's own name unless it's a worktree
+  ([ADAPTERS.md](ADAPTERS.md) §3), so a Claude session that `cd`s into
+  `landing/web` becomes `web`. Walking up to the nearest `.git`, cached
+  per folder as now, would keep it `landing`.
 - **Determined has no voice.** Its reactions mumble in the temporary
   default, happy's, while the audio is tuned ([VOICE.md](VOICE.md) §4).
 - **Most of Voice's words can't be picked.** The `react` action offers

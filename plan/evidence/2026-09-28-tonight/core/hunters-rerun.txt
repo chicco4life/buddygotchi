@@ -1,0 +1,632 @@
+# The race hunters' scripts, rerun on branch ovn2/core at ca57c1f1 (cb0115b4 after it changes only a test): Boop --headless --brain scripted, boop-sim built from this branch
+# Copied from the hunters' /tmp rigs to /tmp/oc/hunt/, repointed at this worktree. No board, Bluetooth, webcam, Jev, ~/.claude or ~/.codex.
+
+######## final-aet.log
+
+===== cheer-claim =====
+     -0.6 EVENT  needs_you: claude needs you on "jetpack". / reaction: None
+      0.0 HOOK   hook claude PermissionRequest s1 {'tool': 'Bash', 'tool_use_id': 's1-t1'}
+      1.4 CORE   [{"agent": "claude", "project": "jetpack", "status": "waiting"}, {"agent": "claude", "project": "landing", "status": "working"}]
+      2.3 →dev   {"t":"state","v":1,"base":"working","mood":"happy","attn":{"agent":"claude","project":"jetpack","more":0,"id":1},"busy":1,"idle":0,"wait":1,"vol":6}
+      2.5 dev→   {"t":"ended","id":1,"how":"cut","why":"needs_you"}
+      3.5 →dev   {"t":"moment","say":{"syl":"ni-ti mi-ta-ni ba ma","word":"yay","at":7,"tune":"bounce","ms":115},"mood":"excited","loops":1,"id":2}
+      3.7 dev→   {"t":"ended","id":2,"how":"skipped"}
+      8.7 SCREEN {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0, "id": 1}, "moment": null, "expr": null, "sfx": {"k": "chirp", "at": 1142}}
+     14.4 EVENT  turn_end: claude finished turn 1 on "landing": done after 0 s, a short turn, 0 tools. / reaction: None
+     15.2 HOOK   hook claude Stop s2 {}
+     17.4 CORE   [{"agent": "claude", "project": "jetpack", "status": "waiting"}, {"agent": "claude", "project": "landing", "status": "idle"}]
+     17.5 →dev   {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"jetpack","more":0,"id":1},"busy":0,"idle":1,"wait":1,"vol":6}
+     21.6 SCREEN {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0, "id": 1}, "moment": null, "expr": null, "sfx": {"k": "chirp", "at": 1142}}
+    325.4 CORE   [{"agent": "claude", "project": "jetpack", "status": "working"}, {"agent": "claude", "project": "landing", "status": "idle"}]
+    325.6 HOOK   hook claude PostToolUse s1 {'tool': 'Bash', 'tool_use_id': 's1-t1'}
+    326.0 →dev   {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":1,"wait":0,"vol":6}
+    329.4 SCREEN {"screen": "face", "attn": null, "moment": null, "expr": null, "sfx": {"k": "chirp", "at": 1142}}
+    533.4 EVENT  turn_end: claude finished turn 1 on "jetpack": done after 0 s, a short turn, 1 tool. / reaction: Boop cheered on its own.
+    534.0 HOOK   hook claude Stop s1 {}
+    535.4 CORE   [{"agent": "claude", "project": "jetpack", "status": "idle"}, {"agent": "claude", "project": "landing", "status": "idle"}]
+    535.6 →dev   {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"idle":2,"wait":0,"vol":6}
+    535.9 →dev   {"t":"moment","anim":"cheer","loops":1}
+    538.0 →dev   {"t":"moment","say":{"syl":"ka-ti","word":"yay","at":2,"tune":"bounce","ms":115},"mood":"excited","loops":1,"id":3}
+    540.5 SCREEN {"screen": "face", "attn": null, "moment": "cheer", "expr": "excited", "sfx": {"k": "chirp", "at": 1142}}
+   1001.2 SCREEN {"screen": "face", "attn": null, "moment": "cheer", "expr": "excited", "sfx": {"k": "chirp", "at": 1142}}
+
+Last pass's HISTORY and NOW:
+HISTORY (oldest first; indented lines are what Boop did)
+just now: claude started turn 1 on "jetpack".
+  Boop made an excited face, held once, and mumbled "…yay!" (didn't happen: cut short: something needed you)
+just now: claude started turn 1 on "landing".
+  Boop made an excited face, held once, and mumbled "…yay!" (didn't happen: something needed you)
+just now: claude needs you on "jetpack".
+just now: claude finished turn 1 on "landing": done after 0 s, a short turn, 0 tools.
+Working now: nothing else.
+
+NOW (03:18, Monday)
+claude finished turn 1 on "jetpack": done after 0 s, a short turn, 1 tool.
+Boop cheered on its own.
+
+===== sameproj-chirp =====
+     -0.5 EVENT  needs_you: claude needs you on "jetpack". / reaction: None
+      0.0 HOOK   hook claude PermissionRequest s1 {'tool': 'Bash', 'tool_use_id': 's1-t1'}
+      1.5 CORE   [{"agent": "claude", "project": "jetpack", "status": "waiting"}, {"agent": "claude", "project": "jetpack", "status": "working"}]
+      1.9 →dev   {"t":"state","v":1,"base":"working","mood":"happy","attn":{"agent":"claude","project":"jetpack","more":0,"id":1},"busy":1,"idle":0,"wait":1,"vol":6}
+      2.2 dev→   {"t":"ended","id":1,"how":"cut","why":"needs_you"}
+      3.3 →dev   {"t":"moment","say":{"syl":"da-pi da-gi-bi gi-gi ta","word":"yay","at":8,"tune":"bounce","ms":115},"mood":"excited","loops":1,"id":2}
+      3.5 dev→   {"t":"ended","id":2,"how":"skipped"}
+      7.1 SCREEN {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0, "id": 1}, "moment": null, "expr": null, "sfx": {"k": "chirp", "at": 857}}
+    201.5 EVENT  needs_you: claude needs you on "fix-nav" (jetpack). / reaction: None
+    202.7 HOOK   hook claude PermissionRequest s2 {'tool': 'Bash', 'tool_use_id': 's2-t1'}
+    203.5 CORE   [{"agent": "claude", "project": "jetpack", "status": "waiting"}, {"agent": "claude", "project": "jetpack", "status": "waiting"}]
+    204.2 →dev   {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"jetpack","more":1,"id":1},"busy":0,"idle":0,"wait":2,"vol":6}
+    207.0 SCREEN {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 1, "id": 1}, "moment": null, "expr": null, "sfx": {"k": "chirp", "at": 857}}
+    407.5 EVENT  turn_end: claude finished turn 1 on "jetpack": done after 0 s, a short turn, 0 tools. / reaction: None
+    408.4 HOOK   hook claude Stop s1 {}
+    409.5 CORE   [{"agent": "claude", "project": "jetpack", "status": "waiting"}, {"agent": "claude", "project": "jetpack", "status": "idle"}]
+    410.3 →dev   {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"jetpack","more":0,"id":2},"busy":0,"idle":1,"wait":1,"vol":6}
+    415.8 SCREEN {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0, "id": 2}, "moment": null, "expr": null, "sfx": {"k": "chirp", "at": 1266}}
+
+chirps (device sfx.at values) since the first request: [857, 1266]
+
+===== samems-flip =====
+run 0: attn sequence sent to the device: [('landing', 0), ('landing', 1)]
+     -0.7 EVENT  needs_you: claude needs you on "landing". / reaction: None
+      0.3 EVENT  needs_you: claude needs you on "jetpack". / reaction: None
+      0.4 HOOK   two PermissionRequests on one connection: s2 (landing) then s1 (jetpack)
+      1.3 CORE   [{"agent": "claude", "project": "landing", "status": "waiting"}, {"agent": "claude", "project": "jetpack", "status": "working"}]
+      2.0 →dev   {"t":"state","v":1,"base":"working","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":1,"idle":0,"wait":1,"vol":6}
+      2.4 dev→   {"t":"ended","id":1,"how":"cut","why":"needs_you"}
+      3.3 CORE   [{"agent": "claude", "project": "landing", "status": "waiting"}, {"agent": "claude", "project": "jetpack", "status": "waiting"}]
+      3.5 →dev   {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":1,"id":1},"busy":0,"idle":0,"wait":2,"vol":6}
+      5.6 →dev   {"t":"moment","say":{"syl":"ma-bi-ba ba ma","word":"yay","at":5,"tune":"bounce","ms":115},"mood":"excited","loops":1,"id":2}
+      6.1 dev→   {"t":"ended","id":2,"how":"skipped"}
+      7.0 SCREEN {"screen": "needs_you", "attn": {"agent": "claude", "project": "landing", "more": 1, "id": 1}, "moment": null, "expr": null, "sfx": {"k": "chirp", "at": 866}}
+run 1: attn sequence sent to the device: [('landing', 0), ('landing', 1)]
+run 2: attn sequence sent to the device: [('landing', 0), ('landing', 1)]
+run 3: attn sequence sent to the device: [('landing', 0), ('landing', 1)]
+run 4: attn sequence sent to the device: [('landing', 0), ('landing', 1)]
+
+===== elicit =====
+     -0.9 EVENT  needs_you: claude needs you on "jetpack". / reaction: None
+      0.0 HOOK   hook claude PermissionRequest s1 {'tool': 'Bash', 'tool_use_id': 's1-t1'}
+      1.1 CORE   [{"agent": "claude", "project": "jetpack", "status": "waiting"}]
+      2.2 →dev   {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"jetpack","more":0,"id":1},"busy":0,"idle":0,"wait":1,"vol":6}
+      2.5 dev→   {"t":"ended","id":1,"how":"cut","why":"needs_you"}
+      8.1 SCREEN {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0, "id": 1}, "moment": null, "expr": null, "sfx": {"k": "chirp", "at": 860}}
+    305.3 HOOK   hook claude PostToolUse s1 {'tool': 'Bash', 'tool_use_id': 's1-t1'}
+    306.1 CORE   [{"agent": "claude", "project": "jetpack", "status": "working"}]
+    307.0 →dev   {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
+    311.5 SCREEN {"screen": "face", "attn": null, "moment": null, "expr": null, "sfx": {"k": "chirp", "at": 860}}
+    811.3 HOOK   hook claude PreToolUse s1 {'tool': 'mcp__jira__create', 'tool_use_id': 's1-t2'}
+   1316.1 EVENT  needs_you: claude needs you on "jetpack". / reaction: None
+   1316.6 HOOK   hook claude Elicitation s1 {}
+   1316.8 HOOK   hook claude Notification s1 {'kind': 'elicitation_dialog'}
+   1317.1 CORE   [{"agent": "claude", "project": "jetpack", "status": "waiting"}]
+   1318.1 →dev   {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"jetpack","more":0,"id":2},"busy":0,"idle":0,"wait":1,"vol":6}
+   1318.9 SCREEN {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0, "id": 2}, "moment": null, "expr": null, "sfx": {"k": "chirp", "at": 2176}}
+
+===== codex-tick =====
+Stop at +2030 ms: needs_you events logged 0, states with attn sent 0, screen showed needs_you False
+Stop at +2080 ms: needs_you events logged 0, states with attn sent 0, screen showed needs_you False
+Stop at +2150 ms: needs_you events logged 0, states with attn sent 0, screen showed needs_you False
+(tick landed inside the window every time; rerun)
+
+######## final-aet-late.log
+('late N', [{'agent': 'claude', 'project': 'jetpack', 'status': 'idle'}], 'face')
+('+9 min', [{'agent': 'claude', 'project': 'jetpack', 'status': 'idle'}], 'face')
+('+10 min 1 s', [{'agent': 'claude', 'project': 'jetpack', 'status': 'idle'}], 'face')
+
+######## final-aet-codex.log
+stop at +2010 ms: needs_you events 0, states with attn sent 0, screen showed needs_you False
+stop at +2060 ms: needs_you events 0, states with attn sent 0, screen showed needs_you False
+stop at +2120 ms: needs_you events 0, states with attn sent 0, screen showed needs_you False
+stop at +2200 ms: needs_you events 0, states with attn sent 0, screen showed needs_you False
+stop at +2300 ms: needs_you events 1, states with attn sent 1, screen showed needs_you True
+stop at +2400 ms: needs_you events 1, states with attn sent 1, screen showed needs_you True
+stop at +2500 ms: needs_you events 1, states with attn sent 1, screen showed needs_you True
+stop at +2600 ms: needs_you events 1, states with attn sent 1, screen showed needs_you True
+stop at +2700 ms: needs_you events 1, states with attn sent 1, screen showed needs_you True
+stop at +2800 ms: needs_you events 1, states with attn sent 1, screen showed needs_you True
+stop at +2900 ms: needs_you events 1, states with attn sent 1, screen showed needs_you True
+found 0
+
+######## final-two.log
+=== repro_cheer_history.py
+cheers sent at [5398] ; device played a cheer at [5398, 5404]
+device played beta's cheer: True
+a later HISTORY says beta's finish was cheered: False -> PASS
+=== repro_clipped_names_chirp.py
+chirps: 2 expected 2 -> PASS
+=== repro_codex_grace_unseen.py
+needs_you events: 0 states with attn sent: 0 device chirps: 0
+needs_you events with no attn state: 0 -> PASS
+=== repro_same_project_chirp.py
+chirps: 2 expected 2 -> PASS
+=== repro_subagent_cwd_chirp.py
+chirps: 2 expected 2 -> PASS
+
+######## final-esc.log
+  ok  s03d_stale_idle_prompt_after_new_prompt: new prompt then idle_prompt a moment later: working?
+  ok  s03d_stale_idle_prompt_after_new_prompt: next tool call: working
+  BAD s03d_stale_idle_prompt_after_new_prompt: invariants -> settle: action 3 failed: cut short: something needed you
+  ok  s04_esc_between_tools_then_prompt: new prompt: working
+  ok  s04_esc_between_tools_then_prompt: done
+  BAD s04_esc_between_tools_then_prompt: invariants -> settle: action 7 failed: cut short: something newer played
+  ok  s05_esc_parallel_late_result: Esc with a parallel result landing after the interrupt: idle
+  ok  s05_esc_parallel_late_result: idle_prompt
+  ok  s05_esc_parallel_late_result: invariants
+  ok  s07b_cheer_claimed_in_history: A amber
+  ok  s07b_cheer_claimed_in_history: A working
+  BAD s07b_cheer_claimed_in_history: invariants -> settle: action 6 failed: cut short: something needed you
+  ok  s08_esc_on_subagent_permission: subagent asks: needs you
+  ok  s08_esc_on_subagent_permission: idle_prompt a minute after Esc: amber gone (BEHAVIORS 3.2)
+  ok  s08_esc_on_subagent_permission: 5 min after Esc
+  BAD s08_esc_on_subagent_permission: invariants -> settle: action 3 failed: cut short: something needed you
+  BAD s08c_subagent_esc_until_safety_net: idle_prompt: still amber (subagent asker kept) -> ["core [('claude', 'landing', 'idle')] != [('claude', 'landing', 'waiting')]", 'sent.attn None != landing', 'dev.attn None != landing', 'dev.screen face != needs_you']
+  BAD s08c_subagent_esc_until_safety_net: 9 min after Esc: still amber -> ["core [('claude', 'landing', 'idle')] != [('claude', 'landing', 'waiting')]", 'sent.attn None != landing', 'dev.attn None != landing', 'dev.screen face != needs_you']
+  ok  s08c_subagent_esc_until_safety_net: 10 min after the idle notice (11 after Esc): safety net clears
+  BAD s08c_subagent_esc_until_safety_net: invariants -> settle: action 3 failed: cut short: something needed you
+  ok  s09_elicitation_soon_after_clear: needs you
+  ok  s09_elicitation_soon_after_clear: approved: working
+  ok  s09_elicitation_soon_after_clear: Elicitation 1.5 s after the clear: needs you
+  ok  s09_elicitation_soon_after_clear: Elicitation dialog still up 6 s later: needs you
+  BAD s09_elicitation_soon_after_clear: invariants -> settle: action 3 failed: cut short: something needed you
+  ok  s09b_elicitation_notification_soon_after_clear: needs you
+  ok  s09b_elicitation_notification_soon_after_clear: approved: working
+  ok  s09b_elicitation_notification_soon_after_clear: elicitation_dialog 1.5 s after the clear: needs you
+  ok  s09b_elicitation_notification_soon_after_clear: elicitation_dialog dialog still up 6 s later: needs you
+  BAD s09b_elicitation_notification_soon_after_clear: invariants -> settle: action 3 failed: cut short: something needed you
+  ok  s09c_elicitation_after_esc_and_prompt: idle_prompt clears
+  ok  s09c_elicitation_after_esc_and_prompt: elicitation within 5 s of the idle clear: needs you
+  BAD s09c_elicitation_after_esc_and_prompt: invariants -> settle: action 3 failed: cut short: something needed you; settle: action 8 failed: cut short: something needed you; settle: action 11 failed: something needed you
+  ok  s10c_late_notif_5_5s: permission_prompt Notification 5.5 s after approval: no amber
+  BAD s10c_late_notif_5_5s: invariants -> settle: action 3 failed: cut short: something needed you
+  ok  s12_same_project_next_request_chirps: two waiting in landing
+  ok  s12_same_project_next_request_chirps: A cleared, B shown
+  BAD s12_same_project_next_request_chirps: invariants -> settle: action 3 failed: cut short: something needed you; settle: action 6 failed: something needed you
+  ok  s13_parallel_result_while_prompt_up: needs you
+  ok  s13_parallel_result_while_prompt_up: prompt still up: still amber
+  BAD s13_parallel_result_while_prompt_up: invariants -> settle: action 3 failed: cut short: something needed you
+  ok  s14_main_and_subagent_ask_then_esc: both ask
+  ok  s14_main_and_subagent_ask_then_esc: idle_prompt after Esc: amber gone?
+  BAD s14_main_and_subagent_ask_then_esc: invariants -> settle: action 3 failed: cut short: something needed you
+  ok  s21_approved_failing_test_wakes: amber
+  ok  s21_approved_failing_test_wakes: working
+  BAD s21_approved_failing_test_wakes: invariants -> settle: action 3 failed: cut short: something needed you
+  ok  s23_esc_on_permission_stopped_wakes: idle
+  BAD s23_esc_on_permission_stopped_wakes: invariants -> settle: action 3 failed: cut short: something needed you
+  ok  s24_codex_interrupt_after_grace_wakes: idle
+  ok  s24_codex_interrupt_after_grace_wakes: invariants
+  ok  s25_subagent_notification_first_sibling_clears: a1 asks
+  ok  s25_subagent_notification_first_sibling_clears: sibling's tool call: a1's prompt still up, still amber
+  BAD s25_subagent_notification_first_sibling_clears: invariants -> settle: action 3 failed: cut short: something needed you
+  ok  s31_codex_interrupt_then_late_post: Interrupt, then the aborted call's PostToolUse: idle
+  ok  s31_codex_interrupt_then_late_post: 10 min later
+  ok  s31_codex_interrupt_then_late_post: invariants
+
+######## final-sub.log
+== s4 ==
+      1.94s main asks                                  core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      2.22s A works, main's prompt up                  core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      2.52s A finished, main's prompt still up         core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      3.76s main approved                              core=['working'] sent_attn=False screen=face/working mom=None expr=None
+  chirps at [1.65]
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 needs_you  claude needs you on "landing".
+== s5 ==
+      2.09s A asks                                     core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      2.32s A's parallel Grep done, prompt up          core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      3.53s approved                                   core=['working'] sent_attn=False screen=face/working mom=None expr=None
+  chirps at [1.8]
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 needs_you  claude needs you on "landing".
+== s6a ==
+      2.00s A asks                                     core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+     62.24s 60 s after Esc, before idle_prompt         core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None !! TRUTH prompt=False but screen attn=True
+     62.48s idle_prompt                                core=['idle'] sent_attn=False screen=face/idle mom=None expr=excited
+    362.73s 5 min after idle_prompt                    core=['idle'] sent_attn=False screen=face/idle mom=None expr=None
+    662.97s 10 min after idle_prompt                   core=['idle'] sent_attn=False screen=face/idle mom=None expr=None
+  chirps at [1.71]
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 needs_you  claude needs you on "landing".
+  ev   6 turn_end   claude finished turn 1 on "landing": stopped after 1 min, a very long turn, 0 tools.
+== s7 ==
+      2.00s main Stop, B still running                 core=['idle'] sent_attn=False screen=face/idle mom=cheer expr=excited
+      4.82s B's tool after main Stop                   core=['working'] sent_attn=False screen=face/working mom=None expr=None
+      5.05s B finished (SubagentStop)                  core=['working'] sent_attn=False screen=face/working mom=None expr=None !! TRUTH base=idle but screen base=working
+   1805.30s 30 min later                               core=['working'] sent_attn=False screen=face/working mom=None expr=None !! TRUTH base=idle but screen base=working
+  chirps at []
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 turn_end   claude finished turn 1 on "landing": done after 0 s, a short turn, 2 tools. [Boop cheered on its own.]
+== s7b ==
+      4.51s B works after Stop                         core=['working'] sent_attn=False screen=face/working mom=None expr=None
+     64.84s idle_prompt while B runs                   core=['idle'] sent_attn=False screen=face/idle mom=None expr=excited !! TRUTH base=working but screen base=idle
+     65.22s B finished                                 core=['working'] sent_attn=False screen=face/working mom=None expr=excited !! TRUTH base=idle but screen base=working
+   3065.46s 50 min later                               core=['working'] sent_attn=False screen=face/working mom=None expr=None !! TRUTH base=idle but screen base=working
+   3725.71s 61 min later                               core=['idle'] sent_attn=False screen=face/idle mom=None expr=excited
+  chirps at []
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 turn_end   claude finished turn 1 on "landing": done after 0 s, a short turn, 1 tool. [Boop cheered on its own.]
+  ev   9 turn_end   claude finished turn 1 on "landing": stopped after 1 min, a very long turn, 2 tools.
+  ev  13 heartbeat  Nothing has happened for 1 hour.
+== s9 ==
+      2.13s after Esc (straggler before main's)        core=['idle'] sent_attn=False screen=face/idle mom=None expr=excited
+  chirps at []
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 turn_end   claude finished turn 1 on "landing": stopped after 0 s, a short turn, 0 tools.
+== s9b ==
+      2.22s after Esc, straggler last                  core=['idle'] sent_attn=False screen=face/idle mom=None expr=excited
+     62.54s idle_prompt                                core=['idle'] sent_attn=False screen=face/idle mom=None expr=None
+  chirps at []
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 turn_end   claude finished turn 1 on "landing": stopped after 0 s, a short turn, 0 tools.
+== s11 ==
+      2.14s A asks, B elicits                          core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      2.37s A approved, B's elicitation up             core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      3.61s B answered                                 core=['working'] sent_attn=False screen=face/working mom=None expr=None
+  chirps at [1.72, 2.16]
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 needs_you  claude needs you on "landing".
+== s12 ==
+      7.48s late Notification                          core=['working'] sent_attn=False screen=face/working mom=None expr=None
+      9.64s 2 s on, nothing from B yet                 core=['working'] sent_attn=False screen=face/working mom=None expr=None
+      9.87s B's next call                              core=['working'] sent_attn=False screen=face/working mom=None expr=None
+  chirps at [1.64]
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 needs_you  claude needs you on "landing".
+== s11c ==
+      1.82s B elicits                                  core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      2.03s A's next call, B's dialog up               core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+  chirps at [1.6]
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 needs_you  claude needs you on "landing".
+== s11d ==
+      1.96s B elicits, A asks                          core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      2.17s B answered, A's prompt up                  core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      3.40s A approved                                 core=['working'] sent_attn=False screen=face/working mom=None expr=None
+  chirps at [1.65, 1.97]
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 needs_you  claude needs you on "landing".
+== s16 ==
+      1.93s A asks                                     core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      2.15s B compacts, A's prompt up                  core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+  chirps at [1.65]
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 needs_you  claude needs you on "landing".
+== s17 ==
+      1.91s A asks                                     core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      2.12s B fails, A's prompt up                     core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      2.35s main's Agent B returns error, A's prompt up core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+  chirps at [1.64]
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 needs_you  claude needs you on "landing".
+== c1 ==
+      1.87s A asks                                     core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      3.14s B asks too                                 core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      4.46s A answered; B's dialog shown now           core=['waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      5.70s B answered                                 core=['working'] sent_attn=False screen=face/working mom=None expr=None
+  chirps at [1.6, 4.17]
+  ev   1 turn_start claude started turn 1 on "landing".
+  ev   5 needs_you  claude needs you on "landing".
+== c2 ==
+      1.90s X asks                                     core=['waiting', 'working'] sent_attn=True screen=needs_you/working mom=None expr=None
+      3.19s Y asks too                                 core=['waiting', 'waiting'] sent_attn=True screen=needs_you/idle mom=None expr=None
+      4.40s X answered; Y's request now shown          core=['waiting', 'working'] sent_attn=True screen=needs_you/working mom=None expr=None
+  chirps at [1.69, 4.21]
+  ev   1 turn_start claude started turn 1 on "one" (landing).
+  ev   5 turn_start claude started turn 1 on "two" (landing).
+  ev   8 needs_you  claude needs you on "landing".
+  ev  10 needs_you  claude needs you on "landing".
+== P1n: 30 orders, 0 unexpected
+== P3: 24 orders, 0 unexpected
+  P4-000: status=idle turn_ends=['done'] order=['TestsFailA', 'BuildOkB']
+  P4-001: status=idle turn_ends=['failed'] order=['BuildOkB', 'TestsFailA']
+== P4: 2 orders, 2 unexpected
+
+######## final-rva.log
+=== s1_tap_cheer.py
+   1409    1512 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 289}', None, False)
+   1444    1547 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 254}', None, False)
+   1480    1583 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 218}', None, False)
+   1506    1609 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 192}', None, False)
+   1540    1643 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 158}', None, False)
+   1569    1672 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 129}', None, False)
+   1598    1701 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 100}', None, False)
+   1632    1735 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 66}', None, False)
+   1659    1762 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 39}', None, False)
+   1695    1798 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 3}', None, False)
+   1730    1832 screen   ('face', 'idle', 'happy', '-', 'null', None, False)
+   1846    1948 me       {"dev": "answer", "answers": {"react": "proud", "react.loops": "once", "word.feeling": "finally"}}
+   1850         core     action seq5 react ok=True Boop made a proud face, held once, and mumbled "…finally!"
+   1851    1954 app>dev  {"t": "moment", "say": {"syl": "la-ya bo bo-na-la o", "word": "finally", "at": 7, "tune": "lift", "ms": 135}, "mood": "proud", "loops": 1, "id": 1}
+   1865    1968 screen   ('face', 'idle', 'happy', '-', 'null', 'proud', True)
+   3083    3186 screen   ('face', 'idle', 'happy', '-', 'null', 'proud', False)
+   9631         core     settle {'by': 'dashboard', 'end': 'done', 'for': 5}
+   9632    9735 dev>app  {"t": "ended", "id": 1, "how": "done"}
+   9632    9735 screen   ('face', 'idle', 'happy', '-', 'null', None, False)
+  11012   11115 app>dev  state base=idle mood=happy attn=-
+  12961   12952 link     "down"
+FINDINGS
+NOTES
+ - chirps seen 0, needs_you events 0
+ - reacts: seq5 id1 done dev=done/None
+=== s2_needs_cheer.py a
+    914    1017 screen   ('face', 'working', 'happy', '-', '{"anim": "cheer", "left_ms": 2139}', None, False)
+    947    1049 screen   ('face', 'working', 'happy', '-', '{"anim": "cheer", "left_ms": 2107}', None, False)
+    961    1057 me       {"hook": {"agent": "claude", "hook": "PermissionRequest", "session": "s2", "cwd": "/tmp/jetpack", "ts": 1790533461976, "tool": "Bash"}}
+    961         core     event needs_you wakes=False
+    962    1065 app>dev  state base=idle mood=happy attn=Y
+    962         core     status [claude:waiting,claude:idle] conn=True
+    975    1078 screen   ('needs_you', 'idle', 'happy', 'attn', 'null', None, False)
+   1371    1472 me       {"hook": {"agent": "claude", "hook": "PostToolUse", "session": "s2", "cwd": "/tmp/jetpack", "ts": 1790533462386, "tool": "Bash", "topic": "tests"}}
+   1372         core     status [claude:working,claude:idle] conn=True
+   1373    1476 app>dev  state base=working mood=happy attn=-
+   1394    1497 screen   ('face', 'working', 'happy', '-', 'null', None, False)
+   1677    1779 me       {"dev": "answer", "answers": {"react": "proud", "react.loops": "once", "word.feeling": "finally"}}
+   1681         core     action seq6 react ok=True Boop made a proud face, held once, and mumbled "…finally!"
+   1682    1785 app>dev  {"t": "moment", "say": {"syl": "wa-go lo-ya go lo-ya o", "word": "finally", "at": 0, "tune": "lift", "ms": 135}, "mood": "proud", "loops": 1, "id": 1}
+   1693    1796 screen   ('face', 'working', 'happy', '-', 'null', 'proud', True)
+   3040    3143 screen   ('face', 'working', 'happy', '-', 'null', 'proud', False)
+   8376    8479 dev>app  {"t": "ended", "id": 1, "how": "done"}
+   8376         core     settle {'by': 'dashboard', 'end': 'done', 'for': 6}
+   8380    8483 screen   ('face', 'working', 'happy', '-', 'null', None, False)
+  12010   12113 app>dev  state base=working mood=happy attn=-
+  12794   12786 link     "down"
+FINDINGS
+NOTES
+ - chirps seen 1, needs_you events 1
+ - reacts: seq6 id1 done dev=done/None
+=== s2_needs_cheer.py b
+    628     730 app>dev  state base=working mood=happy attn=Y
+    629     731 screen   ('needs_you', 'working', 'happy', 'attn', 'null', None, False)
+    932    1030 me       {"hook": {"agent": "claude", "hook": "Stop", "session": "s1", "cwd": "/tmp/landing", "ts": 1790533474932}}
+    932         core     event turn_end wakes=False
+    934    1036 app>dev  state base=idle mood=happy attn=Y
+    934         core     status [claude:waiting,claude:idle] conn=True
+    962    1064 screen   ('needs_you', 'idle', 'happy', 'attn', 'null', None, False)
+   1242    1339 me       {"hook": {"agent": "claude", "hook": "PostToolUse", "session": "s2", "cwd": "/tmp/jetpack", "ts": 1790533475242, "tool": "Bash", "topic": "tests"}}
+   1244         core     status [claude:working,claude:idle] conn=True
+   1245    1347 app>dev  state base=working mood=happy attn=-
+   1254    1356 screen   ('face', 'working', 'happy', '-', 'null', None, False)
+   1545    1647 me       {"dev": "answer", "answers": {"react": "proud", "react.loops": "once", "word.feeling": "finally"}}
+   1548         core     action seq6 react ok=True Boop made a proud face, held once, and mumbled "…finally!"
+   1549    1651 app>dev  {"t": "moment", "say": {"syl": "ba-mo o", "word": "finally", "at": 3, "tune": "lift", "ms": 135}, "mood": "proud", "loops": 1, "id": 1}
+   1579    1680 screen   ('face', 'working', 'happy', '-', 'null', 'proud', True)
+   2248    2349 screen   ('face', 'working', 'happy', '-', 'null', 'proud', False)
+   8246         core     settle {'by': 'dashboard', 'end': 'done', 'for': 6}
+   8247    8349 dev>app  {"t": "ended", "id": 1, "how": "done"}
+   8263    8365 screen   ('face', 'working', 'happy', '-', 'null', None, False)
+  12010   12112 app>dev  state base=working mood=happy attn=-
+  12650   12644 link     "down"
+FINDINGS
+NOTES
+ - chirps seen 1, needs_you events 1
+ - reacts: seq6 id1 done dev=done/None
+=== s3_tap_cheer_two.py
+   1500    1599 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 196}', None, False)
+   1535    1634 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 161}', None, False)
+   1564    1663 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 132}', None, False)
+   1595    1694 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 101}', None, False)
+   1628    1728 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 67}', None, False)
+   1659    1758 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 37}', None, False)
+   1694    1793 screen   ('face', 'idle', 'happy', '-', '{"anim": "wiggle", "left_ms": 2}', None, False)
+   1729    1828 screen   ('face', 'idle', 'happy', '-', 'null', None, False)
+   1836    1934 me       {"dev": "answer", "answers": {"react": "proud", "react.loops": "once", "word.feeling": "finally"}}
+   1839         core     action seq5 react ok=True Boop made a proud face, held once, and mumbled "…finally!"
+   1840    1940 app>dev  {"t": "moment", "say": {"syl": "ya a", "word": "finally", "at": 2, "tune": "lift", "ms": 135}, "mood": "proud", "loops": 1, "id": 1}
+   1860    1959 screen   ('face', 'idle', 'happy', '-', 'null', 'proud', True)
+   2399    2498 screen   ('face', 'idle', 'happy', '-', 'null', 'proud', False)
+   3345    3437 me       {"dev": "answer", "answers": {"react": "grumpy", "react.loops": "once", "word.feeling": "ugh"}}
+   3346         core     action seq7 react ok=True Boop made a grumpy face, held once, and mumbled "…ugh!"
+   8677         core     settle {'by': 'dashboard', 'end': 'failed', 'for': 7, 'why': 'waited too long'}
+   9635    9734 dev>app  {"t": "ended", "id": 1, "how": "done"}
+   9635         core     settle {'by': 'dashboard', 'end': 'done', 'for': 5}
+   9655    9754 screen   ('face', 'idle', 'happy', '-', 'null', None, False)
+  11012   11111 app>dev  state base=idle mood=happy attn=-
+  15458   15453 link     "down"
+FINDINGS
+NOTES
+ - chirps seen 0, needs_you events 0
+ - reacts: seq5 id1 done dev=done/None; seq7 idNone failed/waited too long
+=== s5_cheer_frees_turn.py
+   4046    4145 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 493}', 'happy', False)
+   4076    4175 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 463}', 'happy', False)
+   4108    4207 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 431}', 'happy', False)
+   4142    4241 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 397}', 'happy', False)
+   4176    4275 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 363}', 'happy', False)
+   4211    4310 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 328}', 'happy', False)
+   4245    4343 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 295}', 'happy', False)
+   4274    4373 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 265}', 'happy', False)
+   4305    4403 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 235}', 'happy', False)
+   4341    4440 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 198}', 'happy', False)
+   4368    4467 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 171}', 'happy', False)
+   4403    4502 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 136}', 'happy', False)
+   4436    4535 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 103}', 'happy', False)
+   4465    4564 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 74}', 'happy', False)
+   4500    4600 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 38}', 'happy', False)
+   4527    4626 screen   ('face', 'idle', 'happy', '-', '{"anim": "cheer", "left_ms": 12}', 'happy', False)
+   4542         core     settle {'by': 'dashboard', 'end': 'done', 'for': 5}
+   4543    4642 dev>app  {"t": "ended", "id": 2, "how": "done"}
+   4563    4662 screen   ('face', 'idle', 'happy', '-', 'null', None, False)
+  13013   13113 app>dev  state base=idle mood=happy attn=-
+  18257   18242 link     "down"
+FINDINGS
+NOTES
+ - chirps seen 0, needs_you events 0
+ - reacts: seq3 id1 failed/cut short: something newer played dev=cut/moment; seq5 id2 done dev=done/None
+=== s8_waited_settles_late.py
+seq 4 Boop made a happy face, held once, and m settled {'by': 'dashboard', 'end': 'failed', 'for': 4, 'why': 'waited too long'} 5333 ms after its action
+seq 2 Boop made a proud face, held four times, settled {'by': 'dashboard', 'end': 'done', 'for': 2} 35691 ms after its action
+=== s7_clock_jump_ceiling.py
+{"action": {"by": "dashboard", "for": null, "latency_ms": 2, "message": "Boop made a proud face, held four times, and mumbled \"\u2026finally!\"", "name": "react", "ok": true, "pending": true}, "received_at_ms": 17905335
+{"action": {"by": "dashboard", "for": null, "latency_ms": 0, "message": "Boop made a happy face, held once, and mumbled \"\u2026yay!\"", "name": "react", "ok": true, "pending": true}, "received_at_ms": 1790533563543, "se
+{"received_at_ms": 1790533568882, "seq": 5, "settle": {"by": "dashboard", "end": "failed", "for": 4, "why": "waited too long"}}
+{"received_at_ms": 1790533594423, "seq": 6, "settle": {"by": "dashboard", "end": "done", "for": 2}}
+1 drop log lines
+=== s6_restart_id_reuse.py
+99 link "up"
+427 me {"hook": {"agent": "claude", "hook": "SessionStart", "session": "s1", "cwd": "/tmp/landing", "ts": 1790533568711}}
+734 me {"dev": "answer", "answers": {"react": "proud", "react.loops": "four times", "word.feeling": "finally"}}
+741 app>dev {"t": "moment", "say": {"syl": "ma ma-lon", "word": "finally", "at": 3, "tune": "lift", "ms": 135}, "mood": "proud", "loops": 4, "id": 1}
+3743 me "restart app"
+3743 link "down"
+4386 link "up"
+4767 me {"hook": {"agent": "claude", "hook": "SessionStart", "session": "s1", "cwd": "/tmp/landing", "ts": 1790533573058}}
+5080 me {"dev": "answer", "answers": {"react": "happy", "react.loops": "once", "word.feeling": "yay"}}
+5088 app>dev {"t": "moment", "say": {"syl": "di-pi-la", "word": "yay", "at": 3, "tune": "bounce", "ms": 125}, "mood": "happy", "loops": 1, "id": 1}
+13780 dev>app {"t": "ended", "id": 1, "how": "done"}
+17091 link "down"
+--- launch 2 settles
+{"action": {"by": "dashboard", "for": null, "latency_ms": 1, "message": "Boop made a happy face, held once, and mumbled \"\u2026yay!\"", "name": "react", "ok": true, "pending": true}, "received_at_ms"
+{"received_at_ms": 1790533582064, "seq": 3, "settle": {"by": "dashboard", "end": "done", "for": 2}}
+427 ('face', 'asleep', None, False)
+453 ('face', 'idle', None, False)
+754 ('face', 'idle', 'proud', True)
+1421 ('face', 'idle', 'proud', False)
+4415 ('face', 'asleep', 'proud', False)
+4790 ('face', 'idle', 'proud', False)
+5094 ('face', 'idle', 'happy', True)
+5733 ('face', 'idle', 'happy', False)
+13797 ('face', 'idle', None, False)
+=== s4_chirp_same_project.py same
+    324         core     event turn_start wakes=False
+    324     424 screen   ('face', 'asleep', 'happy', '-', 'null', None, False)
+    325     425 app>dev  state base=idle mood=happy attn=-
+    325     425 app>dev  state base=working mood=happy attn=-
+    325     425 app>dev  state base=working mood=happy attn=-
+    325         core     status [claude:working,claude:idle] conn=True
+    325         core     status [claude:working,claude:working] conn=True
+    354     454 screen   ('face', 'working', 'happy', '-', 'null', None, False)
+    634     734 me       {"hook": {"agent": "claude", "hook": "PermissionRequest", "session": "s1", "cwd": "/tmp/landing", "ts": 1790533586312, "tool": "Bash"}}
+    634     734 app>dev  state base=working mood=happy attn=Y
+    634         core     event needs_you wakes=False
+    634         core     status [claude:waiting,claude:working] conn=True
+    662     762 screen   ('needs_you', 'working', 'happy', 'attn', 'null', None, False)
+   1134    1230 me       {"hook": {"agent": "claude", "hook": "PermissionRequest", "session": "s3", "cwd": "/tmp/landing", "ts": 1790533586812, "tool": "Bash"}}
+   1134         core     event needs_you wakes=False
+   1135    1235 app>dev  state base=idle mood=happy attn=Y
+   1135         core     status [claude:waiting,claude:waiting] conn=True
+   1148    1248 screen   ('needs_you', 'idle', 'happy', 'attn', 'null', None, False)
+   1644    1744 me       {"hook": {"agent": "claude", "hook": "PostToolUse", "session": "s1", "cwd": "/tmp/landing", "ts": 1790533587322, "tool": "Bash"}}
+   1646    1746 app>dev  state base=working mood=happy attn=Y
+   1646         core     status [claude:waiting,claude:working] conn=True
+   1654    1754 screen   ('needs_you', 'working', 'happy', 'attn', 'null', None, False)
+   2559    2552 link     "down"
+CHIRPS [(762, {'k': 'chirp', 'at': 734}), (1754, {'k': 'chirp', 'at': 1746})]
+ATTN ['null', '{"agent": "claude", "project": "landing", "more": 0, "id": 1}', '{"agent": "claude", "project": "landing", "more": 0, "id": 2}', '{"agent": "claude", "project": "landing", "more": 1, "id": 1}']
+
+######## approval-vs-turn-end fuzz.py 7 30
+ok {"seed": 10, "final": [], "continuous": []}
+ok {"seed": 7, "final": [], "continuous": []}
+ok {"seed": 9, "final": [], "continuous": []}
+ok {"seed": 8, "final": [], "continuous": []}
+ok {"seed": 12, "final": [], "continuous": []}
+ok {"seed": 11, "final": [], "continuous": []}
+ok {"seed": 15, "final": [], "continuous": []}
+ok {"seed": 13, "final": [], "continuous": []}
+ok {"seed": 14, "final": [], "continuous": []}
+ok {"seed": 16, "final": [], "continuous": []}
+ok {"seed": 18, "final": [], "continuous": []}
+ok {"seed": 17, "final": [], "continuous": []}
+ok {"seed": 19, "final": [], "continuous": []}
+ok {"seed": 20, "final": [], "continuous": []}
+ok {"seed": 22, "final": [], "continuous": []}
+ok {"seed": 21, "final": [], "continuous": []}
+ok {"seed": 23, "final": [], "continuous": []}
+ok {"seed": 24, "final": [], "continuous": []}
+ok {"seed": 25, "final": [], "continuous": []}
+ok {"seed": 26, "final": [], "continuous": []}
+ok {"seed": 28, "final": [], "continuous": []}
+ok {"seed": 27, "final": [], "continuous": []}
+ok {"seed": 30, "final": [], "continuous": []}
+ok {"seed": 29, "final": [], "continuous": []}
+ok {"seed": 32, "final": [], "continuous": []}
+ok {"seed": 31, "final": [], "continuous": []}
+ok {"seed": 34, "final": [], "continuous": []}
+ok {"seed": 33, "final": [], "continuous": []}
+ok {"seed": 35, "final": [], "continuous": []}
+ok {"seed": 36, "final": [], "continuous": []}
+
+######## two-sessions fuzz.py 21 40 (the model's idle_prompt comes 5 s after Esc; see README)
+seed 21 steps 40 chirps 8
+  act (3819, 'A', 'tool')
+  act (6186, 'C', 'ask')
+  act (8837, 'A', 'tool')
+  act (11774, 'A', 'stop')
+  act (14712, 'A', 'prompt')
+  act (14871, 'A', 'ask')
+  act (17208, 'A', 'approve')
+  act (18175, 'A', 'ask')
+  act (20511, 'C', 'feedback')
+  act (23117, 'A', 'esc')
+  act (26046, 'B', 'ask')
+  act (28132, 'A', 'idle_prompt')
+  act (28683, 'C', 'ask')
+  act (28917, 'A', 'prompt')
+  act (31555, 'A', 'stop')
+  act (33642, 'B', 'feedback')
+  act (34180, 'A', 'prompt')
+  act (34342, 'B', 'ask')
+  act (34607, 'A', 'ask')
+  act (34846, 'A', 'feedback')
+  act (37778, 'B', 'approve')
+  act (39858, 'A', 'stop')
+  act (42223, 'B', 'ask')
+  act (44856, 'C', 'feedback')
+  act (46933, 'B', 'feedback')
+  act (48269, 'A', 'prompt')
+  act (48527, 'A', 'tool')
+  act (48665, 'B', 'ask')
+  act (51601, 'C', 'stop')
+  act (52529, 'C', 'prompt')
+  act (54612, 'C', 'stop')
+  act (54880, 'A', 'ask')
+  act (56970, 'B', 'esc')
+  act (58301, 'A', 'approve')
+  act (58865, 'A', 'ask')
+  act (61201, 'B', 'prompt')
+  act (61740, 'C', 'prompt')
+  act (61873, 'C', 'stop')
+  act (62835, 'B', 'ask')
+  act (62964, 'B', 'feedback')
+MODEL-MISMATCHES 4
+  at 28172 want {None, ('codex', 'beta', 0)} dev+60ms ('claude', 'alpha', 1) dev+1.1s None
+  at 28636 want {None, ('codex', 'beta', 0)} dev+60ms ('claude', 'alpha', 1) dev+1.1s None
+  at 28723 want {None, ('codex', 'beta', 0)} dev+60ms ('claude', 'alpha', 1) dev+1.1s None
+  at 28883 want {None, ('codex', 'beta', 0)} dev+60ms ('claude', 'alpha', 1) dev+1.1s None
+UNSEEN-NEEDS-YOU 0
+
+######## two-sessions fuzz.py 22 40
+MODEL-MISMATCHES 12
+  at 51644 want {('claude', 'alpha', 0)} dev+60ms ('claude', 'alpha', 1) dev+1.1s None
+  at 51700 want {('claude', 'alpha', 0)} dev+60ms ('claude', 'alpha', 1) dev+1.1s None
+  at 51769 want {None} dev+60ms ('claude', 'beta', 0) dev+1.1s None
+  at 52632 want {None} dev+60ms ('claude', 'beta', 0) dev+1.1s None
+  at 52718 want {None} dev+60ms ('claude', 'beta', 0) dev+1.1s None
+  at 52783 want {None} dev+60ms ('claude', 'beta', 0) dev+1.1s None
+  at 52872 want {None} dev+60ms ('claude', 'beta', 0) dev+1.1s None
+  at 53037 want {None} dev+60ms ('claude', 'beta', 0) dev+1.1s None
+  at 53109 want {None} dev+60ms ('claude', 'beta', 0) dev+1.1s None
+  at 55672 want {None, ('codex', 'gamma', 0)} dev+60ms ('claude', 'beta', 1) dev+1.1s None
+  at 55744 want {('codex', 'gamma', 0)} dev+60ms ('claude', 'beta', 1) dev+1.1s None
+  at 55905 want {('codex', 'gamma', 0)} dev+60ms ('claude', 'beta', 1) dev+1.1s None
+UNSEEN-NEEDS-YOU 0
+
+######## reactions-vs-attention fuzz.py 3 6 3
+== f3-0: 0 findings
+   . chirps seen 1, needs_you events 1
+   . reacts: seq3 id1 failed/cut short: something newer played dev=cut/moment; seq7 id2 failed/cut short: something needed you dev=cut/needs_you; seq15 idNone not started: something needs you; seq21 id3 done dev=done/None; seq24 id4 done dev=done/None
+== f3-1: 0 findings
+   . chirps seen 1, needs_you events 1
+   . reacts: seq4 idNone not started: something needs you; seq8 idNone not started: something needs you; seq10 id1 failed/cut short: you tapped Boop dev=cut/tap
+== f3-2: 0 findings
+   . chirps seen 1, needs_you events 1
+   . reacts: seq4 id1 done dev=done/None; seq6 id2 failed/cut short: something newer played dev=cut/moment; seq11 id3 done dev=done/None; seq20 id4 done dev=done/None
+== f3-3: 0 findings
+   . chirps seen 1, needs_you events 1
+   . reacts: 
+== f3-4: 0 findings
+   . chirps seen 0, needs_you events 0
+   . reacts: 
+== f3-5: 0 findings
+   . react seq 15 id 3: settled 'the device disconnected' (link drop, by design); device later said done/None
+   . chirps seen 1, needs_you events 1
+   . reacts: seq3 id1 done dev=done/None; seq6 id2 failed/cut short: you tapped Boop dev=cut/tap; seq15 id3 failed/the device disconnected dev=done/None; seq18 id4 failed/cut short: something needed you dev=cut/needs_you; seq24 id5 failed/cut short: something newer played dev=cut/moment; seq28 id6 done d
