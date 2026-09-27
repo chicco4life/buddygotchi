@@ -69,6 +69,10 @@ public final class Core {
         /// Working on a turn: not idle, and not waiting on "needs you".
         var working = false
         var turnStartedAt: Int64?
+        /// When you last sent a prompt (`turn_start`), for a stale idle
+        /// notice: a turn a call started (a background subagent's, after
+        /// the main agent stopped) had no prompt to race.
+        var promptedAt: Int64?
         var lastEventAt: Int64
         var topic: String?
         /// This turn's last test, build or deploy command, and whether it
@@ -173,7 +177,7 @@ public final class Core {
     static let turnLevel: Set<BoopEvent.Kind> = [.sessionStart, .turnStart, .turnEnd, .turnFailed, .sessionEnd]
 
     /// Claude's idle notice comes after a minute at its prompt, so one
-    /// sooner than this after a turn started is from before it.
+    /// sooner than this after you sent a prompt is from before it.
     static let idleNoticeMinMs: Int64 = 30_000
 
     /// How far apart a request's own hook and its `Notification` may land,
@@ -208,10 +212,10 @@ public final class Core {
                                          lastEventAt: now, order: takeOrder())
         let waiting = s.needsSince != nil || s.pendingSince != nil
         // Claude's idle notice means it has sat at its prompt for a minute,
-        // so one within 30 s of a turn's start is from before that turn: a
-        // new prompt typed just as the minute ran out (ADAPTERS.md §4).
-        if event.event == .turnStopped, event.detail.notice != nil, let started = s.turnStartedAt,
-           now - started < Core.idleNoticeMinMs {
+        // so one within 30 s of your last prompt is from before it: a new
+        // prompt typed just as the minute ran out (ADAPTERS.md §4).
+        if event.event == .turnStopped, event.detail.notice != nil, let prompted = s.promptedAt,
+           now - prompted < Core.idleNoticeMinMs {
             return
         }
         // A session is where its events come from, except while a request
@@ -326,6 +330,7 @@ public final class Core {
             let gap = s.lastTurnEndedAt.map { Band.gap(ms: now - $0) }
             s.working = true
             s.turnStartedAt = now
+            s.promptedAt = now
             s.topic = nil
             s.check = nil
             s.turns += 1

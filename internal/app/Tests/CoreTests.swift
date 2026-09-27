@@ -289,6 +289,18 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.now += 10
         rig.send(.turnStopped, .codex, session: "c")  // Codex's Interrupt is never stale
         XCTAssertEqual(rig.state.base, "idle")
+
+        // A turn a call started had no prompt to race: a background
+        // subagent's call 50 s after the main agent stopped, and the idle
+        // notice 10 s later, is a real one.
+        rig.send(.turnStart, session: "d")
+        rig.send(.turnEnd, session: "d")
+        rig.wait(50_000)
+        rig.send(.activity, session: "d", subagent: "bg", tool: "Read")
+        XCTAssertEqual(rig.state.base, "working")
+        rig.wait(10_000)
+        rig.send(.turnStopped, session: "d", notice: true)
+        XCTAssertEqual(rig.state.base, "idle", "the notice counts")
     }
 
     /// Claude gives a subagent's hooks its parent's session, and the hooks
