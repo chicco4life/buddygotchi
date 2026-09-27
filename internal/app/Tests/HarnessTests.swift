@@ -702,7 +702,7 @@ final class HarnessTests: XCTestCase {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return [MoodAction(store: MoodStore(stateDir: dir)),
-                ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, _ in }, blocked: { nil })]
+                ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, _ in }, blocked: { nil }, clock: { 0 })]
     }
 
     // MARK: The actions (DECISIONS.md §4–5)
@@ -720,7 +720,8 @@ final class HarnessTests: XCTestCase {
         var queued: [(moment: DeviceMoment, pending: Pending)] = []
         var sent: [DeviceMoment] { queued.map(\.moment) }
         var why: String?
-        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { queued.append(($0, $1)) }, blocked: { why })
+        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { queued.append(($0, $1)) }, blocked: { why },
+                                clock: { 0 })
         /// Runs `answers`, and checks the result is started with `message`
         /// and the handle its moment was queued with.
         func starts(_ answers: Answers, _ message: String, line: UInt = #line) {
@@ -768,6 +769,33 @@ final class HarnessTests: XCTestCase {
         for word in ReactAction.exclamations.map(\.name) + ReactAction.topics.map(\.name) {
             XCTAssertTrue(Sounds.vocabulary.contains(word), "\(word) is one of Voice's words")
         }
+    }
+
+    /// HARNESS.md §5.3, DECISIONS.md §5: `react` names Boop's last
+    /// reaction and how long ago it started, in HISTORY's wording, for the
+    /// line before the status line; one that didn't happen doesn't count,
+    /// and there's none before the first.
+    func testReactNamesItsLastReaction() {
+        var now: Int64 = 1_000_000
+        var queued: [Pending] = []
+        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { queued.append($1) }, blocked: { nil },
+                                clock: { now })
+        XCTAssertNil(react.lastLine(at: now))
+        _ = react.run(["react": a("excited"), "word.feeling": a("none"), "word.about": a("tests", 0.8)])
+        XCTAssertEqual(react.lastLine(at: now), #"Boop's last reaction, just now: an excited face and "…tests!"."#,
+                       "in progress counts")
+        queued[0].finish(.done)
+        XCTAssertEqual(react.lastLine(at: now + 40_000), #"Boop's last reaction, just now: an excited face and "…tests!"."#)
+        XCTAssertEqual(react.lastLine(at: now + 3 * 60_000 + 5_000),
+                       #"Boop's last reaction, 3 min ago: an excited face and "…tests!"."#)
+        XCTAssertEqual(react.lastLine(at: now + 2 * 3_600_000), #"Boop's last reaction, 2 h ago: an excited face and "…tests!"."#,
+                       "past HISTORY's 10 minutes too")
+        now += 90_000
+        _ = react.run(["react": a("happy")])
+        XCTAssertEqual(react.lastLine(at: now), "Boop's last reaction, just now: a happy face, with no word.")
+        queued[1].finish(.failed("waited too long"))
+        XCTAssertEqual(react.lastLine(at: now), #"Boop's last reaction, 1 min ago: an excited face and "…tests!"."#,
+                       "one that didn't happen isn't the last")
     }
 
     /// VOICE.md §4: a mood's face mumbles in the feeling of the same name,

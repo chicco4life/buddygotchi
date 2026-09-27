@@ -128,12 +128,15 @@ public final class Pending: @unchecked Sendable {
     private var end: End?
     private var deliver: ((End) -> Void)?
     private var finished = false
+    /// How it ended, once it has; nil until then.
+    public private(set) var ended: End?
 
     public init() {}
 
     public func finish(_ end: End) {
         guard !finished else { return }
         finished = true
+        ended = end
         if let deliver {
             self.deliver = nil
             deliver(end)

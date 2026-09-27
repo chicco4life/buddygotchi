@@ -214,7 +214,9 @@ in `FaceLoops`.
   meanwhile (the cheer ends, a `state` moves from working to idle), the
   new look is drawn in the moment's mood until the end worked out when
   it started. A newer moment, a tap or "needs you" ends it with the
-  moment.
+  moment. The Mac sends its next brain moment once this one's mumble has
+  played, without waiting for the face ([ARCHITECTURE.md](ARCHITECTURE.md)
+  §3.2), so a face held for its loops is usually ended that way.
 - While `attn` is set, neither plays ([BEHAVIORS.md](BEHAVIORS.md) §1).
 - At volume 0 the mouth and bubble still play, silently.
 - A moment with neither a known `anim` nor any syllables is ignored.
@@ -293,7 +295,8 @@ gone), so the new one's `ended` is its own.
 
 The Mac ends the reaction's handle from it
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5), sends the next brain
-moment waiting its turn, and ignores an `id` it isn't waiting on (one it
+moment waiting its turn (if its mumble hadn't already played:
+[ARCHITECTURE.md](ARCHITECTURE.md) §3.2), and ignores an `id` it isn't waiting on (one it
 gave up on, or an earlier launch's). It gives up on a moment, as failed,
 when no `ended` has come by its length plus a grace (§6), so firmware
 without `ended` or a lost line still settles it, and on every moment it

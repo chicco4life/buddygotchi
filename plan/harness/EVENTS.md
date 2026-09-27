@@ -200,7 +200,8 @@ marked "in the line" in §4.1 (`EventLine` in
 A thread reads `"fix-nav" (landing)`, or just `"landing"` when its name is
 the project.
 
-**The status line** closes HISTORY and is the core's too
+**The status line** closes HISTORY, after `react`'s line naming Boop's
+last reaction ([HARNESS.md](HARNESS.md) §5.3), and is the core's too
 (`Core.statusLine`): every thread working now except NOW's, in the order
 Boop first saw them, each with how long its turn has run:
 `Working now: "fix-nav" (codex, landing), for 3 min.`, or

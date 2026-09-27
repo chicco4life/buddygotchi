@@ -55,11 +55,15 @@ public struct DeviceMoment: Equatable, Sendable {
         if !Self.anims.contains(anim ?? ""), let face = self.mood {
             ms = loops * FaceLoops.ms(mood: face, state: look)
         }
-        if let say, say.syllableCount > 0 {
-            let beats = Int64(say.syllableCount + (say.word?.isEmpty == false ? 2 : 0))
-            ms = Swift.max(ms, beats * Int64(Swift.max(60, Swift.min(400, say.ms))) + DeviceMoment.bubbleReadMs)
-        }
-        return ms
+        return Swift.max(ms, sayMs)
+    }
+
+    /// How long its mumble plays: its syllables, plus two beats for a word,
+    /// at 60–400 ms each, then 1.2 s for the bubble; 0 with none.
+    public var sayMs: Int64 {
+        guard let say, say.syllableCount > 0 else { return 0 }
+        let beats = Int64(say.syllableCount + (say.word?.isEmpty == false ? 2 : 0))
+        return beats * Int64(Swift.max(60, Swift.min(400, say.ms))) + DeviceMoment.bubbleReadMs
     }
 
     public var jsonLine: String {

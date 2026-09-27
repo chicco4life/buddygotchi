@@ -171,7 +171,7 @@ public final class Runtime: @unchecked Sendable {
             moment.id = lastId
             let deadline = now + schedule.playMs(moment, now: now) + Self.endGraceMs
             playing.append((lastId, pending, deadline))
-            schedule.hold(id: lastId, until: deadline)
+            schedule.hold(id: lastId, moment, now: now, until: deadline)
         }
 
         /// The device's `ended` at `now`: frees the schedule's line if the
@@ -301,13 +301,11 @@ public final class Runtime: @unchecked Sendable {
         let home = self.home
         var moodSaved: (String) -> Void = { _ in }
         moodAction = MoodAction(store: mood, changed: { moodSaved($0) })
-        let actions: [any Action] = [
-            moodAction,
-            ReactAction(voice: voice, queue: { moment, pending in
-                moments.schedule.brain(moment, pending, now: clock())
-                Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
-            }, blocked: { core.mumbleBlock }),
-        ]
+        let react = ReactAction(voice: voice, queue: { moment, pending in
+            moments.schedule.brain(moment, pending, now: clock())
+            Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
+        }, blocked: { core.mumbleBlock }, clock: clock)
+        let actions: [any Action] = [moodAction, react]
         let steering = options.steering
         let mood = self.mood
         let time = options.time
@@ -315,7 +313,7 @@ public final class Runtime: @unchecked Sendable {
         let wallClock = options.wallClock
         harness = Harness(brain: nil, actions: actions, parts: { entry in
             Runtime.stateParts(for: entry, steering: steering, personality: personalityNow(), mood: mood.current,
-                               core: core, time: time, now: clock(), wall: wallClock())
+                               core: core, react: react, time: time, now: clock(), wall: wallClock())
         }, home: home, clock: clock, debugLog: options.debug ? debugLogURL : nil, log: log)
         if options.debug {
             DebugLog.start(debugLogURL)
@@ -336,15 +334,18 @@ public final class Runtime: @unchecked Sendable {
     }
 
     /// Everything Jev's state needs besides the transcript, for the pass on
-    /// `entry` (harness/HARNESS.md §6): the steering files, the core's
-    /// status line and oldest working turn at steady time `now`, and the
+    /// `entry` (harness/HARNESS.md §6): the steering files, the lines that
+    /// close HISTORY (`react`'s last reaction, then the core's status
+    /// line), the oldest working turn at steady time `now`, and the
     /// time of day at wall-clock time `wall`. The evals build theirs with
     /// it too.
     public static func stateParts(for entry: Transcript.Entry, steering: Steering, personality: Personality,
-                                  mood: String, core: Core, time: LocalTime, now: Int64, wall: Int64) -> StateText.Parts {
+                                  mood: String, core: Core, react: ReactAction, time: LocalTime, now: Int64,
+                                  wall: Int64) -> StateText.Parts {
         let about: String? = if case .event(let event) = entry.body { event.about } else { nil }
+        let status = [react.lastLine(at: now), core.statusLine(excluding: about, at: now)].compactMap { $0 }
         return StateText.Parts(guide: steering.guide, personality: steering.personality(personality).text,
-                               mood: steering.mood(mood), status: core.statusLine(excluding: about, at: now),
+                               mood: steering.mood(mood), status: status.joined(separator: "\n"),
                                workingSince: core.workingSince(at: now), clock: "\(time.clock(wall)), \(time.weekday(wall))")
     }
 

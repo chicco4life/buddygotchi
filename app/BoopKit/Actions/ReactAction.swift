@@ -17,14 +17,34 @@ public final class ReactAction: Action {
     let queue: (DeviceMoment, Pending) -> Void
     /// Why a mumble can't play now (something needs you), or nil.
     let blocked: () -> String?
+    /// The time, on the harness's clock.
+    let clock: () -> Int64
     /// Each line gets the next seed, so a logged line can be replayed.
     var seed: UInt64 = 0
+    /// The last few reactions it started, newest last: each one's face,
+    /// word, when, and its handle (DECISIONS.md §5).
+    var made: [(face: String, word: String?, at: Int64, pending: Pending)] = []
 
-    public init(voice: Voice, queue: @escaping (DeviceMoment, Pending) -> Void, blocked: @escaping () -> String?) {
+    public init(voice: Voice, queue: @escaping (DeviceMoment, Pending) -> Void, blocked: @escaping () -> String?,
+                clock: @escaping () -> Int64) {
         self.voice = voice
         self.queue = queue
         self.blocked = blocked
+        self.clock = clock
     }
+
+    /// Boop's last reaction and how long ago it started, for the line
+    /// before the status line that closes HISTORY (harness/HARNESS.md
+    /// §5.3): `Boop's last reaction, just now: an excited face and
+    /// "…tests!".` One that didn't happen doesn't count; nil before any.
+    public func lastLine(at now: Int64) -> String? {
+        let happened = made.last { if case .failed = $0.pending.ended { false } else { true } }
+        guard let last = happened else { return nil }
+        return "Boop's last reaction, \(StateText.ago(now - last.at)): \(Self.article(last.face)) \(last.face) face"
+            + (last.word.map { " and \"…\($0)!\"." } ?? ", with no word.")
+    }
+
+    static func article(_ word: String) -> String { "aeiou".contains(word.first ?? "x") ? "an" : "a" }
 
     /// Each expression: a mood's name, in `MoodAction.moods`' order, and
     /// what the face means for this moment (DECISIONS.md §3). Voice picks
@@ -118,11 +138,11 @@ public final class ReactAction: Action {
         let line = voice.line(Voice.feeling(forMood: choice), word: word, seed: seed)
         let loops = Self.loops(answers)
         let pending = Pending()
+        made = made.suffix(4) + [(choice, word, clock(), pending)]
         queue(DeviceMoment(say: line, mood: choice, loops: loops), pending)
         // 5. What it started, as its line in HISTORY: in progress until
         // the device says how the moment ended.
-        let article = "aeiou".contains(choice.first!) ? "an" : "a"
-        return .started("Boop made \(article) \(choice) face, held \(Self.holds[loops - 1].name), and mumbled"
+        return .started("Boop made \(Self.article(choice)) \(choice) face, held \(Self.holds[loops - 1].name), and mumbled"
                         + (word.map { " \"…\($0)!\"" } ?? "."), pending)
     }
 }

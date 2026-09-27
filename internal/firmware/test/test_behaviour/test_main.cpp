@@ -961,6 +961,24 @@ static void test_a_waited_moment_says_how_it_ended() {
   TEST_ASSERT_NOT_NULL(h.b.mumble(h.t));
   h.b.tap(h.t);
   TEST_ASSERT_EQUAL_STRING("21 cut by tap", ended(h).c_str());
+  // The Mac's next reaction, sent once this one's mumble has played
+  // (ARCHITECTURE.md §3.2): it replaces the face held for its loops, and
+  // this one is done.
+  h.at(10 * idle + 1000);
+  h.state(base("idle"));
+  MomentIn held = expressive(render::Mood::kProud, 4, 4);  // held four times
+  held.id = 22;
+  h.b.onMoment(held, h.t);
+  h.at(10 * idle + 1000 + 400 + Behaviour::kBubbleReadMs + 100);
+  TEST_ASSERT_NULL(h.b.mumble(h.t));
+  TEST_ASSERT_TRUE(h.b.expression(h.t, face));
+  MomentIn next = expressive(render::Mood::kGrumpy);
+  next.id = 23;
+  TEST_ASSERT_TRUE(h.b.onMoment(next, h.t));
+  TEST_ASSERT_EQUAL_STRING("22 done", ended(h).c_str());
+  TEST_ASSERT_NOT_NULL(h.b.mumble(h.t));
+  TEST_ASSERT_TRUE(h.b.expression(h.t, face));
+  TEST_ASSERT_EQUAL(render::Mood::kGrumpy, face);
 
   // dbg.reset forgets the moment, which the Mac is still told of.
   r.at(50000);

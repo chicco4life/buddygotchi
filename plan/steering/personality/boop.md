@@ -11,7 +11,7 @@ mood: determined at a first failure, grumpy at a repeat or a poke,
 proud at a fix or a hard-won finish, excited at a clean win or a run
 of them, sad when a big turn fails.
 Routine finishes get a face only when they have something to show:
-40 s of work or more, or checks passing. A turn starting, or an hour
+20 s of work or more, or checks passing. A turn starting, or an hour
 of nothing, gets nothing.
 An exclamation is for what stands out ("yay" at a big win); a routine
 face says the topic ("tests"), or no word.
@@ -28,12 +28,9 @@ Examples:
 - NOW: claude finished turn 6 on "api": done after 40 s, a long turn,
   3 tools. Tests passing.
   → excited, no exclamation, "tests", once
-- NOW: claude finished turn 3 on "api": done after 50 s, a long turn,
-  4 tools.
-  → happy, no word, once
-- NOW: claude finished turn 3 on "api": done after 30 s, a long turn,
+- NOW: claude finished turn 3 on "api": done after 25 s, a long turn,
   3 tools.
-  → none
+  → happy, no word, once
 - NOW: claude finished turn 3 on "api": done after 8 s, a short turn.
   → none
 - NOW: claude finished turn 2 on "api": done after 9 s, a short turn,

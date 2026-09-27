@@ -552,11 +552,12 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// ARCHITECTURE.md §3.2: the brain's moments play one at a time, each
-    /// after any line and face playing, so none cuts off a line or another
-    /// of the brain's; a mumble plays over an animation, which doesn't cut
+    /// after any line playing, so none cuts off a line or another of the
+    /// brain's mumbles; a mumble plays over an animation, which doesn't cut
     /// it; a newer line pushes them back and an animation stops the line;
     /// one that waited over 5 s is dropped. One sent to the device holds
-    /// the line until the device says it ended.
+    /// the line for chatter until the device says it ended, and for the
+    /// brain's next until its mumble has played, or its `ended` if sooner.
     func testBrainMomentsTakeTurns() {
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
         let mumble = DeviceMoment(say: line, mood: "proud")  // its line is 1920 ms
@@ -567,15 +568,14 @@ final class RuntimeTests: XCTestCase {
         schedule.brain(mumble, now: 200)
         var due = schedule.due(now: 500)
         XCTAssertEqual(due.play, mumble, "over the cheer, which a mumble doesn't cut")
-        schedule.hold(id: 1, until: 500 + schedule.playMs(mumble, now: 500) + Runtime.Moments.endGraceMs)  // as the runtime does
-        XCTAssertEqual(schedule.next, 200 + MomentSchedule.maxWaitMs + 1,
-                       "the second waits for the first's end, but no longer than it may wait")
+        schedule.hold(id: 1, mumble, now: 500, until: 500 + schedule.playMs(mumble, now: 500) + Runtime.Moments.endGraceMs)
+        XCTAssertEqual(schedule.next, 500 + 1920 + MomentSchedule.linkSlackMs, "the second waits for the first's mumble")
         XCTAssertFalse(schedule.idle(now: 2000), "chatter waits for both")
         XCTAssertNil(schedule.due(now: 2000).play)
-        schedule.ended(id: 2, now: 3000)
-        XCTAssertNil(schedule.due(now: 3000).play, "another moment's end")
-        schedule.ended(id: 1, now: 3300)
-        due = schedule.due(now: 3300)
+        schedule.ended(id: 2, now: 2200)
+        XCTAssertNil(schedule.due(now: 2200).play, "another moment's end")
+        schedule.ended(id: 1, now: 2300)
+        due = schedule.due(now: 2300)
         XCTAssertEqual(due.play, mumble, "then the second, once the device says the first is over")
         XCTAssertNil(due.next, "nothing left")
 
@@ -898,7 +898,7 @@ final class RuntimeTests: XCTestCase {
         func sent(_ schedule: inout MomentSchedule, at now: Int64, id: Int) -> Int64 {
             XCTAssertEqual(schedule.due(now: now).play, face)
             let until = now + schedule.playMs(face, now: now) + Runtime.Moments.endGraceMs
-            schedule.hold(id: id, until: until)
+            schedule.hold(id: id, face, now: now, until: until)
             return until
         }
         var schedule = MomentSchedule()
@@ -915,9 +915,9 @@ final class RuntimeTests: XCTestCase {
         var silent = MomentSchedule()
         silent.brain(face, now: 0)
         let deadline = sent(&silent, at: 0, id: 1)
-        silent.brain(face, now: deadline - 4000)
-        XCTAssertNil(silent.due(now: deadline - 1).play)
-        XCTAssertEqual(silent.due(now: deadline).play, face)
+        XCTAssertFalse(silent.idle(now: deadline - 1))
+        XCTAssertNil(silent.due(now: deadline).play)
+        XCTAssertTrue(silent.idle(now: deadline))
 
         // A rule's animation frees it; so does "needs you". A tap leaves it
         // to the moment's `ended`, which the device sends at once for a
@@ -958,6 +958,48 @@ final class RuntimeTests: XCTestCase {
         _ = sent(&gone, at: 0, id: 1)
         gone.stop(now: 10)
         XCTAssertEqual(gone.busyUntil, 10)
+    }
+
+    /// harness/DECISIONS.md §5, ARCHITECTURE.md §3.2 (the owner's call,
+    /// 2026-09-28): a reaction's face held on for its loops holds up the
+    /// brain's next reaction only until its mumble has played (and
+    /// `linkSlackMs`). The next is sent then, not dropped at 5 s, and
+    /// replaces the face; the device says the first was done, and it
+    /// settles done. Chatter still waits for the face's `ended`.
+    func testTheNextReactionReplacesAHeldFace() {
+        let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
+        let held = DeviceMoment(say: line, mood: "proud", loops: 4)  // its line is 1920 ms
+        let next = DeviceMoment(say: line, mood: "grumpy")
+        XCTAssertEqual(MomentSchedule.linkSlackMs, 500)
+        XCTAssertEqual(held.sayMs, 1920)
+        let moments = Runtime.Moments()
+        var ends: [String: Pending.End] = [:]
+        let first = Pending(), second = Pending()
+        first.bind { ends["first"] = $0 }
+        second.bind { ends["second"] = $0 }
+        moments.schedule.brain(held, first, now: 0)
+        var play = moments.schedule.due(now: 0)
+        XCTAssertEqual(play.play, held, "the first plays at once")
+        guard var sent = play.play else { return }
+        moments.send(&sent, first, now: 0)
+        let faceEnds = 4 * FaceLoops.ms(mood: "proud", state: "idle")
+        XCTAssertGreaterThanOrEqual(faceEnds, 16_000, "a face held four times over the idle look")
+        XCTAssertEqual(moments.schedule.lineFree, faceEnds + Runtime.Moments.endGraceMs)
+
+        moments.schedule.brain(next, second, now: 1000)
+        XCTAssertEqual(moments.schedule.next, 1920 + 500, "asked back once the first's mumble has played")
+        XCTAssertNil(moments.schedule.due(now: 2419).play)
+        play = moments.schedule.due(now: 2420)
+        XCTAssertEqual(play.play, next, "sent then, over the held face")
+        XCTAssertEqual(play.dropped, [])
+        guard var replacing = play.play else { return }
+        moments.send(&replacing, second, now: 2420)
+        XCTAssertFalse(moments.schedule.idle(now: 2420 + 1920), "chatter waits for the second's ended")
+
+        // The device ends the first at once, done: its line had played.
+        moments.ended(MomentEnded(id: sent.id!, how: .done, why: nil), now: 2450)
+        XCTAssertEqual(ends, ["first": .done])
+        XCTAssertEqual(moments.schedule.holder?.id, replacing.id, "the second holds the line")
     }
 
     /// ARCHITECTURE.md §3.2: a brain moment's wait is counted to when its
@@ -1208,7 +1250,7 @@ final class RuntimeTests: XCTestCase {
         }
         let first = try XCTUnwrap(transport.momentIds.first)
         XCTAssertEqual(moments().count, 1)
-        clock.now += 3000
+        clock.now += 1000  // before its mumble has played, when the next could replace its face
         transport.onLine?(#"{"t":"ended","id":\#(first + 99),"how":"done"}"#)
         runtime.home.sync {}
         XCTAssertEqual(moments().count, 1, "not the moment holding the turn")
@@ -1413,13 +1455,16 @@ final class RuntimeTests: XCTestCase {
         react("proud")
         clock.now += 1000
         react("happy")
-        XCTAssertEqual(pumpAt(), clock.now + MomentSchedule.maxWaitMs + 1, "the second waits, at most until it's too old")
+        let free = { runtime.home.sync { runtime.moments.schedule.brainFree } }
+        XCTAssertEqual(pumpAt(), free(), "the second waits for the first's mumble")
+        XCTAssertGreaterThan(free(), clock.now)
         clock.now += 60_000  // the Mac slept, and the timer with it
         react("grumpy")  // the second is dropped, and this one plays
         XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.waiting.count }, 0)
         clock.now += 1000
         react("excited")
-        XCTAssertEqual(pumpAt(), clock.now + MomentSchedule.maxWaitMs + 1, "a timer of its own, not the late one")
+        XCTAssertEqual(pumpAt(), free(), "a timer of its own, not the late one")
+        XCTAssertGreaterThan(free(), clock.now)
     }
 
     /// PROTOCOL.md §3: moment ids start somewhere random at every launch
@@ -1455,6 +1500,30 @@ final class RuntimeTests: XCTestCase {
         core.handle(BoopEvent(agent: .claudeCode, session: "s", project: "landing", event: .needsYou,
                               detail: .init(tool: "Bash"), ts: 1000))
         XCTAssertEqual(core.snapshot(at: 1000).attn?.id, 1, "back to 1, never 0")
+    }
+
+    /// harness/HARNESS.md §5.3, EVENTS.md §8: HISTORY closes with `react`'s
+    /// line naming Boop's last reaction, once there is one, then the core's
+    /// status line; the harness only places them.
+    func testHistoryClosesWithTheLastReaction() {
+        var now: Int64 = 1_790_000_000_000
+        let core = Core(config: .init())
+        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, _ in }, blocked: { nil },
+                                clock: { now })
+        let event = Transcript.Entry(seq: 1, receivedAtMs: now, body: .event(Event(.turnEnd, at: now, line: "claude finished turn 2 on \"api\".",
+                                                                                   wakesBrain: true)))
+        func status() -> String {
+            Runtime.stateParts(for: event, steering: Self.steering, personality: .boop, mood: "happy", core: core, react: react,
+                               time: LocalTime(timeZone: TimeZone(identifier: "UTC")!), now: now, wall: now).status
+        }
+        XCTAssertEqual(status(), "Working now: nothing else.", "no reaction yet")
+        _ = react.run(["react": Answer(choice: "proud", probabilities: ["proud": 0.9]),
+                       "word.feeling": Answer(choice: "finally", probabilities: ["finally": 0.9])])
+        now += 2 * 60_000
+        XCTAssertEqual(status(), #"""
+            Boop's last reaction, 2 min ago: a proud face and "…finally!".
+            Working now: nothing else.
+            """#)
     }
 }
 

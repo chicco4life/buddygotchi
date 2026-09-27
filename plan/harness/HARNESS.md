@@ -240,7 +240,7 @@ mark is for the log only and never reaches the state. Real entries are in
 ### 5.3 The text form
 
 `StateText` builds the state's HISTORY and NOW for each pass. It's a
-pure function of the entries, the status line and the clock, so a logged
+pure function of the entries, the closing lines (step 5) and the clock, so a logged
 pass can be rebuilt exactly from `debug.jsonl`'s entries up to its `seen`
 (§9), settles included. A settle recorded while Jev answered lands in the
 log before the pass, but the state was built when the pass started,
@@ -267,8 +267,16 @@ progress (step 3).
    `<when>` relative to now: `just now` under a minute, then `N min
    ago`, then `N h ago`. What Boop did follows, indented two spaces, one
    line each.
-5. **HISTORY closes** with the core's status line
-   ([EVENTS.md](EVENTS.md) §8).
+5. **HISTORY closes** with the lines the runtime hands it, placed as
+   they come: `react`'s naming Boop's last reaction and how long ago it
+   started, in step 4's wording, once there is one
+   ([DECISIONS.md](DECISIONS.md) §5), then the core's status line
+   ([EVENTS.md](EVENTS.md) §8):
+
+   ```
+   Boop's last reaction, just now: an excited face and "…tests!".
+   Working now: nothing else.
+   ```
 6. **NOW** is a heading with the time and weekday, NOW's line, then its
    reaction or `Boop did nothing on its own.`
 
@@ -282,14 +290,14 @@ fresh for every pass since Jev keeps no session:
 | The guide (no heading) | Static, then generated | [steering/guide.md](../steering/guide.md), then how to read HISTORY and NOW (§6.1) |
 | `PERSONALITY` | Static, the one chosen in Settings | `plan/steering/personality/<name>.md` ([boop](../steering/personality/boop.md), [chatter](../steering/personality/chatter.md)) |
 | `MOOD` | Static, the current mood's | `plan/steering/mood/<mood>.md` ([happy](../steering/mood/happy.md), …), read from the mood store at each pass |
-| `HISTORY (oldest first; indented lines are what Boop did)` | Built | The transcript and the status line (§5.3) |
+| `HISTORY (oldest first; indented lines are what Boop did)` | Built | The transcript and the closing lines (§5.3) |
 | `NOW (14:23, Tuesday)` | Built | The event this pass is for (§5.3) |
 
 The guide and its generated part are joined by single line breaks; the
 other parts follow, each after a blank line. The runtime supplies
 everything but the transcript through one closure (`parts`): the steering
-text, the core's status line and oldest working turn, and the time
-(`Runtime.stateParts`).
+text, the lines that close HISTORY (§5.3), the core's oldest working
+turn, and the time (`Runtime.stateParts`). The harness never reads them.
 
 **The steering files** are read once at launch from the app's bundled
 copy of `plan/steering/` (`Steering`), and never written. HTML comments

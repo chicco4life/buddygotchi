@@ -169,8 +169,12 @@ turn's two minutes leaves a 2-minute turn.
 
 **Moments.** The rules' moments play at once, each replacing whatever is
 playing ([BEHAVIORS.md](BEHAVIORS.md) §3). The brain's wait in the
-moment schedule, one at a time, until no line or reaction's face plays;
-they have no animation, so they play over one without cutting it, and an
+moment schedule, one at a time, until no line or reaction's face plays,
+except that a reaction's face held on for its loops after its mumble
+holds up the brain's next only until that mumble has played (with the
+link's 0.5 s, below): the next goes then and replaces the face, which the
+device counts as done ([PROTOCOL.md](PROTOCOL.md) §4). They have no
+animation, so they play over one without cutting it, and an
 animation stops any line on the device, so a rule's animation lets one
 waiting behind a line play at once, over it. One that has waited longer
 than 5 s for its turn is dropped, since a late reaction is worse than
@@ -201,8 +205,9 @@ boundary of its own clock, which the app doesn't know, so the face may
 end up to a loop sooner than the app reckons, never later. So a brain
 moment on the device holds the schedule's line until the device's
 `ended` for it, and only if that never comes until the app gives up on
-it (its reckoning plus `endGraceMs`); then the next one's turn comes at
-once. The schedule also hears what the device does on its own: a tap's
+it (its reckoning plus `endGraceMs`); then chatter's turn comes. The
+brain's next moment waits only until its mumble has played
+(`MomentSchedule.brainFree`), or its `ended` if that comes first. The schedule also hears what the device does on its own: a tap's
 wiggle stops whatever plays and ends the cheer, as a rule's wiggle does,
 "needs you" starting stops everything, and while something needs you the
 device plays none of the rules' moments. After either, once the link's
@@ -239,7 +244,7 @@ order:
 | Action | Effect | Its own rules |
 | --- | --- | --- |
 | `mood` | Saves the new mood to the `mood` file; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the six moods, and only a change |
-| `react` | Queues a moment in the moment schedule: the chosen mood as its face, held for the loops Jev picked, and Voice's mumble in that mood's feeling, with the chosen word if Jev is sure enough. It's started, not done, until the device says how the moment ended | Nothing while something needs you |
+| `react` | Queues a moment in the moment schedule: the chosen mood as its face, held for the loops Jev picked, and Voice's mumble in that mood's feeling, with the chosen word if Jev is sure enough. It's started, not done, until the device says how the moment ended. It also names Boop's last reaction for the end of HISTORY ([harness/HARNESS.md](harness/HARNESS.md) §5.3) | Nothing while something needs you |
 
 The rules' own moments (the cheer, working chatter) don't go through them.
 
@@ -577,3 +582,6 @@ which also has the full log up to 2026-09-27.
 | 2026-09-28 | A poke streak never changes Boop's mood: the core names the `mood` action in the event's `sitsOut`, and the harness leaves that action's question out of the pass. Jev still picks the face and word | Steering alone couldn't stop Jev turning a first streak grumpy (0.65–0.91 over four wordings), and a grumpy mood then outlasted the poke by 20–30 minutes. Leaving the question out makes it certain, and the harness stays generic | [harness/EVENTS.md](harness/EVENTS.md) §6, [harness/HARNESS.md](harness/HARNESS.md) §3 |
 | 2026-09-28 | The deadline for a pass is 1.5 s, not 1.25 s, with no warm-up pass | Jev's first answers on new steering, and a few in a working day, came just past 1.25 s and were dropped | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | 2026-09-28 | Jev chooses among six moods: curious is gone from the `mood` and `react` options and its steering file. The device keeps its curious designs and draws them if a state or moment names it; the Mac never sends it, and a saved `mood` file saying curious reads as happy | Nothing in the steering led to the curious mood, and its face was only ever the stopped turn's; an option with no way in is only noise to the other choices. boop's stopped turn is now a happy face with "hmm" | [harness/DECISIONS.md](harness/DECISIONS.md) §2.3, [PROTOCOL.md](PROTOCOL.md) §3 |
+| 2026-09-28 | HISTORY ends with a line naming Boop's last reaction and how long ago it started (`Boop's last reaction, just now: an excited face and "…tests!".`), before the status line. `react` supplies it through the runtime's `parts`, so the harness only places it | Once a reaction had played out, Jev made the same one at the next line that called for it (an excited "…tests!" up to 8 times in a row; a comeback's "…finally!" twice within a minute), and steering text alone didn't stop it. The owner chose naming the last reaction over giving quick passes no face (decision 8a) | [harness/DECISIONS.md](harness/DECISIONS.md) §5, [harness/HARNESS.md](harness/HARNESS.md) §5.3 |
+| 2026-09-28 | A routine finish gets a face from 20 s of work, down from 40 s. Steering text | Round 2 reacted to 0.47–0.49 of finished turns, and the owner wanted Boop less quiet (decision 9) | [harness/DECISIONS.md](harness/DECISIONS.md) §2.2 |
+| 2026-09-28 | Once a brain reaction's mumble has played (and the link's 0.5 s), the next brain reaction may be sent, and replaces the face the first holds on for its loops; the first still ends `done`. Rule moments and working chatter still wait for the device's `ended`. This replaces "a brain moment holds the line until its `ended`" for the brain's own next moment | A face held two to four times kept the line 16–36 s (9 s for one loop over the idle look), and a reaction waits at most 5 s, so another thread's failure meanwhile got no face. The owner chose this over a shorter idle loop or a cap on the first loop (decision 5c) | §3.2, [PROTOCOL.md](PROTOCOL.md) §3–4 |

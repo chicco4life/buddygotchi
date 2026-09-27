@@ -2,8 +2,10 @@ import Foundation
 
 /// What plays on the device and until when (ARCHITECTURE.md §3.2). The
 /// rules' moments play at once. The brain's wait their turn: one at a time,
-/// each once the line or reaction's face playing has finished, so none cuts
-/// off a line or another of the brain's. A brain mumble has no animation,
+/// each once the line playing has finished, and a reaction's face too
+/// unless it's the brain's own, held on for its loops after its mumble:
+/// the next reaction replaces that, so none cuts off a line and a held face
+/// doesn't hold up the next reaction. A brain mumble has no animation,
 /// so it plays over an animation without cutting it: a proud mumble over
 /// the cheer shows the cheer in proud's face. One that has waited longer
 /// than `maxWaitMs` for its turn is dropped, since a late reaction is worse
@@ -14,7 +16,8 @@ import Foundation
 /// until the device's `ended` says it's over, which is usually sooner (a
 /// face ends on a loop boundary, or a tap cuts it), and at most until the
 /// app stops waiting for that `ended`, whatever the Mac hears meanwhile of
-/// a tap or the link dropping. The schedule also hears what the device
+/// a tap or the link dropping. For the brain's next moment it holds the line
+/// only until its mumble has played (`brainFree`). The schedule also hears what the device
 /// does on its own or leaves out: a tap's wiggle cuts whatever else plays,
 /// "needs you" starting stops everything, and while something needs you
 /// no moment plays.
@@ -40,8 +43,10 @@ public struct MomentSchedule {
     /// app reckons it; or when the device said the brain's moment ended.
     public private(set) var lineUntil: Int64 = 0
     /// The brain's moment on the device that holds the line until its
-    /// `ended` comes: its id, and when the app stops waiting for it.
-    public private(set) var holder: (id: Int, until: Int64)?
+    /// `ended` comes: its id, when the app stops waiting for it, and when
+    /// its mumble has played, from which the next brain moment may replace
+    /// its face.
+    public private(set) var holder: (id: Int, until: Int64, sayUntil: Int64)?
     /// When the rules' cheer playing ends; nil before the first.
     public private(set) var cheerUntil: Int64?
     /// The look and mood of the last `state` sent.
@@ -59,6 +64,12 @@ public struct MomentSchedule {
     /// When the line is free: at its holder's `ended`, or when the app
     /// stops waiting for it; with no holder, at `lineUntil`.
     public var lineFree: Int64 { holder?.until ?? lineUntil }
+
+    /// When the line is free for the brain's next moment: once its holder's
+    /// mumble has played on the device, give or take the link
+    /// (`linkSlackMs`), or at its `ended` if that's sooner; with no holder,
+    /// at `lineUntil` (harness/DECISIONS.md §5).
+    public var brainFree: Int64 { holder?.sayUntil ?? lineUntil }
 
     /// When the moment playing on the device ends: its animation, and its
     /// line or face.
@@ -123,10 +134,11 @@ public struct MomentSchedule {
         holder = nil
     }
 
-    /// The brain moment `due` just handed out went to the device as `id`:
-    /// the line waits for its `ended` until `until` at the latest.
-    public mutating func hold(id: Int, until: Int64) {
-        holder = (id, until)
+    /// The brain moment `due` just handed out at `now` went to the device
+    /// as `id`: the line waits for its `ended` until `until` at the latest,
+    /// and the next brain moment until its mumble has played.
+    public mutating func hold(id: Int, _ moment: DeviceMoment, now: Int64, until: Int64) {
+        holder = (id, until, min(until, now + moment.sayMs + Self.linkSlackMs))
     }
 
     /// The device said the brain moment `id` ended. If it holds the line,
@@ -148,17 +160,20 @@ public struct MomentSchedule {
         waiting.append((moment, pending, now))
     }
 
-    /// When to ask `due` again: when the line is free, or when the oldest
-    /// moment waiting will have waited too long, whichever comes first; nil
-    /// when nothing waits.
+    /// When to ask `due` again: when the line is free for it, or when the
+    /// oldest moment waiting will have waited too long, whichever comes
+    /// first; nil when nothing waits.
     public var next: Int64? {
-        waiting.first.map { min(lineFree, $0.at + Self.maxWaitMs + 1) }
+        waiting.first.map { min(brainFree, $0.at + Self.maxWaitMs + 1) }
     }
 
     /// The brain moment to play now, if one's turn has come (at most one),
     /// with its handle for whoever plays it; the ones dropped as too late
     /// on the way, whose handles end here; and when to ask again (nil when
-    /// nothing waits). A moment's wait is counted to when its turn came:
+    /// nothing waits). Its turn comes when the line is free for it
+    /// (`brainFree`): it replaces a brain moment's face held on after its
+    /// mumble, which the device counts as done (PROTOCOL.md §4). A
+    /// moment's wait is counted to when its turn came:
     /// when the line was free, or when it arrived if that was later. One
     /// still waiting that has already waited too long is dropped at once.
     public mutating func due(now: Int64) -> (play: DeviceMoment?, pending: Pending?, dropped: [DeviceMoment], next: Int64?) {
@@ -172,7 +187,7 @@ public struct MomentSchedule {
             dropped.append(moment)
             pending?.finish(.failed("waited too long"))
         }
-        let free = lineFree
+        let free = brainFree
         guard now >= free else {
             let late = waiting.filter { now - $0.at > Self.maxWaitMs }
             waiting.removeAll { now - $0.at > Self.maxWaitMs }
@@ -187,6 +202,7 @@ public struct MomentSchedule {
                 continue
             }
             lineUntil = now + playMs(moment, now: now)
+            holder = nil  // its face is replaced; the device still says how it ended
             return (moment, pending, dropped, next)
         }
         return (nil, nil, dropped, nil)

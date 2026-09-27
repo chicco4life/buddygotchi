@@ -75,7 +75,7 @@ event. It has two parts:
 
 | Personality | For | Its text |
 | --- | --- | --- |
-| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted and a little smug, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a first failure is determined with "oops", held once; a third grumpy with "again", twice; a fix after failures proud with "finally", twice, and a comeback finish three times; a turn of 10 minutes or more finishing clean excited with "yay", three times, and failing sad, three times; a failed turn grumpy with "ugh", a poke streak grumpy with "nope", and a stopped turn happy with "hmm", once. A routine finish gets a face only when it has something to show: a turn of a few minutes an excited "yay"; one under a minute a small happy face with no word if it ran 40 s or more, or an excited one with its topic ("tests") and no exclamation if its checks passed; otherwise nothing. The exclamation is kept for what stands out. A turn start and a heartbeat get nothing |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted and a little smug, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a first failure is determined with "oops", held once; a third grumpy with "again", twice; a fix after failures proud with "finally", twice, and a comeback finish three times; a turn of 10 minutes or more finishing clean excited with "yay", three times, and failing sad, three times; a failed turn grumpy with "ugh", a poke streak grumpy with "nope", and a stopped turn happy with "hmm", once. A routine finish gets a face only when it has something to show: a turn of a few minutes an excited "yay"; one under a minute a small happy face with no word if it ran 20 s or more, or an excited one with its topic ("tests") and no exclamation if its checks passed; otherwise nothing. The exclamation is kept for what stands out. A turn start and a heartbeat get nothing |
 | [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses and heartbeats included, always picks a word if one fits, and holds its faces long: twice for routine lines, up to four times for a comeback or a third failure |
 
 "Never stays quiet" is still Jev's call: `none` stays an option, and the
@@ -245,11 +245,28 @@ gate, which says when something needs you.
    next seed. It's queued as a `moment` with `say`, the face as `mood`
    and `react.loops`' pick as `loops` (1–4, `ReactAction.loops`), and no
    animation, so it plays over whatever is showing (the cheer included)
-   once any line or face playing has finished. A new `Pending` goes with
+   once any line or face playing has finished. A face the last reaction
+   holds on for its loops after its mumble is the exception: this one
+   replaces it once that mumble has played, so a long hold doesn't
+   make the next reaction wait past its 5 s and be dropped
+   ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2). The last reaction is
+   still `done`. A new `Pending` goes with
    it, and the action returns without waiting for the moment.
 5. **The message:** started (`.started`) with that handle, as
    `Boop made a proud face, held three times, and mumbled "…finally!"`,
    or `Boop made a happy face, held once, and mumbled.` with no word.
+
+**Boop's last reaction.** `react` also hands the runtime a line for the
+end of HISTORY, before the status line ([HARNESS.md](HARNESS.md) §5.3):
+`Boop's last reaction, 3 min ago: a proud face and "…finally!".`, or
+`…: a happy face, with no word.` It names the last reaction it started
+that didn't fail (one in progress counts), with how long ago in
+HISTORY's wording, and it's left out before the first
+(`ReactAction.lastLine`). Without it, once a reaction had played out Jev
+made the same one at the next line that called for it: an excited
+"…tests!" up to 8 times in a row over quick passing turns, and a
+comeback's proud "…finally!" again under a minute later (the owner's
+call, 2026-09-28).
 
 **How a reaction ends.** HISTORY shows its line `(in progress)` until
 whoever holds the moment ends the handle ([HARNESS.md](HARNESS.md) §4,
@@ -258,7 +275,7 @@ how it ended ([PROTOCOL.md](../PROTOCOL.md) §4):
 
 | End | When | By |
 | --- | --- | --- |
-| `done` | The device says its mumble played to the end, and its face its loops, or until a newer moment, a tap or "needs you" ended the face after the mumble: it was seen and heard | The runtime, from the device's `ended` |
+| `done` | The device says its mumble played to the end, and its face its loops, or until a newer moment (the next reaction's included), a tap or "needs you" ended the face after the mumble: it was seen and heard | The runtime, from the device's `ended` |
 | `failed`, `cut short: you tapped Boop` | The device says a tap's wiggle stopped its mumble | The same |
 | `failed`, `cut short: something newer played` | The device says a newer moment stopped its mumble: the rules' cheer, or a line | The same |
 | `failed`, `cut short: something needed you` | The device says "needs you" started while its mumble played | The same |

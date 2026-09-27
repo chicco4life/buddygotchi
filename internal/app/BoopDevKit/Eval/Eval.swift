@@ -214,16 +214,14 @@ public struct Eval {
         // says, played at once by default, so HISTORY reads as the app's
         // does once it has; one left in progress stays so.
         let ending = Ending()
-        let actions: [any Action] = [
-            MoodAction(store: mood),
-            ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, pending in
-                if let end = ending.end { pending.finish(end) } else { ending.open.append(pending) }
-            }, blocked: { core.mumbleBlock }),
-        ]
+        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, pending in
+            if let end = ending.end { pending.finish(end) } else { ending.open.append(pending) }
+        }, blocked: { core.mumbleBlock }, clock: { clock.now })
+        let actions: [any Action] = [MoodAction(store: mood), react]
         let steering = self.steering
         let harness = Harness(brain: brain, actions: actions, parts: { entry in
             Runtime.stateParts(for: entry, steering: steering, personality: scenario.personality, mood: mood.current,
-                               core: core, time: time, now: clock.now, wall: clock.now)
+                               core: core, react: react, time: time, now: clock.now, wall: clock.now)
         }, home: home, clock: { clock.now }, debugLog: debugLog)
 
         var checks: [Check] = []
