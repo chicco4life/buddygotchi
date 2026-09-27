@@ -15,8 +15,9 @@ public struct JevBrain: Brain {
     public static let endpoint = URL(string: "https://api.typesafe.ai/v1/systemone")!
 
     /// A busy or failing server, or a dropped connection, is tried once more
-    /// after this, as TypeSafe advises for 429 and 529. The pass's deadline
-    /// still bounds the whole thing.
+    /// after this, as TypeSafe advises for 429 and 529, unless the pass's
+    /// deadline would pass first: a request that goes on past the deadline
+    /// (to time it) mustn't send another nobody waits for.
     static let retryAfterMs = 300
 
     public init(key: String, model: String = "jev-latest", send: (@Sendable (URLRequest) async throws -> (Data, Int))? = nil) {
@@ -35,8 +36,9 @@ public struct JevBrain: Brain {
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = JevBrain.body(model: model, state: state, questions: questions)
+        let started = ContinuousClock.now
         var (data, status) = try await sendOnce(request)
-        if JevBrain.retryable(status) {
+        if JevBrain.retryable(status), ContinuousClock.now - started + .milliseconds(JevBrain.retryAfterMs) < deadline {
             try await Task.sleep(for: .milliseconds(JevBrain.retryAfterMs))
             (data, status) = try await sendOnce(request)
         }

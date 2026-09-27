@@ -127,8 +127,13 @@ public final class Harness: @unchecked Sendable {
         running = id
         changedDuringPass = []
         let job = prepare(entry, brain: brain)
+        let kind = if case .event(let event) = entry.body { event.kind.rawValue } else { "?" }
         Task { [self] in
-            let (result, ms) = await Harness.ask(job)
+            let (result, ms) = await Harness.ask(job) { [weak self] ms, late in
+                self?.home.async { [weak self] in
+                    self?.log("harness: \(job.brain.id) answered after \(ms) ms, too late for the \(kind) pass" + late)
+                }
+            }
             home.async { [self] in
                 guard running == id else { return }
                 running = nil
@@ -297,34 +302,51 @@ public final class Harness: @unchecked Sendable {
     // MARK: Helpers
 
     /// Step 4, off `home`: the brain's answers within the deadline, and how
-    /// long they took in ms.
-    private static func ask(_ job: Job) async -> (Result<Answers, BrainError>, Int) {
+    /// long they took in ms. A request the deadline passed goes on to its
+    /// end, and `late` gets how long it took and what it came to (`""`, or
+    /// `: ` and why it failed), so the log can say when the brain did
+    /// answer: a dropped pass's own latency is only the deadline's.
+    private static func ask(_ job: Job, late: @escaping @Sendable (Int, String) -> Void = { _, _ in }) async
+        -> (Result<Answers, BrainError>, Int) {
         let started = ContinuousClock.now
-        let result = await race(deadlineMs) {
+        let result = await race(deadlineMs, late: { ms, result in
+            if case .failure(let error) = result { late(ms, ": " + error.description) } else { late(ms, "") }
+        }) {
             try await job.brain.answer(state: job.state, questions: job.questions, deadline: .milliseconds(deadlineMs))
         }
         return (result, (ContinuousClock.now - started).ms)
     }
 
-    /// `work`, raced against a deadline and cancelling. Work that ignores
-    /// cancelling is left to finish on its own; its answer is dropped.
-    static func race<T: Sendable>(_ ms: Int, _ work: @escaping @Sendable () async throws -> T) async -> Result<T, BrainError> {
+    /// How late the deadline's timer may fire: the system's default leeway
+    /// let it fire up to 7% late, 1.33 s for 1.25 s.
+    static let deadlineLeewayMs = 5
+
+    /// `work`, raced against a deadline and cancelling. Past the deadline,
+    /// work goes on to its end if `late` is given, which then gets how long
+    /// it took and its result; otherwise it's cancelled. Work that ignores
+    /// cancelling is left to finish on its own. Either way its answer is
+    /// dropped.
+    static func race<T: Sendable>(_ ms: Int, late: (@Sendable (Int, Result<T, BrainError>) -> Void)? = nil,
+                                  _ work: @escaping @Sendable () async throws -> T) async -> Result<T, BrainError> {
         let once = Once<Result<T, BrainError>>()
+        let started = ContinuousClock.now
         return await withTaskCancellationHandler {
             await withCheckedContinuation { (k: CheckedContinuation<Result<T, BrainError>, Never>) in
                 once.set(k)
                 once.add(Task {
+                    let result: Result<T, BrainError>
                     do {
-                        once.resume(.success(try await work()))
+                        result = .success(try await work())
                     } catch let error as BrainError {
-                        once.resume(.failure(error))
+                        result = .failure(error)
                     } catch {
-                        once.resume(.failure(BrainError("\(error)")))
+                        result = .failure(BrainError("\(error)"))
                     }
+                    if !once.resume(result), let late { late((ContinuousClock.now - started).ms, result) }
                 })
                 once.add(Task {
-                    try? await Task.sleep(for: .milliseconds(ms))
-                    once.resume(.failure(BrainError("late: no answer within \(ms) ms")))
+                    try? await Task.sleep(for: .milliseconds(ms), tolerance: .milliseconds(deadlineLeewayMs))
+                    once.resume(.failure(BrainError("late: no answer within \(ms) ms")), cancellingOthers: late == nil)
                 })
             }
         } onCancel: {
@@ -380,19 +402,25 @@ final class Once<T: Sendable>: @unchecked Sendable {
         if finished { task.cancel() }
     }
 
-    func resume(_ value: T) {
-        let (k, others): (CheckedContinuation<T, Never>?, [Task<Void, Never>]) = lock.withLock {
-            guard !done else { return (nil, []) }
+    /// Delivers `value` if nothing came first, and says whether it did.
+    /// The other tasks are cancelled then, unless `cancellingOthers` is
+    /// false.
+    @discardableResult
+    func resume(_ value: T, cancellingOthers: Bool = true) -> Bool {
+        let (k, others, first): (CheckedContinuation<T, Never>?, [Task<Void, Never>], Bool) = lock.withLock {
+            guard !done else { return (nil, [], false) }
             guard let continuation else {
-                if pending == nil { pending = value }
-                return (nil, [])
+                guard pending == nil else { return (nil, [], false) }
+                pending = value
+                return (nil, [], true)
             }
             done = true
             self.continuation = nil
-            return (continuation, tasks)
+            return (continuation, cancellingOthers ? tasks : [], true)
         }
-        guard let k else { return }
+        guard let k else { return first }
         k.resume(returning: value)
         for task in others { task.cancel() }
+        return true
     }
 }

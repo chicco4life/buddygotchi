@@ -174,6 +174,57 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(record.pass.dropped, "late: no answer within 1250 ms")
     }
 
+    /// HARNESS.md §7: the deadline cuts a pass off at 1.25 s. Its timer
+    /// had the system's default leeway, so it fired at 1.25–1.33 s: an
+    /// answer at 1.3 s was kept or dropped by chance, and every dropped
+    /// pass logged the timer's time as the brain's.
+    func testTheDeadlineComesOnTime() async {
+        let ms = await withTaskGroup(of: Int.self) { group in
+            for _ in 0..<4 {
+                group.addTask {
+                    let started = ContinuousClock.now
+                    _ = await Harness.race(Harness.deadlineMs) { () async throws -> Int in
+                        try await Task.sleep(for: .seconds(3))
+                        return 0
+                    }
+                    return (ContinuousClock.now - started).ms
+                }
+            }
+            var all: [Int] = []
+            for await one in group { all.append(one) }
+            return all
+        }
+        XCTAssertLessThan(ms.max() ?? 0, Harness.deadlineMs + 40, "\(ms)")
+    }
+
+    /// HARNESS.md §7: a request the deadline passed goes on to its end,
+    /// off the pass, so the app log says when the brain did answer: the
+    /// pass's latency is the deadline's, and says nothing about the brain.
+    /// Its answer is still thrown away.
+    func testALateAnswerIsStillTimed() async throws {
+        let late = Lines()
+        let result = await Harness.race(100, late: { ms, result in
+            late.add("\(ms / 100) \((try? result.get()) ?? -1)")
+        }) { () async throws -> Int in
+            try await Task.sleep(for: .milliseconds(300))
+            return 7
+        }
+        guard case .failure(let error) = result else {
+            XCTFail("\(result)")
+            return
+        }
+        XCTAssertEqual(error.description, "late: no answer within 100 ms")
+        eventually("the answer, when it came") { late.all == ["3 7"] }
+
+        let logged = Lines()
+        let home = DispatchQueue(label: "test.home")
+        let h = Harness(brain: SlowBrain(ms: 1400), actions: [Recorder("a", keys: ["k"], result: .done("x"))],
+                        parts: { _ in Self.parts }, home: home, clock: { harnessT0 }, log: { logged.add($0) })
+        home.sync { h.take(event(.turnStart, at: 0, "x")) }
+        eventually("the late answer's line", timeout: 4) { logged.all.contains { $0.hasPrefix("harness: slow answered after 14") } }
+        XCTAssertTrue(logged.all.contains { $0.hasSuffix("dropped: late: no answer within 1250 ms") }, "\(logged.all)")
+    }
+
     /// HARNESS.md §2: one pass runs at a time, and a newer event replaces
     /// one that's waiting; the replaced one is still recorded.
     func testOnePassAtATimeAndTheNewestWaits() throws {
@@ -701,6 +752,20 @@ final class HarnessTests: XCTestCase {
         let answers = try await jev.answer(state: "s", questions: q, deadline: .milliseconds(1250))
         XCTAssertEqual(answers["react"]?.choice, "proud")
         XCTAssertEqual(calls.all, ["Bearer k", "Bearer k"])
+        // No retry the deadline would cut off: it would only cost a request.
+        let slow = Lines()
+        let late = JevBrain(key: "k") { _ in
+            slow.add("sent")
+            try await Task.sleep(for: .milliseconds(150))
+            return (Data(), 503)
+        }
+        do {
+            _ = try await late.answer(state: "s", questions: q, deadline: .milliseconds(400))
+            XCTFail("no answer")
+        } catch let error as BrainError {
+            XCTAssertEqual(error.description, "jev: HTTP 503")
+        }
+        XCTAssertEqual(slow.all, ["sent"], "150 ms, and 300 more, is past the 400")
         let down = JevBrain(key: "k") { _ in (Data("PRIVATE".utf8), 500) }
         do {
             _ = try await down.answer(state: "s", questions: q, deadline: .milliseconds(1250))

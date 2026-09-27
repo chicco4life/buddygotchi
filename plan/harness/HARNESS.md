@@ -334,8 +334,8 @@ answer is unusable.
 
 | Number | Value | Where |
 | --- | --- | --- |
-| Deadline for the whole pass | **1.25 s**, about four times Jev's usual time, with room for one retry | `Harness.deadlineMs` |
-| One retry, after | **300 ms**, on a 429, any 5xx, or a connection that failed (not one that timed out) | `JevBrain.retryAfterMs` |
+| Deadline for the whole pass | **1.25 s**, about four times Jev's usual time, with room for one retry. Its timer fires within 5 ms of it: the system's default leeway let it fire up to 1.33 s | `Harness.deadlineMs`, `Harness.deadlineLeewayMs` |
+| One retry, after | **300 ms**, on a 429, any 5xx, or a connection that failed (not one that timed out), unless the deadline would pass first | `JevBrain.retryAfterMs` |
 | The HTTP request's own timeout | 2 s (the deadline's whole seconds + 1); the deadline cuts it off first | `JevBrain.answer` |
 
 **A dropped pass** runs no action, so Boop does only its rule
@@ -343,7 +343,7 @@ reactions. The `pass` entry's `dropped` says why:
 
 | `dropped` | When |
 | --- | --- |
-| `late: no answer within 1250 ms` | The deadline passed. A brain that ignores cancelling finishes on its own, and its answer is thrown away |
+| `late: no answer within 1250 ms` | The deadline passed. The pass's `latency_ms` is then the deadline's, not the brain's, so the request goes on to its end (the HTTP timeout at most), off the pass, and the app log says when it came: `harness: jev:jev-latest answered after 1402 ms, too late for the turn_start pass`, with `: ` and why if it failed. Its answer is thrown away |
 | `jev: HTTP <status>` | Not 200, after the retry. Only the status is kept, since an error body may repeat the request |
 | `jev: no answers` | The body had no `answers` object |
 | `jev: no usable answer for <key>` | A question left out, or answered with an option it doesn't have |
@@ -395,9 +395,10 @@ dropped passes included: `brain <kind> <ms> ms → <result>`, where
 `<result>` is the actions that returned something (`mood, react`, with
 ` (failed)` after a failed one), `nothing`, or `dropped: <why>`. It never
 holds an action's message or the state. The harness also logs a replaced
-waiting event, a dropped pass, a slow action, an unusable answer's size,
-forced answers it left out, and a started action it ended for staying
-open too long (§5.1).
+waiting event, a dropped pass, when the brain answered a pass it was
+late for (§7), an action that sat a pass out (§2), a slow action, an
+unusable answer's size, forced answers it left out, and a started action
+it ended for staying open too long (§5.1).
 
 **Debug mode** is `Boop --debug`, in the menu-bar app (`make debug`) or
 headless. It prints to the terminal that started the app: each hook with
