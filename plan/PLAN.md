@@ -168,11 +168,9 @@ fixed. Pick one up by writing it into its spec first.
   dropped: the pipeline check dropped one this way
   ([evidence](evidence/2026-09-28-tonight/loops-pending/README.md)). The
   loopable designs due next may shorten it; if not, a shorter idle loop
-  or a cap on a face's first loop would. The moment schedule makes it
-  worse: it keeps the turn for its own reckoning, a whole loop per hold
-  ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2), even after the device's
-  `ended` says the face is over or was cut short by a tap. Ending the
-  turn at the `ended` would free it as soon as the device does.
+  or a cap on a face's first loop would. (The moment schedule no longer
+  makes it worse: the device's `ended`, a tap or "needs you" now frees
+  the turn, [ARCHITECTURE.md](ARCHITECTURE.md) §3.2.)
 - **The moment pump's timer can fire late.** In the same run a brain
   moment's turn came 4.84 s after it arrived, but the pump's timer ran
   0.3 s late and dropped it as 5.16 s late. A timer with little leeway,

@@ -64,6 +64,14 @@ public struct MomentSchedule {
         cheerUntil = min(cheerUntil, now)
     }
 
+    /// The device says the brain's moment holding the turn is over, which
+    /// can be up to a loop sooner than the schedule reckoned (it ends a
+    /// face on its design's loop boundary): the turn is free now.
+    public mutating func ended(now: Int64) {
+        lineUntil = min(lineUntil, now)
+        busyUntil = min(busyUntil, max(now, cheerUntil))
+    }
+
     /// Nothing is playing and no brain moment is waiting its turn.
     public func idle(now: Int64) -> Bool {
         now >= busyUntil && waiting.isEmpty

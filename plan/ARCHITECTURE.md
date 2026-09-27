@@ -187,7 +187,8 @@ mood of the last `state`, or the cheer's while one plays, and its loop
 is `FaceLoops`' number for it, the one the device has
 ([PROTOCOL.md](PROTOCOL.md) §3). The device ends a face on a loop
 boundary of its own clock, which the app doesn't know, so the face may
-end up to a loop sooner than the app reckons, never later. What the
+end up to a loop sooner than the app reckons, never later; the device's
+`ended` for the moment holding the turn frees the turn then. What the
 device does on its own reaches the schedule too: a tap's wiggle replaces
 the cheer and any line, and a `state` with `attn` stops them, with
 nothing playing while it shows, so a reaction after either is timed on

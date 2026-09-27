@@ -411,6 +411,12 @@ public final class Runtime: @unchecked Sendable {
         case .ended(let ended):
             options.log("device: moment \(ended.id) ended \(ended.how.rawValue)" + (ended.why.map { " (\($0))" } ?? ""))
             moments.ended(ended)
+            if ended.id == moments.lastId {
+                // The latest brain moment, which holds the turn: the next
+                // one's turn comes now, not at the app's own reckoning.
+                moments.schedule.ended(now: now)
+                pump()
+            }
         default:
             break
         }

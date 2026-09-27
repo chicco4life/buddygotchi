@@ -946,6 +946,38 @@ final class RuntimeTests: XCTestCase {
         runtime.home.sync { runtime.tick() }
         XCTAssertEqual(ends, [.failed("waited too long")])
     }
+
+    /// ARCHITECTURE.md §3.2: the device ends a face on its design's loop
+    /// boundary, up to a loop sooner than the app reckons. Its `ended` for
+    /// the moment holding the turn frees the turn then, so the next
+    /// reaction plays at once; an `ended` for an older one doesn't.
+    func testTheDevicesEndedFreesTheTurn() throws {
+        let transport = FakeTransport()
+        var options = try options(transport)
+        let clock = VirtualClock(harnessT0)
+        options.clock = { clock.now }
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        transport.onConnection?(true)
+        runtime.home.sync {}
+        let line = VoiceLine(groups: [["bi"]], word: nil, at: 1, tune: .up, ms: 100)
+        let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) } }
+        runtime.home.sync {
+            runtime.moments.schedule.brain(DeviceMoment(say: line, mood: "proud", loops: 4), Pending(), now: clock.now)
+            runtime.moments.schedule.brain(DeviceMoment(say: line, mood: "happy"), Pending(), now: clock.now)
+            runtime.pump()
+        }
+        XCTAssertTrue(moments().last?.hasSuffix(#""id":1}"#) == true)
+        clock.now += 3000
+        transport.onLine?(#"{"t":"ended","id":7,"how":"done"}"#)
+        runtime.home.sync {}
+        XCTAssertEqual(moments().count, 1, "not the moment holding the turn")
+        transport.onLine?(#"{"t":"ended","id":1,"how":"done"}"#)
+        runtime.home.sync {}
+        XCTAssertEqual(moments().count, 2, "its turn came when the device said the first was over")
+        XCTAssertTrue(moments().last?.contains(#""mood":"happy""#) == true)
+    }
 }
 
 /// What a runtime in debug mode logged and printed. Not nested in a test:
