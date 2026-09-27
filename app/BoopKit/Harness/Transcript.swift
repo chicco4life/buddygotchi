@@ -16,6 +16,7 @@ public final class Transcript: @unchecked Sendable {
         case event(Event)
         case pass(Pass)
         case action(ActionRecord)
+        case settle(Settle)
     }
 
     /// What the brain was asked and answered for one event, or the answers
@@ -42,6 +43,13 @@ public final class Transcript: @unchecked Sendable {
         }
     }
 
+    /// How a started action ended (§5.2): `forSeq` is its `action` entry's
+    /// `seq`.
+    public struct Settle: Equatable, Sendable {
+        public var forSeq: Int
+        public var end: Pending.End
+    }
+
     /// Who forces entries, for no event: `debug.jsonl` marks them `by` it,
     /// and the state never shows it (harness/HARNESS.md §9).
     public static let forcedBy = "dashboard"
@@ -63,7 +71,8 @@ public final class Transcript: @unchecked Sendable {
         return entry
     }
 
-    /// The entry as one JSON line for `debug.jsonl` (§9).
+    /// The entry as one JSON line for `debug.jsonl` (§9). `extra` goes into
+    /// a pass's or a settle's object.
     public static func json(_ entry: Entry, extra: [String: Any] = [:]) -> String {
         var o: [String: Any] = ["seq": entry.seq, "received_at_ms": entry.receivedAtMs]
         switch entry.body {
@@ -79,7 +88,16 @@ public final class Transcript: @unchecked Sendable {
             var action: [String: Any] = ["for": a.forSeq ?? NSNull(), "name": a.name, "ok": a.result.ok,
                                          "message": a.result.message, "latency_ms": a.latencyMs]
             if a.forSeq == nil { action["by"] = forcedBy }
+            if a.result.pending != nil { action["pending"] = true }
             o["action"] = action
+        case .settle(let s):
+            var settle: [String: Any] = ["for": s.forSeq]
+            switch s.end {
+            case .done: settle["end"] = "done"
+            case .failed(let why): settle["end"] = "failed"; settle["why"] = why
+            }
+            for (k, v) in extra { settle[k] = v }
+            o["settle"] = settle
         }
         return DebugLog.json(o)
     }

@@ -175,15 +175,18 @@ multiple-choice questions with probabilities, all in one request of about
 0.2–0.3 s. The harness keeps the transcript, builds the state from it and
 the steering files, asks every action's questions, and hands each action
 its answers. One pass runs at a time, and a newer event that wakes the
-brain replaces one waiting. Without Jev's key no pass runs, and Boop does
-only its rule reactions ([harness/HARNESS.md](harness/HARNESS.md)).
+brain replaces one waiting. An action that started something is shown in
+progress until it reports how it ended, or the harness gives up waiting.
+Without Jev's key no pass runs, and Boop does only its rule reactions
+([harness/HARNESS.md](harness/HARNESS.md)).
 
 ### 3.4 Actions
 
 Actions are what the brain can make Boop do. Each declares its questions,
 reads Jev's answers to them, checks its own rules, and reports
-`(ok, message)` ([harness/DECISIONS.md](harness/DECISIONS.md)). They run
-in this order:
+`(ok, message)`, or that it started something whose end it reports
+later ([harness/DECISIONS.md](harness/DECISIONS.md)). They run in this
+order:
 
 | Action | Effect | Its own rules |
 | --- | --- | --- |
@@ -232,7 +235,7 @@ hops onto it.
 
 | Timer | On | Does |
 | --- | --- | --- |
-| Tick, every 1 s | `home` | Reports the wall clock, runs the core's timers, and sends the 10 s keepalive |
+| Tick, every 1 s | `home` | Reports the wall clock, runs the core's timers, sends the 10 s keepalive, and ends any action left in progress too long ([harness/HARNESS.md](harness/HARNESS.md) §5.1) |
 | Moment pump | `home` | Plays the next brain moment when its turn comes |
 
 At start the runtime takes the lock, reads the memory files (it won't run
@@ -349,7 +352,7 @@ What crosses each boundary, in the order an event travels:
 | Core → harness | An event: its line, the rule reaction, whether it wakes the brain, what it's about, and facts the harness never reads | `Event` | [harness/EVENTS.md](harness/EVENTS.md) |
 | Harness → Jev | The state as text, and every action's questions | One HTTPS request | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | Jev → actions | Each question's choice and probabilities, only to the action that asked | `Answers` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
-| Actions → harness | `(ok, message)`; a successful message goes into HISTORY | `ActionResult` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
+| Actions → harness | `(ok, message)`; a successful message goes into HISTORY. A started one also hands over a handle, and its end comes later | `ActionResult`, `Pending` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
 | `react` → moment schedule → device link | A mumble and its face (`mood`) | `DeviceMoment` | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
 | `mood` → mood store → core | The new mood | A word | [harness/DECISIONS.md](harness/DECISIONS.md) §4 |
 | Device link ↔ device | `state` and `moment` out; `input` and `status` in | JSON lines | [PROTOCOL.md](PROTOCOL.md) |
@@ -499,3 +502,4 @@ which also has the full log up to 2026-09-27.
 | 2026-09-27 | The wire carries only what's read; `state`'s `idle` and `wait` stay only for the dashboard | No device or tool read the dropped fields, and a resent `state` needn't be rebuilt | [PROTOCOL.md](PROTOCOL.md) §3–4 |
 | 2026-09-27 | A reaction is a mood's face: `react` picks `none` or one of the seven moods (`annoyed` became `grumpy`), and its moment's `mood` draws the look in that mood's design while the mumble plays, then the mood comes back. The sound follows the face, with a temporary default voice for a mood that has none | The designs are what Boop's feelings look like; a reaction that only changed the gibberish's sound never showed on the face. The mood stays the backdrop, the reaction the moment | [harness/DECISIONS.md](harness/DECISIONS.md) §3, [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-27 | A brain reaction waits only for a line playing, not for an animation: it plays over the cheer, which it doesn't cut. This replaces 2026-09-26's "wait behind the rules' moments" for animations | A mumble with no animation can't cut the cheer on the device, and a proud reaction to a long finish should show the cheer in proud's face, not the idle face after it | §3.2 |
+| 2026-09-27 | An action can report that it started something rather than did it: HISTORY shows its line `(in progress)` until it reports `done`, or `failed` with why (`(didn't happen: …)`), as a `settle` entry; the harness ends any still open after 60 s | HISTORY said Boop made a face that was still waiting its turn, or that the moment schedule had dropped and never showed. Only the action knows when its effect ends, so the harness only waits, with a ceiling in case it never hears | [harness/HARNESS.md](harness/HARNESS.md) §4–5 |

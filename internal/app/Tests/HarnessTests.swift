@@ -266,9 +266,182 @@ final class HarnessTests: XCTestCase {
         XCTAssertTrue(home.sync { h.idle })
     }
 
+    // MARK: Started actions (HARNESS.md §4–5)
+
+    /// HISTORY as a pass a minute after `t0` would show it, for a NOW that
+    /// comes after every entry.
+    func history(_ h: Harness, _ home: DispatchQueue) -> String {
+        home.sync {
+            let now = Transcript.Entry(seq: Int.max, receivedAtMs: Self.t0 + 60_000, body: .event(event(.heartbeat, at: 1, "now")))
+            return StateText.history(h.transcript.entries, now: now, at: Self.t0 + 60_000, status: "Working now: nothing else.",
+                                     workingSince: nil)
+        }
+    }
+
+    /// §4, §5.2–5.3: a started result is logged `pending` and shows
+    /// `(in progress)` until its handle ends; the end is a `settle` entry
+    /// for the action's `seq`, after which the line is plain if it was
+    /// done, or says it didn't happen and why. Only the first end counts.
+    func testAStartedActionIsInProgressUntilItSettles() async throws {
+        let first = Pending()
+        let a = Recorder("a", keys: ["k"], result: .started("Boop did it.", first))
+        let (h, home) = harness(ScriptedBrain(always: [:]), [a])
+        let lines = Lines()
+        home.sync { h.onDebugLine = { lines.add($0) } }
+        _ = await h.respond(to: event(.turnStart, at: 0, "it started"))
+        let action = try XCTUnwrap(lines.all.last)
+        XCTAssertTrue(action.contains(#""message":"Boop did it.","name":"a","ok":true,"pending":true},"received_at_ms":1790000000000,"seq":3}"#), action)
+        XCTAssertEqual(home.sync { Array(h.open.keys) }, [3])
+        XCTAssertEqual(history(h, home), """
+            HISTORY (oldest first; indented lines are what Boop did)
+            1 min ago: it started
+              Boop did it. (in progress)
+            Working now: nothing else.
+            """)
+
+        home.sync { first.finish(.done) }
+        XCTAssertEqual(lines.all.last, #"{"received_at_ms":1790000000000,"seq":4,"settle":{"end":"done","for":3}}"#)
+        XCTAssertEqual(home.sync { h.transcript.entries.last?.body }, .settle(.init(forSeq: 3, end: .done)))
+        XCTAssertTrue(home.sync { h.open.isEmpty })
+        XCTAssertTrue(history(h, home).contains("\n  Boop did it.\nWorking now"), "the marker is gone")
+        home.sync { first.finish(.failed("too late")) }
+        XCTAssertEqual(home.sync { h.transcript.entries.count }, 4, "only the first end counts")
+
+        let second = Pending()
+        a.result = .started("Boop did it again.", second)
+        _ = await h.respond(to: event(.turnEnd, at: 0, "it ended"))
+        home.sync { second.finish(.failed("waited too long")) }
+        XCTAssertEqual(lines.all.last, #"{"received_at_ms":1790000000000,"seq":8,"settle":{"end":"failed","for":7,"why":"waited too long"}}"#)
+        XCTAssertEqual(history(h, home), """
+            HISTORY (oldest first; indented lines are what Boop did)
+            1 min ago: it started
+              Boop did it.
+            1 min ago: it ended
+              Boop did it again. (didn't happen: waited too long)
+            Working now: nothing else.
+            """)
+        XCTAssertEqual(a.result, .started("Boop did it again.", second), "the same handle")
+        XCTAssertNotEqual(a.result, .started("Boop did it again.", Pending()), "results compare their handle")
+        XCTAssertNotEqual(a.result, .done("Boop did it again."))
+    }
+
+    /// §4: an end that comes before the harness has the result is kept
+    /// and recorded right after it; a handle ends once.
+    func testAnEndBeforeTheResultIsKept() async throws {
+        var got: [Pending.End] = []
+        let early = Pending()
+        early.finish(.failed("first"))
+        early.finish(.done)
+        early.bind { got.append($0) }
+        XCTAssertEqual(got, [.failed("first")])
+        let late = Pending()
+        late.bind { got.append($0) }
+        late.finish(.done)
+        late.finish(.failed("second"))
+        XCTAssertEqual(got, [.failed("first"), .done])
+
+        let pending = Pending()
+        pending.finish(.failed("no device connected"))
+        let (h, home) = harness(ScriptedBrain(always: [:]), [Recorder("a", keys: ["k"], result: .started("Boop did it.", pending))])
+        _ = await h.respond(to: event(.turnStart, at: 0, "it started"))
+        let bodies = home.sync { h.transcript.entries.map(\.body) }
+        XCTAssertEqual(bodies.count, 4, "the event, the pass, the action and its settle")
+        XCTAssertEqual(bodies.last, .settle(.init(forSeq: 3, end: .failed("no device connected"))))
+        XCTAssertTrue(home.sync { h.open.isEmpty })
+        XCTAssertTrue(history(h, home).contains("\n  Boop did it. (didn't happen: no device connected)\n"))
+    }
+
+    /// §5.1: a started action still in progress a minute
+    /// (`Harness.pendingMaxMs`) after its result is ended as failed, and
+    /// logged; its own end after that is ignored. A forced one is started
+    /// and ended as Jev's are, and its settle is by the dashboard too.
+    func testAnActionStillInProgressAfterAMinuteIsEnded() {
+        XCTAssertEqual(Harness.pendingMaxMs, 60_000)
+        let pending = Pending()
+        let a = Recorder("a", keys: ["k"], result: .started("Boop did it.", pending))
+        let home = DispatchQueue(label: "test.home")
+        let log = Lines()
+        let h = Harness(brain: nil, actions: [a], parts: { _ in Self.parts }, home: home, clock: { harnessT0 },
+                        log: { log.add($0) })
+        let lines = Lines()
+        home.sync {
+            h.onDebugLine = { lines.add($0) }
+            h.take(event(.turnStart, at: 0, "it started"))
+            XCTAssertEqual(h.force(["k": "a"]).count, 1)
+        }
+        XCTAssertTrue(lines.all.last?.contains(#""pending":true"#) == true)
+        XCTAssertTrue(history(h, home).contains("\n  Boop did it. (in progress)\n"), "a forced one too")
+        home.sync { h.tick(now: harnessT0 + 59_999) }
+        XCTAssertEqual(home.sync { Array(h.open.keys) }, [3], "still open at 59,999 ms")
+        home.sync { h.tick(now: harnessT0 + 60_000) }
+        XCTAssertTrue(home.sync { h.open.isEmpty }, "ended at 60,000 ms")
+        XCTAssertEqual(lines.all.last, #"{"received_at_ms":1790000000000,"seq":4,"settle":{"by":"dashboard","end":"failed","for":3,"why":"no word it finished"}}"#)
+        XCTAssertEqual(log.all, ["harness: a was still in progress after 60000 ms; ended it"])
+        XCTAssertTrue(history(h, home).contains("\n  Boop did it. (didn't happen: no word it finished)\n"))
+        home.sync {
+            pending.finish(.done)
+            h.tick(now: harnessT0 + 120_000)
+        }
+        XCTAssertEqual(home.sync { h.transcript.entries.count }, 4, "ended once")
+
+        // One forced action on its own, as the dashboard's mood is.
+        let alone = Pending()
+        home.sync {
+            XCTAssertNotNil(h.force(a) { .started("Boop did that.", alone) })
+            alone.finish(.done)
+        }
+        XCTAssertEqual(lines.all.last, #"{"received_at_ms":1790000000000,"seq":6,"settle":{"by":"dashboard","end":"done","for":5}}"#)
+    }
+
+    /// §5.3, §9: a replay rebuilds a logged pass's state exactly from the
+    /// log's entries before it, a started action and its settle included.
+    func testALoggedStateIsRebuiltFromTheLogWithItsSettles() async throws {
+        let pending = Pending()
+        let (h, home) = harness(ScriptedBrain(always: [:]), [Recorder("a", keys: ["k"], result: .started("Boop did it.", pending))])
+        let lines = Lines()
+        home.sync { h.onDebugLine = { lines.add($0) } }
+        _ = await h.respond(to: event(.turnStart, at: -2, "it started"))
+        home.sync { pending.finish(.failed("the device disconnected")) }
+        _ = await h.respond(to: event(.turnEnd, at: 0, "it ended", reaction: "Boop cheered on its own."))
+        let objects = lines.all.map { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+        let (i, pass) = try XCTUnwrap(objects.enumerated().compactMap { i, o in (o?["pass"] as? [String: Any]).map { (i, $0) } }.last)
+        let logged = try XCTUnwrap(pass["state"] as? String)
+        XCTAssertTrue(logged.contains("2 min ago: it started\n  Boop did it. (didn't happen: the device disconnected)\n"), logged)
+        let entries = Self.entries(fromLog: Array(lines.all[..<i]))
+        let now = try XCTUnwrap(entries.first { $0.seq == pass["for"] as? Int })
+        XCTAssertEqual(StateText.build(entries, now: now, at: harnessT0, Self.parts), logged)
+    }
+
+    /// Transcript entries back from `debug.jsonl` lines, as far as the
+    /// state needs them: what a replay of the log reads.
+    static func entries(fromLog lines: [String]) -> [Transcript.Entry] {
+        lines.compactMap { line in
+            guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any], let seq = o["seq"] as? Int,
+                  let ms = (o["received_at_ms"] as? NSNumber)?.int64Value else { return nil }
+            let body: Transcript.Body
+            if let e = o["event"] as? [String: Any], let kind = Event.Kind(rawValue: e["kind"] as? String ?? "") {
+                body = .event(Event(kind, at: ms, line: e["line"] as? String ?? "", reaction: e["reaction"] as? String,
+                                    wakesBrain: e["wakes_brain"] as? Bool ?? false))
+            } else if let p = o["pass"] as? [String: Any] {
+                body = .pass(.init(forSeq: p["for"] as? Int, answers: [:], dropped: p["dropped"] as? String, latencyMs: 0))
+            } else if let a = o["action"] as? [String: Any] {
+                let message = a["message"] as? String ?? ""
+                let result: ActionResult = a["ok"] as? Bool != true ? .failed(message)
+                    : a["pending"] as? Bool == true ? .started(message, Pending()) : .done(message)
+                body = .action(.init(forSeq: a["for"] as? Int, name: a["name"] as? String ?? "", result: result, latencyMs: 0))
+            } else if let s = o["settle"] as? [String: Any], let action = s["for"] as? Int {
+                body = .settle(.init(forSeq: action, end: s["end"] as? String == "done" ? .done : .failed(s["why"] as? String ?? "")))
+            } else {
+                return nil
+            }
+            return Transcript.Entry(seq: seq, receivedAtMs: ms, body: body)
+        }
+    }
+
     // MARK: The debug log (HARNESS.md §9)
 
-    /// The printer reads transcript entries as it always has, and skips the
+    /// The printer reads transcript entries as it always has, a started
+    /// action with `…` and a settle by its action's name, and skips the
     /// dashboard's lines.
     func testThePrinterSkipsTheDashboardsLines() {
         let printer = DebugLog.Printer()
@@ -292,6 +465,12 @@ final class HarnessTests: XCTestCase {
             (#"{"questions":[],"received_at_ms":9}"#, nil),
             (#"{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react"]},"received_at_ms":10,"seq":9}"#,
              "  pass dashboard 0 ms: react grumpy 1.00"),
+            (#"{"action":{"for":3,"latency_ms":0,"message":"Boop made an excited face and mumbled \"…yay!\"","name":"react","ok":true,"pending":true},"received_at_ms":11,"seq":10}"#,
+             "  … react: Boop made an excited face and mumbled \"…yay!\""),
+            (#"{"received_at_ms":12,"seq":11,"settle":{"end":"done","for":10}}"#, "  ✓ react (10) done"),
+            (#"{"received_at_ms":13,"seq":12,"settle":{"by":"dashboard","end":"failed","for":10,"why":"waited too long"}}"#,
+             "  ✗ react (10) didn't happen: waited too long"),
+            (#"{"received_at_ms":14,"seq":13,"settle":{"end":"done","for":2}}"#, "  ✓ ? (2) done"),
         ]
         for (line, readable) in lines { XCTAssertEqual(printer.readable(line), readable, line) }
     }

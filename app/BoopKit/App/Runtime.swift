@@ -381,6 +381,7 @@ public final class Runtime: @unchecked Sendable {
         core.setWallClock(options.wallClock(), at: now)
         run(core.tick(at: now))
         link.tick(now: now)
+        harness.tick(now: now)
     }
 
     /// The mood action saved a new mood: the device draws it from the next

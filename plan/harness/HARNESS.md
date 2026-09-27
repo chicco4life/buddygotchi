@@ -17,7 +17,7 @@ around it. It knows three contracts and nothing else:
 | Contract | Between | Shape |
 | --- | --- | --- |
 | **Event** (§3) | The core → the harness | What happened, as a line of text; what Boop already did about it by rule; whether it wakes the brain |
-| **Action** (§4) | The harness ↔ each action | The action's questions go out, Jev's answers to them come back in, and the action reports `(ok, message)` |
+| **Action** (§4) | The harness ↔ each action | The action's questions go out, Jev's answers to them come back in, and the action reports `(ok, message)`, or that it started something that ends later |
 | **Brain** (§7) | The harness ↔ Jev | `answer(state, questions, deadline) → Answers` |
 
 The harness never reads an event's facts or an action's answers, never
@@ -64,6 +64,9 @@ What the picture leaves out:
 - After every pass, dropped ones included, the runtime hears of it
   (`onRecord`) and writes its app log line (§9). Then the waiting
   event's pass starts.
+- An action that started something reports its end later, on `home`,
+  and the harness appends it as a `settle` entry. The runtime's 1 s tick
+  also ticks the harness, which ends any left open too long (§5.1).
 
 **The harness's states:**
 
@@ -123,7 +126,13 @@ struct Question { key, text, about, judgeBy: String; options: [Option] }
 struct Option   { name, what: String; notFor: String? }   // `what` is Jev's criterion
 struct Answer   { choice: String; probabilities: [String: Double] }
 typealias Answers = [String: Answer]                        // by question key
-struct ActionResult { ok: Bool; message: String }           // ok: its line in HISTORY; not ok: why
+struct ActionResult { ok: Bool; message: String; pending: Pending? } // ok: its line in HISTORY; not ok: why
+
+// .done(message), .failed(why), or .started(message, pending): begun, and ends later
+final class Pending {
+    enum End { case done, failed(String) }  // failed: why it never happened
+    func finish(_ end: End)                  // on `home`; only the first call counts
+}
 ```
 
 **What the harness guarantees an action:**
@@ -140,6 +149,13 @@ struct ActionResult { ok: Bool; message: String }           // ok: its line in H
 - A successful result's message becomes its line in HISTORY, indented
   under the event it answered. A failed one is logged but never shown to
   Jev, because Boop didn't do anything.
+- **A started result** (`.started(message, pending)`) is for something
+  that plays out after `run` returns, such as a moment on the device. The
+  action keeps the `Pending` and finishes it when it knows how things
+  went: `done`, or `failed` with why it never happened. Until then HISTORY
+  shows its line as in progress (§5.3). An end that comes before the
+  harness has recorded the result is kept and recorded right after it.
+  A result that's done, failed or `nil` has no end to wait for.
 
 **An action owns** its questions and their wording, how it reads its
 answers (which choice means "do nothing", any probability floor), its own
@@ -161,7 +177,8 @@ never kept.
 | The core emits an event | `event` | The harness, in `take`, before any pass for it |
 | A pass has its answers, or is dropped | `pass` | The harness |
 | An action returns a result | `action` | The harness, right after the action runs |
-| The dashboard forces answers or a mood (§9) | `pass` and `action`, or `action` alone, for no event | The harness |
+| A started action's `Pending` ends, or it's still open a minute later | `settle` | The harness, when the end reaches it, or on the tick |
+| The dashboard forces answers or a mood (§9) | `pass` and `action`, or `action` alone, for no event, and a started action's `settle` later | The harness |
 
 - **Append-only.** Each entry gets the next sequence number, in arrival
   order, and is never changed. A pass's entries can land after events
@@ -171,28 +188,46 @@ never kept.
   entry to `debug.jsonl` as it's appended (§9).
 - **Privacy.** No prompt text, commands, tool input or output, file
   contents or agent messages go in ([EVENTS.md](EVENTS.md) §9).
+- **Started actions stay open** until their end is recorded. The harness
+  keeps the open ones by their `action` entry's `seq`, and records only
+  the first end of each. One still open **60 s**
+  (`Harness.pendingMaxMs`) after its result is ended as `failed` with
+  `no word it finished`, on the runtime's 1 s tick (`Harness.tick`), and
+  the app log says `harness: <name> was still in progress after 60000
+  ms; ended it`. So HISTORY never says in progress for good, whatever the
+  action forgot.
 
 ### 5.2 The entries
 
-Each entry has `seq` and `receivedAtMs` (an event's own time; for a pass
-or action, when it was recorded), and one body:
+Each entry has `seq` and `receivedAtMs` (an event's own time; for a
+pass, action or settle, when it was recorded), and one body:
 
 | Body | Fields (JSON names) |
 | --- | --- |
 | `event` | The `Event` whole (§3): `kind`, `line`, `reaction`, `wakes_brain`, `facts` |
 | `pass` | `for` (its event's `seq`), `answers` (each question's `choice`, and `p`, every option's probability to three places), `dropped` (why no action ran, or null), `latency_ms` |
-| `action` | `for`, `name`, `ok`, `message`, `latency_ms` |
+| `action` | `for`, `name`, `ok`, `message`, `latency_ms`, and `pending: true` when it started something (left out otherwise) |
+| `settle` | `for` (its `action` entry's `seq`), `end` (`done` or `failed`), and `why` when failed |
 
 A forced entry is for no event: `for` is null, and `debug.jsonl` adds
-`"by":"dashboard"`. That mark is for the log only and never reaches the
-state. Real entries are in [EXAMPLE.md](EXAMPLE.md) §3.
+`"by":"dashboard"`. A forced action's `settle` gets the same mark. That
+mark is for the log only and never reaches the state. Real entries are in
+[EXAMPLE.md](EXAMPLE.md) §3; a started action and its settles, from
+`HarnessTests`:
+
+```jsonl
+{"action":{"for":1,"latency_ms":0,"message":"Boop did it.","name":"a","ok":true,"pending":true},"received_at_ms":1790000000000,"seq":3}
+{"received_at_ms":1790000000000,"seq":4,"settle":{"end":"done","for":3}}
+{"received_at_ms":1790000000000,"seq":8,"settle":{"end":"failed","for":7,"why":"waited too long"}}
+```
 
 ### 5.3 The text form
 
 `StateText` builds the state's HISTORY and NOW for each pass. It's a
 pure function of the entries, the status line and the clock, so a logged
-pass can be rebuilt exactly. It places event lines and action messages
-and never writes them.
+pass can be rebuilt exactly from `debug.jsonl`, settles included. It
+places event lines and action messages and never writes them, apart from
+marking a started action's progress (step 3).
 
 1. **NOW** is the event the pass is for.
 2. **HISTORY's events** are those before NOW, from the last **10
@@ -201,7 +236,10 @@ and never writes them.
    newest **40** (`StateText.historyLimit`). Passes never show.
 3. **What Boop did** goes under each: the event's `reaction`, then the
    messages of its successful `action` entries, in order. A forced
-   action counts as done about the latest event before it.
+   action counts as done about the latest event before it. A started
+   one's message ends in ` (in progress)` until its `settle`; after
+   that it's plain if it was done, or ends in
+   ` (didn't happen: <why>)`.
 4. **Each event** is written oldest first as `<when>: <line>`, with
    `<when>` relative to now: `just now` under a minute, then `N min
    ago`, then `N h ago`. What Boop did follows, indented two spaces, one
@@ -249,6 +287,9 @@ How to read HISTORY and NOW:
 - HISTORY is oldest first. Each line says how long ago it happened, and
   lines indented under it are what Boop did. The last line lists the
   threads still working.
+- A line of what Boop did may end in brackets: (in progress) means it
+  hasn't finished yet, and (didn't happen: …) means it never did, and
+  why.
 - NOW is what to react to. Its second line is what Boop already did on
   its own, by reflex.
 [EVENTS.md §8.1]
@@ -261,7 +302,7 @@ bytes ÷ 4, which overestimates English: the guide 300 (now about 270), a
 personality 600 (`boop` about 200, `chatter` 280) and a mood 150 (80–145).
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
-about 190 tokens and HISTORY's 40 events about 1,200, so with the
+about 225 tokens and HISTORY's 40 events about 1,200, so with the
 questions a request is at most about 3,000 tokens. The evals' states come
 to 800–1,000.
 
@@ -363,7 +404,10 @@ to the device, and each transcript entry, readably. From the example run
 ```
 
 An event that doesn't wake the brain is marked `(no pass)`, and a failed
-action `✗`. The state goes to the terminal only, never `boop.log`.
+action `✗`. A started action is marked `…`, and its `settle` prints as a
+line of its own when it comes, naming the action and its `seq`:
+`  ✓ react (16) done`, or `  ✗ react (16) didn't happen: <why>`. The
+state goes to the terminal only, never `boop.log`.
 
 **`debug.jsonl`,** in the state directory, is emptied in place at every
 launch and gets one JSON line per transcript entry (§5.2), keys sorted.
@@ -407,13 +451,13 @@ A forced pass and its action, from a headless run:
 
 | Part | File | Job |
 | --- | --- | --- |
-| Harness | `app/BoopKit/Harness/Harness.swift` | One pass running and one waiting; asks, hands out answers, records; forced passes; `respond(to:)`, one event straight through for the evals |
-| Contracts | `app/BoopKit/Harness/Contracts.swift`, `app/BoopKit/Core/Event.swift` | `Action`, `Question`, `Option`, `Answer`, `ActionResult`, `JSONValue`; `Event` |
+| Harness | `app/BoopKit/Harness/Harness.swift` | One pass running and one waiting; asks, hands out answers, records; started actions until they settle, and their ceiling (`tick`); forced passes; `respond(to:)`, one event straight through for the evals |
+| Contracts | `app/BoopKit/Harness/Contracts.swift`, `app/BoopKit/Core/Event.swift` | `Action`, `Question`, `Option`, `Answer`, `ActionResult`, `Pending`, `JSONValue`; `Event` |
 | Transcript | `app/BoopKit/Harness/Transcript.swift` | The entries and their JSON lines |
 | State text | `app/BoopKit/Harness/StateText.swift` | HISTORY, NOW and the reading part, put together; pure |
 | Steering | `app/BoopKit/Harness/Steering.swift` | Loads the static parts, read-only, and checks their budgets |
 | Brain | `app/BoopKit/Harness/Brain.swift`, `app/BoopKit/Brains/JevBrain.swift` | The `Brain` protocol and `ScriptedBrain`; Jev and its key |
-| Debug log | `app/BoopKit/Harness/DebugLog.swift` | The dashboard's lines, and printing entries readably |
-| Wiring | `app/BoopKit/App/Runtime.swift` | Registers the actions, supplies `parts`, reads the key, takes dev lines |
+| Debug log | `app/BoopKit/Harness/DebugLog.swift` | The dashboard's lines, and printing entries readably, settles by their action's name |
+| Wiring | `app/BoopKit/App/Runtime.swift` | Registers the actions, supplies `parts`, reads the key, takes dev lines, ticks the harness every second |
 | Events | `app/BoopKit/Core/Core.swift`, `app/BoopKit/Core/Event.swift` | [EVENTS.md](EVENTS.md) |
 | Actions | `app/BoopKit/Actions/` | [DECISIONS.md](DECISIONS.md) |

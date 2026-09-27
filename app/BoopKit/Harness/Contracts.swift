@@ -81,22 +81,82 @@ public struct Answer: Equatable, Sendable {
 public typealias Answers = [String: Answer]
 
 /// What an action did: its line in HISTORY when `ok`, the reason when not.
+/// A started one finishes later: HISTORY shows it in progress until its
+/// `pending` ends (harness/HARNESS.md §4).
 public struct ActionResult: Equatable, Sendable {
     public let ok: Bool
     public let message: String
+    /// How a started action tells the harness it ended; nil for one that
+    /// finished when `run` returned.
+    public let pending: Pending?
 
     public init(ok: Bool, message: String) {
+        self.init(ok: ok, message: message, pending: nil)
+    }
+
+    init(ok: Bool, message: String, pending: Pending?) {
         self.ok = ok
         self.message = message
+        self.pending = pending
     }
 
     public static func done(_ message: String) -> ActionResult { ActionResult(ok: true, message: message) }
     public static func failed(_ why: String) -> ActionResult { ActionResult(ok: false, message: why) }
+    /// Started, and ends when `pending` is finished.
+    public static func started(_ message: String, _ pending: Pending) -> ActionResult {
+        ActionResult(ok: true, message: message, pending: pending)
+    }
+
+    /// The same handle, not just an equal one.
+    public static func == (a: ActionResult, b: ActionResult) -> Bool {
+        a.ok == b.ok && a.message == b.message && a.pending === b.pending
+    }
+}
+
+/// A started action's end, still to come (harness/HARNESS.md §4): the
+/// action keeps it and finishes it once it knows how things went. Only the
+/// first `finish` counts, and one that comes before the harness has
+/// recorded the result is kept until it has. Touched only on the harness's
+/// queue.
+public final class Pending: @unchecked Sendable {
+    public enum End: Equatable, Sendable {
+        case done
+        /// It never happened, and why.
+        case failed(String)
+    }
+
+    private var end: End?
+    private var deliver: ((End) -> Void)?
+    private var finished = false
+
+    public init() {}
+
+    public func finish(_ end: End) {
+        guard !finished else { return }
+        finished = true
+        if let deliver {
+            self.deliver = nil
+            deliver(end)
+        } else {
+            self.end = end
+        }
+    }
+
+    /// The harness's: where the end goes. One that came first goes at once.
+    func bind(_ deliver: @escaping (End) -> Void) {
+        if let end {
+            self.end = nil
+            deliver(end)
+        } else if !finished {
+            self.deliver = deliver
+        }
+    }
 }
 
 /// Something Boop can do when the brain wakes. It declares its questions,
-/// reads Jev's answers to them, and reports what it did. Its body can call
-/// anything; the harness asks, records and places the result.
+/// reads Jev's answers to them, and reports what it did, or what it
+/// started. Its body can call anything; the harness asks, records and
+/// places the result.
 public protocol Action: AnyObject {
     var name: String { get }
     /// Asked on every pass. Built fresh, so they can depend on live state.

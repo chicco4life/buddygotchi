@@ -116,6 +116,31 @@ class FeedTests(unittest.TestCase):
         self.assertFalse(any("state:" in t for t in text), "a forced pass has no state")
         self.assertEqual(text[-1], "  ✓ react: Boop made a grumpy face and mumbled \"…again!\"")
 
+    def test_a_started_action_and_its_settle(self):
+        """harness/HARNESS.md §5.2: a started action is in progress (`…`)
+        until a settle for its seq says how it ended. The lines are the
+        shapes HarnessTests pins."""
+        board = Board()
+        board.apply(next(line for line in fixture_lines() if kind(line) == "questions"))
+        lines = [
+            '{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}}},"by":"dashboard","dropped":null,"for":null,'
+            '"latency_ms":0,"questions":["react"]},"received_at_ms":1,"seq":1}',
+            '{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a grumpy face and mumbled.",'
+            '"name":"react","ok":true,"pending":true},"received_at_ms":2,"seq":2}',
+        ]
+        rows = [board.apply(json.loads(line)) for line in lines]
+        self.assertEqual(rows[1], ("dim", "  … react (by dashboard): Boop made a grumpy face and mumbled."))
+        self.assertEqual(board.harness()[-1], ("dim", "  … react: Boop made a grumpy face and mumbled. (in progress)"))
+        row = board.apply(json.loads('{"received_at_ms":3,"seq":3,"settle":{"by":"dashboard","end":"failed","for":2,'
+                                     '"why":"waited too long"}}'))
+        self.assertEqual(row, ("fail", "  ✗ react (2) didn't happen: waited too long"))
+        self.assertEqual(board.harness()[-1],
+                         ("fail", "  ✗ react: Boop made a grumpy face and mumbled. (didn't happen: waited too long)"))
+        board.settles.clear()
+        row = board.apply(json.loads('{"received_at_ms":4,"seq":4,"settle":{"end":"done","for":2}}'))
+        self.assertEqual(row, ("ok", "  ✓ react (2) done"))
+        self.assertEqual(board.harness()[-1], ("ok", "  ✓ react: Boop made a grumpy face and mumbled."))
+
     def test_sections(self):
         state = next(line["pass"]["state"] for line in fixture_lines() if line.get("pass", {}).get("state"))
         heads = [head for head, _ in sections(state)]

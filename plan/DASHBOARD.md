@@ -45,10 +45,10 @@ Top to bottom:
 ┌ harness · the latest pass ──────────────────────────────────────────────────┐
 │ IN   the event, its reflex, the state (collapsed), the questions asked      │
 │ OUT  every answer with its probabilities                                    │
-│ RAN  each action's ok and message                                           │
+│ RAN  each action's ok and message, and whether it's still in progress       │
 └─────────────────────────────────────────────────────────────────────────────┘
 ┌ timeline ───────────────────────────────────────────────────────────────────┐
-│ every event, pass, action, device line and status change, following on      │
+│ every event, pass, action, settle, device line and status change, following │
 └─────────────────────────────────────────────────────────────────────────────┘
  m mood  r react  a animate  p preview  s state  z whole screen  q quit
 ```
@@ -70,7 +70,9 @@ Top to bottom:
    - **OUT:** the brain and latency, then every answer, its choice and
      every option's probability, most likely first, in the order the
      questions were asked.
-   - **RAN:** each action's result, `✓` or `✗`, and its message.
+   - **RAN:** each action's result, `✓` or `✗`, and its message. A
+     started one is `…` and `(in progress)` until its `settle`, then `✓`,
+     or `✗` with `(didn't happen: <why>)`.
 3. **Timeline.** Every line of `debug.jsonl` as one row with its time,
    following the latest. A `state` resent unchanged (the keepalive,
    [PROTOCOL.md](PROTOCOL.md) §3) is hidden, and a `status` row shows only
@@ -91,7 +93,8 @@ text for its facts. Each line's shape is in
 | `questions` | The pickers (§4), so no mood, face or word is written into the dashboard |
 | `event` | The timeline, and IN when a pass is for it |
 | `pass` | The timeline, the harness pane, and `brain` (latency, dropped) |
-| `action` | The timeline, and RAN when it's the latest pass's: for the same event (or, forced, for none) and from an action that asks one of the pass's questions, which the `questions` line maps |
+| `action` | The timeline (`…` for a started one), and RAN when it's the latest pass's: for the same event (or, forced, for none) and from an action that asks one of the pass's questions, which the `questions` line maps |
+| `settle` | The timeline, as `✓ react (16) done` or `✗ react (16) didn't happen: <why>`, and RAN's mark for its action |
 | `sent` | The face (§5), `base`, `needs you`, `saying`, `mood`, `volume`, and the timeline |
 | `status` | `sessions`, `brain`, `device`, the personality, and the timeline |
 
@@ -182,13 +185,14 @@ face, in the bubble's band, so only `z` shows it.
   alone; a forced mood that changes as Jev's does, device included, and is
   refused when it can't; a forced react refused while something needs
   you; dev lines ignored without `--debug` or `--headless`; and the
-  printer's output unchanged.
+  printer's output, a started action's `…` and its settle included.
 - **`make -C internal tools-test`**
   (`internal/tools/boopctl_lib/tests/test_dash.py`): the feed against
   `tests/fixtures/headless-debug.jsonl`, recorded from a real headless
-  run; restarts; the downsampling, and every golden frame's face inside
-  the crop; the dev lines built from the `questions` line; Preview's
-  lines; and the app's panes and keys through Textual's pilot.
+  run; a started action and its settles; restarts; the downsampling,
+  and every golden frame's face inside the crop; the dev lines built
+  from the `questions` line; Preview's lines; and the app's panes and
+  keys through Textual's pilot.
 - **Live:** a headless app with the scripted brain, the e2e Claude
   session replayed into it, and the dashboard forcing a mood, a reaction
   and a cheer ([evidence](evidence/2026-09-27-dashboard/README.md)).

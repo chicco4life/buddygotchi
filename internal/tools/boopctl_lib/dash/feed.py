@@ -50,7 +50,7 @@ class Follower:
 
 
 def kind(line: Line) -> str:
-    """`event`, `pass`, `action`, `sent`, `status` or `questions`."""
+    """`event`, `pass`, `action`, `settle`, `sent`, `status` or `questions`."""
     return next((k for k in line if k not in ("seq", "received_at_ms")), "?")
 
 
@@ -68,7 +68,9 @@ class Board:
         self.say: Line | None = None  # the latest mumble sent
         self.events: dict[int, Line] = {}
         self.last_pass: Line | None = None  # the latest pass line, whole
-        self.ran: list[Line] = []  # what its actions reported
+        self.ran: list[Line] = []  # what its actions reported, each with its seq
+        self.names: dict[int, str] = {}  # each action's name by its seq, for its settle
+        self.settles: dict[int, Line] = {}  # how each started action ended, by the action's seq
         self.latency_ms: int | None = None  # Jev's last
         self.dropped = 0
 
@@ -100,10 +102,18 @@ class Board:
             picks = " · ".join(f"{key} {a['choice']}" for key, a in answers(body))
             return "pass", f"  pass {who}" + (f" for {body['for']}" if body.get("for") else "") + f": {picks}"
         if k == "action":
+            self.names[seq] = body["name"]
             if self._answers_latest_pass(body):
-                self.ran.append(body)
+                self.ran.append({**body, "seq": seq})
             by = f" (by {body['by']})" if body.get("by") else ""
-            return ("ok" if body["ok"] else "fail"), f"  {'✓' if body['ok'] else '✗'} {body['name']}{by}: {body['message']}"
+            style, mark = ("fail", "✗") if not body["ok"] else ("dim", "…") if body.get("pending") else ("ok", "✓")
+            return style, f"  {mark} {body['name']}{by}: {body['message']}"
+        if k == "settle":
+            self.settles[body["for"]] = body
+            name = f"{self.names.get(body['for'], '?')} ({body['for']})"
+            if body["end"] == "done":
+                return "ok", f"  ✓ {name} done"
+            return "fail", f"  ✗ {name} didn't happen: {body.get('why')}"
         return None
 
     def _sent(self, msg: Line) -> tuple[str, str] | None:
@@ -117,6 +127,17 @@ class Board:
             parts = ([msg["anim"]] if msg.get("anim") else []) + (["say " + say_text(msg["say"])] if msg.get("say") else [])
             return "sent", "→ moment " + " + ".join(parts)
         return "sent", "→ " + json.dumps(msg)
+
+    def _ran_line(self, r: Line) -> tuple[str, str]:
+        """An action's line in RAN: a started one is in progress until its
+        settle says how it ended."""
+        settle = self.settles.get(r["seq"])
+        if not r["ok"] or (settle and settle["end"] != "done"):
+            why = f" (didn't happen: {settle.get('why')})" if r["ok"] else ""
+            return "fail", f"  ✗ {r['name']}: {r['message']}{why}"
+        if r.get("pending") and not settle:
+            return "dim", f"  … {r['name']}: {r['message']} (in progress)"
+        return "ok", f"  ✓ {r['name']}: {r['message']}"
 
     def _answers_latest_pass(self, action: Line) -> bool:
         """Whether an action is the latest pass's: for the same event (or,
@@ -167,7 +188,7 @@ class Board:
             spread = sorted(a.get("p", {}).items(), key=lambda kv: -kv[1])
             out.append(("pass", f"  {key} → {a['choice']}   " + " · ".join(f"{o} {v:.2f}" for o, v in spread)))
         out.append(("head", "RAN"))
-        out += [("ok" if r["ok"] else "fail", f"  {'✓' if r['ok'] else '✗'} {r['name']}: {r['message']}") for r in self.ran]
+        out += [self._ran_line(r) for r in self.ran]
         if not self.ran:
             out.append(("dim", "  nothing"))
         return out

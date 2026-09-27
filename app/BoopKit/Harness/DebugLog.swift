@@ -66,9 +66,12 @@ public enum DebugLog {
     ///     ▸ 12 tool_use: claude's tests failed again on "fix-nav" (landing), 3 in a row.
     ///       pass jev:jev-latest 240 ms: mood grumpy 0.69 · react grumpy 0.63 · word.feeling again 0.57 · word.about tests 0.81
     ///       ✓ mood: Boop's mood changed: happy → grumpy.
-    ///       ✓ react: Boop made a grumpy face and mumbled "…again!"
+    ///       … react: Boop made a grumpy face and mumbled "…again!"
+    ///       ✓ react (15) done
     public final class Printer {
         var shownFullState = false
+        /// Each action's name by its `seq`, for its settle's line.
+        var names: [Int: String] = [:]
 
         public init() {}
 
@@ -104,7 +107,14 @@ public enum DebugLog {
                 return out
             }
             if let a = o["action"] as? [String: Any] {
-                return "  \(a["ok"] as? Bool == true ? "✓" : "✗") \(a["name"] as? String ?? "?"): \(a["message"] as? String ?? "")"
+                let name = a["name"] as? String ?? "?"
+                names[seq] = name
+                let mark = a["ok"] as? Bool != true ? "✗" : a["pending"] as? Bool == true ? "…" : "✓"
+                return "  \(mark) \(name): \(a["message"] as? String ?? "")"
+            }
+            if let s = o["settle"] as? [String: Any], let action = s["for"] as? Int {
+                let name = "\(names[action] ?? "?") (\(action))"
+                return s["end"] as? String == "done" ? "  ✓ \(name) done" : "  ✗ \(name) didn't happen: \(s["why"] as? String ?? "?")"
             }
             return line
         }

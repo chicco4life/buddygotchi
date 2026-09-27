@@ -4,7 +4,8 @@ import Foundation
 /// with how to read the rest, PERSONALITY, MOOD, then HISTORY and NOW from
 /// the transcript. A pure function of what it's given: the same inputs
 /// always give the same text. It never writes an event's line or an
-/// action's message; it only places them.
+/// action's message; it only places them, and marks a started action's
+/// progress.
 public enum StateText {
     /// HISTORY reaches back this far, or to the oldest turn still working,
     /// whichever is further, and holds at most `historyLimit` events.
@@ -17,6 +18,9 @@ public enum StateText {
         - HISTORY is oldest first. Each line says how long ago it happened, and
           lines indented under it are what Boop did. The last line lists the
           threads still working.
+        - A line of what Boop did may end in brackets: (in progress) means it
+          hasn't finished yet, and (didn't happen: …) means it never did, and
+          why.
         - NOW is what to react to. Its second line is what Boop already did on
           its own, by reflex.
         """
@@ -80,15 +84,30 @@ public enum StateText {
 
     /// What Boop did about an event: its rule reaction, then the messages of
     /// its successful actions, in order. A forced action, which is for no
-    /// event, counts as done about the latest event before it.
+    /// event, counts as done about the latest event before it. A started
+    /// one is `(in progress)` until it settles, then plain if it was done,
+    /// or `(didn't happen: why)`.
     static func didLines(for entry: Transcript.Entry, event: Event, in entries: [Transcript.Entry]) -> [String] {
         var lines = event.reaction.map { [$0] } ?? []
         var latest = true
+        /// Started actions shown here: their line's index and message.
+        var started: [Int: (index: Int, message: String)] = [:]
         for e in entries where e.seq > entry.seq {
             switch e.body {
             case .event: latest = false
             case .action(let a) where a.result.ok && (a.forSeq == entry.seq || (a.forSeq == nil && latest)):
-                lines.append(a.result.message)
+                if a.result.pending != nil {
+                    started[e.seq] = (lines.count, a.result.message)
+                    lines.append(a.result.message + " (in progress)")
+                } else {
+                    lines.append(a.result.message)
+                }
+            case .settle(let s):
+                guard let placed = started[s.forSeq] else { break }
+                switch s.end {
+                case .done: lines[placed.index] = placed.message
+                case .failed(let why): lines[placed.index] = placed.message + " (didn't happen: \(why))"
+                }
             default: break
             }
         }

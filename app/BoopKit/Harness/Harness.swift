@@ -44,9 +44,23 @@ public final class Harness: @unchecked Sendable {
     public static let deadlineMs = 1250
     /// An action taking longer than this is logged: it should hand slow work off.
     public static let actionSlowMs = 300
+    /// A started action still in progress this long after its result is
+    /// ended as failed (§5.1).
+    public static let pendingMaxMs: Int64 = 60_000
 
     var running: Int?
     var waiting: Transcript.Entry?
+
+    /// A started action, still in progress: its name, when its result was
+    /// recorded, and whether it was forced.
+    struct Open {
+        var name: String
+        var since: Int64
+        var forced: Bool
+    }
+
+    /// Started actions still in progress, by their `action` entry's `seq`.
+    var open: [Int: Open] = [:]
 
     public init(brain: (any Brain)?, actions: [any Action], parts: @escaping (Transcript.Entry) -> StateText.Parts,
                 home: DispatchQueue, clock: @escaping @Sendable () -> Int64, debugLog: URL? = nil,
@@ -159,9 +173,35 @@ public final class Harness: @unchecked Sendable {
             guard let result else { continue }
             let a = Transcript.ActionRecord(forSeq: forSeq, name: action.name, result: result, latencyMs: ms)
             ran.append(a)
-            record(.action(a))
+            record(a)
         }
         return ran
+    }
+
+    /// Records an action's result. A started one stays open until its
+    /// handle ends, and its end is recorded as a `settle` entry (§5.1).
+    func record(_ a: Transcript.ActionRecord) {
+        let entry = append(.action(a), at: clock())
+        guard let pending = a.result.pending else { return }
+        open[entry.seq] = Open(name: a.name, since: entry.receivedAtMs, forced: a.forSeq == nil)
+        pending.bind { [weak self] end in self?.settle(entry.seq, end) }
+    }
+
+    /// Ends an open action; one already ended is left alone.
+    func settle(_ seq: Int, _ end: Pending.End) {
+        guard let item = open.removeValue(forKey: seq) else { return }
+        record(.settle(Transcript.Settle(forSeq: seq, end: end)), extra: item.forced ? ["by": Transcript.forcedBy] : [:])
+    }
+
+    /// Ends every action still in progress `pendingMaxMs` after its result,
+    /// so HISTORY never says so for good. The runtime calls it every
+    /// second. Call on `home`.
+    public func tick(now: Int64) {
+        dispatchPrecondition(condition: .onQueue(home))
+        for (seq, item) in open.sorted(by: { $0.key < $1.key }) where now - item.since >= Harness.pendingMaxMs {
+            log("harness: \(item.name) was still in progress after \(now - item.since) ms; ended it")
+            settle(seq, .failed("no word it finished"))
+        }
     }
 
     // MARK: Forced (the dashboard, §9)
@@ -189,8 +229,7 @@ public final class Harness: @unchecked Sendable {
         dispatchPrecondition(condition: .onQueue(home))
         let started = ContinuousClock.now
         guard let result = body() else { return nil }
-        record(.action(Transcript.ActionRecord(forSeq: nil, name: action.name, result: result,
-                                               latencyMs: (ContinuousClock.now - started).ms)))
+        record(Transcript.ActionRecord(forSeq: nil, name: action.name, result: result, latencyMs: (ContinuousClock.now - started).ms))
         return result
     }
 
