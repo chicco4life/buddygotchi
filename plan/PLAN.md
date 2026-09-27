@@ -73,10 +73,13 @@ that's off becomes an open item (§3).
 
 **Agents**
 
-5. **Make Claude ask permission for a shell command.** Within about 1 s
-   Boop leans in, the amber light on the board's back glows, the bubble
-   says `claude · <project>`, and it chirps once. A tap only squashes the
-   face. Approving in the terminal blends it back to working.
+5. **Make Claude ask permission for a quick shell command.** Within
+   about 1 s Boop leans in, the amber light on the board's back glows,
+   the bubble says `claude · <project>`, and it chirps once. A tap only
+   squashes the face. Approving in the terminal blends it back to working
+   once the command has run (a long one stays amber until it ends,
+   [ADAPTERS.md](ADAPTERS.md) §4); pressing Esc on the prompt instead
+   leaves it amber until it goes idle about a minute later.
 6. **Approvals in two sessions.** One chirp, and "+1 more". Answer the
    first and the bubble moves to the other, chirping if it's another agent
    or project.
@@ -160,6 +163,13 @@ fixed. Pick one up by writing it into its spec first.
   `PostToolUse` reports after a failed command hasn't been seen either, so
   a Codex turn never fails ([ADAPTERS.md](ADAPTERS.md) §3). One recorded
   session with an approval and a failing test run would settle both.
+- **A denied subagent can keep "needs you" until the main turn ends.**
+  A subagent you deny carries on, and if it ends without another tool
+  call, Claude sends only `SubagentStop`, which Boop doesn't hook. So its
+  request stays until the main agent's `Stop`, or the safety net
+  ([ADAPTERS.md](ADAPTERS.md) §4). Hooking `SubagentStop` and letting it
+  answer only that subagent's request would clear it; it mustn't make an
+  idle session working.
 - **A failed test turn's word is on a knife-edge.** Apple's writer picks
   the right source (the failed topic) but flips between "tests" and "ugh"
   with small, unrelated prompt changes; evals 06 and 13 accept both.

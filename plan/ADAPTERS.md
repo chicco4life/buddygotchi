@@ -67,9 +67,13 @@ agents that fire a hook on every tool call.
    if stdin never closes.
 
 The app's adapter turns the line into the common event, and `error` into
-a class: `rate_limit`, `overloaded`, `api_error`, `auth`, `timeout`,
-`network`, `context_limit` or `billing` when the text contains one, and
-`other` otherwise.
+a short class for the brain. Claude's own values map as: `rate_limit` and
+`overloaded` as they are; `server_error`, `invalid_request` and
+`model_not_found` to `api_error`; `max_output_tokens` to `context_limit`;
+`billing_error` to `billing`; its sign-in and account errors to `auth`;
+and `unknown` to `other`. Any other text becomes the first of
+`rate_limit`, `overloaded`, `api_error`, `auth`, `timeout`, `network`,
+`context_limit` or `billing` it contains, and `other` otherwise.
 
 ## 3. Event mapping
 
@@ -106,8 +110,8 @@ What makes a turn fail is in [BEHAVIORS.md](BEHAVIORS.md) §3.1.
 with Esc. The interrupted tool call becomes `turn_stopped`, and so does
 `idle_prompt`, which Claude sends once it has sat at its prompt for about
 a minute and which also covers an interrupt between tool calls. A working
-session then goes idle with no reaction. The interrupted call also clears
-a waiting request (§4); the idle notice leaves one alone.
+session then goes idle with no reaction. Either one can also clear a
+waiting request (§4).
 
 **Project name.** The last folder of the session's `cwd`. A git worktree
 maps to its main repository: `landing` and `landing/.worktrees/fix-nav`
@@ -164,14 +168,26 @@ may approve it without asking you, and the hook fires before that review.
   approved) or the agent moved on (you denied). A sibling subagent still
   running tools, or the main agent hearing back from another subagent,
   doesn't. Any turn-level event clears every request: a new prompt, the
-  turn ending, failing or being interrupted, or the session ending, but
-  not `idle_prompt`. A request with no tool doesn't say who asked, so any
-  event from the session clears it. Once no asker is left, the session is
-  working again.
+  turn ending, failing or being interrupted, or the session ending. A
+  request with no tool doesn't say who asked, so any event from the
+  session clears it. Once no asker is left, the session is working again.
+- **Approved long commands.** Claude has no hook for the moment you
+  approve, so "the tool ran" arrives only when the tool finishes: a long
+  command you approved keeps "needs you" up until it ends, or until the
+  safety net. Boop doesn't guess sooner, since a wrong guess would hide a
+  prompt that's still open.
+- **Denied with Esc.** Pressing Esc on Claude's prompt sends no hook at
+  all. Claude never sends `idle_prompt` while the main agent's prompt is
+  up, so when it arrives about a minute later it clears the main agent's
+  request, or one with no tool, and the session goes idle. A subagent's
+  request stays, since its prompt may still be up. Denying with
+  typed feedback carries the turn on, and its next event clears the
+  request as usual.
 - **Safety net.** After 10 minutes with no events from the session, the
   request clears anyway and the session goes idle: by then the agent is
-  still waiting at its prompt or is gone. Its next event makes it working
-  again.
+  still waiting at its prompt or is gone. This covers a Codex request still
+  in its grace, as when the Mac sleeps right after Codex asks. The
+  session's next event makes it working again.
 - **Stale sessions.** A working session with no events for an hour counts
   as idle, and one with no events for a day is forgotten, so a missed
   `SessionEnd` can't keep Boop busy.

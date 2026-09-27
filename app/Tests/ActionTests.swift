@@ -17,7 +17,7 @@ final class ActionRig {
         let context = ActionContext(
             send: { [unowned self] in self.sent.append($0) },
             mumblesAllowed: { [unowned self] in self.allowed }, setQuiet: { [unowned self] in self.quiet.append($0) },
-            quietAsked: { [unowned self] in self.asked }, today: { "2026-10-15" },
+            quietAsked: { [unowned self] in self.asked },
             log: { [unowned self] in self.logs.append($0) })
         for action in Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 0x7f3a)), memory: memory) {
             actions[action.name] = action
@@ -170,8 +170,7 @@ final class ActionTests: XCTestCase {
 
     func testQuietReachesTheRealCore() {
         let core = CoreRig()
-        let context = ActionContext(send: { _ in }, setQuiet: { _ = core.core.setQuiet(minutes: $0, at: core.now) },
-                                    today: { "2026-10-14" })
+        let context = ActionContext(send: { _ in }, setQuiet: { _ = core.core.setQuiet(minutes: $0, at: core.now) })
         QuietAction(context: context).run(ToolCall("quiet", ["minutes": .number(30)]))
         XCTAssertEqual(core.core.snapshot(at: core.now).quiet, 30)
     }

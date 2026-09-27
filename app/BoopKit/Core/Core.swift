@@ -183,11 +183,16 @@ public final class Core {
 
         // The asker's next event means it moved on, and so does any
         // turn-level event. A sibling subagent's tool calls don't answer
-        // another agent's request, and Claude's idle notice (`turn_stopped`
-        // with no tool) isn't the session acting (ADAPTERS.md §3–4).
-        let idleNotice = event.event == .turnStopped && event.detail.tool == nil
-        if waiting && !idleNotice {
-            if event.event != .activity || s.askers.contains(Core.anyone) {
+        // another agent's request. Claude's idle notice (`turn_stopped` with
+        // no tool) never comes while the main agent's prompt is up, so it
+        // answers the main agent (you pressed Esc on its prompt, which sends
+        // no hook), and a request with no tool unless a subagent asked too;
+        // a subagent's prompt may still be up (ADAPTERS.md §4).
+        if waiting {
+            if event.event == .turnStopped && event.detail.tool == nil {
+                s.askers.remove("")
+                if s.askers == [Core.anyone] { s.askers.removeAll() }
+            } else if event.event != .activity || s.askers.contains(Core.anyone) {
                 s.askers.removeAll()
             } else {
                 s.askers.remove(event.subagent ?? "")
@@ -355,20 +360,14 @@ public final class Core {
         return fx
     }
 
-    /// The Mac's mic or speech recognition couldn't start. After the Talk
-    /// button, the empty moment ends the device's `listening` face at once;
-    /// the device's own button ends it by itself.
+    /// The Mac's mic or speech recognition couldn't start: as when it heard
+    /// nothing, the empty moment ends the device's `listening` face at once,
+    /// after either button.
     @discardableResult
     public func micFailed(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
-        let byApp = listening?.by == .app
         stopListening(now, &fx)
-        replyWait = nil  // no words are coming
-        if byApp {
-            listeningEndsAt = nil
-            fx.append(.endListening)
-        }
-        return fx
+        return fx + heardNothing(at: now)
     }
 
     /// The `quiet` action: no mumbles for `minutes` (0 ends it). The strip's
@@ -532,8 +531,9 @@ public final class Core {
 
     /// A finished turn: a cheer, even while other sessions are still
     /// working, when it's long enough for the mode (BEHAVIORS.md §3.1).
+    /// None while you talk to Boop (BEHAVIORS.md §3.3).
     func finished(_ s: Session, durationMs ms: Int64, _ now: Int64, _ fx: inout [CoreEffect]) {
-        let cheer = config.mode.cheers(Input.Length(ms: ms))
+        let cheer = config.mode.cheers(Input.Length(ms: ms)) && !talking(now)
         if cheer { play("cheer", &fx) }
         if ms >= 30_000 {
             fx.append(.happened("\(config.time.clock(wall(now))) \(s.agent.short) · \(s.project) · finished (\(Input.took(ms)))"))
@@ -622,22 +622,19 @@ public final class Core {
     /// Runs every timer due by `now`, in order.
     func advance(to now: Int64, _ fx: inout [CoreEffect]) {
         for (key, var s) in sessions {
-            if let pending = s.pendingSince {
-                if now - s.lastEventAt >= config.safetyNetMs {
-                    s.pendingSince = nil
-                    s.askers.removeAll()
-                } else if now - pending >= config.codexGraceMs {
-                    s.pendingSince = nil
-                    s.needsSince = pending + config.codexGraceMs
-                    s.status = .waiting
-                    fx.append(.aside(needsYouLine(s, now)))
-                }
+            let silent = now - s.lastEventAt >= config.safetyNetMs
+            if let pending = s.pendingSince, !silent, now - pending >= config.codexGraceMs {
+                s.pendingSince = nil
+                s.needsSince = pending + config.codexGraceMs
+                s.status = .waiting
+                fx.append(.aside(needsYouLine(s, now)))
             }
-            if s.needsSince != nil && now - s.lastEventAt >= config.safetyNetMs {
-                // Ten silent minutes: the agent is still waiting on its
-                // prompt, or gone. Either way it isn't working, so no
-                // sweat drop and no chatter. Its turn, if it goes on,
-                // still counts from its start.
+            if silent && (s.needsSince != nil || s.pendingSince != nil) {
+                // Ten silent minutes, even for a Codex request no tick saw
+                // through its grace (the Mac slept): the agent is still
+                // waiting on its prompt, or gone. Either way it isn't
+                // working, so no sweat drop and no chatter. Its turn, if it
+                // goes on, still counts from its start.
                 clearRequest(&s, now)
                 s.status = .idle
             }

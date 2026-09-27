@@ -93,7 +93,7 @@ changes, and at least every 10 s.
 | `v` | Protocol version, 1 |
 | `time`, `name` | Unix time, and Boop's name cut to 23 bytes. The v1 device reads neither |
 | `base` | `asleep`, `idle` or `working` ([BEHAVIORS.md](BEHAVIORS.md) §2) |
-| `attn` | Only while something needs you: the oldest waiting session's agent (`claude` or `codex`) and project, and how many more are waiting. The project is at most 23 bytes of UTF-8, because the device keeps it in a 24-byte field; a longer one is cut on a character boundary and ends in `..` within those 23 bytes, so the device shows it was cut |
+| `attn` | Only while something needs you: the oldest waiting session's agent (`claude` or `codex`) and project, and how many more are waiting. The project is at most 23 bytes of UTF-8, because the device keeps it in a 24-byte field; a longer one is cut on a character boundary and ends in `..` within those 23 bytes, so the device shows it was cut. Names are precomposed (NFC) first, so a folder named in Finder sends é as one letter ([UX.md](UX.md) §2 has how the device draws it) |
 | `busy`, `idle`, `wait` | Session counts. The strip shows `wait` and `busy`; the v1 device ignores `idle` |
 | `quiet` | Minutes of quiet mode left; 0 when it's off |
 | `vol` | Volume 0–10; 0 is mute |

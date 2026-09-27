@@ -37,15 +37,22 @@ final class RuntimeTests: XCTestCase {
     /// HARNESS.md §6: in normal mode Jev's key is read off `home`, since a
     /// Keychain prompt would stall every event, and normal's table decides
     /// until it arrives; a key Settings saves or clears takes over at once.
+    /// The read starts with `start`, once the callbacks are set, so it never
+    /// races the app setting them.
     func testJevsKeyIsReadOffHome() throws {
         let prompt = DispatchSemaphore(value: 0)
+        let reads = Lines()
         let runtime = try makeRuntime(FakeTransport(), mode: .normal) {
+            reads.add("read")
             prompt.wait()  // as a Keychain prompt waits for an answer
             return "k"
         }
+        Thread.sleep(forTimeInterval: 0.1)
+        XCTAssertEqual(reads.all, [], "not before start")
         var statuses: [Runtime.Status] = []  // on `home`
         runtime.onChange = { statuses.append($0) }
-        runtime.refresh()
+        try runtime.start()
+        defer { runtime.stop() }
         wait("home answers while the key is read") { runtime.home.sync { statuses.last?.classifier == "normal@1" } }
         prompt.signal()
         wait("Jev once it's read") { runtime.home.sync { statuses.last?.classifier == "jev:jev-latest" } }

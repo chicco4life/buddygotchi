@@ -137,8 +137,7 @@ final class CoreAgentWorkTests: XCTestCase {
     /// session goes idle and the brain still hears about it.
     /// ADAPTERS.md §3: a turn you interrupt ends without `Stop`, so the
     /// interrupt (or Claude sitting at its prompt) ends it: idle at once, no
-    /// cheer, nothing for the brain. Only the interrupt answers a request
-    /// still waiting.
+    /// cheer, nothing for the brain.
     func testAnInterruptedTurnGoesIdleQuietly() {
         let rig = CoreRig()
         rig.send(.turnStart)
@@ -153,11 +152,41 @@ final class CoreAgentWorkTests: XCTestCase {
 
         rig.send(.turnStart, session: "s2")
         rig.send(.needsYou, session: "s2", tool: "Bash")
-        rig.send(.turnStopped, session: "s2")
-        XCTAssertNotNil(rig.state.attn, "Claude's idle notice leaves a waiting request alone")
         rig.send(.turnStopped, session: "s2", tool: "Bash")
         XCTAssertNil(rig.state.attn, "an interrupted call answers it, as any event does")
         XCTAssertEqual(rig.state.base, "idle")
+    }
+
+    /// ADAPTERS.md §4: Esc on Claude's permission prompt sends no hook, and
+    /// Claude's idle notice about a minute later never comes while the main
+    /// agent's prompt is up. So the notice answers a request from the main
+    /// agent, or one from a Notification alone, and the session goes idle.
+    /// A subagent's request stays: its prompt may still be up.
+    func testClaudesIdleNoticeAnswersTheMainAgentsRequest() {
+        for asker in ["main agent", "notification alone"] {
+            let rig = CoreRig(mode: .chatty)
+            rig.send(.turnStart)
+            rig.send(.needsYou, tool: asker == "main agent" ? "Bash" : nil)
+            rig.wait(61_000)
+            XCTAssertNotNil(rig.state.attn, asker)
+            let fx = rig.send(.turnStopped)
+            XCTAssertNil(states(fx).last?.attn, asker)
+            XCTAssertEqual(rig.state.base, "idle", asker)
+            XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"]], asker)
+            XCTAssertEqual(moments(fx), [], asker)
+            XCTAssertEqual(inputs(fx), [], asker)
+            XCTAssertEqual(mumbles(rig.wait(10 * 60_000)), [], "\(asker): no working chatter")
+        }
+        for askers in [["a1"], ["", "a1"]] {
+            let rig = CoreRig()
+            rig.send(.turnStart)
+            for a in askers { rig.send(.needsYou, subagent: a.isEmpty ? nil : a, tool: "Bash") }
+            rig.wait(61_000)
+            rig.send(.turnStopped)
+            XCTAssertNotNil(rig.state.attn, "\(askers): a subagent's prompt may still be up")
+            rig.send(.activity, subagent: "a1", tool: "Bash")
+            XCTAssertNil(rig.state.attn, "\(askers): its own next event answers it")
+        }
     }
 
     func testFailedTurnPlaysNoMomentAndGoesIdle() {
@@ -287,6 +316,29 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(moments(fx), [], "the device just blends back to its look")
     }
 
+    /// ADAPTERS.md §4: Claude has no hook for the moment you approve, so a
+    /// request clears only when the approved tool finishes. A long command
+    /// keeps "needs you" up until then, and one that runs past the safety
+    /// net leaves the session idle until it finishes.
+    func testAnApprovedLongCommandKeepsNeedsYouUntilItFinishes() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Bash", topic: "tests")  // PreToolUse comes before the permission check
+        rig.send(.needsYou, tool: "Bash")
+        rig.send(.needsYou)  // its Notification
+        rig.wait(120_000)  // approved at once; the tests take two minutes
+        XCTAssertNotNil(rig.state.attn, "nothing says you approved")
+        XCTAssertEqual(states(rig.send(.activity, tool: "Bash", topic: "tests", failed: false)).last?.base, "working")
+        XCTAssertNil(rig.state.attn)
+
+        rig.send(.activity, tool: "Bash", topic: "build")
+        rig.send(.needsYou, tool: "Bash")
+        rig.wait(Core.Config(name: "Pip").safetyNetMs)
+        XCTAssertNil(rig.state.attn, "the safety net")
+        XCTAssertEqual(rig.state.base, "idle", "though the approved build still runs")
+        XCTAssertEqual(states(rig.send(.activity, tool: "Bash", topic: "build", failed: false)).last?.base, "working")
+    }
+
     func testDuplicateWhileWaitingIsIgnored() {
         let rig = CoreRig()
         rig.send(.turnStart)
@@ -392,6 +444,23 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"]])
         XCTAssertEqual(mumbles(rig.wait(600_000)), [], "no working chatter")
         XCTAssertEqual(states(rig.send(.activity, tool: "Bash")).last?.base, "working", "until the agent acts again")
+    }
+
+    /// ADAPTERS.md §4: the safety net also covers a Codex request no tick
+    /// saw through its 2 s grace, as when the Mac sleeps right after Codex
+    /// asks: the session goes idle rather than staying at work.
+    func testSafetyNetCoversACodexRequestStillInItsGrace() {
+        let rig = CoreRig(mode: .chatty)
+        rig.send(.turnStart, .codex)
+        rig.send(.activity, .codex, tool: "shell", topic: "deploy")
+        rig.send(.needsYou, .codex, tool: "shell")
+        rig.now += Core.Config(name: "Pip").safetyNetMs  // one tick, on waking
+        let fx = rig.core.tick(at: rig.now)
+        XCTAssertEqual(states(fx).last?.base, "idle")
+        XCTAssertNil(rig.state.attn)
+        XCTAssertEqual(asides(fx), [], "it never showed")
+        XCTAssertEqual(rig.sessions, [["codex", "landing", "idle"]])
+        XCTAssertEqual(mumbles(rig.wait(600_000)), [], "no working chatter")
     }
 
     func testWhileSomethingNeedsYouOnlyWhatYouSayReachesTheBrain() {
@@ -619,6 +688,43 @@ final class CoreYouAndBoopTests: XCTestCase {
         }
     }
 
+    /// BEHAVIORS.md §3.3: from the mic turning on until the reply, a turn
+    /// that finishes doesn't cheer, with either button. The brain isn't
+    /// told Boop cheered. After the reply, or the 8 s wait, finishes cheer
+    /// again.
+    func testNoCheerWhileYouTalk() {
+        for button in [Core.Talker.device, .app] {
+            let rig = CoreRig(mode: .chatty)
+            func talk(_ on: Bool) {
+                if button == .device { rig.input(on ? .talkOn : .talkOff) } else { rig.core.listen(on, at: rig.now) }
+            }
+            rig.send(.turnStart, session: "a")
+            rig.send(.turnStart, session: "b")
+            rig.send(.turnStart, session: "c")
+            rig.wait(20_000)
+            talk(true)
+            let onMic = rig.send(.turnEnd, session: "a")
+            XCTAssertEqual(moments(onMic), [], "\(button): mic on")
+            XCTAssertNil(inputs(onMic).first?.rules, "\(button)")
+            talk(false)
+            rig.wait(1000)
+            let said = inputs(rig.core.talk("good job", at: rig.now))[0]
+            XCTAssertEqual(moments(rig.send(.turnEnd, session: "b")), [], "\(button): waiting for the reply")
+            rig.core.replied(to: said.ts, mumbled: true, at: rig.now)
+            rig.wait(1000)
+            XCTAssertEqual(moments(rig.send(.turnEnd, session: "c")), ["cheer"], "\(button): after the reply")
+        }
+        let rig = CoreRig()
+        rig.input(.talkOn)
+        rig.input(.talkOff)
+        rig.send(.turnStart)
+        rig.wait(Core.replyWaitMs - 1000)
+        XCTAssertEqual(moments(rig.send(.turnEnd)), [], "no words yet")
+        rig.send(.turnStart)
+        rig.wait(1000)
+        XCTAssertEqual(moments(rig.send(.turnEnd)), ["cheer"], "the 8 s wait is over")
+    }
+
     /// BEHAVIORS.md §3.3: from the mic turning on until the words arrive, a
     /// brain mumble can only be about an agent, and would end `listening`
     /// before the reply, so none plays. Once the words arrive the pass
@@ -718,17 +824,21 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening), "and not again at 8 s")
     }
 
-    /// BEHAVIORS.md §3.3: a Mac mic that can't start ends the Talk button's
-    /// `listening` at once with the empty moment. The device's own button
-    /// ends its face by itself.
+    /// BEHAVIORS.md §3.3: a Mac mic that can't start ends `listening` at
+    /// once with the empty moment, after either button, as hearing nothing
+    /// does. After BOOT the face ends while you still hold it, so the
+    /// release has no 8 s stare left to hold.
     func testAMicThatCantStartEndsListeningAtOnce() {
         let rig = CoreRig()
         rig.core.listen(true, at: rig.now)
         XCTAssertEqual(rig.core.micFailed(at: rig.now), [.listen(false), .endListening])
         XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening), "no second one later")
         rig.input(.talkOn)
-        XCTAssertEqual(rig.core.micFailed(at: rig.now), [.listen(false)])
+        XCTAssertEqual(rig.core.micFailed(at: rig.now), [.listen(false), .endListening])
+        XCTAssertEqual(rig.core.heardNothing(at: rig.now), [], "the mic's stop hears nothing more")
+        XCTAssertEqual(rig.input(.talkOff), [], "the release changes nothing")
         XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening))
+        XCTAssertEqual(rig.core.micFailed(at: rig.now), [], "nothing to end")
     }
 
     /// The first activity of the day starts short-term memory with no
@@ -1002,6 +1112,15 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(StateSnapshot.clip("ünïcödé-ünïcödé-ünïcödé"), "ünïcödé-ünïcödé")
         XCTAssertEqual(StateSnapshot.clip("ünïcödé-ünïcödé-ünïcödé", marked: true), "ünïcödé-ünïcöd..")
         XCTAssertEqual(StateSnapshot.clip("a-23-byte-project-name!", marked: true), "a-23-byte-project-name!", "one that fits isn't marked")
+        // Finder names folders decomposed (e and U+0301), which the device
+        // draws as "e?": the Mac sends names precomposed, before measuring
+        // them (PROTOCOL.md §3). Swift's == can't tell the two apart.
+        let finder = CoreRig()
+        finder.send(.needsYou, project: "cafe\u{301}", tool: "Bash")
+        XCTAssertEqual(finder.state.attn.map { Array($0.project.utf8) }, [0x63, 0x61, 0x66, 0xC3, 0xA9])
+        XCTAssertEqual(finder.sessions.first?[1], "cafe\u{301}", "the popover shows it as it came")
+        let resume = "re\u{301}sume\u{301}-re\u{301}sume\u{301}-re\u{301}sume\u{301}"
+        XCTAssertEqual(Array(StateSnapshot.clip(resume, marked: true).utf8), Array("r\u{E9}sum\u{E9}-r\u{E9}sum\u{E9}-r\u{E9}..".utf8), "23 bytes")
     }
 
     func testSnapshotsGoOutOnlyWhenSomethingChanged() {

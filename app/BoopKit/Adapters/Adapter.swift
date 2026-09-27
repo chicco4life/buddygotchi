@@ -20,10 +20,14 @@ public enum Adapter {
     ]
 
     /// Claude's `Notification` types that mean a person is being asked.
-    static let askingNotifications: Set<String> = ["permission_prompt", "elicitation_dialog"]
+    static let askingNotifications = ["permission_prompt", "elicitation_dialog"]
     /// Claude's `Notification` type for sitting at its prompt for a minute:
     /// whatever turn there was is over, even one that ended without `Stop`.
     static let idleNotification = "idle_prompt"
+    /// Every `Notification` type mapped, in the order the installer's
+    /// matcher lists them (ADAPTERS.md §5): Claude runs the hook for no
+    /// other. A new order would make every install look outdated.
+    static let notificationTypes = askingNotifications + [idleNotification]
 
     /// Codex's hooks. Codex has no failure hook.
     static let codex: [String: BoopEvent.Kind] = [
@@ -83,11 +87,20 @@ public enum Adapter {
                          ts: receivedAt ?? line.ts)
     }
 
-    /// A short, fixed error class; anything unfamiliar becomes `other`.
+    /// Claude's `StopFailure` errors that don't name their class.
+    static let claudeErrors = [
+        "server_error": "api_error", "invalid_request": "api_error", "model_not_found": "api_error",
+        "max_output_tokens": "context_limit",
+        "account_on_hold": "auth", "verification_required": "auth", "cloud_credential_error": "auth",
+    ]
+
+    /// A short, fixed error class (ADAPTERS.md §2); anything unfamiliar
+    /// becomes `other`.
     static func errorClass(_ raw: String) -> String {
-        let known = ["rate_limit", "overloaded", "api_error", "auth", "timeout", "network", "context_limit", "billing"]
         let lowered = raw.lowercased()
-        return known.first { lowered.contains($0) } ?? "other"
+        if let known = claudeErrors[lowered] { return known }
+        let classes = ["rate_limit", "overloaded", "api_error", "auth", "timeout", "network", "context_limit", "billing"]
+        return classes.first { lowered.contains($0) } ?? "other"
     }
 
     /// Project names by working directory, so a worktree's `.git` is read

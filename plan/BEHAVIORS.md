@@ -56,7 +56,7 @@ look like one cheer.
 | When | What Boop does |
 | --- | --- |
 | You send a prompt | Working |
-| A turn finishes | `cheer`, even while other sessions keep working; calm cheers only a turn over a minute |
+| A turn finishes | `cheer`, even while other sessions keep working; calm cheers only a turn over a minute. No cheer while you talk to Boop (§3.3) |
 | A turn fails | No moment; the session goes idle. The brain's reaction is in §6 |
 | You interrupt a turn (Esc) | The session goes idle, with no moment and nothing for the brain. That happens at once if a tool was running, which also clears a request it was waiting on; otherwise when Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §3) |
 
@@ -76,6 +76,7 @@ When "needs you" starts and clears is in [ADAPTERS.md](ADAPTERS.md) §4.
 | More than one needs you | The bubble shows the oldest, with "+N more" |
 | You tap Boop | The press squash only; it stays amber |
 | You answer on the Mac | The agent carries on, and once nothing needs you, Boop blends back to what it was doing |
+| You deny with Esc | Claude sends nothing, so Boop stays amber until Claude reports itself idle about a minute later. A subagent's request stays until your next prompt or the safety net ([ADAPTERS.md](ADAPTERS.md) §4) |
 
 The light stays steady and nothing repeats: one chirp when the bubble
 first shows a request, and another only when it switches to a different
@@ -100,13 +101,13 @@ and click Send ([UX.md](UX.md) §5 has the indicators and permissions).
 4. If Boop won't reply (you asked for quiet, told it off in calm, quiet
    mode is on, something needs you, or the pass failed), or the mic heard
    nothing, the Mac ends `listening` at once with an empty `moment`
-   ([PROTOCOL.md](PROTOCOL.md) §3).
-5. If the Mac's mic can't start, `listening` ends at once after Talk.
-   After BOOT, the device ends it 8 s after you let go.
+   ([PROTOCOL.md](PROTOCOL.md) §3). So does a mic that can't start, even
+   while BOOT is still held.
 
 Until the reply nothing else speaks: no working chatter, and no brain
 mumble about an agent (one waiting its turn is dropped), since any mumble
-would end `listening`. When your words arrive, the brain drops what it was
+would end `listening`. Nor does the Mac send a cheer for a turn that
+finishes meanwhile. When your words arrive, the brain drops what it was
 doing and answers them.
 
 **What Boop makes of it.** The if-else tables' exact phrases are in

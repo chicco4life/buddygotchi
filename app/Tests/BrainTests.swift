@@ -4,7 +4,7 @@ import XCTest
 
 func definitions() throws -> [ToolDefinition] {
     let memory = try MemoryRig()
-    let context = ActionContext(send: { _ in }, today: { "2026-10-14" })
+    let context = ActionContext(send: { _ in })
     return Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 1)), memory: memory.store).map(\.definition)
 }
 

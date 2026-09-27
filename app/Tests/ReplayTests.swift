@@ -17,14 +17,16 @@ final class ReplayTests: XCTestCase {
         }
     }
 
-    func testClaudePermissionShowsAtOnceAndClearsOnApproval() throws {
+    /// ADAPTERS.md §4: Claude has no hook for the moment you approve, so
+    /// "needs you" clears when the approved two-minute build finishes.
+    func testClaudePermissionShowsAtOnceAndClearsWhenTheApprovedToolFinishes() throws {
         let got = try summary("claude-code/synthetic/permission.jsonl", agent: "claude")
         XCTAssertEqual(got, [
             "+0.0s idle - 0",
             "+1.0s working - 0",
             "+3.0s idle claude/jetpack 1",
-            "+10.0s working - 0",
-            "+411.0s idle - 0",
+            "+125.0s working - 0",
+            "+526.0s idle - 0",
         ])
     }
 

@@ -6,7 +6,8 @@ Raw hook payloads, one directory per agent:
   Code 2.1.263 and Codex CLI 0.153.4 on that day.
 - `<agent>/synthetic/`: hand-written sessions in the recorded payloads'
   shape, for cases the recordings don't cover: a Claude permission request
-  with its matching `Notification`, and Codex requests its automatic
+  with its matching `Notification`, approved for a two-minute build, and
+  Codex requests its automatic
   reviewer handles (resolved inside the 2 s grace period) or that wait for
   a person.
 - `e2e/`: the pipeline check's sessions with their checkpoints
