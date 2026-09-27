@@ -28,51 +28,45 @@ enum Snapshots {
             let unbuilt = HookInstaller(home: home, hookPath: home.appendingPathComponent("bin/missing").path)
 
             for dark in [false, true] {
-                let look = dark ? "dark" : "light"
-                for (name, model) in overviews(installer) {
-                    render(PopoverView(model: model, maxHeight: 2000), "overview-\(name)-\(look)", dark: dark, to: out)
+                /// The popover on `pane`, tall enough for all of it.
+                func shot(_ name: String, _ model: AppModel, pane: Pane) {
+                    model.pane = pane
+                    render(PopoverView(model: model, maxHeight: 2000), "\(name)-\(dark ? "dark" : "light")", dark: dark, to: out)
                 }
+                for (name, model) in overviews(installer) { shot("overview-\(name)", model, pane: .overview) }
                 let settings = model(installer, status: status(sessions: [["codex", "landing", "work"]]))
-                settings.pane = .settings
                 settings.remembered = ["Ships on Fridays.", "Likes tests before lunch."]
                 try? installer.install(.claude)
                 settings.refreshHooks()
                 settings.restartAgents = true
-                render(PopoverView(model: settings, maxHeight: 2000), "settings-\(look)", dark: dark, to: out)
+                shot("settings", settings, pane: .settings)
                 try? installer.remove(.claude)
                 let chatty = model(installer, status: status(mode: .chatty))
                 chatty.mode = .chatty
-                chatty.pane = .settings
-                render(PopoverView(model: chatty, maxHeight: 2000), "settings-chatty-\(look)", dark: dark, to: out)
-                let noHook = model(unbuilt, status: status())
-                noHook.pane = .settings
-                render(PopoverView(model: noHook, maxHeight: 2000), "settings-no-hook-\(look)", dark: dark, to: out)
+                shot("settings-chatty", chatty, pane: .settings)
+                shot("settings-no-hook", model(unbuilt, status: status()), pane: .settings)
                 // Normal without Jev's key, the body away and Claude's hooks needing a repair.
                 let offline = model(installer, status: status(connected: false, classifier: "chatty@1"))
-                offline.pane = .settings
                 offline.hooks[.claude] = .outdated
-                render(PopoverView(model: offline, maxHeight: 2000), "settings-offline-nokey-\(look)", dark: dark, to: out)
+                shot("settings-offline-nokey", offline, pane: .settings)
 
                 for step in SetupDraft.Step.allCases {
                     let setup = model(installer, status: nil)
-                    setup.pane = .setup
                     setup.setup.step = step
                     setup.setup.agents = [.claude]
                     if step.rawValue >= SetupDraft.Step.name.rawValue { setup.setup.name = "Mochi" }
-                    render(PopoverView(model: setup), "setup-\(step.rawValue + 1)-\(step)-\(look)", dark: dark, to: out)
+                    shot("setup-\(step.rawValue + 1)-\(step)", setup, pane: .setup)
                 }
                 let cheeky = model(installer, status: nil)
-                cheeky.pane = .setup
                 cheeky.setup.step = .name
                 cheeky.setup.name = "Mochi"
                 cheeky.setup.nature = .cheeky
-                render(PopoverView(model: cheeky), "setup-2-name-cheeky-\(look)", dark: dark, to: out)
+                shot("setup-2-name-cheeky", cheeky, pane: .setup)
                 let setup = model(unbuilt, status: nil)
-                setup.pane = .setup
                 setup.setup.step = .agents
                 setup.setup.agents = [.claude]
                 setup.setup.name = "Mochi"
-                render(PopoverView(model: setup), "setup-3-agents-no-hook-\(look)", dark: dark, to: out)
+                shot("setup-3-agents-no-hook", setup, pane: .setup)
                 renderIcons(dark: dark, to: out)
             }
         } catch {
