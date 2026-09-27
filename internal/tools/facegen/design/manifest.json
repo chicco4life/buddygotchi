@@ -1,0 +1,434 @@
+{
+  "title": "Boop base mood–state SVG review",
+  "revision": 1,
+  "date": "2026-09-27",
+  "status": "Review draft — not approved for variant expansion",
+  "canvas": {
+    "width": 320,
+    "height": 240
+  },
+  "moods": [
+    "happy",
+    "excited",
+    "proud",
+    "curious",
+    "determined",
+    "grumpy",
+    "sad"
+  ],
+  "states": [
+    "idle",
+    "working",
+    "needs_you",
+    "task_complete",
+    "listening",
+    "asleep",
+    "no_app"
+  ],
+  "external_parameters": [
+    "mood",
+    "state"
+  ],
+  "pair_count": 49,
+  "unique_visual_designs": 37,
+  "shared_states": [
+    "asleep",
+    "no_app"
+  ],
+  "scope": "One base design per mood–state pairing. No numbered variation bank, voice generation or device-runtime integration.",
+  "animation": "Self-contained SVG SMIL with discrete integer translations. Request and result entry gestures play once and settle. Breathing, blinking and work loops repeat. Reduced-motion styling uses a static pose.",
+  "assets": [
+    {
+      "mood": "happy",
+      "state": "idle",
+      "file": "svg/happy--idle.svg",
+      "visual_design_id": "happy.idle",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "happy",
+      "state": "working",
+      "file": "svg/happy--working.svg",
+      "visual_design_id": "happy.working",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "happy",
+      "state": "needs_you",
+      "file": "svg/happy--needs_you.svg",
+      "visual_design_id": "happy.needs_you",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "happy",
+      "state": "task_complete",
+      "file": "svg/happy--task_complete.svg",
+      "visual_design_id": "happy.task_complete",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "happy",
+      "state": "listening",
+      "file": "svg/happy--listening.svg",
+      "visual_design_id": "happy.listening",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "happy",
+      "state": "asleep",
+      "file": "svg/happy--asleep.svg",
+      "visual_design_id": "shared.asleep",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "happy",
+      "state": "no_app",
+      "file": "svg/happy--no_app.svg",
+      "visual_design_id": "shared.no_app",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "excited",
+      "state": "idle",
+      "file": "svg/excited--idle.svg",
+      "visual_design_id": "excited.idle",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "excited",
+      "state": "working",
+      "file": "svg/excited--working.svg",
+      "visual_design_id": "excited.working",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "excited",
+      "state": "needs_you",
+      "file": "svg/excited--needs_you.svg",
+      "visual_design_id": "excited.needs_you",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "excited",
+      "state": "task_complete",
+      "file": "svg/excited--task_complete.svg",
+      "visual_design_id": "excited.task_complete",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "excited",
+      "state": "listening",
+      "file": "svg/excited--listening.svg",
+      "visual_design_id": "excited.listening",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "excited",
+      "state": "asleep",
+      "file": "svg/excited--asleep.svg",
+      "visual_design_id": "shared.asleep",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "excited",
+      "state": "no_app",
+      "file": "svg/excited--no_app.svg",
+      "visual_design_id": "shared.no_app",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "proud",
+      "state": "idle",
+      "file": "svg/proud--idle.svg",
+      "visual_design_id": "proud.idle",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "proud",
+      "state": "working",
+      "file": "svg/proud--working.svg",
+      "visual_design_id": "proud.working",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "proud",
+      "state": "needs_you",
+      "file": "svg/proud--needs_you.svg",
+      "visual_design_id": "proud.needs_you",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "proud",
+      "state": "task_complete",
+      "file": "svg/proud--task_complete.svg",
+      "visual_design_id": "proud.task_complete",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "proud",
+      "state": "listening",
+      "file": "svg/proud--listening.svg",
+      "visual_design_id": "proud.listening",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "proud",
+      "state": "asleep",
+      "file": "svg/proud--asleep.svg",
+      "visual_design_id": "shared.asleep",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "proud",
+      "state": "no_app",
+      "file": "svg/proud--no_app.svg",
+      "visual_design_id": "shared.no_app",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "curious",
+      "state": "idle",
+      "file": "svg/curious--idle.svg",
+      "visual_design_id": "curious.idle",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "curious",
+      "state": "working",
+      "file": "svg/curious--working.svg",
+      "visual_design_id": "curious.working",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "curious",
+      "state": "needs_you",
+      "file": "svg/curious--needs_you.svg",
+      "visual_design_id": "curious.needs_you",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "curious",
+      "state": "task_complete",
+      "file": "svg/curious--task_complete.svg",
+      "visual_design_id": "curious.task_complete",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "curious",
+      "state": "listening",
+      "file": "svg/curious--listening.svg",
+      "visual_design_id": "curious.listening",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "curious",
+      "state": "asleep",
+      "file": "svg/curious--asleep.svg",
+      "visual_design_id": "shared.asleep",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "curious",
+      "state": "no_app",
+      "file": "svg/curious--no_app.svg",
+      "visual_design_id": "shared.no_app",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "determined",
+      "state": "idle",
+      "file": "svg/determined--idle.svg",
+      "visual_design_id": "determined.idle",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "determined",
+      "state": "working",
+      "file": "svg/determined--working.svg",
+      "visual_design_id": "determined.working",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "determined",
+      "state": "needs_you",
+      "file": "svg/determined--needs_you.svg",
+      "visual_design_id": "determined.needs_you",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "determined",
+      "state": "task_complete",
+      "file": "svg/determined--task_complete.svg",
+      "visual_design_id": "determined.task_complete",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "determined",
+      "state": "listening",
+      "file": "svg/determined--listening.svg",
+      "visual_design_id": "determined.listening",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "determined",
+      "state": "asleep",
+      "file": "svg/determined--asleep.svg",
+      "visual_design_id": "shared.asleep",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "determined",
+      "state": "no_app",
+      "file": "svg/determined--no_app.svg",
+      "visual_design_id": "shared.no_app",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "grumpy",
+      "state": "idle",
+      "file": "svg/grumpy--idle.svg",
+      "visual_design_id": "grumpy.idle",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "grumpy",
+      "state": "working",
+      "file": "svg/grumpy--working.svg",
+      "visual_design_id": "grumpy.working",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "grumpy",
+      "state": "needs_you",
+      "file": "svg/grumpy--needs_you.svg",
+      "visual_design_id": "grumpy.needs_you",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "grumpy",
+      "state": "task_complete",
+      "file": "svg/grumpy--task_complete.svg",
+      "visual_design_id": "grumpy.task_complete",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "grumpy",
+      "state": "listening",
+      "file": "svg/grumpy--listening.svg",
+      "visual_design_id": "grumpy.listening",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "grumpy",
+      "state": "asleep",
+      "file": "svg/grumpy--asleep.svg",
+      "visual_design_id": "shared.asleep",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "grumpy",
+      "state": "no_app",
+      "file": "svg/grumpy--no_app.svg",
+      "visual_design_id": "shared.no_app",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "sad",
+      "state": "idle",
+      "file": "svg/sad--idle.svg",
+      "visual_design_id": "sad.idle",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "sad",
+      "state": "working",
+      "file": "svg/sad--working.svg",
+      "visual_design_id": "sad.working",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "sad",
+      "state": "needs_you",
+      "file": "svg/sad--needs_you.svg",
+      "visual_design_id": "sad.needs_you",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "sad",
+      "state": "task_complete",
+      "file": "svg/sad--task_complete.svg",
+      "visual_design_id": "sad.task_complete",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "sad",
+      "state": "listening",
+      "file": "svg/sad--listening.svg",
+      "visual_design_id": "sad.listening",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "sad",
+      "state": "asleep",
+      "file": "svg/sad--asleep.svg",
+      "visual_design_id": "shared.asleep",
+      "voice": "silent",
+      "approval": "pending"
+    },
+    {
+      "mood": "sad",
+      "state": "no_app",
+      "file": "svg/sad--no_app.svg",
+      "visual_design_id": "shared.no_app",
+      "voice": "silent",
+      "approval": "pending"
+    }
+  ]
+}

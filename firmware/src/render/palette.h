@@ -31,6 +31,11 @@ constexpr Rgb kDimRgb = {74, 68, 62};      // faint text, dividers, rings
 constexpr Rgb kRoseRgb = {255, 92, 110};   // the heart: a stronger cheek coral
 constexpr Rgb kSkyRgb = {120, 176, 235};   // the sweat drop: a soft sky
 constexpr Rgb kBlushRgb = {236, 120, 124};  // the cheeks
+// The mood designs' props (render/scene.h): the "needs you" sign's softer
+// amber, and the keyboard's and the cards' two greys.
+constexpr Rgb kSignRgb = {244, 188, 80};
+constexpr Rgb kPropDimRgb = {104, 104, 94};
+constexpr Rgb kPropRgb = {169, 169, 155};
 
 // Fixed entries: the bring-up pattern's colours.
 enum Color : uint8_t {
@@ -54,6 +59,9 @@ enum Ink : uint8_t {
   kInkRose,  // the heart
   kInkSky,   // the sweat drop
   kInkBlush, // the cheeks
+  kInkSign,     // the mood designs' props: the sign,
+  kInkPropDim,  // the keyboard's frame and keys,
+  kInkProp,     // and the lighter grey of the cards
   kInkCount,
 };
 
@@ -82,6 +90,9 @@ constexpr Rgb inkRgb(int ink) {
   if (ink == kInkRose) return kRoseRgb;
   if (ink == kInkSky) return kSkyRgb;
   if (ink == kInkBlush) return kBlushRgb;
+  if (ink == kInkSign) return kSignRgb;
+  if (ink == kInkPropDim) return kPropDimRgb;
+  if (ink == kInkProp) return kPropRgb;
   return kDimRgb;
 }
 

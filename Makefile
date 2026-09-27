@@ -1,5 +1,5 @@
 # Boop v1. Run from the repo root. See README.md and plan/VERIFICATION.md.
-.PHONY: build run debug test eval tools fw flash sim fw-test e2e tools-test clean
+.PHONY: build run debug test eval tools faces fw flash sim fw-test e2e tools-test clean
 
 PIO := firmware/tools/pio.sh
 
@@ -47,6 +47,12 @@ internal/tools/.venv/.ok: internal/tools/requirements.txt
 	internal/tools/.venv/bin/pip install --quiet --upgrade pip
 	internal/tools/.venv/bin/pip install --quiet -r internal/tools/requirements.txt
 	touch $@
+
+# The device's faces, firmware/assets/faces.h, from the mood designs in
+# internal/tools/facegen/design/svg/, checked against Chrome's drawing of
+# them first. Rerun it when the designs change.
+faces: tools
+	internal/tools/.venv/bin/python internal/tools/facegen/facegen.py --check
 
 # Firmware for the board (env cyd24).
 fw:

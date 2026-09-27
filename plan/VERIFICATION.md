@@ -43,7 +43,8 @@ starts, so a typo can't launch the menu-bar app or run the whole eval.
 | `make eval` | The harness eval scenarios against Jev, 3 runs each (L5, [EVALS.md](EVALS.md)); needs `BOOP_JEV_KEY` and fails without it |
 | `make run` / `make debug` | The Mac app with Bluetooth, for the owner; `debug` adds `--debug` |
 | `make fw` / `make flash` | Builds the firmware; `flash` also uploads it over USB (`BOOP_PORT` picks the port) |
-| `make fw-test` | Firmware unit tests on the Mac (`pio test -e native`) |
+| `make fw-test` | Firmware unit tests on the Mac (`pio test -e native`), among them the faces' player drawing every sampled moment of every mood design as `facegen` does |
+| `make faces` | Regenerates the device's faces (`firmware/assets/faces.h`) and the frames `fw-test` checks, from the mood designs in `internal/tools/facegen/design/svg/`. It first draws each design at a dozen moments in Chrome and fails unless `facegen`'s own drawing matches it pixel for pixel. Needs Google Chrome |
 | `make sim` | Every scenario in the simulator, against the goldens (L1) |
 | `make e2e` | The pipeline check (L4) |
 | `make tools` | `internal/tools/.venv` with pyserial and Pillow. `internal/tools/boopctl` makes it on first run; this refreshes it |
