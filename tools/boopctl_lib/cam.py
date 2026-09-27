@@ -39,7 +39,7 @@ def record_failed(stderr: str) -> DeviceError:
     return DeviceError(f"recording failed: {why}")
 
 
-def still(name: str, seconds: float = 3.0, at: float = 1.0, camera: str | None = None) -> Image.Image:
+def still(name: str, seconds: float = 3.0, at: float = 1.0) -> Image.Image:
     """Records a short clip and returns one full-resolution frame from it.
 
     The camera takes about a second to start, so a 3 s request yields about
@@ -48,7 +48,7 @@ def still(name: str, seconds: float = 3.0, at: float = 1.0, camera: str | None =
     clip, frames = WORK / f"{name}-clip", WORK / f"{name}-frames"
     for d in (clip, frames):
         shutil.rmtree(d, ignore_errors=True)
-    run = [str(WEBCAM), "record", "--camera", camera or CAMERA, "--seconds", str(int(seconds)), "--out", str(clip)]
+    run = [str(WEBCAM), "record", "--camera", CAMERA, "--seconds", str(int(seconds)), "--out", str(clip)]
     recorded = subprocess.run(run, capture_output=True, text=True, timeout=60)
     if recorded.returncode:
         raise record_failed(recorded.stderr + recorded.stdout)
