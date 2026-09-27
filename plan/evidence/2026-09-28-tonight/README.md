@@ -6,7 +6,8 @@ is pushed.
 
 The short version: Boop should feel calmer and more expressive today.
 Its mood now changes only for something that lasts (16 times over a scripted
-working day, down from 52), and nearly every finish gets a face that fits.
+working day, down from 52), and everything that stands out gets a strong
+face that fits.
 Behind that, a lot of small races between hooks were fixed, so the screen
 and what Boop remembers agree. The board runs `main`'s firmware and passes
 the pipeline check, and the Jev evals pass 14 of 14 in all 3 runs.
@@ -70,10 +71,16 @@ a key, `workday.py run --brain scripted` checks the plumbing only.
   through determined, grumpy and proud and back. A long clean finish
   should make it excited. If it changes on a routine turn, note the time;
   `make day` lists every change and what caused it.
-- **Faces on most finishes.** A small happy or excited face with "yay" on
-  turns of 15 s or more, determined or grumpy at failures, proud at a
-  fix, sad when a long turn fails. You may find "yay" too frequent: it was
-  the word in 80% of the scripted day's reactions.
+- **Strong faces where they fit.** Determined or grumpy at failures,
+  proud at a fix, excited at a clean win, sad when a long turn fails,
+  curious with "hmm" at a stopped turn. A quick routine finish gets a
+  face only with something to show (40 s of work or checks passing), so
+  about a third of them do. The second tuning (round 2,
+  [tune2](tune2/README.md), [check](tune2-check/README.md)) took happy
+  from 67% to about a third of the faces and "yay" from 80% to about
+  35% of the reactions with a word. Watch for the same excited
+  "…tests!" over and over on a run of quick passing turns: it's an open
+  item.
 - **A first poke streak makes Boop grumpy.** It's known, and text alone
   couldn't fix it (below).
 - **Dropped passes.** When Jev answers after 1.25 s, `make debug` prints a

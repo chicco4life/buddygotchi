@@ -30,7 +30,7 @@ milestone's evidence says which ones ran.
 | | Firmware hardening: ASan, UBSan and TSan, a frame-by-frame motion sweep, a 35-minute soak with reactions, `perf --motion`'s rule, and `loops`, `vol` and a mumble's numbers held to their ranges whatever is sent ([DEVICE.md](DEVICE.md) §6) | Done; the webcam check (L3) waits for the owner | [firmware](evidence/2026-09-28-tonight/firmware/README.md), [check](evidence/2026-09-28-tonight/firmware-check/README.md) |
 | | A day in the logs: debug mode keeps the last 10 launches' `debug.jsonl`, and `boopctl day` (`make day`) sums a day up by the hour ([harness/HARNESS.md](harness/HARNESS.md) §9) | Done | [daylog](evidence/2026-09-28-tonight/daylog/README.md), [check](evidence/2026-09-28-tonight/daylog-check/README.md) |
 | | `state` without `idle` and `wait` ([PROTOCOL.md](PROTOCOL.md) §3) | Done | [tidy](evidence/2026-09-28-tonight/tidy/README.md) |
-| | Tuned for a working day: the mood changes only for something lasting (16 a day, from 52–53), reactions come with a face that fits, and `workday.py` replays a scripted day ([EVALS.md](EVALS.md) §5) | Done; a first poke streak still makes Boop grumpy (§3) | [tune](evidence/2026-09-28-tonight/tune/README.md), [check](evidence/2026-09-28-tonight/tune-check/README.md) |
+| | Tuned for a working day: the mood changes only for something lasting (16 a day, from 52–53), reactions come with a face that fits, and `workday.py` replays a scripted day ([EVALS.md](EVALS.md) §5) | Done; a first poke streak still makes Boop grumpy (§3). A second pass (tune2) made the faces vivid: happy went from 67% to 33–35% of a day's faces, "yay" from 83% to 34–38% of worded reactions, and a quick routine finish gets a face only with something to show, at 0.44–0.52 reactions a finished turn (0.70 before) and still 16 mood changes a day; Jev repeating a reaction once it ended is open (§3) | [tune](evidence/2026-09-28-tonight/tune/README.md), [check](evidence/2026-09-28-tonight/tune-check/README.md), [tune2](evidence/2026-09-28-tonight/tune2/README.md), [its check](evidence/2026-09-28-tonight/tune2-check/README.md) |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks
@@ -113,8 +113,11 @@ faces in 9, 10 and 12, as they now say.
 
 12. **Paste Jev's key in Settings, then work normally for a while.** The
     Personality card loses its "Without a Jev API key, … only cheers,
-    wiggles and chatters by rule" line. Routine
-    turns get a small face; a finish of 10 minutes or more gets an
+    wiggles and chatters by rule" line. A routine finish gets a face
+    only with something to show: a few minutes' turn an excited "yay",
+    a quick one with its checks passing an excited "…tests!", one of
+    40 s or more a small happy face with no word, and the rest nothing.
+    A stopped turn gets a curious "…hmm". A finish of 10 minutes or more gets an
     excited face and "yay", held three times, on top of the cheer (proud
     if it fought through failures), and Boop turns excited
     ([harness/DECISIONS.md](harness/DECISIONS.md)).
@@ -276,10 +279,11 @@ fixed. Pick one up by writing it into its spec first.
   `stop_hook_active`, and ending such a turn with no second cheer, would
   fix it; it needs a spec decision
   ([evidence](evidence/2026-09-28-tonight/hunt2/README.md)).
-- **Curious has no way in.** No mood file leaves for curious, and in the
-  working day Jev never picked its face either, since a turn start gets
-  nothing. It needs a reason (mixed results across threads, a turn after
-  a long break) or to go.
+- **Curious has no way in as a mood.** No mood file leaves for curious.
+  Its face now shows at a stopped turn, with "…hmm", about once in the
+  scripted day ([evidence](evidence/2026-09-28-tonight/tune2/README.md)),
+  but the mood needs a reason (mixed results across threads, a turn
+  after a long break) or to go.
 - **Jev makes a reaction again once it has ended.** The guide says not
   to repeat what Boop just did, but once a reaction has played out, Jev
   makes the same one when the next line calls for it. In the scripted
