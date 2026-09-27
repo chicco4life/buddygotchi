@@ -114,10 +114,10 @@ public struct ActionResult: Equatable, Sendable {
 }
 
 /// A started action's end, still to come (harness/HARNESS.md §4): the
-/// action keeps it and finishes it once it knows how things went. Only the
-/// first `finish` counts, and one that comes before the harness has
-/// recorded the result is kept until it has. Touched only on the harness's
-/// queue.
+/// action, or whatever it hands this to, finishes it once it knows how
+/// things went. Only the first `finish` counts, and one that comes before
+/// the harness has recorded the result is kept until it has. Touched only
+/// on the harness's queue.
 public final class Pending: @unchecked Sendable {
     public enum End: Equatable, Sendable {
         case done

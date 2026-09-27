@@ -582,12 +582,21 @@ final class RuntimeTests: XCTestCase {
     /// has played. With a device connected, it's done on the first tick
     /// once the app expects the moment to have ended; with none, it
     /// didn't happen, and neither did one playing when the device drops.
+    /// The device connects and drops through the transport, as it does in
+    /// the app.
     func testAReactionEndsWhenItsMomentHasPlayed() throws {
         let transport = FakeTransport()
         var options = try options(transport)
         let clock = VirtualClock(harnessT0)
         options.clock = { clock.now }
         let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        /// The transport says the device connected or dropped; `home` hears it.
+        func connection(_ up: Bool) {
+            transport.onConnection?(up)
+            runtime.home.sync {}
+        }
         /// A forced reaction; its `action` entry's seq.
         func react() throws -> Int {
             try runtime.home.sync {
@@ -610,10 +619,11 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) }, "sent all the same, and dropped")
 
         clock.now += 10_000
-        runtime.home.sync { runtime.connection(true) }
+        connection(true)
         let played = try react()
         let until = try XCTUnwrap(runtime.home.sync { runtime.moments.playing.first?.until })
         XCTAssertGreaterThan(until, clock.now)
+        XCTAssertEqual(until, runtime.home.sync { runtime.moments.schedule.lineUntil }, "sent, plus its length")
         clock.now = until - 1
         runtime.home.sync { runtime.tick() }
         XCTAssertNil(end(of: played), "still playing")
@@ -624,7 +634,7 @@ final class RuntimeTests: XCTestCase {
 
         let cut = try react()
         XCTAssertNil(end(of: cut), "playing")
-        runtime.home.sync { runtime.connection(false) }
+        connection(false)
         XCTAssertEqual(end(of: cut), .failed("the device disconnected"))
         XCTAssertTrue(runtime.home.sync { runtime.moments.playing.isEmpty })
     }

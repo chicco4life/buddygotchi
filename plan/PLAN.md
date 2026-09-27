@@ -176,6 +176,12 @@ fixed. Pick one up by writing it into its spec first.
   `react` lines with no `"pending":true` and no `settle` lines;
   `test_dash.py` checks those with lines of its own. The next recording
   of the fixture ([DASHBOARD.md](DASHBOARD.md) §7) brings them in.
+- **A settle recorded while Jev answers spoils an exact rebuild** of
+  that pass's state from `debug.jsonl`
+  ([harness/HARNESS.md](harness/HARNESS.md) §5.3). Since `react` waits
+  on its moment, one ending on the tick during a pass does it. Logging
+  on the pass the last `seq` its state saw, or holding settles while a
+  pass runs, would make it exact again.
 - **Determined has no voice.** Its reactions mumble in the temporary
   default, happy's, while the audio is tuned ([VOICE.md](VOICE.md) §4).
 - **Most of Voice's words can't be picked.** The `react` action offers

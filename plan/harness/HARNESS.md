@@ -151,11 +151,12 @@ final class Pending {
   Jev, because Boop didn't do anything.
 - **A started result** (`.started(message, pending)`) is for something
   that plays out after `run` returns, such as a moment on the device. The
-  action keeps the `Pending` and finishes it when it knows how things
-  went: `done`, or `failed` with why it never happened. Until then HISTORY
-  shows its line as in progress (§5.3). An end that comes before the
-  harness has recorded the result is kept and recorded right after it.
-  A result that's done, failed or `nil` has no end to wait for.
+  action, or whatever it hands the `Pending` to (`react` hands it on with
+  its moment, [DECISIONS.md](DECISIONS.md) §5), finishes it when it knows
+  how things went: `done`, or `failed` with why it never happened. Until
+  then HISTORY shows its line as in progress (§5.3). An end that comes
+  before the harness has recorded the result is kept and recorded right
+  after it. A result that's done, failed or `nil` has no end to wait for.
 
 **An action owns** its questions and their wording, how it reads its
 answers (which choice means "do nothing", any probability floor), its own
@@ -225,9 +226,12 @@ mark is for the log only and never reaches the state. Real entries are in
 
 `StateText` builds the state's HISTORY and NOW for each pass. It's a
 pure function of the entries, the status line and the clock, so a logged
-pass can be rebuilt exactly from `debug.jsonl`, settles included. It
-places event lines and action messages and never writes them, apart from
-marking a started action's progress (step 3).
+pass can be rebuilt exactly from `debug.jsonl`, settles included, unless
+a settle was recorded while Jev answered: the log has it before the
+pass, but the state was built when the pass started, without it
+([PLAN.md](../PLAN.md) §3). It places event lines and action messages
+and never writes them, apart from marking a started action's progress
+(step 3).
 
 1. **NOW** is the event the pass is for.
 2. **HISTORY's events** are those before NOW, from the last **10
