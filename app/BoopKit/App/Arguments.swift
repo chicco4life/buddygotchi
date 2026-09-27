@@ -47,4 +47,22 @@ public struct Arguments: Sendable {
 
     /// Whether a flag was given.
     public func has(_ flag: String) -> Bool { flags.contains(flag) }
+
+    /// A command's arguments, as every command takes them: --help prints
+    /// `usage` and exits 0, and a problem prints `command:`, the problem and
+    /// `usage` to stderr and exits 2.
+    public static func parse(_ args: [String], options: Set<String> = [], flags: Set<String> = [], words: Int = 0,
+                             command: String, usage: String) -> Arguments {
+        do {
+            let parsed = try Arguments(args, options: options, flags: flags, words: words)
+            if parsed.help {
+                print(usage)
+                exit(0)
+            }
+            return parsed
+        } catch {
+            FileHandle.standardError.write(Data("\(command): \(error)\n\(usage)\n".utf8))
+            exit(2)
+        }
+    }
 }

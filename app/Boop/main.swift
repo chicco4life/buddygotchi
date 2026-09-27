@@ -108,16 +108,7 @@ enum Launch {
 
 let raw = Array(CommandLine.arguments.dropFirst())
 let launch: Launch = raw.contains("--headless") ? .headless : raw.contains("--snapshots") ? .snapshots : .menuBar
-let args: Arguments
-do {
-    args = try Arguments(raw, options: launch.options, flags: launch.flags)
-} catch {
-    fail("boop: \(error)\n\(usage)")
-}
-if args.help {
-    print(usage)
-    exit(0)
-}
+let args = Arguments.parse(raw, options: launch.options, flags: launch.flags, command: "boop", usage: usage)
 switch launch {
 case .headless: Headless.run(args)
 case .snapshots: MainActor.assumeIsolated { Snapshots.run(args) }

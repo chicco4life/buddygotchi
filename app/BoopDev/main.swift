@@ -72,16 +72,7 @@ func fail(_ message: String) -> Never {
 func arguments(_ command: String, _ args: [String], options: Set<String> = [], flags: Set<String> = [],
                words: Int = 0) -> Arguments {
     let text = "usage:\n" + indented(usages.first { $0.command == command }?.text ?? "") + "\n" + version
-    do {
-        let parsed = try Arguments(args, options: options, flags: flags, words: words)
-        if parsed.help {
-            print(text)
-            exit(0)
-        }
-        return parsed
-    } catch {
-        fail("boopdev \(command): \(error)\n\(text)")
-    }
+    return Arguments.parse(args, options: options, flags: flags, words: words, command: "boopdev \(command)", usage: text)
 }
 
 func replay(_ raw: [String]) {
