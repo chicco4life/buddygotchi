@@ -664,11 +664,14 @@ static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
   const uint32_t loop = render::loopMs(render::Mood::kHappy, render::SceneState::kTaskComplete);
   auto left = [](uint32_t ms) { return "\"anim\":\"cheer\",\"left_ms\":" + std::to_string(ms) + "}"; };
   TEST_ASSERT_TRUE(has(r.usb.text, left(loop).c_str()));
-  // `loops` says how many, 1–6; missing, 0 or not a number reads as 1.
+  // `loops` says how many, held to 1–6 (PROTOCOL.md §3): missing, 0 or
+  // not a number reads as 1, one too big for an int as 6, and a fraction
+  // as its whole loops.
   const struct {
     const char* loops;
     uint32_t times;
-  } cases[] = {{"3", 3}, {"9", 6}, {"0", 1}, {"-2", 1}, {"\"many\"", 1}};
+  } cases[] = {{"3", 3}, {"9", 6}, {"0", 1}, {"-2", 1}, {"\"many\"", 1}, {"true", 1}, {"99999999999", 6},
+               {"1e10", 6}, {"-1e10", 1}, {"2.5", 2}, {"6.9", 6}, {"0.5", 1}};
   for (const auto& c : cases) {
     r.usbLine((std::string("{\"t\":\"moment\",\"anim\":\"cheer\",\"loops\":") + c.loops + "}").c_str());
     r.usb.text.clear();

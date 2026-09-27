@@ -44,6 +44,15 @@ bool parseHex(const char* s, uint32_t& out) {
 
 void sinkToOut(void* ctx, const char* text, size_t n) { static_cast<Out*>(ctx)->write(text, n); }
 
+// A moment's `loops`, held to 1–kMaxLoops (PROTOCOL.md §3): missing or not
+// a number reads as 1, a number past either end as that end, even one too
+// big for an int, and a fraction as its whole loops.
+int loopsFrom(JsonVariantConst v) {
+  if (!v.is<double>() || v.is<bool>()) return 1;
+  double n = v.as<double>();
+  return n >= Behaviour::kMaxLoops ? Behaviour::kMaxLoops : n < 1 ? 1 : int(n);
+}
+
 }  // namespace
 
 Device::Device(Hal& hal, uint8_t* pixels, bool frozenClock) : hal_(hal), canvas_(pixels) {
@@ -136,7 +145,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     MomentIn mo;
     mo.anim = render::animFromName(doc["anim"]);  // none, or unknown: only the mumble
     mo.expr = render::parseMood(doc["mood"], mo.mood);  // unknown or missing: the state's mood
-    mo.loops = render::clamp(doc["loops"] | 1, 1, Behaviour::kMaxLoops);  // missing or not a number: once
+    mo.loops = loopsFrom(doc["loops"]);
     voice::Line line;
     JsonObjectConst say = doc["say"];
     if (say) {
