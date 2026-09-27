@@ -233,7 +233,10 @@ def summarise(launches: list[Launch], date: str) -> Day:
                     day.forced += 1
                     continue
                 h.passes += 1
-                day.latencies.append(body.get("latency_ms", 0))
+                if not body.get("dropped"):
+                    # A dropped pass's latency is the deadline's, or 0 for
+                    # one that never asked: it says nothing of the brain.
+                    day.latencies.append(body.get("latency_ms", 0))
                 if body.get("dropped"):
                     h.dropped += 1
                     day.drops.append(Miss(t, body["brain"], body["dropped"]))
@@ -359,8 +362,9 @@ def render(day: Day) -> str:
     out.append("chatter is the rules' working chatter; chirps are states bringing a new needs-you or a different one.")
 
     out.append("")
-    passes = len(day.latencies)
-    lat = f" (median {statistics.median(day.latencies):.0f} ms, slowest {max(day.latencies)} ms)" if passes else ""
+    passes = day.total().passes
+    lat = f" (answered in a median {statistics.median(day.latencies):.0f} ms, the slowest {max(day.latencies)} ms)" \
+        if day.latencies else ""
     forced = "none forced from the dashboard" if not day.forced else \
         f"and {day.forced} forced from the dashboard, asking for {day.forced_reacts} " \
         + ("reaction" if day.forced_reacts == 1 else "reactions")

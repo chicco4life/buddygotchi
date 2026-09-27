@@ -257,7 +257,7 @@ class SmallDayTests(unittest.TestCase):
         self.assertIn("  1× something needs you (forced): 09:30", text)
         self.assertIn("  09:10  claude · a  30 min (still up when the log ends)", text)
         self.assertIn("Needs you: 2 times, 35 min in all; cleared in 5 min", text)
-        self.assertIn("Brain: 2 passes (median 700 ms, slowest 700 ms), 0 dropped, 0 chose no reaction; "
+        self.assertIn("Brain: 2 passes (answered in a median 700 ms, the slowest 700 ms), 0 dropped, 0 chose no reaction; "
                       "and 1 forced from the dashboard, asking for 1 reaction", text)
 
 
@@ -319,7 +319,7 @@ class RuleTests(unittest.TestCase):
         )], "2026-09-28")
         self.assertEqual((d.total().passes, d.total().dropped, d.quiet, d.skipped), (2, 1, 1, 1))
         text = day.render(d)
-        self.assertIn("Brain: 2 passes (median 4450 ms, slowest 8000 ms), 1 dropped, 1 chose no reaction; "
+        self.assertIn("Brain: 2 passes (answered in a median 900 ms, the slowest 900 ms), 1 dropped, 1 chose no reaction; "
                       "none forced from the dashboard", text.splitlines())
         self.assertIn("  dropped 1×: timed out after 8000 ms", text)
         self.assertIn("  1 events woke it but got no pass", text)
