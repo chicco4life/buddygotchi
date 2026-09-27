@@ -181,13 +181,6 @@ fixed. Pick one up by writing it into its spec first.
   on its moment, one the device says ended during a pass does it. Logging
   on the pass the last `seq` its state saw, or holding settles while a
   pass runs, would make it exact again.
-- **`make -C internal e2e` fails one expectation it can't meet.**
-  `internal/app/Tests/Fixtures/hooks/e2e/expect.json` wants an event
-  with "claude's deploy failed on", but the Claude fixture's deploy is a
-  `PreToolUse` followed by `StopFailure`, with no failed tool result, so
-  the core records "failed (rate limit)" instead. Every checkpoint
-  passes. Drop the expectation, or give the fixture a failed deploy
-  result ([evidence](evidence/2026-09-28-tonight/loops-pending/README.md)).
 - **Some Claude hook orders are guessed, not recorded.** The race hunt
   ([evidence](evidence/2026-09-28-tonight/core/README.md)) left three
   cases open for a recording to settle: whether a message queued
