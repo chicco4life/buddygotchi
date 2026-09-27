@@ -65,7 +65,7 @@ void Device::reset() {
   pattern_ = false;
   patternFill_ = -1;
   targetX_ = targetY_ = -1;
-  injPress_ = injTouch_ = bootInjected_ = touchDown_ = touchPanel_ = false;
+  injPress_ = injTouch_ = bootInjected_ = touchDown_ = touchInjected_ = false;
   boot_ = ButtonGesture{};
   last_ = LastInput{};
   drawnT_ = 0;
@@ -306,8 +306,8 @@ void Device::readInputs(uint32_t t) {
   int x = 0, y = 0;
   bool contact = injTouch_ ? (x = injX_, y = injY_, true) : hal_.touch(x, y);
   uint32_t real = hal_.realMs();
-  if (contact) touchSeenReal_ = real, touchPanel_ = !injTouch_;
-  bool touching = contact || (touchDown_ && touchPanel_ && real - touchSeenReal_ < kTouchReleaseMs);
+  if (contact) touchSeenReal_ = real, touchInjected_ = injTouch_;
+  bool touching = contact || (touchDown_ && !touchInjected_ && real - touchSeenReal_ < kTouchReleaseMs);
   bool faced = screenAt(t) != Screen::kPattern;
   if (touching && !touchDown_) {
     input("touch", t, x, y);
@@ -318,7 +318,7 @@ void Device::readInputs(uint32_t t) {
     if (faced) {
       b_.tap(t);
       input("tap", t);
-      emit("tap", !touchPanel_);
+      emit("tap", touchInjected_);
     }
   }
   if (touching != touchDown_) dirty_ = true;

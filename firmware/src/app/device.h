@@ -181,10 +181,9 @@ class Device {
   uint32_t injTouchUntil_ = 0;
   int injX_ = 0, injY_ = 0;
   bool bootInjected_ = false;  // the BOOT press in progress is dbg.press's
-  // The touch in progress: from the panel (not injected), last in contact
-  // at real time touchSeenReal_.
+  // The touch in progress, last in contact at real time touchSeenReal_.
   bool touchDown_ = false;
-  bool touchPanel_ = false;
+  bool touchInjected_ = false;  // it's dbg.touch's, not the panel's
   uint32_t touchSeenReal_ = 0;
 
   // The line playing (its moment's number), and the last sound cue handled
