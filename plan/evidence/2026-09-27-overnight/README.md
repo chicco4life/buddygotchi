@@ -175,12 +175,11 @@ identical frames.
 
 ## Left for you
 
-- **Decisions I didn't make** (all small; each would be one commit):
-  treating "hush", "stop talking" and "keep it down" as asking for quiet (they
-  count as telling Boop off today); letting calm reply when told off; one
-  working pace instead of a faster one at 3+ busy sessions; dropping chatty's
-  second try for a missing word; sending "agent started" to the brain only in
-  chatty.
+- **Decided the morning after**, each its own commit: "hush", "stop
+  talking" and "keep it down" ask for quiet (`1cce7e6`); calm gives the sad
+  mumble when told off (`e43e0b8`); one working pace however many agents
+  are busy (`cc0b813`); chatty asks Apple's model once, with the prompt
+  pushing harder for a word (every mumble in the evals still got one).
 - **Jev live.** Run the command above; normal's expectations are what Jev
   should do.
 - **Open items** are in [PLAN.md](../../PLAN.md) §3, including a denied
