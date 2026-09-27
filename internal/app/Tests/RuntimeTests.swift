@@ -919,6 +919,14 @@ final class RuntimeTests: XCTestCase {
         transport.onLine?(#"{"t":"input","k":"tap"}"#)
         runtime.home.sync {}
         XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.cheerUntil }, clock.now, "the wiggle replaced it")
+        clock.now += 1000
+        runtime.home.sync { runtime.run([.moment(anim: "cheer", loops: 1)]) }
+        clock.now += 300
+        let asking = StateSnapshot(base: "idle", mood: "happy", attn: .init(agent: "claude", project: "x", more: 0, id: 1),
+                                   busy: 0, idle: 0, wait: 1, vol: 6)
+        runtime.home.sync { runtime.run([.state(asking)]) }
+        XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.cheerUntil }, clock.now, "needs you stopped it")
+        runtime.home.sync { runtime.run([.state(sampleSnapshot())]) }
 
         let long = DeviceMoment(say: line, mood: "proud", loops: 2)
         let waiting = DeviceMoment(say: line, mood: "happy")
