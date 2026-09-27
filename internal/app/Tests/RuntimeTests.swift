@@ -181,7 +181,9 @@ final class RuntimeTests: XCTestCase {
         let pass = try XCTUnwrap(printed.first { $0.hasPrefix("  pass scripted") })
         XCTAssertTrue(pass.contains("react excited 1.00"), pass)
         XCTAssertTrue(pass.contains("    │ You are the mind of Boop"), "the first state in full")
-        XCTAssertTrue(printed.contains("  ✓ react: Boop made an excited face and mumbled \"…yay!\""), "\(printed)")
+        XCTAssertTrue(printed.contains("  … react: Boop made an excited face and mumbled \"…yay!\""), "started: \(printed)")
+        XCTAssertTrue(printed.contains { $0.hasPrefix("  ✗ react (") && $0.hasSuffix(") didn't happen: no device connected") },
+                      "the fake device never connected: \(printed)")
         let p = try XCTUnwrap(debugLines().compactMap { $0["pass"] as? [String: Any] }.first)
         XCTAssertTrue((p["state"] as? String)?.hasPrefix("You are the mind of Boop") == true)
         XCTAssertEqual(p["questions"] as? [String], ["mood", "react", "word.feeling", "word.about"])
@@ -546,6 +548,85 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(MomentSchedule.maxWaitMs, 5000)
         XCTAssertEqual(due.dropped, [mumble], "5.8 s is past 5 s")
         XCTAssertNil(due.next)
+    }
+
+    /// harness/DECISIONS.md §5: a brain moment's handle goes through the
+    /// schedule with it. One dropped for waiting over 5 s ends there as
+    /// failed, `waited too long`; one whose turn comes is handed on with
+    /// its handle, for whoever plays it to end.
+    func testADroppedMomentDidntHappen() {
+        let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
+        let mumble = DeviceMoment(say: line, mood: "proud")
+        let chatter = DeviceMoment(say: line)  // 1920 ms
+        var ends: [String: Pending.End] = [:]
+        func handle(_ name: String) -> Pending {
+            let pending = Pending()
+            pending.bind { ends[name] = $0 }
+            return pending
+        }
+        let late = handle("late"), onTime = handle("on time")
+        var schedule = MomentSchedule()
+        schedule.rule(chatter, now: 0)
+        schedule.brain(mumble, late, now: 0)
+        schedule.brain(mumble, onTime, now: 1000)
+        schedule.rule(chatter, now: 1900)
+        schedule.rule(chatter, now: 3800)
+        let due = schedule.due(now: 5800)
+        XCTAssertEqual(due.dropped, [mumble], "5.8 s is past 5 s")
+        XCTAssertEqual(ends, ["late": .failed("waited too long")])
+        XCTAssertEqual(due.play, mumble, "4.8 s isn't")
+        XCTAssertTrue(due.pending === onTime, "handed on, still open")
+    }
+
+    /// harness/DECISIONS.md §5: a reaction is in progress until its moment
+    /// has played. With a device connected, it's done on the first tick
+    /// once the app expects the moment to have ended; with none, it
+    /// didn't happen, and neither did one playing when the device drops.
+    func testAReactionEndsWhenItsMomentHasPlayed() throws {
+        let transport = FakeTransport()
+        var options = try options(transport)
+        let clock = VirtualClock(harnessT0)
+        options.clock = { clock.now }
+        let runtime = try Runtime(options)
+        /// A forced reaction; its `action` entry's seq.
+        func react() throws -> Int {
+            try runtime.home.sync {
+                XCTAssertEqual(runtime.harness.force(["react": "happy"]).map(\.name), ["react"])
+                return try XCTUnwrap(runtime.harness.transcript.entries.last {
+                    if case .action = $0.body { true } else { false }
+                }?.seq)
+            }
+        }
+        func end(of seq: Int) -> Pending.End? {
+            runtime.home.sync {
+                runtime.harness.transcript.entries.lazy.compactMap { entry -> Pending.End? in
+                    if case .settle(let settle) = entry.body, settle.forSeq == seq { settle.end } else { nil }
+                }.first
+            }
+        }
+
+        let alone = try react()
+        XCTAssertEqual(end(of: alone), .failed("no device connected"))
+        XCTAssertTrue(transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) }, "sent all the same, and dropped")
+
+        clock.now += 10_000
+        runtime.home.sync { runtime.connection(true) }
+        let played = try react()
+        let until = try XCTUnwrap(runtime.home.sync { runtime.moments.playing.first?.until })
+        XCTAssertGreaterThan(until, clock.now)
+        clock.now = until - 1
+        runtime.home.sync { runtime.tick() }
+        XCTAssertNil(end(of: played), "still playing")
+        clock.now = until
+        runtime.home.sync { runtime.tick() }
+        XCTAssertEqual(end(of: played), .done)
+        XCTAssertTrue(runtime.home.sync { runtime.moments.playing.isEmpty })
+
+        let cut = try react()
+        XCTAssertNil(end(of: cut), "playing")
+        runtime.home.sync { runtime.connection(false) }
+        XCTAssertEqual(end(of: cut), .failed("the device disconnected"))
+        XCTAssertTrue(runtime.home.sync { runtime.moments.playing.isEmpty })
     }
 
     /// BEHAVIORS.md §2: working chatter never cuts a moment that's playing,

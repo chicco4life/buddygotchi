@@ -483,7 +483,7 @@ final class HarnessTests: XCTestCase {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return [MoodAction(store: MoodStore(stateDir: dir)),
-                ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _ in }, blocked: { nil })]
+                ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, _ in }, blocked: { nil })]
     }
 
     // MARK: The actions (DECISIONS.md §4–5)
@@ -492,28 +492,38 @@ final class HarnessTests: XCTestCase {
 
     /// DECISIONS.md §5: `none` does nothing; the word is the exclamation
     /// over 0.35, else the topic, else none; the moment carries the
-    /// expression as its `mood`; a blocked mumble fails.
+    /// expression as its `mood`, and goes to the queue with the handle the
+    /// result is started with; a blocked mumble fails, with no handle.
     func testReact() {
         XCTAssertEqual(ReactAction.wordFloor, 0.35)
-        var sent: [DeviceMoment] = []
+        var queued: [(moment: DeviceMoment, pending: Pending)] = []
+        var sent: [DeviceMoment] { queued.map(\.moment) }
         var why: String?
-        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { sent.append($0) }, blocked: { why })
+        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { queued.append(($0, $1)) }, blocked: { why })
+        /// Runs `answers`, and checks the result is started with `message`
+        /// and the handle its moment was queued with.
+        func starts(_ answers: Answers, _ message: String, line: UInt = #line) {
+            let before = queued.count
+            let result = react.run(answers)
+            XCTAssertEqual(queued.count, before + 1, "one moment queued", line: line)
+            XCTAssertEqual(result, queued.last.map { .started(message, $0.pending) }, line: line)
+        }
         XCTAssertNil(react.run(["react": a("none")]))
-        XCTAssertEqual(react.run(["react": a("grumpy"), "word.feeling": a("again", 0.57), "word.about": a("tests", 0.81)]),
-                       .done(#"Boop made a grumpy face and mumbled "…again!""#))
-        XCTAssertEqual(react.run(["react": a("curious"), "word.feeling": a("again", 0.31), "word.about": a("tests", 0.79)]),
-                       .done(#"Boop made a curious face and mumbled "…tests!""#))
-        XCTAssertEqual(react.run(["react": a("happy"), "word.feeling": a("none"), "word.about": a("docs", 0.2)]),
-                       .done("Boop made a happy face and mumbled."))
+        starts(["react": a("grumpy"), "word.feeling": a("again", 0.57), "word.about": a("tests", 0.81)],
+               #"Boop made a grumpy face and mumbled "…again!""#)
+        starts(["react": a("curious"), "word.feeling": a("again", 0.31), "word.about": a("tests", 0.79)],
+               #"Boop made a curious face and mumbled "…tests!""#)
+        starts(["react": a("happy"), "word.feeling": a("none"), "word.about": a("docs", 0.2)], "Boop made a happy face and mumbled.")
         XCTAssertEqual(sent.count, 3)
+        XCTAssertEqual(Set(queued.map { ObjectIdentifier($0.pending) }).count, 3, "a handle each")
         XCTAssertEqual(sent[0].say?.word, "again")
         XCTAssertNil(sent[0].anim, "a mumble plays over the face")
         XCTAssertEqual(sent.map(\.mood), ["grumpy", "curious", "happy"], "each wears its face")
         XCTAssertEqual(sent[0].say?.tune, .flat, "grumpy mumbles in annoyed's voice")
         XCTAssertTrue(sent[0].jsonLine.hasSuffix(#","mood":"grumpy"}"#), sent[0].jsonLine)
         XCTAssertNil(react.run(["react": a("annoyed")]), "annoyed was a feeling, not a face")
-        XCTAssertEqual(react.run(["react": a("excited")]), .done("Boop made an excited face and mumbled."))
-        sent.removeLast()
+        starts(["react": a("excited")], "Boop made an excited face and mumbled.")
+        queued.removeLast()
         why = "something needs you"
         for expression in ReactAction.expressions.map(\.name) {
             XCTAssertEqual(react.run(["react": a(expression)]), .failed("something needs you"))

@@ -298,7 +298,7 @@ How to read HISTORY and NOW:
 ### 6.2 Sizes
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
-bytes ÷ 4, which overestimates English: the guide 300 (now about 270), a
+bytes ÷ 4, which overestimates English: the guide 300 (now about 295), a
 personality 600 (`boop` about 200, `chatter` 280) and a mood 150 (80–145).
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
@@ -394,7 +394,8 @@ headless. It prints to the terminal that started the app: each hook with
 what the adapter made of it, each of the core's effects, every line sent
 to the device, and each transcript entry, readably. From the example run
 ([EXAMPLE.md](EXAMPLE.md)), recorded while `react` still offered
-`annoyed`, today's `grumpy`:
+`annoyed`, today's `grumpy`, and was done rather than started (today its
+line is marked `…` and followed by its settle, below):
 
 ```
 ▸ 9 tool_use: claude's tests failed again on "fix-nav" (landing), 3 in a row.
@@ -441,11 +442,14 @@ line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 | `{"dev":"mood","mood":"grumpy"}` | Sets the mood at once through the mood action, device included ([DECISIONS.md](DECISIONS.md) §4). Recorded as an `action` named `mood`, for no event, by the dashboard, refusals included |
 | `{"dev":"moment","anim":"cheer"}` | Plays `cheer` or `wiggle` as a rule's moment; any other is ignored. Only its `sent` line records it |
 
-A forced pass and its action, from a headless run:
+A forced pass, its action and the action's end, from a headless run with
+no device (`--link none`), so the reaction never played
+([DECISIONS.md](DECISIONS.md) §5):
 
 ```jsonl
-{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}},"word.feeling":{"choice":"again","p":{"again":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react","word.feeling"]},"received_at_ms":1790512903608,"seq":1}
-{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a grumpy face and mumbled \"…again!\"","name":"react","ok":true},"received_at_ms":1790512903609,"seq":2}
+{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}},"word.feeling":{"choice":"again","p":{"again":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react","word.feeling"]},"received_at_ms":1790516826911,"seq":1}
+{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a grumpy face and mumbled \"…again!\"","name":"react","ok":true,"pending":true},"received_at_ms":1790516826912,"seq":2}
+{"received_at_ms":1790516826912,"seq":3,"settle":{"by":"dashboard","end":"failed","for":2,"why":"no device connected"}}
 ```
 
 ## 10. Where it lives

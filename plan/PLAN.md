@@ -24,7 +24,7 @@ milestone's evidence says which ones ran.
 | A11 | Seven moods, drawn from the mood SVGs: Jev picks the mood, and the device shows each state and reaction in it | In progress. Jev chooses among the seven moods with no minimum time between changes (evals 10/10 in all 3 runs); every `state` carries the mood; the device draws each look and the cheer as the mood's design, exactly as Chrome draws the SVGs. The popover's tile shows the same faces. Still to do: watching it on the board | [moods](evidence/2026-09-27-seven-moods/README.md), [faces](evidence/2026-09-27-mood-faces/README.md) |
 | A12 | Live dashboard: `internal/tools/boopctl dash` shows the state and face, the harness's passes and a timeline, and forces a mood, a reaction or an animation ([DASHBOARD.md](DASHBOARD.md)) | Done, headless; check 20 is the owner's | [evidence](evidence/2026-09-27-dashboard/README.md) |
 | A13 | Reaction faces: `react` picks one of the seven moods' faces, and the device draws the look in it while the mumble plays ([harness/DECISIONS.md](harness/DECISIONS.md) §3, [PROTOCOL.md](PROTOCOL.md) §3) | Done in code and the simulator; `make eval` passed 10/10 in all 3 runs; watching it on the board (check 1) is the owner's | [evidence](evidence/2026-09-27-reaction-faces/README.md) |
-| A14 | Loops and pending: every animation can loop and whoever plays one says how many times; HISTORY shows what Boop started as in progress until it really ended, and the device says when a moment ended ([harness/HARNESS.md](harness/HARNESS.md) §4–5) | In progress. Done: the harness's started actions (`.started` with a `Pending`, `settle` entries, a ceiling on waiting, and HISTORY's `(in progress)` and `(didn't happen: …)`). Still to do: `react` waiting on its moment, the device's `ended` report, and loops. "Done, not reviewed" sessions are out of scope | |
+| A14 | Loops and pending: every animation can loop and whoever plays one says how many times; HISTORY shows what Boop started as in progress until it really ended, and the device says when a moment ended ([harness/HARNESS.md](harness/HARNESS.md) §4–5) | In progress. Done: the harness's started actions (`.started` with a `Pending`, `settle` entries, a ceiling on waiting, and HISTORY's `(in progress)` and `(didn't happen: …)`); `react` is started, and its moment ends it `done` when the app expects it to have played, or `failed` when dropped, with no device or on a disconnect ([harness/DECISIONS.md](harness/DECISIONS.md) §5). Still to do: the device's `ended` report in place of the app's timing, and loops. "Done, not reviewed" sessions are out of scope | |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks
@@ -171,6 +171,11 @@ fixed. Pick one up by writing it into its spec first.
   [harness/EXAMPLE.md](harness/EXAMPLE.md) and
   [harness/HARNESS.md](harness/HARNESS.md) §9 predate the change and say
   `annoyed`; the next `make eval` should record them again.
+- **The dashboard's recorded run predates started actions.**
+  `internal/tools/boopctl_lib/tests/fixtures/headless-debug.jsonl` has
+  `react` lines with no `"pending":true` and no `settle` lines;
+  `test_dash.py` checks those with lines of its own. The next recording
+  of the fixture ([DASHBOARD.md](DASHBOARD.md) §7) brings them in.
 - **Determined has no voice.** Its reactions mumble in the temporary
   default, happy's, while the audio is tuned ([VOICE.md](VOICE.md) §4).
 - **Most of Voice's words can't be picked.** The `react` action offers

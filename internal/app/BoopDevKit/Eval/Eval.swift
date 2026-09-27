@@ -181,9 +181,12 @@ public struct Eval {
         core.setWallClock(start, at: start)
         let mood = MoodStore(stateDir: dir)
         let home = DispatchQueue(label: "boop.eval")
+        // No device: a reaction's moment goes nowhere and counts as played
+        // at once, so HISTORY reads as the app's does once it has.
         let actions: [any Action] = [
             MoodAction(store: mood),
-            ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _ in }, blocked: { core.mumbleBlock }),
+            ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, pending in pending.finish(.done) },
+                        blocked: { core.mumbleBlock }),
         ]
         let steering = self.steering
         let harness = Harness(brain: brain, actions: actions, parts: { entry in

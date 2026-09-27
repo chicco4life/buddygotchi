@@ -36,9 +36,12 @@ creature that never approves or blocks anything), what it already does
 on its own (cheers, wiggles, alerts), and that Jev only decides whether
 it reacts, with one of its moods' faces for a moment and a mumble of at
 most one real word, and whether its mood changes. Then how to choose:
-judge by PERSONALITY and MOOD; react to NOW, not older lines, and don't
-repeat what Boop just did; the mood is the backdrop and the reaction the
-moment, so they may differ, but should fit together. And on moods:
+judge by PERSONALITY and MOOD; react to NOW, not older lines; don't
+repeat what Boop just did or is still doing (HISTORY's
+`(in progress)`), though a reaction that didn't happen may be made again
+if NOW still calls for it (§5); the mood is the backdrop and the
+reaction the moment, so they may differ, but should fit together. And on
+moods:
 
 > Moods last. Change one only when things have clearly turned, never
 > for a single moment. After an hour with nothing happening, any mood
@@ -200,13 +203,28 @@ gate, which says when something needs you.
    mood (`Voice.feeling(forMood:)`), with the word, each line with the
    next seed. It's queued as a `moment` with `say` and the face as
    `mood`, and no animation, so it plays over whatever is showing (the
-   cheer included) once any line playing has finished. The action returns
-   without waiting for it.
-5. **The message:** `Boop made a proud face and mumbled "…finally!"`, or
+   cheer included) once any line playing has finished. A new `Pending`
+   goes with it, and the action returns without waiting for the moment.
+5. **The message:** started (`.started`) with that handle, as
+   `Boop made a proud face and mumbled "…finally!"`, or
    `Boop made a curious face and mumbled.` with no word.
 
-A reaction that waits too long in the schedule is dropped there, face and
-all, but HISTORY still says Boop made it.
+**How a reaction ends.** HISTORY shows its line `(in progress)` until
+whoever holds the moment ends the handle ([HARNESS.md](HARNESS.md) §4,
+§5.3):
+
+| End | When | By |
+| --- | --- | --- |
+| `done` | The app expects the moment to have played: on the first tick at or after the time it was sent plus its length ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2) | The runtime |
+| `failed`, `waited too long` | It waited too long for its turn and was dropped, face and all | The moment schedule |
+| `failed`, `no device connected` | Its turn came with no device connected, so nothing played it | The runtime |
+| `failed`, `the device disconnected` | The device dropped while it played | The runtime |
+
+A failed one reads `(didn't happen: <why>)` in HISTORY, so Jev may make
+it again if NOW still calls for it (§2.1). The evals have no device, so
+their queue ends each handle `done` at once ([EVALS.md](../EVALS.md) §1).
+[HARNESS.md](HARNESS.md) §9 has a reaction and its end in `debug.jsonl`,
+from a headless run with no device.
 
 ## 6. An example
 

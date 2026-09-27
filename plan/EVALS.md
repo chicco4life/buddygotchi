@@ -13,7 +13,8 @@ fresh: a new core, an empty transcript, and a `happy` mood in a
 temporary state directory. The runner (`Eval` in
 `internal/app/BoopDevKit/Eval/Eval.swift`) wires them as the app does,
 with the real `mood` and `react` actions, except that a mumble's queue
-goes nowhere.
+goes nowhere and ends the reaction's handle `done` at once, so HISTORY
+shows it as played ([harness/DECISIONS.md](harness/DECISIONS.md) §5).
 
 For each step it moves the clock a second at a time to the step's time,
 ticking the core as the app does, so heartbeats and other timers fire on

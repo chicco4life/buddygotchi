@@ -6,10 +6,12 @@ import Foundation
 /// another of the brain's. A brain mumble has no animation, so it plays
 /// over an animation without cutting it: a proud mumble over the cheer
 /// shows the cheer in proud's face. One that has waited longer than
-/// `maxWaitMs` is dropped, since a late reaction is worse than none.
+/// `maxWaitMs` is dropped, since a late reaction is worse than none, and
+/// its handle ends as failed (harness/DECISIONS.md §5).
 ///
-/// Pure and on a caller's clock, so the runtime can drive it with a timer
-/// and the tests without one.
+/// On a caller's clock, so the runtime can drive it with a timer and the
+/// tests without one. It changes nothing but itself and the handles of
+/// the moments it drops.
 public struct MomentSchedule {
     /// A brain moment that has waited longer than this is dropped
     /// (ARCHITECTURE.md §3.2).
@@ -19,8 +21,9 @@ public struct MomentSchedule {
     public private(set) var busyUntil: Int64 = 0
     /// When the line playing ends. An animation stops a line on the device.
     public private(set) var lineUntil: Int64 = 0
-    /// The brain's moments waiting, oldest first, with when each arrived.
-    public private(set) var waiting: [(moment: DeviceMoment, at: Int64)] = []
+    /// The brain's moments waiting, oldest first, each with its handle and
+    /// when it arrived.
+    public private(set) var waiting: [(moment: DeviceMoment, pending: Pending?, at: Int64)] = []
 
     public init() {}
 
@@ -39,27 +42,30 @@ public struct MomentSchedule {
         now >= busyUntil && waiting.isEmpty
     }
 
-    /// A moment from the brain, to play when its turn comes.
-    public mutating func brain(_ moment: DeviceMoment, now: Int64) {
-        waiting.append((moment, now))
+    /// A moment from the brain, to play when its turn comes, and the handle
+    /// that says when it has played.
+    public mutating func brain(_ moment: DeviceMoment, _ pending: Pending? = nil, now: Int64) {
+        waiting.append((moment, pending, now))
     }
 
     /// The brain moment to play now, if one's turn has come (at most one),
-    /// the ones dropped as too late on the way, and when to ask again (nil
-    /// when nothing waits).
-    public mutating func due(now: Int64) -> (play: DeviceMoment?, dropped: [DeviceMoment], next: Int64?) {
+    /// with its handle for whoever plays it; the ones dropped as too late
+    /// on the way, whose handles end here; and when to ask again (nil when
+    /// nothing waits).
+    public mutating func due(now: Int64) -> (play: DeviceMoment?, pending: Pending?, dropped: [DeviceMoment], next: Int64?) {
         var dropped: [DeviceMoment] = []
-        guard now >= lineUntil else { return (nil, dropped, waiting.isEmpty ? nil : lineUntil) }
+        guard now >= lineUntil else { return (nil, nil, dropped, waiting.isEmpty ? nil : lineUntil) }
         while !waiting.isEmpty {
-            let (moment, at) = waiting.removeFirst()
+            let (moment, pending, at) = waiting.removeFirst()
             if now - at > Self.maxWaitMs {
                 dropped.append(moment)
+                pending?.finish(.failed("waited too long"))
                 continue
             }
             busyUntil = max(busyUntil, now + moment.playMs)
             lineUntil = now + moment.playMs
-            return (moment, dropped, waiting.isEmpty ? nil : lineUntil)
+            return (moment, pending, dropped, waiting.isEmpty ? nil : lineUntil)
         }
-        return (nil, dropped, nil)
+        return (nil, nil, dropped, nil)
     }
 }

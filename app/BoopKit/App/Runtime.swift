@@ -125,13 +125,32 @@ public final class Runtime: @unchecked Sendable {
     var readingJevKey = false
     /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): the
     /// rules' moments play at once, and the brain's wait their turn in
-    /// `schedule` behind them and the brain's earlier ones.
+    /// `schedule` behind them and the brain's earlier ones. Each of the
+    /// brain's ends its handle once it has played, or when it can't
+    /// (harness/DECISIONS.md §5).
     final class Moments {
         var schedule = MomentSchedule()
         /// A timer is set for the next brain moment's turn.
         var pumpDue = false
         /// True while a brain moment is being sent (for debug mode).
         var brainSending = false
+        /// The brain's moments sent to the device, oldest first, each with
+        /// its handle and when the app expects it to end.
+        var playing: [(pending: Pending, until: Int64)] = []
+
+        /// Ends each moment that has played by `now` as done.
+        func played(now: Int64) {
+            let over = playing.filter { now >= $0.until }
+            playing.removeAll { now >= $0.until }
+            for moment in over { moment.pending.finish(.done) }
+        }
+
+        /// Ends every moment on the device as failed, with why.
+        func failAll(_ why: String) {
+            let all = playing
+            playing = []
+            for moment in all { moment.pending.finish(.failed(why)) }
+        }
     }
     let moments = Moments()
 
@@ -201,8 +220,8 @@ public final class Runtime: @unchecked Sendable {
         moodAction = MoodAction(store: mood, changed: { moodSaved($0) })
         let actions: [any Action] = [
             moodAction,
-            ReactAction(voice: voice, queue: { moment in
-                moments.schedule.brain(moment, now: clock())
+            ReactAction(voice: voice, queue: { moment, pending in
+                moments.schedule.brain(moment, pending, now: clock())
                 Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
             }, blocked: { core.mumbleBlock }),
         ]
@@ -265,13 +284,7 @@ public final class Runtime: @unchecked Sendable {
         self.server = server
         options.link?.start(
             onLine: { [weak self] line in self?.home.async { self?.device(line) } },
-            onConnection: { [weak self] up in
-                self?.home.async {
-                    guard let self else { return }
-                    self.link.connection(up, now: self.options.clock())
-                    self.changed()
-                }
-            })
+            onConnection: { [weak self] up in self?.home.async { self?.connection(up) } })
         // A menu-bar app with its popover closed is a candidate for App Nap,
         // which coalesces timers; the 10 s keepalive must beat the device's
         // 30 s no-app timeout. This doesn't keep the Mac awake.
@@ -334,6 +347,14 @@ public final class Runtime: @unchecked Sendable {
         return false
     }
 
+    /// The transport connected or dropped. A moment playing on a device
+    /// that dropped never finishes there.
+    func connection(_ up: Bool) {
+        link.connection(up, now: options.clock())
+        if !up { moments.failAll("the device disconnected") }
+        changed()
+    }
+
     func device(_ line: String) {
         let now = options.clock()
         if case .input(let input) = link.receive(line, now: now) {
@@ -381,6 +402,7 @@ public final class Runtime: @unchecked Sendable {
         core.setWallClock(options.wallClock(), at: now)
         run(core.tick(at: now))
         link.tick(now: now)
+        moments.played(now: now)
         harness.tick(now: now)
     }
 
@@ -436,7 +458,9 @@ public final class Runtime: @unchecked Sendable {
 
     /// Plays the brain's next moment if its turn has come, and sets a timer
     /// for the one after (a newer rule moment pushes it back; the timer then
-    /// just sets another). On `home`.
+    /// just sets another). A moment sent with no device connected ends its
+    /// handle at once, as failed; one the device plays ends it as done on
+    /// the first tick after the app expects it to have played. On `home`.
     static func pump(_ moments: Moments, link: DeviceLink, clock: @escaping @Sendable () -> Int64,
                      home: DispatchQueue, log: @escaping @Sendable (String) -> Void) {
         let now = clock()
@@ -448,6 +472,13 @@ public final class Runtime: @unchecked Sendable {
             moments.brainSending = true
             link.play(moment)
             moments.brainSending = false
+            if let pending = due.pending {
+                if link.connected {
+                    moments.playing.append((pending, now + moment.playMs))
+                } else {
+                    pending.finish(.failed("no device connected"))
+                }
+            }
         }
         guard let next = due.next, !moments.pumpDue else { return }
         moments.pumpDue = true

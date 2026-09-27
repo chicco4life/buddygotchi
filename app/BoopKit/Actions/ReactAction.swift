@@ -5,18 +5,20 @@ import Foundation
 /// the reaction plays, the device borrows that mood's design of whatever
 /// look is showing (PROTOCOL.md §3). It comes with a Minion line from
 /// Voice, and goes as a moment with no animation, so it plays over
-/// whatever is showing once any line playing has finished.
+/// whatever is showing once any line playing has finished. It's started,
+/// not done, until whoever plays the moment ends its handle.
 public final class ReactAction: Action {
     public let name = "react"
     let voice: Voice
-    /// Queues a brain moment: it waits its turn behind whatever is playing.
-    let queue: (DeviceMoment) -> Void
+    /// Queues a brain moment, which waits its turn behind whatever is
+    /// playing, with the handle to end once it has played or never will.
+    let queue: (DeviceMoment, Pending) -> Void
     /// Why a mumble can't play now (something needs you), or nil.
     let blocked: () -> String?
     /// Each line gets the next seed, so a logged line can be replayed.
     var seed: UInt64 = 0
 
-    public init(voice: Voice, queue: @escaping (DeviceMoment) -> Void, blocked: @escaping () -> String?) {
+    public init(voice: Voice, queue: @escaping (DeviceMoment, Pending) -> Void, blocked: @escaping () -> String?) {
         self.voice = voice
         self.queue = queue
         self.blocked = blocked
@@ -93,9 +95,11 @@ public final class ReactAction: Action {
         seed += 1
         // The face is the expression's for as long as the line plays.
         let line = voice.line(Voice.feeling(forMood: choice), word: word, seed: seed)
-        queue(DeviceMoment(say: line, mood: choice))
-        // 5. What happened, as its line in HISTORY.
+        let pending = Pending()
+        queue(DeviceMoment(say: line, mood: choice), pending)
+        // 5. What it started, as its line in HISTORY: in progress until
+        // the moment has played.
         let article = "aeiou".contains(choice.first!) ? "an" : "a"
-        return .done("Boop made \(article) \(choice) face and mumbled" + (word.map { " \"…\($0)!\"" } ?? "."))
+        return .started("Boop made \(article) \(choice) face and mumbled" + (word.map { " \"…\($0)!\"" } ?? "."), pending)
     }
 }

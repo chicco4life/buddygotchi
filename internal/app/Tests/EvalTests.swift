@@ -19,9 +19,13 @@ final class EvalTests: XCTestCase {
 
     /// A brain that answers the way the scenario wants passes it, which
     /// checks that every expected step wakes the brain and that the mood and
-    /// word are read as the actions leave them.
+    /// word are read as the actions leave them. A reaction's moment goes
+    /// nowhere and counts as played at once, so HISTORY shows it plainly
+    /// (EVALS.md §1).
     func testTheTestsFightBackWithAnAgreeableBrain() async throws {
+        let states = Lines()
         let brain = ScriptedBrain { state, _ in
+            states.add(state)
             let now = state.components(separatedBy: "\nNOW (").last ?? ""
             func a(_ c: String) -> Answer { Answer(choice: c, probabilities: [c: 0.9]) }
             if now.contains("3 in a row") {
@@ -40,6 +44,8 @@ final class EvalTests: XCTestCase {
         XCTAssertEqual(result.checks[2].word, "again")
         XCTAssertEqual(result.checks[2].mood, "grumpy")
         XCTAssertEqual(result.checks[3].mood, "proud", "2 minutes after turning grumpy: no rule holds a mood")
+        let last = try XCTUnwrap(states.all.last)
+        XCTAssertTrue(last.contains("\n  Boop made a grumpy face and mumbled \"…again!\"\n"), last)
     }
 
     /// A brain that stays quiet fails what should mumble, and the report
