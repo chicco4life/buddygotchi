@@ -261,6 +261,7 @@ public final class Runtime: @unchecked Sendable {
         var config = Core.Config(volume: settings.volume, rules: rules, time: options.time, seed: longTerm.seed ^ UInt64(now))
         config.brain = false  // until Jev's key is read
         config.mood = mood.current
+        config.firstAsk = Core.randomFirstAsk()
         core = Core(config: config, lastActiveDay: memory.lastActiveDay)
         core.setWallClock(options.wallClock(), at: now)
         voice = Voice(dialect: Dialect(seed: longTerm.seed))

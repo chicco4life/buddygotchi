@@ -52,6 +52,12 @@ public final class Core {
         /// While no thread works, a heartbeat after this long with no event,
         /// and again every time as long again passes (harness/EVENTS.md §4).
         public var heartbeatMs: Int64 = 60 * 60 * 1000
+        /// Where this launch's request numbers start: the first request
+        /// shown gets the one after it (`Core.nextAsk`). The app starts each
+        /// launch somewhere random (`Core.randomFirstAsk`), so a request can't
+        /// share `attn.id` with one the device still shows from the last
+        /// launch (PROTOCOL.md §3).
+        public var firstAsk = 0
 
         public init(volume: Int = 6, rules: Personality.Rules = Personality.Rules(), time: LocalTime = LocalTime(),
                     seed: UInt64 = 1) {
@@ -135,8 +141,8 @@ public final class Core {
     /// and doesn't bring it back (ADAPTERS.md §4).
     var ended: [String: Int64] = [:]
     var nextOrder = 0
-    /// The last request's number: they count up from 1 each launch.
-    var lastAsk = 0
+    /// The last request's number: they count up from `config.firstAsk`.
+    var lastAsk: Int
     var rng: SplitMix64
     /// The last day with any activity; a new one starts short-term memory
     /// fresh.
@@ -164,6 +170,7 @@ public final class Core {
     public init(config: Config, lastActiveDay: String? = nil) {
         self.config = config
         self.lastActiveDay = lastActiveDay
+        lastAsk = config.firstAsk
         rng = SplitMix64(seed: config.seed)
     }
 
@@ -601,9 +608,19 @@ public final class Core {
 
     /// A request's number, in the order requests start showing.
     func takeAsk() -> Int {
-        lastAsk += 1
+        lastAsk = Core.nextAsk(after: lastAsk)
         return lastAsk
     }
+
+    /// The largest request number: the device keeps `attn.id` in 32 bits.
+    static let maxAsk = Int(Int32.max)
+
+    /// The number after `ask`, back to 1 past `maxAsk`: never 0, which
+    /// means no number (PROTOCOL.md §3).
+    static func nextAsk(after ask: Int) -> Int { ask >= maxAsk ? 1 : ask + 1 }
+
+    /// A random place for a launch's request numbers to start.
+    public static func randomFirstAsk() -> Int { Int.random(in: 0..<maxAsk) }
 
     /// One of several askers in a session was answered, so Claude shows
     /// another's prompt now: a different request, with its own number, so

@@ -1247,6 +1247,30 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(Runtime.Moments.nextId(after: 41), 42)
         XCTAssertEqual(Runtime.Moments.nextId(after: Int(Int32.max)), 1, "back to 1, never 0")
     }
+
+    /// PROTOCOL.md §3: a launch numbers its requests from somewhere random,
+    /// as it does its moments, so a relaunched app's first request can't
+    /// share `attn.id` with the one the device still shows from the last
+    /// launch: with the same agent and project, a new request would carry
+    /// on the amber with no chirp (BEHAVIORS.md §3.2). The numbers wrap to
+    /// 1, never 0, within the device's 32 bits.
+    func testRequestNumbersDifferEachLaunch() throws {
+        var firsts: Set<Int> = []
+        for _ in 0..<4 {
+            dir = URL(fileURLWithPath: "/tmp/boop-rt-\(UUID().uuidString.prefix(8))")
+            defer { try? FileManager.default.removeItem(at: dir) }
+            let runtime = try makeRuntime(FakeTransport())
+            firsts.insert(runtime.core.lastAsk)
+        }
+        XCTAssertGreaterThan(firsts.count, 1, "random")
+        XCTAssertTrue(firsts.allSatisfy { (0..<Int(Int32.max)).contains($0) })
+        var config = Core.Config()
+        config.firstAsk = Int(Int32.max)
+        let core = Core(config: config)
+        core.handle(BoopEvent(agent: .claudeCode, session: "s", project: "landing", event: .needsYou,
+                              detail: .init(tool: "Bash"), ts: 1000))
+        XCTAssertEqual(core.snapshot(at: 1000).attn?.id, 1, "back to 1, never 0")
+    }
 }
 
 /// What a runtime in debug mode logged and printed. Not nested in a test:
