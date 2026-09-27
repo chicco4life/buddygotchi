@@ -1091,6 +1091,15 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(StateSnapshot.clip("ünïcödé-ünïcödé-ünïcödé"), "ünïcödé-ünïcödé")
         XCTAssertEqual(StateSnapshot.clip("ünïcödé-ünïcödé-ünïcödé", marked: true), "ünïcödé-ünïcöd..")
         XCTAssertEqual(StateSnapshot.clip("a-23-byte-project-name!", marked: true), "a-23-byte-project-name!", "one that fits isn't marked")
+        // Finder names folders decomposed (e and U+0301), which the device
+        // draws as "e?": the Mac sends names precomposed, before measuring
+        // them (PROTOCOL.md §3). Swift's == can't tell the two apart.
+        let finder = CoreRig()
+        finder.send(.needsYou, project: "cafe\u{301}", tool: "Bash")
+        XCTAssertEqual(finder.state.attn.map { Array($0.project.utf8) }, [0x63, 0x61, 0x66, 0xC3, 0xA9])
+        XCTAssertEqual(finder.sessions.first?[1], "cafe\u{301}", "the popover shows it as it came")
+        let resume = "re\u{301}sume\u{301}-re\u{301}sume\u{301}-re\u{301}sume\u{301}"
+        XCTAssertEqual(Array(StateSnapshot.clip(resume, marked: true).utf8), Array("r\u{E9}sum\u{E9}-r\u{E9}sum\u{E9}-r\u{E9}..".utf8), "23 bytes")
     }
 
     func testSnapshotsGoOutOnlyWhenSomethingChanged() {

@@ -20,10 +20,13 @@ public struct StateSnapshot: Equatable, Sendable {
     /// The device keeps names in 24-byte fields.
     public static let maxNameBytes = 23
 
-    /// `text` cut to at most `bytes` of UTF-8, on a character boundary.
-    /// With `marked`, a cut text ends in "..", within `bytes`, so the device
+    /// `text` precomposed (NFC) and cut to at most `bytes` of UTF-8, on a
+    /// character boundary. Finder names folders decomposed (e and U+0301),
+    /// which the device would draw as "e?"; precomposed, é shows as e. With
+    /// `marked`, a cut text ends in "..", within `bytes`, so the device
     /// shows it was cut (PROTOCOL.md §3).
     public static func clip(_ text: String, bytes: Int = maxNameBytes, marked: Bool = false) -> String {
+        let text = text.precomposedStringWithCanonicalMapping
         guard text.utf8.count > bytes else { return text }
         let room = marked ? bytes - 2 : bytes
         var out = ""
