@@ -26,10 +26,11 @@ let usages: [(command: String, text: String)] = [
     boopdev eval [--runs N] [--only TEXT] [--scenarios DIR] [--steering DIR]
         Runs the harness eval scenarios (plan/EVALS.md): hook-level steps on a virtual clock through a fresh
         core, the real harness and actions, and Jev, each pass checked against what it should come to (the
-        reaction, the word and the mood). Needs Jev's key in BOOP_JEV_KEY and fails without it. --runs runs
-        each scenario N times (default 3); it passes only if every run does. Every entry goes to the run's
-        own file in /tmp/boop-eval (boopdev watch FILE prints it). Exits 1 if any fails. The scenarios and
-        steering default to the Boop repo's, found from the working directory or from boopdev's own place.
+        reaction, the word, how long the face holds and the mood). Needs Jev's key in BOOP_JEV_KEY and fails
+        without it. --runs runs each scenario N times (default 3); it passes only if every run does. Every
+        entry goes to the run's own file in /tmp/boop-eval (boopdev watch FILE prints it). Exits 1 if any
+        fails. The scenarios and steering default to the Boop repo's, found from the working directory or
+        from boopdev's own place.
     """),
     ("watch", """
     boopdev watch [FILE] [--new]

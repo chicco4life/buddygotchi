@@ -314,8 +314,8 @@ retried once and counted as a link glitch.
    [EVALS.md](EVALS.md) §2.
 2. Read a sample of its passes (`boopdev watch` on the file it names)
    against the steering files (`plan/steering/`): are the reactions and
-   mood changes in character and never nagging, and the words right for
-   what happened?
+   mood changes in character and never nagging, and the words and how
+   long each face holds right for what happened?
 
 **Pass:** every scenario passes in every run; no pass is dropped; the
 slowest pass is under the 1.25 s deadline; and the sample reads well.
