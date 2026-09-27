@@ -37,30 +37,43 @@ On the board:
 What Boop does and shows is in [plan/BEHAVIORS.md](plan/BEHAVIORS.md) and
 [plan/UX.md](plan/UX.md).
 
-## Commands
+## Everyday commands
 
-Everything you need, from the repo root:
+From the repo root:
 
-```sh
-make flash   # build the firmware and upload it to the board over USB
-make run     # build and start the Mac app in the menu bar (Bluetooth)
-make debug   # the same, with a live view of everything Boop sees and decides
-internal/tools/boopctl dash   # with make debug running: the debug dashboard (face, brain passes, timeline, force a mood)
-make eval    # the brain's eval scenarios against Jev (needs BOOP_JEV_KEY)
-```
+| To | Run |
+| --- | --- |
+| Put the firmware on the board (over USB) | `make flash` |
+| Run Boop, in the menu bar over Bluetooth | `make run` |
+| Run Boop and print everything it sees and decides | `make debug` |
+| Watch and poke it live in the debug dashboard | `make dash`, in a second terminal while `make debug` runs |
+| Check the brain against the eval scenarios | `make eval` |
+
+`make run` and `make debug` use Bluetooth, so start them from your own
+terminal, not an agent's. The dashboard shows the face, the brain's latest
+pass and a timeline, and can force a mood, a reaction or an animation
+([plan/DASHBOARD.md](plan/DASHBOARD.md)).
 
 `make eval` reads Jev's key only from the environment. To use the key you
-saved in Settings, run it from your own terminal:
+saved in Settings:
 
 ```sh
 BOOP_JEV_KEY=$(security find-generic-password -s com.boopcomputer.boop -a jev -w) make eval
 ```
 
-The dashboard is in [plan/DASHBOARD.md](plan/DASHBOARD.md). Tests, the simulator and the other device tools are for development; they're in
-[internal/](internal/README.md) and
-[plan/VERIFICATION.md](plan/VERIFICATION.md).
+### Without the board or Bluetooth
 
-The specs start at [plan/README.md](plan/README.md), and the repo layout
-is in [CLAUDE.md](CLAUDE.md). What ships is in `app/` and `firmware/`;
-tests, dev tools and everything else that doesn't is in
-[internal/](internal/README.md).
+A headless Boop with a canned brain, and the dashboard on it:
+
+```sh
+.build/debug/Boop --headless --state-dir /tmp/boop --brain scripted --debug &
+internal/tools/boopctl dash --state-dir /tmp/boop
+```
+
+## Where things are
+
+What ships is in `app/` (the Mac app and its hook) and `firmware/`.
+Tests, the simulator and the other dev tools are in
+[internal/](internal/README.md), run as `make -C internal <target>`
+([plan/VERIFICATION.md](plan/VERIFICATION.md) lists them). The specs start
+at [plan/README.md](plan/README.md).

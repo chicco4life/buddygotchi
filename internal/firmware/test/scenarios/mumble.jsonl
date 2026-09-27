@@ -4,23 +4,23 @@
 {"clock":0}
 {"t":"state","v":1,"base":"working","busy":1}
 {"clock":1000}
-{"t":"moment","anim":"cheer","say":{"syl":"bi do ba na","word":"done!","at":4,"tune":"up","ms":120},"ttl":5}
+{"t":"moment","anim":"cheer","say":{"syl":"bi do ba na","word":"done!","at":4,"tune":"up","ms":120}}
 {"clock":1400}
 {"shot":"word-at-end"}
 {"clock":10000}
 {"t":"state","v":1,"base":"working","busy":1}
-{"t":"moment","say":{"syl":"ma-po li","word":"tests?","at":0,"tune":"up","ms":120},"ttl":5}
+{"t":"moment","say":{"syl":"ma-po li","word":"tests?","at":0,"tune":"up","ms":120}}
 {"expect":{"moment":null,"audio":{"playing":true,"syllables":3}}}
 {"clock":10400}
 {"shot":"word-at-start"}
 {"clock":20000}
 {"t":"state","v":1,"base":"working","busy":1}
-{"t":"moment","say":{"syl":"ma-po li bu-da","tune":"bounce","ms":120},"ttl":5}
+{"t":"moment","say":{"syl":"ma-po li bu-da","tune":"bounce","ms":120}}
 {"clock":20400}
 {"shot":"no-word"}
 {"clock":30000}
 {"t":"state","v":1,"base":"working","busy":1}
-{"t":"moment","say":{"syl":"po po","word":"refactoring","at":1,"tune":"flat","ms":120},"ttl":5}
+{"t":"moment","say":{"syl":"po po","word":"refactoring","at":1,"tune":"flat","ms":120}}
 {"clock":30400}
 {"shot":"long-word"}
 // (2 syllables + 2 beats for the word) × 120 ms, then 1.2 s to read it.
@@ -33,20 +33,20 @@
 // Over an animation, a mumble leaves it playing.
 {"t":"state","v":1,"base":"idle"}
 {"clock":40000}
-{"t":"moment","anim":"cheer","ttl":5}
+{"t":"moment","anim":"cheer"}
 {"clock":40300}
-{"t":"moment","say":{"syl":"ba-na po","word":"yay","at":3,"tune":"up","ms":120},"ttl":5}
+{"t":"moment","say":{"syl":"ba-na po","word":"yay","at":3,"tune":"up","ms":120}}
 {"expect":{"moment":{"anim":"cheer","left_ms":1700},"audio":{"playing":true,"syllables":3}}}
 {"clock":40500}
 {"shot":"over-cheer"}
 // The word is what matters: squiggles make room for it before it's cut.
 {"t":"state","v":1,"base":"idle"}
 {"clock":55000}
-{"t":"moment","say":{"syl":"ba po ti ka mo na","word":"refactoring","at":3,"tune":"flat","ms":120},"ttl":5}
+{"t":"moment","say":{"syl":"ba po ti ka mo na","word":"refactoring","at":3,"tune":"flat","ms":120}}
 {"clock":55400}
 {"shot":"long-word-many-syllables"}
 // Needs you: nothing plays.
 {"t":"state","v":1,"base":"idle","attn":{"agent":"claude","project":"x","more":0}}
 {"clock":60000}
-{"t":"moment","say":{"syl":"ba po","ms":120},"ttl":5}
+{"t":"moment","say":{"syl":"ba po","ms":120}}
 {"expect":{"moment":null,"audio":{"syllables":0}}}

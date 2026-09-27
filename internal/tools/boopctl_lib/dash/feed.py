@@ -58,10 +58,6 @@ def clock(ms: int) -> str:
     return time.strftime("%H:%M:%S", time.localtime(ms / 1000))
 
 
-def without_time(state: Line | None) -> Line | None:
-    return {k: v for k, v in state.items() if k != "time"} if state else None
-
-
 class Board:
     """What the panes show, built from debug.jsonl's lines in order."""
 
@@ -112,7 +108,7 @@ class Board:
 
     def _sent(self, msg: Line) -> tuple[str, str] | None:
         if msg.get("t") == "state":
-            unchanged = without_time(msg) == without_time(self.state)
+            unchanged = msg == self.state
             self.state = msg
             return None if unchanged else ("sent", "→ state " + state_text(msg))
         if msg.get("t") == "moment":

@@ -50,8 +50,8 @@ public struct ScriptedBrain: Brain {
 
 extension ScriptedBrain {
     /// For pipeline checks with no network (`Boop --headless --brain
-    /// scripted`): every pass, an excited mumble with "yay", and no mood
-    /// change.
+    /// scripted`): every pass, an excited mumble with "yay", and the mood
+    /// happy.
     public static let pipelineCheck = ScriptedBrain(id: "scripted", always: [
         "mood": Answer(choice: "happy", probabilities: ["happy": 1]),
         "react": Answer(choice: "excited", probabilities: ["excited": 1]),

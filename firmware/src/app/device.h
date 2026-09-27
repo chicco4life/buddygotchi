@@ -1,5 +1,5 @@
 // The device core: message dispatch, the debug channel, inputs and what's
-// on screen (plan/PROTOCOL.md, plan/VERIFICATION.md §3). Pure C++: the board
+// on screen (plan/PROTOCOL.md, plan/PROTOCOL.md §5). Pure C++: the board
 // and the simulator run the same code behind a small Hal. What Boop does is
 // decided by Behaviour; this class parses, recognises gestures and draws.
 #pragma once

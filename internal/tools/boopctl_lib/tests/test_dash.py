@@ -242,7 +242,7 @@ class ControlsTests(unittest.TestCase):
     @unittest.skipUnless((REPO / ".build" / "debug" / "boopdev").exists(), "needs make build")
     def test_a_preview_mumble_is_the_apps_voice(self):
         line = controls.preview_mumble("annoyed", "again")
-        self.assertEqual((line["t"], line["ttl"], line["say"]["word"]), ("moment", 5, "again"))
+        self.assertEqual((line["t"], line["say"]["word"]), ("moment", "again"))
         self.assertIn("syl", line["say"])
 
     def test_confirmations(self):
@@ -255,9 +255,9 @@ class ControlsTests(unittest.TestCase):
         seen = [pending.seen(line) for line in lines[first:]]
         self.assertEqual([s for s in seen if s], ["mood", "answer", "moment"], "in the order they landed")
         pending.add({"dev": "moment", "anim": "wiggle"}, now=0)
-        self.assertIsNone(pending.seen({"sent": {"t": "moment", "anim": "cheer", "ttl": 5}}), "a rule's cheer isn't it")
-        self.assertIsNone(pending.seen({"sent": {"t": "moment", "say": {"syl": "pi"}, "ttl": 5}}), "nor a mumble")
-        self.assertEqual(pending.seen({"sent": {"t": "moment", "anim": "wiggle", "ttl": 5}}), "moment")
+        self.assertIsNone(pending.seen({"sent": {"t": "moment", "anim": "cheer"}}), "a rule's cheer isn't it")
+        self.assertIsNone(pending.seen({"sent": {"t": "moment", "say": {"syl": "pi"}}}), "nor a mumble")
+        self.assertEqual(pending.seen({"sent": {"t": "moment", "anim": "wiggle"}}), "moment")
         pending.add({"dev": "mood", "mood": "grumpy"}, now=0)
         self.assertEqual(pending.late(now=1.9), [])
         self.assertEqual(pending.late(now=2.0), ["mood"], "nothing within 2 s")
@@ -388,10 +388,10 @@ class AppTests(unittest.TestCase):
                 with log.open("a") as f:
                     f.write('{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"already grumpy",'
                             '"name":"mood","ok":false},"received_at_ms":1790498700000,"seq":28}\n')
-                    f.write('{"sent":{"t":"moment","anim":"cheer","ttl":5},"received_at_ms":1790498700001}\n')
+                    f.write('{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":1790498700001}\n')
                 app.poll()
                 self.assertEqual([name for _, name, _ in app.pending.waiting], ["answer"])
-                self.assertEqual(face.sent, [{"t": "moment", "anim": "cheer", "ttl": 5}], "live lines reach the sim")
+                self.assertEqual(face.sent, [{"t": "moment", "anim": "cheer"}], "live lines reach the sim")
 
                 # Preview: the dashboard's own lines, to its sim only.
                 await pick("p", 1)
@@ -400,12 +400,12 @@ class AppTests(unittest.TestCase):
                 await pick("m", 6)  # sad: the mood's faces, on the sim only
                 self.assertEqual((face.sent[-1]["base"], face.sent[-1]["mood"]), ("working", "sad"))
                 await pick("a", 1)
-                self.assertEqual(face.sent[-1], {"t": "moment", "anim": "wiggle", "ttl": 5})
+                self.assertEqual(face.sent[-1], {"t": "moment", "anim": "wiggle"})
                 self.assertEqual(len(server.wait(4, timeout=0.3)), 3, "nothing went to the app")
                 with log.open("a") as f:
-                    f.write('{"sent":{"t":"moment","anim":"cheer","ttl":5},"received_at_ms":1790498700002}\n')
+                    f.write('{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":1790498700002}\n')
                 app.poll()
-                self.assertEqual(face.sent[-1], {"t": "moment", "anim": "wiggle", "ttl": 5}, "the app's lines wait")
+                self.assertEqual(face.sent[-1], {"t": "moment", "anim": "wiggle"}, "the app's lines wait")
                 # DASHBOARD.md §4: resent well inside the device's 30 s no-app timeout.
                 self.assertEqual(PREVIEW_RESEND_S, 10)
                 app.keep_preview()
@@ -428,7 +428,7 @@ class AppTests(unittest.TestCase):
                 log.write_text('{"questions":[],"received_at_ms":2}\n'
                                '{"sent":{"t":"state","v":1,"base":"idle","busy":0,"idle":0,"wait":0,"vol":6},'
                                '"received_at_ms":2}\n'
-                               '{"sent":{"t":"moment","anim":"cheer","ttl":5},"received_at_ms":3}\n')
+                               '{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":3}\n')
                 sent_before = len(face.sent)
                 app.poll()
                 self.assertEqual(face.restarts[-1]["base"], "idle", "the new app's latest state")

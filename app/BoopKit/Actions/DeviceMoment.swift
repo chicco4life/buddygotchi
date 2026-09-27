@@ -28,7 +28,7 @@ public struct DeviceMoment: Equatable, Sendable {
         case nil: 0
         case "cheer": 2000
         case "wiggle": 700
-        default: 2500
+        default: 0  // the device doesn't play an animation it doesn't know
         }
         if let say, say.syllableCount > 0 {
             let beats = Int64(say.syllableCount + (say.word?.isEmpty == false ? 2 : 0))

@@ -23,7 +23,7 @@ constexpr uint32_t kStatusMs = 60000;  // PROTOCOL.md §4
 constexpr uint32_t kFrameMs = 16;
 // A clock a tool froze runs again after this long, in real ms, with no
 // dbg.* message, so a tool that dies mid-run can't leave the board
-// stopped (VERIFICATION.md §3).
+// stopped (PROTOCOL.md §5).
 constexpr uint32_t kThawMs = 60000;
 
 const char* linkName(Link l) {

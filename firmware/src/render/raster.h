@@ -1,6 +1,6 @@
 // Anti-aliased shape filling for the bubble and the strip (the face itself
 // is pixel art), in integer maths only, so the board and the simulator draw
-// the same pixels (plan/VERIFICATION.md §3).
+// the same pixels (plan/PROTOCOL.md §5).
 //
 // Coordinates are in sub-pixels: 1/16 px (kSub). A shape is a function from
 // a sub-scanline's y to a few horizontal spans. Each pixel row samples 4

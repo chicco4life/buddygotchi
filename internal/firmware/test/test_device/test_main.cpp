@@ -428,7 +428,7 @@ static void test_a_physical_long_press_is_a_tap() {
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
 }
 
-// VERIFICATION.md §3: a clock a tool froze runs again after 60 s with no
+// PROTOCOL.md §5: a clock a tool froze runs again after 60 s with no
 // dbg.* message, from where it stopped, so a tool that dies mid-run can't
 // leave the board still: no-app, blinks and BOOT all need a moving clock.
 // Traffic from the Mac doesn't count; the simulator's own start stays frozen.

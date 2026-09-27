@@ -10,10 +10,10 @@
 {"shot":"idle-to-working-100ms"}
 {"clock":1150}
 {"shot":"idle-to-working-150ms"}
-{"t":"moment","anim":"cheer","ttl":5}
+{"t":"moment","anim":"cheer"}
 {"clock":1225}
 {"shot":"to-cheer-75ms"}
-{"t":"moment","anim":"wiggle","ttl":5}
+{"t":"moment","anim":"wiggle"}
 {"clock":1300}
 {"shot":"interrupted-75ms"}
 {"expect":{"moment":{"anim":"wiggle"}}}

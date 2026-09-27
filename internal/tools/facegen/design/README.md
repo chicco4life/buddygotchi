@@ -1,13 +1,13 @@
 # Boop base mood–state SVG review
 
-Revision 1 · 2026-09-27 · Awaiting design approval
+Revision 1 · 2026-09-27 · In use: `facegen` turns these into the device's faces
+and the popover's tiles (plan/UX.md §7).
 
 This pass contains **one base design for each of the 42 mood–state pairings**. It does not create the additional variations in the expression catalog.
 
 ## Contents
 
 - `svg/`: 42 standalone animated SVGs, named `mood--state.svg`.
-- `manifest.json`: complete mood/state-to-file mapping and approval status.
 - `source/design-system.mjs`: reusable drawing source, exporting `renderSVG(mood, state)`.
 
 There are **30 distinct visual designs**. The four expressive states have a separate design for each of the seven moods. Asleep and no-app deliberately ignore mood and each reuse a single design across seven filenames.

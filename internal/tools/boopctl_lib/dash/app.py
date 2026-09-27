@@ -268,7 +268,7 @@ class Dash(App[None]):
         if not self.look:
             self.command({"dev": "moment", "anim": anim})
         elif self.face:
-            self.face.send({"t": "moment", "anim": anim, "ttl": 5})
+            self.face.send({"t": "moment", "anim": anim})
 
     @work
     async def action_preview(self) -> None:

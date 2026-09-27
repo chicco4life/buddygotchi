@@ -231,7 +231,7 @@ public final class Runtime: @unchecked Sendable {
     }
 
     /// Everything Jev's state needs besides the transcript, for the pass on
-    /// `entry` (harness/HARNESS.md §5.3): the steering files, the core's
+    /// `entry` (harness/HARNESS.md §6): the steering files, the core's
     /// status line and oldest working turn at steady time `now`, and the
     /// time of day at wall-clock time `wall`. The evals build theirs with
     /// it too.

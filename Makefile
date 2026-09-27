@@ -1,7 +1,7 @@
 # Boop v1. Run from the repo root. See README.md and plan/VERIFICATION.md.
 # The development targets (tests, simulator, tools) are in internal/Makefile:
 # make -C internal <target>.
-.PHONY: build run debug flash eval clean
+.PHONY: build run debug dash flash eval clean
 
 PIO := firmware/tools/pio.sh
 
@@ -24,9 +24,14 @@ run: build
 	.build/debug/Boop
 
 # The same, printing everything to this terminal as it happens: hooks, the
-# core's decisions, device messages and every brain pass (HARNESS.md §8).
+# core's decisions, device messages and every brain pass (plan/harness/HARNESS.md).
 debug: build
 	.build/debug/Boop --debug
+
+# The live dashboard for the app `make debug` started (plan/DASHBOARD.md).
+# Run it in a second terminal.
+dash:
+	internal/tools/boopctl dash
 
 # The harness eval scenarios (plan/EVALS.md), each run 3 times against Jev.
 # They need Jev's key in BOOP_JEV_KEY and fail without it

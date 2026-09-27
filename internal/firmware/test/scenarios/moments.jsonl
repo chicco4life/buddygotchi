@@ -2,7 +2,7 @@
 {"clock":0}
 {"t":"state","v":1,"base":"idle"}
 {"clock":10000}
-{"t":"moment","anim":"cheer","ttl":5}
+{"t":"moment","anim":"cheer"}
 {"clock":10190}
 {"expect":{"moment":{"anim":"cheer"}}}
 {"shot":"cheer"}
@@ -12,7 +12,7 @@
 {"expect":{"moment":null}}
 {"t":"state","v":1,"base":"idle"}
 {"clock":30000}
-{"t":"moment","anim":"wiggle","ttl":5}
+{"t":"moment","anim":"wiggle"}
 {"clock":30090}
 {"expect":{"moment":{"anim":"wiggle"}}}
 {"shot":"wiggle"}
@@ -20,16 +20,16 @@
 // A moment with neither `anim` nor `say` is ignored (PROTOCOL.md §3): the
 // cheer carries on.
 {"clock":50000}
-{"t":"moment","anim":"cheer","ttl":5}
+{"t":"moment","anim":"cheer"}
 {"clock":50500}
-{"t":"moment","ttl":5}
+{"t":"moment"}
 {"expect":{"moment":{"anim":"cheer","left_ms":1500}}}
 {"t":"state","v":1,"base":"idle"}
 // An unknown animation with no mumble is ignored, the removed ones too.
 {"clock":70000}
-{"t":"moment","anim":"oops","ttl":5}
+{"t":"moment","anim":"oops"}
 {"expect":{"moment":null}}
-{"t":"moment","anim":"nod","ttl":5}
-{"t":"moment","anim":"thinking","ttl":5}
-{"t":"moment","anim":"shrug","ttl":5}
+{"t":"moment","anim":"nod"}
+{"t":"moment","anim":"thinking"}
+{"t":"moment","anim":"shrug"}
 {"expect":{"moment":null}}

@@ -1,7 +1,7 @@
 import Foundation
 
 /// The eight feelings a mumble can have (VOICE.md §4). `react` picks its
-/// five among them (harness/DECISIONS.md §5).
+/// five among them (harness/DECISIONS.md §3).
 public enum Feeling: String, CaseIterable, Sendable {
     case happy, excited, proud, curious, hopeful, annoyed, sad, sleepy
 
@@ -39,7 +39,7 @@ public enum Sounds {
     static let set = Set(all)
 
     /// The real words Boop can say (VOICE.md §6). `react`'s words are some
-    /// of them (harness/DECISIONS.md §5). Topic words first, then
+    /// of them (harness/DECISIONS.md §3). Topic words first, then
     /// interjections.
     public static let vocabulary: [String] = [
         "tests", "build", "docs", "deploy", "bug", "fix", "ship", "code", "merge", "review",

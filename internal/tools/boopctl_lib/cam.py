@@ -201,8 +201,8 @@ CLIPS = {
     "needs_you": [(0.0, _WORKING), (2.0, _ATTN), (5.0, _ATTN)],
     # A cheer, then the brain's mumble on its own over the working face
     # (the mumble is PROTOCOL.md §3's example).
-    "cheer": [(0.0, _WORKING), (1.5, {"t": "moment", "anim": "cheer", "ttl": 5}),
-              (4.0, {"t": "moment", "ttl": 5,
+    "cheer": [(0.0, _WORKING), (1.5, {"t": "moment", "anim": "cheer"}),
+              (4.0, {"t": "moment",
                      "say": {"syl": "bi-do ba-na", "word": "done", "at": 4, "tune": "up", "ms": 120}}),
               (5.0, _WORKING)],
     "tap": [(0.0, {"t": "state", "v": 1, "base": "idle", "idle": 1}), (1.0, {"t": "dbg.press", "ms": 100}),

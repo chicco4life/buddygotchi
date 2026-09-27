@@ -1,4 +1,4 @@
-// The device clock (plan/VERIFICATION.md §3). It normally follows real
+// The device clock (plan/PROTOCOL.md §5). It normally follows real
 // time; tests freeze it, step it and let it run again, so frames repeat
 // exactly. Pure C++.
 #pragma once

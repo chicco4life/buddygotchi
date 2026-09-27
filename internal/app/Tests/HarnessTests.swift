@@ -120,7 +120,7 @@ final class HarnessTests: XCTestCase {
         return (h, home)
     }
 
-    /// HARNESS.md §3–4: one request with every action's questions; each
+    /// HARNESS.md §2–4: one request with every action's questions; each
     /// action gets only its own answers, in order; a nil result records
     /// nothing, and every result is recorded under its event.
     func testAPassAsksEveryQuestionAndHandsEachActionItsOwn() async throws {
@@ -174,7 +174,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(record.pass.dropped, "late: no answer within 1250 ms")
     }
 
-    /// HARNESS.md §3: one pass runs at a time, and a newer event replaces
+    /// HARNESS.md §2: one pass runs at a time, and a newer event replaces
     /// one that's waiting; the replaced one is still recorded.
     func testOnePassAtATimeAndTheNewestWaits() throws {
         let seen = Lines()

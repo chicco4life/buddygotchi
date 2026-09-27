@@ -169,7 +169,7 @@ def cmd_perf(args: argparse.Namespace) -> int:
         i = 0
         while (elapsed := time.monotonic() - start) < args.seconds:
             if args.motion and elapsed - last_moment >= 1.0:
-                dev.send({"t": "moment", "anim": ANIMS[i % len(ANIMS)], "ttl": 5})
+                dev.send({"t": "moment", "anim": ANIMS[i % len(ANIMS)]})
                 dev.send(working)
                 last_moment, i = elapsed, i + 1
             time.sleep(1.0)
@@ -205,7 +205,7 @@ def soak_state(rng: random.Random) -> dict:
                 for _ in range(rng.randint(0, 8))]
     busy = sum(t[2] == "work" for t in sessions)
     wait = sum(t[2] == "wait" for t in sessions)
-    msg = {"t": "state", "v": 1, "time": int(time.time()), "name": "Pip",
+    msg = {"t": "state", "v": 1,
            "base": "working" if busy else rng.choice(["idle", "idle", "asleep"]),
            "busy": busy, "idle": len(sessions) - busy - wait, "wait": wait,
            "vol": 6}
@@ -217,7 +217,7 @@ def soak_state(rng: random.Random) -> dict:
 
 def soak_moment(rng: random.Random) -> dict:
     """An animation, a mumble, or both, as the Mac sends them."""
-    msg = {"t": "moment", "ttl": 5}
+    msg = {"t": "moment"}
     if rng.random() < 0.7:
         msg["anim"] = rng.choice(ANIMS)
     if "anim" not in msg or rng.random() < 0.4:
@@ -371,7 +371,7 @@ def play_line(dev: Device, say: dict) -> tuple[int, dict, bool]:
     Returns how many lines finished meanwhile (1 when it played), the last
     dbg.state, and whether the amp was on at any point."""
     before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
-    dev.send({"t": "moment", "say": say, "ttl": 5})
+    dev.send({"t": "moment", "say": say})
     deadline = time.monotonic() + 6
     amp = False
     while True:
@@ -439,7 +439,7 @@ def cmd_mumble(args: argparse.Namespace) -> int:
         # Muted: the mouth still moves, the DAC stays off.
         show_state(dev, 0)
         before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
-        dev.send({"t": "moment", "say": boopdev_voice("happy", None, 1, seed)[0], "ttl": 5})
+        dev.send({"t": "moment", "say": boopdev_voice("happy", None, 1, seed)[0]})
         mouth = dev.request({"t": "dbg.state"})["audio"]["playing"]
         time.sleep(2.5)
         st = dev.request({"t": "dbg.state"})
@@ -514,7 +514,7 @@ def cmd_play(args: argparse.Namespace) -> int:
     with Device(args.port) as dev:
         show_begin(dev)
         show_state(dev, args.vol, base=args.base, mood=args.mood)
-        msg = {"t": "moment", "anim": args.what, "ttl": 5}
+        msg = {"t": "moment", "anim": args.what}
         if args.say:
             msg["say"] = boopdev_voice(args.say, args.word, 1, args.seed)[0]
         dev.send(msg)
