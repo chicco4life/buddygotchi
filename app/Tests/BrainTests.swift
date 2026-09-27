@@ -59,6 +59,12 @@ final class RulesTests: XCTestCase {
                 XCTAssertEqual(calls, expected, "\(mode): " + i.line + " " + (i.words ?? ""))
             }
         }
+        // Boop's name comes from memory.
+        let i = input(.said, words: "Hey Pip, remember I always ship on Fridays")
+        let memory = Prompt.Memory(steering: "", longTerm: "## Boop\nname: Pip\n", shortTerm: "", boopName: "Pip")
+        let c = try await Rules(.normal).classify(context(i, memory: memory), Menu(i.menu, definitions: try definitions()),
+                                                  deadline: .seconds(1))
+        XCTAssertEqual(c.calls, [react("happy"), remember("about_you")])
         XCTAssertEqual(Mode.allCases.map { Rules($0).id }, ["chatty@1", "normal@1", "calm@1"])
     }
 
@@ -174,6 +180,17 @@ final class PhrasesTests: XCTestCase {
         for (i, expected) in cases {
             XCTAssertEqual(Phrases.reply(to: i, hurtMumbles: true).0, expected, i.words ?? "")
         }
+        // Boop's own name isn't someone else's: said to it by name, a
+        // lasting fact still goes to long-term; a real other name doesn't.
+        let named: [(String, String)] = [
+            ("Hey Pip, remember I always ship on Fridays", "about_you"), ("Okay Pip remember I prefer small PRs", "preference"),
+            ("Remember I always ship on Fridays, Pip", "about_you"), ("remember Pip's tests run every morning", "today"),
+            ("Hey Pip, remember Bob ships on Fridays", "today"), ("Hey Mochi, remember I always ship on Fridays", "today"),
+        ]
+        for (words, place) in named {
+            XCTAssertEqual(Phrases.place(words, boopName: "Pip"), place, words)
+        }
+        XCTAssertEqual(Phrases.place("Hey Pip, remember I always ship on Fridays", boopName: nil), "today")
         // Whole words only: "hi" isn't in "this", "quiet" isn't in "quietly".
         XCTAssertEqual(Input.plain("Hi, THIS is quiet-ish!"), " hi this is quiet ish ")
         XCTAssertEqual(Input.plain("I\u{2019}d rather \u{2018}not\u{2019}"), " i'd rather 'not' ")

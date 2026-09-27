@@ -127,7 +127,8 @@ doing and answers them.
   for today, and a lasting fact about you, or a preference, for good. The
   if-else tables act only on "remember" or "note", and keep a fact that
   names someone else for today, since long-term memory keeps no one
-  else's name ([HARNESS.md](HARNESS.md) §6). Jev may also keep a fact you
+  else's name; calling Boop by its own name doesn't count
+  ([HARNESS.md](HARNESS.md) §6). Jev may also keep a fact you
   just state ([steering.md](steering.md), Remembering).
 - **Anything else:** a mumble that fits.
 

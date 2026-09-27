@@ -127,7 +127,8 @@ asides** are noted after each input, and later ones are left out. Memory
 changes don't restart it, since every call gets the current memory
 anyway.
 
-**Who reads what.** The if-else tables read only the current input. Jev
+**Who reads what.** The if-else tables read only the current input (and
+Boop's name, from memory). Jev
 gets the window as JSON (§6). Apple's writer reads only this pass, then a
 line per slot (from `BrainTests`):
 
@@ -212,11 +213,11 @@ that says exactly how it behaves. The mode picks them:
 | Calm | `Rules(.calm)` (`calm@1`) | `AppleWriter` |
 
 **The if-else tables** (`Rules`) are plain Swift: no model, always
-available, and reading only the input's fields, so the same events always
-get the same decisions. Each decides exactly its mode's column in
-[BEHAVIORS.md](BEHAVIORS.md) §6 (a curious mumble there is
-`react(curious)` here), and all three share the tables below for what you
-say.
+available, and reading only the input's fields and Boop's name, so the
+same events always get the same decisions. Each decides exactly its
+mode's column in [BEHAVIORS.md](BEHAVIORS.md) §6 (a curious mumble there
+is `react(curious)` here), and all three share the tables below for what
+you say.
 
 **`JevClassifier`** is TypeSafe's `jev-latest`
 ([docs](https://docs.typesafe.ai/api)) with the person's API key. It
@@ -293,7 +294,7 @@ tables lean towards today:
 
 | The words have | `where` |
 | --- | --- |
-| Someone else's name: a capitalised word that isn't the first, "I", a day, a month or an acronym ("Bob", not "PRs"), found as the memory store finds one | `today`, since long-term keeps no one else's name |
+| Someone else's name: a capitalised word that isn't the first, "I", a day, a month, an acronym or Boop's own name ("Bob", not "PRs" or "Pip"), found as the memory store finds one | `today`, since long-term keeps no one else's name |
 | "I like", "I love", "I prefer", "I hate", "I don't like" or "I'd rather" | `preference` |
 | "I", "I'm", "I've" or "my", with a sign it lasts: "always", "usually", "never", "every", "mostly", "generally", a weekday in the plural ("Fridays"), "weekends", "mornings", "evenings", "my name", "I'm a", "I work" or "I live" | `about_you` |
 | Anything else | `today` |

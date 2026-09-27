@@ -3,7 +3,9 @@ import Foundation
 /// The if-else classifiers (Stage 1, HARNESS.md §6): plain Swift, no model,
 /// always available, one per mode. Each decides exactly its mode's column
 /// in BEHAVIORS.md §6; normal's is also what Jev is steered toward, and
-/// decides without Jev's key. They read only the input's fields:
+/// decides without Jev's key. They read only the input's fields, and
+/// Boop's name, so a fact said to it by name isn't taken for someone
+/// else's:
 ///
 /// | Input | Chatty | Normal | Calm |
 /// | --- | --- | --- | --- |
@@ -24,12 +26,12 @@ public struct Rules: Classifier {
     public init(_ mode: Mode) { self.mode = mode }
 
     public func classify(_ context: Context, _ menu: Menu, deadline: Duration) async throws -> Classification {
-        let (calls, rule) = decide(context.input)
+        let (calls, rule) = decide(context.input, boopName: context.memory.boopName)
         return Classification(calls: calls.filter { menu.definition($0.name) != nil }, evidence: rule)
     }
 
     /// The calls for an input and the row that matched.
-    func decide(_ input: Input) -> ([ToolCall], String) {
+    func decide(_ input: Input, boopName: String?) -> ([ToolCall], String) {
         let react = Phrases.react
         switch input.kind {
         case .agentStarted:
@@ -47,7 +49,7 @@ public struct Rules: Classifier {
         case .poked:
             return (mode == .calm ? [] : [react("annoyed")], "poked again and again")
         case .said:
-            return Phrases.reply(to: input, hurtMumbles: mode != .calm)
+            return Phrases.reply(to: input, hurtMumbles: mode != .calm, boopName: boopName)
         }
     }
 }
