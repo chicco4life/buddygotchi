@@ -1,0 +1,23 @@
+sent SessionStart at 1790527121266 hook 250.1 ms exit 0
+sent UserPromptSubmit at 1790527122524 hook 15.6 ms exit 0
+sent PreToolUse at 1790527123550 hook 16.1 ms exit 0
+sent PreToolUse at 1790527124577 hook 15.1 ms exit 0
+sent PreToolUse at 1790527125601 hook 16.8 ms exit 0
+sent PermissionRequest at 1790527126628 hook 16.1 ms exit 0
+sent Notification at 1790527127651 hook 7.2 ms exit 0
+sent PreToolUse at 1790527128668 hook 12.4 ms exit 0
+sent PostToolUse at 1790527129691 hook 16.4 ms exit 0
+sent SubagentStop at 1790527130710 hook 16.0 ms exit 0
+sent PostToolUse at 1790527131734 hook 12.9 ms exit 0
+advanced the app's clock 20000 ms
+sent SubagentStop at 1790527132751 hook 12.2 ms exit 0
+sent PostToolUse at 1790527133767 hook 14.3 ms exit 0
+sent PreToolUse at 1790527134788 hook 16.4 ms exit 0
+sent PostToolUse at 1790527135815 hook 16.8 ms exit 0
+sent Stop at 1790527136841 hook 7.3 ms exit 0
+advanced the app's clock 5000 ms
+sent SubagentStop at 1790527137859 hook 16.5 ms exit 0
+advanced the app's clock 60000 ms
+sent SessionStart at 1790527138877 hook 16.1 ms exit 0
+sent SubagentStop at 1790527139898 hook 12.7 ms exit 0
+advanced the app's clock 120000 ms
