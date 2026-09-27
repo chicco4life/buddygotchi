@@ -183,6 +183,17 @@ fixed. Pick one up by writing it into its spec first.
   moment's turn came 4.84 s after it arrived, but the pump's timer ran
   0.3 s late and dropped it as 5.16 s late. A timer with little leeway,
   or judging the wait by when its turn came, would keep it.
+- **A jump in the app's clock ends a waiting reaction by the harness's
+  ceiling.** The moment schedule drops a reaction that waited too long
+  only when its pump's timer fires, on real time, while the harness's
+  60 s ceiling is checked on the 1 s tick against the app's clock. When
+  that clock jumps (headless `advance`, and likely after the Mac sleeps,
+  since the steady clock counts through sleep and dispatch timers don't),
+  the tick gets there first and the reaction ends `no word it finished`,
+  not `waited too long`, though [harness/DECISIONS.md](harness/DECISIONS.md)
+  §5 says the ceiling never ends one. Checking the schedule's waiting
+  moments on the tick, before the harness's, would keep the reason
+  ([evidence](evidence/2026-09-28-tonight/daylog/README.md)).
 - **The dashboard's recorded run predates started actions and loops.**
   `internal/tools/boopctl_lib/tests/fixtures/headless-debug.jsonl` has
   `react` lines with no `"pending":true`, no `settle` lines, no
