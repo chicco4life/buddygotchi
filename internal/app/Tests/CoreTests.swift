@@ -33,11 +33,16 @@ final class CoreRig {
         if notice ?? (kind == .needsYou && tool == nil) {
             detail.notice = noticeKind ?? (kind == .turnStopped ? "idle_prompt" : "permission_prompt")
         }
-        let fx = core.handle(BoopEvent(agent: agent, session: session, subagent: subagent, project: project, event: kind,
-                                       detail: detail, ts: now))
+        let event = BoopEvent(agent: agent, session: session, subagent: subagent, project: project, event: kind,
+                              detail: detail, ts: now)
+        sent.append(event)
+        let fx = core.handle(event)
         log += fx
         return fx
     }
+
+    /// Every event sent, in order.
+    var sent: [BoopEvent] = []
 
     @discardableResult
     func input(_ input: Core.DeviceInput) -> [CoreEffect] {
@@ -1289,3 +1294,93 @@ final class CoreRulesTests: XCTestCase {
     }
 }
 
+// MARK: - The record and the screen agree
+
+final class CoreFuzzTests: XCTestCase {
+    /// Random hook traffic from three sessions, Claude with subagents and
+    /// Codex, with ticks and clock jumps between, checked after every call
+    /// against what the screen and HISTORY must agree on:
+    /// - a `needs_you` event is for a session the core shows waiting
+    ///   (ADAPTERS.md §4: one answered before it showed isn't recorded);
+    /// - no cheer, and no event that wakes the brain, while something needs
+    ///   you (BEHAVIORS.md §1, harness/EVENTS.md §6);
+    /// - the state sent is the snapshot, and one request's number never
+    ///   changes its agent or project (PROTOCOL.md §3).
+    func testRandomTrafficKeepsTheRecordAndTheScreenInStep() {
+        var rng = SplitMix64(seed: 20260928)
+        let rig = CoreRig()
+        let sessions: [(Agent, String, String)] = [(.claudeCode, "a", "landing"), (.claudeCode, "b", "landing"),
+                                                   (.codex, "c", "jetpack")]
+        let tools = ["Bash", "Read", "Agent", "mcp__x__ask"]
+        var lastAttn: StateSnapshot.Attention?
+        var calls = 0, shown = 0, cheers = 0
+        var trail: [String] = []  // the last calls, for a failure's message
+        for step in 0..<20_000 {
+            var fx: [CoreEffect] = []
+            let logBefore = rig.log.count
+            let roll = rng.int(in: 0...99)
+            if roll < 10 {
+                rig.now += Int64(rng.int(in: 1...(roll < 2 ? 700_000 : 3000)))
+                fx = rig.core.tick(at: rig.now)
+            } else {
+                rig.now += Int64(rng.int(in: 0...400))
+                let (agent, session, project) = sessions[rng.int(in: 0...2)]
+                let claude = agent == .claudeCode
+                let subagent = claude && rng.chance(40) ? ["a1", "a2"][rng.int(in: 0...1)] : nil
+                let tool = tools[rng.int(in: 0...(claude ? 3 : 0))]
+                let id = "t\(rng.int(in: 0...5))"
+                switch rng.int(in: 0...13) {
+                case 0: fx = rig.send(.turnStart, agent, session: session, project: project)
+                case 1, 2: fx = rig.send(.activity, agent, session: session, subagent: subagent, project: project, tool: tool, id: id)
+                case 3, 4: fx = rig.send(.activity, agent, session: session, subagent: subagent, project: project, tool: tool,
+                                         failed: claude ? rng.chance(20) : nil, id: id, done: true)
+                case 5, 6: fx = rig.send(.needsYou, agent, session: session, subagent: subagent, project: project, tool: tool)
+                case 7: fx = rig.send(.needsYou, agent, session: session, subagent: subagent, project: project,
+                                      notice: claude ? rng.chance(70) : false,
+                                      kind: rng.chance(50) ? "permission_prompt" : "elicitation_dialog")
+                case 8: fx = rig.send(.turnEnd, agent, session: session, project: project)
+                case 9: fx = rig.send(.turnStopped, agent, session: session, subagent: subagent, project: project,
+                                      tool: rng.chance(50) ? tool : nil, notice: claude && rng.chance(50))
+                case 10: fx = claude ? rig.send(.subagentEnd, agent, session: session, subagent: subagent ?? "a1", project: project) : []
+                case 11: fx = rig.send(.turnFailed, agent, session: session, subagent: subagent, project: project)
+                case 12: fx = rig.send(.activity, agent, session: session, subagent: subagent, project: project)
+                default: fx = rig.send(.sessionStart, agent, session: session, subagent: subagent, project: project)
+                }
+            }
+            calls += 1
+            trail = Array((trail + ["\(step): " + (roll < 10 ? "tick" : lastSent(rig, from: logBefore))]).suffix(12))
+            let why = trail.joined(separator: "\n")
+            let now = rig.core.snapshot(at: rig.now)
+            let showing = rig.core.needsYouShowing
+            for event in events(fx) {
+                if event.kind == .needsYou {
+                    shown += 1
+                    XCTAssertNotNil(event.about.flatMap { rig.core.sessions[$0]?.needsSince }, "\(event.line) never showed\n\(why)")
+                }
+                if event.wakesBrain { XCTAssertFalse(showing, "\(event.line) woke the brain\n\(why)") }
+            }
+            if moments(fx).contains("cheer") {
+                cheers += 1
+                XCTAssertNil(now.attn, "a cheer while something needs you\n\(why)")
+            }
+            if let sent = states(fx).last {
+                XCTAssertEqual(sent, now, why)
+                if let a = sent.attn, let b = lastAttn, a.id == b.id {
+                    XCTAssertEqual([a.agent, a.project], [b.agent, b.project], "one request, one place\n\(why)")
+                }
+                lastAttn = sent.attn ?? lastAttn
+            }
+        }
+        XCTAssertGreaterThan(shown, 500, "the traffic asks often")
+        XCTAssertGreaterThan(cheers, 100, "and finishes often")
+        print("  \(calls) calls, \(shown) requests shown, \(cheers) cheers")
+    }
+}
+
+/// The last event `rig` sent, on one line, if it sent one since `from`
+/// effects were logged.
+func lastSent(_ rig: CoreRig, from: Int) -> String {
+    guard let e = rig.sent.last else { return "-" }
+    return "\(e.agent.short)/\(e.session)\(e.subagent.map { "(" + $0 + ")" } ?? "") \(e.summary)"
+        + (e.detail.done ? " done" : "") + (e.detail.toolUseID.map { " #" + $0 } ?? "")
+}

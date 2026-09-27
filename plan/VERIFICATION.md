@@ -192,7 +192,12 @@ gets at least one scenario. Their pictures are the golden images in
 - **Swift (`make -C internal test`):** every part in
   [ARCHITECTURE.md](ARCHITECTURE.md) §3 has tests; the harness and actions
   run with a scripted brain and no network, and the eval runner is tested
-  the same way ([EVALS.md](EVALS.md)).
+  the same way ([EVALS.md](EVALS.md)). `CoreFuzzTests` plays 20,000 random
+  hooks from three sessions (Claude with subagents, and Codex) into the
+  core, with ticks and clock jumps, and checks after each that HISTORY
+  and the screen agree: every `needs_you` event is for a session shown
+  waiting, nothing cheers or wakes the brain while something needs you,
+  and one request's number never changes its agent or project.
 - **Firmware (`make -C internal fw-test`):** line reassembly across
   Bluetooth packets, screenshot encoding, the clock and gestures
   (`test_link`); the messages, debug channel and inputs (`test_device`);
