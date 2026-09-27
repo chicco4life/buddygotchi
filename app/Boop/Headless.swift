@@ -24,15 +24,9 @@ enum Headless {
         }
         // Every value is checked before anything is written, so a typo
         // doesn't leave a set-up Boop behind for the next run to keep.
-        var mode: Mode?
-        if let name = args["--mode"] {
-            guard let m = Mode(rawValue: name) else { fail("--mode is chatty, normal or calm") }
-            mode = m
-        }
-        let classifier = args["--classifier"]
-        if let c = classifier, !Brains.classifiers.contains(c) { fail("--classifier is " + Brains.classifiers.joined(separator: ", ")) }
-        let writer = args["--writer"]
-        if let w = writer, !Brains.writers.contains(w) { fail("--writer is " + Brains.writers.joined(separator: ", ")) }
+        let mode = args.choice("--mode", of: Mode.allCases.map(\.rawValue)).flatMap(Mode.init(rawValue:))
+        let classifier = args.choice("--classifier", of: Brains.classifiers)
+        let writer = args.choice("--writer", of: Brains.writers)
         guard let nature = LongTerm.Nature(rawValue: args["--nature"] ?? "sweet") else { fail("--nature is sweet or cheeky") }
         let log = LogFile(directory: stateDir, echo: true)
 

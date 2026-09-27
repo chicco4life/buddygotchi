@@ -48,6 +48,14 @@ public struct Arguments: Sendable {
     /// Whether a flag was given.
     public func has(_ flag: String) -> Bool { flags.contains(flag) }
 
+    /// The value given for an option that takes one of `choices`, or nil if
+    /// it isn't given. Any other value stops the command, naming them.
+    public func choice(_ option: String, of choices: [String]) -> String? {
+        guard let value = values[option] else { return nil }
+        if !choices.contains(value) { Arguments.stop("\(option) is " + choices.joined(separator: ", ")) }
+        return value
+    }
+
     /// A command's arguments, as every command takes them: --help prints
     /// `usage` and exits 0, and a problem prints `command:`, the problem and
     /// `usage` to stderr and exits 2.
@@ -61,8 +69,13 @@ public struct Arguments: Sendable {
             }
             return parsed
         } catch {
-            FileHandle.standardError.write(Data("\(command): \(error)\n\(usage)\n".utf8))
-            exit(2)
+            stop("\(command): \(error)\n\(usage)")
         }
+    }
+
+    /// Prints `message` to stderr and exits 2.
+    static func stop(_ message: String) -> Never {
+        FileHandle.standardError.write(Data((message + "\n").utf8))
+        exit(2)
     }
 }

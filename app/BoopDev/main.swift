@@ -21,7 +21,7 @@ let usages: [(command: String, text: String)] = [
         Prints Minion lines as the react action would build them.
     """),
     ("eval", """
-    boopdev eval [--real] [--mode chatty|normal|calm] [--classifier \(Brains.classifiers.joined(separator: "|"))] [--writer none|apple]
+    boopdev eval [--real] [--mode chatty|normal|calm] [--classifier \(Brains.classifiers.joined(separator: "|"))] [--writer \(Brains.writers.joined(separator: "|"))]
          [--runs N] [--only TEXT] [--json FILE] [--scenarios DIR] [--memory DIR] [--steering FILE]
         Runs the harness eval scenarios in each mode: events, taps and talk on a virtual clock through a
         fresh core, the real harness and actions, each step checked against the passes it should lead to
@@ -288,26 +288,21 @@ func eval(_ raw: [String]) async {
     // --real: every mode with the brains the app would run (VERIFICATION.md L5).
     let real = args.has("--real")
     var modes = Mode.allCases
-    if let name = args["--mode"] {
-        guard let mode = Mode(rawValue: name) else { fail("modes: chatty, normal, calm") }
-        modes = [mode]
-    }
-    let override = args["--classifier"]
-    if let override, !Brains.classifiers.contains(override) { fail("classifiers: " + Brains.classifiers.joined(separator: ", ")) }
-    // Jev only when asked for, or for normal in a real run with its key, so
-    // a key in the environment doesn't make the default run a live one. A
-    // real run asks for Jev by name: Jev alone decides normal, which is what
-    // L5 checks. Without the key, normal's table decides it.
+    if let mode = args.choice("--mode", of: modes.map(\.rawValue)).flatMap(Mode.init(rawValue:)) { modes = [mode] }
+    let override = args.choice("--classifier", of: Brains.classifiers)
+    // Each mode's classifier by name: Jev only when asked for, or for normal
+    // in a real run with its key, so a key in the environment doesn't make
+    // the default run a live one. A real run asks for Jev by name: Jev alone
+    // decides normal, which is what L5 checks. Without the key, normal's
+    // table decides it.
     let envKey = Brains.environmentJevKey()
     if envKey == nil, override == "jev" { fail("Jev needs its API key in \(Brains.jevKeyVariable)") }
-    let jev: @Sendable (Mode) -> String? = { mode in override ?? (real && mode == .normal && envKey != nil ? "jev" : nil) }
-    let key = modes.contains { jev($0) == "jev" } ? envKey : nil
+    let pick: @Sendable (Mode) -> String = { mode in override ?? (real && mode == .normal && envKey != nil ? "jev" : mode.rawValue) }
     if real, override == nil, envKey == nil, modes.contains(.normal) {
         print("normal: decided by its table; with Jev's API key in \(Brains.jevKeyVariable), Jev decides it")
     }
-    let writerName = args["--writer"] ?? (real ? "apple" : "none")
-    guard ["none", "apple"].contains(writerName) else { fail("writers: none, apple") }
-    if writerName == "apple", let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }
+    let writer = args.choice("--writer", of: Brains.writers) ?? (real ? "apple" : "none")
+    if writer == "apple", let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }
     var list: [Scenario]
     do { list = try Scenario.load(directory: scenarios) } catch {
         fail("can't read the scenarios in \(scenarios.path): \((error as NSError).localizedDescription)")
@@ -318,8 +313,8 @@ func eval(_ raw: [String]) async {
     guard !list.isEmpty else { fail("no scenarios in \(scenarios.path)") }
     guard let runs = Int(args["--runs"] ?? (real ? "3" : "1")), runs >= 1 else { fail("--runs is a count, 1 or more") }
     var runner = Eval(
-        classifier: { mode in Brains.classifier(for: mode, override: jev(mode), key: { key }) },
-        writer: { mode in writerName == "none" ? NoWriter() : Brains.writer(for: mode) },
+        classifier: { mode in Brains.classifier(for: mode, override: pick(mode), key: { envKey }) },
+        writer: { mode in Brains.writer(for: mode, override: writer) },
         steering: steering, memory: memoryDir)
     let log = evalDebugLog()
     runner.debugLog = log
