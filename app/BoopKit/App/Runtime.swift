@@ -148,10 +148,7 @@ public final class Runtime: @unchecked Sendable {
     public static func steadyClock() -> @Sendable () -> Int64 {
         let wall = Int64(Date().timeIntervalSince1970 * 1000)
         let start = ContinuousClock.now
-        return {
-            let (seconds, attoseconds) = (ContinuousClock.now - start).components
-            return wall + seconds * 1000 + attoseconds / 1_000_000_000_000_000
-        }
+        return { wall + Int64((ContinuousClock.now - start).ms) }
     }
 
     /// Sets up a new Boop: name and sweet-or-cheeky, asked once (UX.md §6).
