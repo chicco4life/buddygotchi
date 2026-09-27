@@ -128,16 +128,16 @@ void drawStrip(Canvas& c, const Strip& s) {
   if (s.quiet) iconQuiet(c, ix, cy - 8);
 }
 
-void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s) {
+void drawFaceScreen(Canvas& c, const FaceLayout& f, const Mumble* mumble, const Strip& s) {
   c.fill(kBlack);
-  drawFace(c, faceLayout(p));
+  drawFace(c, f);
   if (mumble) drawMumble(c, *mumble);
   drawStrip(c, s);
 }
 
-void drawNeedsYou(Canvas& c, const Pose& p, const Attention& a, const Strip& s) {
+void drawNeedsYou(Canvas& c, const FaceLayout& f, const Attention& a, const Strip& s) {
   c.fill(kBlack);
-  drawFace(c, faceLayout(p));
+  drawFace(c, f);
   // Two lines in the bubble: who, then what, with "+N more" at its end.
   const int whoY = kBubbleCy - 22, whatY = kBubbleCy;
   char who[48];

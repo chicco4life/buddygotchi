@@ -372,9 +372,8 @@ void Device::followSound(uint32_t t) {
 // pixel face moves a block at a time, so most passes in motion find the
 // picture unchanged.
 void Device::render(uint32_t t) {
-  render::Pose pose = b_.pose(t);
+  render::FaceLayout face = render::faceLayout(b_.pose(t));
   const render::Mumble* mumble = b_.mumble(t);
-  render::FaceLayout face = render::faceLayout(pose);
   bool same = !dirty_ && face == drawnFace_ && (mumble != nullptr) == drawnBubble_;
   drawnMoving_ = screen_ != Screen::kPattern && b_.moving(t);
   drawnT_ = t;
@@ -399,11 +398,11 @@ void Device::render(uint32_t t) {
     case Screen::kNeedsYou: {
       render::Attention a;
       a.agent = m.agent, a.project = m.project, a.more = m.more;
-      render::drawNeedsYou(canvas_, pose, a, strip);
+      render::drawNeedsYou(canvas_, face, a, strip);
       break;
     }
     default:
-      render::drawFaceScreen(canvas_, pose, mumble, strip);
+      render::drawFaceScreen(canvas_, face, mumble, strip);
       break;
   }
   labelDrawn_ = debugLabel(t);
