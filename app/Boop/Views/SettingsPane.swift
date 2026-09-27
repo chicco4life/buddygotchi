@@ -144,7 +144,7 @@ struct SettingsPane: View {
     /// Why mumbles have no word, if they don't.
     private var brainNote: String? {
         guard let status = model.status else { return nil }
-        if status.writer == "none" || status.writer.hasPrefix("apple") && AppleWriter.unavailableReason != nil {
+        if status.writer == "none" || status.writer.hasPrefix("apple") && model.appleUnavailable != nil {
             return "Apple's model can't run here, so mumbles have no word."
         }
         return nil
