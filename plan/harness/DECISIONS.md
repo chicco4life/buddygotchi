@@ -245,6 +245,12 @@ how it ended ([PROTOCOL.md](../PROTOCOL.md) §4):
 | `failed`, `the device disconnected` | The device dropped before saying how it ended | The runtime |
 | `failed`, `the device never said it ended` | No `ended` came by the moment's longest length, its face's loops of the design the last `state` shows or its line, plus a grace ([PROTOCOL.md](../PROTOCOL.md) §6): the line was lost, or the firmware is older | The runtime |
 
+Even the longest hold of the design with the longest loop ends one of
+these ways before the harness's ceiling could end it
+([HARNESS.md](HARNESS.md) §5.1): its wait for a turn, its face and the
+grace for `ended` add up to less, which `RuntimeTests` checks against
+the designs' loops, so a new design can't break it unnoticed.
+
 A failed one reads `(didn't happen: <why>)` in HISTORY, so Jev may make
 it again if NOW still calls for it (§2.1). The evals have no device, so
 their queue ends each handle `done` at once ([EVALS.md](../EVALS.md) §1).

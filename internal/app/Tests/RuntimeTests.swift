@@ -690,6 +690,22 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(end(.skipped, nil), .failed("something needed you"))
     }
 
+    /// harness/DECISIONS.md §5, HARNESS.md §5.1: a reaction held longest,
+    /// in the design with the longest loop and with the slowest line, ends
+    /// by the app's own reckoning (its wait for a turn, its length and the
+    /// grace for the device's `ended`) before the harness's ceiling would
+    /// end it. The loops are the designs' (`FaceLoops`), so a new design
+    /// with a long loop fails here rather than in HISTORY.
+    func testAReactionEndsBeforeTheHarnessCeiling() {
+        let slow = VoiceLine(groups: [Array(repeating: "zzz", count: 8)], word: "finally", at: 8, tune: .bounce, ms: 400)
+        let held = ReactAction.holds.count
+        let longest = MoodAction.moods.map(\.name).flatMap { mood in
+            FaceLoops.states.map { DeviceMoment(say: slow, mood: mood, loops: held).playMs(look: $0, mood: mood) }
+        }.max() ?? 0
+        XCTAssertGreaterThanOrEqual(longest, Int64(held) * FaceLoops.ms.values.flatMap { $0 }.max()!)
+        XCTAssertLessThan(MomentSchedule.maxWaitMs + longest + Runtime.Moments.endGraceMs, Harness.pendingMaxMs)
+    }
+
     /// BEHAVIORS.md §2: working chatter never cuts a moment that's playing,
     /// such as the brain's reply, or jumps one waiting its turn.
     func testChatterNeverCutsAMoment() throws {
