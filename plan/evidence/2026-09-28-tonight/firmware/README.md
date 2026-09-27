@@ -62,7 +62,9 @@ for reading) reported only deliberate wrap-around: the clock's `uint32_t`
 differences, xorshift and CRC shifts, and voice seeds.
 
 Checking the parser by hand against the fuzz's edge values found one
-bug: `loops` too big for an int, or a fraction, read as 1 (§6).
+bug: `loops` too big for an int, or a fraction, read as 1 (§6). The
+independent check found the same in `vol`, `say.at` and `say.ms`
+([firmware-check](../firmware-check/README.md)).
 
 **Thread Sanitizer on the Swift suite.**
 `swift build --scratch-path /tmp/ovn2fw-tsan --product BoopTests -Xswiftc -sanitize=thread`,
