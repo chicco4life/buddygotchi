@@ -24,6 +24,25 @@ final class FakeTransport: DeviceTransport, @unchecked Sendable {
     func types() -> [String] {
         sent.compactMap { (try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])?["t"] as? String }
     }
+
+    /// The ids of the moments sent that the Mac waits on, in order.
+    var momentIds: [Int] {
+        sent.compactMap { line in
+            guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                  o["t"] as? String == "moment" else { return nil }
+            return o["id"] as? Int
+        }
+    }
+
+    var answered: Set<Int> = []
+
+    /// Answers every moment with an id not answered yet with `ended`, as
+    /// the device does once none of it plays (PROTOCOL.md §4).
+    func endMoments(_ how: String = "done") {
+        for id in momentIds where lock.withLock({ answered.insert(id).inserted }) {
+            onLine?(#"{"t":"ended","id":\#(id),"how":"\#(how)"}"#)
+        }
+    }
 }
 
 func sampleSnapshot(busy: Int = 0) -> StateSnapshot {

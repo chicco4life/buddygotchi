@@ -5,8 +5,9 @@ import Foundation
 /// moods': the device borrows that mood's design of whatever look is
 /// showing, for a number of its loops (PROTOCOL.md §3). It comes with a
 /// Minion line from Voice, and goes as a moment with no animation, so it
-/// plays over whatever is showing once any line playing has finished. It's
-/// started, not done, until whoever plays the moment ends its handle.
+/// plays over whatever is showing once any line or reaction's face playing
+/// has finished. It's started, not done, until whoever plays the moment
+/// ends its handle.
 public final class ReactAction: Action {
     public let name = "react"
     let voice: Voice

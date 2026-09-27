@@ -178,10 +178,11 @@ line on the hook socket), and working chatter:
 | `id` | int ≥ 1, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Ids count up from 1 each time the app starts | Answered with one `ended` carrying this `id` (§4). Missing, 0 or not a number: no `ended` |
 
 The rules' moments play at once. A brain mumble waits its turn behind
-any line playing (not an animation, which it plays over), and the Mac
-drops it rather than send it more than 5 s late
-([ARCHITECTURE.md](ARCHITECTURE.md) §3.2). The Mac never sends a moment
-with neither `anim` nor `say`.
+any line or reaction's face playing (not an animation, which it plays
+over) until the device's `ended` for the last one, and the Mac drops it
+rather than send it more than 5 s late
+([ARCHITECTURE.md](ARCHITECTURE.md) §3.2 has the whole rule). The Mac
+never sends a moment with neither `anim` nor `say`.
 
 On the device, a moment plays as it arrives. A design's loop is how long
 it takes to play once through ([UX.md](UX.md) §2): `loopMs` in
@@ -284,11 +285,12 @@ old one is forgotten without an `ended` (its launch is gone), so the new
 one's `ended` is its own.
 
 The Mac ends the reaction's handle from it
-([harness/DECISIONS.md](harness/DECISIONS.md) §5) and ignores an `id` it
-isn't waiting on (one it gave up on, or an earlier launch's). It gives
-up on a moment, as failed, when no `ended` has come by its length plus a
-grace (§6), so firmware without `ended` or a lost line still settles it,
-and on every moment it waits on when the link drops.
+([harness/DECISIONS.md](harness/DECISIONS.md) §5), sends the next brain
+moment waiting its turn, and ignores an `id` it isn't waiting on (one it
+gave up on, or an earlier launch's). It gives up on a moment, as failed,
+when no `ended` has come by its length plus a grace (§6), so firmware
+without `ended` or a lost line still settles it, and on every moment it
+waits on when the link drops.
 
 ## 5. Debug messages (USB only)
 
@@ -380,8 +382,8 @@ advertise again. The next connect starts from the top.
 | Bluetooth retry | 1 s, doubling to 5 s; back to 1 s once up | Mac |
 | Advertising check | Every second while not connected | Device |
 | USB write | At most 250 ms; a failed write, or a lost bridge, reconnects after 1 s | Mac |
-| Brain moment | Dropped after waiting 5 s | Mac |
-| A brain moment's `ended` | Given up on once the moment's longest length (its line, or its face's loops of the design the last `state` shows) plus 3 s (`endGraceMs`) has passed since it was sent (§4) | Mac |
+| Brain moment | Dropped once it has waited 5 s for its turn | Mac |
+| A brain moment's `ended` | Given up on once the moment's longest length (its line, or its face's loops of the design showing: the last `state`'s look, or the longer of it and the cheer's while one may be playing) plus 3 s (`endGraceMs`) has passed since it was sent (§4). Until then the next brain moment waits for it | Mac |
 | Reading lines | Up to 8 ms of lines before each frame | Device |
 | A frozen debug clock | Runs again after 60 s with no `dbg.*` | Device |
 

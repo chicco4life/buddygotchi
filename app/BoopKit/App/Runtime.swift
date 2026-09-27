@@ -127,17 +127,19 @@ public final class Runtime: @unchecked Sendable {
     /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): the
     /// rules' moments play at once, and the brain's wait their turn in
     /// `schedule` behind them and the brain's earlier ones. Each of the
-    /// brain's goes to the device with an id and ends its handle when the
-    /// device says how it ended, or when it can't have played
-    /// (harness/DECISIONS.md §5).
+    /// brain's goes to the device with an id, holds the schedule's line
+    /// until the device says how it ended, and ends its handle then, or
+    /// when it can't have played (harness/DECISIONS.md §5).
     final class Moments {
         /// How long past a moment's expected end the app waits for the
         /// device's `ended` before giving up on it (PROTOCOL.md §6).
         static let endGraceMs: Int64 = 3000
 
         var schedule = MomentSchedule()
-        /// A timer is set for the next brain moment's turn.
-        var pumpDue = false
+        /// The timer set for the brain's next turn, and the time it's set
+        /// for; nil when none is.
+        var pumpTimer: DispatchSourceTimer?
+        var pumpAt: Int64?
         /// True while a brain moment is being sent (for debug mode).
         var brainSending = false
         /// The id the last brain moment went out with; they count up from
@@ -148,18 +150,21 @@ public final class Runtime: @unchecked Sendable {
         var playing: [(id: Int, pending: Pending, deadline: Int64)] = []
 
         /// A brain moment going to the device at `now`: it gets the next id,
-        /// and its handle waits for the device's `ended` until its length
-        /// at most, and the grace, have passed.
+        /// and its handle, and the schedule's line, wait for the device's
+        /// `ended` until its length at most, and the grace, have passed.
         func send(_ moment: inout DeviceMoment, _ pending: Pending, now: Int64) {
             lastId += 1
             moment.id = lastId
-            playing.append((lastId, pending, now + schedule.playMs(moment, now: now) + Self.endGraceMs))
+            let deadline = now + schedule.playMs(moment, now: now) + Self.endGraceMs
+            playing.append((lastId, pending, deadline))
+            schedule.hold(id: lastId, until: deadline)
         }
 
-        /// The device's `ended`: ends its moment's handle. An id the app
-        /// isn't waiting on (one it gave up on, or an earlier launch's) is
-        /// ignored.
-        func ended(_ ended: MomentEnded) {
+        /// The device's `ended` at `now`: frees the schedule's line if the
+        /// moment holds it, and ends its handle. An id the app isn't
+        /// waiting on (one it gave up on, or an earlier launch's) is ignored.
+        func ended(_ ended: MomentEnded, now: Int64) {
+            schedule.ended(id: ended.id, now: now)
             guard let i = playing.firstIndex(where: { $0.id == ended.id }) else { return }
             playing.remove(at: i).pending.finish(Self.end(ended))
         }
@@ -360,6 +365,11 @@ public final class Runtime: @unchecked Sendable {
         server?.stop()
         server = nil
         options.link?.stop()
+        home.async { [moments] in
+            moments.pumpTimer?.cancel()
+            moments.pumpTimer = nil
+            moments.pumpAt = nil
+        }
     }
 
     // MARK: Inputs (on `home`)
@@ -391,8 +401,13 @@ public final class Runtime: @unchecked Sendable {
     /// The transport connected or dropped. A moment playing on a device
     /// that dropped never finishes there.
     func connection(_ up: Bool) {
-        link.connection(up, now: options.clock())
-        if !up { moments.failAll("the device disconnected") }
+        let now = options.clock()
+        link.connection(up, now: now)
+        if !up {
+            moments.failAll("the device disconnected")
+            moments.schedule.stop(now: now)
+            pump()
+        }
         changed()
     }
 
@@ -401,22 +416,14 @@ public final class Runtime: @unchecked Sendable {
         switch link.receive(line, now: now) {
         case .input(let input):
             options.log("device: input \(input.rawValue)")
-            if input == .tap && core.mumbleBlock == nil {
-                // The device has wiggled, which replaced whatever played
-                // (BEHAVIORS.md §3.3); while something needs you it only dips.
-                moments.schedule.rule(DeviceMoment(anim: "wiggle"), now: now)
-                pump()
-            }
+            // The device has already wiggled, cutting whatever played.
+            if input == .tap { moments.schedule.tapped(now: now) }
             run(core.input(input, at: now))
+            pump()
         case .ended(let ended):
             options.log("device: moment \(ended.id) ended \(ended.how.rawValue)" + (ended.why.map { " (\($0))" } ?? ""))
-            moments.ended(ended)
-            if ended.id == moments.lastId {
-                // The latest brain moment, which holds the turn: the next
-                // one's turn comes now, not at the app's own reckoning.
-                moments.schedule.ended(now: now)
-                pump()
-            }
+            moments.ended(ended, now: now)
+            pump()
         default:
             break
         }
@@ -518,35 +525,34 @@ public final class Runtime: @unchecked Sendable {
     var chatterSeed: UInt64 = 0
 
     /// A snapshot for the device, whose look and mood time the moments
-    /// played over it.
+    /// played over it; "needs you" starting stops them.
     func show(_ snapshot: StateSnapshot) {
         let now = options.clock()
         link.update(snapshot, now: now)
-        moments.schedule.look = snapshot.base
-        moments.schedule.mood = snapshot.mood
-        if snapshot.attn != nil { moments.schedule.attention(now: now) }
-    }
-
-    /// A rule moment: it plays at once, and anything the brain has waiting
-    /// waits for it too.
-    func playRule(_ moment: DeviceMoment) {
-        link.play(moment)
-        moments.schedule.rule(moment, now: options.clock())
-        // An animation stops a line, so a reaction waiting behind one may
-        // play now, over the animation.
+        moments.schedule.show(look: snapshot.base, mood: snapshot.mood, attn: snapshot.attn != nil, now: now)
         pump()
     }
 
-    /// `Runtime.pump` with this runtime's parts.
+    /// A rule moment: it plays at once. Anything the brain has waiting
+    /// waits for its line, or plays over its animation now.
+    func playRule(_ moment: DeviceMoment) {
+        link.play(moment)
+        moments.schedule.rule(moment, now: options.clock())
+        pump()
+    }
+
+    /// The brain's next moment, if its turn has come. On `home`.
     func pump() {
         Runtime.pump(moments, link: link, clock: options.clock, home: home, log: options.log)
     }
 
     /// Plays the brain's next moment if its turn has come, and sets a timer
-    /// for the one after (a newer rule moment pushes it back; the timer then
-    /// just sets another). A moment sent with no device connected ends its
-    /// handle at once, as failed; one sent to the device goes with an id,
-    /// and its handle waits for the device's `ended`. On `home`.
+    /// for when to look again, unless one is set for no later. Whatever
+    /// frees the line sooner (a rule's animation, a tap, the device's
+    /// `ended`) pumps again at once. A moment sent with no device connected
+    /// ends its handle at once, as failed, and leaves the line free; one
+    /// sent to the device goes with an id, and it and its handle wait for
+    /// the device's `ended`. On `home`.
     static func pump(_ moments: Moments, link: DeviceLink, clock: @escaping @Sendable () -> Int64,
                      home: DispatchQueue, log: @escaping @Sendable (String) -> Void) {
         let now = clock()
@@ -555,19 +561,33 @@ public final class Runtime: @unchecked Sendable {
             log("react: dropped a brain moment that waited over \(MomentSchedule.maxWaitMs / 1000) s: \(moment.jsonLine)")
         }
         if var moment = due.play {
-            let alone = due.pending != nil && !link.connected
-            if let pending = due.pending, !alone { moments.send(&moment, pending, now: now) }
+            let alone = !link.connected
+            if alone {
+                moments.schedule.stop(now: now)
+            } else if let pending = due.pending {
+                moments.send(&moment, pending, now: now)
+            }
             moments.brainSending = true
             link.play(moment)
             moments.brainSending = false
             if alone { due.pending?.finish(.failed("no device connected")) }
         }
-        guard let next = due.next, !moments.pumpDue else { return }
-        moments.pumpDue = true
-        home.asyncAfter(deadline: .now() + .milliseconds(Int(max(1, next - now)))) {
-            moments.pumpDue = false
+        guard let next = moments.schedule.next else { return }
+        if let at = moments.pumpAt, at <= next { return }
+        // A timer source, not asyncAfter, whose leeway grows with the wait
+        // (a tenth of it): a turn 3 s away came 0.3 s late.
+        moments.pumpTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(flags: .strict, queue: home)
+        timer.schedule(deadline: .now() + .milliseconds(Int(max(1, next - now))), leeway: .milliseconds(5))
+        timer.setEventHandler {
+            moments.pumpTimer?.cancel()
+            moments.pumpTimer = nil
+            moments.pumpAt = nil
             pump(moments, link: link, clock: clock, home: home, log: log)
         }
+        moments.pumpTimer = timer
+        moments.pumpAt = next
+        timer.resume()
     }
 
     func changed() {

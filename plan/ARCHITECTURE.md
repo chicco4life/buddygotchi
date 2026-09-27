@@ -168,31 +168,42 @@ moment schedule, one at a time, until no line or reaction's face plays;
 they have no animation, so they play over one without cutting it, and an
 animation stops any line on the device, so a rule's animation lets one
 waiting behind a line play at once, over it. One that has waited longer
-than 5 s is dropped, since a late reaction is worse than none, whether or
-not a face still holds the turn: the schedule is asked again when the
-first waiting one's 5 s run out, and on every tick, so a clock jump can't
-leave one waiting for the harness's ceiling. Each carries
-its reaction's handle. It goes to the device with an `id`, and the
-device's `ended` says how it went: played out, cut short or skipped
+than 5 s for its turn is dropped, since a late reaction is worse than
+none: at once if it's still waiting then, whether or not a face still
+holds the turn, and otherwise when its turn comes. The wait is counted
+to when the turn came, so a pump that runs up to 1 s late
+(`MomentSchedule.lateMs`) doesn't drop it. The schedule is asked again
+when the first waiting one's 5 s run out, and on every tick, so a clock
+jump can't leave one waiting for the harness's ceiling. Each carries its
+reaction's handle. It goes to the device with an `id`, and the device's
+`ended` says how it went: played out, cut short or skipped
 ([PROTOCOL.md](PROTOCOL.md) §4). The schedule or the runtime ends the
 handle from that, or when the moment can't have played
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5). Working chatter still
-waits until nothing plays at all. The app times each moment as the
-device does, to give each its turn and to know how long to wait for its
-`ended`: the cheer's loops of its design, a wiggle's 0.7 s, or a
-reaction's face's loops of the design showing, and the mumble's
-syllables plus two beats for a word, at the line's pace, then 1.2 s to
-read the bubble, when that's longer. The design showing is the look and
-mood of the last `state`, or the cheer's while one plays, and its loop
-is `FaceLoops`' number for it, the one the device has
+waits until nothing plays at all.
+
+The app reckons how long each moment plays at most, as the device times
+it: the cheer's loops of its design, a wiggle's 0.7 s, or a reaction's
+face's loops of the design showing, and the mumble's syllables plus two
+beats for a word, at the line's pace, then 1.2 s to read the bubble,
+when that's longer. The design showing is the look and mood of the last
+`state`; while a cheer may be playing (until its reckoned end and 0.5 s
+more, `MomentSchedule.linkSlackMs`, for the link's delay) it's the
+longer of that and the cheer's, since the device may time the face by
+either. Its loop is `FaceLoops`' number for it, the one the device has
 ([PROTOCOL.md](PROTOCOL.md) §3). The device ends a face on a loop
 boundary of its own clock, which the app doesn't know, so the face may
-end up to a loop sooner than the app reckons, never later; the device's
-`ended` for the moment holding the turn frees the turn then. What the
-device does on its own reaches the schedule too: a tap's wiggle replaces
-the cheer and any line, and a `state` with `attn` stops them, with
-nothing playing while it shows, so a reaction after either is timed on
-the look's design, not a cheer that was cut.
+end up to a loop sooner than the app reckons, never later. So a brain
+moment on the device holds the schedule's line until the device's
+`ended` for it, and only if that never comes until the app gives up on
+it (its reckoning plus `endGraceMs`); then the next one's turn comes at
+once. The schedule also hears what the device does on its own: a tap's
+wiggle stops whatever plays and ends the cheer, as a rule's wiggle does,
+"needs you" starting stops everything, and while something needs you the
+device plays none of the rules' moments. After either, once the link's
+0.5 s has passed, a reaction is timed on the look's design alone, not a
+cheer that was cut. With no device connected nothing plays, and nothing
+holds the line.
 
 ### 3.3 Harness and brain
 
@@ -261,8 +272,8 @@ hops onto it.
 
 | Timer | On | Does |
 | --- | --- | --- |
-| Tick, every 1 s | `home` | Reports the wall clock, runs the core's timers, sends the 10 s keepalive, gives up on a brain moment whose `ended` hasn't come in time ([harness/DECISIONS.md](harness/DECISIONS.md) §5), and ends any action left in progress too long ([harness/HARNESS.md](harness/HARNESS.md) §5.1) |
-| Moment pump | `home` | Plays the next brain moment when its turn comes |
+| Tick, every 1 s | `home` | Reports the wall clock, runs the core's timers, sends the 10 s keepalive, gives up on a brain moment whose `ended` hasn't come in time ([harness/DECISIONS.md](harness/DECISIONS.md) §5), runs the moment pump, and ends any action left in progress too long ([harness/HARNESS.md](harness/HARNESS.md) §5.1) |
+| Moment pump | `home` | Plays the next brain moment when its turn comes, and drops one that has waited too long. Whatever frees the line sooner (a rule's animation, a tap, the device's `ended`, "needs you") runs it at once; its timer has 5 ms of leeway |
 
 At start the runtime takes the lock, reads the memory files (it won't run
 before setup), settings and mood, builds the core, Voice, the actions and
@@ -539,3 +550,4 @@ which also has the full log up to 2026-09-27.
 | 2026-09-28 | `state` drops `idle` and `wait`, replacing 2026-09-27's keeping them for the dashboard, which now counts the idle from its `status` line's sessions and the waiting from `attn`. A change to the session list the snapshot doesn't show is the core's `sessions` effect | Nothing read them but the dashboard, and `wait` was always 1 + `attn.more`. The idle count had quietly been what refreshed the popover when a second idle session came or went | [PROTOCOL.md](PROTOCOL.md) §3, [DASHBOARD.md](DASHBOARD.md) §2 |
 | 2026-09-28 | Claude's idle notice (`idle_prompt`) clears a request whoever asked, a subagent included. This replaces "a subagent's request stays, since its prompt may still be up" | The notice means Claude sits at its own prompt with the turn over, which it doesn't do while any prompt is up. Keeping a subagent's request, which the notice also restarted the safety net for, left Boop amber about 11 minutes after you pressed Esc on a subagent's prompt, where BEHAVIORS.md §3.2 says a minute | [ADAPTERS.md](ADAPTERS.md) §4 |
 | 2026-09-28 | `state`'s `attn` carries the request's number (`attn.id`), and the device chirps when it changes, not only when the agent or project does. Requests are ordered by when they started showing, then by number | BEHAVIORS.md §3.2 says a different request shown chirps, but the device could only compare agent and project, so two worktrees of one repo, or two subagents in one session, took turns in silence; and two requests in the same millisecond were shown in the order their sessions were first seen | [PROTOCOL.md](PROTOCOL.md) §3, [BEHAVIORS.md](BEHAVIORS.md) §2, §3.2 |
+| 2026-09-28 | A brain moment on the device holds the moment schedule's line until the device's `ended` for it, or until the app gives up on it; the schedule hears taps and "needs you", runs its pump whenever the line frees, and counts a wait to when the turn came. This replaces giving the next one its turn when the app's own reckoning of a face ran out | The reckoning is an upper bound, up to a whole loop (9 s over idle) per hold too long, so a reaction arriving meanwhile was dropped although the face was long over; and a line sent just as the reckoning ran out could still reach the device before its face ended there, and cut it | §3.2 |

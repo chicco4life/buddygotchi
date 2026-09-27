@@ -103,8 +103,9 @@ moment later, if it answers within its deadline
 once and replaces whatever is playing, mumble included, so turns
 finishing together look like one cheer. A brain reaction waits until no
 line or reaction's face is playing (it plays over an animation, which it
-doesn't cut: the cheer then shows in the reaction's face), and is
-dropped once it has waited 5 s (`MomentSchedule.maxWaitMs`,
+doesn't cut: the cheer then shows in the reaction's face), which the
+device's word that the last one ended settles, and is dropped once it
+has waited 5 s for its turn (`MomentSchedule.maxWaitMs`,
 [ARCHITECTURE.md](ARCHITECTURE.md) §3.2). Working chatter plays only
 when nothing is playing or waiting. The device tells the Mac how each
 brain reaction ended: played out, cut short by a tap, "needs you" or a
