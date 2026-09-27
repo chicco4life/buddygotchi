@@ -56,21 +56,12 @@ public final class MemoryStore {
 
     // MARK: Text for the prompt
 
-    public var longTermText: String {
-        refresh()
-        return longTerm?.markdown ?? ""
-    }
+    public var longTermText: String { longTerm?.markdown ?? "" }
 
-    public var shortTermText: String {
-        refresh()
-        return shortTerm?.markdown ?? ""
-    }
+    public var shortTermText: String { shortTerm?.markdown ?? "" }
 
     /// Today's date in `short-term.md`, for `Core.init`'s `lastActiveDay`.
-    public var lastActiveDay: String? {
-        refresh()
-        return shortTerm?.date
-    }
+    public var lastActiveDay: String? { shortTerm?.date }
 
     // MARK: Core effects
 
@@ -318,6 +309,8 @@ public final class MemoryStore {
 extension MemoryStore {
     /// The memory text for a pass (HARNESS.md §4).
     public func promptMemory() -> Prompt.Memory {
-        Prompt.Memory(steering: steering, longTerm: longTermText, shortTerm: shortTermText, boopName: longTerm?.name)
+        refresh()
+        return Prompt.Memory(steering: steering, longTerm: longTermValue?.markdown ?? "",
+                             shortTerm: shortTermValue?.markdown ?? "", boopName: longTermValue?.name)
     }
 }
