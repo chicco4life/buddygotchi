@@ -20,7 +20,7 @@ example `git show v1-full:plan/BEHAVIORS.md`. Bring one back at a time.
 | Energy mood | Energy, pace and pitch set by wins, failures and night, shaping how moments and the voice played (today's seven moods are Jev's) | `v1-full` BEHAVIORS §5, VOICE §5 |
 | Night | 23:00–07:00: dimmer, drowsier, fewer mumbles, and asleep when nothing works | `v1-full` BEHAVIORS §2 |
 | Idle life | Glances, peeks and bobs while idle, and glancing down at the work while working | `v1-full` BEHAVIORS §2 |
-| Brain faces | The brain's `face` tool (`happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love`, `side_eye`), and `say` showing its feeling's face | `v1-full` HARNESS §6, BEHAVIORS §7 |
+| Brain faces | The brain's `face` tool (`happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love`, `side_eye`), and `say` showing its feeling's face (v1's reactions borrow one of the seven moods' faces instead) | `v1-full` HARNESS §6, BEHAVIORS §7 |
 | Touch-and-hold | Holding the face showed how Boop felt, from its mood | `v1-full` BEHAVIORS §3.3, UX §4 |
 | Threads screen | Every session by agent, with its status | `v1-full` UX §3 |
 | Stats and the record | Level ring, name and days together on the device; level, tasks finished, projects and days in the popover | `v1-full` UX §3, §7 |

@@ -78,6 +78,17 @@ public struct Voice: Sendable {
         favourites = Voice.pools.mapValues { pool in dialect.favourites.filter(pool.contains) }
     }
 
+    /// The feeling a mood's expression mumbles in (VOICE.md §4): the
+    /// feeling of the same name, and annoyed for grumpy.
+    public static func feeling(forMood mood: String) -> Feeling {
+        switch mood {
+        case "happy", "excited", "proud", "curious", "sad": Feeling(rawValue: mood)!
+        case "grumpy": .annoyed
+        // Temporary: a mood with no voice of its own (determined) mumbles in this one until the audio is tuned.
+        default: .happy
+        }
+    }
+
     /// Builds a line. The same inputs and `seed` give the same line. A word
     /// outside the vocabulary is left out.
     public func line(_ feeling: Feeling, word: String? = nil, seed: UInt64) -> VoiceLine {

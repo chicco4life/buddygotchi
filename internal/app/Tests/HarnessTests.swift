@@ -57,7 +57,7 @@ final class HarnessTests: XCTestCase {
         t.append(.pass(.init(forSeq: start.seq, answers: [:], dropped: nil, latencyMs: 200)), at: Self.t0)
         let failed = t.append(.event(event(.toolUse, at: 14, #"claude's tests failed again on "fix-nav" (landing), 2 in a row."#)),
                               at: Self.t0 + 14 * 60_000)
-        t.append(.action(.init(forSeq: failed.seq, name: "react", result: .done(#"Boop mumbled, annoyed: "…tests!""#), latencyMs: 1)), at: Self.t0)
+        t.append(.action(.init(forSeq: failed.seq, name: "react", result: .done(#"Boop made a grumpy face and mumbled "…tests!""#), latencyMs: 1)), at: Self.t0)
         t.append(.action(.init(forSeq: failed.seq, name: "mood", result: .failed("couldn't save the mood: disk full"), latencyMs: 1)), at: Self.t0)
         t.append(.event(event(.tap, at: 19, "You tapped Boop.", reaction: "Boop wiggled on its own.", wakes: false)),
                  at: Self.t0 + 19 * 60_000)
@@ -80,7 +80,7 @@ final class HarnessTests: XCTestCase {
             HISTORY (oldest first; indented lines are what Boop did)
             18 min ago: claude started turn 7 on "fix-nav" (landing).
             9 min ago: claude's tests failed again on "fix-nav" (landing), 2 in a row.
-              Boop mumbled, annoyed: "…tests!"
+              Boop made a grumpy face and mumbled "…tests!"
             4 min ago: You tapped Boop.
               Boop wiggled on its own.
             Working now: nothing else.
@@ -282,16 +282,16 @@ final class HarnessTests: XCTestCase {
              "  pass scripted 12 ms: mood cheerful 0.90 · react excited 1.00\n    │ You are.\n    │ PERSONALITY\n    │ x\n    │ \n    │ HISTORY (oldest first)\n    │ h\n    │ \n    │ NOW (14:23, Tuesday)\n    │ n"),
             (#"{"pass":{"answers":{},"brain":"jev:jev-latest","dropped":"late: no answer within 1250 ms","for":3,"latency_ms":1250,"questions":["mood"],"state":""# + stateJSON + #""},"received_at_ms":8,"seq":6}"#,
              "  pass jev:jev-latest 1250 ms: dropped: late: no answer within 1250 ms\n    │ HISTORY (oldest first)\n    │ h\n    │ \n    │ NOW (14:23, Tuesday)\n    │ n"),
-            (#"{"action":{"for":3,"latency_ms":0,"message":"Boop mumbled, excited: \"…yay!\"","name":"react","ok":true},"received_at_ms":9,"seq":7}"#,
-             "  ✓ react: Boop mumbled, excited: \"…yay!\""),
+            (#"{"action":{"for":3,"latency_ms":0,"message":"Boop made an excited face and mumbled \"…yay!\"","name":"react","ok":true},"received_at_ms":9,"seq":7}"#,
+             "  ✓ react: Boop made an excited face and mumbled \"…yay!\""),
             (#"{"action":{"for":3,"latency_ms":0,"message":"changed 3 min ago","name":"mood","ok":false},"received_at_ms":9,"seq":8}"#,
              "  ✗ mood: changed 3 min ago"),
             ("not json", "not json"),
             (#"{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":9}"#, nil),
             (#"{"status":{"brain":"none","connected":false,"mood":"cheerful","personality":"boop","sessions":[]},"received_at_ms":9}"#, nil),
             (#"{"questions":[],"received_at_ms":9}"#, nil),
-            (#"{"pass":{"answers":{"react":{"choice":"annoyed","p":{"annoyed":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react"]},"received_at_ms":10,"seq":9}"#,
-             "  pass dashboard 0 ms: react annoyed 1.00"),
+            (#"{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react"]},"received_at_ms":10,"seq":9}"#,
+             "  pass dashboard 0 ms: react grumpy 1.00"),
         ]
         for (line, readable) in lines { XCTAssertEqual(printer.readable(line), readable, line) }
     }
@@ -312,32 +312,61 @@ final class HarnessTests: XCTestCase {
     func a(_ choice: String, _ p: Double = 0.9) -> Answer { Answer(choice: choice, probabilities: [choice: p]) }
 
     /// DECISIONS.md §5: `none` does nothing; the word is the exclamation
-    /// over 0.35, else the topic, else none; a blocked mumble fails.
+    /// over 0.35, else the topic, else none; the moment carries the
+    /// expression as its `mood`; a blocked mumble fails.
     func testReact() {
         XCTAssertEqual(ReactAction.wordFloor, 0.35)
         var sent: [DeviceMoment] = []
         var why: String?
         let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { sent.append($0) }, blocked: { why })
         XCTAssertNil(react.run(["react": a("none")]))
-        XCTAssertEqual(react.run(["react": a("annoyed"), "word.feeling": a("again", 0.57), "word.about": a("tests", 0.81)]),
-                       .done(#"Boop mumbled, annoyed: "…again!""#))
+        XCTAssertEqual(react.run(["react": a("grumpy"), "word.feeling": a("again", 0.57), "word.about": a("tests", 0.81)]),
+                       .done(#"Boop made a grumpy face and mumbled "…again!""#))
         XCTAssertEqual(react.run(["react": a("curious"), "word.feeling": a("again", 0.31), "word.about": a("tests", 0.79)]),
-                       .done(#"Boop mumbled, curious: "…tests!""#))
+                       .done(#"Boop made a curious face and mumbled "…tests!""#))
         XCTAssertEqual(react.run(["react": a("happy"), "word.feeling": a("none"), "word.about": a("docs", 0.2)]),
-                       .done("Boop mumbled, happy."))
+                       .done("Boop made a happy face and mumbled."))
         XCTAssertEqual(sent.count, 3)
         XCTAssertEqual(sent[0].say?.word, "again")
         XCTAssertNil(sent[0].anim, "a mumble plays over the face")
+        XCTAssertEqual(sent.map(\.mood), ["grumpy", "curious", "happy"], "each wears its face")
+        XCTAssertEqual(sent[0].say?.tune, .flat, "grumpy mumbles in annoyed's voice")
+        XCTAssertTrue(sent[0].jsonLine.hasSuffix(#","mood":"grumpy"}"#), sent[0].jsonLine)
+        XCTAssertNil(react.run(["react": a("annoyed")]), "annoyed was a feeling, not a face")
+        XCTAssertEqual(react.run(["react": a("excited")]), .done("Boop made an excited face and mumbled."))
+        sent.removeLast()
         why = "something needs you"
-        XCTAssertEqual(react.run(["react": a("proud")]), .failed("something needs you"))
-        XCTAssertEqual(sent.count, 3)
+        for expression in ReactAction.expressions.map(\.name) {
+            XCTAssertEqual(react.run(["react": a(expression)]), .failed("something needs you"))
+        }
+        XCTAssertEqual(sent.count, 3, "no face or mumble while something needs you")
         XCTAssertEqual(react.questions().map(\.key), ["react", "word.feeling", "word.about"])
-        XCTAssertEqual(react.questions()[0].options.map(\.name), ["none", "happy", "excited", "proud", "curious", "annoyed"])
+        XCTAssertEqual(react.questions()[0].options.map(\.name), ["none"] + MoodAction.moods.map(\.name),
+                       "the faces are the seven moods'")
         XCTAssertEqual(react.questions()[1].options.map(\.name), ["none", "finally", "yay", "oops", "again", "ugh", "nope", "hmm"])
         XCTAssertEqual(react.questions()[2].options.map(\.name), ["none", "tests", "build", "deploy", "docs"])
         for word in ReactAction.exclamations.map(\.name) + ReactAction.topics.map(\.name) {
             XCTAssertTrue(Sounds.vocabulary.contains(word), "\(word) is one of Voice's words")
         }
+    }
+
+    /// VOICE.md §4: a mood's face mumbles in the feeling of the same name,
+    /// grumpy in annoyed's, and a mood with no voice of its own in the
+    /// temporary default, happy's.
+    func testEachMoodHasAVoice() {
+        let voices = Dictionary(uniqueKeysWithValues: MoodAction.moods.map { ($0.name, Voice.feeling(forMood: $0.name)) })
+        XCTAssertEqual(voices, ["happy": .happy, "excited": .excited, "proud": .proud, "curious": .curious,
+                                "determined": .happy, "grumpy": .annoyed, "sad": .sad])
+    }
+
+    /// PROTOCOL.md §3: only the brain's mumbles carry an expression; the
+    /// rules' moments (the cheer, a wiggle, working chatter) never do.
+    func testRuleMomentsCarryNoExpression() {
+        XCTAssertEqual(DeviceMoment(anim: "cheer").jsonLine, #"{"t":"moment","anim":"cheer"}"#)
+        let line = VoiceLine(groups: [["bi", "da"]], word: nil, at: 2, tune: .bounce, ms: 125)
+        XCTAssertEqual(DeviceMoment(say: line).jsonLine, #"{"t":"moment","say":{"syl":"bi-da","tune":"bounce","ms":125}}"#)
+        XCTAssertEqual(DeviceMoment(say: line, mood: "grumpy").jsonLine,
+                       #"{"t":"moment","say":{"syl":"bi-da","tune":"bounce","ms":125},"mood":"grumpy"}"#)
     }
 
     /// DECISIONS.md §4: the seven moods; the current mood is nothing to do,

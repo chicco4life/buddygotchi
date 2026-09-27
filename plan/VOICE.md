@@ -27,28 +27,30 @@ the films.
 
 | Step | Done by |
 | --- | --- |
-| Decide to mumble: a feeling and maybe one word | A rule (working chatter, [BEHAVIORS.md](BEHAVIORS.md) §2), or the brain, whose `react` action picks the feeling and the word ([harness/DECISIONS.md](harness/DECISIONS.md) §5) |
+| Decide to mumble: a feeling and maybe one word | A rule (working chatter, [BEHAVIORS.md](BEHAVIORS.md) §2), or the brain, whose `react` action picks a mood's face and the word; Voice gives the face its feeling (§4, [harness/DECISIONS.md](harness/DECISIONS.md) §5) |
 | Build the line (syllables, where the word goes, tune and tempo) and check it isn't accidentally a word (§7) | Voice, on the Mac |
 | Send it | The device link, as a `moment`'s `say` ([PROTOCOL.md](PROTOCOL.md) §3) |
 | Play it, with the mouth in time | The device (§8) |
 
 Voice is the only code that knows what Minion speech is. The brain never
-writes syllables: it picks a feeling and at most one word from a fixed
+writes syllables: it picks a face and at most one word from a fixed
 list. So the voice is the same whichever brain is in use, and no model
 can slip real words into the gibberish.
 
-Voice is made once per Boop, from its dialect (§3), and has one function:
+Voice is made once per Boop, from its dialect (§3), and has one function,
+plus the feeling each mood's face mumbles in (§4):
 
 ```
 Voice(dialect)
   line(feeling, word?, seed) -> { groups, word, at, tune, ms }
+Voice.feeling(forMood: mood) -> feeling
 ```
 
 `groups` are the gibberish words, each a list of syllables; `at` is where
 the word goes, as an index into the syllables; `ms` is milliseconds per
 syllable. The same inputs always give the same line. `react` and working
 chatter each count their seeds up from 1, so a run is repeatable, and
-`boopdev voice FEELING [WORD] --seed N` rebuilds any line
+`boopdev voice FEELING|MOOD [WORD] --seed N` rebuilds any line
 ([VERIFICATION.md](VERIFICATION.md) §2).
 
 ## 3. The syllables
@@ -110,10 +112,16 @@ and the tune (§5). There are eight feelings:
 | Sad | Rounded `u` and `o`, ending on a bare `u` or `o` | 30% | 160 | `down` |
 | Sleepy | The hums, and `mu mo nu no` | 10% | 170 | `down` |
 
-The brain's `react` offers five of them: happy, excited, proud, curious
-and annoyed ([harness/DECISIONS.md](harness/DECISIONS.md) §3). Working
-chatter uses curious and happy ([BEHAVIORS.md](BEHAVIORS.md) §2). Only
-the tools use hopeful, sad and sleepy (`boopctl mumble`, `boopdev voice`).
+**The brain's reactions** are the seven moods' faces
+([harness/DECISIONS.md](harness/DECISIONS.md) §3), and each mumbles in a
+feeling (`Voice.feeling(forMood:)`): happy, excited, proud, curious and
+sad in the feeling of the same name, and grumpy in annoyed's. Determined
+has no voice of its own yet and mumbles in the temporary default,
+happy's: the audio is still being tuned, and the face is what the
+reaction means. Working chatter uses curious and happy
+([BEHAVIORS.md](BEHAVIORS.md) §2). Only the tools use hopeful and sleepy
+(`boopctl mumble`, `boopdev voice`, which also takes a mood and plays
+its feeling).
 
 Real lines, from `boopdev voice FEELING [WORD] --seed N` with its
 default dialect (`7f3a`): happy `done` (seed 2) *"la-la la… done!"*,

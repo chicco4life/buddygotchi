@@ -737,6 +737,39 @@ static void test_say_reaches_the_player() {
 // PROTOCOL.md §3: a moment with only `say` plays the mumble, bubble and
 // voice, over the face showing; no animation starts. The line stops when
 // the bubble goes.
+// PROTOCOL.md §3 and §5: a moment's `mood` is its expression, which
+// dbg.state reports as `expr` while it plays; an unknown one is ignored,
+// and the mumble plays as usual.
+static void test_a_moment_carries_its_expression() {
+  Rig r;
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":0}");
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"mood\":\"happy\"}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":null"));
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"grumpy\"}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"mood\":\"happy\""));  // the state's mood is kept
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":\"grumpy\""));
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1399}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":\"grumpy\""));
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1400}");  // 2 × 100 ms + 1.2 s
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":null"));
+  // Unknown: no expression, and the mumble still plays.
+  size_t said = r.hal.said.size();
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"annoyed\"}");
+  TEST_ASSERT_EQUAL(int(said + 1), int(r.hal.said.size()));
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":null"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true"));
+}
+
 static void test_a_say_on_its_own_plays_the_mumble() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
@@ -885,6 +918,7 @@ int main() {
   RUN_TEST(test_injected_tap_reaches_the_mac);
   RUN_TEST(test_a_physical_long_press_is_a_tap);
   RUN_TEST(test_a_flickering_touch_is_one_tap);
+  RUN_TEST(test_a_moment_carries_its_expression);
   RUN_TEST(test_a_touch_ends_while_the_clock_is_frozen);
   RUN_TEST(test_a_frozen_clock_runs_again_after_60s_without_debug);
   RUN_TEST(test_shot_is_header_then_base64);

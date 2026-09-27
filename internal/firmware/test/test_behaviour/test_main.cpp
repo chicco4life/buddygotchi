@@ -443,6 +443,166 @@ void checkGaps(const std::vector<uint32_t>& starts, uint32_t from, uint32_t lo, 
 // BEHAVIORS.md §2: idle and working life is blinks only, every 2–6 s idle,
 // 2–5 s working, however many agents are busy. Asleep, as with no app
 // (§3.4), never blinks.
+// PROTOCOL.md §3: a moment's `mood` is its expression. The look is drawn in
+// that mood for exactly as long as the moment plays (the mumble and its
+// bubble, or the animation), then goes back to the state's mood behind a
+// blink. A look change meanwhile keeps the expression; a new moment, a tap
+// or "needs you" ends it.
+static MomentIn expressive(render::Mood mood, int syl = 4) {
+  MomentIn m;
+  m.syllables = syl, m.ms = 100;
+  m.expr = true, m.mood = mood;
+  return m;
+}
+
+static void test_an_expression_lasts_as_long_as_the_mumble() {
+  Rig r;
+  Model m = base("working");  // happy
+  r.state(m);
+  r.at(1000);
+  TEST_ASSERT_TRUE(r.b.onMoment(expressive(render::Mood::kGrumpy), r.t));
+  // 4 syllables × 100 ms, then the bubble's 1.2 s.
+  const uint32_t end = 1000 + 400 + Behaviour::kBubbleReadMs;
+  render::Mood e;
+  TEST_ASSERT_TRUE(r.b.expression(r.t, e));
+  TEST_ASSERT_TRUE(e == render::Mood::kGrumpy);
+  SceneShow s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kWorking);
+  TEST_ASSERT_TRUE(s.mood == render::Mood::kGrumpy);
+  TEST_ASSERT_TRUE(s.eyesShut);  // it blinks into the expression
+  TEST_ASSERT_EQUAL_UINT32(1000, s.t);  // the look's clock goes on
+  r.at(end - 1);
+  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kGrumpy);
+  TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
+  r.at(end);
+  TEST_ASSERT_FALSE(r.b.expression(r.t, e));
+  TEST_ASSERT_NULL(r.b.mumble(r.t));
+  s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.mood == render::Mood::kHappy);  // back to the state's mood
+  TEST_ASSERT_TRUE(s.state == SceneState::kWorking);
+  TEST_ASSERT_TRUE(s.eyesShut);  // behind a blink
+
+  // With a word: two more beats.
+  Rig w;
+  w.state(base("idle"));
+  w.at(500);
+  MomentIn in = expressive(render::Mood::kSad, 2);
+  in.word = "oops", in.at = 2;
+  w.b.onMoment(in, w.t);
+  w.at(500 + 400 + Behaviour::kBubbleReadMs - 1);
+  TEST_ASSERT_TRUE(w.b.show(w.t).mood == render::Mood::kSad);
+  w.at(500 + 400 + Behaviour::kBubbleReadMs);
+  TEST_ASSERT_TRUE(w.b.show(w.t).mood == render::Mood::kHappy);
+}
+
+static void test_an_expression_over_the_cheer_and_across_a_look_change() {
+  Rig r;
+  Model m = base("working");
+  m.mood = render::Mood::kCurious;
+  r.state(m);
+  r.at(1000);
+  r.moment(Anim::kCheer);  // the rule's cheer, in curious
+  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kCurious);
+  r.at(1200);
+  m.base = SceneState::kIdle;  // the turn is over
+  r.state(m);
+  r.b.onMoment(expressive(render::Mood::kProud, 3), r.t);  // Jev: proud
+  SceneShow s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kTaskComplete);
+  TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
+  TEST_ASSERT_EQUAL_UINT32(200, s.t);  // the cheer keeps its clock
+  uint32_t left;
+  TEST_ASSERT_EQUAL(Anim::kCheer, r.b.moment(r.t, left));
+  TEST_ASSERT_EQUAL_UINT32(1800, left);  // a mumble doesn't cut the cheer
+  // The cheer ends at 3000; the mumble plays on to 1200 + 300 + 1200 = 2700,
+  // so the expression is over first.
+  r.at(2699);
+  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kProud);
+  r.at(2700);
+  s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kTaskComplete);
+  TEST_ASSERT_TRUE(s.mood == render::Mood::kCurious);
+
+  // A look change while it plays: the expression goes with the new look.
+  Rig l;
+  Model w = base("working");
+  l.state(w);
+  l.at(1000);
+  l.b.onMoment(expressive(render::Mood::kGrumpy), l.t);
+  l.at(1500);
+  l.state(base("idle"));
+  s = l.b.show(l.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kIdle);
+  TEST_ASSERT_TRUE(s.mood == render::Mood::kGrumpy);
+  l.at(2600);
+  TEST_ASSERT_TRUE(l.b.show(l.t).mood == render::Mood::kHappy);
+
+  // With an animation in the same moment, it lasts the longer of the two.
+  Rig a;
+  a.state(base("idle"));
+  a.at(1000);
+  MomentIn in = expressive(render::Mood::kExcited, 2);
+  in.anim = Anim::kCheer;
+  a.b.onMoment(in, a.t);
+  a.at(2999);
+  TEST_ASSERT_TRUE(a.b.show(a.t).mood == render::Mood::kExcited);
+  a.at(3000);
+  TEST_ASSERT_TRUE(a.b.show(a.t).mood == render::Mood::kHappy);
+  // An animation alone with a mood: as long as it plays.
+  a.at(5000);
+  MomentIn wig;
+  wig.anim = Anim::kWiggle, wig.expr = true, wig.mood = render::Mood::kSad;
+  a.b.onMoment(wig, a.t);
+  a.at(5699);
+  TEST_ASSERT_TRUE(a.b.show(a.t).mood == render::Mood::kSad);
+  a.at(5700);
+  TEST_ASSERT_TRUE(a.b.show(a.t).mood == render::Mood::kHappy);
+}
+
+static void test_an_expression_ends_with_its_moment() {
+  render::Mood e;
+  // A new mumble without a mood replaces the line, and the expression.
+  Rig r;
+  r.state(base("working"));
+  r.at(1000);
+  r.b.onMoment(expressive(render::Mood::kGrumpy), r.t);
+  r.at(1500);
+  r.say(2);
+  TEST_ASSERT_FALSE(r.b.expression(r.t, e));
+  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kHappy);
+  // A tap's wiggle does too.
+  r.at(5000);
+  r.b.onMoment(expressive(render::Mood::kSad), r.t);
+  r.at(5100);
+  r.b.tap(r.t);
+  TEST_ASSERT_FALSE(r.b.expression(r.t, e));
+  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kHappy);
+  // "Needs you" stops the line, and the expression with it.
+  r.at(9000);
+  r.b.onMoment(expressive(render::Mood::kExcited), r.t);
+  r.at(9100);
+  r.state(attn());
+  TEST_ASSERT_FALSE(r.b.expression(r.t, e));
+  SceneShow s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kNeedsYou);
+  TEST_ASSERT_TRUE(s.mood == render::Mood::kHappy);
+  // While something needs you, a moment with a mood plays nothing and
+  // borrows no face.
+  r.at(9500);
+  TEST_ASSERT_FALSE(r.b.onMoment(expressive(render::Mood::kGrumpy), r.t));
+  TEST_ASSERT_FALSE(r.b.expression(r.t, e));
+  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kHappy);
+  // No expression: the state's mood, as before.
+  Rig n;
+  Model m = base("idle");
+  m.mood = render::Mood::kDetermined;
+  n.state(m);
+  n.at(100);
+  n.say(3);
+  TEST_ASSERT_FALSE(n.b.expression(n.t, e));
+  TEST_ASSERT_TRUE(n.b.show(n.t).mood == render::Mood::kDetermined);
+}
+
 static void test_life_is_blinks_at_their_pace() {
   checkGaps(blinkStarts(base("idle"), true, 120000), 0, 2000, 6000);
   Model w = base("working");
@@ -703,6 +863,9 @@ int main() {
   RUN_TEST(test_moments_end_and_replace);
   RUN_TEST(test_mumble_moves_the_mouth);
   RUN_TEST(test_a_mumble_alone_plays_over_the_face);
+  RUN_TEST(test_an_expression_lasts_as_long_as_the_mumble);
+  RUN_TEST(test_an_expression_over_the_cheer_and_across_a_look_change);
+  RUN_TEST(test_an_expression_ends_with_its_moment);
   RUN_TEST(test_life_is_blinks_at_their_pace);
   RUN_TEST(test_asleep_breathes_and_never_blinks);
   RUN_TEST(test_a_wiggle_sways_over_the_look);

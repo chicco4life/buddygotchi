@@ -1,9 +1,11 @@
 import Foundation
 
-/// Whether Boop mumbles about NOW, in which feeling, and with which real
-/// word (harness/DECISIONS.md §5). A mumble is a Minion line from Voice in
-/// the feeling's voice, sent as a moment with no animation, so it plays
-/// over whatever face is showing, after whatever is playing.
+/// Whether Boop reacts to NOW, with which face, and with which real word
+/// (harness/DECISIONS.md §5). The face is one of the seven moods': while
+/// the reaction plays, the device borrows that mood's design of whatever
+/// look is showing (PROTOCOL.md §3). It comes with a Minion line from
+/// Voice, and goes as a moment with no animation, so it plays over
+/// whatever is showing once any line playing has finished.
 public final class ReactAction: Action {
     public let name = "react"
     let voice: Voice
@@ -20,13 +22,19 @@ public final class ReactAction: Action {
         self.blocked = blocked
     }
 
-    /// Each feeling, its meaning, and the Voice feeling it mumbles in.
-    public static let feelings: [(option: Option, voice: Feeling)] = [
-        (Option("happy", "Pleased and friendly: a turn went fine, a small win."), .happy),
-        (Option("excited", "Thrilled: something big just went right."), .excited),
-        (Option("proud", "Something long or hard just finished, or finally worked."), .proud),
-        (Option("curious", "Interested or unsure: something new started, or it's not clear how it's going."), .curious),
-        (Option("annoyed", "Irritated: a turn failed, tests keep failing, or it's being poked too much."), .annoyed),
+    /// Each expression: a mood's name, in `MoodAction.moods`' order, and
+    /// what the face means for this moment (DECISIONS.md §3). Voice picks
+    /// the sound (`Voice.feeling(forMood:)`).
+    public static let expressions = [
+        Option("happy", "A happy face: pleased, a turn went fine or a small win."),
+        Option("excited", "An excited face: something big just went right."),
+        Option("proud", "A proud face: something long or hard just finished, or finally worked."),
+        Option("curious", "A curious face: something new started, or it's not clear how it's going."),
+        Option("determined", "A determined face: something failed and the agent is trying again.",
+               notFor: "A turn that has ended, or the same failure 3 or more times in a row."),
+        Option("grumpy", "A grumpy face: a turn failed, the same thing keeps failing, or Boop is poked too much."),
+        Option("sad", "A sad face: a long turn ended failing, or was stopped with failures left.",
+               notFor: "A short turn failing, or a single failure."),
     ]
 
     public static let exclamations = [
@@ -60,9 +68,10 @@ public final class ReactAction: Action {
     public func questions() -> [Question] {
         let byBoth = "the PERSONALITY and MOOD sections, PERSONALITY's Examples first"
         return [
-            Question(key: "react", text: "How should Boop react to NOW, if at all?", about: "the NOW section", judgeBy: byBoth,
-                     options: [Option("none", "Stay quiet: nothing in NOW is worth a mumble.",
-                                      notFor: "Anything PERSONALITY's Examples mumble for.")] + Self.feelings.map(\.option)),
+            Question(key: "react", text: "How should Boop react to NOW, if at all? It makes this face for a moment, with a mumble.",
+                     about: "the NOW section", judgeBy: byBoth,
+                     options: [Option("none", "Stay quiet: nothing in NOW is worth a face and a mumble.",
+                                      notFor: "Anything PERSONALITY's Examples react to.")] + Self.expressions),
             Question(key: "word.feeling", text: "If Boop mumbles, which exclamation fits NOW?", about: "the NOW section",
                      judgeBy: byBoth, options: [Option("none", "No exclamation fits NOW.")] + Self.exclamations),
             Question(key: "word.about", text: "If Boop mumbles, which topic word is NOW about?", about: "the NOW section",
@@ -72,17 +81,21 @@ public final class ReactAction: Action {
     }
 
     public func run(_ answers: Answers) -> ActionResult? {
-        // 1. Does Jev want a mumble at all?
-        guard let choice = answers["react"]?.choice,
-              let feeling = Self.feelings.first(where: { $0.option.name == choice }) else { return nil }
+        // 1. Does Jev want a reaction at all?
+        guard let choice = answers["react"]?.choice, Self.expressions.contains(where: { $0.name == choice }) else {
+            return nil
+        }
         // 2. The word: the exclamation if Jev is sure enough, else the topic, else none.
         let word = Self.word(answers)
         // 3. This action's own rules.
         if let why = blocked() { return .failed(why) }
         // 4. The effect.
         seed += 1
-        queue(DeviceMoment(say: voice.line(feeling.voice, word: word, seed: seed)))
+        // The face is the expression's for as long as the line plays.
+        let line = voice.line(Voice.feeling(forMood: choice), word: word, seed: seed)
+        queue(DeviceMoment(say: line, mood: choice))
         // 5. What happened, as its line in HISTORY.
-        return .done("Boop mumbled, \(choice)" + (word.map { ": \"…\($0)!\"" } ?? "."))
+        let article = "aeiou".contains(choice.first!) ? "an" : "a"
+        return .done("Boop made \(article) \(choice) face and mumbled" + (word.map { " \"…\($0)!\"" } ?? "."))
     }
 }

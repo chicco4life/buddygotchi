@@ -46,6 +46,10 @@ struct MomentIn {
   const char* word = nullptr;
   int at = 0;         // the word's place among the syllables, 0..syllables
   uint32_t ms = 120;  // per syllable, 60–400
+  // The expression: this mood's version of the look while the moment
+  // plays. Only a known mood sets it.
+  bool expr = false;
+  render::Mood mood = render::Mood::kHappy;
 };
 
 class Behaviour {
@@ -94,6 +98,9 @@ class Behaviour {
   // The animation playing (kNone for none) and ms left.
   render::Anim moment(uint32_t t, uint32_t& left) const;
   bool speaking(uint32_t t) const;
+  // The expression the face borrows while its moment plays (PROTOCOL.md
+  // §3): true, with its mood, until the moment ends or another replaces it.
+  bool expression(uint32_t t, render::Mood& mood) const;
   int syllables() const { return say_.say.syllables; }
   // Counts moments and mumbles started, local ones included, so a line can
   // tell it was replaced.
@@ -176,6 +183,7 @@ class Behaviour {
   bool held(uint32_t t) const;
   uint8_t blTarget(uint32_t t) const;  // the level the state asks for at t
   bool sayOn(uint32_t t) const;
+  bool exprOn(uint32_t t) const;
   Source sourceAt(uint32_t t) const;
 
   Model model_;
@@ -194,6 +202,11 @@ class Behaviour {
   uint32_t blAt_ = 0;
   Moment moment_;
   Say say_;
+  // The moment's expression: its mood from exprAt_ for exprMs_, as long as
+  // the animation or the mumble with it plays.
+  bool expr_ = false;
+  render::Mood exprMood_ = render::Mood::kHappy;
+  uint32_t exprAt_ = 0, exprMs_ = 0;
   Source src_;
   uint32_t lookAt_ = 0;  // when the look's design started
   bool switched_ = false;  // the eyes shut at switchAt_, for a change of design

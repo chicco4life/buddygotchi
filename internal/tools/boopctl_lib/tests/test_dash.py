@@ -62,7 +62,7 @@ class FeedTests(unittest.TestCase):
         self.assertIn("failed (rate limit)", events[4])
         self.assertIn(("fail", "  ✗ react (by dashboard): something needs you"), rows)
         self.assertIn(("ok", "  ✓ mood (by dashboard): Boop's mood changed: happy → grumpy."), rows)
-        self.assertIn(("pass", "  pass forced by dashboard: react annoyed · word.feeling again"), rows)
+        self.assertIn(("pass", "  pass forced by dashboard: react grumpy · word.feeling again"), rows)
         self.assertIn(("sent", "→ moment wiggle"), rows)
         self.assertIn(("sent", "→ state idle grumpy · busy 0 idle 1 wait 0 · vol 6"), rows, "a state carries the mood")
         self.assertIn(("status", "status: sessions claude jetpack waiting"), rows, "a status row shows what changed")
@@ -100,7 +100,7 @@ class FeedTests(unittest.TestCase):
         self.assertEqual(text[3], "  state: guide 32 · PERSONALITY 20 · MOOD 13 · HISTORY 18 · NOW 3 lines (s shows it)")
         self.assertEqual(text[4], "  asked: mood, react, word.feeling, word.about")
         self.assertIn("  react → excited   excited 1.00", text)
-        self.assertEqual(text[-2:], ["RAN", "  ✓ react: Boop mumbled, excited: \"…yay!\""])
+        self.assertEqual(text[-2:], ["RAN", "  ✓ react: Boop made an excited face and mumbled \"…yay!\""])
         # A mood the dashboard set right after a pass isn't that pass's.
         mood = next(i for i, line in enumerate(lines) if line.get("action", {}).get("by"))
         board, _ = board_after(lines[: mood + 1])
@@ -114,7 +114,7 @@ class FeedTests(unittest.TestCase):
         text = [t for _, t in board.harness()]
         self.assertEqual(text[1], "forced by dashboard, for no event")
         self.assertFalse(any("state:" in t for t in text), "a forced pass has no state")
-        self.assertEqual(text[-1], "  ✓ react: Boop mumbled, annoyed: \"…again!\"")
+        self.assertEqual(text[-1], "  ✓ react: Boop made a grumpy face and mumbled \"…again!\"")
 
     def test_sections(self):
         state = next(line["pass"]["state"] for line in fixture_lines() if line.get("pass", {}).get("state"))
@@ -241,8 +241,9 @@ class ControlsTests(unittest.TestCase):
 
     @unittest.skipUnless((REPO / ".build" / "debug" / "boopdev").exists(), "needs make build")
     def test_a_preview_mumble_is_the_apps_voice(self):
-        line = controls.preview_mumble("annoyed", "again")
-        self.assertEqual((line["t"], line["say"]["word"]), ("moment", "again"))
+        line = controls.preview_mumble("grumpy", "again")
+        self.assertEqual((line["t"], line["say"]["word"], line["mood"]), ("moment", "again", "grumpy"))
+        self.assertEqual(line["say"]["tune"], "flat", "grumpy's face mumbles in annoyed's voice")
         self.assertIn("syl", line["say"])
 
     def test_confirmations(self):
@@ -366,7 +367,7 @@ class AppTests(unittest.TestCase):
                 self.assertRegex(plain(app.query_one("#facts")), r"mood +happy · personality boop")
                 harness = plain(app.query_one("#harness-text"))
                 self.assertIn("RAN", harness)
-                self.assertIn("✓ react: Boop mumbled, excited", harness)
+                self.assertIn("✓ react: Boop made an excited face", harness)
                 self.assertGreater(len(app.query_one("#timeline").lines), 40)
 
                 async def pick(key: str, *downs: int) -> None:
@@ -377,11 +378,11 @@ class AppTests(unittest.TestCase):
                     await pilot.pause()
 
                 await pick("m", 5)  # grumpy
-                await pick("r", 5, 4, 0)
+                await pick("r", 6, 4, 0)  # grumpy, again, none
                 await pick("a", 0)
                 got = server.wait(3)
                 self.assertEqual(got, [{"dev": "mood", "mood": "grumpy"},
-                                       {"dev": "answer", "answers": {"react": "annoyed", "word.feeling": "again",
+                                       {"dev": "answer", "answers": {"react": "grumpy", "word.feeling": "again",
                                                                      "word.about": "none"}},
                                        {"dev": "moment", "anim": "cheer"}])
                 self.assertEqual(len(app.pending.waiting), 3)
@@ -406,6 +407,14 @@ class AppTests(unittest.TestCase):
                     f.write('{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":1790498700002}\n')
                 app.poll()
                 self.assertEqual(face.sent[-1], {"t": "moment", "anim": "wiggle"}, "the app's lines wait")
+                if (REPO / ".build" / "debug" / "boopdev").exists():
+                    await pick("r", 5, 0)  # grumpy's face, no word: a moment with its `mood`
+                    for _ in range(100):
+                        if face.sent[-1].get("mood"):
+                            break
+                        await pilot.pause(0.05)
+                    self.assertEqual((face.sent[-1]["t"], face.sent[-1]["mood"]), ("moment", "grumpy"))
+                    self.assertNotIn("word", face.sent[-1]["say"])
                 # DASHBOARD.md §4: resent well inside the device's 30 s no-app timeout.
                 self.assertEqual(PREVIEW_RESEND_S, 10)
                 app.keep_preview()

@@ -13,11 +13,13 @@ Boop looks is in [UX.md](UX.md), and how it sounds in [VOICE.md](VOICE.md).
 What you see has three layers, and the top one wins:
 
 1. **Attention**: something needs you.
-2. **A moment**: a `cheer`, a tap's `wiggle`, or a mumble.
+2. **A moment**: a `cheer`, a tap's `wiggle`, a mumble, or the brain's
+   reaction: a mumble with another mood's face (§5).
 3. **The base state**: asleep, idle or working.
 
 Boop's **mood** sits across all three: it picks which set of faces
-everything is drawn in (§2).
+everything is drawn in (§2), except while a reaction borrows another
+mood's for a moment.
 
 **Attention wins.** While something needs you, no animation or mumble
 plays, one already playing is cut short, a tap only dips the face,
@@ -97,10 +99,12 @@ moment later, if it answers within its deadline
 
 **Moments take turns.** A rule moment (a cheer, a tap's wiggle) plays at
 once and replaces whatever is playing, mumble included, so turns
-finishing together look like one cheer. A brain mumble waits until
-nothing is playing, and is dropped once it has waited 5 s
-(`MomentSchedule.maxWaitMs`, [ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
-Working chatter plays only when nothing is playing or waiting.
+finishing together look like one cheer. A brain reaction waits until no
+line is playing (it plays over an animation, which it doesn't cut: the
+cheer then shows in the reaction's face), and is dropped once it has
+waited 5 s (`MomentSchedule.maxWaitMs`,
+[ARCHITECTURE.md](ARCHITECTURE.md) §3.2). Working chatter plays only
+when nothing is playing or waiting.
 
 ### 3.1 Agent work
 
@@ -178,10 +182,16 @@ stops a line that's playing.
 | `cheer` | A finished turn | The mood's task-complete design: a result card rising onto a tray and the mood's gesture | 2 s |
 | `wiggle` | A tap | The look's own design, swaying, with a pixel heart | 0.7 s |
 
-A mumble on its own (the brain's `react`, or chatter) plays over whatever
-face is showing and doesn't change it. The brain has no animations of
-its own: on the device a mumble is all it can add, and to stay silent it
-doesn't react at all.
+A mumble on its own (chatter) plays over whatever face is showing and
+doesn't change it. The brain's reaction is a mumble with a face: for as
+long as it plays, whatever is showing (a look, or the cheer) is drawn in
+the reaction's mood, then Boop's own mood comes back
+([PROTOCOL.md](PROTOCOL.md) §3). Happy and working, a failing test gets
+two seconds of working × grumpy with "…ugh!", then working × happy
+again; curious when a long turn finishes, the cheer shows in proud's
+face while Boop mumbles "…finally!". The brain has no animations of its
+own: a reaction is all it can add, and to stay quiet it doesn't react at
+all.
 
 ## 6. Personalities
 

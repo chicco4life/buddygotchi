@@ -2,14 +2,18 @@ import Foundation
 
 /// A `moment` message: something for the device to play once (PROTOCOL.md §3).
 /// A rule moment has an `anim`; a mumble has only `say`, which plays over
-/// whatever face is showing.
+/// whatever face is showing. A brain mumble also has `mood`, its
+/// expression: the device draws that mood's version of the look while the
+/// moment plays. The rules' moments never carry one.
 public struct DeviceMoment: Equatable, Sendable {
     public var anim: String?
     public var say: VoiceLine?
+    public var mood: String?
 
-    public init(anim: String? = nil, say: VoiceLine? = nil) {
+    public init(anim: String? = nil, say: VoiceLine? = nil, mood: String? = nil) {
         self.anim = anim
         self.say = say
+        self.mood = mood
     }
 
     /// The animations the device plays (BEHAVIORS.md §5).
@@ -41,6 +45,7 @@ public struct DeviceMoment: Equatable, Sendable {
         var parts = ["\"t\":\"moment\""]
         if let anim { parts.append("\"anim\":\"\(anim)\"") }
         if let say { parts.append("\"say\":" + say.json) }
+        if let mood { parts.append("\"mood\":\"\(mood)\"") }
         return "{" + parts.joined(separator: ",") + "}"
     }
 }

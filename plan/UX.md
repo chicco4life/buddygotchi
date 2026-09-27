@@ -85,10 +85,11 @@ keeps it too.
 | Addition | What it does | When |
 | --- | --- | --- |
 | Blink | The design's closed eyes, briefly | At the device's own pace ([BEHAVIORS.md](BEHAVIORS.md) §2) |
-| Switch | The eyes shut for 150 ms (`kBlendMs`) and open on the new design, and the backlight eases over the same time. The face never cuts hard | Any change of design: another look, the cheer, another mood, or a new cheer over a cheer |
+| Switch | The eyes shut for 150 ms (`kBlendMs`) and open on the new design, and the backlight eases over the same time. The face never cuts hard | Any change of design: another look, the cheer, another mood, a reaction's face coming or going, or a new cheer over a cheer |
 | Wiggle | Keeps the design and its clock, sways the face 3 px either way twice, and pops a pixel heart in at the top right, small for 100 ms then full size, a stronger coral than the cheeks | A tap, for 0.7 s |
 | Press | The face drops 2 px, drawn at once | While BOOT or the screen is held (§4) |
 | Talking | The bubble takes the props' band, and the mouth is a small "o" for the first half of each syllable | While a mumble plays |
+| Reaction | The look, or the cheer, drawn in the reaction's mood's design instead of Boop's mood, switching in and out behind the usual blink; the design's clock carries on | While the brain's reaction plays: its mumble and bubble ([BEHAVIORS.md](BEHAVIORS.md) §5) |
 
 ### The bubble and the strip
 
@@ -294,4 +295,6 @@ device's, in the designs' own colours.
 
 It blinks for 180 ms every 2.4–5.2 s, and blinks into a new face when
 the mood or the look changes, as the device does. It holds still while
-asleep and with Reduce Motion on.
+asleep and with Reduce Motion on. It follows the `state`, not moments,
+so it never shows a reaction's borrowed face: the Mac doesn't play
+moments.

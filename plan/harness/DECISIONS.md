@@ -13,11 +13,11 @@ Two actions, registered in this order (`Runtime`):
 | Action | Decides | Its questions | Effect |
 | --- | --- | --- | --- |
 | `mood` (§4) | Whether Boop's mood changes, and to what | `mood` | The `mood` file; MOOD from the next pass; the device's set of faces |
-| `react` (§5) | Whether Boop mumbles, in which feeling, and with which real word | `react`, `word.feeling`, `word.about` | A Minion line on the device |
+| `react` (§5) | Whether Boop reacts, with which mood's face, and with which real word | `react`, `word.feeling`, `word.about` | For as long as a Minion line plays, the device draws the look in that mood's design |
 
 All four questions go in one request, and Jev answers each on its own
 ([HARNESS.md](HARNESS.md) §7). So both actions are judged against the
-mood as it stood: on a pass that changes the mood, the mumble is still
+mood as it stood: on a pass that changes the mood, the reaction is still
 judged by the old one. The guide asks for the two to fit together, and
 the evals check both on the same pass.
 
@@ -34,10 +34,11 @@ examples are written as the state's own lines.
 same for every personality and mood. It says who Boop is (a desk
 creature that never approves or blocks anything), what it already does
 on its own (cheers, wiggles, alerts), and that Jev only decides whether
-it adds a mumble, with at most one real word, and whether its mood
-changes. Then how to choose: judge by PERSONALITY and MOOD; react to
-NOW, not older lines, and don't repeat what Boop just did; make the mood
-and the mumble fit together. And on moods:
+it reacts, with one of its moods' faces for a moment and a mumble of at
+most one real word, and whether its mood changes. Then how to choose:
+judge by PERSONALITY and MOOD; react to NOW, not older lines, and don't
+repeat what Boop just did; the mood is the backdrop and the reaction the
+moment, so they may differ, but should fit together. And on moods:
 
 > Moods last. Change one only when things have clearly turned, never
 > for a single moment. After an hour with nothing happening, any mood
@@ -57,11 +58,11 @@ event. It has two parts:
   [BEHAVIORS.md](../BEHAVIORS.md) §6's, and it never reaches Jev.
 - **The text,** which is the PERSONALITY section: who this Boop is, how
   often it speaks up, and its Examples, each a NOW line and what it
-  would pick (`→ annoyed, "again"`).
+  would pick (`→ grumpy, "again"`).
 
 | Personality | For | Its text |
 | --- | --- | --- |
-| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Curious, loyal, easily delighted and a little smug. It speaks up when something stands out and stays quiet during routine work: a comeback finish is proud with "finally", a third failure annoyed with "again", a poke streak annoyed with "nope"; a turn start, a short finish and a heartbeat get nothing |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Curious, loyal, easily delighted and a little smug. It speaks up when something stands out and stays quiet during routine work: a comeback finish is proud with "finally", a third failure grumpy with "again", a poke streak grumpy with "nope"; a turn start, a short finish and a heartbeat get nothing |
 | [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses and heartbeats included, and always picks a word if one fits |
 
 "Never stays quiet" is still Jev's call: `none` stays an option, and the
@@ -71,9 +72,10 @@ moods still apply.
 
 `mood/<mood>.md`, the current mood's file. There are seven moods
 (`MoodAction.moods`), each with its own set of faces on the device
-([UX.md](../UX.md) §2). Each file says how the mood leans the feelings
-and words, what it mumbles at most, the words it likes, and when it
-leaves, and for which mood. That last part is what the `mood` question
+([UX.md](../UX.md) §2). Each file says which faces Boop makes in its
+reactions while in that mood (a grumpy Boop rarely looks happy), what it
+mumbles at most, the words it likes, and when it leaves, and for which
+mood. That last part is what the `mood` question
 judges by. No timer holds or ends a mood: how long one lasts is the
 steering's to say.
 
@@ -105,23 +107,33 @@ meaning is its criterion.
 | Key | Asked by | Text | About | Judged by | Options |
 | --- | --- | --- | --- | --- | --- |
 | `mood` | `mood` | After NOW, what is Boop's mood? | the NOW and HISTORY sections | the MOOD section, its reason to leave | The seven moods (§2.3) |
-| `react` | `react` | How should Boop react to NOW, if at all? | the NOW section | the PERSONALITY and MOOD sections, PERSONALITY's Examples first | `none` and five feelings |
+| `react` | `react` | How should Boop react to NOW, if at all? It makes this face for a moment, with a mumble. | the NOW section | the PERSONALITY and MOOD sections, PERSONALITY's Examples first | `none` and the seven moods' faces |
 | `word.feeling` | `react` | If Boop mumbles, which exclamation fits NOW? | the NOW section | as `react` | `none` and seven exclamations |
 | `word.about` | `react` | If Boop mumbles, which topic word is NOW about? | the NOW section | the PERSONALITY section's Examples | `none` and four topics |
 
-**`react` asks whether and how at once.** A separate yes/no and feeling
-could disagree (a "no" with a confident "proud"); one choice can't. Each
-feeling mumbles in the Voice feeling of the same name
-([VOICE.md](../VOICE.md) §4).
+**`react` picks a face.** Its options are `none` and the seven moods,
+and a reaction is that mood's face for a moment: the device draws
+whatever look is showing (working, idle, the cheer) in that mood's
+design for as long as the mumble plays, then goes back to Boop's mood
+([PROTOCOL.md](../PROTOCOL.md) §3). The mood is the backdrop and the
+face the moment, so they can differ on purpose: a happy Boop at work
+scowls grumpily at a failing test for two seconds, then smiles again.
+The designs are the reactions' meaning; the sound follows the face
+(Voice picks a feeling for each mood, [VOICE.md](../VOICE.md) §4).
+
+`react` asks whether and how at once. A separate yes/no and face could
+disagree (a "no" with a confident "proud"); one choice can't.
 
 | `react` | Meaning |
 | --- | --- |
-| `none` | Stay quiet: nothing in NOW is worth a mumble. Not for anything PERSONALITY's Examples mumble for |
-| `happy` | Pleased and friendly: a turn went fine, a small win |
-| `excited` | Thrilled: something big just went right |
-| `proud` | Something long or hard just finished, or finally worked |
-| `curious` | Interested or unsure: something new started, or it's not clear how it's going |
-| `annoyed` | Irritated: a turn failed, tests keep failing, or it's being poked too much |
+| `none` | Stay quiet: nothing in NOW is worth a face and a mumble. Not for anything PERSONALITY's Examples react to |
+| `happy` | A happy face: pleased, a turn went fine or a small win |
+| `excited` | An excited face: something big just went right |
+| `proud` | A proud face: something long or hard just finished, or finally worked |
+| `curious` | A curious face: something new started, or it's not clear how it's going |
+| `determined` | A determined face: something failed and the agent is trying again. Not for a turn that has ended, or the same failure 3 or more times in a row |
+| `grumpy` | A grumpy face: a turn failed, the same thing keeps failing, or Boop is poked too much |
+| `sad` | A sad face: a long turn ended failing, or was stopped with failures left. Not for a short turn failing, or a single failure |
 
 **The words** are two questions over two short lists, so the two picks
 are never near-synonyms: an exclamation, and what NOW is about. They're
@@ -173,26 +185,28 @@ gate, which says when something needs you.
 
 `run`:
 
-1. **Whether:** `react` missing or `none` → `nil`. Since `none`'s meaning
-   rules out anything PERSONALITY's Examples mumble for, a moment worth a
-   mumble doesn't lose to it just because Jev can't settle on one
-   feeling.
+1. **Whether:** `react` missing, `none` or not a mood → `nil`. Since
+   `none`'s meaning rules out anything PERSONALITY's Examples react to, a
+   moment worth a reaction doesn't lose to it just because Jev can't
+   settle on one face.
 2. **The word:** `word.feeling`'s pick if it isn't `none` and its
    probability is **at least 0.35** (`ReactAction.wordFloor`), else the
    same for `word.about`, else no word. Below the floor Jev is guessing,
    and no word beats a guessed one. A line has one real word
    ([VOICE.md](../VOICE.md) §6), so the other pick is only recorded.
 3. **Its rule:** something needs you → `ok: false`, `something needs
-   you`, and nothing plays.
-4. **The effect:** Voice builds a Minion line in the feeling's voice,
-   with the word, each line with the next seed. It's queued as a
-   `moment` with only `say`, so it plays over whatever face is showing,
-   after whatever is playing. The action returns without waiting for it.
-5. **The message:** `Boop mumbled, proud: "…finally!"`, or
-   `Boop mumbled, curious.` with no word.
+   you`, and nothing plays, so no face is borrowed while needs you shows.
+4. **The effect:** Voice builds a Minion line in the voice it gives that
+   mood (`Voice.feeling(forMood:)`), with the word, each line with the
+   next seed. It's queued as a `moment` with `say` and the face as
+   `mood`, and no animation, so it plays over whatever is showing (the
+   cheer included) once any line playing has finished. The action returns
+   without waiting for it.
+5. **The message:** `Boop made a proud face and mumbled "…finally!"`, or
+   `Boop made a curious face and mumbled.` with no word.
 
-A mumble that waits too long in the schedule is dropped there, but HISTORY
-still says Boop mumbled.
+A reaction that waits too long in the schedule is dropped there, face and
+all, but HISTORY still says Boop made it.
 
 ## 6. An example
 

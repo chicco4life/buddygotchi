@@ -88,7 +88,7 @@ text for its facts. Each line's shape is in
 
 | Line | Shows in |
 | --- | --- |
-| `questions` | The pickers (§4), so no mood, feeling or word is written into the dashboard |
+| `questions` | The pickers (§4), so no mood, face or word is written into the dashboard |
 | `event` | The timeline, and IN when a pass is for it |
 | `pass` | The timeline, the harness pane, and `brain` (latency, dropped) |
 | `action` | The timeline, and RAN when it's the latest pass's: for the same event (or, forced, for none) and from an action that asks one of the pass's questions, which the `questions` line maps |
@@ -106,7 +106,7 @@ panes afresh, and marks the timeline.
 | Key | Live | In Preview |
 | --- | --- | --- |
 | `m` | Picks one of the `mood` question's options and sends `{"dev":"mood","mood":…}` | Shows the look in that mood's faces on the dashboard's sim |
-| `r` | Picks an answer to each of the `react` action's questions in turn and sends them as a forced pass, `{"dev":"answer","answers":{…}}` | Picks a feeling, then a word or none from the same questions, builds the line with `boopdev voice FEELING [WORD] --json`, and plays it as a `moment` on the dashboard's sim |
+| `r` | Picks an answer to each of the `react` action's questions in turn and sends them as a forced pass, `{"dev":"answer","answers":{…}}` | Picks a reaction's face (a mood), then a word or none from the same questions, builds the line with `boopdev voice MOOD [WORD] --json` (the voice Voice gives that mood), and plays it on the dashboard's sim as a `moment` with the face as its `mood`, as the `react` action sends it: the look shows in that mood's design while the mumble plays |
 | `a` | Picks `cheer` or `wiggle` and sends `{"dev":"moment","anim":…}` | Plays the same animation on the dashboard's sim |
 | `p` | Picks a look (idle, working, asleep or needs you) and enters Preview | Picks another look, or leaves Preview |
 | `s` | Shows the latest pass's whole state; a forced pass has none | The same |
@@ -128,7 +128,7 @@ with `--debug`. A socket it can't reach is reported at once.
 writes its own: the app's latest `state` with the chosen look (`base`, or
 for needs you an `attn` from `claude` on `preview`) and, once `m` picks
 one, the mood, sent again every 10 s so the sim never shows the no-app
-look; and any animation or mumble. Leaving Preview resets the sim and
+look; and any animation or reaction. Leaving Preview resets the sim and
 replays the latest `state`. Preview never reaches the app or a board;
 only the app writes to the board. The facts and the timeline keep showing
 the app. Preview is the only way the dashboard forces a look; real looks

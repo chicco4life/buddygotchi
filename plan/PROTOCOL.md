@@ -152,11 +152,12 @@ even with the longest names and counts (`DeviceLinkTests`).
 
 ### `moment`: something to play once
 
-Real lines, from the same headless run:
+Real lines, from headless runs: the rules' cheer, a brain reaction
+forced from the dashboard, and working chatter:
 
 ```json
 {"t":"moment","anim":"cheer"}
-{"t":"moment","say":{"syl":"bi-ni-na bi gi la","word":"yay","at":6,"tune":"bounce","ms":115}}
+{"t":"moment","say":{"syl":"tu-ko ki","word":"again","at":0,"tune":"flat","ms":125},"mood":"grumpy"}
 {"t":"moment","say":{"syl":"bi-da","tune":"bounce","ms":125}}
 ```
 
@@ -169,11 +170,13 @@ Real lines, from the same headless run:
 | `say.at` | int, only with `word` | Where the word goes among the syllables: 0 before the first, the syllable count after the last | Clamped to that range. Missing reads as the end |
 | `say.tune` | `up`, `down`, `bounce`, `flat` or `lift` | The feeling's tune ([VOICE.md](VOICE.md) §5) | Missing or unknown reads as `flat` |
 | `say.ms` | int | Milliseconds per syllable, 90–180 | Clamped to 60–400. Missing reads as 120 |
+| `mood` | one of `state`'s seven moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5). The rules' moments (the cheer, a wiggle, working chatter) never carry one | The expression: while this moment plays, the look (or the cheer) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
 
 The rules' moments play at once. A brain mumble waits its turn behind
-whatever is playing, and the Mac drops it rather than send it more than
-5 s late ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2). The Mac never sends a
-moment with neither field.
+any line playing (not an animation, which it plays over), and the Mac
+drops it rather than send it more than 5 s late
+([ARCHITECTURE.md](ARCHITECTURE.md) §3.2). The Mac never sends a moment
+with neither `anim` nor `say`.
 
 On the device, a moment plays as it arrives:
 
@@ -182,6 +185,13 @@ On the device, a moment plays as it arrives:
   replaces any line playing. With an animation in the same moment, as
   `boopctl play cheer --say happy` sends, its bubble stays up at least as
   long as the animation.
+- A `mood` holds for exactly as long as the moment plays: the mumble and
+  its bubble (syllables, two beats for a word, then 1.2 s), or the
+  animation, whichever is longer. Then the face goes back to the state's
+  mood. Both switches blink like any change of design ([UX.md](UX.md)
+  §2). If the look changes meanwhile (the cheer ends, a `state` moves
+  from working to idle), the new look is drawn in the moment's mood until
+  it ends. A newer moment, a tap or "needs you" ends it with the moment.
 - While `attn` is set, neither plays ([BEHAVIORS.md](BEHAVIORS.md) §1).
 - At volume 0 the mouth and bubble still play, silently.
 - A moment with neither a known `anim` nor any syllables is ignored.
@@ -275,6 +285,7 @@ instead of running.
 | `screen` | `face`, `needs_you`, `no_app` or `pattern` ([DEVICE.md](DEVICE.md) §4) |
 | `base`, `mood`, `attn`, `vol` | The last `state` as the device read it (§3): `base` `idle` and `mood` `happy` for a missing or unknown one, `vol` clamped, and `attn` null unless something needs you |
 | `moment` | `{"anim":…,"left_ms":…}` while an animation plays, otherwise null. A mumble on its own leaves it null |
+| `expr` | The mood the face borrows while a moment with `mood` plays (§3), otherwise null |
 | `life` | `blink` while Boop blinks, otherwise null |
 | `led`, `bl` | The LED's colour as `#RRGGBB`, and the backlight level, 0–255 |
 | `audio` | `playing` while the mouth follows a line, and its `syllables`. `out` is what the sound output did: `ready` (the DAC started), `playing`, `lines` finished since boot, and for the last line `syl`, `word` (whether it had one), `plan_ms` (beats × `ms`), `out_ms` (samples rendered), `wall_ms` (the DAC's measured time), `cut` (hushed or replaced) and `errors` (DAC writes that timed out) |

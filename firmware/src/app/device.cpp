@@ -134,6 +134,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     ++rxMoment_;
     MomentIn mo;
     mo.anim = render::animFromName(doc["anim"]);  // none, or unknown: only the mumble
+    mo.expr = render::parseMood(doc["mood"], mo.mood);  // unknown or missing: the state's mood
     voice::Line line;
     JsonObjectConst say = doc["say"];
     if (say) {
@@ -449,6 +450,9 @@ void Device::sendState(Link to) {
   } else {
     d["moment"] = nullptr;
   }
+  render::Mood expr;
+  if (b_.expression(t, expr)) d["expr"] = render::moodName(expr);
+  else d["expr"] = nullptr;
   if (b_.blinking(t)) d["life"] = "blink";
   else d["life"] = nullptr;
   d["vol"] = m.vol;

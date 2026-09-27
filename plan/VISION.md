@@ -73,10 +73,10 @@ feeling, so it reads from across the desk, in a demo or in a ten-second
 clip. How each works is in [BEHAVIORS.md](BEHAVIORS.md) §3, and the
 harness evals check the brain's part ([EVALS.md](EVALS.md)).
 
-1. **A turn finishes, and it cheers for you,** and maybe mumbles
-   something proud.
-2. **A turn fails, and it's annoyed for you.** No cheer, maybe an annoyed
-   mumble that names what broke, *"…tests."*
+1. **A turn finishes, and it cheers for you,** and maybe puts on its
+   proud face and mumbles something proud.
+2. **A turn fails, and it's grumpy for you.** No cheer, maybe a grumpy
+   face and a mumble that names what broke, *"…tests."*
 3. **Yell at it, and it's sad.** This one waits for talking to Boop to
    come back ([FUTURE.md](FUTURE.md)); v1 has no mic.
 4. **Poke it too much, and it grumbles.** One poke gets a happy wiggle and
@@ -99,7 +99,8 @@ harness evals check the brain's part ([EVALS.md](EVALS.md)).
 - **Has a personality and moods.** Two personalities: `boop`, its
   everyday self, and `chatter`, an over-the-top one for debugging. Seven
   moods, from happy to sad, each with its own face. With your own
-  TypeSafe Jev key, Jev picks the mood and adds mumbles with character;
+  TypeSafe Jev key, Jev picks the mood and adds reactions with
+  character: another mood's face for a moment, and a mumble;
   without one, Boop does only its rule reactions
   ([harness/HARNESS.md](harness/HARNESS.md)).
 

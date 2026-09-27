@@ -22,6 +22,7 @@ uint32_t animDuration(Anim a);
 // drawn in (plan/PROTOCOL.md §3, plan/harness/DECISIONS.md §2.3).
 enum class Mood : uint8_t { kHappy, kExcited, kProud, kCurious, kDetermined, kGrumpy, kSad, kCount };
 Mood moodFromName(const char* name);  // kHappy if missing or unknown
+bool parseMood(const char* name, Mood& out);  // false, and `out` untouched, if missing or unknown
 const char* moodName(Mood m);
 
 // A switch from one design to another shuts the eyes this long, which hides

@@ -23,6 +23,7 @@ milestone's evidence says which ones ran.
 | | Production and internal code split: what doesn't ship moves to `internal/`, `Package.swift` to the root ([internal/README.md](../internal/README.md)) | Done; the evals pass against Jev, 7/7 in all 3 runs | [evidence](evidence/2026-09-27-internal-split/README.md) |
 | A11 | Seven moods, drawn from the mood SVGs: Jev picks the mood, and the device shows each state and reaction in it | In progress. Jev chooses among the seven moods with no minimum time between changes (evals 10/10 in all 3 runs); every `state` carries the mood; the device draws each look and the cheer as the mood's design, exactly as Chrome draws the SVGs. The popover's tile shows the same faces. Still to do: watching it on the board | [moods](evidence/2026-09-27-seven-moods/README.md), [faces](evidence/2026-09-27-mood-faces/README.md) |
 | A12 | Live dashboard: `internal/tools/boopctl dash` shows the state and face, the harness's passes and a timeline, and forces a mood, a reaction or an animation ([DASHBOARD.md](DASHBOARD.md)) | Done, headless; check 20 is the owner's | [evidence](evidence/2026-09-27-dashboard/README.md) |
+| A13 | Reaction faces: `react` picks one of the seven moods' faces, and the device draws the look in it while the mumble plays ([harness/DECISIONS.md](harness/DECISIONS.md) §3, [PROTOCOL.md](PROTOCOL.md) §3) | Done in code and the simulator; `make eval` (check 16) and watching it on the board (check 1) are the owner's | [evidence](evidence/2026-09-27-reaction-faces/README.md) |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks
@@ -42,7 +43,9 @@ that's off becomes an open item (§3).
    them move. Since then the face has become the mood designs (A11): watch
    each look and the cheer in a few moods (`internal/tools/boopctl play
    cheer --mood proud`, for one), the blink at each switch, and the tap's
-   sway and heart. Say what you'd change.
+   sway and heart. Then a reaction (A13): the dashboard's `r` (check 20)
+   switches the look to that mood's face while the mumble plays, and
+   back. Say what you'd change.
 2. **`make run`, or `make debug` to watch everything.** Within about 10 s
    the app connects to `Boop-XXXX` and the board leaves the no-app face.
    `make debug` also prints every hook, decision, device line and brain
@@ -59,7 +62,7 @@ that's off becomes an open item (§3).
    wiggle, holding BOOT included, and a light touch counts once too
    (`make debug` prints one `device: input tap`), because a touch ends
    only after 50 ms without contact. With Jev's key, the fourth quick tap
-   may also get an annoyed mumble, and more tapping gets no second grumble
+   may also get a grumpy face and mumble, and more tapping gets no second grumble
    within a minute ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
 
 **Agents**
@@ -80,10 +83,11 @@ that's off becomes an open item (§3).
    automatic reviewer handles never lights up. This is Boop's first real
    Codex session (§3).
 9. **A Claude task that runs past a minute.** The working face (the
-   keyboard, in Boop's mood), then a cheer and a proud mumble,
-   nearly always with a word.
+   keyboard, in Boop's mood), then a cheer that switches to proud's cheer
+   while a proud mumble plays, nearly always with a word.
 10. **Ask Claude to run a failing test, then stop.** No cheer: Boop goes
-    idle, then an annoyed mumble ("tests" or "ugh").
+    idle, then a grumpy face and mumble ("tests" or "ugh"), and back to
+    its mood's face.
 11. **Esc while Claude is between tool calls.** Within about a minute Boop
     goes idle, with no cheer; at once if a tool was running.
 
@@ -92,11 +96,11 @@ that's off becomes an open item (§3).
 12. **Paste Jev's key in Settings, then work normally for a while.** The
     Personality card loses its "Without a Jev API key, … only cheers,
     wiggles and chatters by rule" line. Routine
-    turns go by quietly; a very long finish gets a proud mumble on top of
-    the cheer ([harness/DECISIONS.md](harness/DECISIONS.md)).
+    turns go by quietly; a very long finish gets a proud face and mumble
+    on top of the cheer ([harness/DECISIONS.md](harness/DECISIONS.md)).
 13. **Let tests fail three times in a row, then pass.** On the third
-    failure an annoyed mumble ("…again!" or "…tests!") and Boop turns
-    grumpy (the `mood` file in `~/Library/Application Support/Boop/`);
+    failure a grumpy face and mumble ("…again!" or "…tests!") and Boop
+    turns grumpy (the `mood` file in `~/Library/Application Support/Boop/`);
     when they pass, a proud "…finally!" and Boop turns proud
     ([harness/EXAMPLE.md](harness/EXAMPLE.md)).
 14. **`Boop --debug` (`make debug`) through a turn.** The terminal shows
@@ -130,8 +134,9 @@ that's off becomes an open item (§3).
     the no-app design with only the unplugged icon.
 20. **`make debug`, then `internal/tools/boopctl dash` in another terminal.** The
     dashboard's face shows what the board shows, though not frame for
-    frame. `m` grumpy, `r` annoyed with "again", and `a` cheer each land
-    (no warning after 2 s), and the board plays the mumble and the cheer.
+    frame. `m` grumpy, `r` grumpy with "again", and `a` cheer each land
+    (no warning after 2 s), and the board plays the reaction (the look in
+    grumpy's design while the mumble plays) and the cheer.
     Then quit and `make run`: the same keys warn that nothing landed
     ([DASHBOARD.md](DASHBOARD.md) §4).
 
@@ -159,6 +164,14 @@ fixed. Pick one up by writing it into its spec first.
   ([ADAPTERS.md](ADAPTERS.md) §4). Hooking `SubagentStop` and letting it
   answer only that subagent's request would clear it; it mustn't make an
   idle session working.
+- **The reaction faces haven't met Jev.** The eval scenarios expect the
+  new `react` options (`grumpy` for `annoyed`, and `sad` or `determined`
+  where they fit), but `make eval` needs the owner's key. The Jev lines in
+  [harness/EXAMPLE.md](harness/EXAMPLE.md) and
+  [harness/HARNESS.md](harness/HARNESS.md) §9 predate the change and say
+  `annoyed`; the next `make eval` should record them again.
+- **Determined has no voice.** Its reactions mumble in the temporary
+  default, happy's, while the audio is tuned ([VOICE.md](VOICE.md) §4).
 - **Most of Voice's words can't be picked.** The `react` action offers
   11 of the 40 real words (7 exclamations and 4 topics,
   [harness/DECISIONS.md](harness/DECISIONS.md) §3); the rest are recorded

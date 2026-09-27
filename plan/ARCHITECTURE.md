@@ -55,9 +55,10 @@ approve on the Mac as you normally would.
    tools.` The event wakes the brain, so the harness asks **Jev** every
    action's questions about it in one request, and Jev answers, say,
    `react: proud` and `word.feeling: yay`.
-5. The **`react` action** asks **Voice** for Minion speech in the proud
-   voice (*"ma-po li… yay!"*) and queues it. Once the cheer has played,
-   the **device link** sends it, to play over whatever face is showing.
+5. The **`react` action** asks **Voice** for Minion speech in proud's
+   voice (*"ma-po li… yay!"*) and queues it with proud as its face. No
+   line is playing, so the **device link** sends it at once, and the
+   device shows the rest of the cheer in proud's face while Boop mumbles.
 
 The brain never sits between an event and the screen. Rules give the
 immediate reaction, and the brain adds character a second or two later. If
@@ -88,7 +89,7 @@ talks to the device.
 | Harness | `Harness/` | Keeps the transcript; for each event that wakes the brain, builds the state, asks every action's questions in one request, hands each action its answers and records what it did | Minion speech, the device, an event's facts, what an action does |
 | Brain | `Brains/JevBrain.swift` | Jev: answers multiple-choice questions about a plain-text state, with probabilities | Everything else |
 | Actions | `Actions/` | `mood` and `react`: carry out one call each, checking their own rules | Whether a rule or the brain called them |
-| Moment schedule | `App/MomentSchedule.swift` | Decides when each brain moment plays: after whatever is playing, or not at all | What's in it |
+| Moment schedule | `App/MomentSchedule.swift` | Decides when each brain moment plays: after any line playing, over an animation, or not at all | What's in it |
 | Voice | `Voice/` | Turns a feeling and an optional word into Minion speech in this Boop's dialect | Who asked, or why |
 | Memory store | `Memory/` | Reads and writes `long-term.md`, `short-term.md` and their snapshots | Models, the device |
 | Mood store | `MoodStore` in `Actions/MoodAction.swift` | Reads and writes the `mood` file | Who changes it |
@@ -158,8 +159,11 @@ reports every tick.
 
 **Moments.** The rules' moments play at once, each replacing whatever is
 playing ([BEHAVIORS.md](BEHAVIORS.md) §3). The brain's wait in the moment
-schedule, one at a time, until nothing plays; one that has waited longer
-than 5 s is dropped, since a late reaction is worse than none. The app
+schedule, one at a time, until no line plays; they have no animation, so
+they play over one without cutting it, and an animation stops any line
+on the device. One that has waited longer than 5 s is dropped, since a
+late reaction is worse than none. Working chatter still waits until
+nothing plays at all. The app
 times each moment as the device does: the animation's length (`cheer`
 2 s, `wiggle` 0.7 s) or, if longer, the mumble's syllables plus two beats
 for a word, at the line's pace, then 1.2 s to read the bubble.
@@ -184,7 +188,7 @@ in this order:
 | Action | Effect | Its own rules |
 | --- | --- | --- |
 | `mood` | Saves the new mood to the `mood` file; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the seven moods, and only a change |
-| `react` | Asks Voice for a mumble in the chosen feeling, with the chosen word if Jev is sure enough, and queues it in the moment schedule | Nothing while something needs you |
+| `react` | Queues a moment in the moment schedule: the chosen mood as its face, and Voice's mumble in that mood's feeling, with the chosen word if Jev is sure enough | Nothing while something needs you |
 
 The rules' own moments (the cheer, working chatter) don't go through them.
 
@@ -346,7 +350,7 @@ What crosses each boundary, in the order an event travels:
 | Harness → Jev | The state as text, and every action's questions | One HTTPS request | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | Jev → actions | Each question's choice and probabilities, only to the action that asked | `Answers` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
 | Actions → harness | `(ok, message)`; a successful message goes into HISTORY | `ActionResult` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
-| `react` → moment schedule → device link | A mumble | `DeviceMoment` | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
+| `react` → moment schedule → device link | A mumble and its face (`mood`) | `DeviceMoment` | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
 | `mood` → mood store → core | The new mood | A word | [harness/DECISIONS.md](harness/DECISIONS.md) §4 |
 | Device link ↔ device | `state` and `moment` out; `input` and `status` in | JSON lines | [PROTOCOL.md](PROTOCOL.md) |
 | Runtime → Mac app | Name, snapshot, sessions, link, device, personality, brain | `Runtime.Status` | [UX.md](UX.md) §6 |
@@ -493,3 +497,5 @@ which also has the full log up to 2026-09-27.
 | 2026-09-27 | The device draws the mood designs exactly, from `facegen`'s rectangles on whole pixels | The designs are the look, exact pixels can be checked, and a revised design is a rerun | [DEVICE.md](DEVICE.md) §6 |
 | 2026-09-27 | The face switches designs behind a 150 ms blink, and who needs you shows in the strip | Whole-pixel designs can't be eased into one another, and a blink reads as Boop's own | [UX.md](UX.md) §2–3 |
 | 2026-09-27 | The wire carries only what's read; `state`'s `idle` and `wait` stay only for the dashboard | No device or tool read the dropped fields, and a resent `state` needn't be rebuilt | [PROTOCOL.md](PROTOCOL.md) §3–4 |
+| 2026-09-27 | A reaction is a mood's face: `react` picks `none` or one of the seven moods (`annoyed` became `grumpy`), and its moment's `mood` draws the look in that mood's design while the mumble plays, then the mood comes back. The sound follows the face, with a temporary default voice for a mood that has none | The designs are what Boop's feelings look like; a reaction that only changed the gibberish's sound never showed on the face. The mood stays the backdrop, the reaction the moment | [harness/DECISIONS.md](harness/DECISIONS.md) §3, [PROTOCOL.md](PROTOCOL.md) §3 |
+| 2026-09-27 | A brain reaction waits only for a line playing, not for an animation: it plays over the cheer, which it doesn't cut. This replaces 2026-09-26's "wait behind the rules' moments" for animations | A mumble with no animation can't cut the cheer on the device, and a proud reaction to a long finish should show the cheer in proud's face, not the idle face after it | §3.2 |

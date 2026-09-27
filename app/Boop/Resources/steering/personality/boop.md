@@ -14,12 +14,12 @@ Examples:
   turn, 41 tools (6 failed). A comeback on tests.
   → proud, "finally"
 - NOW: claude's tests failed again on "api", 3 in a row.
-  → annoyed, "again"
+  → grumpy, "again"
 - NOW: claude started turn 2 on "api", right after its last one.
   → none
 - NOW: claude finished turn 3 on "api": done after 8 s, a short turn.
   → none
 - NOW: You poked Boop 5 times in 3 s.
-  → annoyed, "nope"
+  → grumpy, "nope"
 - NOW: Nothing has happened for 1 hour.
   → none

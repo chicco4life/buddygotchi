@@ -350,7 +350,9 @@ and forced answers it left out.
 **Debug mode** is `Boop --debug`, in the menu-bar app (`make debug`) or
 headless. It prints to the terminal that started the app: each hook with
 what the adapter made of it, each of the core's effects, every line sent
-to the device, and each transcript entry, readably:
+to the device, and each transcript entry, readably. From the example run
+([EXAMPLE.md](EXAMPLE.md)), recorded while `react` still offered
+`annoyed`, today's `grumpy`:
 
 ```
 ▸ 9 tool_use: claude's tests failed again on "fix-nav" (landing), 3 in a row.
@@ -390,15 +392,15 @@ line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 | Line | Does |
 | --- | --- |
 | `{"dev":"advance","ms":N}` | Headless only: moves the app's clock forward N ms, then ticks |
-| `{"dev":"answer","answers":{"react":"annoyed","word.feeling":"again"}}` | A **forced pass**: each choice at probability 1, handed to the actions exactly as Jev's answers would be. It runs at once on `home`, needs no brain or key, and leaves a running or waiting pass alone. A choice that isn't one of its question's options is left out. The actions keep their own rules. Recorded as a `pass` and its `action` entries, for no event, by the dashboard; no `brain` line in `boop.log` |
+| `{"dev":"answer","answers":{"react":"grumpy","word.feeling":"again"}}` | A **forced pass**: each choice at probability 1, handed to the actions exactly as Jev's answers would be. It runs at once on `home`, needs no brain or key, and leaves a running or waiting pass alone. A choice that isn't one of its question's options is left out. The actions keep their own rules. Recorded as a `pass` and its `action` entries, for no event, by the dashboard; no `brain` line in `boop.log` |
 | `{"dev":"mood","mood":"grumpy"}` | Sets the mood at once through the mood action, device included ([DECISIONS.md](DECISIONS.md) §4). Recorded as an `action` named `mood`, for no event, by the dashboard, refusals included |
 | `{"dev":"moment","anim":"cheer"}` | Plays `cheer` or `wiggle` as a rule's moment; any other is ignored. Only its `sent` line records it |
 
 A forced pass and its action, from a headless run:
 
 ```jsonl
-{"pass":{"answers":{"react":{"choice":"annoyed","p":{"annoyed":1}},"word.feeling":{"choice":"again","p":{"again":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react","word.feeling"]},"received_at_ms":1790504656020,"seq":15}
-{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop mumbled, annoyed: \"…again!\"","name":"react","ok":true},"received_at_ms":1790504656021,"seq":16}
+{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}},"word.feeling":{"choice":"again","p":{"again":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react","word.feeling"]},"received_at_ms":1790512903608,"seq":1}
+{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a grumpy face and mumbled \"…again!\"","name":"react","ok":true},"received_at_ms":1790512903609,"seq":2}
 ```
 
 ## 10. Where it lives

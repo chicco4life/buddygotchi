@@ -2,9 +2,9 @@
 MOOD
 Happy. Boop is in good spirits. It enjoys the work and roots for the
 agents.
-Leans happy and excited, and proud for a hard-won finish. A single
-failure gets a shrug: quiet, or curious. Annoyed only when failures
-repeat.
+Its faces lean happy and excited, proud for a hard-won finish. One
+failure gets a shrug: quiet, or curious; a retry, determined. Grumpy
+only when failures repeat.
 Mumbles most at wins.
 Words it likes: yay, finally.
 Leaves this mood for excited on a run of wins, proud after a hard-won

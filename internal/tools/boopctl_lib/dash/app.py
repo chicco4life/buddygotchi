@@ -241,13 +241,13 @@ class Dash(App[None]):
         if not asked:
             return
         if self.look:
-            # Preview: any mumble, straight to the dashboard's sim.
-            feeling = await self.pick("Preview a mumble: the feeling", [o for o in controls.options(asked[0]) if o != "none"])
+            # Preview: any reaction, its face and a mumble, straight to the dashboard's sim.
+            face = await self.pick("Preview a reaction: the face", [o for o in controls.options(asked[0]) if o != "none"])
             words = [o for q in asked[1:] for o in controls.options(q) if o != "none"]
-            word = feeling and await self.pick("…and its word", ["none"] + words)
+            word = face and await self.pick("…and its word", ["none"] + words)
             if word and self.face:
                 try:  # boopdev runs off the event loop, so the face keeps moving
-                    line = await asyncio.to_thread(controls.preview_mumble, feeling, None if word == "none" else word)
+                    line = await asyncio.to_thread(controls.preview_mumble, face, None if word == "none" else word)
                     self.face.send(line)
                 except DeviceError as exc:
                     self.notify(str(exc), severity="error")

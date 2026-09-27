@@ -77,6 +77,8 @@ def preview_state(latest: Line | None, look: str, mood: str | None = None) -> Li
     return state
 
 
-def preview_mumble(feeling: str, word: str | None) -> Line:
-    """A mumble as the app's Voice builds it, from `boopdev voice --json`."""
-    return {"t": "moment", "say": boopdev_voice(feeling, word, 1, random.randint(1, 1 << 30))[0]}
+def preview_mumble(face: str, word: str | None) -> Line:
+    """A reaction as the react action sends it: the line the app's Voice
+    builds for that mood's face, from `boopdev voice MOOD --json`, and the
+    face as the moment's `mood` (PROTOCOL.md §3)."""
+    return {"t": "moment", "say": boopdev_voice(face, word, 1, random.randint(1, 1 << 30))[0], "mood": face}

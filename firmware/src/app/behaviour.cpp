@@ -51,6 +51,14 @@ bool Behaviour::held(uint32_t t) const { return model_.attn && !noApp(t); }
 
 bool Behaviour::sayOn(uint32_t t) const { return say_.say.syllables > 0 && within(t, say_.at, say_.ms); }
 
+bool Behaviour::exprOn(uint32_t t) const { return expr_ && within(t, exprAt_, exprMs_); }
+
+bool Behaviour::expression(uint32_t t, render::Mood& mood) const {
+  if (!exprOn(t)) return false;
+  mood = exprMood_;
+  return true;
+}
+
 // Blinks: every 2–6 s idle, 2–5 s working (BEHAVIORS.md §2). Asleep and
 // with no app, the gap passes unblinked.
 uint32_t Behaviour::blinkGap(Rng& rng) const {
@@ -88,6 +96,7 @@ void Behaviour::advance(uint32_t t, Rng& rng) {
     };
     if (moment_.anim != render::Anim::kNone) consider(moment_.at + moment_.ms);
     if (say_.say.syllables > 0) consider(say_.at + say_.ms);
+    if (expr_) consider(exprAt_ + exprMs_);
     consider(lastState_ + kNoAppMs);
     consider(nextBlink_);
     if (!found) break;
@@ -98,12 +107,13 @@ void Behaviour::advance(uint32_t t, Rng& rng) {
   resync(t);
 }
 
-// Time-based changes at t: a moment that has ended, and the Mac's silence
-// turning into "no app".
+// Time-based changes at t: a moment or its expression that has ended, and
+// the Mac's silence turning into "no app".
 void Behaviour::resync(uint32_t t) {
   settle(t);
   change(t, [&] {
     if (moment_.anim != render::Anim::kNone && !within(t, moment_.at, moment_.ms)) moment_.anim = render::Anim::kNone;
+    if (expr_ && !within(t, exprAt_, exprMs_)) expr_ = false;
     if (!stale_ && int32_t(t - lastState_) >= int32_t(kNoAppMs)) stale_ = true;
   });
 }
@@ -132,6 +142,7 @@ void Behaviour::onState(const Model& m, uint32_t t) {
       sound("chirp", t);
       if (momentOn(t)) moment_.anim = render::Anim::kNone;
       say_ = Say{};  // no mumbles while something needs you
+      expr_ = false;
     }
     // Answered on the Mac (`attn` leaves), or back after no app: the face
     // blinks into what the state says.
@@ -139,9 +150,11 @@ void Behaviour::onState(const Model& m, uint32_t t) {
 }
 
 // A moment with an anim replaces the one playing, and its mumble too. A
-// mumble on its own plays over whatever face is showing and doesn't change
-// it (PROTOCOL.md §3). Attention wins (BEHAVIORS.md §1): while something
-// needs you, no animation takes the face over and no mumble plays.
+// mumble on its own plays over whatever face is showing, replacing any
+// line (PROTOCOL.md §3). A moment with an expression draws the look in its
+// mood for as long as what it plays lasts: the animation, or the mumble
+// and its bubble. Attention wins (BEHAVIORS.md §1): while something needs
+// you, no animation takes the face over and no mumble plays.
 bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
   bool anim = in.anim != render::Anim::kNone && !held(t);
   bool mumble = in.syllables > 0 && !model_.attn;
@@ -149,6 +162,13 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
   change(t, [&] {
     if (anim) play(in.anim, t);
     if (mumble) startSay(in, t);
+    if (in.expr) {
+      expr_ = true;
+      exprMood_ = in.mood;
+      exprAt_ = t;
+      exprMs_ = anim ? moment_.ms : 0;
+      if (mumble && say_.ms > exprMs_) exprMs_ = say_.ms;
+    }
   });
   return mumble;
 }
@@ -159,12 +179,14 @@ void Behaviour::play(render::Anim a, uint32_t t) {
   moment_.anim = a;
   moment_.at = t;
   moment_.ms = render::animDuration(a);
-  say_ = Say{};  // a new moment replaces the line
+  say_ = Say{};  // a new moment replaces the line, and its expression
+  expr_ = false;
   blink_ = false;
 }
 
 void Behaviour::startSay(const MomentIn& in, uint32_t t) {
   say_ = Say{};
+  expr_ = false;  // a new line ends the last moment's expression
   ++momentSeq_;
   Say& s = say_;
   copyStr(s.word, sizeof(s.word), in.word);
@@ -203,7 +225,7 @@ Screen Behaviour::screen(uint32_t t) const {
 
 Behaviour::Source Behaviour::sourceAt(uint32_t t) const {
   Source s;
-  s.mood = model_.mood;
+  s.mood = exprOn(t) ? exprMood_ : model_.mood;  // the moment's expression, or the mood
   if (noApp(t)) {
     s.look = render::SceneState::kNoApp;
   } else if (model_.attn) {

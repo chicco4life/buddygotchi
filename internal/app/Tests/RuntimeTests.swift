@@ -113,7 +113,7 @@ final class RuntimeTests: XCTestCase {
         let lines = DebugLines()
         var options = try options(transport, brain: ScriptedBrain(id: "scripted", always: [
             "mood": Answer(choice: "grumpy", probabilities: ["grumpy": 0.7]),
-            "react": Answer(choice: "annoyed", probabilities: ["annoyed": 0.6]),
+            "react": Answer(choice: "grumpy", probabilities: ["grumpy": 0.6]),
             "word.feeling": Answer(choice: "again", probabilities: ["again": 0.5]),
         ]))
         options.debug = true
@@ -139,7 +139,7 @@ final class RuntimeTests: XCTestCase {
         eventually("the second pass") { passes().count == 2 }
         XCTAssertTrue(passes()[0].contains("Happy. Boop is in good spirits"), "the first pass read happy")
         XCTAssertTrue(passes()[1].contains("Grumpy. Boop is fed up"), "the next reads the new mood's file")
-        XCTAssertTrue(passes()[1].contains(#"Boop mumbled, annoyed: \"…again!\""#), "HISTORY shows what the actions did")
+        XCTAssertTrue(passes()[1].contains(#"Boop made a grumpy face and mumbled \"…again!\""#), "HISTORY shows what the actions did")
         XCTAssertFalse(lines.lock.withLock { lines.log.contains { $0.contains("PERSONALITY") } }, "the state stays out of boop.log")
     }
 
@@ -181,7 +181,7 @@ final class RuntimeTests: XCTestCase {
         let pass = try XCTUnwrap(printed.first { $0.hasPrefix("  pass scripted") })
         XCTAssertTrue(pass.contains("react excited 1.00"), pass)
         XCTAssertTrue(pass.contains("    │ You are the mind of Boop"), "the first state in full")
-        XCTAssertTrue(printed.contains("  ✓ react: Boop mumbled, excited: \"…yay!\""), "\(printed)")
+        XCTAssertTrue(printed.contains("  ✓ react: Boop made an excited face and mumbled \"…yay!\""), "\(printed)")
         let p = try XCTUnwrap(debugLines().compactMap { $0["pass"] as? [String: Any] }.first)
         XCTAssertTrue((p["state"] as? String)?.hasPrefix("You are the mind of Boop") == true)
         XCTAssertEqual(p["questions"] as? [String], ["mood", "react", "word.feeling", "word.about"])
@@ -223,11 +223,11 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(lines.filter { $0["questions"] != nil }.count, 1, "once")
         XCTAssertEqual(questions.map { $0["key"] as? String }, ["mood", "react", "word.feeling", "word.about"])
         XCTAssertEqual(questions.map { $0["action"] as? String }, ["mood", "react", "react", "react"])
-        XCTAssertEqual(questions[1]["text"] as? String, "How should Boop react to NOW, if at all?")
+        XCTAssertEqual(questions[1]["text"] as? String, "How should Boop react to NOW, if at all? It makes this face for a moment, with a mumble.")
         let none = try XCTUnwrap((questions[1]["options"] as? [[String: Any]])?.first)
         XCTAssertEqual(none["name"] as? String, "none")
-        XCTAssertEqual(none["what"] as? String, "Stay quiet: nothing in NOW is worth a mumble.")
-        XCTAssertEqual(none["not_for"] as? String, "Anything PERSONALITY's Examples mumble for.")
+        XCTAssertEqual(none["what"] as? String, "Stay quiet: nothing in NOW is worth a face and a mumble.")
+        XCTAssertEqual(none["not_for"] as? String, "Anything PERSONALITY's Examples react to.")
         XCTAssertTrue((questions[0]["options"] as? [[String: Any]])?.first?["not_for"] is NSNull)
 
         // Sent: every line the link sent, verbatim and in order.
@@ -269,7 +269,7 @@ final class RuntimeTests: XCTestCase {
         eventually("no brain") { runtime.home.sync { !runtime.readingJevKey && runtime.jevKey != nil } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
 
-        dev(#"{"dev":"answer","answers":{"react":"annoyed","word.feeling":"again"}}"#)
+        dev(#"{"dev":"answer","answers":{"react":"grumpy","word.feeling":"again"}}"#)
         eventually("a mumble with no brain") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) && $0.contains(#""word":"again""#) } }
         dev(#"{"dev":"mood","mood":"grumpy"}"#)
         eventually("grumpy") { runtime.home.sync { runtime.mood.current == "grumpy" } }
@@ -288,9 +288,9 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(pass["for"] is NSNull)
         XCTAssertEqual(pass["by"] as? String, "dashboard")
         XCTAssertEqual(pass["questions"] as? [String], ["react", "word.feeling"])
-        XCTAssertEqual((pass["answers"] as? [String: [String: Any]])?["react"]?["p"] as? [String: Double], ["annoyed": 1])
+        XCTAssertEqual((pass["answers"] as? [String: [String: Any]])?["react"]?["p"] as? [String: Double], ["grumpy": 1])
         let actions = lines.compactMap { $0["action"] as? [String: Any] }
-        XCTAssertEqual(actions.map { $0["message"] as? String }, [#"Boop mumbled, annoyed: "…again!""#,
+        XCTAssertEqual(actions.map { $0["message"] as? String }, [#"Boop made a grumpy face and mumbled "…again!""#,
                                                                 "Boop's mood changed: happy → grumpy.",
                                                                 "Boop's mood changed: grumpy → happy."])
         XCTAssertEqual(actions.map { $0["name"] as? String }, ["react", "mood", "mood"])
@@ -467,9 +467,10 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// A long turn, finished after moving the clock with `{"dev":"advance"}`:
-    /// the rules cheer at once, and the brain's mumble waits until the cheer
-    /// has played instead of cutting it off.
-    func testTheBrainWaitsForTheRulesMoment() throws {
+    /// the rules cheer at once, and the brain's mumble plays over the cheer
+    /// with its expression, without an animation that would cut it off
+    /// (ARCHITECTURE.md §3.2).
+    func testTheBrainMumblesOverTheRulesCheer() throws {
         let transport = FakeTransport()
         var options = try options(transport)
         let skew = VirtualClock(0)
@@ -488,52 +489,58 @@ final class RuntimeTests: XCTestCase {
         }
         XCTAssertTrue(HookSocket.send(Data(#"{"dev":"advance","ms":30000}"#.utf8), to: socketPath))
         eventually("clock moved") { skew.now == 30_000 }
-        XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
-        eventually("cheer") { transport.sent.contains { $0.contains("\"anim\":\"cheer\"") } }
-        let cheered = Date()
         let moments = { transport.sent.filter { $0.contains("\"t\":\"moment\"") } }
-        let afterCheer = moments().count
-        eventually("the brain's mumble", timeout: 4) { moments().count > afterCheer }
-        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(cheered), 1.5, "a cheer plays 2 s")
-        let mumble = try XCTUnwrap(moments().last)
+        let before = moments().count
+        XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
+        eventually("the cheer, then the brain's mumble", timeout: 4) { moments().count >= before + 2 }
+        XCTAssertEqual(moments()[before], #"{"t":"moment","anim":"cheer"}"#, "the rules' reaction first")
+        let mumble = moments()[before + 1]
         XCTAssertTrue(mumble.hasPrefix(#"{"t":"moment","say":"#), "a mumble has no anim: \(mumble)")
+        XCTAssertTrue(mumble.contains(#""mood":""#), "the brain's mumble has its expression: \(mumble)")
+        XCTAssertFalse(moments().contains { $0.contains("\"anim\"") && $0.contains("\"mood\"") },
+                       "the rules' cheer has no expression")
     }
 
     /// ARCHITECTURE.md §3.2: the brain's moments play one at a time, each
-    /// after whatever is playing, so none cuts off a rule moment or another
-    /// of the brain's; a newer rule moment pushes them back; one that waited
-    /// over 5 s is dropped.
+    /// after any line playing, so none cuts off a line or another of the
+    /// brain's; a mumble plays over an animation, which doesn't cut it; a
+    /// newer line pushes them back and an animation stops the line; one
+    /// that waited over 5 s is dropped.
     func testBrainMomentsTakeTurns() {
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
-        let mumble = DeviceMoment(say: line)  // 1920 ms
+        let mumble = DeviceMoment(say: line, mood: "proud")  // 1920 ms
+        let chatter = DeviceMoment(say: line)  // a rule's line, 1920 ms
         var schedule = MomentSchedule()
         schedule.rule(DeviceMoment(anim: "cheer"), now: 0)
         schedule.brain(mumble, now: 100)
         schedule.brain(mumble, now: 200)
         var due = schedule.due(now: 500)
-        XCTAssertNil(due.play, "the cheer is still playing")
-        XCTAssertEqual(due.next, 2000)
-        due = schedule.due(now: 2000)
-        XCTAssertEqual(due.play, mumble, "the first, once the cheer is over")
-        XCTAssertEqual(due.next, 3920, "the second waits for the first")
-        XCTAssertNil(schedule.due(now: 3000).play)
-        due = schedule.due(now: 3920)
+        XCTAssertEqual(due.play, mumble, "over the cheer, which a mumble doesn't cut")
+        XCTAssertEqual(due.next, 2420, "the second waits for the first")
+        XCTAssertFalse(schedule.idle(now: 2000), "chatter waits for both")
+        XCTAssertNil(schedule.due(now: 2000).play)
+        due = schedule.due(now: 2420)
         XCTAssertEqual(due.play, mumble, "then the second")
         XCTAssertNil(due.next, "nothing left")
 
-        var pushed = MomentSchedule()
-        pushed.rule(DeviceMoment(anim: "cheer"), now: 0)
-        pushed.brain(mumble, now: 1000)
-        pushed.rule(DeviceMoment(anim: "cheer"), now: 1500)  // a new finish
-        XCTAssertNil(pushed.due(now: 2000).play, "pushed back by the rules")
-        XCTAssertEqual(pushed.due(now: 2000).next, 3500)
-        XCTAssertEqual(pushed.due(now: 3500).play, mumble)
+        var afterLine = MomentSchedule()
+        afterLine.rule(chatter, now: 0)
+        afterLine.brain(mumble, now: 100)
+        XCTAssertNil(afterLine.due(now: 500).play, "a line is playing")
+        XCTAssertEqual(afterLine.due(now: 500).next, 1920)
+        XCTAssertEqual(afterLine.due(now: 1920).play, mumble)
+
+        var cut = MomentSchedule()
+        cut.rule(chatter, now: 0)
+        cut.brain(mumble, now: 1000)
+        cut.rule(DeviceMoment(anim: "cheer"), now: 1500)  // a finish stops the line
+        XCTAssertEqual(cut.due(now: 1500).play, mumble)
 
         var late = MomentSchedule()
-        late.rule(DeviceMoment(anim: "cheer"), now: 0)
+        late.rule(chatter, now: 0)
         late.brain(mumble, now: 0)
-        late.rule(DeviceMoment(anim: "cheer"), now: 1900)
-        late.rule(DeviceMoment(anim: "cheer"), now: 3800)
+        late.rule(chatter, now: 1900)
+        late.rule(chatter, now: 3800)
         due = late.due(now: 5800)
         XCTAssertNil(due.play)
         XCTAssertEqual(MomentSchedule.maxWaitMs, 5000)
@@ -566,6 +573,8 @@ final class RuntimeTests: XCTestCase {
             runtime.run([.mumble(feeling: "happy", word: nil)])
         }
         XCTAssertEqual(says(), 1, "nothing playing: chatter plays")
+        XCTAssertFalse(transport.sent.contains { $0.contains("\"say\"") && $0.contains("\"mood\"") },
+                       "chatter is a rule's line, with no expression (PROTOCOL.md §3)")
     }
 
     /// ARCHITECTURE.md §3.2: the app knows how long each rule moment plays on

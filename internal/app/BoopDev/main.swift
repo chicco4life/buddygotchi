@@ -18,8 +18,9 @@ let usages: [(command: String, text: String)] = [
         app's clock.
     """),
     ("voice", """
-    boopdev voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json]
-        Prints Minion lines as the react action would build them.
+    boopdev voice <feeling|expression> [word] [--dialect HEX] [--seed N] [--count N] [--json]
+        Prints Minion lines as the react action would build them: in a Voice feeling, or in the one a
+        mood's face mumbles in (VOICE.md §4), so grumpy sounds annoyed.
     """),
     ("eval", """
     boopdev eval [--runs N] [--only TEXT] [--scenarios DIR] [--steering DIR]
@@ -157,8 +158,10 @@ func spawn(_ path: String, _ args: [String], stdin: Data, environment: [String: 
 func voice(_ raw: [String]) {
     let args = arguments("voice", raw, options: ["--dialect", "--seed", "--count"], flags: ["--json"], words: 2)
     let words = args.words
-    guard let feeling = words.first.flatMap(Feeling.init(rawValue:)) else {
-        fail("feelings: " + Feeling.allCases.map(\.rawValue).joined(separator: ", "))
+    let isMood = { (name: String) in MoodAction.moods.contains { $0.name == name } }
+    guard let feeling = words.first.flatMap({ Feeling(rawValue: $0) ?? (isMood($0) ? Voice.feeling(forMood: $0) : nil) }) else {
+        fail("feelings: " + Feeling.allCases.map(\.rawValue).joined(separator: ", ")
+             + "; moods: " + MoodAction.moods.map(\.name).joined(separator: ", "))
     }
     let word = words.count > 1 ? words[1] : nil
     if let word, !Sounds.vocabulary.contains(word) { fail("words: " + Sounds.vocabulary.joined(separator: ", ")) }

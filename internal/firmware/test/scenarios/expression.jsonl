@@ -1,0 +1,51 @@
+// A reaction's face (PROTOCOL.md §3): a moment's `mood` draws the look in
+// that mood while the moment plays, then the face blinks back to the
+// state's mood (UX.md §2). The lines are Voice's (`boopdev voice`).
+// Happy and working, the tests fail: grumpy for the mumble.
+{"clock":0}
+{"t":"state","v":1,"base":"working","mood":"happy","busy":1}
+{"clock":1000}
+{"t":"moment","say":{"syl":"pi-to ta-pi","word":"ugh","at":4,"tune":"flat","ms":125},"mood":"grumpy"}
+{"expect":{"mood":"happy","expr":"grumpy","audio":{"playing":true,"syllables":4}}}
+{"clock":1400}
+{"shot":"working-grumpy"}
+// (4 syllables + 2 beats for the word) × 125 ms, then 1.2 s to read it.
+{"clock":2949}
+{"expect":{"expr":"grumpy"}}
+{"clock":2950}
+{"expect":{"expr":null,"mood":"happy","audio":{"syllables":0}}}
+{"clock":3300}
+{"shot":"working-happy-again"}
+// Curious, a long turn finishes: the rule's cheer, in curious, then Jev's
+// proud mumble over it borrows proud's cheer.
+{"clock":10000}
+{"t":"state","v":1,"base":"idle","mood":"curious"}
+{"t":"moment","anim":"cheer"}
+{"clock":10180}
+{"expect":{"moment":{"anim":"cheer"},"expr":null}}
+{"shot":"cheer-curious"}
+{"clock":10200}
+{"t":"moment","say":{"syl":"lo-pa gom-gom","word":"finally","at":0,"tune":"lift","ms":135},"mood":"proud"}
+{"expect":{"moment":{"anim":"cheer","left_ms":1800},"expr":"proud"}}
+{"clock":10800}
+{"shot":"cheer-proud"}
+// The cheer ends at 12000, and the face stays proud for the look after it
+// until the bubble goes, at 10200 + (4 + 2) × 135 + 1200 = 12210.
+{"clock":12000}
+{"expect":{"moment":null,"expr":"proud"}}
+{"clock":12160}
+{"shot":"idle-proud"}
+{"clock":12209}
+{"expect":{"expr":"proud"}}
+{"clock":12210}
+{"expect":{"expr":null,"mood":"curious"}}
+// An unknown mood is ignored: the state's mood, and the mumble plays.
+{"clock":20000}
+{"t":"state","v":1,"base":"idle","mood":"curious"}
+{"t":"moment","say":{"syl":"ba po","ms":120},"mood":"annoyed"}
+{"expect":{"expr":null,"mood":"curious","audio":{"playing":true}}}
+// Needs you: nothing plays, and no face is borrowed.
+{"t":"state","v":1,"base":"idle","mood":"curious","attn":{"agent":"claude","project":"x","more":0}}
+{"clock":30000}
+{"t":"moment","say":{"syl":"ba po","ms":120},"mood":"grumpy"}
+{"expect":{"screen":"needs_you","expr":null,"audio":{"syllables":0}}}

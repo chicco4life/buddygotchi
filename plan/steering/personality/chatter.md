@@ -19,15 +19,15 @@ Examples:
 - NOW: codex ran a command on "api".
   → curious, "hmm"
 - NOW: claude ran a command on "api". It failed.
-  → annoyed, "oops"
+  → grumpy, "oops"
 - NOW: claude's tests failed on "api".
-  → annoyed, "oops"
+  → grumpy, "oops"
 - NOW: claude's tests failed again on "api", 3 in a row.
-  → annoyed, "again"
+  → grumpy, "again"
 - NOW: claude finished turn 7 on "api": done after 18 min, a very long
   turn, 41 tools (6 failed). A comeback on tests.
   → excited, "finally"
 - NOW: You poked Boop 5 times in 3 s.
-  → annoyed, "nope"
+  → grumpy, "nope"
 - NOW: Nothing has happened for 1 hour.
   → curious, "hmm"

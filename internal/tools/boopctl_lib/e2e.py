@@ -235,17 +235,19 @@ def play_ms(moment: dict[str, Any]) -> int:
 
 def check_order(run: Run) -> dict[str, Any]:
     """The brain's moments come after the rules' reaction and never cut a
-    rule moment short.
+    rule's line short (ARCHITECTURE.md §3.2).
 
     With --debug the app logs `hook: …` for each hook and `link rules → …` or
     `link brain → …` for each line sent to the device. For every brain
     moment: the rules' reaction to the last hook came first, and the last
-    rule moment had finished playing."""
+    rule line (chatter) had finished playing. A brain mumble may play over a
+    rule animation such as the cheer, which it doesn't cut; an animation
+    stops the line playing."""
     stamp = re.compile(r"^(\d\d):(\d\d):(\d\d)\.(\d\d\d) (.*)$")
     answers = []
     last_hook: str | None = None
     reaction: int | None = None
-    rule_moment: tuple[int, str, int] | None = None  # sent, anim, ends
+    rule_moment: tuple[int, str, int] | None = None  # sent, anim, when its line ends
     brain_ends = 0
     cut: list[str] = []  # brain moments a later rule moment replaced (a new hook may; for the record)
     for raw in run.app_log().splitlines():
@@ -262,7 +264,9 @@ def check_order(run: Run) -> dict[str, Any]:
             line = json.loads(text[len("link rules → "):])
             if line.get("t") == "moment":
                 anim = line.get("anim") or "mumble"  # chatter: a mumble on its own
-                rule_moment = (t, anim, t + play_ms(line))
+                # A line plays to its end; an animation alone stops any line.
+                ends = t + play_ms(line) if line.get("say") else min(rule_moment[2] if rule_moment else t, t)
+                rule_moment = (t, anim, ends)
                 if t < brain_ends:
                     cut.append(f"{raw[:12]} {anim} after {last_hook}")
         elif text.startswith("link brain → "):
@@ -276,20 +280,20 @@ def check_order(run: Run) -> dict[str, Any]:
                 "after_reaction_ms": None if reaction is None else t - reaction[0],
                 "reaction_to": None if reaction is None else reaction[1],
                 "last_rule_moment": None if rule_moment is None else rule_moment[1],
-                "after_rule_moment_ended_ms": None if rule_moment is None else t - rule_moment[2],
+                "after_rule_line_ended_ms": None if rule_moment is None else t - rule_moment[2],
             })
     # The log is written in order, so a brain line after the rules' line came
     # after it, even in the same millisecond: the scripted brain answers an
     # agent start at once (harness/HARNESS.md §7).
     bad = [a for a in answers if a["after_reaction_ms"] is None or a["after_reaction_ms"] < 0
-           or (a["after_rule_moment_ended_ms"] is not None and a["after_rule_moment_ended_ms"] < 0)]
+           or (a["after_rule_line_ended_ms"] is not None and a["after_rule_line_ended_ms"] < 0)]
     for a in answers:
         run.say(f"  {a['at']} brain {a['moment']}: {a['after_reaction_ms']} ms after the rules' reaction to "
-                f"{a['reaction_to']}; last rule moment {a['last_rule_moment']} ended "
-                f"{a['after_rule_moment_ended_ms']} ms before")
+                f"{a['reaction_to']}; last rule moment {a['last_rule_moment']}, its line ended "
+                f"{a['after_rule_line_ended_ms']} ms before")
     run.say(f"brain moments: {len(answers)}, early: {len(bad)}, later replaced by a rule moment: {cut or 'none'}")
     if bad:
-        run.fail(f"{len(bad)} brain moments came before the rules' reaction or cut a rule moment short")
+        run.fail(f"{len(bad)} brain moments came before the rules' reaction or cut a rule's line short")
     return {"brain_moments": len(answers), "early": len(bad), "replaced_by_rules": cut, "answers": answers}
 
 

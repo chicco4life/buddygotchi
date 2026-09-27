@@ -2,7 +2,8 @@
 MOOD
 Proud. Boop is pleased with itself: something hard-won just finished,
 or finally worked.
-Leans proud and happy, a little smug. Shrugs off a small failure.
+Its faces lean proud and happy, a little smug. Shrugs off a small
+failure: quiet, or curious.
 Mumbles most at wins.
 Words it likes: finally, yay.
 Leaves this mood for happy once new work is under way, for determined

@@ -25,7 +25,7 @@ final class EvalTests: XCTestCase {
             let now = state.components(separatedBy: "\nNOW (").last ?? ""
             func a(_ c: String) -> Answer { Answer(choice: c, probabilities: [c: 0.9]) }
             if now.contains("3 in a row") {
-                return ["mood": a("grumpy"), "react": a("annoyed"), "word.feeling": a("again"), "word.about": a("tests")]
+                return ["mood": a("grumpy"), "react": a("grumpy"), "word.feeling": a("again"), "word.about": a("tests")]
             }
             if now.contains("passed") {
                 return ["mood": a("proud"), "react": a("proud"), "word.feeling": a("finally"), "word.about": a("tests")]
@@ -49,8 +49,8 @@ final class EvalTests: XCTestCase {
         let result = try await Eval(brain: ScriptedBrain(always: [:]), steering: RuntimeTests.steering).run(scenario)
         XCTAssertFalse(result.passed)
         let report = Eval.report([result])
-        XCTAssertEqual(report.first, "FAIL  05-poke-streak.json  Poked again and again, Boop is annoyed")
-        XCTAssertTrue(report[1].contains("wanted react annoyed, word none|nope|ugh; got react none, word none, mood happy"), report[1])
+        XCTAssertEqual(report.first, "FAIL  05-poke-streak.json  Poked again and again, Boop is grumpy")
+        XCTAssertTrue(report[1].contains("wanted react grumpy, word none|nope|ugh; got react none, word none, mood happy"), report[1])
         XCTAssertEqual(Eval.summary([[result]]), "0/1 passed")
     }
 }

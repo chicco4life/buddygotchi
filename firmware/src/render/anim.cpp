@@ -24,11 +24,17 @@ Anim animFromName(const char* name) {
 const char* animName(Anim a) { return kNames[int(a) < int(Anim::kCount) ? int(a) : 0]; }
 
 Mood moodFromName(const char* name) {
-  if (!name) return Mood::kHappy;
+  Mood m = Mood::kHappy;
+  parseMood(name, m);
+  return m;
+}
+
+bool parseMood(const char* name, Mood& out) {
+  if (!name) return false;
   for (int i = 0; i < int(Mood::kCount); ++i) {
-    if (!std::strcmp(name, kMoods[i])) return Mood(i);
+    if (!std::strcmp(name, kMoods[i])) return out = Mood(i), true;
   }
-  return Mood::kHappy;
+  return false;
 }
 
 const char* moodName(Mood m) { return kMoods[int(m) < int(Mood::kCount) ? int(m) : 0]; }

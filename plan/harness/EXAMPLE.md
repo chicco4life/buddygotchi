@@ -13,6 +13,14 @@ Lines are copied from its `debug.jsonl`
 ([evidence](../evidence/2026-09-27-example-run/)), abridged only where marked `…`.
 The other two runs answered the same, within a few hundredths.
 
+**Recorded before reactions became faces.** In this run `react` offered
+five feelings, and its `annoyed` is today's `grumpy`
+([DECISIONS.md](DECISIONS.md) §3): the same pass now shows the look in
+grumpy's design while the mumble plays, and HISTORY reads
+`Boop made a grumpy face and mumbled "…again!"`. The eval now expects
+`grumpy` at 14:05. The lines below stay as they were logged until a
+`make eval` with Jev's key records them again ([PLAN.md](../PLAN.md) §3).
+
 ## 1. The story
 
 A Wednesday afternoon. Claude works in the `fix-nav` worktree of

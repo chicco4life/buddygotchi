@@ -87,7 +87,7 @@ commands go through the bridge.
 | --- | --- |
 | `replay <hooks.jsonl> [--agent claude\|codex] [--gap-ms N] [--states]` | Runs recorded hook payloads through `boop-hook`'s field picking, the adapter and the core on a virtual clock, and prints every decision. `{"wait_ms":N}` and `{"advance_ms":N}` lines move the clock |
 | `replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]` | Sends each payload through the real `boop-hook` to a running app, in real time, and times each `boop-hook` from launch to exit. `{"advance_ms":N}` moves a headless app's clock |
-| `voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json]` | Prints the lines `react` would build ([VOICE.md](VOICE.md) §4); dialect `7f3a` and seed 1 by default |
+| `voice <feeling\|mood> [word] [--dialect HEX] [--seed N] [--count N] [--json]` | Prints the lines `react` would build ([VOICE.md](VOICE.md) §4), in a feeling or in the one Voice gives a mood's face; dialect `7f3a` and seed 1 by default |
 | `eval [--runs N] [--only TEXT] [--scenarios DIR] [--steering DIR]` | The eval scenarios against Jev (L5, [EVALS.md](EVALS.md)) |
 | `watch [FILE] [--new]` | Prints a `debug.jsonl`'s events, passes and actions readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's. `--new` skips what's already there |
 | `hooks status\|install\|remove [claude\|codex] --home DIR [--hook PATH]` | The hook installer, against any HOME ([ADAPTERS.md](ADAPTERS.md)) |
@@ -290,8 +290,8 @@ does all of it:
 5. Afterwards it checks the harness's events against the fixtures'
    `expect.json`, that no `PRIVATE_` marker from the fixtures reached any
    app file (`debug.jsonl` included), and, from `boop.log`, that every
-   brain moment came after the rules' reaction and didn't cut a rule
-   moment short.
+   brain moment came after the rules' reaction and didn't cut a rule's
+   line short (it may play over an animation, [ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 
 **Pass:** every checkpoint matches, and p95 latency from hook to board is
 under 200 ms.

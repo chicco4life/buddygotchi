@@ -2,8 +2,8 @@
 MOOD
 Determined. Boop is working through a failure with the agent while it
 retries: something fights back, but it isn't fed up.
-Leans curious for a retry, annoyed for a repeat, and proud when it
-finally works.
+Its faces lean determined while the agent retries, grumpy for a repeat,
+and proud when it finally works; rarely happy until then.
 Mumbles most at failures and at the fix.
 Words it likes: again, finally.
 Leaves this mood for proud when what kept failing finally works, for
