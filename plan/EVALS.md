@@ -65,7 +65,10 @@ never chatter.
 `make eval REAL=1` (`boopdev eval --real`) runs every mode with the brains
 the app would use: Apple's model writes, and normal decides with Jev
 alone (no table behind it) when `BOOP_JEV_KEY` is set, or with its table,
-saying so, when it isn't. Each scenario runs 3 times (`--runs`) and passes
+saying so, when it isn't. The key Settings saved is in the Keychain, which
+only the owner reads, from their own terminal:
+`BOOP_JEV_KEY=$(security find-generic-password -s com.boopcomputer.boop -a jev -w) make eval REAL=1`.
+Agents never read the Keychain. Each scenario runs 3 times (`--runs`) and passes
 only if every run does. Then, leaving out steps that script a stage, it
 reports refusals, how many passes Stage 1 answered on the menu, the
 writer's slots filled and its failures, the calls actions dropped and

@@ -47,9 +47,16 @@ make run          # the Mac app, with Bluetooth
 make debug        # the same, printing everything live in this terminal
 make test         # Swift unit tests
 make eval         # the brain's eval scenarios, deterministic
-make eval REAL=1  # the same with the real models, 3 runs each (Jev needs BOOP_JEV_KEY)
+make eval REAL=1  # the same with the real models, 3 runs each (Jev decides normal with BOOP_JEV_KEY)
 make flash        # build the firmware and upload it over USB
 tools/boopctl     # the board over USB, and the simulator: ping, state, shot, play, sim, run, e2e, …
+```
+
+To have Jev decide normal with the key you saved in Settings, run this
+from your own terminal (agents never read the Keychain):
+
+```sh
+BOOP_JEV_KEY=$(security find-generic-password -s com.boopcomputer.boop -a jev -w) make eval REAL=1
 ```
 
 Each tool lists its options with `--help`: `tools/boopctl`,
