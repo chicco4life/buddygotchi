@@ -234,6 +234,7 @@ class Behaviour {
   // Moments the Mac waits on: one arriving, a part of one cut short while
   // it plays, and each one with no part left playing at t ended.
   void wait(uint32_t id, uint8_t from);
+  void forget(uint32_t id);
   void cut(uint32_t id, CutBy by);
   void sweep(uint32_t t);
   void report(const Ended& e);

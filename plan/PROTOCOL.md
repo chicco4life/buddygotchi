@@ -278,6 +278,10 @@ immediate for `skipped`, and for a `cut` that leaves nothing playing. A
 newer line doesn't stop an animation (§3), so a moment whose animation
 plays on ends with it, `cut` if the newer line replaced its own line or
 face. Muting doesn't stop a moment. A moment without an `id` gets none.
+A moment whose `id` the device is still waiting on can only be from a
+new launch of the Mac app, since ids count up from 1 each launch: the
+old one is forgotten without an `ended` (its launch is gone), so the new
+one's `ended` is its own.
 
 The Mac ends the reaction's handle from it
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5) and ignores an `id` it

@@ -160,12 +160,24 @@ bool Behaviour::holds(uint32_t id, uint32_t t) const {
 }
 
 void Behaviour::wait(uint32_t id, uint8_t from) {
-  for (int i = 0; i < owed_.nWaiting; ++i) {
-    if (owed_.waiting[i].id == id) return;  // the same id again: one moment, reported once
-  }
   // Can't overflow: each part holds one moment, and those with none left
   // were ended at the last change.
   if (owed_.nWaiting < Owed::kWaiting) owed_.waiting[owed_.nWaiting++] = Waiting{id, from, CutBy::kNone};
+}
+
+// An id the device still waits on, arriving again: ids count up from 1
+// each time the Mac app starts, so it's the last launch's, which is gone.
+// Its moment is forgotten, unreported, and whatever of it still plays no
+// longer holds the id, so the new moment's end is its own.
+void Behaviour::forget(uint32_t id) {
+  int kept = 0;
+  for (int i = 0; i < owed_.nWaiting; ++i) {
+    if (owed_.waiting[i].id != id) owed_.waiting[kept++] = owed_.waiting[i];
+  }
+  owed_.nWaiting = kept;
+  if (moment_.id == id) moment_.id = 0;
+  if (say_.id == id) say_.id = 0;
+  if (exprId_ == id) exprId_ = 0;
 }
 
 // The first cut is the one reported.
@@ -238,6 +250,7 @@ void Behaviour::onState(const Model& m, uint32_t t) {
 // mumble plays. A moment the Mac waits on that plays nothing ends at once,
 // skipped.
 bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
+  if (in.id) forget(in.id);
   bool anim = in.anim != render::Anim::kNone && !held(t);
   bool mumble = in.syllables > 0 && !model_.attn;
   if (!anim && !mumble) {
