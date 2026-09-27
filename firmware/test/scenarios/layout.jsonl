@@ -1,6 +1,6 @@
 // The landscape layout at its limits (UX.md §2–3): the longest needs-you line with "+N more", and a full status strip.
 {"clock":0}
-{"t":"state","v":1,"base":"working","busy":12,"wait":10,"quiet":10,"attn":{"agent":"gemini-cli","project":"a-very-long-project-nam","more":9}}
+{"t":"state","v":1,"base":"working","busy":12,"wait":10,"quiet":10,"attn":{"agent":"gemini-cli","project":"a-very-long-project-n..","more":9}}
 {"clock":1000}
 {"expect":{"screen":"needs_you"}}
 {"shot":"needs-you-long"}

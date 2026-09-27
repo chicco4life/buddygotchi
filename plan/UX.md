@@ -76,7 +76,9 @@ needs-you face, which leans in, is as big as the idle face alone.
 - **Bubble.** Empty most of the time. It shows either a mumble's one real
   word among squiggles for the gibberish, or who needs you. The squiggles
   make room for the word, so it's cut (ending "..") only when it's too
-  long for the bubble on its own. Accented letters in words and names
+  long for the bubble on its own. A project name too long for the device
+  arrives already cut, ending ".." ([PROTOCOL.md](PROTOCOL.md) §3).
+  Accented letters in words and names
   show as their plain letter (é as e); other characters the font lacks
   show as "?".
 - **Status strip.** How many sessions need you (amber, hidden at zero) and

@@ -759,10 +759,13 @@ final class CoreRulesTests: XCTestCase {
     func testNamesAreClippedToTheDevicesFields() {
         let rig = CoreRig()
         rig.send(.needsYou, session: "s", project: "a-really-long-project-name-number-1", tool: "Bash")
-        XCTAssertEqual(rig.state.attn?.project, "a-really-long-project-n")
+        // A cut project name ends in "..", within the 23 bytes (PROTOCOL.md §3).
+        XCTAssertEqual(rig.state.attn?.project, "a-really-long-project..")
         XCTAssertEqual(rig.sessions.first?[1], "a-really-long-project-name-number-1", "the popover shows it whole")
         XCTAssertLessThanOrEqual(rig.state.jsonLine.utf8.count, StateSnapshot.maxLine)
         XCTAssertEqual(StateSnapshot.clip("ünïcödé-ünïcödé-ünïcödé"), "ünïcödé-ünïcödé")
+        XCTAssertEqual(StateSnapshot.clip("ünïcödé-ünïcödé-ünïcödé", marked: true), "ünïcödé-ünïcöd..")
+        XCTAssertEqual(StateSnapshot.clip("a-23-byte-project-name!", marked: true), "a-23-byte-project-name!", "one that fits isn't marked")
     }
 
     func testSnapshotsGoOutOnlyWhenSomethingChanged() {
