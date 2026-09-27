@@ -481,6 +481,34 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(states(fx).last?.base, "working")
     }
 
+    /// ADAPTERS.md §4: an agent can have calls running alongside the one
+    /// that asks: Claude runs read-only calls in parallel, and the main
+    /// agent's Agent call runs while it asks. The result of one of those,
+    /// for another tool, isn't the asking call's answer; the asking call's
+    /// own result, or the agent starting a new call, is.
+    func testAParallelCallsResultDoesntAnswerTheRequest() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, subagent: "A", tool: "WebFetch", id: "a1")
+        rig.send(.activity, subagent: "A", tool: "Grep", id: "a2")
+        rig.send(.needsYou, subagent: "A", tool: "WebFetch")
+        rig.send(.needsYou)
+        rig.send(.activity, subagent: "A", tool: "Grep", failed: false, id: "a2")
+        XCTAssertNotNil(rig.state.attn, "the Grep's result")
+        rig.send(.activity, subagent: "A", tool: "WebFetch", failed: false, id: "a1")
+        XCTAssertNil(rig.state.attn, "its own result")
+
+        rig.send(.activity, tool: "Agent", id: "ta")
+        rig.send(.activity, tool: "WebFetch", id: "tw")
+        rig.send(.needsYou, tool: "WebFetch")
+        rig.send(.activity, subagent: "B", tool: "Read", id: "b1")
+        rig.send(.activity, subagent: "B", tool: "Read", failed: false, id: "b1")
+        rig.send(.activity, tool: "Agent", failed: false, id: "ta")
+        XCTAssertNotNil(rig.state.attn, "the Agent call's result")
+        rig.send(.activity, tool: "Bash", id: "tb")
+        XCTAssertNil(rig.state.attn, "a new call: it moved on")
+    }
+
     /// Two subagents asking at once: "needs you" stays until both are
     /// answered, and a turn-level event answers everyone.
     func testEveryAskerMustBeAnswered() {

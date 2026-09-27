@@ -87,9 +87,10 @@ public final class Core {
         var calledSinceClear = false
         /// Who is asking, while "needs you" waits: `""` for the main agent,
         /// a Claude subagent's id, or `Core.anyone` for a `Notification` whose
-        /// request's own hook hasn't come. Only an asker's own next event
-        /// answers it (ADAPTERS.md §4).
-        var askers: Set<String> = []
+        /// request's own hook hasn't come; each with the tool it asks for,
+        /// or `""` for none. Only an asker's own next event answers it
+        /// (ADAPTERS.md §4).
+        var askers: [String: String] = [:]
         let order: Int
 
         // The thread, for events (harness/EVENTS.md §3–4).
@@ -217,13 +218,13 @@ public final class Core {
                 && s.clearedAt.map { now - $0 < Core.noticeLagMs || !s.calledSinceClear } == true
             if waiting {
                 if !event.detail.notice {
-                    if s.askers == [Core.anyone], s.needsSince.map({ now - $0 < Core.noticeLagMs }) == true {
-                        s.askers = []
+                    if Array(s.askers.keys) == [Core.anyone], s.needsSince.map({ now - $0 < Core.noticeLagMs }) == true {
+                        s.askers = [:]
                     }
-                    s.askers.insert(asker)
+                    s.askers[asker] = event.detail.tool ?? ""
                 }
             } else if !lateCopy {
-                s.askers = [asker]
+                s.askers = [asker: event.detail.tool ?? ""]
                 if event.agent == .codex {
                     s.pendingSince = now
                     s.working = true
@@ -248,7 +249,7 @@ public final class Core {
             // idle or stale session look busy. Once no asker is left, the
             // session works again only if its turn is still going
             // (ADAPTERS.md §4).
-            if waiting, let id = event.subagent, s.askers.remove(id) != nil {
+            if waiting, let id = event.subagent, s.askers.removeValue(forKey: id) != nil {
                 if s.askers.isEmpty {
                     clearRequest(&s, now)
                     s.working = s.turnStartedAt != nil
@@ -267,10 +268,17 @@ public final class Core {
         // turn over, which it never does while a prompt is up, a subagent's
         // included, so you pressed Esc on it, which sends no hook
         // (ADAPTERS.md §4).
+        // An asker's result for another tool is a call it made alongside
+        // the one that asks (Claude runs read-only calls in parallel, and
+        // the main agent's Agent call runs on), so it isn't the answer.
         if waiting {
-            if event.event != .activity || s.askers.contains(Core.anyone) {
+            let asker = event.subagent ?? ""
+            let alongside = event.detail.done && event.detail.tool.map { tool in
+                s.askers[asker].map { !$0.isEmpty && $0 != tool } == true
+            } == true
+            if event.event != .activity || s.askers[Core.anyone] != nil {
                 s.askers.removeAll()
-            } else if s.askers.remove(event.subagent ?? "") != nil, !s.askers.isEmpty {
+            } else if !alongside, s.askers.removeValue(forKey: asker) != nil, !s.askers.isEmpty {
                 anotherRequest(&s)
             }
             if s.askers.isEmpty {

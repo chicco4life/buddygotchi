@@ -237,7 +237,7 @@ starts a request starts it from "anyone".
 | --- | --- |
 | `needs_you` from a hook | Its asker joins the request (a sibling subagent asking too). If the request is a `Notification`'s from "anyone" under 5 s old, the hook is that request's own and takes it over |
 | `needs_you` from a `Notification` | Ignored: it's the same request (a `PermissionRequest` and its `Notification` count once) |
-| `activity` from an asker | Answers that asker: the tool ran (you approved) or the agent moved on (you denied) |
+| `activity` from an asker | Answers that asker: the tool ran (you approved) or the agent moved on (you denied). Not the result of a call for another tool, which the agent made alongside the one that asks (Claude runs read-only calls in parallel, and the main agent's `Agent` call runs on while it asks) |
 | `activity` from anyone else | Nothing, unless "anyone" is asking: then it clears the request |
 | `turn_stopped` without a tool (Claude's `idle_prompt`, Codex's `Interrupt`) | Clears the request, as any turn-level event does. `idle_prompt` means Claude has sat at its own prompt for about a minute with the turn over, which it never does while a prompt is up, a subagent's included: it arrives about a minute after you press Esc on a prompt, which sends no hook |
 | `subagent_end` | Answers that subagent only: one that has finished can't be waiting on a prompt. That's how a subagent you denied, which carries on and ends without another tool call, is answered. The main agent, other subagents and "anyone" stay asking |
