@@ -8,7 +8,7 @@ with the vision.
 | Read | For |
 | --- | --- |
 | [VISION.md](VISION.md) | Why Boop exists, its personality, the promises, and what's in v1 |
-| [BEHAVIORS.md](BEHAVIORS.md) | What Boop does when things happen, with its sound and light, and how each mode changes it |
+| [BEHAVIORS.md](BEHAVIORS.md) | What Boop does when things happen, with its sound and light, and how each personality changes it |
 | [UX.md](UX.md) | The screens, controls, setup and the Mac app |
 | [VOICE.md](VOICE.md) | The gibberish: how it's built, checked and played |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | The parts and their boundaries, what Boop keeps on disk, and the live decisions |

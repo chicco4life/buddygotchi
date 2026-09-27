@@ -10,7 +10,7 @@ This script parses internal/app/Tests/*.swift for `XCTestCase` subclasses
 and their `test…` methods, then emits
 internal/app/Tests/GeneratedTestRunner.swift: an `@main` entry point
 (guarded by `#if BOOP_SHIM_RUNNER`) that instantiates each case, runs
-its setUp lifecycle, and invokes every test. `make test` (test.py next to
+its setUp lifecycle, and invokes every test. `make -C internal test` (test.py next to
 this) regenerates it and runs it, so the tests actually execute locally.
 
 On CI (real Xcode / real XCTest) the Tests target stays a normal testTarget,

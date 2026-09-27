@@ -25,7 +25,7 @@ the owner.
 | L2 Device over USB | Does the board do and draw exactly that? | The board on USB |
 | L3 Webcam | Does the real panel look right: colours, orientation, motion? | The board facing the camera, when authorised (§6) |
 | L4 Pipeline | Does a real hook event reach the screen? | The board on USB; no Bluetooth |
-| L5 Brain | Do the real brains behave? | Apple's on-device model, and Jev's key for Jev |
+| L5 Brain | Does Jev behave? | Jev's key in `BOOP_JEV_KEY` |
 | L6 Owner | Bluetooth, touch, sound, real agents, how it feels | The owner |
 
 ## 2. The tools
@@ -36,19 +36,23 @@ Run a tool with `--help` for its flags: `internal/tools/boopctl` (and
 with their usage on a flag they don't take, `Boop` before anything
 starts, so a typo can't launch the menu-bar app or run the whole eval.
 
+The root `Makefile` holds the owner's targets (`build`, `run`, `debug`,
+`flash`, `eval`, `clean`); `internal/Makefile` holds the development
+ones, run from the repo root as `make -C internal <target>`.
+
 | Make target | What it does |
 | --- | --- |
 | `make build` | Builds the Mac app, `boop-hook` and `boopdev` in one `swift build`. An import of a target that isn't a declared dependency fails it, so `app/` can't use `internal/` code ([ARCHITECTURE.md](ARCHITECTURE.md) §10) |
-| `make test` | Swift unit tests, the eval runner with a scripted brain included, through the XCTest shim (`python3 internal/app/tools/test.py`), since there's no Xcode |
+| `make -C internal test` | Swift unit tests, the eval runner with a scripted brain included, through the XCTest shim (`python3 internal/app/tools/test.py`), since there's no Xcode |
 | `make eval` | The harness eval scenarios against Jev, 3 runs each (L5, [EVALS.md](EVALS.md)); needs `BOOP_JEV_KEY` and fails without it |
 | `make run` / `make debug` | The Mac app with Bluetooth, for the owner; `debug` adds `--debug` |
-| `make fw` / `make flash` | Builds the firmware; `flash` also uploads it over USB (`BOOP_PORT` picks the port) |
-| `make fw-test` | Firmware unit tests on the Mac (`pio test -e native`), among them the faces' player drawing every sampled moment of every mood design as `facegen` does |
-| `make faces` | Regenerates the device's faces (`firmware/assets/faces.h`), the popover's (`app/Boop/Views/FaceDesigns.swift`) and the frames `fw-test` checks, from the mood designs in `internal/tools/facegen/design/svg/`. It first draws each design at a dozen moments in Chrome and fails unless `facegen`'s own drawing matches it pixel for pixel. Needs Google Chrome |
-| `make sim` | Every scenario in the simulator, against the goldens (L1) |
-| `make e2e` | The pipeline check (L4) |
-| `make tools` | `internal/tools/.venv` with pyserial, Pillow and Textual. `internal/tools/boopctl` makes it on first run; this refreshes it |
-| `make tools-test` | The tools' own tests, with no board or camera: `boopctl`'s command line, the dashboard ([DASHBOARD.md](DASHBOARD.md) §7) and the webcam recorder on synthetic video |
+| `make -C internal fw` / `make flash` | Builds the firmware; `flash` also uploads it over USB (`BOOP_PORT` picks the port) |
+| `make -C internal fw-test` | Firmware unit tests on the Mac (`pio test -e native`), among them the faces' player drawing every sampled moment of every mood design as `facegen` does |
+| `make -C internal faces` | Regenerates the device's faces (`firmware/assets/faces.h`), the popover's (`app/Boop/Views/FaceDesigns.swift`) and the frames `fw-test` checks, from the mood designs in `internal/tools/facegen/design/svg/`. It first draws each design at a dozen moments in Chrome and fails unless `facegen`'s own drawing matches it pixel for pixel. Needs Google Chrome |
+| `make -C internal sim` | Every scenario in the simulator, against the goldens (L1) |
+| `make -C internal e2e` | The pipeline check (L4) |
+| `make -C internal tools` | `internal/tools/.venv` with pyserial, Pillow and Textual. `internal/tools/boopctl` makes it on first run; this refreshes it |
+| `make -C internal tools-test` | The tools' own tests, with no board or camera: `boopctl`'s command line, the dashboard ([DASHBOARD.md](DASHBOARD.md) §7) and the webcam recorder on synthetic video |
 | `make clean` | Deletes `.build` and `firmware/.pio` |
 
 | `boopctl` command | What it does |
@@ -188,10 +192,10 @@ gets at least one scenario. Their pictures are the golden images in
 
 ### L0: unit tests
 
-- **Swift (`make test`):** every part in [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Swift (`make -C internal test`):** every part in [ARCHITECTURE.md](ARCHITECTURE.md)
   §3 has tests, the harness and actions run with a scripted brain and no
   network, and the eval runner is tested the same way ([EVALS.md](EVALS.md)).
-- **Firmware (`make fw-test`):** line reassembly across BLE packets, the
+- **Firmware (`make -C internal fw-test`):** line reassembly across BLE packets, the
   device's messages and debug channel, the behaviour state machine
   (including `test_no_change_ever_cuts_hard`: nothing in any state cuts the
   face hard), gestures, drawing and the voice player.
@@ -205,7 +209,7 @@ gets at least one scenario. Their pictures are the golden images in
 
 ### L1: simulator
 
-1. `make sim` (or `internal/tools/boopctl sim <scenario>`) writes PNGs to
+1. `make -C internal sim` (or `internal/tools/boopctl sim <scenario>`) writes PNGs to
    `/tmp/boop-sim/<scenario>/` and compares them with the goldens.
    Unchanged pictures pass.
 2. Open every new or changed picture and check it against the spec: the
@@ -264,7 +268,7 @@ camera judges "looks right"; pixel accuracy comes from L2.
 ### L4: pipeline over USB
 
 This checks the whole path, hook → app → board, without Bluetooth,
-which an agent can't use. `make e2e` (`internal/tools/boopctl e2e`) does
+which an agent can't use. `make -C internal e2e` (`internal/tools/boopctl e2e`) does
 all of it:
 
 1. `boopctl bridge` owns the serial port on `/tmp/boop-e2e/usb.sock`.

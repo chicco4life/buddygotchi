@@ -67,5 +67,5 @@ clips, video only, footage kept local) is in `CLAUDE.md`.
    and out of git; only chosen crops go into the repo. Don't present a
    limited scenario review as a full hardware pass.
 
-`make tools-test` checks the recorder on synthetic video without opening a
+`make -C internal tools-test` checks the recorder on synthetic video without opening a
 camera, so it doesn't need this skill.

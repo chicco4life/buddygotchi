@@ -33,8 +33,8 @@ black, which the backlit panel shows as black glass.
 └──────────────────────────────────┘
 ```
 
-**The face is its mood design.** Every mood (happy, excited, proud,
-curious, determined, grumpy, sad) has a design for each look and for the
+**The face is its mood design.** Every mood (the seven are in
+[harness/DECISIONS.md](harness/DECISIONS.md) §2.3) has a design for each look and for the
 cheer: idle, working, needs you and task complete. Asleep and no app are
 one design each, the same in every mood. The designs are the designer's
 animated SVGs in `internal/tools/facegen/design/` (their README says what

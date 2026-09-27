@@ -14,31 +14,14 @@ milestone's evidence says which ones ran.
 
 | # | Milestone | Status | Evidence |
 | --- | --- | --- | --- |
-| M0 | Setup | Done | [M0](evidence/v1-build/M0/README.md) |
-| F1 | Board bring-up | Done | [F1](evidence/v1-build/F1/README.md) |
-| F2 | Renderer and simulator | Done | [F2](evidence/v1-build/F2/README.md) |
-| F3 | Device behaviour | Done | [F3](evidence/v1-build/F3/README.md) |
-| F4 | Bluetooth on the device | Done | [F4](evidence/v1-build/F4/README.md) |
-| A1 | App core: adapters, hook client, core rules | Done | [A1](evidence/v1-build/A1/README.md) |
-| A2 | Memory, Voice and actions | Done | [A2](evidence/v1-build/A2/README.md) |
-| A3 | Harness and brains | Done; A7 replaced its brains | [A3](evidence/v1-build/A3/README.md) |
-| A4 | Device link, app shell, push-to-talk, installer | Done | [A4](evidence/v1-build/A4/README.md) |
-| J1 | End to end over USB | Done | [J1](evidence/v1-build/J1/README.md) |
-| F5 | Voice on the device | Done, heard on a speaker | [F5](evidence/v1-build/F5/README.md), [speaker](evidence/2026-09-26-speaker/README.md) |
-| J2 | Soak and polish | Done | [J2](evidence/v1-build/J2/README.md) |
-| J3 | Handoff | Done; its [report](evidence/v1-build/REPORT.md) is the build's summary as it ended | [J3](evidence/v1-build/J3/README.md) |
-| F6 | Landscape screen and cuter eyes | Done; C1's pixel face replaced the eyes | [F6](evidence/v1-build/F6/README.md), [gen-2 look](evidence/2026-09-26-gen2-look/README.md) |
-| A5 | Mac app look and flow | Done; the owner still has to check the look (check 18) | [A5](evidence/v1-build/A5/README.md) |
-| A6 | Brain conversation | Superseded by A7 | [evidence](evidence/2026-09-26-brain-conversation/README.md) |
-| A7 | Two-stage brain | Superseded by A10 | [brain](evidence/2026-09-26-two-stage-brain/README.md), [evals](evidence/2026-09-26-eval-iteration/README.md) |
-| A8 | Hero moments | Done, as C1 trimmed them; checks 4, 9, 10 and 13 | [evidence](evidence/2026-09-26-hero-moments/README.md) |
-| C1 | Cut to 4 states and 3 animations | Done | [cut](evidence/2026-09-26-minimal-cut/README.md), [on the board](evidence/2026-09-26-e2e-hardening/README.md) |
-| A9 | Modes: chatty, normal and calm | Superseded by A10: personalities replace modes | [evidence](evidence/2026-09-26-modes/README.md) |
-| | Overnight pass (2026-09-27): reliability, behaviour and polish across the core, brain, firmware, face, Mac app and tools | Done. The final firmware `cf6d8ae` matches the simulator on the board in all 10 scenarios, `perf --motion` passes and `make e2e` passes; the new looks still need watching in motion (check 1) | [evidence](evidence/2026-09-27-overnight/) |
-| A10 | Jev-only harness: typed events and transcript, a plain-text state, mood and personalities ([harness/](harness/HARNESS.md)) | Done; the evals pass against Jev; checks 12–17 are the owner's | [evidence](evidence/2026-09-27-jev-harness/README.md) |
+| | The v1 build (M0–J3), the early looks and brains (F5, F6, A6, A7, A9) and the cut to 4 states (C1) | Done or superseded; their rows are in the [archive](../archived/plan-v1-build/status.md) | |
+| A5 | Mac app look and flow | Done; the owner still has to check the look (check 17) | [A5](evidence/v1-build/A5/README.md) |
+| A8 | Hero moments | Done, as C1 trimmed them; checks 4, 9, 10 and 12 | [evidence](evidence/2026-09-26-hero-moments/README.md) |
+| | Overnight pass (2026-09-27): reliability, behaviour and polish across the core, brain, firmware, face, Mac app and tools | Done. The final firmware `cf6d8ae` matches the simulator on the board in all 10 scenarios, `perf --motion` passes and `make -C internal e2e` passes; the new looks still need watching in motion (check 1) | [evidence](evidence/2026-09-27-overnight/) |
+| A10 | Jev-only harness: typed events and transcript, a plain-text state, mood and personalities ([harness/](harness/HARNESS.md)) | Done; the evals pass against Jev; checks 12–16 are the owner's | [evidence](evidence/2026-09-27-jev-harness/README.md) |
 | | Production and internal code split: what doesn't ship moves to `internal/`, `Package.swift` to the root ([internal/README.md](../internal/README.md)) | Done; the evals pass against Jev, 7/7 in all 3 runs | [evidence](evidence/2026-09-27-internal-split/README.md) |
 | A11 | Seven moods, drawn from the mood SVGs: Jev picks the mood, and the device shows each state and reaction in it | In progress. Jev chooses among the seven moods with no minimum time between changes (evals 10/10 in all 3 runs); every `state` carries the mood; the device draws each look and the cheer as the mood's design, exactly as Chrome draws the SVGs. The popover's tile shows the same faces. Still to do: watching it on the board | [moods](evidence/2026-09-27-seven-moods/README.md), [faces](evidence/2026-09-27-mood-faces/README.md) |
-| A12 | Live dashboard: `internal/tools/boopctl dash` shows the state and face, the harness's passes and a timeline, and forces a mood, a reaction or an animation ([DASHBOARD.md](DASHBOARD.md)) | Done, headless; check 21 is the owner's | [evidence](evidence/2026-09-27-dashboard/README.md) |
+| A12 | Live dashboard: `internal/tools/boopctl dash` shows the state and face, the harness's passes and a timeline, and forces a mood, a reaction or an animation ([DASHBOARD.md](DASHBOARD.md)) | Done, headless; check 20 is the owner's | [evidence](evidence/2026-09-27-dashboard/README.md) |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks
@@ -105,49 +88,45 @@ that's off becomes an open item (§3).
 
 **Personalities and the brain**
 
-12. **`make flash`, then `make run`, after push-to-talk's removal.** The
-    popover has no Talk button, macOS no longer asks for the Microphone
-    or Speech Recognition, and holding BOOT is just a wiggle
-    ([ARCHITECTURE.md](ARCHITECTURE.md), decision log 2026-09-27).
-13. **Paste Jev's key in Settings, then work normally for a while.** The
+12. **Paste Jev's key in Settings, then work normally for a while.** The
     Personality card loses its "Without a Jev API key" line. Routine
     turns go by quietly; a very long finish gets a proud mumble on top of
     the cheer ([harness/DECISIONS.md](harness/DECISIONS.md)).
-14. **Let tests fail three times in a row, then pass.** On the third
+13. **Let tests fail three times in a row, then pass.** On the third
     failure an annoyed mumble ("…again!" or "…tests!") and Boop turns
     grumpy (the `mood` file in `~/Library/Application Support/Boop/`);
     when they pass, a proud "…finally!" and Boop turns proud
     ([harness/EXAMPLE.md](harness/EXAMPLE.md)).
-15. **`Boop --debug` (`make debug`) through a turn.** The terminal shows
+14. **`Boop --debug` (`make debug`) through a turn.** The terminal shows
     each event, the pass with Jev's whole state the first time and its
     answers, and what the actions did; `boop.log` has one `brain …` line
     per pass and none of the state ([harness/HARNESS.md](harness/HARNESS.md)
     §9).
-16. **Settings → Personality: Chatter for a while, then Boop.** Chatter
+15. **Settings → Personality: Chatter for a while, then Boop.** Chatter
     shows a "Chatter" chip, mumbles at nearly everything, including
     routine tool use, and chatters every 30–60 s while agents work. Boop
     is back to speaking up only when something stands out
     ([BEHAVIORS.md](BEHAVIORS.md) §6).
-17. **`BOOP_JEV_KEY=… make eval`.** Every scenario passes in all three
+16. **`BOOP_JEV_KEY=… make eval`.** Every scenario passes in all three
     runs ([EVALS.md](EVALS.md)).
 
 **The Mac app and the link**
 
-18. **The popover and the menu-bar icon in light and dark, with an
+17. **The popover and the menu-bar icon in light and dark, with an
     approval waiting.** The Warm Terminal look ([UX.md](UX.md) §6), with
     the needs-you icon's deeper amber clear on a light menu bar. In the
     active popover, setup's switches are sage when on and the volume
     slider fills in ink, which `Boop --snapshots` can't show.
-19. **Over Bluetooth, an approval arriving as a turn finishes (two
+18. **Over Bluetooth, an approval arriving as a turn finishes (two
     sessions); separately, BOOT pressed again within a second of letting
     go.** The screen always matches the popover, and the second press is
     heard ([evidence](evidence/2026-09-26-e2e-hardening/README.md)).
-20. **Settings → Device → Reconnect; then `kill -9` the app and `make run`
+19. **Settings → Device → Reconnect; then `kill -9` the app and `make run`
     again; then quit it and wait 30 s.** Both reconnects find the board
     within a couple of seconds, the second by taking over the link macOS
     kept ([PROTOCOL.md](PROTOCOL.md) §2). After quitting, the board shows
     the no-app design with only the unplugged icon.
-21. **`make debug`, then `internal/tools/boopctl dash` in another terminal.** The
+20. **`make debug`, then `internal/tools/boopctl dash` in another terminal.** The
     dashboard's face shows what the board shows, though not frame for
     frame. `m` grumpy, `r` annoyed with "again", and `a` cheer each land
     (no warning after 2 s), and the board plays the mumble and the cheer.
@@ -160,13 +139,11 @@ Known work that isn't a milestone yet, including drift found and not
 fixed. Pick one up by writing it into its spec first.
 
 - **Release.** There's no signing, notarisation, app icon or release
-  pipeline yet. Gen-2's list is in
-  [archived/docs/TODO-gen2.md](../archived/docs/TODO-gen2.md).
-- **The landing page sells gen-2.** [Its copy](../landing/src/lib/copy.ts)
-  leads with "Approve with a pet" and a press to approve or deny, which
-  [VISION.md](VISION.md)'s promises rule out. It lists Cursor and VS
-  Code, and its help describes gen-2's approval mode, port 21321 and
-  `~/.boop`.
+  pipeline yet.
+- **The landing page is out of date.** [Its copy](../landing/src/lib/copy.ts)
+  describes an older Boop that approved and denied from the device, which
+  [VISION.md](VISION.md)'s promises now rule out, and agents v1 doesn't
+  watch (Cursor, VS Code). It needs rewriting to match v1.
 - **No real Codex session.** Only a Codex `SessionStart` has been
   recorded; the approvals and tool calls in the fixtures are hand-written,
   so the shell tool's name and its argv `command` are guesses. What
@@ -180,9 +157,9 @@ fixed. Pick one up by writing it into its spec first.
   ([ADAPTERS.md](ADAPTERS.md) §4). Hooking `SubagentStop` and letting it
   answer only that subagent's request would clear it; it mustn't make an
   idle session working.
-- **Talking to Boop, quiet mode and memory are out.** Memory keeps only
-  Boop's name and the day; they come back as events and actions
-  ([FUTURE.md](FUTURE.md)).
+- **Talking to Boop and a fuller memory are out.** Memory keeps only
+  Boop's name, nature, voice seed and the day; the rest comes back as
+  events and actions ([FUTURE.md](FUTURE.md)).
 - **Some of Voice's words can't be picked.** The brain offers eleven of
   the 40 ([harness/DECISIONS.md](harness/DECISIONS.md) §3); the rest are
   recorded on the device for nothing until the lists grow.

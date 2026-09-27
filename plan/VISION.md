@@ -41,9 +41,8 @@ but how Boop reacts to it is a question of character.
 - **Grown, not chosen.** At setup you name it and answer one question:
   sweet or cheeky? Its voice gets a dialect of its own from a random seed
   ([VOICE.md](VOICE.md) §3). There is no menu of traits; the rest is meant
-  to come from living with you. In v1 your answer is a line in Boop's
-  memory that the models read when they choose its words; nothing else
-  uses it yet.
+  to come from living with you. In v1 your answer is kept in Boop's
+  memory, and nothing uses it yet.
 - **Lasting.** Boop lives on your Mac, and the device is just its body.
   Reflash the device or replace it, and it's still the same Boop.
 - **Shown, never told.** Its feelings come out in how it moves, looks and
@@ -88,11 +87,9 @@ The refactor finishes. Boop hops, beams, a heart pops up, and it mumbles
 something proud. Then Claude wraps up a fix with the tests still failing:
 no cheer this time, just an annoyed mumble at the agent, *"tu-ka… tests."*
 
-Later, once you can talk to it again ([FUTURE.md](FUTURE.md)), you snap
-"shut up" and Boop mumbles something small and sad, and carries on; "be
-quiet for an hour" stops its mumbling for the hour, though it still chirps
-when an agent needs you. Poke it again
-and again and it grumbles, *"…nope!"*, and a moment later it has forgotten
+Later, once you can talk to it ([FUTURE.md](FUTURE.md)), you snap
+"shut up" and Boop mumbles something small and sad, and carries on. Poke
+it again and again and it grumbles, *"…nope!"*, and a moment later it has forgotten
 all about it.
 
 ## Hero moments
@@ -114,9 +111,6 @@ harness evals check the brain's part ([EVALS.md](EVALS.md) §5).
    heart. Keep poking and it grumbles (*"…nope!"*), and a few seconds
    later it has forgotten all about it.
 
-Calm mode keeps its grumbles to itself ([BEHAVIORS.md](BEHAVIORS.md)
-§6).
-
 ## Scope
 
 ### What v1 does
@@ -129,37 +123,20 @@ Calm mode keeps its grumbles to itself ([BEHAVIORS.md](BEHAVIORS.md)
   own prompt.
 - **Reacts like a creature.** A face that sleeps, idles, works and looks
   at you, mumbles while agents work, and the hero moments above.
-- **Has a personality and moods:** its everyday self, or an over-the-top
-  one for debugging, and a mood that sours when things keep failing and
-  lifts when they work ([BEHAVIORS.md](BEHAVIORS.md) §6,
-  [harness/DECISIONS.md](harness/DECISIONS.md)).
+- **Has a personality and moods.** Two personalities: Boop, its everyday
+  self, and Chatter, an over-the-top one for debugging
+  ([BEHAVIORS.md](BEHAVIORS.md) §6). Seven moods, from happy to sad, each
+  with its own face. The mood sours when things keep failing and lifts
+  when they work, and it can change whenever the brain decides
+  ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3).
 
 Its name, its sweet or cheeky nature and its voice are set when it
 hatches. Nothing else about its character changes in v1.
 
 ### Where Boop is headed
 
-Most of this is parked and comes back one feature at a time
-([FUTURE.md](FUTURE.md)).
-
-- **A character that grows.** Over weeks its temperament drifts with how
-  you work together, and it keeps a few defining moments to come back to.
-  Months in, it's cheekier, trusts the agents you rely on, and perks up on
-  Fridays because that's when you ship. You didn't configure any of that.
-- **A mood that mirrors yours.** How the work is going and the time of day
-  shape it. After a long afternoon of failed builds Boop gets calmer,
-  fidgets less and mumbles less. Nothing on screen says so.
-- **Something you feed.** The work you do together earns XP and levels.
-  Leave it alone for days and it gets hungry, which you see only when you
-  look, and slowly loses a little XP, but it never loses a level or dies.
-- **Gentler nudges.** A waiting approval climbs a ladder: a second chirp
-  and a bigger lean, then a few amber pulses (a buzz, once there's a
-  motor), and never more.
-- **A private record.** Totals across all your projects: tasks finished,
-  projects, days together, XP and level, never a breakdown by project.
-- **Not started:** life stages, retiring and backup, a shareable buddy
-  card, Claude Cowork, other agents, and more than one Boop. None of them
-  should be designed out.
+A character that grows with you, gentler nudges, a private record and
+more are parked in [FUTURE.md](FUTURE.md), to come back one at a time.
 
 ## Look
 
@@ -190,8 +167,9 @@ changes.
    an agent do something you didn't agree to. Approving happens on the
    Mac.
 6. **No reset button.** Boop lives in files on your Mac, not in the device
-   or the model, and it belongs to you. What it keeps about you changes
-   only when you tell it something lasting, and you can remove any line.
+   or the model, and it belongs to you. In v1 it keeps only its name, its
+   nature, its voice's seed and when today started
+   ([ARCHITECTURE.md](ARCHITECTURE.md) §4).
 7. **Private by construction.** There is no camera, no mic and no wake
    word. Nothing logs your keystrokes. Boop's memory lives on your Mac, and
    without an API key everything runs there. With a Jev key, each
@@ -200,8 +178,7 @@ changes.
    prompts, agents' transcripts and what you say never leave the Mac
    ([harness/HARNESS.md](harness/HARNESS.md) §5).
 8. **Never nags, never guilts.** One chirp per request, and the Mac app
-   never sends notifications. When hunger comes back, it will show only
-   when you look: no sound, no notification, no interruption.
+   never sends notifications.
 9. **No leaderboards.** Stats stay private unless you choose to share them.
 10. **It's your pet, not a brand mascot.** Boop is never branded as Claude
     or Codex. You name it.
@@ -219,6 +196,7 @@ changes.
   creature is the interface.
 - **Not an agent.** It doesn't run tasks, spend money or act for you.
   Information only flows from your agents to Boop.
-- **Not tied to one AI.** Plain rules or a cloud model with your own key
-  decide what Boop does, and Apple's on-device model writes its words
-  ([HARNESS.md](harness/HARNESS.md) §6). It's the same creature either way.
+- **Not tied to one AI.** Plain rules give every immediate reaction. With
+  your own key, TypeSafe's Jev adds the rest: its moods and its mumbles
+  ([HARNESS.md](harness/HARNESS.md) §7). Without one, Boop is still the
+  same creature, just quieter.

@@ -108,7 +108,7 @@ if useXCTestShim {
     // No real XCTest here: SwiftPM's `swift test` would build these tests and
     // run NONE of them (a false green). Instead build the Tests directory as an
     // executable driven by the generated GeneratedTestRunner.swift, run via
-    // `make test`. See internal/app/tools/gen-test-runner.py.
+    // `make -C internal test`. See internal/app/tools/gen-test-runner.py.
     packageTargets.append(
         .executableTarget(
             name: "BoopTests",

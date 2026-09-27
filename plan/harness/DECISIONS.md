@@ -60,9 +60,8 @@ How to choose:
 ### 2.2 PERSONALITY
 
 `plan/steering/personality/<name>.md`, picked by `personality` in
-`settings.json` and applied from the next event. **Personalities replace
-modes:** chatty, normal and calm are gone, and how much Boop speaks up is
-its personality's to say.
+`settings.json` and applied from the next event. How much Boop speaks up is its
+personality's to say.
 
 A personality file has two parts:
 

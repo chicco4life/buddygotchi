@@ -32,7 +32,7 @@ What the sample shows:
   anything it has no row for.
 - **Apple's model as writer has no refusals**, where deciding everything it
   refused 2 of 54 and answered with silence most of the time ([Jev
-  evidence](../2026-09-26-jev-brain/README.md)).
+  evidence](../../../archived/evidence/2026-09-26-jev-brain/README.md)).
 - **New day.** The if-else classifier leaves long-term memory alone. Jev
   kept one line in four runs ("quiet before 10am", a preference close to one
   the sample already has).

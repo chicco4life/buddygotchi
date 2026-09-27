@@ -32,4 +32,4 @@ the 15 writes with a `remember.text` slot took 1583, 1615, 1619, 1671,
 With Jev's old half of the deadline, a late Jev left the writer about
 1.9 s; with a quarter it has 2.9 s. Jev wasn't run (no key in an agent
 shell); its recorded answers take 0.2–0.3 s
-([2026-09-26-modes](../../2026-09-26-modes/l5-jev-apple.txt)).
+([2026-09-26-modes](../../../../archived/evidence/2026-09-26-modes/l5-jev-apple.txt)).

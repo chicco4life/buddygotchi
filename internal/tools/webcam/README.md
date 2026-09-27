@@ -65,7 +65,7 @@ can hide or mimic stutter.
 
 ## Tests
 
-`make tools-test` generates a moving-square movie with one frame missing
+`make -C internal tools-test` generates a moving-square movie with one frame missing
 and checks gap detection, that consecutive frames are kept, interval
 selection, overwrite protection and bad arguments. It never opens a
 camera.

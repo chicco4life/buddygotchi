@@ -151,7 +151,7 @@ turn into blobs.
 | The whole screen (`z`) | 320×240 | 107×80 | 107×40 |
 
 The face's band holds everything drawn above the bubble in every golden
-frame (`internal/firmware/test/golden`), which `make tools-test` checks.
+frame (`internal/firmware/test/golden`), which `make -C internal tools-test` checks.
 The cheer's result card rises onto a tray below the face, in the bubble's
 band, so only `z` shows it.
 
@@ -167,12 +167,12 @@ band, so only `z` shows it.
 
 ## 7. Checks
 
-- **`make test`:** the three new lines and their shapes; a forced pass
+- **`make -C internal test`:** the three new lines and their shapes; a forced pass
   with no brain that leaves a waiting pass alone; a forced mood that
   changes as Jev's does, device included, and is refused when it can't; a forced react refused
   while something needs you; dev lines ignored without `--debug` or `--headless`; and
   the printer's output unchanged.
-- **`make tools-test`** (`internal/tools/boopctl_lib/tests/test_dash.py`): the
+- **`make -C internal tools-test`** (`internal/tools/boopctl_lib/tests/test_dash.py`): the
   feed against `tests/fixtures/headless-debug.jsonl`, recorded from a real
   headless run; restarts; the downsampling, and every golden frame's face
   inside the crop; the dev lines built from the `questions` line; and the

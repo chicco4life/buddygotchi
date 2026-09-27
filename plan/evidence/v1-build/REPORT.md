@@ -22,7 +22,7 @@
 > mode. The new day's reflection is gone, so what this report says about
 > reflection and `moment` is history. See
 > [BEHAVIORS.md](../../BEHAVIORS.md) §6 and the
-> [A9 evidence](../2026-09-26-modes/README.md).
+> [A9 evidence](../../../archived/evidence/2026-09-26-modes/README.md).
 
 The unattended build ran on 2026-09-26 on branch `v1-overnight`, starting
 from tag `gen2-final`. Every milestone except P1 has passed; P1 waits for

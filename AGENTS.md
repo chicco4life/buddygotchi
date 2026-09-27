@@ -38,20 +38,25 @@ Delete code that nothing uses; git keeps it.
 ## Commands
 
 The everyday entry points are in [README.md](README.md), which stays a
-short overview. Every make target and tool is in
+short overview. The root `Makefile` has only what the owner uses: `build`,
+`run`, `debug`, `flash`, `eval` and `clean`. The development targets
+(`test`, `tools-test`, `fw`, `fw-test`, `sim`, `e2e`, `faces`, `tools`)
+are in `internal/Makefile`; run them from the repo root as
+`make -C internal <target>`. Every make target and tool is in
 [plan/VERIFICATION.md](plan/VERIFICATION.md) §2, and each CLI prints its
 flags with `--help`. `make run` and `make debug` use Bluetooth, so they're
 the owner's. For agents:
 
 ```sh
-make build                                            # Mac app, boop-hook and boopdev (make test and make eval build too)
+make build                                            # Mac app, boop-hook and boopdev (make -C internal test and make eval build too)
+make -C internal test                                 # Swift unit tests
 .build/debug/Boop --headless --state-dir DIR --debug  # the whole runtime with no UI or Bluetooth, printing everything
 .build/debug/Boop --snapshots DIR                     # the popover's panes and the menu-bar icons as PNGs, then exits
 ```
 
 ## Environment notes
 
-- There's no Xcode, so `swift test` runs nothing. `make test` runs
+- There's no Xcode, so `swift test` runs nothing. `make -C internal test` runs
   `python3 internal/app/tools/test.py`, which generates the XCTest shim's
   runner, builds the package in one `swift build` and runs
   `.build/debug/BoopTests`.
@@ -71,7 +76,7 @@ make build                                            # Mac app, boop-hook and b
   `/dev/cu.usbserial-*`, and the serial port needs no special permissions.
 - System Python has no pyserial, Pillow or Textual. The tools use
   `internal/tools/.venv`, which `internal/tools/boopctl` makes on its
-  first run (`make tools` refreshes it).
+  first run (`make -C internal tools` refreshes it).
 - A Unix socket's path has room for 103 bytes, so give `Boop --headless`
   a short state directory (under `/tmp`) or a short `--socket`.
 - Webcam recording works only from a terminal the Claude app opens (its
@@ -145,7 +150,7 @@ unpushed local `main`.
 | `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/{device.cpp,packets.h,link_silence.h}`, `internal/tools/boopctl_lib/` | `PROTOCOL.md` |
 | `firmware/src/board/`, `firmware/platformio.ini`, `internal/tools/fontgen/` | `DEVICE.md` |
 | `internal/tools/facegen/` (and its designs), `firmware/src/render/scene.*` | `UX.md` §2, `DEVICE.md` §6 |
-| `Makefile`, `internal/tools/`, `internal/app/BoopDev/`, `internal/skills/`, tests | `VERIFICATION.md`, this file, `README.md` |
+| `Makefile`, `internal/Makefile`, `internal/tools/`, `internal/app/BoopDev/`, `internal/skills/`, tests | `VERIFICATION.md`, this file, `README.md` |
 | `internal/app/Boop/` (`--headless`, `--snapshots`), `internal/app/BoopDevKit/Replay.swift`, `internal/firmware/sim/`, `internal/firmware/test/` | `VERIFICATION.md` |
 | `internal/tools/boopctl_lib/dash/`, the dev lines and the dashboard's lines in `debug.jsonl` | `DASHBOARD.md` (and `harness/HARNESS.md` §9) |
 | `internal/app/BoopDevKit/Eval/`, `internal/app/Evals/` | `EVALS.md` |

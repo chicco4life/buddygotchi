@@ -13,7 +13,7 @@ has the tests, evals, dev tools and skills that check them.
 | `app/Tests/` | The Swift unit tests (`BoopTests`) and their fixtures |
 | `app/TestSupport/XCTestShim/` | A stand-in XCTest for Command Line Tools, which has none |
 | `app/Evals/scenarios/` | The eval scenarios `boopdev eval` runs against Jev |
-| `app/tools/` | `test.py` (`make test`) and `gen-test-runner.py`, which writes the tests' `main` for the shim |
+| `app/tools/` | `test.py` (`make -C internal test`) and `gen-test-runner.py`, which writes the tests' `main` for the shim |
 | `firmware/sim/` | The simulator's `main` (`boop-sim`), built with the firmware's pure C++ in PlatformIO's `native` env |
 | `firmware/test/` | The firmware's unit tests, the simulator scenarios and their golden pictures |
 | `tools/` | `boopctl` (the board over USB, the simulator, and the live dashboard, [plan/DASHBOARD.md](../plan/DASHBOARD.md)), `voicegen`, `fontgen` and `facegen` (they write `firmware/assets/*.h`, which is checked in; `facegen` reads the mood designs in `tools/facegen/design/`), and the `webcam/` recorder |
@@ -26,7 +26,7 @@ has the tests, evals, dev tools and skills that check them.
   and here. The production targets (`HookWire`, `BoopKit`, `Boop`,
   `BoopHook`) never depend on the internal ones (`BoopDevKit`, `BoopDev`,
   `BoopTests`, `XCTest`). SwiftPM alone only warns about an import of a
-  target that isn't a dependency, so `make build` and `make test` build
+  target that isn't a dependency, so `make build` and `make -C internal test` build
   with `--explicit-target-dependency-import-check error`, and code in
   `app/` that imports anything from here fails the build. The one
   exception is the `Boop` target: its path is the repo root and its
@@ -37,9 +37,10 @@ has the tests, evals, dev tools and skills that check them.
   the `native` env's `build_src_filter` adds `internal/firmware/sim/`
   (the filter is relative to `firmware/src/`).
 - **Tools.** Scripts find the repo root from their own path. `boopctl`
-  keeps its Python in `internal/tools/.venv` (`make tools`), and the
+  keeps its Python in `internal/tools/.venv` (`make -C internal tools`), and the
   webcam recorder builds into `internal/tools/webcam/.build`, apart from
   SwiftPM's `.build/`.
 
-The make targets that use all this are in
+`internal/Makefile` has the development targets; run them from the repo
+root as `make -C internal <target>`. They are listed in
 [plan/VERIFICATION.md](../plan/VERIFICATION.md) §2.
