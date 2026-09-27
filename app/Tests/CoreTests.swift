@@ -56,6 +56,11 @@ final class CoreRig {
         return send(.turnEnd, agent, session: session)
     }
 
+    /// The Mac's mic on or off, from the device's button or the app's.
+    func talk(_ on: Bool, with button: Core.Talker) {
+        if button == .device { input(on ? .talkOn : .talkOff) } else { core.listen(on, at: now) }
+    }
+
     var state: StateSnapshot { core.snapshot(at: now) }
     /// The popover's list, as `[agent, project, status]`.
     var sessions: [[String]] { core.sessionList(at: now).map { [$0.agent, $0.project, $0.status.rawValue] } }
@@ -676,13 +681,10 @@ final class CoreYouAndBoopTests: XCTestCase {
             rig.send(.turnStart)
             rig.send(.activity, tool: "Bash", topic: "tests")
             rig.wait(1000)
-            func talk(_ on: Bool) {
-                if button == .device { rig.input(on ? .talkOn : .talkOff) } else { rig.core.listen(on, at: rig.now) }
-            }
-            talk(true)
+            rig.talk(true, with: button)
             rig.core.nextChatterAt = rig.now + 1000  // chatter is due while the mic is on
             XCTAssertEqual(mumbles(rig.wait(5000)), [], "\(button): mic on")
-            talk(false)
+            rig.talk(false, with: button)
             rig.core.nextChatterAt = rig.now + 1000
             XCTAssertEqual(mumbles(rig.wait(Core.replyWaitMs - 1000)), [], "\(button): waiting for the reply")
             rig.core.nextChatterAt = rig.now + 1000
@@ -697,18 +699,15 @@ final class CoreYouAndBoopTests: XCTestCase {
     func testNoCheerWhileYouTalk() {
         for button in [Core.Talker.device, .app] {
             let rig = CoreRig(mode: .chatty)
-            func talk(_ on: Bool) {
-                if button == .device { rig.input(on ? .talkOn : .talkOff) } else { rig.core.listen(on, at: rig.now) }
-            }
             rig.send(.turnStart, session: "a")
             rig.send(.turnStart, session: "b")
             rig.send(.turnStart, session: "c")
             rig.wait(20_000)
-            talk(true)
+            rig.talk(true, with: button)
             let onMic = rig.send(.turnEnd, session: "a")
             XCTAssertEqual(moments(onMic), [], "\(button): mic on")
             XCTAssertNil(inputs(onMic).first?.rules, "\(button)")
-            talk(false)
+            rig.talk(false, with: button)
             rig.wait(1000)
             let said = inputs(rig.core.talk("good job", at: rig.now))[0]
             XCTAssertEqual(moments(rig.send(.turnEnd, session: "b")), [], "\(button): waiting for the reply")

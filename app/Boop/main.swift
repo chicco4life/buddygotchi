@@ -67,19 +67,21 @@ final class LogFile: @unchecked Sendable {
 
     func write(_ message: String) {
         lock.withLock {
-            let line = format.string(from: Date()) + " " + message + "\n"
+            let line = stamped(message)
             // The throwing write: the old one raises an Objective-C exception
             // (a crash) on any error, such as a full disk.
-            try? handle?.write(contentsOf: Data(line.utf8))
-            if echo { try? FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
+            try? handle?.write(contentsOf: line)
+            if echo { try? FileHandle.standardError.write(contentsOf: line) }
         }
     }
 
     func echo(_ message: String) {
-        lock.withLock {
-            let line = format.string(from: Date()) + " " + message + "\n"
-            try? FileHandle.standardError.write(contentsOf: Data(line.utf8))
-        }
+        lock.withLock { try? FileHandle.standardError.write(contentsOf: stamped(message)) }
+    }
+
+    /// The message as a line, after the time. Only under `lock`.
+    private func stamped(_ message: String) -> Data {
+        Data((format.string(from: Date()) + " " + message + "\n").utf8)
     }
 }
 
@@ -108,16 +110,7 @@ enum Launch {
 
 let raw = Array(CommandLine.arguments.dropFirst())
 let launch: Launch = raw.contains("--headless") ? .headless : raw.contains("--snapshots") ? .snapshots : .menuBar
-let args: Arguments
-do {
-    args = try Arguments(raw, options: launch.options, flags: launch.flags)
-} catch {
-    fail("boop: \(error)\n\(usage)")
-}
-if args.help {
-    print(usage)
-    exit(0)
-}
+let args = Arguments.parse(raw, options: launch.options, flags: launch.flags, command: "boop", usage: usage)
 switch launch {
 case .headless: Headless.run(args)
 case .snapshots: MainActor.assumeIsolated { Snapshots.run(args) }

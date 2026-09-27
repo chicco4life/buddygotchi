@@ -47,4 +47,35 @@ public struct Arguments: Sendable {
 
     /// Whether a flag was given.
     public func has(_ flag: String) -> Bool { flags.contains(flag) }
+
+    /// The value given for an option that takes one of `choices`, or nil if
+    /// it isn't given. Any other value stops the command, naming them.
+    public func choice(_ option: String, of choices: [String]) -> String? {
+        guard let value = values[option] else { return nil }
+        if !choices.contains(value) { Arguments.stop("\(option) is " + choices.joined(separator: ", ")) }
+        return value
+    }
+
+    /// A command's arguments, as every command takes them: --help prints
+    /// `usage` and exits 0, and a problem prints `command:`, the problem and
+    /// `usage` to stderr and exits 2.
+    public static func parse(_ args: [String], options: Set<String> = [], flags: Set<String> = [], words: Int = 0,
+                             command: String, usage: String) -> Arguments {
+        do {
+            let parsed = try Arguments(args, options: options, flags: flags, words: words)
+            if parsed.help {
+                print(usage)
+                exit(0)
+            }
+            return parsed
+        } catch {
+            stop("\(command): \(error)\n\(usage)")
+        }
+    }
+
+    /// Prints `message` to stderr and exits 2.
+    static func stop(_ message: String) -> Never {
+        FileHandle.standardError.write(Data((message + "\n").utf8))
+        exit(2)
+    }
 }

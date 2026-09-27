@@ -202,10 +202,6 @@ public struct EvalError: Error, CustomStringConvertible {
 /// copy of the sample memory for every scenario. With a model, run each
 /// scenario a few times (`boopdev eval --runs`).
 public struct Eval: Sendable {
-    /// Every mode has an if-else table, so every mode runs deterministically;
-    /// Jev runs normal's expectations only when asked for (EVALS.md §2).
-    public static let deterministic: [Mode] = Mode.allCases
-
     public struct StepResult: Sendable {
         public var event: Scenario.Event
         public var expect: [Expectation]

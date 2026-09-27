@@ -186,6 +186,18 @@ struct Hairline: View {
     }
 }
 
+extension View {
+    /// A plain text field in a box of `fill`, whose edge darkens and
+    /// thickens while it has the focus.
+    func fieldBox(_ fill: Color, radius: CGFloat, focus: FocusState<Bool>.Binding) -> some View {
+        textFieldStyle(.plain)
+            .background(fill, in: RoundedRectangle(cornerRadius: radius))
+            .overlay(RoundedRectangle(cornerRadius: radius)
+                .strokeBorder(focus.wrappedValue ? Theme.inkSoft : Theme.hairlineStrong, lineWidth: focus.wrappedValue ? 1.5 : 1))
+            .focused(focus)
+    }
+}
+
 /// A status dot. It breathes only while something is live, so motion here
 /// always means "happening now".
 struct StateDot: View {

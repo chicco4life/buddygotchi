@@ -184,10 +184,7 @@ struct OverviewPane: View {
         } else {
             // A fixed order, so a group doesn't jump to the top when one of
             // its sessions starts waiting and back when it stops.
-            let known = HookInstaller.Agent.allCases.map(\.rawValue)
-            let agents = status.sessions.map(\.agent).reduce(into: known.filter { a in status.sessions.contains { $0.agent == a } }) {
-                if !$0.contains($1) { $0.append($1) }
-            }
+            let agents = HookInstaller.Agent.allCases.map(\.rawValue).filter { a in status.sessions.contains { $0.agent == a } }
             VStack(alignment: .leading, spacing: Theme.gap) {
                 ForEach(agents, id: \.self) { agent in
                     VStack(alignment: .leading, spacing: 5) {

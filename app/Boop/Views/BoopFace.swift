@@ -53,7 +53,6 @@ private enum FaceGrid {
 struct BoopFace: View {
     var mood: FaceMood
     var size: CGFloat = 40
-    var animated = true
 
     @ViewState private var blink = false
     @ViewState private var gaze: CGFloat = -0.25
@@ -121,7 +120,7 @@ struct BoopFace: View {
 
     /// Blinks every few seconds; while working, the gaze drifts side to side.
     private func live() async {
-        guard animated, !reduceMotion, !still, mood != .asleep else { return }
+        guard !reduceMotion, !still, mood != .asleep else { return }
         var left = true
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(Int.random(in: 2400...5200)))
@@ -147,9 +146,8 @@ private struct FacePose: VectorArithmetic {
     var smile: CGFloat = 0  // from 0.3 the bar becomes a small "u"
     var mouth: CGFloat = 1  // the bar's width, as a share of an eye
 
-    private static var fields: [WritableKeyPath<FacePose, CGFloat>] {
+    private static let fields: [WritableKeyPath<FacePose, CGFloat> & Sendable] =
         [\.open, \.lookX, \.lookY, \.size, \.lid, \.squint, \.smile, \.mouth]
-    }
 
     private static func combine(_ a: FacePose, _ b: FacePose, _ op: (CGFloat, CGFloat) -> CGFloat) -> FacePose {
         var out = a

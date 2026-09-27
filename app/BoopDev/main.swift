@@ -21,7 +21,7 @@ let usages: [(command: String, text: String)] = [
         Prints Minion lines as the react action would build them.
     """),
     ("eval", """
-    boopdev eval [--real] [--mode chatty|normal|calm] [--classifier \(Brains.classifiers.joined(separator: "|"))] [--writer none|apple]
+    boopdev eval [--real] [--mode chatty|normal|calm] [--classifier \(Brains.classifiers.joined(separator: "|"))] [--writer \(Brains.writers.joined(separator: "|"))]
          [--runs N] [--only TEXT] [--json FILE] [--scenarios DIR] [--memory DIR] [--steering FILE]
         Runs the harness eval scenarios in each mode: events, taps and talk on a virtual clock through a
         fresh core, the real harness and actions, each step checked against the passes it should lead to
@@ -67,21 +67,20 @@ func fail(_ message: String) -> Never {
     exit(2)
 }
 
+/// The `boop-hook` built next to boopdev.
+let builtHook = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("boop-hook")
+
+/// Sends one line to a running app's socket, or stops if nobody answers.
+func sendDev(_ line: Data, to socket: String) {
+    guard HookSocket.send(line + [0x0A], to: socket, timeoutMs: 500) else { fail("no app answering on \(socket)") }
+}
+
 /// A subcommand's arguments, checked against what it takes (VERIFICATION.md
 /// §2): --help prints its usage and exits, and anything else stops it.
 func arguments(_ command: String, _ args: [String], options: Set<String> = [], flags: Set<String> = [],
                words: Int = 0) -> Arguments {
     let text = "usage:\n" + indented(usages.first { $0.command == command }?.text ?? "") + "\n" + version
-    do {
-        let parsed = try Arguments(args, options: options, flags: flags, words: words)
-        if parsed.help {
-            print(text)
-            exit(0)
-        }
-        return parsed
-    } catch {
-        fail("boopdev \(command): \(error)\n\(text)")
-    }
+    return Arguments.parse(args, options: options, flags: flags, words: words, command: "boopdev \(command)", usage: text)
 }
 
 func replay(_ raw: [String]) {
@@ -116,11 +115,8 @@ func replay(_ raw: [String]) {
 /// `boop-hook` fails open, so the app is asked first: with nobody
 /// listening, every hook would still exit 0.
 func replayLive(_ steps: [Replay.Step], agent: String, gapMs: Int64, socket: String) {
-    let hook = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("boop-hook")
-    guard FileManager.default.isExecutableFile(atPath: hook.path) else { fail("no boop-hook next to boopdev; run make build") }
-    guard HookSocket.send(Data(#"{"dev":"probe"}"#.utf8) + [0x0A], to: socket, timeoutMs: 500) else {
-        fail("no app answering on \(socket)")
-    }
+    guard FileManager.default.isExecutableFile(atPath: builtHook.path) else { fail("no boop-hook next to boopdev; run make build") }
+    sendDev(Data(#"{"dev":"probe"}"#.utf8), to: socket)
     var environment = ProcessInfo.processInfo.environment
     environment["BOOP_SOCKET"] = socket
     for step in steps {
@@ -129,13 +125,12 @@ func replayLive(_ steps: [Replay.Step], agent: String, gapMs: Int64, socket: Str
             usleep(useconds_t(ms * 1000))
         case .advance(let ms):
             // A headless app jumps its clock; the menu-bar app ignores this.
-            let line = Data(#"{"dev":"advance","ms":\#(ms)}"#.utf8) + [0x0A]
-            guard HookSocket.send(line, to: socket, timeoutMs: 500) else { fail("no app answering on \(socket)") }
+            sendDev(Data(#"{"dev":"advance","ms":\#(ms)}"#.utf8), to: socket)
             print("advanced the app's clock \(ms) ms")
         case .payload(let data):
             let sent = Date()
-            guard let (ms, status) = spawn(hook.path, [agent], stdin: data, environment: environment) else {
-                fail("can't run \(hook.path): \(String(cString: strerror(errno)))")
+            guard let (ms, status) = spawn(builtHook.path, [agent], stdin: data, environment: environment) else {
+                fail("can't run \(builtHook.path): \(String(cString: strerror(errno)))")
             }
             let name = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["hook_event_name"] as? String
             print("sent \(name ?? "?") at \(Int64(sent.timeIntervalSince1970 * 1000)) hook \(String(format: "%.1f", ms)) ms exit \(status)")
@@ -266,13 +261,7 @@ func watch(_ raw: [String]) {
             let line = String(pending[..<end])
             pending = String(pending[pending.index(after: end)...])
             if line.isEmpty { continue }
-            if let header = Eval.header(line) {
-                // Each scenario run starts afresh, so its first pass shows the memory in full.
-                print("=== \(header)")
-                printer = DebugLog.Printer()
-            } else {
-                print(printer.readable(line))
-            }
+            print(printer.readable(line))
         }
     }
 }
@@ -296,27 +285,22 @@ func eval(_ raw: [String]) async {
     }
     // --real: every mode with the brains the app would run (VERIFICATION.md L5).
     let real = args.has("--real")
-    var modes = real ? Mode.allCases : Eval.deterministic
-    if let name = args["--mode"] {
-        guard let mode = Mode(rawValue: name) else { fail("modes: chatty, normal, calm") }
-        modes = [mode]
-    }
-    let override = args["--classifier"]
-    if let override, !Brains.classifiers.contains(override) { fail("classifiers: " + Brains.classifiers.joined(separator: ", ")) }
-    // Jev only when asked for, or for normal in a real run with its key, so
-    // a key in the environment doesn't make the default run a live one. A
-    // real run asks for Jev by name: Jev alone decides normal, which is what
-    // L5 checks. Without the key, normal's table decides it.
+    var modes = Mode.allCases
+    if let mode = args.choice("--mode", of: modes.map(\.rawValue)).flatMap(Mode.init(rawValue:)) { modes = [mode] }
+    let override = args.choice("--classifier", of: Brains.classifiers)
+    // Each mode's classifier by name: Jev only when asked for, or for normal
+    // in a real run with its key, so a key in the environment doesn't make
+    // the default run a live one. A real run asks for Jev by name: Jev alone
+    // decides normal, which is what L5 checks. Without the key, normal's
+    // table decides it.
     let envKey = Brains.environmentJevKey()
     if envKey == nil, override == "jev" { fail("Jev needs its API key in \(Brains.jevKeyVariable)") }
-    let jev: @Sendable (Mode) -> String? = { mode in override ?? (real && mode == .normal && envKey != nil ? "jev" : nil) }
-    let key = modes.contains { jev($0) == "jev" } ? envKey : nil
+    let pick: @Sendable (Mode) -> String = { mode in override ?? (real && mode == .normal && envKey != nil ? "jev" : mode.rawValue) }
     if real, override == nil, envKey == nil, modes.contains(.normal) {
         print("normal: decided by its table; with Jev's API key in \(Brains.jevKeyVariable), Jev decides it")
     }
-    let writerName = args["--writer"] ?? (real ? "apple" : "none")
-    guard ["none", "apple"].contains(writerName) else { fail("writers: none, apple") }
-    if writerName == "apple", let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }
+    let writer = args.choice("--writer", of: Brains.writers) ?? (real ? "apple" : "none")
+    if writer == "apple", let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }
     var list: [Scenario]
     do { list = try Scenario.load(directory: scenarios) } catch {
         fail("can't read the scenarios in \(scenarios.path): \((error as NSError).localizedDescription)")
@@ -327,8 +311,8 @@ func eval(_ raw: [String]) async {
     guard !list.isEmpty else { fail("no scenarios in \(scenarios.path)") }
     guard let runs = Int(args["--runs"] ?? (real ? "3" : "1")), runs >= 1 else { fail("--runs is a count, 1 or more") }
     var runner = Eval(
-        classifier: { mode in Brains.classifier(for: mode, override: jev(mode), key: { key }) },
-        writer: { mode in writerName == "none" ? NoWriter() : Brains.writer(for: mode) },
+        classifier: { mode in Brains.classifier(for: mode, override: pick(mode), key: { envKey }) },
+        writer: { mode in Brains.writer(for: mode, override: writer) },
         steering: steering, memory: memoryDir)
     let log = evalDebugLog()
     runner.debugLog = log
@@ -404,10 +388,9 @@ func talk(_ raw: [String]) {
     let words = args.words.joined(separator: " ")
     let yelled = args.has("--yelled")
     guard !words.isEmpty || yelled else { fail("boopdev talk: what was said? give the words, or --yelled") }
-    var data = (try? JSONSerialization.data(withJSONObject: ["dev": "talk", "words": words, "yelled": yelled] as [String: Any]))
+    let line = (try? JSONSerialization.data(withJSONObject: ["dev": "talk", "words": words, "yelled": yelled] as [String: Any]))
         ?? Data()
-    data.append(0x0A)
-    guard HookSocket.send(data, to: socket, timeoutMs: 500) else { fail("no app answering on \(socket)") }
+    sendDev(line, to: socket)
     print("sent talk \"\(words)\"\(yelled ? " (yelled)" : "")")
 }
 
@@ -418,8 +401,7 @@ func hooks(_ raw: [String]) {
     }
     // Never the real HOME by default: tests use a temporary one.
     guard let home = args["--home"] else { fail("boopdev hooks: pass --home DIR") }
-    let built = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("boop-hook")
-    let installer = HookInstaller(home: URL(fileURLWithPath: home), hookPath: args["--hook"] ?? built.path)
+    let installer = HookInstaller(home: URL(fileURLWithPath: home), hookPath: args["--hook"] ?? builtHook.path)
     var agents = HookInstaller.Agent.allCases
     if args.words.count > 1 {
         guard let agent = HookInstaller.Agent(rawValue: args.words[1]) else { fail("boopdev hooks: the agent is claude or codex") }

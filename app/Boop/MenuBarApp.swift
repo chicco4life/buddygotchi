@@ -58,6 +58,9 @@ final class AppModel: ObservableObject {
     @Published var startError: String?
     /// Why push-to-talk couldn't hear you, until the next try.
     @Published var talkError: String?
+    /// Why Apple's model can't run, or nil: asked when the popover opens,
+    /// not on every redraw.
+    @Published var appleUnavailable = AppleWriter.unavailableReason
 
     let installer: HookInstaller
     /// False on a folder other than the everyday one: then this copy never
@@ -362,6 +365,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     func showPopover() {
         guard let button = statusItem?.button else { return }
         model.refreshHooks()
+        model.appleUnavailable = AppleWriter.unavailableReason
         runtime?.refresh()
         NSApp.activate()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)

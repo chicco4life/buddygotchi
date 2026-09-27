@@ -144,7 +144,7 @@ struct SettingsPane: View {
     /// Why mumbles have no word, if they don't.
     private var brainNote: String? {
         guard let status = model.status else { return nil }
-        if status.writer == "none" || status.writer.hasPrefix("apple") && AppleWriter.unavailableReason != nil {
+        if status.writer == "none" || status.writer.hasPrefix("apple") && model.appleUnavailable != nil {
             return "Apple's model can't run here, so mumbles have no word."
         }
         return nil
@@ -179,14 +179,10 @@ struct SettingsPane: View {
                 HStack(spacing: Theme.gapSnug) {
                     // As tall as the Save button beside it.
                     SecureField("Jev API key", text: $apiKey)
-                        .textFieldStyle(.plain)
                         .font(.system(size: 12))
                         .padding(.horizontal, 8)
                         .frame(height: 22)
-                        .background(Theme.paper, in: RoundedRectangle(cornerRadius: 7))
-                        .overlay(RoundedRectangle(cornerRadius: 7)
-                            .strokeBorder(keyFocused ? Theme.inkSoft : Theme.hairlineStrong, lineWidth: keyFocused ? 1.5 : 1))
-                        .focused($keyFocused)
+                        .fieldBox(Theme.paper, radius: 7, focus: $keyFocused)
                         .onChange(of: apiKey) { keySaved = false }
                     if keySaved {
                         // Done, not disabled.
@@ -258,7 +254,7 @@ struct ModePicker: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach([Mode.chatty, .normal, .calm], id: \.self) { m in
+            ForEach(Mode.allCases, id: \.self) { m in
                 let on = m == mode
                 Button {
                     withAnimation(.boopSettle) { mode = m }

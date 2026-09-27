@@ -22,7 +22,7 @@ final class EvalTests: XCTestCase {
         let eval = try runner()
         var results: [Eval.Result] = []
         for scenario in scenarios {
-            for mode in Eval.deterministic where scenario.modes.contains(mode) {
+            for mode in Mode.allCases where scenario.modes.contains(mode) {
                 results.append(try await eval.run(scenario, mode: mode))
             }
         }
