@@ -42,9 +42,9 @@ final class RulesTests: XCTestCase {
             (input(.agentFinished, tookMs: 8_000), happy, none, none),
             (input(.agentFinished, outcome: .failed), annoyed, annoyed, annoyed),
             (input(.poked), annoyed, annoyed, none),
-            // Hurt keeps to itself in calm; the rest of what you say gets its mumble.
-            (input(.said, words: "shut up"), sad, sad, none),
-            (input(.said, words: "what are you doing", yelled: true), sad, sad, none),
+            // What you say gets the same mumble in every mode, hurt included.
+            (input(.said, words: "shut up"), sad, sad, sad),
+            (input(.said, words: "what are you doing", yelled: true), sad, sad, sad),
             (input(.said, words: "be quiet for an hour"), [ToolCall("quiet", ["minutes": .number(60)])],
              [ToolCall("quiet", ["minutes": .number(60)])], [ToolCall("quiet", ["minutes": .number(60)])]),
             (input(.said, words: "hello boop"), happy, happy, happy),
@@ -179,7 +179,7 @@ final class PhrasesTests: XCTestCase {
             (input(.said, words: "this is a thing"), [react("curious")]),
         ]
         for (i, expected) in cases {
-            XCTAssertEqual(Phrases.reply(to: i, hurtMumbles: true).0, expected, i.words ?? "")
+            XCTAssertEqual(Phrases.reply(to: i).0, expected, i.words ?? "")
         }
         // Boop's own name isn't someone else's: said to it by name, a
         // lasting fact still goes to long-term; a real other name doesn't.
@@ -197,8 +197,8 @@ final class PhrasesTests: XCTestCase {
         XCTAssertEqual(Input.plain("I\u{2019}d rather \u{2018}not\u{2019}"), " i'd rather 'not' ")
         XCTAssertFalse(input(.said, words: "speak quietly").asksForQuiet)
         XCTAssertTrue(input(.said, words: "Quiet!").asksForQuiet)
-        // Calm keeps hurt to itself.
-        XCTAssertEqual(Phrases.reply(to: input(.said, words: "shut up"), hurtMumbles: false).0, [])
+        // Calm is hurt too: talking to Boop is the same in every mode.
+        XCTAssertEqual(Rules(.calm).decide(input(.said, words: "shut up"), boopName: nil).0, [react("sad")])
     }
 }
 

@@ -280,12 +280,12 @@ straight ones.
 | "remember" or "note", unless you told Boop off | `react(happy)` and `remember(where)`, with where from the next table. This wins over "quiet": "remember I like it quiet" isn't asking for quiet |
 | Asking Boop to stop being quiet: "stop being quiet", "don't have to be quiet", "don't need to be quiet", "no more quiet", "not quiet anymore", "quiet mode off", "turn off quiet", "you can talk again", "you can speak again", "you can mumble again" or "unmute" | `quiet(0)`, which ends quiet, and `react(happy)` |
 | "quiet", "hush", "stop talking" or "keep it down" | `quiet(minutes)` and nothing else, yelled or not |
-| You told Boop off: "shut up", "go away", "hate you", "you suck", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)` in chatty and normal; nothing in calm |
+| You told Boop off: "shut up", "go away", "hate you", "you suck", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)` |
 | Starting with "hello", "hi", "hey", "morning" or "good morning" ("the tests broke this morning" isn't a greeting) | `react(happy)` |
 | "bye", "goodbye", "see you" or "good night" | `react(happy)` |
 | "lunch", "dinner", "breakfast", "food", "snack" or "hungry" | `react(hopeful)` |
 | "good job", "well done", "nice", "great", "thanks", "thank you" or "the best" | `react(proud)` |
-| You yelled, and nothing above matched (or there were no words): loudness comes last, so a yelled "good job!" is still praise | `react(sad)` in chatty and normal; nothing in calm |
+| You yelled, and nothing above matched (or there were no words): loudness comes last, so a yelled "good job!" is still praise | `react(sad)` |
 | Anything else | `react(curious)` |
 
 Quiet lasts the time you said, as the nearest of 15, 30, 60 and 120

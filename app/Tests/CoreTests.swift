@@ -757,7 +757,7 @@ final class CoreYouAndBoopTests: XCTestCase {
     }
 
     /// BEHAVIORS.md §3.3: when the pass for what you said decides on no
-    /// mumble ("be quiet", told off in calm, quiet mode, a dropped pass),
+    /// mumble ("be quiet", quiet mode, a dropped pass),
     /// the empty moment ends `listening` at once, not up to 8 s later, for
     /// either button.
     func testNoReplyEndsListeningAtOnce() {

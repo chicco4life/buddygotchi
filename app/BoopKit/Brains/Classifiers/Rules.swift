@@ -15,7 +15,7 @@ import Foundation
 /// | Agent finished, done, a very long turn (over a minute) | `react(excited)` | `react(proud)` | nothing: the rules' cheer |
 /// | Agent finished, failed | `react(annoyed)` | `react(annoyed)` | `react(annoyed)`: the one alert besides "needs you" |
 /// | Poked again and again | `react(annoyed)`: the grumble | `react(annoyed)` | nothing |
-/// | You said anything | `Phrases`' table | `Phrases`' table | `Phrases`' table, but nothing when told off, or yelled at with nothing else said |
+/// | You said anything | `Phrases`' table | `Phrases`' table | `Phrases`' table |
 ///
 /// Calls the menu doesn't offer are left out.
 public struct Rules: Classifier {
@@ -49,7 +49,7 @@ public struct Rules: Classifier {
         case .poked:
             return (mode == .calm ? [] : [react("annoyed")], "poked again and again")
         case .said:
-            return Phrases.reply(to: input, hurtMumbles: mode != .calm, boopName: boopName)
+            return Phrases.reply(to: input, boopName: boopName)
         }
     }
 }

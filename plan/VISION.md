@@ -112,7 +112,7 @@ harness evals check the brain's part ([EVALS.md](EVALS.md) §5).
    heart. Keep poking and it grumbles (*"…nope!"*), and a few seconds
    later it has forgotten all about it.
 
-Calm mode keeps hurt and grumbles to itself ([BEHAVIORS.md](BEHAVIORS.md)
+Calm mode keeps its grumbles to itself ([BEHAVIORS.md](BEHAVIORS.md)
 §6).
 
 ## Scope

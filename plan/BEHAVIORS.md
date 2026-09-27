@@ -101,9 +101,8 @@ and click Send ([UX.md](UX.md) §5 has the indicators and permissions).
    then no other animation replaces it: a cheer that arrives is skipped,
    a tap shows only the press squash, and a mumble that comes with a
    cheer still counts as the reply.
-4. If Boop won't reply (you asked for quiet, told it off in calm, quiet
-   mode is on, something needs you, or the pass failed), or the mic heard
-   nothing, the Mac ends `listening` at once with an empty `moment`
+4. If Boop won't reply (you asked for quiet, quiet mode is on,
+   something needs you, or the pass failed), or the mic heard nothing, the Mac ends `listening` at once with an empty `moment`
    ([PROTOCOL.md](PROTOCOL.md) §3). So does a mic that can't start, even
    while BOOT is still held.
 
@@ -125,7 +124,7 @@ doing and answers them.
   say it's back. These words never start or stretch quiet, and asking for
   quiet never ends it, whichever brain decided.
 - **Told off, or yelled at with words that say nothing else:** a sad
-  mumble (nothing in calm), and never quiet mode. A yelled "good job!" is
+  mumble, in every mode, and never quiet mode. A yelled "good job!" is
   still praise.
 - **Told something to remember** ("remember the demo is on Thursday"): a
   happy mumble and a line in memory. A project or session fact is kept
@@ -194,7 +193,7 @@ are the same in every mode.
 | Turn finishes, very long (over a minute) | `cheer` and an excited mumble | `cheer` and a proud mumble | `cheer` |
 | Turn fails | An annoyed mumble | An annoyed mumble | An annoyed mumble: the one alert besides "needs you" |
 | Poke streak | `wiggle` and an annoyed mumble | `wiggle` and an annoyed mumble | `wiggle` only |
-| You talk to Boop | A mumble back (§3.3) | A mumble back | A mumble back, but nothing when told off or yelled at |
+| You talk to Boop | A mumble back (§3.3) | A mumble back | A mumble back |
 | Working chatter | Every 45–90 s | Every 2–4 minutes | Never |
 
 Normal's column is exactly what its if-else table does. Jev, when normal
