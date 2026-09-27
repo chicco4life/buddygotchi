@@ -190,7 +190,8 @@ final class CoreAgentWorkTests: XCTestCase {
             XCTAssertEqual(rig.state.base, "idle", asker)
             XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"]], asker)
             XCTAssertEqual(moments(fx), [], asker)
-            XCTAssertEqual(woke(fx), [], "\(asker): the stopped turn ended while something needed you")
+            XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": stopped after 1 min, a very long turn, 0 tools."#],
+                           "\(asker): the notice answered the request before the stop applied")
             XCTAssertEqual(mumbles(rig.wait(10 * 60_000)), [], "\(asker): no working chatter")
         }
         for askers in [["a1"], ["", "a1"]] {
@@ -555,6 +556,33 @@ final class CoreNeedsYouTests: XCTestCase {
         let ended = rig.send(.turnEnd, session: "b")
         XCTAssertEqual(woke(ended), [])
         XCTAssertEqual(events(ended).count, 1, "it still comes, for HISTORY")
+    }
+
+    /// ADAPTERS.md §4: an event that answers the last asker clears the
+    /// request before it applies, so the event it makes is judged with
+    /// nothing needing you (harness/EVENTS.md §6), whichever kind it is:
+    /// tests that fail right after you approved them, the turn Claude's
+    /// idle notice stops after Esc on its prompt, and Codex's `Interrupt`.
+    func testAnEventThatAnswersTheRequestWakesTheBrain() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Bash", topic: "tests")
+        rig.send(.needsYou, tool: "Bash")
+        rig.wait(2000)
+        XCTAssertEqual(woke(rig.send(.activity, tool: "Bash", topic: "tests", failed: true)),
+                       [#"claude's tests failed on "landing"."#])
+
+        rig.send(.turnStart)
+        rig.send(.needsYou, tool: "Bash")
+        rig.wait(61_000)
+        XCTAssertEqual(woke(rig.send(.turnStopped)).count, 1, "the stopped turn")
+
+        rig.send(.turnStart, .codex, session: "c")
+        rig.send(.needsYou, .codex, session: "c", tool: "shell")
+        rig.wait(3000)
+        XCTAssertNotNil(rig.state.attn)
+        XCTAssertEqual(woke(rig.send(.turnStopped, .codex, session: "c")).count, 1, "Codex's Interrupt")
+        XCTAssertNil(rig.state.attn)
     }
 }
 

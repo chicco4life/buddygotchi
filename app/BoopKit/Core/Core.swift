@@ -241,6 +241,9 @@ public final class Core {
             }
         }
         s.lastEventAt = now
+        // The table has the answer before the event applies, so whether
+        // its event wakes the brain sees what it answered (EVENTS.md §6).
+        sessions[key] = s
 
         switch event.event {
         case .sessionStart:

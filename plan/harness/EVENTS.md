@@ -1,6 +1,6 @@
 # Boop: harness events
 
-Updated 2026-09-27. What the core hands the harness: the seven kinds of
+Updated 2026-09-28. What the core hands the harness: the seven kinds of
 event, what makes each one, the facts it carries, its line, the rule's
 reaction, and whether it wakes the brain. The shape they share is the
 harness's contract ([HARNESS.md](HARNESS.md) §3). Actions only ever see
@@ -135,7 +135,10 @@ brain only when its kind says so (§4), and never:
 - while there's no brain: before Jev's key is read, or without one
   ([HARNESS.md](HARNESS.md) §7).
 
-The core checks both when it builds the event (`Core.wakes`). Beyond the
+The core checks both when it builds the event (`Core.wakes`), after the
+event has answered any request it answers ([ADAPTERS.md](../ADAPTERS.md)
+§4): tests that fail right after you approved them, or the turn Claude's
+idle notice stops after you pressed Esc on its prompt, wake it. Beyond the
 poke streak's minute, there's no cooldown: Jev decides every time whether
 Boop mumbles.
 
