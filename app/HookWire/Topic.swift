@@ -33,19 +33,15 @@ public enum Topic {
     static let editTools: Set<String> = [
         "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch", "edit", "write", "write_file", "edit_file",
     ]
-    static let shellTools: Set<String> = [
-        "Bash", "shell", "local_shell", "exec_command", "container.exec", "bash", "unified_exec",
-    ]
 
+    /// Any tool that isn't an edit and has a command (Claude's `Bash`,
+    /// Codex's `shell` or `exec_command`) is tagged by what it runs.
     public static func tag(tool: String?, input: Any?) -> String? {
         guard let tool else { return nil }
-        if shellTools.contains(tool) || command(in: input) != nil && !editTools.contains(tool) {
-            return command(in: input).flatMap(tag(command:))
-        }
         if editTools.contains(tool) {
             return paths(in: input, tool: tool).contains(where: isDoc) ? "docs" : nil
         }
-        return nil
+        return commands(in: input).flatMap(tag)
     }
 
     /// The topic of what a shell command runs: its program and the words
@@ -55,12 +51,11 @@ public enum Topic {
     /// so `grep -n "make test" Makefile` has no topic. When several commands
     /// have one, deploy beats tests, which beats build.
     public static func tag(command: String) -> String? {
-        var best: Int?
-        for words in commands(command) {
-            guard let index = rule(words) else { continue }
-            best = min(best ?? index, index)
-        }
-        return best.map { rules[$0].topic }
+        tag(commands(command))
+    }
+
+    static func tag(_ commands: [[String]]) -> String? {
+        commands.compactMap(rule).min().map { rules[$0].topic }
     }
 
     /// The first rule one simple command matches: the pattern's first word
@@ -191,21 +186,15 @@ public enum Topic {
         return next == pattern.endIndex
     }
 
-    /// A shell command's text: Claude's `command` string, or Codex's argv.
-    static func command(in input: Any?) -> String? {
+    /// A shell command's simple commands: Claude's `command` string split
+    /// as the shell would, or Codex's argv, which is one already.
+    static func commands(in input: Any?) -> [[String]]? {
         guard let object = input as? [String: Any] else { return nil }
         for key in ["command", "cmd"] {
-            if let text = object[key] as? String { return text }
-            if let argv = object[key] as? [String] { return argv.map(quoted).joined(separator: " ") }
+            if let text = object[key] as? String { return commands(text) }
+            if let argv = object[key] as? [String] { return [argv] }
         }
         return nil
-    }
-
-    /// One argv word as the shell would need it, so `["bash", "-lc",
-    /// "cargo test"]` keeps its script in one piece.
-    static func quoted(_ word: String) -> String {
-        guard word.isEmpty || word.contains(where: { $0.isWhitespace || "'\"\\;&|()`$<>".contains($0) }) else { return word }
-        return "'" + word.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     static func paths(in input: Any?, tool: String) -> [String] {

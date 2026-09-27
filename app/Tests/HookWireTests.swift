@@ -131,6 +131,11 @@ final class HookWireTests: XCTestCase {
     func testCodexShellArgvAndPatchesGetTopics() {
         XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["bash", "-lc", "cargo test -q"]]), "tests")
         XCTAssertEqual(Topic.tag(tool: "exec_command", input: ["cmd": "pnpm run build"]), "build")
+        // An argv is one command already: its words are never split again.
+        XCTAssertEqual(Topic.tag(tool: "container.exec", input: ["command": ["make", "test"]]), "tests")
+        XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["echo", "make test && vercel"]]), nil)
+        XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["sh", "-c", "cd app && make test"]]), "tests")
+        XCTAssertEqual(Topic.tag(tool: "shell", input: [:]), nil)
         XCTAssertEqual(Topic.tag(tool: "apply_patch", input: ["input": "*** Begin Patch\n*** Update File: docs/intro.md\n@@"]), "docs")
         XCTAssertEqual(Topic.tag(tool: "apply_patch", input: ["input": "*** Begin Patch\n*** Update File: src/a.swift\n@@"]), nil)
     }
