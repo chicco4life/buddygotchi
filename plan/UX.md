@@ -136,8 +136,11 @@ hears about it ([ARCHITECTURE.md](ARCHITECTURE.md) §9 has the budget). A
 touch is a tap however long it's held, and counts when you lift your
 finger; the strip is part of the screen, so a touch there counts too. The
 panel misses readings under a light press, so a touch counts as lifted
-only after 50 ms without contact. BOOT ignores an edge within 15 ms of the
-last one.
+only after 50 ms without contact, timed in real milliseconds so it ends
+even while a test tool has the clock frozen. BOOT ignores an edge within
+15 ms of the last one. Its timing runs on the device clock, so a press
+made while a tool has the clock frozen resolves when the clock next
+moves.
 
 v1 has no job for a second button. An external main button, if one is
 added, takes over BOOT's jobs ([DEVICE.md](DEVICE.md) §3).

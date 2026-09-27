@@ -371,6 +371,29 @@ static void test_a_flickering_touch_is_one_tap() {
   TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, tap));
 }
 
+// UX.md §4: the 50 ms runs on real time, so a panel touch still ends, and
+// taps at once, while a tool has the clock frozen.
+static void test_a_touch_ends_while_the_clock_is_frozen() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1000}");
+  const char* tap = "{\"t\":\"input\",\"k\":\"tap\"}";
+  for (uint32_t ms = 200; ms <= 400; ms += 5) {
+    r.hal.real = ms;
+    r.hal.touching = ms < 300;  // last contact at 295
+    r.dev.tick();
+    if (ms == 340) {
+      TEST_ASSERT_EQUAL_INT(0, count(r.usb.text, tap));
+      r.usbLine("{\"t\":\"dbg.state\"}");
+      TEST_ASSERT_TRUE(has(r.usb.text, "\"touch\":{\"down\":true"));
+    }
+  }
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, tap));
+  TEST_ASSERT_EQUAL_UINT32(1000, r.dev.now());  // still frozen
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"touch\":{\"down\":false"));
+}
+
 static void test_physical_hold_sends_talk_on_and_off() {
   Rig r;
   r.usbLine("{\"t\":\"state\"}");
@@ -799,6 +822,7 @@ int main() {
   RUN_TEST(test_injected_tap_reaches_the_mac);
   RUN_TEST(test_physical_hold_sends_talk_on_and_off);
   RUN_TEST(test_a_flickering_touch_is_one_tap);
+  RUN_TEST(test_a_touch_ends_while_the_clock_is_frozen);
   RUN_TEST(test_a_frozen_clock_runs_again_after_60s_without_debug);
   RUN_TEST(test_shot_is_header_then_base64);
   RUN_TEST(test_light_sets_the_led);
