@@ -961,7 +961,9 @@ static void test_lines_over_512_bytes_are_dropped() {
 
 // VOICE.md §8, PROTOCOL.md §3: numbers out of range are held in range once,
 // as they arrive, so the mouth and the voice agree: `ms` to 60–400, the
-// word's `at` to the syllables, and `vol` to 0–10.
+// word's `at` to the syllables, and `vol` to 0–10. However far out (past
+// an int's range too), and a fraction as its whole part; anything but a
+// number reads as the default.
 static void test_say_and_volume_are_held_in_range() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":15}");
@@ -989,6 +991,30 @@ static void test_say_and_volume_are_held_in_range() {
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"vol\":0,"));
+  const struct {
+    const char* vol;
+    const char* reads;
+  } vols[] = {{"99999999999", "\"vol\":10,"}, {"-1e10", "\"vol\":0,"}, {"9.9", "\"vol\":9,"}, {"\"3\"", "\"vol\":6,"}};
+  for (const auto& v : vols) {
+    r.usbLine((std::string("{\"t\":\"state\",\"base\":\"idle\",\"vol\":") + v.vol + "}").c_str());
+    r.usb.text.clear();
+    r.usbLine("{\"t\":\"dbg.state\"}");
+    TEST_ASSERT_TRUE_MESSAGE(has(r.usb.text, v.reads), v.vol);
+  }
+  const struct {
+    const char* ms;
+    const char* at;
+    int msReads, atReads;
+  } says[] = {{"-1", "1.5", 60, 1}, {"4294967296", "-1e10", 400, 0}, {"150.7", "1e10", 150, 2}, {"true", "\"1\"", 120, 2}};
+  for (const auto& c : says) {
+    const size_t n = r.hal.said.size();
+    r.usbLine((std::string("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"word\":\"done\",\"at\":") + c.at +
+               ",\"ms\":" + c.ms + "}}")
+                  .c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(int(n + 1), int(r.hal.said.size()), c.ms);
+    TEST_ASSERT_EQUAL_MESSAGE(c.msReads, int(r.hal.said.back().ms), c.ms);
+    TEST_ASSERT_EQUAL_MESSAGE(c.atReads, int(r.hal.said.back().at), c.at);
+  }
 }
 
 int main() {

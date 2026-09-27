@@ -44,13 +44,13 @@ bool parseHex(const char* s, uint32_t& out) {
 
 void sinkToOut(void* ctx, const char* text, size_t n) { static_cast<Out*>(ctx)->write(text, n); }
 
-// A moment's `loops`, held to 1–kMaxLoops (PROTOCOL.md §3): missing or not
-// a number reads as 1, a number past either end as that end, even one too
-// big for an int, and a fraction as its whole loops.
-int loopsFrom(JsonVariantConst v) {
-  if (!v.is<double>() || v.is<bool>()) return 1;
+// A number the device holds to lo–hi (PROTOCOL.md §3): any JSON number,
+// one past either end (even too big for an int) as that end, and a
+// fraction as its whole part. Missing or not a number reads as `missing`.
+int heldTo(JsonVariantConst v, int lo, int hi, int missing) {
+  if (!v.is<double>() || v.is<bool>()) return missing;
   double n = v.as<double>();
-  return n >= Behaviour::kMaxLoops ? Behaviour::kMaxLoops : n < 1 ? 1 : int(n);
+  return n >= hi ? hi : n > lo ? int(n) : lo;
 }
 
 }  // namespace
@@ -135,7 +135,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
       m.attnId = attn["id"] | 0u;
     }
     m.busy = doc["busy"] | 0;
-    m.vol = render::clamp(doc["vol"] | 6, 0, 10);
+    m.vol = heldTo(doc["vol"], 0, 10, 6);
     b_.onState(m, at);
     if (m.attn || m.vol == 0) hush();  // VOICE.md §9
     pattern_ = false;
@@ -145,7 +145,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     MomentIn mo;
     mo.anim = render::animFromName(doc["anim"]);  // none, or unknown: only the mumble
     mo.expr = render::parseMood(doc["mood"], mo.mood);  // unknown or missing: the state's mood
-    mo.loops = loopsFrom(doc["loops"]);
+    mo.loops = heldTo(doc["loops"], 1, Behaviour::kMaxLoops, 1);
     voice::Line line;
     JsonObjectConst say = doc["say"];
     if (say) {
@@ -166,9 +166,8 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
       mo.syllables = syl;
       const char* word = say["word"] | "";
       mo.word = word[0] ? word : nullptr;
-      mo.at = render::clamp(say["at"] | syl, 0, syl);  // at the end if missing
-      uint32_t ms = say["ms"] | 120u;
-      mo.ms = ms < 60 ? 60 : ms > 400 ? 400 : ms;  // the mouth and the voice alike
+      mo.at = heldTo(say["at"], 0, syl, syl);  // at the end if missing
+      mo.ms = uint32_t(heldTo(say["ms"], 60, 400, 120));  // the mouth and the voice alike
       line.word = voice::wordIndex(mo.word);
       line.at = mo.at;
       line.tune = voice::tuneFromName(say["tune"]);

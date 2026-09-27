@@ -121,6 +121,11 @@ Over USB:
 
 ## 3. Mac → device
 
+A number the device holds to a range (`vol`, `say.at`, `say.ms`,
+`loops`) can be any JSON number: one past either end, however big,
+reads as that end, and a fraction as its whole part. Missing, or
+anything but a number, reads as the default its row gives.
+
 ### `state`: the whole picture
 
 The Mac sends a `state` when the core's snapshot differs from the last one
@@ -174,8 +179,8 @@ line on the hook socket), and working chatter:
 | `say.tune` | `up`, `down`, `bounce`, `flat` or `lift` | The feeling's tune ([VOICE.md](VOICE.md) §5) | Missing or unknown reads as `flat` |
 | `say.ms` | int | Milliseconds per syllable, 90–180 | Clamped to 60–400. Missing reads as 120 |
 | `mood` | one of `state`'s seven moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5). The rules' moments (the cheer, a wiggle, working chatter) never carry one | The expression: while this moment plays, the look (or the cheer) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
-| `loops` | int, optional | How many times whoever plays it wants its design played: the cheer's, enough loops for its length ([BEHAVIORS.md](BEHAVIORS.md) §5), or a reaction's face, as Jev picked ([harness/DECISIONS.md](harness/DECISIONS.md) §5). None on a wiggle or chatter | Held to 1–6: missing, not a number or below 1 reads as 1, above 6 (however big) as 6, and a fraction as its whole loops. With the cheer, how many times its design plays. With a `mood` and no animation, how many loops of the design it's drawn in the face holds (below). A wiggle ignores it |
-| `id` | int 1–2147483647, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Each time the app starts, its ids start at a random number and count up (back to 1 after 2147483647), so a moment an earlier launch left playing can't share an id with a new one | Answered with one `ended` carrying this `id` (§4). Missing, 0 or not a number: no `ended` |
+| `loops` | int, optional | How many times whoever plays it wants its design played: the cheer's, enough loops for its length ([BEHAVIORS.md](BEHAVIORS.md) §5), or a reaction's face, as Jev picked ([harness/DECISIONS.md](harness/DECISIONS.md) §5). None on a wiggle or chatter | Held to 1–6. Missing reads as 1. With the cheer, how many times its design plays. With a `mood` and no animation, how many loops of the design it's drawn in the face holds (below). A wiggle ignores it |
+| `id` | int 1–2147483647, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Each time the app starts, its ids start at a random number and count up (back to 1 after 2147483647), so a moment an earlier launch left playing can't share an id with a new one | Answered with one `ended` carrying this `id` (§4). Missing, or anything but an integer from 1 to 4,294,967,295 (a fraction too): no `ended` |
 
 The rules' moments play at once. A brain mumble waits its turn behind
 any line or reaction's face playing (not an animation, which it plays
