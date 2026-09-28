@@ -1,6 +1,6 @@
 # Boop: harness example, end to end
 
-Updated 2026-09-28. One turn of failing tests, from the core's events to
+Updated 2026-09-29. One turn of failing tests, from the core's events to
 what Boop does: the transcript, the state and questions Jev gets, its
 answers, and the actions. How it works is in [HARNESS.md](HARNESS.md),
 [EVENTS.md](EVENTS.md) and [DECISIONS.md](DECISIONS.md); this file only
@@ -13,8 +13,12 @@ its view replaced the core's events the same day
 transcript holds raw events ([EVENTS.md](EVENTS.md) §2), the brain reads
 view events with their lines and notes (§8 there), and `debug.jsonl` has
 `event`, `view` and `pass` lines, with no `action` or `settle` lines of
-their own ([HARNESS.md](HARNESS.md) §9). It will be re-recorded with the
-evals, which need Jev's key.
+their own ([HARNESS.md](HARNESS.md) §9). It also predates the mood graph
+(2026-09-29): the mood question now offers staying plus the current
+mood's moves among 13 moods, a new Boop starts calm, and `react.animation`
+is `none`, `success`, `failure` or `reply` ([DECISIONS.md](DECISIONS.md)
+§4–5). It will be re-recorded with the evals, which need Jev's key (it
+ran out of credit on 2026-09-29).
 
 Everything here is real, recorded before the reaction's questions were
 renamed on 2026-09-28: its `react` is today's `react.mood`, and it had
