@@ -67,6 +67,28 @@ WHAT JEV SEES  (built fresh for every ask; Jev keeps no memory)
             the oldest turn still working, at most 40. What Boop did
             sits indented under each. Times: just now · 5 min ago · 2 h
 
+  One HISTORY entry, piece by piece (a clean 3-minute turn ending;
+  wrapped here, one line each in the state):
+
+    just now: claude finished turn 9 on "api": done after 3 min, a
+    very long turn, 12 tools. Tests passing. 3 clean finishes in a row.
+      Boop's mood changed: happy → excited.
+      Boop made an excited face, held once, and mumbled "…tests!"
+        (in progress)
+
+    piece                       what it is                   added by
+    just now                    when, relative to now        harness
+    claude finished turn 9      the agent, and which turn    core
+    on "api"                    the thread (here, a project) core
+    done after 3 min            outcome and time taken       core
+    a very long turn            length                       core
+    12 tools                    tool count, "(N failed)" too core
+    Tests passing.              topics                       core
+    3 clean finishes in a row.  clean run                    core
+    Boop's mood changed: …      what the mood action did     mood
+    Boop made … "…tests!"       what the react action did    react
+    (in progress)               the reaction's state         harness
+
   Modifiers turn numbers into words, so Jev never counts or compares.
   A check is a tests, build or deploy command.
 
@@ -94,12 +116,20 @@ WHAT JEV SEES  (built fresh for every ask; Jev keeps no memory)
 
   CLOSING LINES  (end of HISTORY, on every ask)
   ─────────────────────────────────────────────────────────────────────
+  Not events: where Boop stands right now, for what the event list
+  can't be trusted to show. An old reaction may have dropped out of
+  HISTORY, the mood's minutes would need sums, and NOW is about one
+  thread. Each is one line, left out when it has nothing to say.
+
   Boop's last reaction, 4 min ago: a proud face and "…finally!".
-      react; once Boop has made a reaction
+      from react, once Boop has made one. So Jev doesn't make the same
+      face again and again
   Boop has been grumpy for 2 min.
-      mood; only while not happy, after a change since launch
+      from mood, only while not happy, after a change since launch.
+      What the mood files' "back to happy after N min" is read against
   Working now: "api" (codex, landing), for 3 min.
-      the core; every thread working except NOW's, or "nothing else"
+      from the core: every thread working except NOW's, or "nothing
+      else". What else is going on besides NOW
 
 
 GUARANTEES
