@@ -336,15 +336,16 @@ public final class TranscriptView {
             }
         }
         noteActivity(now)
-        // A request, and a subagent's end or its own turn-level hook, don't
-        // move the thread's turn; only the rules care (ADAPTERS.md §4).
+        // A request, and a subagent's start, end or its own turn-level
+        // hook, don't move the thread's turn; only the rules care
+        // (ADAPTERS.md §4).
         if step == .needsYou {
             t.lastEventAt = now
             t.asked = true
             threads[key] = t
             return
         }
-        if step == .subagentEnd || (e.subagent != nil && Core.turnLevel.contains(step)) {
+        if step == .subagentStart || step == .subagentEnd || (e.subagent != nil && Core.turnLevel.contains(step)) {
             threads[key] = t
             return
         }
@@ -427,7 +428,7 @@ public final class TranscriptView {
             ended[key] = now
         case .sessionStart:
             threads[key] = t
-        case .needsYou, .subagentEnd:
+        case .needsYou, .subagentStart, .subagentEnd:
             break
         }
     }

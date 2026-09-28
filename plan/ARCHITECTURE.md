@@ -94,7 +94,7 @@ talks to the device.
 | Adapter | `Adapters/Adapter.swift` | Turns a hook line into a raw event: the agent's mapping to a type and phase, and the error class | Boop's state, the brain, the device |
 | Transcript | `Harness/Transcript.swift` | Every raw event, in order, one file a day, read back at launch | What any of it means |
 | Pipeline | `App/Pipeline.swift` | Records each input, hands it to the core and the view, records what the core did, and gates the view events | Any rule |
-| Core | `Core/Core.swift` | Keeps the session table; decides what the device shows, and records its rule actions (the wiggle, "needs you") | Minion speech, models, hook formats, files, the brain |
+| Core | `Core/Core.swift`, `Core/Activity.swift` | Keeps the session table and each session's running calls; decides what the device shows, what the agents are doing included, and the rules' one-shots, and records its rule actions (the wiggle, "needs you") | Minion speech, models, hook formats, files, the brain |
 | View | `Core/TranscriptView.swift` | Folds the transcript into view events, with their lines: turns, checks, pokes, what you said, heartbeats, who needs you, what Boop did | The device, what an action does |
 | Harness | `Harness/` | For each view event that wakes the brain, builds the state, asks every action's questions in one request, hands each action its answers and records what it did | Minion speech, the device, a view event's facts, what an action does |
 | Brain | `Brains/JevBrain.swift` | Jev: answers multiple-choice questions about a plain-text state, with probabilities | Everything else |
@@ -124,10 +124,10 @@ clock.
 
 | Input | From | Effects it can return |
 | --- | --- | --- |
-| `handle(event)` | A hook's raw event, once recorded | `state` or `sessions`, a `needs_you` action, a new day |
+| `handle(event)` | A hook's raw event, once recorded | `state` or `sessions`, a `needs_you` action, a rule's one-shot `moment`, a new day |
 | `input(tap, seq:)` | The device's poke, once recorded | `state`, the `wiggle` action, a new day |
 | `input(talkOn)`, `input(talkOff)`, `listen(on)`, `linkDown` | BOOT held and let go, the popover's Talk button, the link dropping | `listen` (the mic on or off, and whose button); the runtime turns the mic on, tells the device to show `listening` for Talk, and ends it when no reply is coming ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
-| `tick(at:)` | The runtime, once a second | `state` or `sessions`, a Codex request showing after its grace, a request the safety net clears (their `needs_you` actions), the mic off at 30 s |
+| `tick(at:)` | The runtime, once a second | `state` or `sessions` (an activity's hold running out, or a call gone quiet, included), a Codex request showing after its grace, a request the safety net clears (their `needs_you` actions), the mic off at 30 s |
 | `setVolume`, `setMood` | Settings; the mood action | `state` |
 | `setWallClock` | Every tick | None: it changes later decisions |
 
@@ -136,12 +136,16 @@ clock.
 | `state(snapshot)`, only when something on it changed | The device link, and the menu bar's status |
 | `sessions`, when the session list changed and the snapshot didn't | The menu bar's status, and `debug.jsonl`'s `status` line |
 | `record(Event)`: what the rules did, as an `action` | The transcript, right after the event that caused it, and so the view ([harness/EVENTS.md](harness/EVENTS.md) §2) |
+| `moment(DeviceMoment)`: a rule's one-shot (`starting`, `stopped`, `error`, `helper_return`, [BEHAVIORS.md](BEHAVIORS.md) §3.1), after the `state` of the same input | The device link, unless a brain moment's line plays (Moments, below) |
 | `newDay(date)`: the first hook or tap of a new local day | The memory store (§4) |
 
 **What the core keeps:** the sessions ([ADAPTERS.md](ADAPTERS.md) §4 has
-their states), the sessions "needs you" showed for when last published,
-the visual showing and the variation each visual showed last, the last
-active day, and its config: volume, mood and every timing below. What
+their states), each with its running calls, the helpers it saw start,
+its plan mode and its activity held; the sessions "needs you" showed for
+when last published, the visual showing, the activity showing and since
+when, the variation each visual and one-shot showed last, when the
+error one-shot last played, the last active day, and its config:
+volume, mood and every timing below. What
 the brain hears (turn numbers, lengths, checks, pokes, heartbeats) is the
 view's ([harness/EVENTS.md](harness/EVENTS.md) §3–4).
 
@@ -155,6 +159,9 @@ view's ([harness/EVENTS.md](harness/EVENTS.md) §3–4).
 | A session is forgotten after no events | 24 h | [ADAPTERS.md](ADAPTERS.md) §4 |
 | Push-to-talk: the mic is on at most | 30 s (`Core.listenLimitMs`) | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
 | `listening` waits for the reply after the mic is off | 8 s (`Core.replyWaitMs`, the device's own too) | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
+| An activity shows at least | 1.5 s (`Core.actHoldMs`) | [BEHAVIORS.md](BEHAVIORS.md) §2 |
+| A call with nothing heard from its session shows waiting after | 20 s (`Core.waitingMs`) | [BEHAVIORS.md](BEHAVIORS.md) §2 |
+| The error one-shot plays at most once in | 30 s (`Core.errorEveryMs`) | [BEHAVIORS.md](BEHAVIORS.md) §3.1 |
 
 
 The view's, in `TranscriptView.Config`, which the tick asks it about:
@@ -166,9 +173,10 @@ The view's, in `TranscriptView.Config`, which the tick asks it about:
 | Heartbeat while nothing works | Every hour with no agent event or poke | [harness/EVENTS.md](harness/EVENTS.md) §4 |
 
 **The snapshot** is derived, never stored: `asleep` with no sessions,
-`working` while any works, `idle` otherwise; the mood; the session that
-has needed you longest, with how many more do; how many work; the
-volume ([PROTOCOL.md](PROTOCOL.md) §3). The popover's session list is
+`working` while any works, `idle` otherwise; what the agents are doing
+while working, as the core holds it; the mood; the session that has
+needed you longest, with how many more do; how many work; the volume
+([PROTOCOL.md](PROTOCOL.md) §3). The popover's session list is
 derived the same way, and can change while the snapshot doesn't, as
 when a second idle session starts. Each row names the project and,
 small beside it, the thread: its name as its agent's app shows it, else
@@ -186,6 +194,12 @@ between a turn's two minutes makes it a very long one.
 
 **Moments.** A tap's wiggle, which the device plays on its own, plays at
 once, replacing whatever is playing ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
+So does a rule's one-shot, which the runtime sends right after the
+`state` of the same input, except while a brain moment's line plays,
+which it would cut: then it's dropped (`MomentSchedule.rulePlays`), since
+a late one-shot is worse than none. A face held on after its line may be
+replaced, which the device counts as done. A brain moment plays over a
+rule's one-shot as over a wiggle, without waiting for it.
 The brain's moments wait in the
 moment schedule, one at a time, until no line or reaction's face plays,
 except that a reaction's face held on for its loops after its mumble
@@ -213,7 +227,8 @@ it: a wiggle's 0.7 s, or a reaction's loops of its design (the cheer's
 when it cheers, else the look's), and the mumble's syllables plus two
 beats for a word, at the line's pace, then 1.2 s to read the bubble,
 when that's longer. The look is the last `state`'s, drawn in the
-reaction's mood. Its loop is `FaceLoops`' number for it, the one the device has
+reaction's mood; while an agent works it's what the agents are doing
+(`act`), else the base. Its loop is `FaceLoops`' number for it, the one the device has
 ([PROTOCOL.md](PROTOCOL.md) §3), for the look's longest variation,
 since the device's variations take turns without telling the app
 ([BEHAVIORS.md](BEHAVIORS.md) §2). The device ends a face on a loop

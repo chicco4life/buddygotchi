@@ -17,7 +17,9 @@ log line (`debug.jsonl`).**
   actions: the brain's and the dashboard's (`react`, `mood`) and the
   rules' (`wiggle`, and `needs_you` starting and ending).
 - **Out:** hooks Boop ignores, passes (`debug.jsonl` only), state
-  snapshots and every other line sent to the device, `status`, the
+  snapshots and every other line sent to the device (the rules'
+  one-shots included: like the look, they show what the agents did, and
+  the view has the events behind them), `status`, the
   device's `ended` (it arrives only as an action's end), the mic going
   on and off, hearing nothing or failing (the app log), and changes of
   settings, brain or connection (the app log).

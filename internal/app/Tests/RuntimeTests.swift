@@ -347,14 +347,15 @@ final class RuntimeTests: XCTestCase {
         }
         XCTAssertTrue(HookSocket.send(hook("SessionStart"), to: socketPath))
         eventually("the first session") { sessions().count == 1 }
+        func states(_ lines: [String]) -> [String] { lines.filter { $0.hasPrefix(#"{"t":"state""#) } }
         let sent = runtime.home.sync { runtime.link.sentLines! }
-        XCTAssertTrue(sent.last?.contains(#""base":"idle""#) == true, "\(sent)")
+        XCTAssertTrue(states(sent).last?.contains(#""base":"idle""#) == true, "\(sent)")
         let second = HookLine(agent: "claude", hook: "SessionStart", session: "s2", cwd: "/tmp/notes",
                               ts: Int64(Date().timeIntervalSince1970 * 1000)).encoded()
         XCTAssertTrue(HookSocket.send(second, to: socketPath))
         eventually("the second session") { sessions().count == 2 }
         XCTAssertEqual(sessions().map { $0["status"] }, ["idle", "idle"])
-        XCTAssertEqual(runtime.home.sync { runtime.link.sentLines! }, sent, "no new state")
+        XCTAssertEqual(states(runtime.home.sync { runtime.link.sentLines! }), states(sent), "no new state")
     }
 
     /// The dashboard's dev lines. A forced pass needs no
@@ -619,9 +620,16 @@ final class RuntimeTests: XCTestCase {
         eventually("working") { transport.sent.contains { $0.contains("\"base\":\"working\"") } }
         eventually("the start's mumble") { transport.sent.contains { $0.contains("\"say\"") } }
         let moments = { transport.sent.filter { $0.contains("\"t\":\"moment\"") } }
-        XCTAssertFalse(moments().contains { $0.contains("\"anim\"") }, "a start gets no cheer")
+        XCTAssertFalse(moments().contains { $0.contains("\"anim\":\"cheer\"") }, "a start gets no cheer")
+        XCTAssertEqual(moments().filter { $0.contains("\"anim\"") }.count, 1, "only the rule's one-shot")
+        XCTAssertTrue(moments()[0].hasPrefix(#"{"t":"moment","anim":"starting","variant":"#), moments()[0])
         transport.endMoments()  // the device says it has played
-        eventually("the start's mumble has played") { runtime.home.sync { runtime.moments.schedule.idle(now: runtime.options.clock()) } }
+        eventually("the start's mumble has played") {
+            runtime.home.sync {
+                let schedule = runtime.moments.schedule
+                return schedule.lineFree <= runtime.options.clock() && schedule.waiting.isEmpty
+            }
+        }
         XCTAssertTrue(HookSocket.send(Data(#"{"dev":"advance","ms":30000}"#.utf8), to: socketPath))
         eventually("clock moved") { skew.now == 30_000 }
         let before = moments().count
@@ -906,6 +914,53 @@ final class RuntimeTests: XCTestCase {
         schedule.tapped(now: 200)
         XCTAssertEqual(schedule.lineUntil, 200, "a tap's wiggle ends the face")
         XCTAssertEqual(schedule.busyUntil, 200 + DeviceMoment.wiggleMs, "while it plays")
+    }
+
+    /// ARCHITECTURE.md §3.2: a rule's one-shot plays at once, as a tap's
+    /// wiggle does, timed by its design in Boop's mood; a brain moment plays
+    /// over it without waiting. None goes while a brain moment's line
+    /// plays, which it would cut, nor while something needs you; a face
+    /// held on after its line may be replaced.
+    func testARuleOneShotPlaysAtOnceAndNeverCutsABrainLine() {
+        var schedule = MomentSchedule()
+        schedule.look = "working"
+        let shot = DeviceMoment(anim: "starting", variant: 1, ctx: "new_task")
+        XCTAssertTrue(schedule.rulePlays(now: 100))
+        schedule.rule(shot, now: 100)
+        XCTAssertEqual(schedule.animUntil, 100 + FaceLoops.ms(mood: schedule.mood, state: "starting", variant: 1))
+        let line = VoiceLine(groups: [["bi", "do"]], word: nil, at: 2, tune: .up, ms: 120)
+        let face = DeviceMoment(say: line, mood: "grumpy")
+        schedule.brain(face, now: 200)
+        let due = schedule.due(now: 200)
+        XCTAssertEqual(due.play, face, "the brain's mumble plays over it")
+        let until = 200 + schedule.playMs(face) + Runtime.Moments.endGraceMs
+        schedule.hold(id: 1, face, now: 200, until: until)
+        XCTAssertFalse(schedule.rulePlays(now: 300), "its line plays")
+        let spoken = 200 + face.sayMs + MomentSchedule.linkSlackMs
+        XCTAssertFalse(schedule.rulePlays(now: spoken - 1))
+        XCTAssertTrue(schedule.rulePlays(now: spoken), "its face held on after the line may go")
+        schedule.show(look: "working", mood: "happy", attn: true, now: spoken)
+        XCTAssertFalse(schedule.rulePlays(now: spoken + 1), "something needs you")
+    }
+
+    /// BEHAVIORS.md §3.1: the rules' one-shot goes to the device right
+    /// after the `state` of the same hook, with no `id`, and nothing waits
+    /// on it.
+    func testARuleOneShotFollowsItsState() throws {
+        let transport = FakeTransport()
+        let runtime = try makeRuntime(transport, brain: ScriptedBrain(id: "jev-test", always: [:]))
+        try runtime.start()
+        defer { runtime.stop() }
+        transport.onConnection?(true)
+        eventually("first state") { transport.types().contains("state") }
+        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
+        eventually("the start") { transport.sent.contains { $0.contains(#""anim":"starting""#) } }
+        let sent = transport.sent
+        let start = try XCTUnwrap(sent.firstIndex { $0.contains(#""anim":"starting""#) })
+        XCTAssertTrue(sent[start - 1].hasPrefix(#"{"t":"state""#) && sent[start - 1].contains(#""base":"working""#),
+                      "\(sent)")
+        XCTAssertEqual(sent[start], #"{"t":"moment","anim":"starting","variant":1,"ctx":"new_task"}"#)
+        XCTAssertTrue(runtime.home.sync { runtime.moments.playing.isEmpty }, "no brain waits on it")
     }
 
     /// PROTOCOL.md §3–4, ARCHITECTURE.md §3.2: a brain moment sent to the

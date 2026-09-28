@@ -614,6 +614,8 @@ public final class Runtime: @unchecked Sendable {
             case .listen(let on, let by):
                 listen(on, by: by)
                 stateChanged = true
+            case .moment(let moment):
+                playRule(moment)
             }
         }
         harness.take(step.views)
@@ -675,8 +677,23 @@ public final class Runtime: @unchecked Sendable {
     func show(_ snapshot: StateSnapshot) {
         let now = options.clock()
         link.update(snapshot, now: now)
-        moments.schedule.show(look: snapshot.base, mood: snapshot.mood, attn: snapshot.attn != nil, now: now)
+        moments.schedule.show(look: snapshot.look, mood: snapshot.mood, attn: snapshot.attn != nil, now: now)
         pump()
+    }
+
+    /// A rule's one-shot (BEHAVIORS.md §3.1): it plays at once, after the
+    /// `state` of the same input, unless a brain moment's line is playing,
+    /// which it would cut: then it's dropped, since a late one-shot is
+    /// worse than none. The core has already left it out while something
+    /// needs you or `listening` shows.
+    func playRule(_ moment: DeviceMoment) {
+        let now = options.clock()
+        guard moments.schedule.rulePlays(now: now) else {
+            options.log("rule: dropped \(moment.anim ?? "a moment") while a brain moment plays")
+            return
+        }
+        moments.schedule.rule(moment, now: now)
+        link.play(moment)
     }
 
     /// The brain's next moment, if its turn has come. On `home`.

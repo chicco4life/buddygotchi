@@ -1,10 +1,12 @@
 import Foundation
 
 /// The core (ARCHITECTURE.md §3.2): plain rules with no queue. It keeps the
-/// session table and decides which visual the device shows. What it does
-/// by rule it records as `action` events: "needs you" showing and ending,
-/// and a poke's wiggle. What the brain hears is the view's
-/// (harness/EVENTS.md); everything expressive is the brain's.
+/// session table and decides which visual the device shows, what the
+/// agents are doing included (`act`), and which one-shots the rules play
+/// (BEHAVIORS.md §3.1). What it does by rule it records as `action`
+/// events: "needs you" showing and ending, and a poke's wiggle. What the
+/// brain hears is the view's (harness/EVENTS.md); everything expressive
+/// is the brain's.
 ///
 /// It's a pure state machine: every call takes the time and returns effects
 /// for the app to carry out. Call `tick` about once a second for the timers.
@@ -94,6 +96,16 @@ public final class Core {
         /// one's, for a result that carries no ID.
         var toolStarts: [String: Int64] = [:]
         var lastToolStart: Int64?
+        /// The tool calls running this turn, for the look, by
+        /// `tool_use_id` or a key of their own (BEHAVIORS.md §2).
+        var calls: [String: Call] = [:]
+        /// The helpers seen starting this turn (`SubagentStart`) that
+        /// haven't ended, by `agent_id`: the main agent is delegating.
+        var helpers: Set<String> = []
+        /// Claude's plan mode, as the last event that said had it.
+        var planMode = false
+        /// Its activity as it shows, held (`Core.hold`).
+        var held: Held?
 
         var key: String { Core.key(agent, id) }
     }
@@ -120,6 +132,14 @@ public final class Core {
     /// variation each visual showed, which the next one there avoids.
     var shown: (visual: String, variant: Int) = ("", 1)
     var lastVariant: [String: Int] = [:]
+    /// The activity the working look shows (`updateActs`).
+    var shownAct: Shown?
+    /// Calls started, counted, so a result that names no call ends the
+    /// last one.
+    var callOrder = 0
+    /// When the rules last played the error one-shot: at most one every
+    /// `errorEveryMs`.
+    var lastErrorAt: Int64?
     /// The wall clock less the steady one, for days and times of day.
     var wallOffsetMs: Int64 = 0
     /// Where a working directory is: its project and workspace.
@@ -168,7 +188,8 @@ public final class Core {
 
     /// What an agent's event means to the rules.
     enum Step: Equatable {
-        case sessionStart, turnStart, activity, needsYou, turnEnd, turnFailed, turnStopped, subagentEnd, sessionEnd
+        case sessionStart, turnStart, activity, needsYou, turnEnd, turnFailed, turnStopped, subagentStart, subagentEnd,
+             sessionEnd
     }
 
     static func step(_ e: Event) -> Step? {
@@ -184,6 +205,7 @@ public final class Core {
             }
         case (.tool, .wait?): .needsYou
         case (.tool, _): .activity
+        case (.subagent, .start?): .subagentStart
         case (.subagent, .end?): .subagentEnd
         default: nil
         }
@@ -201,6 +223,21 @@ public final class Core {
     /// either way round (ADAPTERS.md §4).
     static let noticeLagMs: Int64 = 5000
 
+    /// A one-shot the rules play (BEHAVIORS.md §3.1): its design, and for
+    /// `starting` what started.
+    struct Shot: Equatable {
+        var anim: String
+        var ctx: String? = nil
+    }
+
+    /// The rules' one-shots (PROTOCOL.md §3 `moment`).
+    public static let starting = "starting", stopped = "stopped", error = "error", helperReturn = "helper_return"
+    /// The failed calls that play the error one-shot: a command that
+    /// exited with an error or timed out, never a request you denied.
+    static let errorClasses: Set<String> = ["exit_code", "timeout"]
+    /// The error one-shot plays at most once in this long (BEHAVIORS.md §3.1).
+    public static let errorEveryMs: Int64 = 30_000
+
     // MARK: - Inputs
 
     /// An agent's event, as recorded (its `seq` set): anything else is
@@ -216,18 +253,20 @@ public final class Core {
         // so it isn't recorded as needing you either (ADAPTERS.md §4).
         advance(to: now, sparing: key, &fx)
         startDayIfNew(now, &fx)
-        apply(event, step, agent, session, key, now, &fx)
+        let shot = apply(event, step, agent, session, key, now, &fx)
         if var s = sessions[key] {
             promote(&s, now, &fx)
             sessions[key] = s
         }
+        if let shot { play(shot, now, &fx) }
         publish(now, &fx)
         return fx
     }
 
-    /// The event's changes to its session, before the snapshot goes out.
+    /// The event's changes to its session, before the snapshot goes out,
+    /// and the one-shot it plays, if any (BEHAVIORS.md §3.1).
     private func apply(_ event: Event, _ step: Step, _ agent: Agent, _ session: String, _ key: String, _ now: Int64,
-                       _ fx: inout [CoreEffect]) {
+                       _ fx: inout [CoreEffect]) -> Shot? {
         let tool = event["tool"]?.string
         let notice = event["notice"]?.string
         // A finished call: a result with a tool (an `ElicitationResult` has none).
@@ -237,7 +276,7 @@ public final class Core {
         // Notification as you quit at the prompt, a background subagent's
         // result, the command Codex's Interrupt aborted).
         if sessions[key] == nil, ended[key] != nil {
-            guard event.subagent == nil, step == .sessionStart || step == .turnStart else { return }
+            guard event.subagent == nil, step == .sessionStart || step == .turnStart else { return nil }
             ended[key] = nil
         }
         let place = event.cwd.map(self.place)
@@ -249,7 +288,7 @@ public final class Core {
         // prompt typed just as the minute ran out (ADAPTERS.md §4).
         if step == .turnStopped, notice != nil, let prompted = s.promptedAt,
            now - prompted < Core.idleNoticeMinMs {
-            return
+            return nil
         }
         // A session is where its events come from, except while a request
         // waits: the strip names where that was made, whatever folder a
@@ -259,6 +298,7 @@ public final class Core {
             s.workspace = place.workspace
         }
         if let name = event["name"]?.string { s.name = name }
+        if let mode = event["mode"]?.string { s.planMode = mode == "plan" }
 
         if step == .needsYou {
             // A request's own hook (`PermissionRequest`, `Elicitation`) says
@@ -297,7 +337,15 @@ public final class Core {
             }
             s.lastEventAt = now
             sessions[key] = s
-            return
+            return nil
+        }
+
+        if step == .subagentStart {
+            // A helper starting: the main agent delegates until it ends. Like
+            // its end, it isn't activity, and answers no request.
+            if let id = event.subagent { helperStarted(&s, id) }
+            sessions[key] = s
+            return nil
         }
 
         if step == .subagentEnd || (event.subagent != nil && Core.turnLevel.contains(step)) {
@@ -311,6 +359,7 @@ public final class Core {
             // (ADAPTERS.md §4). A turn-level hook from inside a subagent
             // (its `agent_id` on a `StopFailure`, say) is the same: that
             // subagent's alone, not the session's turn.
+            if step == .subagentEnd, let id = event.subagent { subagentEnded(&s, id) }
             if waiting, let id = event.subagent, s.askers.removeValue(forKey: id) != nil {
                 if s.askers.isEmpty {
                     clearRequest(&s, now)
@@ -319,8 +368,10 @@ public final class Core {
                     anotherRequest(&s)
                 }
             }
+            // A helper Boop saw start returns, while its turn goes on.
+            let returned = step == .subagentEnd && event.subagent.map { s.helpers.remove($0) != nil } == true
             sessions[key] = s
-            return
+            return returned && s.turnStartedAt != nil ? Shot(anim: Core.helperReturn) : nil
         }
 
         // The asker's next event means it moved on, and so does any
@@ -337,6 +388,8 @@ public final class Core {
         // `ElicitationResult` or the agent's next call, never a result.
         if waiting {
             let asker = event.subagent ?? ""
+            let before = s.askers
+            defer { denied(&s, before: before, event) }
             let alongside = done && s.askers[asker].map { asked in
                 asked.isEmpty || tool.map { $0 != asked } == true
             } == true
@@ -355,13 +408,20 @@ public final class Core {
         // its event wakes the brain sees what it answered (EVENTS.md §6).
         sessions[key] = s
 
+        var shot: Shot?
         switch step {
         case .sessionStart:
+            // Resumed or compacted, the work goes on; started or cleared,
+            // it's a fresh session (BEHAVIORS.md §3.1).
+            let source = event["source"]?.string
+            shot = Shot(anim: Core.starting, ctx: source == "resume" || source == "compact" ? "continuation" : "session")
             sessions[key] = s
         case .turnStart:
             s.working = true
             s.turnStartedAt = now
             s.promptedAt = now
+            clearWork(&s)
+            shot = Shot(anim: Core.starting, ctx: "new_task")
             sessions[key] = s
         case .activity:
             var late = false
@@ -372,10 +432,22 @@ public final class Core {
                 // (ADAPTERS.md §4).
                 let started = event["tool_use_id"]?.string.flatMap { s.toolStarts.removeValue(forKey: $0) } ?? s.lastToolStart
                 if s.turnStartedAt == nil, let at = started, let ended = s.lastTurnEndedAt, at <= ended { late = true }
-            } else if tool != nil {
+                let call = endCall(&s, event, now)
+                let failed = event["failed"]?.bool == true
+                if !late, failed, event["error"]?.string.map(Core.errorClasses.contains) == true {
+                    // A command that failed or timed out, not a request
+                    // you denied (BEHAVIORS.md §3.1).
+                    shot = Shot(anim: Core.error)
+                } else if !late, !failed, let call, call.act == .delegating, !call.sawHelper {
+                    // A helper's call returned, from hooks that don't say
+                    // when helpers start: its `SubagentStop` can't.
+                    shot = Shot(anim: Core.helperReturn)
+                }
+            } else if let tool {
                 if let id = event["tool_use_id"]?.string { s.toolStarts[id] = now }
                 s.lastToolStart = now
                 s.calledSinceClear = true
+                startCall(&s, event, tool: tool)
             }
             if !late {
                 s.working = true
@@ -388,19 +460,41 @@ public final class Core {
             // Over, done, failed or stopped: a working session goes idle.
             // A stop ends a turn even once the safety net has made the
             // session idle: its turn went on (you approved, which sends no
-            // hook), so a call's result after the stop is a late one.
+            // hook), so a call's result after the stop is a late one. Only
+            // a stop that ends a turn plays its one-shot: Claude's idle
+            // notice after a turn that finished doesn't.
             s.working = false
             if s.turnStartedAt != nil {
+                if step == .turnStopped { shot = Shot(anim: Core.stopped) }
                 s.turnStartedAt = nil
                 s.lastTurnEndedAt = now
             }
+            clearWork(&s)
             sessions[key] = s
         case .sessionEnd:
             sessions[key] = nil
             ended[key] = now
-        case .needsYou, .subagentEnd:
+        case .needsYou, .subagentStart, .subagentEnd:
             break
         }
+        return shot
+    }
+
+    /// A rule's one-shot (BEHAVIORS.md §3.1), in Boop's mood with a
+    /// variation at random, never the one it played last: not while
+    /// something needs you or `listening` holds the screen, and the error
+    /// one-shot at most once every `errorEveryMs`. The runtime also holds
+    /// it back while a brain moment's line plays.
+    func play(_ shot: Shot, _ now: Int64, _ fx: inout [CoreEffect]) {
+        guard !needsYouShowing, !showsListening(at: now) else { return }
+        if shot.anim == Core.error {
+            if let last = lastErrorAt, now - last < Core.errorEveryMs { return }
+            lastErrorAt = now
+        }
+        let variant = Core.pickVariant(mood: config.mood, state: shot.anim, ctx: shot.ctx,
+                                       avoiding: lastVariant[shot.anim], &rng)
+        lastVariant[shot.anim] = variant
+        fx.append(.moment(DeviceMoment(anim: shot.anim, variant: variant, ctx: shot.ctx)))
     }
 
     /// An `input` message's `k` (PROTOCOL.md §4).
@@ -518,9 +612,12 @@ public final class Core {
                 agent: $0.agent.short, project: StateSnapshot.clip($0.project, marked: true),
                 name: $0.name.map { StateSnapshot.clip($0, marked: true) } ?? "", more: waiting.count - 1, id: $0.ask)
         }
-        let visual = attn != nil ? "needs_you" : base
-        return StateSnapshot(base: base, mood: config.mood, attn: attn, busy: working.count, vol: config.volume,
-                             variant: shown.visual == visual ? shown.variant : 1)
+        // What the agents are doing shows only in the working look, and
+        // not while something needs you (BEHAVIORS.md §2).
+        let act = base == "working" && attn == nil ? shownAct?.act.rawValue : nil
+        let visual = attn != nil ? "needs_you" : act ?? base
+        return StateSnapshot(base: base, act: act, mood: config.mood, attn: attn, busy: working.count,
+                             vol: config.volume, variant: shown.visual == visual ? shown.variant : 1)
     }
 
     /// A variation of `mood`'s design for `state` at random, from 1, among
@@ -717,9 +814,11 @@ public final class Core {
 
     func publish(_ now: Int64, _ fx: inout [CoreEffect]) {
         recordNeeds(now, &fx)
+        updateActs(now)
         var snapshot = snapshot(at: now)
-        if snapshot.visual != shown.visual {
-            // A new visual: a variation of it at random.
+        if snapshot.visual != shown.visual || shown.variant > FaceLoops.count(mood: config.mood, state: snapshot.visual) {
+            // A new visual, or a new mood with fewer variations of it than
+            // the one showing: a variation of it at random.
             shown = (snapshot.visual, Core.pickVariant(mood: config.mood, state: snapshot.visual,
                                                          avoiding: lastVariant[snapshot.visual], &rng))
             lastVariant[snapshot.visual] = shown.variant

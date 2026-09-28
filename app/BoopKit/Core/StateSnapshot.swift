@@ -49,6 +49,10 @@ public struct StateSnapshot: Equatable, Sendable {
 
     /// `asleep`, `idle` or `working`.
     public var base: String
+    /// What the agents are doing, one of `Act`'s names, only while `base`
+    /// is `working` and nothing needs you: the look shows it in working's
+    /// place. Nil sends none (PROTOCOL.md §3).
+    public var act: String?
     /// Boop's mood, one of the six (harness/DECISIONS.md §2.3), which
     /// picks the set of faces the device draws everything in.
     public var mood: String
@@ -56,12 +60,14 @@ public struct StateSnapshot: Equatable, Sendable {
     public var busy: Int
     public var vol: Int
     /// Which variation of the visual shows, from 1: needs you's while
-    /// something needs you, else the base's (BEHAVIORS.md §1). The core
+    /// something needs you, else the look's (BEHAVIORS.md §2). The core
     /// picks it at random when the visual changes.
     public var variant: Int
 
-    public init(base: String, mood: String, attn: Attention?, busy: Int, vol: Int, variant: Int = 1) {
+    public init(base: String, act: String? = nil, mood: String, attn: Attention?, busy: Int, vol: Int,
+                variant: Int = 1) {
         self.base = base
+        self.act = act
         self.mood = mood
         self.attn = attn
         self.busy = busy
@@ -69,9 +75,13 @@ public struct StateSnapshot: Equatable, Sendable {
         self.variant = variant
     }
 
+    /// The look the device shows when nothing needs you: what the agents
+    /// are doing, else the base.
+    public var look: String { act ?? base }
+
     /// The visual the device shows for it: needs you's while something
-    /// does, else the base.
-    public var visual: String { attn != nil ? "needs_you" : base }
+    /// does, else the look.
+    public var visual: String { attn != nil ? "needs_you" : look }
 
     /// How many sessions need you: `attn`'s and its `more`. The popover's
     /// headline; the line doesn't carry it.
@@ -79,9 +89,9 @@ public struct StateSnapshot: Equatable, Sendable {
 
     /// One JSON line, keys in the protocol's order.
     public var jsonLine: String {
-        var parts: [String] = [
-            "\"t\":\"state\"", "\"v\":\(StateSnapshot.version)", "\"base\":\(json(base))", "\"mood\":\(json(mood))",
-        ]
+        var parts: [String] = ["\"t\":\"state\"", "\"v\":\(StateSnapshot.version)", "\"base\":\(json(base))"]
+        if let act { parts.append("\"act\":\(json(act))") }
+        parts.append("\"mood\":\(json(mood))")
         if let attn {
             let name = attn.name.isEmpty ? "" : ",\"name\":\(json(attn.name))"
             let id = attn.id > 0 ? ",\"id\":\(attn.id)" : ""
