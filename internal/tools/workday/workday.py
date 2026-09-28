@@ -31,6 +31,7 @@ import datetime as dt
 import json
 import os
 import random
+import re
 import shutil
 import signal
 import socket
@@ -45,7 +46,9 @@ from typing import Any, Iterable
 
 REPO = Path(__file__).resolve().parents[3]
 BIN = REPO / ".build" / "debug"
-MOODS = ["happy", "excited", "proud", "determined", "grumpy", "sad"]
+# The resting mood: a new Boop starts in it and moods fade back toward it
+# (plan/harness/DECISIONS.md §2.3, `MoodAction.initial`).
+REST = "calm"
 
 # A turn this long or longer, ending, is a big moment, not routine
 # (the steering's "a very long turn": 5 minutes or more).
@@ -640,9 +643,17 @@ def routine(event: dict[str, Any]) -> bool:
     return classify(event) in ROUTINE
 
 
+def finish(message: str) -> str | None:
+    """The finish a reaction played, from its action's message ("Boop played
+    a success in a calm face, …"): success, failure or reply; None for a
+    face alone."""
+    m = re.match(r"Boop played an? (\w+) in ", message)
+    return m.group(1) if m else None
+
+
 def new_hour() -> dict[str, Any]:
     return {"turns": 0, "passes": 0, "dropped": 0, "reactions": 0, "mood_changes": 0, "mood_after_routine": 0,
-            "back_to_happy": 0, "lines": Counter(), "reacted": Counter(), "faces": Counter(), "loops": Counter(),
+            "back_to_rest": 0, "lines": Counter(), "reacted": Counter(), "faces": Counter(), "loops": Counter(),
             "words": Counter()}
 
 
@@ -692,11 +703,11 @@ def summarize(path: Path) -> dict[str, Any]:
             hr = hours[hour(ev["at"])]
             if a["name"] == "mood":
                 hr["mood_changes"] += 1
-                # On a routine line, going back to happy is a mood fading
-                # (the guide); any other change is one the line shouldn't
-                # have caused.
-                if routine(ev) and a["message"].rstrip(".").endswith("→ happy"):
-                    hr["back_to_happy"] += 1
+                # On a routine line, going back to the resting mood is a
+                # mood fading (the guide); any other change is one the line
+                # shouldn't have caused.
+                if routine(ev) and a["message"].rstrip(".").endswith(f"→ {REST}"):
+                    hr["back_to_rest"] += 1
                 elif routine(ev):
                     hr["mood_after_routine"] += 1
                 changes.append({"at": clock_of(ev["at"]), "ms": ev["at"],
@@ -713,11 +724,11 @@ def summarize(path: Path) -> dict[str, Any]:
                 hr["loops"][held] += 1
                 hr["words"][word or "none"] += 1
                 reactions.append({"at": clock_of(ev["at"]), "ms": ev["at"], "class": ev["class"], "face": face,
-                                  "cheer": "played a cheer" in msg, "held": held, "word": word, "after": ev["line"]})
+                                  "finish": finish(msg), "held": held, "word": word, "after": ev["line"]})
     # How long each mood lasted, from the first event to the last.
     spans: Counter = Counter()
     if events:
-        at, mood = min(ev["at"] for ev in events.values()), "happy"
+        at, mood = min(ev["at"] for ev in events.values()), REST
         for c in changes:
             spans[mood] += c["ms"] - at
             at, mood = c["ms"], c["change"].split(" → ")[-1]
@@ -742,7 +753,7 @@ LIMITS = {
     "min_reactions_per_turn": 0.8,  # reactions over turns ended
     "mood_bounces": 1,            # a mood changing back to the one it left within a minute
     "min_mood_changes": 10,       # over the day
-    "longest_happy_working_min": 45,  # the longest stretch of work happy all through
+    "longest_rest_working_min": 45,  # the longest stretch of work in the resting mood all through
 }
 
 
@@ -756,40 +767,40 @@ def liveliness(working: list[list[int]], reactions: list[dict[str, Any]],
         marks = [a] + [t for t in times if a < t < b] + [b]
         gaps += [(y - x, x) for x, y in zip(marks, marks[1:])]
     longest = max(gaps, default=(0, 0))
-    same = lambda x, y: (x["face"], x["cheer"], x["word"]) == (y["face"], y["cheer"], y["word"])
+    same = lambda x, y: (x["face"], x["finish"], x["word"]) == (y["face"], y["finish"], y["word"])
     run, best, best_what, repeats = 0, 0, "", 0
     for i, r in enumerate(reactions):
         again = i > 0 and same(reactions[i - 1], r)
         repeats += again
         run = run + 1 if again else 1
         if run > best:
-            best, best_what = run, r["face"] + (" cheer" if r["cheer"] else "") + (f' "{r["word"]}"' if r["word"] else "")
+            best, best_what = run, r["face"] + (f" {r['finish']}" if r["finish"] else "") + (f' "{r["word"]}"' if r["word"] else "")
     bounces = [f'{a["at"]} {a["change"]}, back at {b["at"]}' for a, b in zip(changes, changes[1:])
                if b["change"].split(" → ")[-1] == a["change"].split(" → ")[0] and b["ms"] - a["ms"] < 60_000]
-    # The longest stretch of work with Boop happy all through.
-    happy: list[tuple[int, int]] = []
+    # The longest stretch of work with Boop in the resting mood all through.
+    rest: list[tuple[int, int]] = []
     mood_at = [(c["ms"], c["change"].split(" → ")[-1]) for c in changes]
     for a, b in working:
-        mood = "happy"
+        mood = REST
         for t, m in mood_at:
             if t <= a:
                 mood = m
-        start = a if mood == "happy" else None
+        start = a if mood == REST else None
         for t, m in [(t, m) for t, m in mood_at if a < t < b] + [(b, "end")]:
-            if start is not None and m != "happy":
-                happy.append((t - start, start))
+            if start is not None and m != REST:
+                rest.append((t - start, start))
                 start = None
-            elif start is None and m == "happy":
+            elif start is None and m == REST:
                 start = t
-    longest_happy = max(happy, default=(0, 0))
+    longest_rest = max(rest, default=(0, 0))
     return {
         "longest_quiet_min": round(longest[0] / 60_000, 1), "longest_quiet_at": clock_of(longest[1]) if gaps else "–",
         "quiet_over_6_min": sum(1 for g, _ in gaps if g > 6 * 60_000),
         "longest_same_run": best, "longest_same_what": best_what,
         "repeat_pct": round(100 * repeats / max(1, len(reactions) - 1)),
         "mood_bounces": len(bounces), "bounces": bounces, "min_mood_changes": len(changes),
-        "longest_happy_working_min": round(longest_happy[0] / 60_000, 1),
-        "longest_happy_working_at": clock_of(longest_happy[1]) if happy else "–",
+        "longest_rest_working_min": round(longest_rest[0] / 60_000, 1),
+        "longest_rest_working_at": clock_of(longest_rest[1]) if rest else "–",
     }
 
 
@@ -806,7 +817,7 @@ def check(paths: list[Path]) -> tuple[str, bool]:
             note = {"longest_quiet_min": f' (from {lv["longest_quiet_at"]})',
                     "longest_same_run": f' ({lv["longest_same_what"]})' if lv["longest_same_what"] else "",
                     "mood_bounces": "".join(f"; {b}" for b in lv["bounces"]),
-                    "longest_happy_working_min": f' (from {lv["longest_happy_working_at"]})'}.get(key, "")
+                    "longest_rest_working_min": f' (from {lv["longest_rest_working_at"]})'}.get(key, "")
             out.append(f'{"ok  " if held else "FAIL"}  {key} {"≥" if key.startswith("min_") else "≤"} {limit}: {got}{note}')
         out.append(f'      (repeats, not held to a limit: {lv["repeat_pct"]}% the same as the one before, '
                    f'at most {lv["longest_same_run"]} in a row)')
@@ -840,23 +851,23 @@ def report(paths: list[Path], as_json: bool = False) -> str:
                 "fixes, failed or stopped turns, turns of 5 min or more, pokes), finishes done in 1–5 min, "
                 "finishes done under a minute, turn starts, heartbeats.", "",
                 "Mood changes on a routine line (a turn start, or a finish done under 5 min) are split: back "
-                "to happy (a mood fading), and any other (which the line shouldn't cause).", "",
-                "| Hour | Turns | Passes | Mood changes | … routine, to happy | … routine, other | Reactions "
+                f"to {REST}, the resting mood (a mood fading), and any other (which the line shouldn't cause).", "",
+                f"| Hour | Turns | Passes | Mood changes | … routine, to {REST} | … routine, other | Reactions "
                 "| notable | 1–5 min | short | starts | quiet | Faces |",
                 "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
         rows = [(f"{h:02d}:00", v) for h, v in r["hours"].items()] + [("all", total(r))]
         for name, v in rows:
             rate = " | ".join(f"{v['reacted'][c]}/{v['lines'][c]}" for c in CLASSES)
             out.append(f"| {name} | {v['turns']} | {v['passes']}" + (f" ({v['dropped']} dropped)" if v["dropped"] else "")
-                       + f" | {v['mood_changes']} | {v['back_to_happy']} | {v['mood_after_routine']}"
+                       + f" | {v['mood_changes']} | {v['back_to_rest']} | {v['mood_after_routine']}"
                        f" | {v['reactions']} | {rate}"
                        f" | {fmt(v['faces'])} |")
         lv = r["lively"]
         out += ["", f'Liveliness: longest quiet stretch of work {lv["longest_quiet_min"]} min (from {lv["longest_quiet_at"]}), '
                 f'{lv["quiet_over_6_min"]} over 6 min; {lv["repeat_pct"]}% of reactions the same as the one before, '
                 f'at most {lv["longest_same_run"]} in a row ({lv["longest_same_what"] or "–"}); '
-                f'{lv["mood_bounces"]} mood bounces; longest stretch of work happy all through '
-                f'{lv["longest_happy_working_min"]} min (from {lv["longest_happy_working_at"]})']
+                f'{lv["mood_bounces"]} mood bounces; longest stretch of work {REST} all through '
+                f'{lv["longest_rest_working_min"]} min (from {lv["longest_rest_working_at"]})']
         out += ["", "Words mumbled (none: a mumble with no real word): " + fmt(total(r)["words"]),
                 "", "Time in each mood: " + ", ".join(f"{k} {v} min" for k, v in r["mood_minutes"].items()),
                 "", "Mood changes:"]

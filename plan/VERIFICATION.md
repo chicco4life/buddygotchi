@@ -1,6 +1,6 @@
 # Boop: verification
 
-Updated 2026-09-28. How we check that Boop works, including what's on its
+Updated 2026-09-29. How we check that Boop works, including what's on its
 screen, without a person watching, and every tool that does it.
 
 ## 1. The loop
@@ -97,7 +97,7 @@ commands go through the bridge.
 | `bridge [--socket PATH] [--quiet]` | Owns the serial port and shares it on a Unix socket (below) |
 | `cam frame\|pattern\|clip [name]` | The webcam helpers (L3). `--seconds N` for a clip (8, at most 10), `--usb bottom\|right\|top\|left` for framing, `--camera ID` (default `$BOOP_CAMERA` or the built-in camera) |
 | `dash [--state-dir DIR] [--socket PATH]` | The live dashboard |
-| `day [--state-dir DIR] [--date YYYY-MM-DD] [file…]` | What Boop did in a day, and why, from debug mode's logs: the state directory's `debug.jsonl` and the earlier launches' kept beside it, oldest first (the everyday app's by default), or the files named, oldest launch first. A table by the hour (cheers, chatter, the brain's reactions and their faces, alerts (a new or different request shown), mood changes, passes, dropped passes, the brain's reactions that didn't happen, pokes and minutes needing you), then the brain's passes and what the dashboard forced, each mood change and what made it, each time something needed you and how long it took to clear, and why reactions didn't happen ([harness/HARNESS.md](harness/HARNESS.md) §9). `--date` defaults to the newest line's day; it exits 1 when that day has no lines |
+| `day [--state-dir DIR] [--date YYYY-MM-DD] [file…]` | What Boop did in a day, and why, from debug mode's logs: the state directory's `debug.jsonl` and the earlier launches' kept beside it, oldest first (the everyday app's by default), or the files named, oldest launch first. A table by the hour (finishes: task_complete, reply_ready and older logs' cheers; chatter, the brain's reactions and their faces, alerts (a new or different request shown), mood changes, passes, dropped passes, the brain's reactions that didn't happen, pokes and minutes needing you), then the brain's passes and what the dashboard forced, each mood change and what made it, each time something needed you and how long it took to clear, and why reactions didn't happen ([harness/HARNESS.md](harness/HARNESS.md) §9). `--date` defaults to the newest line's day; it exits 1 when that day has no lines |
 | `calibrate` | Touch calibration: a person taps crosses on the screen (L6). `--show` prints the stored map, `--show --clear` forgets it |
 
 **`.build/debug/boopdev`**, the developer CLI.

@@ -139,10 +139,11 @@ struct SettingsPane: View {
         }
     }
 
-    /// Why Boop only reacts by rule, if it does.
+    /// What Boop does without a brain, if it has none (BEHAVIORS.md §1):
+    /// the rules' looks and one-shots, but no reaction or mood change.
     private var brainNote: String? {
         guard let status = model.status, status.brain == "none" else { return nil }
-        return "Without a Jev API key, \(model.name) only cheers, wiggles and chatters by rule."
+        return "Without a Jev API key, \(model.name) shows what the agents are doing and when one needs you, but doesn't react or change its mood."
     }
 
     private var personality: some View {

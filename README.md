@@ -54,7 +54,7 @@ From the repo root:
 terminal, not an agent's. The dashboard shows the face, and side by side
 Boop's mood, its automatic reactions and the ones Jev decided (with their
 probabilities), and can force a mood or a reaction, with the same choices Jev has.
-`make day` sums up a day by the hour, relaunches included: cheers, mumbles, faces, mood changes and what
+`make day` sums up a day by the hour, relaunches included: finishes, mumbles, faces, mood changes and what
 made them, and how long each "needs you" took to clear.
 
 `make eval` reads Jev's key only from the environment. To use the key you

@@ -1,6 +1,6 @@
 # Boop: the harness
 
-Updated 2026-09-28. The generic code between the view and the brain: how
+Updated 2026-09-29. The generic code between the view and the brain: how
 a view event becomes questions for Jev, how Jev's answers become
 something Boop does, and the transcript it all comes from. The events
 and the view are in [EVENTS.md](EVENTS.md), Boop's
@@ -544,7 +544,7 @@ the lines alone:
 
 | It counts | From |
 | --- | --- |
-| Cheers, and working chatter in older logs | A `sent` moment with `anim` `cheer`: the brain's since 2026-09-28 (older logs also have ones the dashboard played, which only their `sent` line records); and a `say` without a `mood`, the rules' chatter before then |
+| Finishes, and working chatter in older logs | A `sent` moment with `anim` `task_complete` or `reply_ready`, the brain's since 2026-09-29, or `cheer`, as older logs have it (the brain's from 2026-09-28; older logs also have ones the dashboard played, which only their `sent` line records); and a `say` without a `mood`, the rules' chatter before then |
 | The brain's reactions, and their faces | A `react` action for a Jev pass, started or refused, in the face its pass's `react.mood` answer chose (`react` in older logs). Those `by` the dashboard were forced, and are counted apart |
 | Alerts, and each time something needed you | A `sent` state whose `attn` is new, or has a different `id`, agent or project ([PROTOCOL.md](../PROTOCOL.md) §3; a missing `id` reads as 0). Needing you lasts from the `state` that brings `attn` to the first without it, or to the end of its launch |
 | Mood changes, and what made each | A `sent` state's `mood`, and the `mood` action right after it: its view event, or `by` the dashboard. A launch's first `state` in a mood other than the last launch's changed between launches |

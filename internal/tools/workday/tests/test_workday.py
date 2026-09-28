@@ -87,7 +87,7 @@ class ReportTests(unittest.TestCase):
         lines = [
             entry(1, 0, view=start),
             entry(2, 0, **{"pass": {"for": 1, "dropped": None}}),
-            entry(3, 0, action={"for": 1, "name": "mood", "ok": True, "message": "Boop's mood changed: happy → excited."}),
+            entry(3, 0, action={"for": 1, "name": "mood", "ok": True, "message": "Boop's mood changed: calm → excited."}),
             entry(4, 1, view=short),
             entry(5, 1, **{"pass": {"for": 4, "dropped": None}}),
             entry(6, 2, view=fail),
@@ -105,7 +105,7 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(t["passes"], 3)
         self.assertEqual(t["mood_changes"], 2)
         self.assertEqual(t["mood_after_routine"], 1, "the change on a turn start counts, the one on a failure doesn't")
-        self.assertEqual(t["back_to_happy"], 0)
+        self.assertEqual(t["back_to_rest"], 0)
         self.assertEqual(t["reactions"], 1)
         self.assertEqual(t["reacted"], Counter({"notable": 1}))
         self.assertEqual(t["lines"], Counter({"start": 1, "short": 1, "notable": 1}))
@@ -115,7 +115,15 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(r["reactions"][0]["word"], "oops")
         # Excited from the first event to the failure 2 minutes later, then
         # grumpy to the last event, the same failure.
-        self.assertEqual(r["mood_minutes"], {"excited": 2, "happy": 0, "grumpy": 0})
+        self.assertEqual(r["mood_minutes"], {"excited": 2, "calm": 0, "grumpy": 0})
+
+    def test_a_finish_is_read_from_the_reactions_message(self) -> None:
+        """ReactAction's line for a finish names it: success, failure or reply
+        (harness/DECISIONS.md §5); a face alone has none."""
+        self.assertEqual(workday.finish("Boop played a success in a calm face, held once, and mumbled."), "success")
+        self.assertEqual(workday.finish("Boop played a failure in an annoyed face, held twice, and mumbled."), "failure")
+        self.assertEqual(workday.finish("Boop played a reply in a curious face, held once, and mumbled."), "reply")
+        self.assertIsNone(workday.finish("Boop made a happy face, held once, and mumbled."))
 
     def test_the_words_count_a_mumble_with_no_word_as_none(self) -> None:
         end = {"type": "turn", "phase": "end", "line": "claude finished turn 1 on \"api\": done, a short turn.",
@@ -138,20 +146,20 @@ class ReportTests(unittest.TestCase):
         start = {"type": "turn", "phase": "start", "line": "claude started turn 2 on \"api\".", "wakes_brain": True, "facts": {}}
         lines = [
             entry(1, 0, view=start),
-            entry(2, 0, action={"for": 1, "name": "mood", "ok": True, "message": "Boop's mood changed: proud → happy."}),
+            entry(2, 0, action={"for": 1, "name": "mood", "ok": True, "message": "Boop's mood changed: proud → calm."}),
             entry(3, 5, view=start),
-            entry(4, 5, action={"for": 3, "name": "mood", "ok": True, "message": "Boop's mood changed: happy → proud."}),
+            entry(4, 5, action={"for": 3, "name": "mood", "ok": True, "message": "Boop's mood changed: calm → proud."}),
         ]
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "debug.jsonl"
             path.write_text("\n".join(lines) + "\n")
             t = workday.total(workday.summarize(path))
-        self.assertEqual((t["mood_changes"], t["back_to_happy"], t["mood_after_routine"]), (2, 1, 1))
+        self.assertEqual((t["mood_changes"], t["back_to_rest"], t["mood_after_routine"]), (2, 1, 1))
 
     def test_liveliness_and_its_check(self) -> None:
         """A 20-minute turn with the same happy face at 1 and 3 minutes and
         nothing after: quiet for 17 minutes at the end, two the same in a
-        row; happy → grumpy → happy inside a minute is a bounce
+        row; calm → grumpy → calm inside a minute is a bounce
         (EVALS.md §5)."""
         thread = {"session": "s-api"}
         start = {"type": "turn", "phase": "start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True,
@@ -167,8 +175,8 @@ class ReportTests(unittest.TestCase):
             entry(3, 1, action={"for": 2, "name": "react", "ok": True, "pending": True, "message": happy}),
             entry(4, 3, view=beat),
             entry(5, 3, action={"for": 4, "name": "react", "ok": True, "pending": True, "message": happy}),
-            entry(6, 3, action={"for": 4, "name": "mood", "ok": True, "message": "Boop's mood changed: happy → grumpy."}),
-            entry(7, 3, action={"for": 4, "name": "mood", "ok": True, "message": "Boop's mood changed: grumpy → happy."}),
+            entry(6, 3, action={"for": 4, "name": "mood", "ok": True, "message": "Boop's mood changed: calm → grumpy."}),
+            entry(7, 3, action={"for": 4, "name": "mood", "ok": True, "message": "Boop's mood changed: grumpy → calm."}),
             entry(8, 20, view=end),
         ]
         with tempfile.TemporaryDirectory() as d:
@@ -182,7 +190,7 @@ class ReportTests(unittest.TestCase):
                          "reported, not held to a limit")
         self.assertEqual(lv["mood_bounces"], 1)
         self.assertEqual(lv["min_mood_changes"], 2)
-        self.assertEqual(lv["longest_happy_working_min"], 17.0)
+        self.assertEqual(lv["longest_rest_working_min"], 17.0)
         self.assertFalse(ok)
         self.assertIn("FAIL  longest_quiet_min ≤ 8: 17.0", text)
         self.assertIn("ok    quiet_over_6_min ≤ 3: 1", text)

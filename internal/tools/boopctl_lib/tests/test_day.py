@@ -85,7 +85,7 @@ class FixtureTests(unittest.TestCase):
 
     def test_what_boop_did_by_the_hour(self):
         t = self.day.total()
-        self.assertEqual((t.cheers, t.chatter, t.reactions, t.alerts, t.moods, t.passes, t.dropped, t.missed, t.pokes),
+        self.assertEqual((t.finishes, t.chatter, t.reactions, t.alerts, t.moods, t.passes, t.dropped, t.missed, t.pokes),
                          (3, 17, 15, 4, 6, 15, 0, 2, 5))
         self.assertEqual(sorted(self.day.hours), [1, 2, 3, 4, 5, 6])
         self.assertEqual([self.day.hours[h].reactions for h in range(1, 7)], [5, 5, 1, 3, 1, 0])
@@ -96,7 +96,7 @@ class FixtureTests(unittest.TestCase):
         """20 moments with a face were sent (counted by hand): 14 of the
         brain's 15 reactions (02:11's never reached the device) and 6 of the
         8 forced (01:48's was refused and 04:48's excited one waited too
-        long). Chatter and cheers are the sent moments."""
+        long). Chatter and finishes are the sent moments."""
         sent = [json.loads(line)["sent"] for f in ("debug.1.jsonl", "debug.jsonl")
                 for line in (FIXTURE / f).read_text().splitlines() if line.startswith('{"sent":{"t":"moment"')]
         t = self.day.total()
@@ -105,7 +105,7 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(sorted(f for f in faces if f != "excited"), ["curious", "curious", "determined", "happy",
                                                                       "proud", "sad"], "the forced ones")
         self.assertEqual(t.chatter, sum(1 for s in sent if s.get("say") and not s.get("mood")))
-        self.assertEqual(t.cheers, sum(1 for s in sent if s.get("anim") == "cheer"))
+        self.assertEqual(t.finishes, sum(1 for s in sent if s.get("anim") in ("cheer", "task_complete", "reply_ready")))
 
     def test_needs_you_from_attn_appearing_to_clearing(self):
         needs = [(day.clock(n.start), n.end - n.start, n.who, n.alerts, n.open) for n in self.day.needs]
@@ -141,7 +141,7 @@ class FixtureTests(unittest.TestCase):
         launch's needs-you, cheer and proud mood are gone."""
         alone = day.summarise(day.read_launches([FIXTURE / "debug.jsonl"]), "2026-09-28")
         self.assertEqual(len(alone.needs), 2)
-        self.assertEqual(alone.total().cheers, 2)
+        self.assertEqual(alone.total().finishes, 2)
         self.assertEqual(self.day.launches[0][0], "debug.1.jsonl")
         self.assertEqual(self.day.running_ms, sum(b - a for _, a, b, _ in self.day.launches))
 
@@ -150,7 +150,7 @@ class FixtureTests(unittest.TestCase):
         lines = text.splitlines()
         self.assertEqual(lines[0], "Boop's day: Monday 2026-09-28, 01:34–06:01, 2 launches")
         head = next(i for i, x in enumerate(lines) if x.startswith("hour"))
-        self.assertEqual(lines[head].split(), ["hour", "cheers", "chatter", "reacts", "alerts", "moods", "passes",
+        self.assertEqual(lines[head].split(), ["hour", "finishes", "chatter", "reacts", "alerts", "moods", "passes",
                                                "dropped", "missed", "pokes", "needs", "you", "faces"])
         self.assertEqual([x.split()[0] for x in lines[head + 1:head + 8]], ["01", "02", "03", "04", "05", "06", "all"])
         self.assertIn("  01:47  codex · landing → claude · jetpack  6 min 4 s, 2 alerts", lines)
@@ -279,6 +279,19 @@ class SmallDayTests(unittest.TestCase):
 
 
 class RuleTests(unittest.TestCase):
+    def test_finishes_are_the_brains_task_complete_and_reply_ready_and_old_cheers(self):
+        """PROTOCOL.md §3 `moment`: a finish is task_complete or reply_ready,
+        and a cheer in logs from before them; a rule's one-shot isn't one."""
+        moment = lambda t, **m: {"sent": {"t": "moment", **m}, "received_at_ms": t}
+        d = day.summarise([launch(
+            state(at("09:00:00")),
+            moment(at("09:01:00"), anim="task_complete", outcome="success", mood="calm", loops=1, id=1),
+            moment(at("09:02:00"), anim="reply_ready", mood="curious", loops=1, id=2),
+            moment(at("09:03:00"), anim="cheer", loops=1),
+            moment(at("09:04:00"), anim="starting", variant=1, ctx="new_task"),
+        )], "2026-09-28")
+        self.assertEqual(d.total().finishes, 3)
+
     def test_a_alert_is_a_new_needs_you_or_a_different_one(self):
         """PROTOCOL.md §3: a new attn, or a different agent or project,
         alerts once; the keepalive's repeats and a changed `more` don't."""

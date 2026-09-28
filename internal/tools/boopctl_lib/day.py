@@ -1,7 +1,7 @@
 """`boopctl day` (plan/VERIFICATION.md §2): what Boop did in a day, and why,
 from debug mode's logs (plan/harness/HARNESS.md §9). It reads the state dir's
 debug.jsonl and the earlier launches' debug.<n>.jsonl, oldest first, and
-sums up one local day by the hour: cheers, working chatter, the brain's
+sums up one local day by the hour: finishes, working chatter, the brain's
 reactions and their faces, alerts, mood changes, passes, and the brain's
 reactions that didn't happen; then each mood change with its cause, each
 time something needed you and how long it took to clear, and why reactions
@@ -85,9 +85,14 @@ def next_hour(ms: int) -> int:
     return int(time.mktime((t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour + 1, 0, 0, 0, 0, -1)) * 1000)
 
 
+# The moments that play a turn's finish (PROTOCOL.md §3 `moment`): the
+# brain's task_complete and reply_ready, and the cheer older logs have.
+FINISHES = {"task_complete", "reply_ready", "cheer"}
+
+
 @dataclass
 class Hour:
-    cheers: int = 0
+    finishes: int = 0
     chatter: int = 0
     reactions: int = 0
     faces: Counter = field(default_factory=Counter)
@@ -216,8 +221,8 @@ def summarise(launches: list[Launch], date: str) -> Day:
             elif k == "sent" and body.get("t") == "moment" and h:
                 # A moment with a face is a reaction, the brain's or forced,
                 # counted from its react action below, which says which.
-                if body.get("anim") == "cheer":
-                    h.cheers += 1
+                if body.get("anim") in FINISHES:
+                    h.finishes += 1
                 if body.get("say") and not body.get("mood"):
                     h.chatter += 1
             elif k == "view":
@@ -335,7 +340,7 @@ def faces(c: Counter) -> str:
     return ", ".join(f"{name} {n}" for name, n in sorted(c.items(), key=lambda kv: (-kv[1], kv[0])))
 
 
-COLUMNS = [("cheers", "cheers"), ("chatter", "chatter"), ("reactions", "reacts"), ("alerts", "alerts"),
+COLUMNS = [("finishes", "finishes"), ("chatter", "chatter"), ("reactions", "reacts"), ("alerts", "alerts"),
            ("moods", "moods"), ("passes", "passes"), ("dropped", "dropped"), ("missed", "missed"), ("pokes", "pokes")]
 
 
@@ -369,7 +374,8 @@ def render(day: Day) -> str:
     out.append("")
     out.append("reacts are the reactions the brain asked for, with their faces, and missed the ones of them that "
                "didn't happen (below);")
-    out.append("cheers are every cheer played (the brain's since 2026-09-28); chatter is the rules' working chatter, "
+    out.append("finishes are every finish played, task_complete or reply_ready (the brain's), and cheers in logs from "
+               "before 2026-09-29; chatter is the rules' working chatter, "
                "which only logs from before then have;")
     out.append("alerts are states bringing a new needs-you or a different one.")
 

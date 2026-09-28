@@ -1,6 +1,6 @@
 # Boop: harness evals
 
-Updated 2026-09-28. How we check that Jev decides as Boop should: short
+Updated 2026-09-29. How we check that Jev decides as Boop should: short
 scenarios of agent work, run through the real pipeline (the transcript,
 the core and the view), harness and actions,
 each pass checked against what it should come to. The harness is
@@ -268,8 +268,8 @@ other text.
 **The report** gives, for each hour of the app's clock: turns ended,
 passes (and how many dropped), mood changes, with those on a routine
 line (a turn start, or a finish done under 5 minutes) split into back
-to happy (a mood fading, as the guide says) and any other (which a
-routine line shouldn't cause); and reactions, as reacted/all for each
+to calm, the resting mood (a mood fading, as the guide says), and any
+other (which a routine line shouldn't cause); and reactions, as reacted/all for each
 kind of line that woke the brain: notable (a failure, a fix, a failed or
 stopped turn, a turn of 5 minutes or more, a poke), a finish
 done in 1 to 5 minutes, one under a minute, a turn start, and a
@@ -284,7 +284,7 @@ of work (any agent in a turn) with no reaction, and how many went over
 as the one before, and the longest run of the same (reported, with no
 limit: repeats are fine); mood bounces (a mood changing back to the one
 it left within a minute); and the longest stretch of work with Boop
-happy all through. `workday.py check FILE…` holds each run to loose
+calm, the resting mood, all through. `workday.py check FILE…` holds each run to loose
 limits (`LIMITS` in `workday.py`) and exits 1 if one fails:
 
 | Limit | Holds |
@@ -294,7 +294,7 @@ limits (`LIMITS` in `workday.py`) and exits 1 if one fails:
 | `min_reactions_per_turn` | 0.8 at least (reactions over turns ended) |
 | `mood_bounces` | 1 at most |
 | `min_mood_changes` | 10 at least |
-| `longest_happy_working_min` | 45 at most |
+| `longest_rest_working_min` | 45 at most |
 
 ```sh
 python3 internal/tools/workday/workday.py check /tmp/tn-out/1/debug.jsonl
