@@ -1,6 +1,6 @@
 {
-  "name": "A third clean finish in a row makes Boop excited, and shows it",
-  "why": "plan/steering/mood/happy.md: happy stays through one or two routine finishes and leaves for excited at a third clean finish in a row; plan/steering/guide.md: the change shows, with an excited face. A turn of 10 minutes or more finishing clean keeps it excited, with a cheer (PERSONALITY's Examples)",
+  "name": "Short wins leave Boop happy, and a very long turn done makes it excited",
+  "why": "plan/steering/mood/happy.md: happy stays through short and long finishes and leaves for excited when a very long turn (5 minutes or more) finishes done; plan/steering/guide.md: the change shows, with an excited face and, for a finish that stands out, a cheer (PERSONALITY's Examples)",
   "steps": [
     {"event": "turn started", "at": "0s"},
     {"event": "command", "at": "30s", "topic": "tests", "failed": false},
@@ -10,12 +10,9 @@
     {"event": "turn finished", "at": "1m40s", "expect": {"mood": "happy"}},
     {"event": "turn started", "at": "2m"},
     {"event": "command", "at": "2m30s", "topic": "tests", "failed": false},
-    {"event": "turn finished", "at": "2m40s", "expect": {"react": "excited", "mood": "excited"}},
-    {"event": "turn started", "at": "3m"},
-    {"event": "command", "at": "3m30s", "topic": "tests", "failed": false},
-    {"event": "turn finished", "at": "3m40s"},
+    {"event": "turn finished", "at": "2m40s", "expect": {"mood": "happy"}},
     {"event": "turn started", "at": "4m"},
     {"event": "command", "at": "15m", "topic": "tests", "failed": false},
-    {"event": "turn finished", "at": "16m", "expect": {"react": "excited|proud|happy", "animation": "cheer", "mood": "excited|proud"}}
+    {"event": "turn finished", "at": "16m", "expect": {"react": "excited|proud|happy", "animation": "cheer", "mood": "excited"}}
   ]
 }

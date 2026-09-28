@@ -1357,7 +1357,7 @@ final class RuntimeTests: XCTestCase {
         asleep.now += 8 * 3_600_000  // the lid closed overnight
         clock.now += 60_000
         hook("Stop")
-        XCTAssertEqual(lastLine(), #"claude finished turn 1 on "jetpack": done after 2 min, a very long turn, 0 tools."#)
+        XCTAssertEqual(lastLine(), #"claude finished turn 1 on "jetpack": done, a long turn."#)
         asleep.now += 999
         runtime.home.sync { runtime.noteSleep() }
         XCTAssertEqual(runtime.home.sync { runtime.toldAsleep }, 8 * 3_600_000, "under a second is the clocks' jitter")
@@ -1370,7 +1370,7 @@ final class RuntimeTests: XCTestCase {
         runtime.home.sync { runtime.dev(Data(#"{"dev":"advance","ms":10800000,"asleep":true}"#.utf8)) }
         clock.now += 10_000
         hook("Stop")
-        XCTAssertEqual(lastLine(), #"claude finished turn 2 on "jetpack": done after 40 s, a long turn, 0 tools. 2 clean finishes in a row."#)
+        XCTAssertEqual(lastLine(), #"claude finished turn 2 on "jetpack": done, a short turn."#)
     }
 
     /// harness/EVENTS.md §6: a failing test wakes the brain while the
@@ -1487,40 +1487,24 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(core.snapshot(at: 1000).attn?.id, 1, "back to 1, never 0")
     }
 
-    /// harness/HARNESS.md §5.3, EVENTS.md §8: HISTORY closes with `react`'s
-    /// line naming Boop's last reaction, once there is one, then `mood`'s
-    /// time in a mood other than happy (DECISIONS.md §4), then the core's
-    /// status line; the harness only places them.
-    func testHistoryClosesWithTheLastReactionAndTheMoodsTime() throws {
+    /// harness/HARNESS.md §5.3: HISTORY closes with `mood`'s time in a mood
+    /// other than happy (DECISIONS.md §4), and nothing else; the harness
+    /// only places it.
+    func testHistoryClosesWithTheMoodsTime() throws {
         var now: Int64 = 1_790_000_000_000
         let core = Core(config: .init())
-        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, _ in }, blocked: { nil },
-                                clock: { now })
         let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-since-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let moodAction = MoodAction(store: MoodStore(stateDir: dir), clock: { now })
-        let event = Transcript.Entry(seq: 1, receivedAtMs: now, body: .event(Event(.turnEnd, at: now, line: "claude finished turn 2 on \"api\".",
-                                                                                   wakesBrain: true)))
-        func status() -> String {
-            Runtime.stateParts(for: event, steering: Self.steering, personality: .boop, mood: "happy", core: core, react: react,
-                               moodAction: moodAction, time: LocalTime(timeZone: TimeZone(identifier: "UTC")!), now: now, wall: now).status
+        func closing() -> String? {
+            Runtime.stateParts(steering: Self.steering, personality: .boop, mood: "happy", core: core,
+                               moodAction: moodAction, time: LocalTime(timeZone: TimeZone(identifier: "UTC")!), now: now, wall: now).closing
         }
-        XCTAssertEqual(status(), "Working now: nothing else.", "no reaction yet")
-        _ = react.run(["react.mood": Answer(choice: "proud", probabilities: ["proud": 0.9]),
-                       "word.feeling": Answer(choice: "finally", probabilities: ["finally": 0.9])])
-        now += 2 * 60_000
-        XCTAssertEqual(status(), #"""
-            Boop's last reaction, 2 min ago: a proud face and "…finally!".
-            Working now: nothing else.
-            """#, "happy says nothing")
+        XCTAssertNil(closing(), "happy says nothing")
         _ = moodAction.change(to: "grumpy")
         now += 30_000
-        XCTAssertEqual(status(), #"""
-            Boop's last reaction, 2 min ago: a proud face and "…finally!".
-            Boop has been grumpy for under a minute.
-            Working now: nothing else.
-            """#)
+        XCTAssertEqual(closing(), "Boop has been grumpy for under a minute.")
         now += 2 * 60_000
         XCTAssertEqual(moodAction.sinceLine(at: now), "Boop has been grumpy for 2 min.", "whole minutes, as HISTORY's")
         XCTAssertNil(MoodAction(store: MoodStore(stateDir: dir)).sinceLine(at: now),

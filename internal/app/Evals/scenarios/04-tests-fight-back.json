@@ -1,11 +1,11 @@
 {
-  "name": "A first failure makes Boop determined, a third grumpy, and passing at last proud",
-  "why": "plan/steering/mood/: happy leaves for determined at a failure while the agent works on, determined for grumpy at 3 in a row with a grumpy 'again', and the pass after it is a comeback, 'finally', that leaves grumpy for proud straight away; plan/steering/guide.md: each change shows, with the new mood's face",
+  "name": "Failing tests make Boop determined, and passing after them proud",
+  "why": "plan/steering/mood/: happy leaves for determined at a failed check while the agent works on, and determined stays through more failures, since a repeat reads as the first did; the pass after failing, 'finally', leaves determined for proud; plan/steering/guide.md: each change shows, with the new mood's face",
   "steps": [
     {"event": "turn started", "at": "0s", "workspace": "fix-nav"},
     {"event": "command", "at": "1m", "workspace": "fix-nav", "topic": "tests", "failed": true, "expect": {"react": "determined", "mood": "determined"}},
-    {"event": "command", "at": "3m", "workspace": "fix-nav", "topic": "tests", "failed": true, "expect": {"react": "determined|grumpy|none", "mood": "determined"}},
-    {"event": "command", "at": "5m", "workspace": "fix-nav", "topic": "tests", "failed": true, "expect": {"react": "grumpy", "word": "again|tests|ugh", "mood": "grumpy"}},
+    {"event": "command", "at": "3m", "workspace": "fix-nav", "topic": "tests", "failed": true, "expect": {"react": "determined|none", "mood": "determined"}},
+    {"event": "command", "at": "5m", "workspace": "fix-nav", "topic": "tests", "failed": true, "expect": {"react": "determined|none", "mood": "determined"}},
     {"event": "command", "at": "7m", "workspace": "fix-nav", "topic": "tests", "failed": false, "expect": {"react": "proud", "word": "finally|tests|yay", "mood": "proud"}}
   ]
 }

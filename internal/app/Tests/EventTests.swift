@@ -29,7 +29,8 @@ final class EventTests: XCTestCase {
     }
 
     /// EVENTS.md §8: the tests-fail-then-pass turn, line by line, with the
-    /// thread named after its workspace and its project.
+    /// thread named after its workspace and its project. A repeat failure
+    /// reads as the first did; streaks are left to the facts.
     func testATurnOfFailuresAndAComeback() throws {
         let start = hook(.turnStart)
         XCTAssertEqual(start.map(\.line), [#"claude started turn 1 on "fix-nav" (landing)."#])
@@ -37,23 +38,24 @@ final class EventTests: XCTestCase {
 
         XCTAssertEqual(tests(failed: true, id: "t1").map(\.line), [#"claude's tests failed on "fix-nav" (landing)."#])
         XCTAssertEqual(tests(failed: true, id: "t2").map(\.line),
-                       [#"claude's tests failed again on "fix-nav" (landing), 2 in a row."#])
+                       [#"claude's tests failed on "fix-nav" (landing)."#])
         let third = try XCTUnwrap(tests(failed: true, id: "t3").first)
-        XCTAssertEqual(third.line, #"claude's tests failed again on "fix-nav" (landing), 3 in a row."#)
+        XCTAssertEqual(third.line, #"claude's tests failed on "fix-nav" (landing)."#)
         XCTAssertEqual(third.facts["failed_before"], .int(2))
-        XCTAssertEqual(third.facts["took"], "long", "40 s is long (EVENTS.md §5)")
+        XCTAssertEqual(third.facts["took"], "short", "40 s is short (EVENTS.md §5)")
         XCTAssertEqual(third.facts["took_ms"], .int(40_000))
         XCTAssertEqual(third.about, "claude_code/s1")
 
         XCTAssertEqual(tests(failed: false, id: "t4").map(\.line),
-                       [#"claude's tests passed on "fix-nav" (landing) after 3 failures in a row."#])
+                       [#"claude's tests passed on "fix-nav" (landing) after failing."#])
         XCTAssertEqual(tests(failed: false, id: "t5"), [], "a pass with no failures before isn't notable")
 
         rig.wait(60_000)
         let end = try XCTUnwrap(hook(.turnEnd).first)
-        XCTAssertEqual(end.line, #"claude finished turn 1 on "fix-nav" (landing): done after 4 min, a very long turn, 5 tools (3 failed). Tests passing. A comeback on tests."#)
+        XCTAssertEqual(end.line, #"claude finished turn 1 on "fix-nav" (landing): done, a long turn."#, "4 min is long")
         XCTAssertNil(end.reaction, "no rule cheers (BEHAVIORS.md §3.1)")
-        XCTAssertEqual(end.facts["comeback"], "tests")
+        XCTAssertEqual(end.facts["comeback"], "tests", "the facts keep what the line leaves out")
+        XCTAssertEqual(end.facts["tools_failed"], .int(3))
         XCTAssertEqual(end.facts["outcome"], "done")
     }
 
@@ -67,7 +69,7 @@ final class EventTests: XCTestCase {
                        [#"claude edited a file on "fix-nav" (landing)."#])
         XCTAssertEqual(hook(.activity, tool: "mcp__x__y", failed: true, done: true, toolError: "other").map(\.line),
                        [#"claude used a tool on "fix-nav" (landing). It failed."#])
-        XCTAssertTrue(hook(.turnEnd).first!.line.contains("3 tools (1 failed)"))
+        XCTAssertEqual(hook(.turnEnd).first!.facts["tools_failed"], .int(1), "counted in the facts, not the line")
     }
 
     /// Codex says nothing about failures, so its tool uses are `unknown`
@@ -80,49 +82,33 @@ final class EventTests: XCTestCase {
         XCTAssertEqual(e.first?.facts["result"], "unknown")
     }
 
-    /// A failed check's error other than an exit code is named (EVENTS.md §8).
-    func testAToolErrorIsNamedInTheLine() {
+    /// A failed check's error is in its facts, not its line (EVENTS.md §8).
+    func testAToolErrorIsLeftOutOfTheLine() {
         hook(.turnStart)
         hook(.activity, tool: "Bash", topic: "build", id: "b")
-        XCTAssertEqual(hook(.activity, tool: "Bash", topic: "build", failed: true, done: true, toolError: "timeout", id: "b")
-            .map(\.line), [#"claude's build failed on "fix-nav" (landing) (timed out)."#])
+        let failed = hook(.activity, tool: "Bash", topic: "build", failed: true, done: true, toolError: "timeout", id: "b")
+        XCTAssertEqual(failed.map(\.line), [#"claude's build failed on "fix-nav" (landing)."#])
+        XCTAssertEqual(failed.first?.facts["error"], "timeout")
     }
 
-    /// A turn's gap, a failed turn, a stopped one, and a thread with no
-    /// workspace named by its project.
-    func testTurnEndsAndGaps() {
+    /// A failed turn, a stopped one, and a very long one; turn starts say
+    /// nothing of the gap; a thread with no workspace is named by its
+    /// project. A turn end is its outcome and its length band, nothing else.
+    func testTurnEnds() {
         hook(.turnStart, workspace: nil)
         rig.wait(5000)
-        XCTAssertEqual(hook(.turnFailed, workspace: nil, error: "rate_limit").first?.line,
-                       #"claude finished turn 1 on "landing": failed (rate limit) after 5 s, a short turn, 0 tools."#)
+        let failed = hook(.turnFailed, workspace: nil, error: "rate_limit").first
+        XCTAssertEqual(failed?.line, #"claude finished turn 1 on "landing": failed, a short turn."#)
+        XCTAssertEqual(failed?.facts["error"], "rate_limit")
         rig.wait(30_000)
-        XCTAssertEqual(hook(.turnStart, workspace: nil).first?.line, #"claude started turn 2 on "landing", right after its last one."#)
-        rig.wait(3000)
+        XCTAssertEqual(hook(.turnStart, workspace: nil).first?.line, #"claude started turn 2 on "landing"."#)
+        rig.wait(90_000)
         let stopped = hook(.turnStopped, workspace: nil, tool: "Bash")
-        XCTAssertEqual(stopped.first?.facts["outcome"], "stopped")
+        XCTAssertEqual(stopped.first?.line, #"claude finished turn 2 on "landing": stopped, a long turn."#)
         rig.wait(20 * 60_000)
-        XCTAssertEqual(hook(.turnStart, workspace: nil).first?.line, #"claude started turn 3 on "landing", a while after its last one."#)
-    }
-
-    /// EVENTS.md §4.1, §8: a finish says how many clean finishes in a row
-    /// it makes, across threads, from the second; any other finish starts
-    /// the count again.
-    func testCleanFinishesInARow() {
-        func finish(_ session: String, _ end: BoopEvent.Kind = .turnEnd) -> Event {
-            hook(.turnStart, session: session)
-            rig.wait(10_000)
-            return hook(end, session: session).first { $0.kind == .turnEnd }!
-        }
-        let first = finish("s1")
-        XCTAssertEqual(first.facts["clean_run"], .int(1))
-        XCTAssertFalse(first.line.contains("in a row"), first.line)
-        XCTAssertTrue(finish("s1").line.hasSuffix(" 2 clean finishes in a row."))
-        let third = finish("s2")
-        XCTAssertTrue(third.line.hasSuffix(" 3 clean finishes in a row."), third.line)
-        XCTAssertEqual(finish("s1", .turnFailed).facts["clean_run"], .int(0))
-        let after = finish("s1")
-        XCTAssertEqual(after.facts["clean_run"], .int(1))
-        XCTAssertFalse(after.line.contains("in a row"), after.line)
+        XCTAssertEqual(hook(.turnStart, workspace: nil).first?.line, #"claude started turn 3 on "landing"."#)
+        rig.wait(6 * 60_000)
+        XCTAssertEqual(hook(.turnEnd, workspace: nil).first?.line, #"claude finished turn 3 on "landing": done, a very long turn."#)
     }
 
     /// EVENTS.md §6: nothing wakes the brain while something needs you, or
@@ -147,11 +133,12 @@ final class EventTests: XCTestCase {
         XCTAssertFalse(tap[0].wakesBrain)
         rig.wait(500); rig.input(.tap); rig.wait(500); rig.input(.tap); rig.wait(500)
         let pokes = events(rig.input(.tap))
-        XCTAssertEqual(pokes.map(\.line), ["You poked Boop 4 times in 2 s."])
+        XCTAssertEqual(pokes.map(\.line), ["You poked Boop again and again."])
+        XCTAssertEqual(pokes[0].facts["count"], .int(4))
         XCTAssertTrue(pokes[0].wakesBrain)
         for _ in 0..<4 { rig.wait(200); rig.input(.tap) }
         let again = events(rig.log).last!
-        XCTAssertEqual(again.line, "You poked Boop 4 times in 1 s, again right after the last time.")
+        XCTAssertEqual(again.line, "You poked Boop again and again.", "no gap in the line")
         XCTAssertFalse(again.wakesBrain, "at most once a minute")
     }
 
@@ -165,7 +152,8 @@ final class EventTests: XCTestCase {
         XCTAssertEqual(idle(rig.log), [], "a thread was working")
         let working = events(rig.log).filter { $0.kind == .heartbeat }
         XCTAssertGreaterThan(working.count, 10, "the working heartbeat instead")
-        XCTAssertTrue(working.allSatisfy { $0.line.hasPrefix(#"claude has been working on "fix-nav" (landing) for "#) && $0.wakesBrain })
+        XCTAssertTrue(working.allSatisfy { $0.line.hasPrefix(#"claude is still working on "fix-nav" (landing), a "#) && $0.wakesBrain })
+        XCTAssertEqual(working.last?.line, #"claude is still working on "fix-nav" (landing), a very long turn."#)
         hook(.turnEnd)
         let beats = idle(rig.wait(2 * 60 * 60_000 + 1000))
         XCTAssertEqual(beats.map(\.line), ["Nothing has happened for 1 hour.", "Nothing has happened for 2 hours."])
@@ -174,24 +162,12 @@ final class EventTests: XCTestCase {
         XCTAssertEqual(idle(rig.wait(59 * 60_000)), [], "a tap starts the hour again")
     }
 
-    /// The status line lists the other threads working now (EVENTS.md §8).
-    func testStatusLine() {
-        hook(.turnStart)
-        rig.wait(3 * 60_000)
-        hook(.turnStart, agent: .codex, session: "c1", workspace: nil)
-        XCTAssertEqual(rig.core.statusLine(excluding: "claude_code/s1", at: rig.now), #"Working now: "landing" (codex), for 0 s."#)
-        XCTAssertEqual(rig.core.statusLine(excluding: "codex/c1", at: rig.now), #"Working now: "fix-nav" (claude, landing), for 3 min."#)
-        hook(.turnEnd)
-        XCTAssertEqual(rig.core.statusLine(excluding: "codex/c1", at: rig.now), "Working now: nothing else.")
-    }
-
-    /// EVENTS.md §5's bands, at their edges.
+    /// EVENTS.md §5's length band, at its edges: short under a minute,
+    /// long under 5, very long from 5, as the moods read it.
     func testBands() {
-        XCTAssertEqual(Band.length(ms: 14_999), "short")
+        XCTAssertEqual(Band.length(ms: 59_999), "short")
         XCTAssertEqual(Band.length(ms: 60_000), "long")
-        XCTAssertEqual(Band.length(ms: 60_001), "very long")
-        XCTAssertEqual(Band.gap(ms: 119_999), "right after")
-        XCTAssertEqual(Band.gap(ms: 3_599_999), "a while")
-        XCTAssertEqual(Band.gap(ms: 3_600_000), "a long break")
+        XCTAssertEqual(Band.length(ms: 299_999), "long")
+        XCTAssertEqual(Band.length(ms: 300_000), "very long")
     }
 }

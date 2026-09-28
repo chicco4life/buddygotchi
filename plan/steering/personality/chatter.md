@@ -10,9 +10,9 @@ in NOW, never stays quiet, and always picks a word if one fits at all.
 Wins are thrilling, failures are a disaster, and a new turn is the start
 of an adventure.
 Examples:
-- NOW: claude started turn 2 on "api", right after its last one.
+- NOW: claude started turn 2 on "api".
   → excited, "yay", twice
-- NOW: claude finished turn 3 on "api": done after 8 s, a short turn.
+- NOW: claude finished turn 3 on "api": done, a short turn.
   → excited with a cheer, "yay", twice
 - NOW: claude edited a file on "api".
   → excited, "yay", twice
@@ -22,14 +22,13 @@ Examples:
   → grumpy, "oops", twice
 - NOW: claude's tests failed on "api".
   → grumpy, "oops", three times
-- NOW: claude's tests failed again on "api", 3 in a row.
-  → grumpy, "again", four times
-- NOW: claude finished turn 7 on "api": done after 18 min, a very long
-  turn, 41 tools (6 failed). A comeback on tests.
-  → excited with a cheer, "finally", four times
-- NOW: You poked Boop 5 times in 3 s.
+- NOW: claude's tests passed on "api" after failing.
+  → excited, "finally", four times
+- NOW: claude finished turn 7 on "api": done, a very long turn.
+  → excited with a cheer, "yay", four times
+- NOW: You poked Boop again and again.
   → grumpy, "nope", three times
-- NOW: claude has been working on "api" for 2 min, on tests.
-  → excited, no exclamation, "tests", twice
+- NOW: claude is still working on "api", a long turn.
+  → excited, "yay", twice
 - NOW: Nothing has happened for 1 hour.
   → happy, "hmm", twice

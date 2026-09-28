@@ -66,7 +66,7 @@ def entry(seq: int, at_min: int, **body) -> str:
 class ReportTests(unittest.TestCase):
     def test_counts_by_kind_of_line(self) -> None:
         start = {"kind": "turn_start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True, "facts": {}}
-        short = {"kind": "turn_end", "line": "claude finished turn 1 on \"api\": done after 8 s, a short turn.",
+        short = {"kind": "turn_end", "line": "claude finished turn 1 on \"api\": done, a short turn.",
                  "wakes_brain": True, "facts": {"outcome": "done", "length_ms": 8000, "tools_failed": 0}}
         fail = {"kind": "tool_use", "line": "claude's tests failed on \"api\".", "wakes_brain": True, "facts": {}}
         lines = [
@@ -103,7 +103,7 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(r["mood_minutes"], {"excited": 2, "happy": 0, "grumpy": 0})
 
     def test_the_words_count_a_mumble_with_no_word_as_none(self) -> None:
-        end = {"kind": "turn_end", "line": "claude finished turn 1 on \"api\": done after 50 s, a long turn.",
+        end = {"kind": "turn_end", "line": "claude finished turn 1 on \"api\": done, a short turn.",
                "wakes_brain": True, "facts": {"outcome": "done", "length_ms": 50_000, "tools_failed": 0}}
         lines = [
             entry(1, 0, event=end),
@@ -141,8 +141,9 @@ class ReportTests(unittest.TestCase):
         # plan/harness/DECISIONS.md §2.3: a turn of 5 minutes or more is a big moment.
         self.assertEqual(workday.classify(end(length_ms=5 * 60_000 - 1)), "minutes")
         self.assertEqual(workday.classify(end(length_ms=5 * 60_000)), "notable")
-        self.assertEqual(workday.classify(end(length_ms=5_000, tools_failed=1)), "notable")
-        self.assertEqual(workday.classify(end(length_ms=5_000, comeback="tests")), "notable")
+        # The line says only the outcome and length, so failures along the way don't count.
+        self.assertEqual(workday.classify(end(length_ms=5_000, tools_failed=1)), "short")
+        self.assertEqual(workday.classify(end(length_ms=5_000, comeback="tests")), "short")
         self.assertEqual(workday.classify(end(length_ms=5_000, outcome="failed")), "notable")
         self.assertEqual(workday.classify({"kind": "heartbeat"}), "quiet")
         self.assertEqual(workday.classify({"kind": "pokes"}), "notable")

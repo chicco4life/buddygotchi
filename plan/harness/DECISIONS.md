@@ -46,22 +46,23 @@ bigger moments), and a mumble of at most one real word, and whether its
 mood changes. Then how to choose: judge by PERSONALITY and MOOD; react
 to NOW, not older lines, with a face, hold and word that fit it; don't
 repeat what Boop just did or is still doing (HISTORY's
-`(in progress)`), though a reaction that didn't happen may be made again
-if NOW still calls for it (§5). And on moods:
+`(in progress)`). A reaction that didn't happen isn't in HISTORY
+([HARNESS.md](HARNESS.md) §5.3), so NOW may call for it again. And on
+moods:
 
 > The mood is the backdrop, and it should visibly shift: change it
 > whenever NOW is MOOD's reason to leave it, but never for a routine
 > turn alone. A mood goes back to happy after the minutes MOOD gives
-> (HISTORY says how long ago it changed), or after an hour of nothing.
+> (HISTORY ends saying how long), or after an hour of nothing.
 >
 > A mood change shows: react with the new mood's face (back to happy:
 > a happy face, once).
 
 So the person sees Boop's mood move during ordinary work, and sees each
 move happen: the face that comes with the change, then the new set of
-faces behind everything else. HISTORY dates each line ("4 min ago"), so
-Jev can tell when a mood's minutes are up; they end on the next line
-after that. Each mood's file gives its minutes again, since the `mood`
+faces behind everything else. HISTORY ends with `Boop has been grumpy
+for 2 min.` ([HARNESS.md](HARNESS.md) §5.3), so Jev can tell when a
+mood's minutes are up; they end on the next line after that. Each mood's file gives its minutes again, since the `mood`
 question judges by MOOD, with the change dropping out of HISTORY (after
 ten minutes or 40 events, [HARNESS.md](HARNESS.md) §5.3) as the
 fallback.
@@ -87,8 +88,8 @@ event. It has two parts:
 
 | Personality | For | Its text |
 | --- | --- | --- |
-| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted and a little smug, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a first failure is determined with "oops", held once; a third grumpy with "again", twice; a fix after failures proud with "finally", twice, and a comeback finish with a cheer, three times; a turn of 10 minutes or more finishing clean excited with a cheer and "yay", three times, and failing sad, three times; a failed turn grumpy with "ugh", a poke streak grumpy with "nope", and a stopped turn happy with "hmm", once. A routine finish gets a face only when it has something to show: a turn of a few minutes an excited "yay"; one under a minute a small happy face with no word if it ran 20 s or more, or an excited one with its topic ("tests") and no exclamation if its checks passed; otherwise nothing. Only a finish that stands out cheers, and the exclamation is kept for what stands out. A turn start and an hour of nothing get nothing, and a working heartbeat in a long stretch of work a happy face with its topic |
-| [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses and heartbeats included, always picks a word if one fits, and holds its faces long: twice for routine lines, up to four times for a comeback or a third failure |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted and a little smug, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a failed check is determined with "oops", held once; a check passing after failing proud with "finally", twice; a very long turn done excited with a cheer and "yay", three times, and failed sad, three times; a failed turn grumpy with "ugh", a poke streak grumpy with "nope", and a stopped turn happy with "hmm", once. A long turn done gets a happy face with no word; a short one nothing. Only a finish that stands out cheers, and the exclamation is kept for what stands out. A turn start gets nothing, and a working heartbeat in a very long stretch of work a happy face with no word |
+| [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses and heartbeats included, always picks a word if one fits, and holds its faces long: twice for routine lines, up to four times for a fix or a very long turn done |
 
 "Never stays quiet" is still Jev's call: `none` stays an option, and the
 moods still apply.
@@ -105,21 +106,29 @@ face), what it mumbles at most and the words it likes ("yay" only at a
 big win, a routine one its topic), and when it leaves, and for which
 mood. That last part is what the `mood` question
 judges by. No timer holds or ends a mood: how long one lasts is the
-steering's to say. Anything with some weight moves it: a first failure
-while the agent works on, a failed turn, a poke streak, a fix, a third
-clean finish in a row, or a turn of 5 minutes or more ending; never one
-or two routine finishes, a turn starting or a stopped turn. And every
-mood but happy goes back to happy after its minutes: 2 for grumpy, which
-flares up and blows over, 10 for sad, and 5 for the rest (§2.1).
+steering's to say. The rules read only what the lines say
+([EVENTS.md](EVENTS.md) §8), with no streaks or counts:
+
+- a failed check while the agent works on: determined;
+- a failed turn, or a poke streak: grumpy;
+- a check passing after failing: proud;
+- a very long turn (5 minutes or more) ending done: excited; ending
+  failed: sad.
+
+Nothing else moves it: not a short or long finish, a turn starting or a
+stopped turn. Every mood but happy goes back to happy after its minutes,
+read against HISTORY's closing `Boop has been X for N min.`: 2 for
+grumpy, which flares up and blows over, 10 for sad, and 5 for the rest
+(§2.1).
 
 | Mood | Its meaning (the `mood` option) | Leaves for (its file) |
 | --- | --- | --- |
-| `happy` | Good spirits: things are going fine | `excited` when NOW says 3 clean finishes in a row (not 4 or more, so a long clean stretch excites it once), or a turn of 5 minutes or more finishing clean; `proud` when something that failed works; `determined` at a failure while the agent works on; `grumpy` when a turn fails or at a poke streak; `sad` when a turn of 5 minutes or more ends failing. Stays happy through one or two routine finishes, a stopped turn and work still going |
-| `excited` | Thrilled: NOW says 3 clean finishes in a row, not 4 or more ([EVENTS.md](EVENTS.md) §8), or a turn of 5 minutes or more finished clean. Not for one or two routine wins, or work still going | `determined` at a failure; `grumpy` when a turn fails or at a poke streak; `sad` when a turn of 5 minutes or more ends failing; `happy` after 5 minutes |
-| `proud` | Something hard-won worked: a fix after a failure, or a turn of 5 minutes or more that fought through failures. Not for a routine finish, however long | The same as `excited` |
-| `determined` | Rooting for a retry: something failed and the agent is working on. Not for a turn that has ended | `proud` when what failed works; `grumpy` at 3 failures in a row, when a turn fails or at a poke streak; `sad` when a turn of 5 minutes or more ends failing; `happy` after 5 minutes |
-| `grumpy` | Fed up, briefly: a turn failed, 3 or more failures in a row, or poked too much. Not for a single failure in a turn still working | `proud` when what failed finally works; `sad` when a turn of 5 minutes or more ends failing; `happy` after 2 minutes |
-| `sad` | Deflated: a turn of 5 minutes or more ended failing, or was stopped with failures left | `proud` when what failed finally works, staying sad through more failures before it; `happy` after 10 minutes |
+| `happy` | Good spirits: things are going fine | `excited` when a very long turn finishes done; `proud` when a check passes after failing; `determined` when a check fails while the agent works on; `grumpy` when a turn fails or at a poke streak; `sad` when a very long turn ends failed. Stays happy through short and long finishes, a stopped turn and work still going |
+| `excited` | Thrilled: a very long turn finished done. Not for a shorter turn finishing, or work still going | `determined` at a failed check; `grumpy` when a turn fails or at a poke streak; `sad` when a very long turn ends failed; `happy` after 5 minutes |
+| `proud` | Something hard-won worked: a check passed after failing. Not for a turn finishing | `excited` when a very long turn finishes done, otherwise the same as `excited`; `happy` after 5 minutes |
+| `determined` | Rooting for a retry: a check failed and the agent is working on. Not for a turn that has ended | `proud` when a check passes after failing; `grumpy` when a turn fails or at a poke streak; `sad` when a very long turn ends failed; `happy` after 5 minutes. Stays through more failed checks |
+| `grumpy` | Fed up, briefly: a turn failed, or Boop was poked again and again. Not for a check failing while the agent works on | `proud` when a check passes after failing; `sad` when a very long turn ends failed; `happy` after 2 minutes |
+| `sad` | Deflated: a very long turn finished failed. Not for a shorter turn failing | `proud` when a check passes after failing, staying sad through more failures before it; `happy` after 10 minutes |
 
 Each "after N minutes" counts from Boop's mood changing to it, or ends
 sooner if the change has dropped out of HISTORY.
@@ -169,9 +178,9 @@ disagree (a "no" with a confident "proud"); one choice can't.
 | `happy` | A happy face: pleased, a turn went fine or a small win |
 | `excited` | An excited face: something big just went right |
 | `proud` | A proud face: something long or hard just finished, or finally worked |
-| `determined` | A determined face: something failed and the agent is trying again. Not for a turn that has ended, or the same failure 3 or more times in a row |
-| `grumpy` | A grumpy face: a turn failed, the same thing keeps failing, or Boop is poked too much |
-| `sad` | A sad face: a turn of 5 minutes or more ended failing, or was stopped with failures left. Not for a short turn failing, or a single failure |
+| `determined` | A determined face: a check failed and the agent is trying again. Not for a turn that has ended |
+| `grumpy` | A grumpy face: a turn failed, or Boop is poked again and again |
+| `sad` | A sad face: a very long turn ended failed. Not for a shorter turn failing, or a check failing |
 
 **`react.animation` picks an animation to play in the face,** instead
 of drawing the face over the look. A reaction is a mood and an
@@ -200,7 +209,7 @@ long.
 | --- | --- | --- |
 | `once` | 1 | A small moment: the usual |
 | `twice` | 2 | A moment that stands out. Not for routine work |
-| `three times` | 3 | A big moment, such as a comeback |
+| `three times` | 3 | A big moment, such as a check passing after failing |
 | `four times` | 4 | The biggest moments: a hard-won finish, or a failure that keeps coming back. Not for a single win or failure |
 
 **The words** are two questions over two short lists, so the two picks
@@ -241,8 +250,8 @@ A mood can change on any pass, a poke streak's included, even straight
 after another change.
 
 **How long Boop has been in its mood.** `mood` also hands the runtime a
-line for the end of HISTORY, after `react`'s ([HARNESS.md](HARNESS.md)
-§5.3): `Boop has been proud for 7 min.`, in whole minutes as HISTORY's
+line for the end of HISTORY, its only closing line
+([HARNESS.md](HARNESS.md) §5.3): `Boop has been proud for 7 min.`, in whole minutes as HISTORY's
 times are (`under a minute` below one, hours past an hour), counted from
 the change it last made (`MoodAction.sinceLine`). It's left out while
 Boop is happy, and before the action has changed the mood since launch,
@@ -272,7 +281,7 @@ gate, which says when something needs you.
    `none`'s meaning rules out anything PERSONALITY's Examples react to, a
    moment worth a reaction doesn't lose to it just because Jev can't
    settle on one face. It still covers a reaction Boop is making already:
-   without that, a comeback's finish 20 s after its proud "…finally!"
+   without that, a turn's finish 20 s after a fix's proud "…finally!"
    got the same again, with that face still in progress (`make eval`'s
    `11-comeback-still-showing`, 0 of 3 runs before, 3 of 3 after).
 2. **The word:** `word.feeling`'s pick if it isn't `none` and its
@@ -302,18 +311,13 @@ gate, which says when something needs you.
    `Boop played a cheer in a proud face, held twice, and mumbled "…finally!"`,
    or `Boop made a happy face, held once, and mumbled.` with no word.
 
-**Boop's last reaction.** `react` also hands the runtime a line for the
-end of HISTORY, before the status line ([HARNESS.md](HARNESS.md) §5.3):
-`Boop's last reaction, 3 min ago: a proud face and "…finally!".`,
-`…: a cheer in a proud face and "…finally!".`, or
-`…: a happy face, with no word.` It names the last reaction it started
-that didn't fail (one in progress counts), with how long ago in
-HISTORY's wording, and it's left out before the first
-(`ReactAction.lastLine`). Without it, once a reaction had played out Jev
-made the same one at the next line that called for it: an excited
-"…tests!" up to 8 times in a row over quick passing turns, and a
-comeback's proud "…finally!" again under a minute later (the owner's
-call, 2026-09-28).
+**No last-reaction line.** HISTORY no longer closes with Boop's last
+reaction: what Boop did is only under the lines it answered. The line
+was added because Jev repeated a reaction once it had played out (an
+excited "…tests!" over quick passing turns); it went with the other
+modifiers to keep the state small and testable, and the evals will say
+whether the repeats come back ([ARCHITECTURE.md](../ARCHITECTURE.md)'s
+decision log).
 
 **How a reaction ends.** HISTORY shows its line `(in progress)` until
 whoever holds the moment ends the handle ([HARNESS.md](HARNESS.md) §4,
@@ -340,8 +344,8 @@ included), its face and the grace for `ended` add up to less, which
 `RuntimeTests` checks against the designs' loops, so a new design can't
 break it unnoticed.
 
-A failed one reads `(didn't happen: <why>)` in HISTORY, so Jev may make
-it again if NOW still calls for it (§2.1). The evals have no device, so
+A failed one is left out of HISTORY, so Jev may make it again if NOW
+still calls for it (§2.1). The evals have no device, so
 their queue ends each handle at once, `done` unless a scenario's step
 says otherwise ([EVALS.md](../EVALS.md) §1, §3).
 [HARNESS.md](HARNESS.md) §9 has a reaction and its end in `debug.jsonl`,

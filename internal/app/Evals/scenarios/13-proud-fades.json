@@ -3,13 +3,13 @@
   "why": "plan/steering/guide.md and plan/steering/mood/proud.md: proud stays through routine turns and goes back to happy 5 minutes after the mood changed to it; the change back shows, with a happy face, on whichever line brings it (the turn start or its finish)",
   "steps": [
     {"event": "turn started", "at": "0s"},
-    {"event": "command", "at": "1m", "topic": "tests", "failed": true},
-    {"event": "command", "at": "3m", "topic": "tests", "failed": true},
-    {"event": "command", "at": "5m", "topic": "tests", "failed": false, "expect": {"mood": "proud"}},
-    {"event": "turn finished", "at": "6m"},
-    {"event": "turn started", "at": "7m"},
-    {"event": "turn finished", "at": "7m40s", "expect": {"mood": "proud"}},
-    {"event": "turn started", "at": "12m", "expect": {"react": "none|happy", "mood": "proud|happy"}},
-    {"event": "turn finished", "at": "12m40s", "expect": {"react": "none|happy", "mood": "happy"}}
+    {"event": "command", "at": "20s", "topic": "tests", "failed": true},
+    {"event": "command", "at": "40s", "topic": "tests", "failed": true},
+    {"event": "command", "at": "1m", "topic": "tests", "failed": false, "expect": {"mood": "proud"}},
+    {"event": "turn finished", "at": "1m30s"},
+    {"event": "turn started", "at": "2m"},
+    {"event": "turn finished", "at": "2m40s", "expect": {"mood": "proud"}},
+    {"event": "turn started", "at": "6m", "expect": {"react": "none|happy", "mood": "proud|happy"}},
+    {"event": "turn finished", "at": "6m40s", "expect": {"react": "none|happy", "mood": "happy"}}
   ]
 }

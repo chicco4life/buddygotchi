@@ -48,7 +48,7 @@ BIN = REPO / ".build" / "debug"
 MOODS = ["happy", "excited", "proud", "determined", "grumpy", "sad"]
 
 # A turn this long or longer, ending, is a big moment, not routine
-# (the steering's "a turn of 5 minutes or more").
+# (the steering's "a very long turn": 5 minutes or more).
 BIG_TURN_MS = 5 * 60_000
 
 
@@ -601,10 +601,10 @@ def run(args: argparse.Namespace) -> int:
 
 
 # What a line is, for the report: `notable` lines should almost always get
-# a reaction; `minutes` (a clean finish of 1 to 5 minutes) often; `short`
-# (a clean finish under a minute) and `start` now and then; `quiet` is the
-# heartbeat. The mood shouldn't move for `start`, `short` or `minutes`,
-# except for excited at a third clean finish in a row.
+# a reaction; `minutes` (a finish done in 1 to 5 minutes) often; `short`
+# (a finish done under a minute) and `start` now and then; `quiet` is the
+# heartbeat. The mood shouldn't move for `start`, `short` or `minutes`.
+# A finish is judged by what its line says: its outcome and length.
 CLASSES = ["notable", "minutes", "short", "start", "quiet"]
 ROUTINE = {"start", "short", "minutes"}
 
@@ -616,11 +616,11 @@ def classify(event: dict[str, Any]) -> str | None:
     if kind == "heartbeat":
         return "quiet"
     if kind == "turn_end":
-        clean = f.get("outcome") == "done" and not f.get("tools_failed") and not f.get("comeback")
+        done = f.get("outcome") == "done"
         length = f.get("length_ms") or 0
-        if clean and length < 60_000:
+        if done and length < 60_000:
             return "short"
-        if clean and length < BIG_TURN_MS:
+        if done and length < BIG_TURN_MS:
             return "minutes"
         return "notable"
     if kind in ("tool_use", "pokes"):
@@ -629,8 +629,8 @@ def classify(event: dict[str, Any]) -> str | None:
 
 
 def routine(event: dict[str, Any]) -> bool:
-    """A turn starting, or a turn done under 5 minutes with nothing
-    failed and no comeback: the kind of line the mood shouldn't move for."""
+    """A turn starting, or a turn done under 5 minutes: the kind of line
+    the mood shouldn't move for."""
     return classify(event) in ROUTINE
 
 
@@ -733,11 +733,10 @@ def report(paths: list[Path], as_json: bool = False) -> str:
     for p, r in zip(paths, runs):
         out += [f"## {p}", "",
                 "Reactions are to each kind of line that woke the brain, reacted/all: notable (failures, "
-                "fixes, failed or stopped turns, turns of 5 min or more, pokes), clean finishes of 1–5 min, "
-                "clean finishes under a minute, turn starts, heartbeats.", "",
-                "Mood changes on a routine line (a turn start, or a clean finish under 5 min) are split: back "
-                "to happy (a mood fading), and any other (which the line shouldn't cause, apart from excited at a "
-                "third clean finish in a row).", "",
+                "fixes, failed or stopped turns, turns of 5 min or more, pokes), finishes done in 1–5 min, "
+                "finishes done under a minute, turn starts, heartbeats.", "",
+                "Mood changes on a routine line (a turn start, or a finish done under 5 min) are split: back "
+                "to happy (a mood fading), and any other (which the line shouldn't cause).", "",
                 "| Hour | Turns | Passes | Mood changes | … routine, to happy | … routine, other | Reactions "
                 "| notable | 1–5 min | short | starts | quiet | Faces |",
                 "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]

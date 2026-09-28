@@ -44,7 +44,7 @@ final class HarnessTests: XCTestCase {
     }
 
     static let parts = StateText.Parts(guide: "You are the mind of Boop.", personality: "PERSONALITY\nCurious.",
-                                       mood: "MOOD\nHappy.", status: "Working now: nothing else.",
+                                       mood: "MOOD\nHappy.", closing: "Boop has been grumpy for 2 min.",
                                        workingSince: nil, clock: "14:23, Tuesday")
 
     /// harness/HARNESS.md §5.3: HISTORY and NOW, built step by step from
@@ -55,13 +55,13 @@ final class HarnessTests: XCTestCase {
         let t = Transcript()
         let start = t.append(.event(event(.turnStart, at: 5, #"claude started turn 7 on "fix-nav" (landing)."#)), at: Self.t0 + 5 * 60_000)
         t.append(.pass(.init(forSeq: start.seq, answers: [:], dropped: nil, latencyMs: 200)), at: Self.t0)
-        let failed = t.append(.event(event(.toolUse, at: 14, #"claude's tests failed again on "fix-nav" (landing), 2 in a row."#)),
+        let failed = t.append(.event(event(.toolUse, at: 14, #"claude's tests failed on "fix-nav" (landing)."#)),
                               at: Self.t0 + 14 * 60_000)
         t.append(.action(.init(forSeq: failed.seq, name: "react", result: .done(#"Boop made a grumpy face and mumbled "…tests!""#), latencyMs: 1)), at: Self.t0)
         t.append(.action(.init(forSeq: failed.seq, name: "mood", result: .failed("couldn't save the mood: disk full"), latencyMs: 1)), at: Self.t0)
         t.append(.event(event(.tap, at: 19, "You tapped Boop.", reaction: "Boop wiggled on its own.", wakes: false)),
                  at: Self.t0 + 19 * 60_000)
-        let end = t.append(.event(event(.turnEnd, at: 23, #"claude finished turn 7 on "fix-nav" (landing): done."#)),
+        let end = t.append(.event(event(.turnEnd, at: 23, #"claude finished turn 7 on "fix-nav" (landing): done, a very long turn."#)),
                            at: Self.t0 + 23 * 60_000)
         var parts = Self.parts
         parts.workingSince = Self.t0 + 5 * 60_000  // the turn is still working, so HISTORY reaches back to its start
@@ -79,14 +79,14 @@ final class HarnessTests: XCTestCase {
 
             HISTORY (oldest first; indented lines are what Boop did)
             18 min ago: claude started turn 7 on "fix-nav" (landing).
-            9 min ago: claude's tests failed again on "fix-nav" (landing), 2 in a row.
+            9 min ago: claude's tests failed on "fix-nav" (landing).
               Boop made a grumpy face and mumbled "…tests!"
             4 min ago: You tapped Boop.
               Boop wiggled on its own.
-            Working now: nothing else.
+            Boop has been grumpy for 2 min.
 
             NOW (14:23, Tuesday)
-            claude finished turn 7 on "fix-nav" (landing): done.
+            claude finished turn 7 on "fix-nav" (landing): done, a very long turn.
             Boop did nothing on its own.
             """)
     }
@@ -101,11 +101,11 @@ final class HarnessTests: XCTestCase {
         _ = old
         for i in 1...50 { t.append(.event(event(.tap, at: 20, "tap \(i)", wakes: false)), at: Self.t0 + 20 * 60_000) }
         let now = t.append(.event(event(.heartbeat, at: 21, "now")), at: Self.t0 + 21 * 60_000)
-        let recent = StateText.history(t.entries, now: now, at: Self.t0 + 21 * 60_000, status: "s", workingSince: nil)
+        let recent = StateText.history(t.entries, now: now, at: Self.t0 + 21 * 60_000, closing: "s", workingSince: nil)
         XCTAssertFalse(recent.contains(": old"), "21 minutes ago is past the 10")
-        XCTAssertEqual(recent.split(separator: "\n").count, 1 + 40 + 1, "a heading, 40 events, the status line")
+        XCTAssertEqual(recent.split(separator: "\n").count, 1 + 40 + 1, "a heading, 40 events, the closing line")
         XCTAssertTrue(recent.contains("tap 50") && !recent.contains("tap 10\n"), "the newest 40")
-        let working = StateText.history(t.entries, now: now, at: Self.t0 + 21 * 60_000, status: "s", workingSince: Self.t0)
+        let working = StateText.history(t.entries, now: now, at: Self.t0 + 21 * 60_000, closing: "s", workingSince: Self.t0)
         XCTAssertTrue(working.contains("21 min ago: old") || !working.contains("tap 1\n"), "the working turn's start counts, within the 40")
         XCTAssertEqual(StateText.ago(59_999), "just now")
         XCTAssertEqual(StateText.ago(9 * 60_000), "9 min ago")
@@ -128,7 +128,7 @@ final class HarnessTests: XCTestCase {
                  at: Self.t0 + 20 * 60_000)
         for i in 1...45 { t.append(.event(event(.toolUse, at: 20, "read \(i)")), at: Self.t0 + 20 * 60_000) }
         let now = t.append(.event(event(.toolUse, at: 20, "now")), at: Self.t0 + 20 * 60_000 + 30_000)
-        let history = StateText.history(t.entries, now: now, at: now.receivedAtMs, status: "s", workingSince: nil)
+        let history = StateText.history(t.entries, now: now, at: now.receivedAtMs, closing: "s", workingSince: nil)
         let lines = history.split(separator: "\n").map(String.init)
         XCTAssertEqual(lines[1], "just now: tests failed", "the oldest, kept for its reaction")
         XCTAssertEqual(lines[2], "  Boop made a proud face. (in progress)")
@@ -373,7 +373,7 @@ final class HarnessTests: XCTestCase {
 
         let next = home.sync { h.transcript.append(.event(event(.turnEnd, at: 2, "it ended")), at: Self.t0 + 2 * 60_000) }
         let state = StateText.build(home.sync { h.transcript.entries }, now: next, at: Self.t0 + 2 * 60_000, Self.parts)
-        XCTAssertTrue(state.contains("1 min ago: it started\n  Boop did one.\nWorking now"), state)
+        XCTAssertTrue(state.contains("1 min ago: it started\n  Boop did one.\nBoop has been grumpy"), state)
         XCTAssertFalse(state.contains("dashboard") || state.contains("not now"))
     }
 
@@ -448,7 +448,7 @@ final class HarnessTests: XCTestCase {
     func history(_ h: Harness, _ home: DispatchQueue) -> String {
         home.sync {
             let now = Transcript.Entry(seq: Int.max, receivedAtMs: Self.t0 + 60_000, body: .event(event(.heartbeat, at: 1, "now")))
-            return StateText.history(h.transcript.entries, now: now, at: Self.t0 + 60_000, status: "Working now: nothing else.",
+            return StateText.history(h.transcript.entries, now: now, at: Self.t0 + 60_000, closing: "Boop has been grumpy for 2 min.",
                                      workingSince: nil)
         }
     }
@@ -456,7 +456,7 @@ final class HarnessTests: XCTestCase {
     /// §4, §5.2–5.3: a started result is logged `pending` and shows
     /// `(in progress)` until its handle ends; the end is a `settle` entry
     /// for the action's `seq`, after which the line is plain if it was
-    /// done, or says it didn't happen and why. Only the first end counts.
+    /// done, or gone if it didn't happen. Only the first end counts.
     func testAStartedActionIsInProgressUntilItSettles() async throws {
         let first = Pending()
         let a = Recorder("a", keys: ["k"], result: .started("Boop did it.", first))
@@ -471,14 +471,14 @@ final class HarnessTests: XCTestCase {
             HISTORY (oldest first; indented lines are what Boop did)
             1 min ago: it started
               Boop did it. (in progress)
-            Working now: nothing else.
+            Boop has been grumpy for 2 min.
             """)
 
         home.sync { first.finish(.done) }
         XCTAssertEqual(lines.all.last, #"{"received_at_ms":1790000000000,"seq":4,"settle":{"end":"done","for":3}}"#)
         XCTAssertEqual(home.sync { h.transcript.entries.last?.body }, .settle(.init(forSeq: 3, end: .done)))
         XCTAssertTrue(home.sync { h.open.isEmpty })
-        XCTAssertTrue(history(h, home).contains("\n  Boop did it.\nWorking now"), "the marker is gone")
+        XCTAssertTrue(history(h, home).contains("\n  Boop did it.\nBoop has been grumpy"), "the marker is gone")
         home.sync { first.finish(.failed("too late")) }
         XCTAssertEqual(home.sync { h.transcript.entries.count }, 4, "only the first end counts")
 
@@ -492,8 +492,7 @@ final class HarnessTests: XCTestCase {
             1 min ago: it started
               Boop did it.
             1 min ago: it ended
-              Boop did it again. (didn't happen: waited too long)
-            Working now: nothing else.
+            Boop has been grumpy for 2 min.
             """)
         XCTAssertEqual(a.result, .started("Boop did it again.", second), "the same handle")
         XCTAssertNotEqual(a.result, .started("Boop did it again.", Pending()), "results compare their handle")
@@ -523,7 +522,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(bodies.count, 4, "the event, the pass, the action and its settle")
         XCTAssertEqual(bodies.last, .settle(.init(forSeq: 3, end: .failed("no device connected"))))
         XCTAssertTrue(home.sync { h.open.isEmpty })
-        XCTAssertTrue(history(h, home).contains("\n  Boop did it. (didn't happen: no device connected)\n"))
+        XCTAssertTrue(history(h, home).contains("it started\nBoop has been grumpy"), "one that didn't happen isn't shown")
     }
 
     /// §5.1: a started action still in progress a minute
@@ -552,7 +551,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertTrue(home.sync { h.open.isEmpty }, "ended at 60,000 ms")
         XCTAssertEqual(lines.all.last, #"{"received_at_ms":1790000000000,"seq":4,"settle":{"by":"dashboard","end":"failed","for":3,"why":"no word it finished"}}"#)
         XCTAssertEqual(log.all, ["harness: a was still in progress after 60000 ms; ended it"])
-        XCTAssertTrue(history(h, home).contains("\n  Boop did it. (didn't happen: no word it finished)\n"))
+        XCTAssertTrue(history(h, home).contains("it started\nBoop has been grumpy"), "ended, it didn't happen")
         home.sync {
             pending.finish(.done)
             h.tick(now: harnessT0 + 120_000)
@@ -593,7 +592,7 @@ final class HarnessTests: XCTestCase {
         let objects = lines.all.map { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
         let (i, pass) = try XCTUnwrap(objects.enumerated().compactMap { i, o in (o?["pass"] as? [String: Any]).map { (i, $0) } }.last)
         let logged = try XCTUnwrap(pass["state"] as? String)
-        XCTAssertTrue(logged.contains("3 min ago: it started\n  Boop did it. (didn't happen: the device disconnected)\n"), logged)
+        XCTAssertTrue(logged.contains("3 min ago: it started\n2 min ago: it went on\n"), "one that didn't happen isn't shown: \(logged)")
         XCTAssertTrue(logged.contains("  Boop did more. (in progress)\n"), "its settle came while the brain answered: \(logged)")
         let before = Self.entries(fromLog: Array(lines.all[..<i]))
         XCTAssertTrue(before.contains { if case .settle(let s) = $0.body { s.end == .done } else { false } }, "logged before the pass")
@@ -675,7 +674,7 @@ final class HarnessTests: XCTestCase {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return [MoodAction(store: MoodStore(stateDir: dir)),
-                ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, _ in }, blocked: { nil }, clock: { 0 })]
+                ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, _ in }, blocked: { nil })]
     }
 
     // MARK: The actions (DECISIONS.md §4–5)
@@ -693,8 +692,7 @@ final class HarnessTests: XCTestCase {
         var queued: [(moment: DeviceMoment, pending: Pending)] = []
         var sent: [DeviceMoment] { queued.map(\.moment) }
         var why: String?
-        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { queued.append(($0, $1)) }, blocked: { why },
-                                clock: { 0 })
+        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { queued.append(($0, $1)) }, blocked: { why })
         /// Runs `answers`, and checks the result is started with `message`
         /// and the handle its moment was queued with.
         func starts(_ answers: Answers, _ message: String, line: UInt = #line) {
@@ -734,7 +732,6 @@ final class HarnessTests: XCTestCase {
         let first = try! XCTUnwrap(queued.last?.moment.variant)
         XCTAssertTrue(queued.last!.moment.jsonLine.hasSuffix(#","mood":"proud","loops":2,"variant":"# + "\(first)}"),
                       queued.last!.moment.jsonLine)
-        XCTAssertEqual(react.lastLine(at: 0), #"Boop's last reaction, just now: a cheer in a proud face and "…finally!"."#)
         queued.removeLast()
         // BEHAVIORS.md §5: each cheer is one of the cheer's variations at
         // random, never the last one again.
@@ -771,33 +768,6 @@ final class HarnessTests: XCTestCase {
         for word in ReactAction.exclamations.map(\.name) + ReactAction.topics.map(\.name) {
             XCTAssertTrue(Sounds.vocabulary.contains(word), "\(word) is one of Voice's words")
         }
-    }
-
-    /// HARNESS.md §5.3, DECISIONS.md §5: `react` names Boop's last
-    /// reaction and how long ago it started, in HISTORY's wording, for the
-    /// line before the status line; one that didn't happen doesn't count,
-    /// and there's none before the first.
-    func testReactNamesItsLastReaction() {
-        var now: Int64 = 1_000_000
-        var queued: [Pending] = []
-        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { queued.append($1) }, blocked: { nil },
-                                clock: { now })
-        XCTAssertNil(react.lastLine(at: now))
-        _ = react.run(["react.mood": a("excited"), "word.feeling": a("none"), "word.about": a("tests", 0.8)])
-        XCTAssertEqual(react.lastLine(at: now), #"Boop's last reaction, just now: an excited face and "…tests!"."#,
-                       "in progress counts")
-        queued[0].finish(.done)
-        XCTAssertEqual(react.lastLine(at: now + 40_000), #"Boop's last reaction, just now: an excited face and "…tests!"."#)
-        XCTAssertEqual(react.lastLine(at: now + 3 * 60_000 + 5_000),
-                       #"Boop's last reaction, 3 min ago: an excited face and "…tests!"."#)
-        XCTAssertEqual(react.lastLine(at: now + 2 * 3_600_000), #"Boop's last reaction, 2 h ago: an excited face and "…tests!"."#,
-                       "past HISTORY's 10 minutes too")
-        now += 90_000
-        _ = react.run(["react.mood": a("happy")])
-        XCTAssertEqual(react.lastLine(at: now), "Boop's last reaction, just now: a happy face, with no word.")
-        queued[1].finish(.failed("waited too long"))
-        XCTAssertEqual(react.lastLine(at: now), #"Boop's last reaction, 1 min ago: an excited face and "…tests!"."#,
-                       "one that didn't happen isn't the last")
     }
 
     /// VOICE.md §4: a mood's face mumbles in the feeling of the same name,

@@ -27,7 +27,7 @@ public final class Harness: @unchecked Sendable {
     public private(set) var brain: (any Brain)?
     let actions: [any Action]
     /// Everything the state needs besides the transcript, for the pass on
-    /// an event: the static parts, the status line and the clock.
+    /// an event: the static parts, the closing line and the clock.
     let parts: (Transcript.Entry) -> StateText.Parts
     let home: DispatchQueue
     let clock: @Sendable () -> Int64

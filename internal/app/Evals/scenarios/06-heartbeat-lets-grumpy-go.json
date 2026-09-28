@@ -1,12 +1,10 @@
 {
   "name": "An hour of nothing lets a grumpy mood go",
-  "why": "plan/steering/guide.md: any mood goes back to happy after an hour with nothing happening; the heartbeat is the event that brings it, and a heartbeat itself is no reason to mumble",
+  "why": "plan/steering/guide.md: any mood goes back to happy after an hour with nothing happening; the heartbeat is the event that brings it, and a heartbeat itself is no reason to mumble. plan/steering/mood/: a failed turn makes Boop grumpy",
   "steps": [
     {"event": "turn started", "at": "0s"},
     {"event": "command", "at": "1m", "topic": "tests", "failed": true},
-    {"event": "command", "at": "2m", "topic": "tests", "failed": true},
-    {"event": "command", "at": "3m", "topic": "tests", "failed": true, "expect": {"mood": "grumpy"}},
-    {"event": "turn failed", "at": "4m", "error": "api_error"},
+    {"event": "turn failed", "at": "2m", "error": "api_error", "expect": {"mood": "grumpy"}},
     {"event": "wait", "at": "1h5m", "expect": {"react": "none|happy", "mood": "happy"}}
   ]
 }

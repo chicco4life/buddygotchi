@@ -6,6 +6,11 @@ answers, and the actions. How it works is in [HARNESS.md](HARNESS.md),
 [EVENTS.md](EVENTS.md) and [DECISIONS.md](DECISIONS.md); this file only
 shows it.
 
+**Stale:** recorded before the lines Jev reads lost their streaks, times,
+counts and closing lines on 2026-09-28 ([ARCHITECTURE.md](../ARCHITECTURE.md)'s
+decision log); today's are in [EVENTS.md](EVENTS.md) §8 and
+[HARNESS.md](HARNESS.md) §5.3. It will be re-recorded with the evals.
+
 Everything here is real, recorded before the reaction's questions were
 renamed on 2026-09-28: its `react` is today's `react.mood`, and it had
 no `react.animation` yet. It's run 1 of the eval scenario

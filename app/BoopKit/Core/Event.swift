@@ -23,9 +23,8 @@ public struct Event: Equatable, Sendable {
     /// What Boop already did by rule, as its line; nil for nothing.
     public var reaction: String?
     public var wakesBrain: Bool
-    /// The thread it's about, opaque to the harness, which only hands it
-    /// back when it asks for the status line; nil for pokes, taps and
-    /// heartbeats.
+    /// The thread it's about, as the core keys its sessions, for tests;
+    /// the harness never reads it. Nil for pokes, taps and idle heartbeats.
     public var about: String?
     public var facts: [String: JSONValue]
 
@@ -56,21 +55,10 @@ public struct Event: Equatable, Sendable {
 
 /// Numbers named, so no brain has to compare them (EVENTS.md §5).
 public enum Band {
-    /// A turn's length or a tool call's time: short under 15 s, long up to a
-    /// minute, very long past it.
+    /// A turn's length or a tool call's time, as the moods read it: short
+    /// under a minute, long under 5 minutes, very long past that.
     public static func length(ms: Int64) -> String {
-        ms < 15_000 ? "short" : ms <= 60_000 ? "long" : "very long"
-    }
-
-    /// The gap before a turn start or a poke streak: right after under 2
-    /// minutes, a while under an hour, a long break past it.
-    public static func gap(ms: Int64) -> String {
-        ms < 2 * 60_000 ? "right after" : ms < 60 * 60_000 ? "a while" : "a long break"
-    }
-
-    /// `18 min`, `8 s`, `2 h`: a duration as a line says it.
-    public static func took(_ ms: Int64) -> String {
-        ms < 60_000 ? "\(ms / 1000) s" : ms < 2 * 60 * 60_000 ? "\(ms / 60_000) min" : "\(ms / 3_600_000) h"
+        ms < 60_000 ? "short" : ms < 5 * 60_000 ? "long" : "very long"
     }
 }
 
@@ -83,46 +71,21 @@ public enum EventLine {
         name == project ? "\"\(name)\"" : "\"\(name)\" (\(project))"
     }
 
-    public static func turnStart(agent: String, turn: Int, thread: String, gap: String?) -> String {
-        let when = switch gap {
-        case "right after": ", right after its last one"
-        case "a while": ", a while after its last one"
-        case "a long break": ", after a long break"
-        default: ""
-        }
-        return "\(agent) started turn \(turn) on \(thread)\(when)."
+    public static func turnStart(agent: String, turn: Int, thread: String) -> String {
+        "\(agent) started turn \(turn) on \(thread)."
     }
 
-    public static func turnEnd(agent: String, turn: Int, thread: String, outcome: String, error: String?,
-                               lengthMs: Int64, tools: Int, toolsFailed: Int, topics: [(String, String)],
-                               comeback: String?, cleanRun: Int = 0) -> String {
-        let how = switch outcome {
-        case "failed": "failed" + (error.map { " (\($0.replacingOccurrences(of: "_", with: " ")))" } ?? "")
-        case "stopped": "stopped"
-        default: "done"
-        }
-        var line = "\(agent) finished turn \(turn) on \(thread): \(how) after \(Band.took(lengthMs)), "
-            + "a \(Band.length(ms: lengthMs)) turn, \(tools) tool\(tools == 1 ? "" : "s")"
-            + (toolsFailed > 0 ? " (\(toolsFailed) failed)." : ".")
-        if !topics.isEmpty {
-            let states = topics.map { "\($0.0) \($0.1)" }.joined(separator: ", ")
-            line += " " + states.prefix(1).uppercased() + states.dropFirst() + "."
-        }
-        if let comeback { line += " A comeback on \(comeback)." }
-        if cleanRun >= 2 { line += " \(cleanRun) clean finishes in a row." }
-        return line
+    /// `claude finished turn 7 on "fix-nav" (landing): done, a very long
+    /// turn.`: the outcome and the length band, nothing else.
+    public static func turnEnd(agent: String, turn: Int, thread: String, outcome: String, lengthMs: Int64) -> String {
+        let how = outcome == "failed" || outcome == "stopped" ? outcome : "done"
+        return "\(agent) finished turn \(turn) on \(thread): \(how), a \(Band.length(ms: lengthMs)) turn."
     }
 
     /// A tool use that woke the brain: a check that failed, or passed after
     /// failing.
-    public static func check(agent: String, topic: String, thread: String, failed: Bool, failedBefore: Int,
-                             error: String?) -> String {
-        let bracket = error.flatMap { $0 == "exit_code" ? nil : " (\(errorWords($0)))" } ?? ""
-        if !failed {
-            return "\(agent)'s \(topic) passed on \(thread) after \(failedBefore) failure\(failedBefore == 1 ? "" : "s") in a row."
-        }
-        if failedBefore == 0 { return "\(agent)'s \(topic) failed on \(thread)\(bracket)." }
-        return "\(agent)'s \(topic) failed again on \(thread)\(bracket), \(failedBefore + 1) in a row."
+    public static func check(agent: String, topic: String, thread: String, failed: Bool) -> String {
+        "\(agent)'s \(topic) \(failed ? "failed" : "passed") on \(thread)\(failed ? "" : " after failing")."
     }
 
     /// Any other tool use, with the personality's `tool_uses: all`.
@@ -139,24 +102,16 @@ public enum EventLine {
         return "\(agent) \(what) on \(thread)." + (failed == true ? " It failed." : "")
     }
 
-    public static func pokes(count: Int, seconds: Int, sinceLast: String?) -> String {
-        let again = switch sinceLast {
-        case "right after": ", again right after the last time"
-        case "a while": ", again a while after the last time"
-        case "a long break": ", again after a long break"
-        default: ""
-        }
-        return "You poked Boop \(count) times in \(seconds) s\(again)."
-    }
+    public static let pokes = "You poked Boop again and again."
 
     public static func heartbeat(hours: Int) -> String {
         "Nothing has happened for \(hours) hour\(hours == 1 ? "" : "s")."
     }
 
-    /// The working heartbeat: `claude has been working on "fix-nav"
-    /// (landing) for 6 min, on tests.`, the topic only when there is one.
-    public static func working(agent: String, thread: String, ms: Int64, topic: String?) -> String {
-        "\(agent) has been working on \(thread) for \(Band.took(ms))" + (topic.map { ", on \($0)" } ?? "") + "."
+    /// The working heartbeat: `claude is still working on "fix-nav"
+    /// (landing), a long turn.`, the band of the turn so far.
+    public static func working(agent: String, thread: String, ms: Int64) -> String {
+        "\(agent) is still working on \(thread), a \(Band.length(ms: ms)) turn."
     }
 
     /// The words the lines use, as the guide explains them after how to
@@ -167,8 +122,9 @@ public enum EventLine {
           "fix-nav" (landing) is the thread fix-nav in the project landing.
         - A turn is one request to a thread. It ends done, failed or stopped.
         - Tests, build, deploy and docs are what a command was about; failed
-          means it ended with an error. A comeback passed after failing.
-        - Turns are short (under 15 s), long (under a minute) or very long.
+          means it ended with an error.
+        - Turns are short (under a minute), long (under 5 minutes) or very
+          long (5 minutes or more).
         """
 
     public static let tap = "You tapped Boop."
@@ -178,14 +134,6 @@ public enum EventLine {
     }
 
     public static let wiggled = "Boop wiggled on its own."
-
-    static func errorWords(_ error: String) -> String {
-        switch error {
-        case "timeout": "timed out"
-        case "denied": "denied"
-        default: "error"
-        }
-    }
 
     /// The tool's category (EVENTS.md §4).
     public static func category(tool: String?) -> String {

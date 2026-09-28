@@ -17,36 +17,16 @@ public final class ReactAction: Action {
     let queue: (DeviceMoment, Pending) -> Void
     /// Why a mumble can't play now (something needs you), or nil.
     let blocked: () -> String?
-    /// The time, on the harness's clock.
-    let clock: () -> Int64
     /// Each line gets the next seed, so a logged line can be replayed.
     var seed: UInt64 = 0
     /// Picks each cheer's variation, never the last one (BEHAVIORS.md §5).
     var variants = SplitMix64(seed: 0xB00B)
     var lastCheer: Int?
-    /// The last few reactions it started, newest last: each one's face,
-    /// animation, word, when, and its handle (DECISIONS.md §5).
-    var made: [(face: String, anim: String?, word: String?, at: Int64, pending: Pending)] = []
 
-    public init(voice: Voice, queue: @escaping (DeviceMoment, Pending) -> Void, blocked: @escaping () -> String?,
-                clock: @escaping () -> Int64) {
+    public init(voice: Voice, queue: @escaping (DeviceMoment, Pending) -> Void, blocked: @escaping () -> String?) {
         self.voice = voice
         self.queue = queue
         self.blocked = blocked
-        self.clock = clock
-    }
-
-    /// Boop's last reaction and how long ago it started, for the line
-    /// before the status line that closes HISTORY (harness/HARNESS.md
-    /// §5.3): `Boop's last reaction, just now: an excited face and
-    /// "…tests!".` One that didn't happen doesn't count; nil before any.
-    public func lastLine(at now: Int64) -> String? {
-        let happened = made.last { if case .failed = $0.pending.ended { false } else { true } }
-        guard let last = happened else { return nil }
-        return "Boop's last reaction, \(StateText.ago(now - last.at)): "
-            + (last.anim.map { "\(Self.article($0)) \($0) in \(Self.article(last.face)) \(last.face) face" }
-                ?? "\(Self.article(last.face)) \(last.face) face")
-            + (last.word.map { " and \"…\($0)!\"." } ?? ", with no word.")
     }
 
     static func article(_ word: String) -> String { "aeiou".contains(word.first ?? "x") ? "an" : "a" }
@@ -58,11 +38,11 @@ public final class ReactAction: Action {
         Option("happy", "A happy face: pleased, a turn went fine or a small win."),
         Option("excited", "An excited face: something big just went right."),
         Option("proud", "A proud face: something long or hard just finished, or finally worked."),
-        Option("determined", "A determined face: something failed and the agent is trying again.",
-               notFor: "A turn that has ended, or the same failure 3 or more times in a row."),
-        Option("grumpy", "A grumpy face: a turn failed, the same thing keeps failing, or Boop is poked too much."),
-        Option("sad", "A sad face: a turn of 5 minutes or more ended failing, or was stopped with failures left.",
-               notFor: "A short turn failing, or a single failure."),
+        Option("determined", "A determined face: a check failed and the agent is trying again.",
+               notFor: "A turn that has ended."),
+        Option("grumpy", "A grumpy face: a turn failed, or Boop is poked again and again."),
+        Option("sad", "A sad face: a very long turn ended failed.",
+               notFor: "A shorter turn failing, or a check failing."),
     ]
 
     public static let exclamations = [
@@ -102,7 +82,7 @@ public final class ReactAction: Action {
     public static let holds = [
         Option("once", "A small moment: the usual."),
         Option("twice", "A moment that stands out.", notFor: "Routine work."),
-        Option("three times", "A big moment, such as a comeback."),
+        Option("three times", "A big moment, such as a check passing after failing."),
         Option("four times", "The biggest moments: a hard-won finish, or a failure that keeps coming back.",
                notFor: "A single win or failure."),
     ]
@@ -167,7 +147,6 @@ public final class ReactAction: Action {
             lastCheer = variant
         }
         let pending = Pending()
-        made = made.suffix(4) + [(choice, anim, word, clock(), pending)]
         queue(DeviceMoment(anim: anim, say: line, mood: choice, loops: loops, variant: variant), pending)
         // 5. What it started, as its line in HISTORY: in progress until
         // the device says how the moment ended.

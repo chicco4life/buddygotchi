@@ -1,6 +1,6 @@
 {
   "name": "A comeback that didn't happen is made when the turn finishes",
-  "why": "plan/steering/guide.md and harness/DECISIONS.md §2.1, §5: a reaction HISTORY says didn't happen may be made again if NOW still calls for it, and a comeback finish does (PERSONALITY's Examples)",
+  "why": "plan/steering/guide.md and harness/DECISIONS.md §2.1, §5: a reaction that didn't happen isn't in HISTORY, so it may be made when NOW still calls for it, and a very long turn finishing done after a fix does (PERSONALITY's Examples)",
   "steps": [
     {"event": "turn started", "at": "0s"},
     {"event": "command", "at": "1m", "topic": "tests", "failed": true},

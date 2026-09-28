@@ -305,16 +305,16 @@ public final class Runtime: @unchecked Sendable {
         let react = ReactAction(voice: voice, queue: { moment, pending in
             moments.schedule.brain(moment, pending, now: clock())
             Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
-        }, blocked: { core.mumbleBlock }, clock: clock)
+        }, blocked: { core.mumbleBlock })
         let actions: [any Action] = [moodChanges, react]
         let steering = options.steering
         let mood = self.mood
         let time = options.time
         var personalityNow: () -> Personality = { .boop }
         let wallClock = options.wallClock
-        harness = Harness(brain: nil, actions: actions, parts: { entry in
-            Runtime.stateParts(for: entry, steering: steering, personality: personalityNow(), mood: mood.current,
-                               core: core, react: react, moodAction: moodChanges, time: time, now: clock(),
+        harness = Harness(brain: nil, actions: actions, parts: { _ in
+            Runtime.stateParts(steering: steering, personality: personalityNow(), mood: mood.current,
+                               core: core, moodAction: moodChanges, time: time, now: clock(),
                                wall: wallClock())
         }, home: home, clock: clock, debugLog: options.debug ? debugLogURL : nil, log: log)
         if options.debug {
@@ -335,21 +335,17 @@ public final class Runtime: @unchecked Sendable {
         }
     }
 
-    /// Everything Jev's state needs besides the transcript, for the pass on
-    /// `entry` (harness/HARNESS.md §6): the steering files, the lines that
-    /// close HISTORY (`react`'s last reaction, `mood`'s time in the mood,
-    /// then the core's status line), the oldest working turn at steady time `now`, and the
-    /// time of day at wall-clock time `wall`. The evals build theirs with
-    /// it too.
-    public static func stateParts(for entry: Transcript.Entry, steering: Steering, personality: Personality,
-                                  mood: String, core: Core, react: ReactAction, moodAction: MoodAction?,
+    /// Everything Jev's state needs besides the transcript, for a pass
+    /// (harness/HARNESS.md §6): the steering files, the line that
+    /// closes HISTORY (`mood`'s time in the mood), the oldest working turn
+    /// at steady time `now`, and the time of day at wall-clock time `wall`.
+    /// The evals build theirs with it too.
+    public static func stateParts(steering: Steering, personality: Personality,
+                                  mood: String, core: Core, moodAction: MoodAction?,
                                   time: LocalTime, now: Int64, wall: Int64) -> StateText.Parts {
-        let about: String? = if case .event(let event) = entry.body { event.about } else { nil }
-        let status = [react.lastLine(at: now), moodAction?.sinceLine(at: now),
-                      core.statusLine(excluding: about, at: now)].compactMap { $0 }
-        return StateText.Parts(guide: steering.guide, personality: steering.personality(personality).text,
-                               mood: steering.mood(mood), status: status.joined(separator: "\n"),
-                               workingSince: core.workingSince(at: now), clock: "\(time.clock(wall)), \(time.weekday(wall))")
+        StateText.Parts(guide: steering.guide, personality: steering.personality(personality).text,
+                        mood: steering.mood(mood), closing: moodAction?.sinceLine(at: now),
+                        workingSince: core.workingSince(at: now), clock: "\(time.clock(wall)), \(time.weekday(wall))")
     }
 
     // MARK: Running

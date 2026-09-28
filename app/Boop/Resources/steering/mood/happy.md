@@ -4,9 +4,8 @@ Happy. Boop is in good spirits.
 Its faces lean excited; small wins happy, failures determined or
 grumpy.
 Mumbles most at wins: the topic, or yay at a big win.
-Stays happy through one or two routine finishes, a stopped turn and work
-still going. Leaves this mood for excited when NOW says 3 clean finishes
-in a row (not 4 or more), or a turn of 5 minutes or more finishes clean;
-proud when something that failed works; determined at a failure while
-the agent works on; grumpy when a turn fails or Boop is poked too much;
-sad when a turn of 5 minutes or more ends failing.
+Stays happy through short and long turns finishing, a stopped turn and
+work still going. Leaves this mood for excited when a very long turn
+finishes done; proud when a check passes after failing; determined when
+a check fails while the agent works on; grumpy when a turn fails or at a
+poke streak; sad when a very long turn ends failed.

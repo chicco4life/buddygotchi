@@ -28,32 +28,29 @@ final class EvalTests: XCTestCase {
             states.add(state)
             let now = state.components(separatedBy: "\nNOW (").last ?? ""
             func a(_ c: String) -> Answer { Answer(choice: c, probabilities: [c: 0.9]) }
-            if now.contains("3 in a row") {
-                return ["mood": a("grumpy"), "react.mood": a("grumpy"), "word.feeling": a("again"), "word.about": a("tests")]
-            }
             if now.contains("passed") {
                 return ["mood": a("proud"), "react.mood": a("proud"), "word.feeling": a("finally"), "word.about": a("tests")]
             }
             if now.contains("failed") {
                 return ["mood": a("determined"), "react.mood": a("determined"), "word.feeling": a("oops"), "word.about": a("none")]
             }
-            return ["mood": a(state.contains("MOOD\nGrumpy") ? "grumpy" : "happy"), "react.mood": a("none"),
+            return ["mood": a(state.contains("MOOD\nDetermined") ? "determined" : "happy"), "react.mood": a("none"),
                     "word.feeling": a("none"), "word.about": a("none")]
         }
         let scenario = try Scenario(file: Self.scenarios.appendingPathComponent("04-tests-fight-back.json"))
         let result = try await Eval(brain: brain, steering: RuntimeTests.steering).run(scenario)
         XCTAssertEqual(result.checks.count, 4)
         XCTAssertTrue(result.passed, result.checks.filter { !$0.passed }.map(\.summary).joined(separator: "\n"))
-        XCTAssertEqual(result.checks[2].word, "again")
-        XCTAssertEqual(result.checks[2].mood, "grumpy")
-        XCTAssertEqual(result.checks[3].mood, "proud", "2 minutes after turning grumpy: no rule holds a mood")
+        XCTAssertEqual(result.checks[2].word, "oops")
+        XCTAssertEqual(result.checks[2].mood, "determined")
+        XCTAssertEqual(result.checks[3].mood, "proud", "2 minutes after the last failure: no rule holds a mood")
         let last = try XCTUnwrap(states.all.last)
-        XCTAssertTrue(last.contains("\n  Boop made a grumpy face, held once, and mumbled \"…again!\"\n"), last)
+        XCTAssertTrue(last.contains("\n  Boop made a determined face, held once, and mumbled \"…oops!\"\n"), last)
     }
 
     /// EVALS.md §3: a step's `reaction` says how the reactions its passes
-    /// start end, so HISTORY can show one still in progress or one that
-    /// didn't happen; any other value doesn't load.
+    /// start end, so HISTORY can show one still in progress, or leave out
+    /// one that didn't happen; any other value doesn't load.
     func testAStepSaysHowItsReactionEnds() async throws {
         let states = Lines()
         let brain = ScriptedBrain { state, _ in
@@ -62,11 +59,11 @@ final class EvalTests: XCTestCase {
             return ["react.mood": proud, "mood": proud]
         }
         let eval = Eval(brain: brain, steering: RuntimeTests.steering)
-        for (file, marker) in [("11-comeback-still-showing.json", " (in progress)\n"),
-                               ("12-comeback-that-didnt-happen.json", " (didn't happen: waited too long)\n")] {
+        for (file, shown) in [("11-comeback-still-showing.json", true), ("12-comeback-that-didnt-happen.json", false)] {
             _ = try await eval.run(try Scenario(file: Self.scenarios.appendingPathComponent(file)))
             let finish = try XCTUnwrap(states.all.last)
-            XCTAssertTrue(finish.contains("\n  Boop made a proud face, held once, and mumbled." + marker), finish)
+            XCTAssertEqual(finish.contains("\n  Boop made a proud face, held once, and mumbled. (in progress)\n"), shown, finish)
+            XCTAssertEqual(finish.contains("after failing.\n  Boop made"), shown, "one that didn't happen isn't shown: \(finish)")
         }
         let bad = FileManager.default.temporaryDirectory.appendingPathComponent("bad-reaction-\(UUID().uuidString).json")
         try Data(#"{"name":"n","why":"w","steps":[{"event":"pokes","at":"0s","reaction":"maybe","expect":{"react":"none"}}]}"#.utf8)

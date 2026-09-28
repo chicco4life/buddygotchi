@@ -16,11 +16,8 @@ public enum StateText {
     public static let reading = """
         How to read HISTORY and NOW:
         - HISTORY is oldest first. Each line says how long ago it happened, and
-          lines indented under it are what Boop did. The last line lists the
-          threads still working.
-        - A line of what Boop did may end in brackets: (in progress) means it
-          hasn't finished yet, and (didn't happen: …) means it never did, and
-          why.
+          lines indented under it are what Boop did. A line of what Boop did
+          ending in (in progress) hasn't finished yet.
         - NOW is what to react to. Its second line is what Boop already did on
           its own, by reflex.
         """
@@ -29,19 +26,20 @@ public enum StateText {
         public var guide: String
         public var personality: String
         public var mood: String
-        /// The status line that closes HISTORY.
-        public var status: String
+        /// The line that closes HISTORY, how long Boop has been in its
+        /// mood, or nil for none.
+        public var closing: String?
         /// How far back HISTORY reaches at most: the oldest working turn's start.
         public var workingSince: Int64?
         /// `14:23, Tuesday`, for NOW's heading.
         public var clock: String
 
-        public init(guide: String, personality: String, mood: String, status: String, workingSince: Int64?,
+        public init(guide: String, personality: String, mood: String, closing: String?, workingSince: Int64?,
                     clock: String) {
             self.guide = guide
             self.personality = personality
             self.mood = mood
-            self.status = status
+            self.closing = closing
             self.workingSince = workingSince
             self.clock = clock
         }
@@ -53,13 +51,13 @@ public enum StateText {
             parts.guide + "\n" + reading + "\n" + EventLine.words,
             parts.personality,
             parts.mood,
-            history(entries, now: now, at: nowMs, status: parts.status, workingSince: parts.workingSince),
+            history(entries, now: now, at: nowMs, closing: parts.closing, workingSince: parts.workingSince),
             nowSection(now, clock: parts.clock),
         ].joined(separator: "\n\n")
     }
 
     /// HISTORY, built step by step as §5.3 says.
-    public static func history(_ entries: [Transcript.Entry], now: Transcript.Entry, at nowMs: Int64, status: String,
+    public static func history(_ entries: [Transcript.Entry], now: Transcript.Entry, at nowMs: Int64, closing: String?,
                                workingSince: Int64?) -> String {
         let from = min(nowMs - historyMs, workingSince ?? Int64.max)
         let inRange = entries.filter { e in
@@ -76,7 +74,7 @@ public enum StateText {
             lines.append("\(ago(nowMs - e.receivedAtMs)): \(event.line)")
             for did in didLines(for: e, event: event, in: entries) { lines.append("  " + did) }
         }
-        lines.append(status)
+        if let closing { lines.append(closing) }
         return lines.joined(separator: "\n")
     }
 
@@ -107,13 +105,15 @@ public enum StateText {
     /// What Boop did about an event: its rule reaction, then the messages of
     /// its successful actions, in order. A forced action, which is for no
     /// event, counts as done about the latest event before it. A started
-    /// one is `(in progress)` until it settles, then plain if it was done,
-    /// or `(didn't happen: why)`.
+    /// one is `(in progress)` until it settles, then plain if it was done;
+    /// one that didn't happen isn't shown.
     static func didLines(for entry: Transcript.Entry, event: Event, in entries: [Transcript.Entry]) -> [String] {
         var lines = event.reaction.map { [$0] } ?? []
         var latest = true
         /// Started actions shown here: their line's index and message.
         var started: [Int: (index: Int, message: String)] = [:]
+        /// The lines of started actions that didn't happen.
+        var gone: Set<Int> = []
         for e in entries where e.seq > entry.seq {
             switch e.body {
             case .event: latest = false
@@ -128,12 +128,12 @@ public enum StateText {
                 guard let placed = started[s.forSeq] else { break }
                 switch s.end {
                 case .done: lines[placed.index] = placed.message
-                case .failed(let why): lines[placed.index] = placed.message + " (didn't happen: \(why))"
+                case .failed: gone.insert(placed.index)
                 }
             default: break
             }
         }
-        return lines
+        return lines.indices.filter { !gone.contains($0) }.map { lines[$0] }
     }
 
     /// `just now`, `9 min ago`, `2 h ago`.

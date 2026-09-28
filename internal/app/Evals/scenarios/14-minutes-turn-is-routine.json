@@ -1,6 +1,6 @@
 {
   "name": "A turn of a few minutes gets a face but leaves the mood alone",
-  "why": "plan/steering/mood/happy.md: happy stays through one or two routine finishes, even a few minutes long, since only a third clean finish in a row or a clean turn of 5 minutes or more makes it excited; PERSONALITY's Examples: a turn of a minute or more finishing gets a face, held once, and no cheer: only a finish that stands out cheers",
+  "why": "plan/steering/mood/happy.md: happy stays through one or two routine finishes, even a few minutes long, since only a very long turn (5 minutes or more) finishing done makes it excited; PERSONALITY's Examples: a turn of a minute or more finishing gets a face, held once, and no cheer: only a finish that stands out cheers",
   "steps": [
     {"event": "turn started", "at": "0s"},
     {"event": "command", "at": "30s", "topic": "tests", "failed": false},

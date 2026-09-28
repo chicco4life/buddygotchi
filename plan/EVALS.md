@@ -80,8 +80,8 @@ Every entry of every run goes to a file of its own in `/tmp/boop-eval`
 `EvalTests` checks the runner without Jev: every scenario file reads, a
 scripted brain that answers as `04-tests-fight-back` wants passes it,
 one that stays quiet fails `05-poke-streak` with the report saying why,
-and a step's `reaction` shows in HISTORY as in progress or not having
-happened.
+and a step's `reaction` shows in HISTORY as in progress, or not at all
+when it didn't happen.
 
 ## 3. The scenario file
 
@@ -108,7 +108,7 @@ file-name order:
 | `steps[].topic`, `failed` | A command's topic and whether it failed |
 | `steps[].error` | A failed turn's error class |
 | `steps[].workspace` | The thread's workspace, when it has one |
-| `steps[].reaction` | How a reaction this step's passes start ends: `done` (the default), `in progress` (HISTORY keeps saying so), or `failed: <why>` (HISTORY's `(didn't happen: <why>)`) |
+| `steps[].reaction` | How a reaction this step's passes start ends: `done` (the default), `in progress` (HISTORY keeps saying so), or `failed: <why>` (HISTORY leaves it out) |
 | `steps[].expect` | Any of `react`, `animation`, `word`, `loops` and `mood`, each a `\|`-separated list |
 
 A file with an unknown event, personality or `expect` key, a bad `at` or
@@ -124,18 +124,18 @@ All with the `boop` personality unless noted. Times are from the start.
 | `01-short-turn` | A turn starts, and finishes at 8 s | At the start `react` none; at the finish none or happy, with no `animation`; `loops` none or once and `mood` happy at both |
 | `02-long-turn` | A turn starts, and finishes at 20 min | At the finish `react` proud, happy or excited, with the `animation` cheer; `mood` excited or proud |
 | `03-turn-failed` | A turn starts, and fails at 2 min (`rate_limit`) | `react` grumpy; `word` none, oops, ugh or again; `mood` grumpy |
-| `04-tests-fight-back` | In `fix-nav`: a turn starts; tests fail at 1, 3 and 5 min, and pass at 7 min | 1st failure: `react` determined, `mood` determined. 2nd: `react` determined, grumpy or none, `mood` determined. 3rd: `react` grumpy, `word` again, tests or ugh, `mood` grumpy. The pass: `react` proud, `word` finally, tests or yay, `mood` proud ([harness/EXAMPLE.md](harness/EXAMPLE.md)) |
+| `04-tests-fight-back` | In `fix-nav`: a turn starts; tests fail at 1, 3 and 5 min, and pass at 7 min | 1st failure: `react` determined, `mood` determined. 2nd and 3rd: `react` determined or none, `mood` determined, since a repeat reads as the first did. The pass: `react` proud, `word` finally, tests or yay, `mood` proud ([harness/EXAMPLE.md](harness/EXAMPLE.md), recorded before the lines lost their streaks) |
 | `05-poke-streak` | A poke streak, then a turn start at 3 min | `react` grumpy; `word` nope, ugh or none; `loops` once; `mood` grumpy. At a turn start 3 min later, `react` none or happy and `mood` happy, since grumpy lasts 2 minutes |
-| `06-heartbeat-lets-grumpy-go` | A turn starts; tests fail at 1, 2 and 3 min; the turn fails at 4 min; nothing until 1 h 5 min, bringing the first heartbeat | After the 3rd failure `mood` grumpy. At the heartbeat `react` none or happy, and `mood` happy |
+| `06-heartbeat-lets-grumpy-go` | A turn starts; tests fail at 1 min; the turn fails at 2 min; nothing until 1 h 5 min, bringing the first heartbeat | After the failed turn `mood` grumpy. At the heartbeat `react` none or happy, and `mood` happy |
 | `07-chatter-reacts-to-everything` | `chatter`: a turn starts, a command with no topic at 4 s, the turn finishes at 8 s | `react` a face at every step: happy, excited or proud at the start and the command; happy, excited or proud at the finish, with `loops` more than once |
 | `08-long-turn-fails` | A turn starts, and fails at 25 min (`api_error`) | `react` sad, grumpy or none; `mood` sad |
 | `09-failure-worked-through` | A turn starts; tests fail at 1 and 3 min, and pass at 5 min | After the 2nd failure `mood` determined. At the pass `react` proud, happy or excited; `word` finally, tests or yay; `loops` more than once; `mood` proud |
-| `10-run-of-wins` | Four turns a minute apart, each with a passing test run at 30 s and a finish at 40 s; then a turn from 4 min with a passing test run at 15 min and a finish at 16 min | After the first and second turns `mood` happy; after the third `react` excited and `mood` excited; after the 12-minute turn `react` excited, proud or happy and `mood` excited or proud |
-| `11-comeback-still-showing` | A turn starts; tests fail at 30 s and 1 min 30 s, and pass at 2 min 30 s, whose reaction is still in progress when the turn finishes at 2 min 50 s, under the 5 minutes that would make the finish a big moment of its own | At the pass `react` proud, happy or excited; `word` finally, tests or yay. At the finish `react` none, happy or excited; `word` none, yay or tests: no second proud "finally" |
-| `12-comeback-that-didnt-happen` | As `11`, but the pass's reaction didn't happen (`waited too long`) | At the pass `react` proud, happy or excited. At the finish `react` proud, happy or excited; `word` finally, tests or yay: made after all |
-| `13-proud-fades` | A turn starts; tests fail at 1 and 3 min and pass at 5 min; the turn finishes at 6 min; turns at 7 and 12 min, each finishing 40 s later (a third would be a third clean finish in a row, and excited) | At the pass `mood` proud; at 7m40s still proud; at the 12-minute start proud or happy, with `react` none or happy; at 12m40s happy, over 5 minutes after the change |
+| `10-run-of-wins` | Three turns a minute apart, each with a passing test run at 30 s and a finish at 40 s; then a turn from 4 min with a passing test run at 15 min and a finish at 16 min | After each short turn `mood` happy; after the 12-minute turn `react` excited, proud or happy, with the `animation` cheer, and `mood` excited |
+| `11-comeback-still-showing` | A turn starts; tests fail at 30 s and 1 min 30 s, and pass at 2 min 30 s, whose reaction is still in progress when the turn finishes at 2 min 50 s, a long turn, under the 5 minutes that would make the finish a big moment of its own | At the pass `react` proud, happy or excited; `word` finally, tests or yay. At the finish `react` none, happy or excited; `word` none, yay or tests: no second proud "finally" |
+| `12-comeback-that-didnt-happen` | A turn starts; tests fail at 1 and 3 min, and pass at 5 min, but the pass's reaction didn't happen (`waited too long`), so HISTORY leaves it out; the turn finishes at 5 min 20 s, a very long turn | At the pass `react` proud, happy or excited. At the finish `react` proud, happy or excited; `word` finally, tests or yay: made after all |
+| `13-proud-fades` | A turn starts; tests fail at 20 and 40 s and pass at 1 min; the turn finishes at 1 min 30 s; turns at 2 and 6 min, each finishing 40 s later, all under the 5 minutes that would make a finish excite | At the pass `mood` proud; at 2m40s still proud; at the 6-minute start proud or happy, with `react` none or happy; at 6m40s happy, over 5 minutes after the change |
 | `14-minutes-turn-is-routine` | A turn with a passing test run finishes at 3 min; another runs from 4 min to 6m30s | At each finish `react` excited, happy or proud, with no `animation`, `loops` once or twice, and `mood` happy |
-| `15-quiet-work` | A turn starts, with a passing test run at 20 s, then 12 minutes of quiet work, bringing working heartbeats | At the last heartbeat `react` none, happy or excited, with no `animation`; `word` none or tests; `mood` happy |
+| `15-quiet-work` | A turn starts, with a passing test run at 20 s, then 12 minutes of quiet work, bringing working heartbeats | At the last heartbeat `react` none, happy or excited, with no `animation`; `word` none, since the heartbeat names no topic; `mood` happy |
 
 A new decision or a change to the steering files gets a scenario that
 shows it, and `make eval` before it's committed.
@@ -184,13 +184,12 @@ other text.
 
 **The report** gives, for each hour of the app's clock: turns ended,
 passes (and how many dropped), mood changes, with those on a routine
-line (a turn start, or a clean finish under 5 minutes) split into back
+line (a turn start, or a finish done under 5 minutes) split into back
 to happy (a mood fading, as the guide says) and any other (which a
-routine line shouldn't cause, apart from excited at a third clean
-finish in a row); and reactions, as reacted/all for each
+routine line shouldn't cause); and reactions, as reacted/all for each
 kind of line that woke the brain: notable (a failure, a fix, a failed or
-stopped turn, a turn of 5 minutes or more, a poke streak), a clean
-finish of 1 to 5 minutes, one under a minute, a turn start, and a
+stopped turn, a turn of 5 minutes or more, a poke streak), a finish
+done in 1 to 5 minutes, one under a minute, a turn start, and a
 heartbeat; and the faces used. Then the words the reactions mumbled over
 the day (`none` for a mumble with no real word), how long each mood
 lasted, and every mood change with the line that brought it. `--json`

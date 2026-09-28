@@ -167,11 +167,6 @@ public final class Core {
     /// Heartbeats sent since then.
     var heartbeats = 0
 
-    // Clean finishes (harness/EVENTS.md §8).
-    /// Turns finished `done` with no tool failing, in a row across every
-    /// thread; any other finish starts it again.
-    var cleanRun = 0
-
     /// `lastActiveDay` is today's date from `short-term.md`, if there is one,
     /// so a restart doesn't start the day again.
     public init(config: Config, lastActiveDay: String? = nil) {
@@ -354,7 +349,6 @@ public final class Core {
         case .sessionStart:
             sessions[key] = s
         case .turnStart:
-            let gap = s.lastTurnEndedAt.map { Band.gap(ms: now - $0) }
             s.working = true
             s.turnStartedAt = now
             s.sleptMs = 0
@@ -367,7 +361,7 @@ public final class Core {
             s.topicStates = []
             s.comeback = nil
             sessions[key] = s
-            turnStartEvent(s, gap: gap, now, &fx)
+            turnStartEvent(s, now, &fx)
         case .activity:
             var event = event
             var late = false
@@ -686,11 +680,9 @@ public final class Core {
         let count = taps.count
         let seconds = max(1, Int((now - taps[0] + 999) / 1000))
         taps.removeAll()
-        let sinceLast = pokedAt.map { Band.gap(ms: now - $0) }
         let tooSoon = pokedAt.map { now - $0 < config.pokedEveryMs } == true
-        let line = EventLine.pokes(count: count, seconds: seconds, sinceLast: sinceLast)
-        let facts: [String: JSONValue] = ["count": .int(Int64(count)), "seconds": .int(Int64(seconds)),
-                                          "since_last": .of(sinceLast)]
+        let line = EventLine.pokes
+        let facts: [String: JSONValue] = ["count": .int(Int64(count)), "seconds": .int(Int64(seconds))]
         if tooSoon {
             fx.append(.event(Event(.pokes, at: now, line: line, reaction: EventLine.wiggled, wakesBrain: false, facts: facts)))
             return
@@ -729,8 +721,8 @@ public final class Core {
     /// The working heartbeat (BEHAVIORS.md §2, harness/EVENTS.md §4): while
     /// agents work, an event for the brain once the personality's wait has
     /// passed with no event that woke it, so the brain may mumble in a
-    /// quiet stretch of work. It names the thread working longest and its
-    /// latest topic. No rule mumbles.
+    /// quiet stretch of work. It names the thread working longest and how
+    /// long its turn has been, as a band. No rule mumbles.
     func workingHeartbeat(_ now: Int64, _ fx: inout [CoreEffect]) {
         let working = sessions.values.filter { isWorking($0, now) && $0.needsSince == nil }
         guard !working.isEmpty, let gap = config.rules.workBeatMs else {
@@ -746,7 +738,7 @@ public final class Core {
         guard let s = working.min(by: { ($0.turnStartedAt ?? now, $0.order) < ($1.turnStartedAt ?? now, $1.order) }) else { return }
         let ms = s.length(to: now, from: s.turnStartedAt ?? now)
         fx.append(.event(Event(.heartbeat, at: now,
-                               line: EventLine.working(agent: s.agent.short, thread: threadLine(s), ms: ms, topic: s.topic),
+                               line: EventLine.working(agent: s.agent.short, thread: threadLine(s), ms: ms),
                                wakesBrain: wakes, about: s.key,
                                facts: ["thread": threadFacts(s), "working_ms": .int(ms), "topic": .of(s.topic)])))
     }
@@ -781,27 +773,24 @@ public final class Core {
 
     func threadLine(_ s: Session) -> String { EventLine.thread(name: s.name, project: s.project) }
 
-    func turnStartEvent(_ s: Session, gap: String?, _ now: Int64, _ fx: inout [CoreEffect]) {
-        let line = EventLine.turnStart(agent: s.agent.short, turn: s.turns, thread: threadLine(s), gap: gap)
+    func turnStartEvent(_ s: Session, _ now: Int64, _ fx: inout [CoreEffect]) {
+        let line = EventLine.turnStart(agent: s.agent.short, turn: s.turns, thread: threadLine(s))
         fx.append(.event(Event(.turnStart, at: now, line: line, wakesBrain: wakes, about: s.key,
-                               facts: ["thread": threadFacts(s), "gap": .of(gap)])))
+                               facts: ["thread": threadFacts(s)])))
     }
 
     func turnEndEvent(_ s: Session, outcome: String, error: String?, lengthMs: Int64, reaction: String?,
                       _ now: Int64, _ fx: inout [CoreEffect]) {
         let topics = s.topicStates.map { ($0.topic, $0.state) }
-        cleanRun = outcome == "done" && s.toolsFailed == 0 ? cleanRun + 1 : 0
         let line = EventLine.turnEnd(agent: s.agent.short, turn: s.turns, thread: threadLine(s), outcome: outcome,
-                                     error: error, lengthMs: lengthMs, tools: s.tools, toolsFailed: s.toolsFailed,
-                                     topics: topics, comeback: s.comeback, cleanRun: cleanRun)
+                                     lengthMs: lengthMs)
         var topicFacts: [String: JSONValue] = [:]
         for (topic, state) in topics { topicFacts[topic] = .string(state) }
         fx.append(.event(Event(.turnEnd, at: now, line: line, reaction: reaction, wakesBrain: wakes, about: s.key,
                                facts: ["thread": threadFacts(s), "outcome": .string(outcome), "error": .of(error),
                                        "length": .string(Band.length(ms: lengthMs)), "length_ms": .int(lengthMs),
                                        "tools": .int(Int64(s.tools)), "tools_failed": .int(Int64(s.toolsFailed)),
-                                       "topics": .object(topicFacts), "comeback": .of(s.comeback),
-                                       "clean_run": .int(Int64(cleanRun))])))
+                                       "topics": .object(topicFacts), "comeback": .of(s.comeback)])))
     }
 
     /// A finished tool call: counted for the turn, and an event when it's
@@ -837,8 +826,7 @@ public final class Core {
         let category = EventLine.category(tool: d.tool)
         let result = d.failed.map { $0 ? "failed" : "ok" } ?? "unknown"
         let line = notable
-            ? EventLine.check(agent: s.agent.short, topic: d.topic!, thread: threadLine(s), failed: d.failed!,
-                              failedBefore: failedBefore, error: d.toolError)
+            ? EventLine.check(agent: s.agent.short, topic: d.topic!, thread: threadLine(s), failed: d.failed!)
             : EventLine.routine(agent: s.agent.short, category: category, thread: threadLine(s), failed: d.failed)
         var facts: [String: JSONValue] = [
             "thread": threadFacts(s), "tool": .string(category), "tool_name": .of(d.tool), "tool_use_id": .of(d.toolUseID),
@@ -881,17 +869,6 @@ public final class Core {
     /// back at least that far (harness/HARNESS.md §5.3).
     public func workingSince(at now: Int64) -> Int64? {
         sessions.values.filter { isWorking($0, now) }.compactMap(\.turnStartedAt).min()
-    }
-
-    /// The status line that closes HISTORY: every thread working now but
-    /// the one `about` names (EVENTS.md §8).
-    public func statusLine(excluding about: String?, at now: Int64) -> String {
-        let others = sessions.values.filter { isWorking($0, now) && $0.key != about }.sorted { $0.order < $1.order }
-        guard !others.isEmpty else { return "Working now: nothing else." }
-        let parts = others.map { s in
-            "\"\(s.name)\" (\(s.agent.short)\(s.name == s.project ? "" : ", \(s.project)")), for \(Band.took(s.length(to: now, from: s.turnStartedAt ?? now)))"
-        }
-        return "Working now: " + parts.joined(separator: "; ") + "."
     }
 
     func publish(_ now: Int64, _ fx: inout [CoreEffect]) {

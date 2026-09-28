@@ -113,9 +113,8 @@ struct Event {
 - **`wakesBrain` is the core's call,** gates included
   ([EVENTS.md](EVENTS.md) §6). An event that doesn't wake the brain still
   gets its line in HISTORY, so the next pass knows it happened.
-- **`about`** goes back to the core, unread, when the state is built:
-  the status line at the end of HISTORY lists every thread working now
-  except NOW's.
+- **`about`** names the thread as the core keys it, for tests. The
+  harness never reads it.
 - **`facts`** go to `debug.jsonl` and the evals. The harness never reads
   them.
 
@@ -235,7 +234,7 @@ mark is for the log only and never reaches the state. Real entries are in
 ### 5.3 The text form
 
 `StateText` builds the state's HISTORY and NOW for each pass. It's a
-pure function of the entries, the closing lines (step 5) and the clock, so a logged
+pure function of the entries, the closing line (step 5) and the clock, so a logged
 pass can be rebuilt exactly from `debug.jsonl`'s entries up to its `seen`
 (§9), settles included. A settle recorded while Jev answered lands in the
 log before the pass, but the state was built when the pass started,
@@ -256,23 +255,19 @@ progress (step 3).
    messages of its successful `action` entries, in order. A forced
    action counts as done about the latest event before it. A started
    one's message ends in ` (in progress)` until its `settle`; after
-   that it's plain if it was done, or ends in
-   ` (didn't happen: <why>)`.
+   that it's plain if it was done, and left out if it didn't happen, so
+   HISTORY shows only what Boop did or is doing.
 4. **Each event** is written oldest first as `<when>: <line>`, with
    `<when>` relative to now: `just now` under a minute, then `N min
    ago`, then `N h ago`. What Boop did follows, indented two spaces, one
    line each.
-5. **HISTORY closes** with the lines the runtime hands it, placed as
-   they come: `react`'s naming Boop's last reaction and how long ago it
-   started, in step 4's wording, once there is one
-   ([DECISIONS.md](DECISIONS.md) §5), then `mood`'s saying how long Boop
-   has been in a mood other than happy, once it has changed since launch
-   (§4 there), then the core's status line ([EVENTS.md](EVENTS.md) §8):
+5. **HISTORY closes** with the line the runtime hands it, if any:
+   `mood`'s saying how long Boop has been in a mood other than happy,
+   once it has changed since launch ([DECISIONS.md](DECISIONS.md) §4),
+   which the moods' fades are read against:
 
    ```
-   Boop's last reaction, 2 min ago: a proud face and "…finally!".
    Boop has been grumpy for under a minute.
-   Working now: nothing else.
    ```
 6. **NOW** is a heading with the time and weekday, NOW's line, then its
    reaction or `Boop did nothing on its own.`
@@ -287,13 +282,13 @@ fresh for every pass since Jev keeps no session:
 | The guide (no heading) | Static, then generated | [steering/guide.md](../steering/guide.md), then how to read HISTORY and NOW (§6.1) |
 | `PERSONALITY` | Static, the one chosen in Settings | `plan/steering/personality/<name>.md` ([boop](../steering/personality/boop.md), [chatter](../steering/personality/chatter.md)) |
 | `MOOD` | Static, the current mood's | `plan/steering/mood/<mood>.md` ([happy](../steering/mood/happy.md), …), read from the mood store at each pass |
-| `HISTORY (oldest first; indented lines are what Boop did)` | Built | The transcript and the closing lines (§5.3) |
+| `HISTORY (oldest first; indented lines are what Boop did)` | Built | The transcript and the closing line (§5.3) |
 | `NOW (14:23, Tuesday)` | Built | The event this pass is for (§5.3) |
 
 The guide and its generated part are joined by single line breaks; the
 other parts follow, each after a blank line. The runtime supplies
 everything but the transcript through one closure (`parts`): the steering
-text, the lines that close HISTORY (§5.3), the core's oldest working
+text, the line that closes HISTORY (§5.3), the core's oldest working
 turn, and the time (`Runtime.stateParts`). The harness never reads them.
 
 **The steering files** are read once at launch from the app's bundled
@@ -313,11 +308,8 @@ harness's (`StateText.reading`); the words part is the events'
 ```
 How to read HISTORY and NOW:
 - HISTORY is oldest first. Each line says how long ago it happened, and
-  lines indented under it are what Boop did. The last line lists the
-  threads still working.
-- A line of what Boop did may end in brackets: (in progress) means it
-  hasn't finished yet, and (didn't happen: …) means it never did, and
-  why.
+  lines indented under it are what Boop did. A line of what Boop did
+  ending in (in progress) hasn't finished yet.
 - NOW is what to react to. Its second line is what Boop already did on
   its own, by reflex.
 [EVENTS.md §8.1]
@@ -326,12 +318,12 @@ How to read HISTORY and NOW:
 ### 6.2 Sizes
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
-bytes ÷ 4, which overestimates English: the guide 300 (now 299), a
-personality 600 (`boop` 600, `chatter` 329) and a mood 150 (117–144).
+bytes ÷ 4, which overestimates English: the guide 300 (now 291), a
+personality 600 (`boop` 387, `chatter` 299) and a mood 150 (111–144).
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
-about 225 tokens and HISTORY's 40 events about 1,200, so with the
-questions a request is at most about 3,400 tokens. The evals' states come
+about 190 tokens and HISTORY's 40 events about 1,200, so with the
+questions a request is at most about 3,350 tokens. The evals' states come
 to 1,000–1,550, and a busy working day's ([EVALS.md](../EVALS.md) §5) to
 1,250–2,100.
 

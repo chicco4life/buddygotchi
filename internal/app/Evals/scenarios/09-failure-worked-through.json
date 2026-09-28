@@ -1,6 +1,6 @@
 {
   "name": "A failure being worked through makes Boop determined, and the fix makes it proud",
-  "why": "plan/steering/mood/: happy leaves for determined when a failure is being worked through, and determined leaves for proud when what kept failing finally works; that comeback is a big moment, held more than once (PERSONALITY's Examples)",
+  "why": "plan/steering/mood/: happy leaves for determined when a failed check is being worked through, and determined leaves for proud when the check passes after failing; that is a big moment, held more than once (PERSONALITY's Examples)",
   "steps": [
     {"event": "turn started", "at": "0s"},
     {"event": "command", "at": "1m", "topic": "tests", "failed": true},

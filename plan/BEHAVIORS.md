@@ -9,11 +9,11 @@ BOOP — HOW IT WORKS
 MOODS  (how Boop acts; fades back to happy after the minutes shown)
 ───────────────────────────────────────────────────────────────────────
   happy       good spirits; the default
-  excited     3 clean finishes in a row, or a clean 5+ min turn   5 min
-  proud       something that failed works                         5 min
-  determined  a failure while the agent works on                  5 min
-  grumpy      a failed turn, 3+ failures in a row, a poke streak  2 min
-  sad         a 5+ min turn ended failing                        10 min
+  excited     a very long turn (5+ min) ended done                5 min
+  proud       a check passed after failing                        5 min
+  determined  a check failed while the agent works on             5 min
+  grumpy      a failed turn, or a poke streak                     2 min
+  sad         a very long turn (5+ min) ended failed             10 min
 
 VISUALS  (what Boop is doing)
 ───────────────────────────────────────────────────────────────────────
@@ -55,8 +55,8 @@ JEV  (the brain; decides everything expressive)
                 word.about       none | tests, build, deploy, docs
                 → at most one real word, inside Minion gibberish
 
-  e.g. tests pass after 3 failures:
-       mood → proud;  react: proud × cheer, twice, "…finally!"
+  e.g. tests pass after failing:
+       mood → proud;  react: proud, twice, "…finally!"
   e.g. a 5 s routine turn:  nothing
 
 
@@ -67,69 +67,46 @@ WHAT JEV SEES  (built fresh for every ask; Jev keeps no memory)
             the oldest turn still working, at most 40. What Boop did
             sits indented under each. Times: just now · 5 min ago · 2 h
 
-  One HISTORY entry, piece by piece (a clean 3-minute turn ending;
-  wrapped here, one line each in the state):
+  One HISTORY entry, piece by piece (a 6-minute turn ending; one line
+  each in the state):
 
-    just now: claude finished turn 9 on "api": done after 3 min, a
-    very long turn, 12 tools. Tests passing. 3 clean finishes in a row.
+    just now: claude finished turn 9 on "api": done, a very long turn.
       Boop's mood changed: happy → excited.
-      Boop made an excited face, held once, and mumbled "…tests!"
-        (in progress)
+      Boop played a cheer in an excited face, held three times, and
+        mumbled "…yay!" (in progress)
 
     piece                       what it is                   added by
     just now                    when, relative to now        harness
     claude finished turn 9      the agent, and which turn    core
     on "api"                    the thread (here, a project) core
-    done after 3 min            outcome and time taken       core
+    done                        outcome                      core
     a very long turn            length                       core
-    12 tools                    tool count, "(N failed)" too core
-    Tests passing.              topics                       core
-    3 clean finishes in a row.  clean run                    core
     Boop's mood changed: …      what the mood action did     mood
-    Boop made … "…tests!"       what the react action did    react
+    Boop played … "…yay!"       what the react action did    react
     (in progress)               the reaction's state         harness
 
-  Modifiers turn numbers into words, so Jev never counts or compares.
-  A check is a tests, build or deploy command.
+  Modifiers turn numbers into words, so Jev never counts or compares,
+  and there are only three, so each line means one thing and tests can
+  pin what Jev reads. A check is a tests, build or deploy command.
 
-  ON EVENT LINES  (the core, when the event happens)
+  modifier       on                  reads
   ─────────────────────────────────────────────────────────────────────
-  modifier      added to     reads
-  length        turn ends    short (<15 s) · long (<1 min) · very long
-  gap           turn starts, right after (<2 min) · a while (<1 h) ·
-                poke streaks after a long break; none the first time
-  outcome       turn ends    done · failed (rate limit) · stopped
-  tool failures turn ends    41 tools (6 failed), when any failed
-  topics        turn ends    Tests passing, build failing.
-  in a row      a check      tests failed again …, 3 in a row
-                fails again  (from the 2nd failure of the same check)
-  comeback      a check      tests passed … after 3 failures in a row;
-                passes       its turn's end adds  A comeback on tests.
-  clean run     turn ends    3 clean finishes in a row.  From the 2nd
-                             done turn with no tool failing, across
-                             threads; any other finish starts it over
+  outcome        turn ends           done · failed · stopped
+                 routine tool lines  It failed.
+                 checks              failed · passed … after failing
+  length         turn ends, the      short (<1 min) · long (<5 min) ·
+                 working heartbeat   very long (5+ min)
+  (in progress)  a reaction's line   still playing: don't repeat it
 
-  ON WHAT BOOP DID  (the harness, on each reaction's line)
+  No streaks, times, counts, gaps, error reasons or topic lists; the
+  events' facts keep them for logs and evals. A reaction that didn't
+  happen isn't shown, so it may be made again.
+
+  CLOSING LINE  (end of HISTORY)
   ─────────────────────────────────────────────────────────────────────
-  (in progress)         the reaction is still playing: don't repeat it
-  (didn't happen: why)  cut short or dropped: it may be made again
-
-  CLOSING LINES  (end of HISTORY, on every ask)
-  ─────────────────────────────────────────────────────────────────────
-  Not events: where Boop stands right now, for what the event list
-  can't be trusted to show. An old reaction may have dropped out of
-  HISTORY, the mood's minutes would need sums, and NOW is about one
-  thread. Each is one line, left out when it has nothing to say.
-
-  Boop's last reaction, 4 min ago: a proud face and "…finally!".
-      from react, once Boop has made one. So Jev doesn't make the same
-      face again and again
   Boop has been grumpy for 2 min.
       from mood, only while not happy, after a change since launch.
       What the mood files' "back to happy after N min" is read against
-  Working now: "api" (codex, landing), for 3 min.
-      from the core: every thread working except NOW's, or "nothing
-      else". What else is going on besides NOW
 
 
 GUARANTEES
@@ -220,8 +197,8 @@ The mood is one of six: happy, excited, proud, determined, grumpy or
 sad ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). Only
 the brain's mood action changes it (§4 there; the dashboard can force
 one), and a new Boop starts happy. It's meant to shift visibly during
-ordinary work: a first failure, a failed turn, a poke streak, a fix or
-a third clean finish in a row moves it, it fades back to happy after a
+ordinary work: a failed check, a failed turn, a poke streak, a fix or
+a very long turn ending moves it, it fades back to happy after a
 few minutes, and each change comes with a reaction in the new mood's
 face. The next
 `state` carries it and the device blinks into the new set of faces. No

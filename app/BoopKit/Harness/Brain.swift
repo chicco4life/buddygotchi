@@ -55,7 +55,7 @@ extension ScriptedBrain {
     /// done, since no rule cheers (BEHAVIORS.md §3.1).
     public static let pipelineCheck = ScriptedBrain(id: "scripted") { state, questions in
         let now = state.components(separatedBy: "\nNOW (").last ?? ""
-        let finished = now.contains(" finished turn ") && now.contains(": done after ")
+        let finished = now.contains(" finished turn ") && now.contains(": done, a ")
         let answers: Answers = [
             "mood": Answer(choice: "happy", probabilities: ["happy": 1]),
             "react.mood": Answer(choice: "excited", probabilities: ["excited": 1]),

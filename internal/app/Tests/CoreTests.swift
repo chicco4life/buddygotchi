@@ -131,7 +131,7 @@ final class CoreAgentWorkTests: XCTestCase {
         let rig = CoreRig()
         let fx = rig.turn(1_200_000)
         XCTAssertEqual(finished(fx), ["done"], "one size")
-        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": done after 20 min, a very long turn, 0 tools."#])
+        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": done, a very long turn."#])
         XCTAssertNil(events(fx).first?.reaction, "no rule cheers")
         XCTAssertEqual(events(fx).first?.facts["length_ms"], .int(1_200_000))
     }
@@ -196,7 +196,7 @@ final class CoreAgentWorkTests: XCTestCase {
             XCTAssertNil(states(fx).last?.attn, asker)
             XCTAssertEqual(rig.state.base, "idle", asker)
             XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"]], asker)
-            XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": stopped after 1 min, a very long turn, 0 tools."#],
+            XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": stopped, a long turn."#],
                            "\(asker): the notice answered the request before the stop applied")
             XCTAssertEqual(workBeats(rig.wait(10 * 60_000)), [], "\(asker): no working heartbeat")
         }
@@ -278,7 +278,7 @@ final class CoreAgentWorkTests: XCTestCase {
         XCTAssertNil(rig.state.attn, "the safety net")
         XCTAssertEqual(rig.state.base, "idle")
         let fx = rig.send(.turnStopped, .codex, session: "c")  // Interrupt
-        XCTAssertEqual(woke(fx), [#"codex finished turn 1 on "landing": stopped after 11 min, a very long turn, 0 tools."#])
+        XCTAssertEqual(woke(fx), [#"codex finished turn 1 on "landing": stopped, a very long turn."#])
         rig.now += 50
         rig.send(.activity, .codex, session: "c", tool: "shell", id: "c1", done: true)
         XCTAssertEqual(rig.state.base, "idle", "the aborted command's result is late")
@@ -310,9 +310,8 @@ final class CoreAgentWorkTests: XCTestCase {
     /// ARCHITECTURE.md §3.2: the timers count while the Mac sleeps, but a
     /// turn's length doesn't: an agent can't work while the Mac sleeps. A
     /// 2-minute turn with the lid closed overnight between its minutes is a
-    /// 2-minute turn (harness/EVENTS.md §4.1), not "8 h, a very long turn",
-    /// which Jev took for a big finish or a big failure. The status line's
-    /// "for" is the same.
+    /// 2-minute turn (harness/EVENTS.md §4.1), a long one, not "a very long
+    /// turn", which Jev takes for a big finish or a big failure.
     func testTheMacAsleepIsntTurnTime() {
         let rig = CoreRig()
         rig.send(.turnStart)
@@ -322,10 +321,9 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.core.slept(8 * 3_600_000)
         rig.core.tick(at: rig.now)
         rig.send(.activity, tool: "Bash", topic: "tests", failed: false, id: "t")
-        XCTAssertEqual(rig.core.statusLine(excluding: nil, at: rig.now), #"Working now: "landing" (claude), for 1 min."#)
         rig.wait(60_000)
         let fx = rig.send(.turnEnd)
-        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": done after 2 min, a very long turn, 1 tool. Tests passing."#])
+        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": done, a long turn."#])
         XCTAssertEqual(events(fx).first?.facts["length_ms"], .int(120_000))
 
         rig.send(.turnStart, session: "other", project: "jetpack")
@@ -333,7 +331,7 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.now += 3 * 3_600_000
         rig.core.slept(3 * 3_600_000)
         XCTAssertEqual(woke(rig.send(.turnStopped, session: "other", project: "jetpack", notice: true)).last,
-                       #"claude finished turn 1 on "jetpack": stopped after 40 s, a long turn, 0 tools."#)
+                       #"claude finished turn 1 on "jetpack": stopped, a short turn."#)
 
         // Sleep before a turn starts isn't taken off it.
         rig.now += 3_600_000
@@ -347,7 +345,7 @@ final class CoreAgentWorkTests: XCTestCase {
     /// and a finish is the same: a `Stop` after the turn stopped, a second
     /// `Stop`, or one from a session Boop has only now seen (launched, or
     /// forgotten after a day, partway through) finishes nothing Boop saw.
-    /// It gets no event. Before, each read "done after 0 s, a short turn"
+    /// It gets no event. Before, each read "done, a short turn"
     /// (turn 0 for a new session).
     func testAFinishWithNoTurnOpenIsNothing() {
         let rig = CoreRig()
@@ -402,7 +400,7 @@ final class CoreAgentWorkTests: XCTestCase {
         XCTAssertEqual(rig.state.base, "idle")
 
         rig.send(.turnStart, session: "f")
-        XCTAssertEqual(woke(rig.send(.turnEnd, session: "f")), [#"claude finished turn 1 on "landing": done after 0 s, a short turn, 0 tools."#],
+        XCTAssertEqual(woke(rig.send(.turnEnd, session: "f")), [#"claude finished turn 1 on "landing": done, a short turn."#],
                        "the next turn, which Boop saw start, is reported")
     }
 
@@ -417,12 +415,16 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.wait(20_000)
         rig.send(.activity, tool: "Bash", topic: "tests", failed: false, id: "t")
         XCTAssertEqual(woke(rig.send(.turnEnd)),
-                       [#"claude finished turn 1 on "landing": done after 20 s, a long turn, 1 tool. Tests passing."#])
+                       [#"claude finished turn 1 on "landing": done, a short turn."#])
         rig.wait(1000)
         rig.send(.activity, tool: "Edit", id: "e")
         rig.wait(30_000)
         rig.send(.activity, tool: "Edit", failed: false, id: "e")
-        XCTAssertEqual(woke(rig.send(.turnEnd)), [#"claude finished turn 1 on "landing": done after 30 s, a long turn, 1 tool. 2 clean finishes in a row."#])
+        let second = events(rig.send(.turnEnd))
+        XCTAssertEqual(second.map(\.line), [#"claude finished turn 1 on "landing": done, a short turn."#])
+        XCTAssertEqual(second.first?.facts["tools"], .int(1), "its own call only")
+        XCTAssertEqual(second.first?.facts["topics"], .object([:]), "none of the last turn's topics")
+        XCTAssertEqual(second.first?.facts["length_ms"], .int(30_000), "from that call")
         rig.wait(1000)
         XCTAssertEqual(events(rig.send(.turnEnd)), [], "no turn open")
     }
@@ -490,7 +492,7 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.wait(60_000)
         let fx = rig.send(.turnFailed)
         XCTAssertEqual(rig.state.base, "idle")
-        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": failed after 1 min, a long turn, 0 tools."#])
+        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": failed, a long turn."#])
         XCTAssertNil(events(fx).first?.reaction, "the rules did nothing")
     }
 
@@ -507,7 +509,9 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.send(.activity, tool: "Bash", topic: "tests")  // no result: PreToolUse, or Codex
         rig.wait(60_000)
         let fx = rig.send(.turnEnd)
-        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": failed after 1 min, a long turn, 4 tools (1 failed). Tests failing, docs edited."#])
+        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": failed, a long turn."#])
+        XCTAssertEqual(events(fx).first?.facts["topics"], .object(["tests": "failing", "docs": "edited"]))
+        XCTAssertEqual(events(fx).first?.facts["tools_failed"], .int(1))
     }
 
     func testATurnWhoseLastCheckPassedCheers() {
@@ -538,7 +542,7 @@ final class CoreAgentWorkTests: XCTestCase {
         let fx = rig.core.handle(BoopEvent(agent: .claudeCode, session: "s1", project: "landing", event: .turnFailed,
                                            detail: .init(error: "rate_limit"), ts: rig.now))
         let failed = events(fx).first
-        XCTAssertEqual(failed?.line, #"claude finished turn 1 on "landing": failed (rate limit) after 3 s, a short turn, 0 tools."#)
+        XCTAssertEqual(failed?.line, #"claude finished turn 1 on "landing": failed, a short turn."#)
         XCTAssertEqual(failed?.facts["outcome"], "failed")
         XCTAssertEqual(failed?.facts["error"], "rate_limit")
     }
@@ -1181,7 +1185,7 @@ final class CoreYouAndBoopTests: XCTestCase {
             rig.wait(900)
         }
         let fx = rig.input(.tap)
-        XCTAssertEqual(woke(fx), ["You poked Boop 4 times in 3 s."])
+        XCTAssertEqual(woke(fx), ["You poked Boop again and again."])
         XCTAssertEqual(events(fx).first?.reaction, "Boop wiggled on its own.")
     }
 
@@ -1363,7 +1367,7 @@ final class CoreRulesTests: XCTestCase {
                 XCTAssertGreaterThanOrEqual(b - a, 120_000)
                 XCTAssertLessThanOrEqual(b - a, 241_000)
             }
-            XCTAssertTrue(said.allSatisfy { $0.hasPrefix(#"claude has been working on "landing" for "#) && $0.hasSuffix(", on tests.") })
+            XCTAssertTrue(said.allSatisfy { $0.hasPrefix(#"claude is still working on "landing", a "#) && $0.hasSuffix(" turn.") })
         }
     }
 
