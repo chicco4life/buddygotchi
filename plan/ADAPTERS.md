@@ -1,6 +1,6 @@
 # Boop: agent adapters
 
-Updated 2026-09-28. How Boop hears from Claude Code and Codex: the hook
+Updated 2026-09-29. How Boop hears from Claude Code and Codex: the hook
 client, the raw event every hook becomes, how a session moves between
 working, idle and "needs you", and how the hooks are installed. Code:
 `app/HookWire/`, `app/BoopHook/`, `app/BoopKit/Adapters/`,
@@ -81,7 +81,7 @@ construction.
    and `tool_use_id` are picked out of its start instead. It gets no topic.
 
    **The thread's name** (`ThreadName`) is read on every hook, so the
-   needs-you strip, the popover and a cheer name the thread as you do,
+   needs-you strip, the popover and a finish name the thread as you do,
    and a rename shows at the thread's next hook. Claude's is the last
    title record in the session's transcript (`transcript_path`): a
    `custom-title` (yours, or the desktop app's) over an `ai-title` (the

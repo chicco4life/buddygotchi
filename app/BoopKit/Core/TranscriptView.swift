@@ -657,7 +657,7 @@ public final class TranscriptView {
         }
     }
 
-    /// Why a reaction ended failed when your tap's wiggle cut it: it
+    /// Why a reaction ended failed when your tap's poke cut it: it
     /// stays in HISTORY, in progress until the pokes stop, so the pokes
     /// after it don't get it again (EVENTS.md §7).
     public static let cutByTap = "cut short: you tapped Boop"

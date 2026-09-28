@@ -95,7 +95,7 @@ struct SetupPane: View {
             BoopFace(mood: .idle, size: 104)
                 .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
             title("Hi! I'm Boop.",
-                  "A little creature for your desk. I watch your coding agents, cheer when they finish, and tell you when one needs you.")
+                  "A little creature for your desk. I watch your coding agents, react when they finish, and tell you when one needs you.")
             Spacer()
             Button("Let's go") { go(.name) }
                 .buttonStyle(ProminentButtonStyle(wide: true))

@@ -4,7 +4,8 @@ import Foundation
 /// session table and decides which visual the device shows, what the
 /// agents are doing included (`act`), and which one-shots the rules play
 /// (BEHAVIORS.md §3.1). What it does by rule it records as `action`
-/// events: "needs you" showing and ending, and a poke's wiggle. What the
+/// events: "needs you" showing and ending, and a poke (the `wiggle`
+/// action, by its older name: the device plays its poke). What the
 /// brain hears is the view's (harness/EVENTS.md); everything expressive
 /// is the brain's.
 ///
@@ -725,12 +726,13 @@ public final class Core {
         fx.append(.newDay(date: today))
     }
 
-    /// A poke: the device wiggles, and the brain hears of it through the
-    /// view, which counts the pokes in a row (BEHAVIORS.md §3.3). The rules
-    /// add no animation of their own,
-    /// but record the wiggle. While something needs you a poke means "I
-    /// saw it", and while `listening` shows nothing replaces it: the device
-    /// doesn't wiggle, so nothing is recorded.
+    /// A poke: the device plays its poke (`poked`, `tap_spam` from the third
+    /// in a row), and the brain hears of it through the view, which counts
+    /// the pokes in a row (BEHAVIORS.md §3.3). The rules add no animation of
+    /// their own, but record it, as the `wiggle` action whose older name and
+    /// words Jev reads (harness/EVENTS.md §2). While something needs you a
+    /// poke means "I saw it", and while `listening` shows nothing replaces
+    /// it: the device plays no poke, so nothing is recorded.
     func poked(_ now: Int64, seq: Int?, _ fx: inout [CoreEffect]) {
         guard !needsYouShowing, !showsListening(at: now) else { return }
         fx.append(.record(Event(ts: now, source: .boop, type: .action, specificType: Core.wiggle,
