@@ -16,6 +16,18 @@ for the night ([PLAN.md](../PLAN.md) §3).
 | L4, `boopctl e2e --brain scripted`: hooks → headless app → bridge → board ([e2e-runs.txt](e2e-runs.txt)) | `067c7d80` | PASS twice after the fixture fixes below: hook to state on the device in 61–65 ms typically, 95–103 ms at the 95th percentile; 8–9 brain moments, none early, every one ended |
 | Each new scene by hand (`boopctl send` a state or moment, then `boopctl shot`) | `067c7d80` | Pictures below |
 | After `/simplify` (frames drawn from the one compared, one tap count, one duck per design): flash, L2, L4, `perf --motion` 30 s | `95fea90b`, 2,498,591 bytes | L2 14 scenarios, 0 pictures different; L4 PASS (95th percentile 96 ms); free heap at least 71,428 B, the slowest frame 21.9 ms |
+| `boopctl soak --pipeline --minutes 10 --brain scripted` ([soak-pipeline-10min.json](soak-pipeline-10min.json)): the L4 fixtures on a loop through the headless app to the board | `95fea90b` | PASS: 12 rounds, 324 hooks, 0 checkpoint misses, hook to state on the device 60 ms typically and 96 ms at the 95th percentile, no reset, no heap drift (71,428 B), no audio errors, the app's memory 22 MB at the start and the end |
+
+## Webcam (the owner asked for it, 2026-09-29)
+
+Not recorded. The only camera, the MacBook Air's own
+(`webcam.sh list`), faced a plain white surface: `boopctl cam frame`
+lit the screen white, then dark, and found no screen (`no screen found;
+skip L3 for this run`), where an earlier session's framing had it. The
+skill asks for the board to be moved into view before any clip, and the
+owner was asleep, so no clip was taken; the still stays local. The
+pictures below are the board's own canvas, which is what L2 compares;
+the camera would add the panel's colour, brightness and motion as seen.
 
 ## Pictures (the device's own canvas, `boopctl shot`)
 
