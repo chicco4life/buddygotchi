@@ -18,6 +18,13 @@ REPO = Path(__file__).resolve().parents[3]
 ANIMS = ["task_complete", "reply_ready", "starting", "stopped", "error", "helper_return", "poked", "tap_spam"]
 # The older names the device still reads, as the animation it plays.
 OLD_ANIMS = {"cheer": "task_complete", "wiggle": "poked"}
+# The one-shots the rules send, never the brain (PROTOCOL.md §3 `moment`).
+RULE_ONE_SHOTS = {"starting", "stopped", "error", "helper_return"}
+# The moments that play a turn's finish (PROTOCOL.md §3 `moment`): the
+# brain's task_complete and reply_ready, and their older names in older
+# logs (the cheer).
+FINISHES = {"task_complete", "reply_ready"}
+FINISHES |= {old for old, anim in OLD_ANIMS.items() if anim in FINISHES}
 # The facts that pick an animation's variations (PROTOCOL.md §3).
 OUTCOMES = ["success", "failure"]
 CTXS = ["new_task", "session", "continuation"]

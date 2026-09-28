@@ -29,9 +29,9 @@ import {fileURLToPath} from 'node:url';
 import {effects} from '../../boop-design/boop-sound-bank-v4/runtime/audio/effects.mjs';
 import {renderRecipe, SAMPLE_RATE} from '../../boop-design/boop-sound-bank-v4/runtime/audio/synth.mjs';
 import {makeScene} from '../../boop-design/boop-sound-bank-v4/runtime/bank.mjs';
-import {catalog, getAsset} from '../../boop-design/boop-sound-bank-v4/runtime/catalog.mjs';
-import {voiceWindows} from '../../boop-design/boop-sound-bank-v4/runtime/mood-art.mjs';
+import {catalog} from '../../boop-design/boop-sound-bank-v4/runtime/catalog.mjs';
 import {protectedSoundStates, routineEvents} from '../../boop-design/boop-sound-bank-v4/runtime/quiet-mix.mjs';
+import {cycleHasSound} from '../../boop-design/boop-sound-bank-v4/runtime/score.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../..');
@@ -99,18 +99,22 @@ function timeline(d) {
     : routine && score.policy !== 'entry' ? Array.from({length: LOOPS}, (_, n) => routineEvents(score, n, SEED))
     : [score.events];
   // Sparse: the loops that sound, as the bank's player counts them
-  // (score.mjs cycleHasSound): 0, every, 2 × every…
-  const every = score.policy === 'sparse' ? Math.max(1, Math.ceil(score.intervalSeconds / score.seconds)) : 1;
+  // (score.mjs cycleHasSound), must be 0, every, 2 × every…, as the device
+  // counts them, for an `every` that fits its uint8_t.
+  let every = 1;
+  if (score.policy === 'sparse') {
+    const sounds = Array.from({length: 256}, (_, n) => cycleHasSound(score, n));
+    every = sounds.indexOf(true, 1);
+    if (every < 1 || sounds.some((on, n) => on !== (n % every === 0))) {
+      throw new Error(`${d.id}: the loops that sound aren't 0, every, 2 × every…`);
+    }
+  }
   const guarded = protectedSoundStates.includes(d.state);
-  // The voice window, as facegen lists it (its bank.mjs works it out by the
-  // bank's rule, mood-art.mjs voiceWindows), so the Mac's FaceLoops has the
-  // same: the bank's own reckoning for the new moods' designs must agree.
+  // The voice window, as facegen lists it (by the bank's rule, mood-art.mjs
+  // voiceStart), so the Mac's FaceLoops has the same.
   const voiceMs = d.voiceMs;
   if (!Number.isInteger(voiceMs) || voiceMs < 0 || voiceMs >= 65536) {
     throw new Error(`${d.id}: no voice window in the manifest: run make -C internal faces first`);
-  }
-  if (d.dialect === 'v4' && voiceMs !== Math.round(voiceWindows(getAsset(d.id)).earliestEntry * 1000)) {
-    throw new Error(`${d.id}: its voice window isn't the bank's`);
   }
   return {id: d.id, policy: score.policy, every, duck: !guarded, voiceMs, lists};
 }

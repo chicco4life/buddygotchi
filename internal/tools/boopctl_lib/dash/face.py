@@ -19,9 +19,9 @@ from boopctl_lib.image import rgb888
 SCALE = 3
 # (x0, y0, x1, y1), end exclusive: the band above the bottom lane, where the
 # strip and the bubble go (render/screens.h kLaneTop), which the animation
-# bank's designs fill edge to edge (a cheer's backdrop, needs you's panel,
-# the props that show what the agents are doing), 107×64 blocks, so 107×32
-# cells.
+# bank's designs fill edge to edge (a successful finish's backdrop, needs
+# you's panel, the props that show what the agents are doing), 107×64
+# blocks, so 107×32 cells.
 CROP = (0, 0, 320, 192)
 FPS = 12
 

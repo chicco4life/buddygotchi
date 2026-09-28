@@ -240,7 +240,7 @@ def check_order(run: Run) -> dict[str, Any]:
     `device: moment N ended …` for the device's `ended`. For every brain
     moment: the rules' reaction to the last hook came first, and the last
     rule line (chatter) had finished playing. A brain mumble may play over a
-    rule animation such as the cheer, which it doesn't cut; an animation
+    rule's one-shot, such as starting, which it doesn't cut; an animation
     stops the line playing. Each fixture ends with seconds to spare, so
     every brain moment sent with an `id` has its `ended` by then, and it
     says whether a newer moment cut the moment's line short."""
@@ -406,7 +406,7 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
                     sample(dev)
                     if not samples[-1]["app_alive"]:
                         raise DeviceError("the headless app exited")
-                dev.request({"t": "dbg.press", "ms": 100})  # a tap: the rules' wiggle, noted in the transcript
+                dev.request({"t": "dbg.press", "ms": 100})  # a tap: the device's poke, noted in the transcript
                 time.sleep(3)
             # Nothing stuck: once every session has stopped and a quiet minute
             # has passed, the board is back on the plain face.

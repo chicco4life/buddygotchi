@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from boopctl_lib import cli, day  # noqa: E402
+from boopctl_lib.common import FINISHES  # noqa: E402
 
 FIXTURE = Path(__file__).parent / "fixtures" / "day"
 TZ = os.environ.get("TZ")
@@ -105,7 +106,7 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(sorted(f for f in faces if f != "excited"), ["curious", "curious", "determined", "happy",
                                                                       "proud", "sad"], "the forced ones")
         self.assertEqual(t.chatter, sum(1 for s in sent if s.get("say") and not s.get("mood")))
-        self.assertEqual(t.finishes, sum(1 for s in sent if s.get("anim") in ("cheer", "task_complete", "reply_ready")))
+        self.assertEqual(t.finishes, sum(1 for s in sent if s.get("anim") in FINISHES))
 
     def test_needs_you_from_attn_appearing_to_clearing(self):
         needs = [(day.clock(n.start), n.end - n.start, n.who, n.alerts, n.open) for n in self.day.needs]

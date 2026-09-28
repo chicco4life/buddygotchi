@@ -3,6 +3,7 @@ import {pixelText} from './state-art.mjs';
 import {moodProfiles} from './mood-catalog.mjs';
 import {sustainedStates} from './state-catalog.mjs';
 import {effects} from './audio/effects.mjs';
+import {protectedSoundStates} from './quiet-mix.mjs';
 
 const green='#83D99A',deep='#244634',amberDark='#352915';
 const round=x=>Number(x.toFixed(6));
@@ -302,8 +303,13 @@ export function moodScore(a){
  for(const e of events)if(!effects[e.effect])throw new Error('Missing effect '+e.effect);
  return {id:a.id,seconds:a.seconds,policy:plan.policy,intervalSeconds:plan.intervalSeconds,character:profile.character,description:a.caption+' Sparse code-generated material effects, no speech or music bed.',events,tailSeconds:round(Math.max(0,...events.map(e=>e.at+effects[e.effect].duration-a.seconds)))};
 }
+// When speech may enter over a scene, in seconds: .12 s after its last
+// attention cue ends for needs_you, task_complete and error, else .45 s.
+// The quiet mix keeps those states' cues, so the score may be mixed or not.
+export function voiceStart(state,score){
+ return protectedSoundStates.includes(state)?Math.max(0,...score.events.map(e=>e.at+effects[e.effect].duration))+.12:.45;
+}
 export function voiceWindows(a){
- const score=moodScore(a),protectedScene=['needs_you','task_complete','error'].includes(a.state);
- const start=protectedScene?Math.max(0,...score.events.map(e=>e.at+effects[e.effect].duration))+.12:.45;
+ const start=voiceStart(a.state,moodScore(a)),protectedScene=protectedSoundStates.includes(a.state);
  return {suggested: true,duckRoutineSfx:!protectedScene,earliestEntry:round(start),latestExit:round(a.seconds-.25),fitsWithinCycle:start<a.seconds-.25,note:'Candidate entry/exit bounds, not a generated recording. If the take does not fit, extend the host hold or follow after the animation; never speed up speech to force it.'};
 }

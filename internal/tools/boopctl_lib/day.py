@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from boopctl_lib.common import FINISHES
 from boopctl_lib.dash.feed import action, action_end, kind, view_name
 
 Line = dict[str, Any]
@@ -83,11 +84,6 @@ def hour_of(ms: int) -> int:
 def next_hour(ms: int) -> int:
     t = time.localtime(ms / 1000)
     return int(time.mktime((t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour + 1, 0, 0, 0, 0, -1)) * 1000)
-
-
-# The moments that play a turn's finish (PROTOCOL.md §3 `moment`): the
-# brain's task_complete and reply_ready, and the cheer older logs have.
-FINISHES = {"task_complete", "reply_ready", "cheer"}
 
 
 @dataclass

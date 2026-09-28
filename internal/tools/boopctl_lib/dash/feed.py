@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from boopctl_lib.common import RULE_ONE_SHOTS
+
 Line = dict[str, Any]
 
 # A debug-mode app writes a `sent` line at least every 10 s, the state
@@ -19,10 +21,9 @@ STALE_S = 15
 # A view event written this soon after a reflex's `sent` line is what set it
 # off: the app sends to the device first, then records the view event.
 TRIGGER_MS = 1000
-# A cheer, a wiggle or a mumble counts as what's showing for this long.
+# A rule's one-shot, a tap's poke or a mumble counts as what's showing for
+# this long.
 SHOWING_MS = 4000
-# The one-shots the rules send, never the brain (PROTOCOL.md §3 `moment`).
-RULE_ONE_SHOTS = {"starting", "stopped", "error", "helper_return"}
 
 
 class Follower:
@@ -120,7 +121,7 @@ class Board:
         self.decided: list[Line] = []
         self._pass_for: dict[int | None, Line] = {}  # the latest decided row by its event (None: forced)
         self._decided_by_action: dict[int, Line] = {}  # a decided row by its react action's seq
-        self._reflex: tuple[int, str] | None = None  # the latest cheer, wiggle or chatter: (time, what)
+        self._reflex: tuple[int, str] | None = None  # the latest one-shot, poke or chatter: (time, what)
 
     def apply(self, line: Line) -> tuple[str, str] | None:
         """Takes one line, and returns its timeline row as (style, text), or
@@ -239,8 +240,9 @@ class Board:
 
     def _rule(self, a: Line, at: int) -> None:
         """A rule's action names what set off the animation just sent before
-        it; one the device plays by itself (the poke's wiggle) is a reflex
-        of its own. Either way its trigger is the view event it's for."""
+        it; one the device plays by itself (a tap's poke, which the rules
+        record as `wiggle`) is a reflex of its own. Either way its trigger is
+        the view event it's for."""
         event = self.events.get(a.get("for"))
         trigger = "▸ " + event["line"] if event else None
         waiting = [r for r in self.reflexes[-3:] if r["trigger"] is None and at - r["at"] <= TRIGGER_MS]
@@ -429,7 +431,7 @@ def word_keys(p: Line) -> list[str]:
 
 def picks_text(p: Line) -> str:
     """The face, its animation, its word and its hold, each with its
-    probability: `proud 0.82 · cheer 0.90 · "finally" 0.71 · three times 0.64`."""
+    probability: `proud 0.82 · success 0.90 · "finally" 0.71 · three times 0.64`."""
     parts = [f"{choice(p, FACE)} {prob(p, FACE):.2f}"]
     if choice(p, "react.animation") not in (None, "none"):
         parts.append(f"{choice(p, 'react.animation')} {prob(p, 'react.animation'):.2f}")
@@ -442,7 +444,7 @@ def picks_text(p: Line) -> str:
 
 def reaction_text(row: Line) -> str:
     """A playing reaction: `a proud reaction face, three times, "…finally!"`,
-    or `a cheer in a proud face, …`."""
+    or `a success in a proud face, …`."""
     p = row["pass"]
     words = [choice(p, k) for k in word_keys(p) if choice(p, k) not in (None, "none")]
     loops = choice(p, "react.loops")

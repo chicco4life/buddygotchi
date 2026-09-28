@@ -199,8 +199,9 @@ _ATTN = {**_WORKING, "attn": {"agent": "codex", "project": "landing", "more": 0}
 CLIPS = {
     "idle": [(0.0, {"t": "state", "v": 1, "base": "idle"})],
     "needs_you": [(0.0, _WORKING), (2.0, _ATTN), (5.0, _ATTN)],
-    # A cheer, then the brain's mumble on its own over the working face
-    # (the mumble is PROTOCOL.md §3's example).
+    # A finish, by its older name (`cheer`: task_complete's success), then
+    # the brain's mumble on its own over the working face (the mumble is
+    # PROTOCOL.md §3's example).
     "cheer": [(0.0, _WORKING), (1.5, {"t": "moment", "anim": "cheer"}),
               (4.0, {"t": "moment",
                      "say": {"syl": "bi-do ba-na", "word": "done", "at": 4, "tune": "up", "ms": 120}}),
