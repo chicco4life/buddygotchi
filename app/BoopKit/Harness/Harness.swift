@@ -56,6 +56,10 @@ public final class Harness: @unchecked Sendable {
 
     /// The brain in use, or nil for none (no key): no pass runs.
     public private(set) var brain: (any Brain)?
+    /// Whether the brain has failed for long enough to say so (§7), and
+    /// how many passes that asked it have dropped in a row.
+    public private(set) var trouble: BrainTrouble?
+    var droppedInARow = 0
     let actions: [any Action]
     /// Where events are recorded and the view is kept.
     public let pipeline: Pipeline
@@ -120,6 +124,8 @@ public final class Harness: @unchecked Sendable {
     public func use(_ brain: (any Brain)?) {
         dispatchPrecondition(condition: .onQueue(home))
         self.brain = brain
+        trouble = nil
+        droppedInARow = 0
     }
 
     /// View events from the pipeline: a pass for each that wakes the
@@ -200,6 +206,11 @@ public final class Harness: @unchecked Sendable {
     func finish(_ now: ViewEvent, _ job: Job?, _ result: Result<Answers, BrainError>, latencyMs: Int,
                 brainID: String? = nil) {
         var pass = Pass(forSeq: now.seq, answers: [:], dropped: nil, latencyMs: latencyMs)
+        if job != nil {
+            // Only a pass that asked the brain says how it's doing.
+            let error: BrainError? = if case .failure(let e) = result { e } else { nil }
+            (droppedInARow, trouble) = BrainTrouble.after(error, previous: droppedInARow)
+        }
         switch result {
         case .failure(let error):
             pass.dropped = error.description

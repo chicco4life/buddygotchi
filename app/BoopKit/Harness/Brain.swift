@@ -13,10 +13,13 @@ public struct BrainError: Error, Equatable, CustomStringConvertible {
     public var description: String
     /// What came back, when it couldn't be used, for debug mode.
     public var raw: String?
+    /// The HTTP status, when the brain's server answered with an error.
+    public var status: Int?
 
-    public init(_ description: String, raw: String? = nil) {
+    public init(_ description: String, raw: String? = nil, status: Int? = nil) {
         self.description = description
         self.raw = raw
+        self.status = status
     }
 }
 

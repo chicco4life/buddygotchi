@@ -246,6 +246,44 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(record.logLine, "brain turn start \(record.pass.latencyMs) ms → dropped: jev: HTTP 500")
     }
 
+    /// HARNESS.md §7: the popover says Jev isn't answering at once for a
+    /// status only the person can fix (401, 402, 403), and for anything
+    /// else after 3 dropped passes in a row. A pass that runs clears it, a
+    /// pass that never asked Jev doesn't count, and a new key starts over.
+    func testBrainTroubleShowsAtOnceForTheAccountAndAfterThreeInARowElse() async throws {
+        XCTAssertEqual(BrainTrouble.showAfter, 3)
+        let fail = Lines()
+        let brain = ScriptedBrain { _, _ in
+            guard let status = fail.all.last.flatMap(Int.init) else { return [:] }
+            throw BrainError("jev: HTTP \(status)", status: status)
+        }
+        let (h, home) = harness(brain, [Recorder("a", keys: ["k"], result: .done("x"))])
+        func pass(_ status: Int?) async -> BrainTrouble? {
+            fail.add(status.map(String.init) ?? "ok")
+            _ = await h.respond(to: event(h, home, "x"))
+            return home.sync { h.trouble }
+        }
+        let credit = await pass(402)
+        XCTAssertEqual(credit, BrainTrouble(kind: .credit, why: "jev: HTTP 402", inARow: 1))
+        let ok = await pass(nil)
+        XCTAssertNil(ok)
+        let key = await pass(401)
+        XCTAssertEqual(key?.kind, .key)
+        _ = await pass(nil)
+        let first = await pass(503)
+        let second = await pass(503)
+        let third = await pass(503)
+        XCTAssertNil(first)
+        XCTAssertNil(second)
+        XCTAssertEqual(third, BrainTrouble(kind: .failing, why: "jev: HTTP 503", inARow: 3))
+        // A waiting pass that never asked Jev leaves it as it was.
+        let waited = event(h, home, "x")
+        home.sync { h.finish(waited, nil, .failure(BrainError("something needs you")), latencyMs: 0) }
+        XCTAssertEqual(home.sync { h.trouble }?.inARow, 3)
+        home.sync { h.use(brain) }
+        XCTAssertNil(home.sync { h.trouble })
+    }
+
     /// HARNESS.md §7: a pass that runs past 1.5 s is dropped.
     func testALateAnswerIsDropped() async throws {
         XCTAssertEqual(Harness.deadlineMs, 1500)
@@ -920,6 +958,7 @@ final class HarnessTests: XCTestCase {
             XCTFail("no answer")
         } catch let error as BrainError {
             XCTAssertEqual(error.description, "jev: HTTP 500", "only the status")
+            XCTAssertEqual(error.status, 500)
         }
     }
 

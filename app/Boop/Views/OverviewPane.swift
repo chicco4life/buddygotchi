@@ -15,6 +15,10 @@ struct OverviewPane: View {
                     if let error = model.startError {
                         notice("exclamationmark.triangle.fill", Theme.clayInk, "Boop couldn't start", error)
                     }
+                    if let trouble = model.status?.brainTrouble {
+                        notice("exclamationmark.triangle.fill", Theme.clayInk, "Jev isn't answering",
+                               Self.brainProblem(trouble))
+                    }
                     if model.restartAgents {
                         notice("arrow.clockwise", Theme.inkSoft, "Restart your agent sessions",
                                "Open sessions pick up Boop's hooks when they restart.") {
@@ -213,6 +217,17 @@ struct OverviewPane: View {
     }
 
     // MARK: Notices
+
+    /// What "Jev isn't answering" says, in plain words, by what the person
+    /// can do about it (harness/HARNESS.md §7).
+    static func brainProblem(_ trouble: BrainTrouble) -> String {
+        let meanwhile = "Until Jev answers again, Boop only reacts by its own rules."
+        return switch trouble.kind {
+        case .credit: "Jev's account is out of credit (\(trouble.why)). Top it up at TypeSafe. \(meanwhile)"
+        case .key: "Jev didn't accept the API key (\(trouble.why)). Check the key in Settings. \(meanwhile)"
+        case .failing: "The last \(trouble.inARow) tries failed (\(trouble.why)). \(meanwhile)"
+        }
+    }
 
     private func notice(_ icon: String, _ tone: Color, _ title: String, _ detail: String,
                         dismiss: (() -> Void)? = nil) -> some View {

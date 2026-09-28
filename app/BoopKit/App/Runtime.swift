@@ -67,9 +67,11 @@ public final class Runtime: @unchecked Sendable {
         public var personality: Personality
         /// The brain as it runs: `jev:jev-latest`, or `none` without a key.
         public var brain: String
+        /// The brain failing, for the popover's notice (harness/HARNESS.md §7).
+        public var brainTrouble: BrainTrouble?
 
         public init(name: String, snapshot: StateSnapshot, sessions: [SessionSummary], connected: Bool,
-                    device: DeviceStatus?, personality: Personality, brain: String) {
+                    device: DeviceStatus?, personality: Personality, brain: String, brainTrouble: BrainTrouble? = nil) {
             self.name = name
             self.snapshot = snapshot
             self.sessions = sessions
@@ -77,6 +79,7 @@ public final class Runtime: @unchecked Sendable {
             self.device = device
             self.personality = personality
             self.brain = brain
+            self.brainTrouble = brainTrouble
         }
     }
 
@@ -648,7 +651,7 @@ public final class Runtime: @unchecked Sendable {
         let now = options.clock()
         let status = Status(name: name, snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
                             connected: link.connected, device: link.status, personality: personality,
-                            brain: harness.brain?.id ?? "none")
+                            brain: harness.brain?.id ?? "none", brainTrouble: harness.trouble)
         if let line = DebugLog.status(status, at: now, last: &lastStatus) {
             recent.add(line)
             if options.debug { Harness.appendLine(line, to: debugLogURL) }

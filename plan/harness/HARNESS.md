@@ -372,6 +372,15 @@ reactions. The `pass` line's `dropped` says why:
 | `something needs you` | The view event waited behind a running pass, and something needed you by the time its turn came (§2). The brain wasn't asked, so the line has no state and a `latency_ms` of 0 |
 | `cancelled`, or an error's own text | The pass's task was cancelled, or the request failed some other way |
 
+**When Jev keeps failing, the popover says so.** The harness counts the
+passes that asked Jev and dropped in a row (`Harness.trouble`, a
+`BrainTrouble`), and the Overview pane shows a "Jev isn't answering"
+notice with the reason. An HTTP 401 or 403 (the key) or 402 (out of
+credit) shows it at once, since only the person can fix those; anything
+else shows it after **3** in a row (`BrainTrouble.showAfter`), so one
+slow answer doesn't. The next pass that runs clears it, and so does a new
+key. A pass that never asked Jev (`something needs you`) doesn't count.
+
 When the body came back but couldn't be used, the app log gets its size,
 never its text: `harness: jev:jev-latest answered what couldn't be used
 (N bytes)`.

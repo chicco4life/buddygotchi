@@ -42,7 +42,7 @@ public struct JevBrain: Brain {
             try await Task.sleep(for: .milliseconds(JevBrain.retryAfterMs))
             (data, status) = try await sendOnce(request)
         }
-        guard status == 200 else { throw BrainError("jev: HTTP \(status)") }
+        guard status == 200 else { throw BrainError("jev: HTTP \(status)", status: status) }
         return try JevBrain.answers(data, questions)
     }
 
