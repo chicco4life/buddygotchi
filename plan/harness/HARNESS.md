@@ -340,15 +340,17 @@ How to read HISTORY and NOW:
 ### 6.2 Sizes
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
-bytes ÷ 4, which overestimates English: the guide 300 (now 298), a
-personality 700 (`boop` 678, `chatter` 358), raised from 600 when `boop` took what you say to it and its Examples ([BEHAVIORS.md](../BEHAVIORS.md) §3.3), and a mood 175 (136–175), raised from 150 when the moods took four reasons from the notes ([DECISIONS.md](DECISIONS.md) §2.3): Jev reads only the current mood's file, so it costs at most 25 tokens a request.
+bytes ÷ 4, which overestimates English: the guide 300 (now 294), a
+personality 700 (`boop` 698, `chatter` 381), raised from 600 when `boop` took what you say to it and its Examples ([BEHAVIORS.md](../BEHAVIORS.md) §3.3), and a mood 175 (the 13 files 112–168), raised from 150 when the moods took four reasons from the notes ([DECISIONS.md](DECISIONS.md) §2.3): Jev reads only the current mood's file, so it costs at most 25 tokens a request.
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
 about 200 tokens and HISTORY's 40 view events about 1,200, and each
 prompt, last message or thing you said quoted in one adds up to about
-80 more (300 characters). With the questions a request is about 3,400 tokens with
-nothing quoted, and could reach about 6,500 in the worst case, every one
-of the 40 quoting 300 characters. The evals' states came to 1,000–1,550,
+80 more (300 characters). With the questions a request is about 4,100 tokens with
+nothing quoted, and could reach about 7,200 in the worst case, every one
+of the 40 quoting 300 characters: the 13 moods' faces, the finish's
+outcomes and a `mood` question of up to nine options (a mood with eight
+moves, and staying) added about 700 to the questions. The evals' states came to 1,000–1,550,
 and a busy working day's ([EVALS.md](../EVALS.md) §5) to 1,250–2,100,
 before prompts and last messages were quoted.
 

@@ -112,7 +112,7 @@ resting mood: a new Boop starts in it, and every other fades toward it.
 the owner's approved graph, one step a pass (`MoodGraph`, a copy of
 [mood-graph.json](../../internal/boop-design/boop-mood-spectrum-v2/mood-graph.json)
 from the design handover, which a test holds it to): 98 one-way moves,
-4 to 8 from each mood, and every mood reachable from every other by
+6 to 8 from each mood, and every mood reachable from every other by
 ordinary moves alone. An ordinary move is a small, plausible change; a
 dramatic one is a jump that only a fresh, big event earns. Staying is
 always allowed, and isn't a move. A move's reverse may be of the other
@@ -155,9 +155,10 @@ mood's neighbours (a test checks), and the leaving is what the `mood`
 question judges by. The rules read only what the lines say
 ([EVENTS.md](EVENTS.md) §8), with no streaks:
 
-- a failed check while the agent works on: calm, happy, curious or
-  engaged to annoyed, and at the next, annoyed to determined, rooting
-  for the retry; determined stays through more;
+- a failed check while the agent works on: calm, happy or curious to
+  annoyed, and at the next, annoyed to determined, rooting for the
+  retry; engaged and excited straight to determined; determined stays
+  through more;
 - a check passing after failing: determined, engaged, happy or excited
   to proud; irritated and grumpy to annoyed, whiny to determined, sad to
   calm;
@@ -165,8 +166,8 @@ question judges by. The rules read only what the lines say
   annoyed; annoyed, irritated, excited or proud to grumpy; determined to
   whiny;
 - a very long turn (5 minutes or more) finishing: done, excited from
-  calm, engaged, determined or curious, proud or excited from happy;
-  failed, sad (a jump from most moods);
+  calm, happy, curious, engaged, determined or proud; failed, sad (a
+  jump from most moods);
 - a long turn working on (its working heartbeat): calm, happy or curious
   to engaged; a very long one, engaged to determined, which it keeps
   while it works on;
@@ -191,7 +192,7 @@ Jev reads the note and judges it against the mood file's words.
 - the agent gives up: says it couldn't do it, or is stuck: sad (a jump
   from calm and most moods), or whiny from annoyed, irritated or grumpy;
 - the person is rude to Boop ("you're useless"): wounded, a jump from
-  the moods that have it; kind words to Boop: happy.
+  most moods; kind words to Boop: happy.
 
 A plain request and a matter-of-fact finish still move nothing
 (`28-plain-words-leave-mood`, `52-routine-work-holds-calm`), nor does a

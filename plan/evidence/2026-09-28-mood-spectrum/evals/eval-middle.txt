@@ -1,0 +1,75 @@
+pass  01-short-turn.json  A quick turn is routine  (3/3 runs)
+pass  02-long-turn.json  A very long turn that finishes is a success worth celebrating  (5/5 runs)
+pass  03-turn-failed.json  A failed turn puts Boop out, and shows it  (5/5 runs)
+pass  04-tests-fight-back.json  Failing tests put Boop out, then determined, and passing after them proud  (5/5 runs)
+pass  05-pokes-glad-miffed-grumpy.json  Pokes make Boop curious, then miffed, then fed up  (5/5 runs)
+pass  06-heartbeat-lets-grumpy-go.json  Hours of nothing let a fed-up mood go, a step at a time  (5/5 runs)
+pass  07-chatter-reacts-to-everything.json  The chatter personality reacts to everything  (3/3 runs)
+pass  08-long-turn-fails.json  A very long turn that fails makes Boop sad  (5/5 runs)
+FAIL  09-failure-worked-through.json  A failure being worked through makes Boop determined, and the fix makes it proud  (2/5 runs)
+  case: The agent's tests fail twice while it works: Boop is put out, then roots for the agent, determined. Then the tests pass. That's a hard-won win: Boop turns proud, with a pleased face (proud, excited or happy), 'finally', 'tests' or 'yay', held more than once.
+  step 3: claude's tests failed on "landing".
+    wanted mood determined; got react annoyed, animation none, word oops, loops once, mood annoyed
+  step 4: claude's tests passed on "landing" after failing.
+    wanted react excited|happy|proud, word finally|tests|yay, loops four times|three times|twice, mood proud; got react proud, animation none, word finally, loops twice, mood calm
+pass  10-run-of-wins.json  Short wins leave Boop calm, and a very long turn done lifts it  (3/3 runs)
+FAIL  11-comeback-still-showing.json  A comeback still showing isn't made again when the turn finishes  (2/3 runs)
+  case: The agent's tests fail twice, then pass, and Boop is still showing its proud reaction to the fix when the turn finishes twenty seconds later. Boop doesn't make the same proud 'finally' again for the finish: it stays quiet or gives a small calm, happy or excited face.
+  step 5: claude finished turn 1 on "landing": done, a long turn, 3 tool calls.
+    wanted react calm|engaged|excited|happy|none, word claude|nice|none|tests|yay; got react proud, animation success, word nice, loops once, mood proud
+pass  12-comeback-that-didnt-happen.json  A comeback that didn't happen is made when the turn finishes  (3/3 runs)
+pass  13-proud-fades.json  A proud mood fades a step, to happy, after 5 minutes  (5/5 runs)
+pass  14-minutes-turn-is-routine.json  A turn of a few minutes gets a face but leaves the mood alone  (3/3 runs)
+pass  15-quiet-work.json  A long quiet stretch of work gets a small face, not a finish  (3/3 runs)
+FAIL  16-poking-keeps-boop-angry.json  Poking Boop again and again keeps it angry  (0/5 runs)
+  case: The person pokes Boop again and again, then again a minute later, and again a minute after that. Boop gets angry at the first round of pokes, and ends every round with an irritated or grumpy face (never a happy, excited or proud one), with a word like 'nope', 'ugh' or 'again', or none. It stays angry through the second round, which comes before it has calmed down, and the third round, after it may have started to, climbs back. A few minutes after the last poke it has calmed down a step: when the agent starts a turn, Boop is annoyed or irritated, no longer grumpy.
+  step 4: claude started turn 1 on "landing".
+    wanted react annoyed|calm|none, mood annoyed|irritated; got react none, animation none, word none, loops none, mood grumpy
+pass  17-never-the-wrong-face.json  Boop never makes the wrong face  (5/5 runs)
+pass  18-long-grind.json  A long grind keeps Boop animated, and its mood drifts  (3/3 runs)
+pass  19-same-win-again.json  Quick wins again and again each get a reaction  (3/3 runs)
+GAP   20-no-flail.json  Tests flipping back and forth don't make Boop's mood flail  (2/3 runs)
+  gap: The mood question's options say annoyed and determined are for a failed check and proud or engaged for a pass after failing, and Jev follows each result over the MOOD file's 'stays through a failed check', so the mood can follow the flips once its first minute is up. Proposed fix: reword those options, or hold a new mood for a minute in the mood action (the owner chose pacing by steering only, D5).
+  case: Within a couple of minutes the agent's tests fail, pass, fail, pass, fail and pass again, twenty seconds apart. Boop reacts to what stands out, but its mood doesn't flip with every result: once it has moved it holds that mood for at least a minute rather than bouncing straight back to the one it just left.
+  whole run: mood_changes 1-3: 5: calm → annoyed → determined → proud → determined → proud
+  whole run: no_mood_bounce_within 1m00s: determined → proud at 1m30s, back at 1m50s
+pass  21-busy-session.json  A busy half hour keeps Boop lively without flailing  (3/3 runs)
+pass  22-other-thread-keeps-busy.json  Quick turns on another thread don't leave a long turn without check-ins  (3/3 runs)
+pass  23-poke-barrage-one-face.json  A barrage of pokes climbs to one fed-up face, not one per poke  (5/5 runs)
+pass  24-frustrated-ask.json  A frustrated request puts Boop on the person's side  (3/3 runs)
+pass  25-thanks.json  Thanking the agent delights Boop  (3/3 runs)
+pass  26-hard-work-done.json  A long turn that says it did the hard part makes Boop proud  (3/3 runs)
+FAIL  27-agent-gives-up.json  An agent that couldn't do it makes Boop sad  (0/3 runs)
+  case: The agent's turn ends without an error, but its last message says it couldn't get the login working and is stuck. Boop is deflated along with it: its mood turns sad, with a sad face, and the finish plays as a failure. It isn't grumpy, since nothing failed on the agent's side.
+  step 2: claude finished turn 1 on "landing": done, a long turn, no tool calls.
+    wanted react sad|whiny|wounded, animation failure, mood sad; got react sad, animation failure, word oops, loops once, mood annoyed
+pass  28-plain-words-leave-mood.json  Plain requests and routine finishes leave the mood alone  (5/5 runs)
+pass  29-long-turn-is-nice.json  A long turn done gets a 'nice'  (3/3 runs)
+pass  30-bug-fixed-says-bug.json  A quick bug fix says 'bug'  (3/3 runs)
+pass  31-pushed-says-merge.json  A quick commit and push says 'merge'  (3/3 runs)
+pass  32-review-says-review.json  A quick code review says 'review'  (3/3 runs)
+pass  33-plain-finish-says-agent.json  Words about nothing in particular say the agent's name  (3/3 runs)
+pass  34-long-bug-fix-nice.json  A long bug fix says 'nice', or its topic  (3/3 runs)
+pass  35-talk-gets-an-answer.json  Talking to Boop always gets a face, kind or hurt  (5/5 runs)
+pass  36-talk-when-grumpy.json  Talking to a fed-up Boop still gets a face  (5/5 runs)
+pass  37-talk-when-idle.json  Talking to Boop with no agent working still gets a face  (5/5 runs)
+pass  38-talk-twice-over-a-face.json  Saying two things quickly gets a face for each, even mid-face  (5/5 runs)
+pass  39-talk-after-a-failure.json  Talking to Boop after a failure gets a face on your side  (5/5 runs)
+pass  40-talk-garbled-words.json  Garbled or empty-sounding words still get a face  (5/5 runs)
+pass  41-done-and-working-is-success.json  A turn that says the work is done and working is a success  (5/5 runs)
+pass  42-couldnt-finish-is-failure.json  A turn that says it couldn't do the work is a failure  (5/5 runs)
+pass  43-failed-turn-sounds-upbeat.json  A failed turn is a failure, however upbeat its message  (5/5 runs)
+pass  44-question-back-is-reply.json  A turn that ends with a question back is a reply  (3/3 runs)
+pass  45-answer-is-reply.json  A turn that only answers a question is a reply  (3/3 runs)
+pass  46-finish-in-a-bad-mood.json  A finish in a sad or fed-up mood is still judged by what it says  (3/3 runs)
+pass  47-recovery-walk.json  A grumpy Boop recovers along the graph, never straight to happy  (5/5 runs)
+pass  48-small-and-big-failure-from-calm.json  A small failure from calm is a small step; a big one may jump  (3/3 runs)
+pass  49-poke-ladder-on-the-graph.json  Pokes climb Boop's mood one step at a time  (5/5 runs)
+pass  50-thanks-while-hurt.json  Thanks bring a whiny or wounded Boop back  (3/3 runs)
+pass  51-long-grind-of-passing-work.json  A long grind of good work is engaged or determined, excited only at its end  (3/3 runs)
+pass  52-routine-work-holds-calm.json  Routine work leaves a calm Boop calm  (3/3 runs)
+pass  53-busy-day-on-the-graph.json  Through a busy stretch, every mood move is on the graph  (5/5 runs)
+pass  54-talk-while-irritated.json  Talked to while irritated, Boop answers as irritated, not grumpy  (3/3 runs)
+pass  55-quiet-fades-from-excited.json  Hours of nothing fade an excited Boop a step at a time  (3/3 runs)
+50/55 passed (1 known gaps failed) in every run with jev:jev-latest
+latency: median 218 ms, slowest 593 ms (deadline 1500 ms)

@@ -259,7 +259,7 @@ order:
 | Action | Effect | Its own rules |
 | --- | --- | --- |
 | `mood` | Saves the new mood to the `mood` file; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the current mood's moves on the mood graph, and only a change |
-| `react` | Queues a moment in the moment schedule: the chosen mood as its face, with the finish Jev judged if NOW is a turn that finished (task_complete for a success or a failure, reply_ready for a reply), held for the loops Jev picked, and Voice's mumble in that mood's feeling, with the chosen word if Jev is sure enough. It's started, not done, until the device says how the moment ended. It also names Boop's last reaction for the end of HISTORY ([harness/HARNESS.md](harness/HARNESS.md) §5.3) | Nothing while something needs you |
+| `react` | Queues a moment in the moment schedule: the chosen mood as its face, with the finish Jev judged if NOW is a turn that finished (task_complete for a success or a failure, reply_ready for a reply), held for the loops Jev picked, and Voice's mumble in that mood's feeling, with the chosen word if Jev is sure enough. It's started, not done, until the device says how the moment ended | Nothing while something needs you |
 
 No rule makes a moment on the Mac: every mumble and face comes through them.
 

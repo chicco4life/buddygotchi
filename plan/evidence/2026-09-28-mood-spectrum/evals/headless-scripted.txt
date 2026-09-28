@@ -1,0 +1,30 @@
+# Boop --headless --brain scripted --link none --debug, a short Claude session through boopdev replay, then a forced pass and a mood the dashboard set; boopdev watch's lines (states left out), the moments sent, and the mood question's options in each questions line
+▸ 1 turn start: claude started turn 1 on "jetpack".
+    You asked: "PRIVATE_PROMPT_7001 fix the flaky test"
+  pass scripted 0 ms: mood calm 1.00 · react.animation none 1.00 · react.loops once 1.00 · react.mood excited 1.00 · word.about none 1.00 · word.feeling yay 1.00
+  … react: Boop made an excited face, held once, and mumbled "…yay!"
+  ✗ react (3) didn't happen: no device connected
+  … needs_you (rule): Boop showed that claude needs you.
+▸ 2 tool wait (no pass): claude needs you on "jetpack".
+  · needs_you (rule) ended
+▸ 3 heartbeat: claude is still working on "jetpack", a very long turn.
+  pass scripted 0 ms: mood calm 1.00 · react.animation none 1.00 · react.loops once 1.00 · react.mood excited 1.00 · word.about none 1.00 · word.feeling yay 1.00
+  … react: Boop made an excited face, held once, and mumbled "…yay!"
+  ✗ react (11) didn't happen: no device connected
+▸ 4 turn end: claude finished turn 1 on "jetpack": done, a very long turn, 1 tool call.
+    Its last message: "PRIVATE_CLOSING_7004 The flaky test is fixed and the suite passes."
+  pass scripted 0 ms: mood calm 1.00 · react.animation success 1.00 · react.loops once 1.00 · react.mood excited 1.00 · word.about none 1.00 · word.feeling yay 1.00
+  … react: Boop played a success in an excited face, held once, and mumbled "…yay!"
+  ✗ react (14) didn't happen: no device connected
+  pass dashboard 0 ms: react.animation success 1.00 · react.loops twice 1.00 · react.mood proud 1.00 · word.feeling finally 1.00
+  … react: Boop played a success in a proud face, held twice, and mumbled "…finally!"
+  ✗ react (16) didn't happen: no device connected
+  ✓ mood: Boop's mood changed: calm → grumpy.
+
+{"sent":{"t":"moment","say":{"syl":"ti-ma","word":"yay","at":0,"tune":"bounce","ms":115},"mood":"excited","loops":1},"received_at_ms":1790601228221}
+{"sent":{"t":"moment","say":{"syl":"ta-la-ki la na la-la ti","word":"yay","at":0,"tune":"bounce","ms":115},"mood":"excited","loops":1},"received_at_ms":1790601632907}
+{"sent":{"t":"moment","anim":"task_complete","say":{"syl":"ta-da","word":"yay","at":2,"tune":"bounce","ms":115},"mood":"excited","loops":1,"variant":2,"who":{"agent":"claude","thread":"jetpack"},"outcome":"success"},"received_at_ms":1790601632915}
+{"sent":{"t":"moment","anim":"task_complete","say":{"syl":"mo-a","word":"finally","at":2,"tune":"lift","ms":135},"mood":"proud","loops":2,"variant":3,"outcome":"success"},"received_at_ms":1790601634456}
+
+questions at 1790601227027 → mood options: calm happy curious engaged annoyed excited wounded sad
+questions at 1790601634457 → mood options: grumpy irritated annoyed whiny determined calm wounded sad proud
