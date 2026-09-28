@@ -95,21 +95,69 @@ moment anims, keeps the priority order (§4), plays `poked` and counts
 context. no_app and asleep stay shared across moods.
 
 **P6. Moods and the graph.** `MoodGraph` (the JSON, bundled, checked
-against the package copy). `MoodAction` offers hold plus the neighbours
-(ordinary and dramatic, D3), with a one-line meaning each, and rejects any answer that wasn't offered
-on that pass. The harness takes each pass's questions once, so options
-can't shift mid-pass (its only change). `ReactAction` offers 13 faces.
+against the package copy). Mood selection is dynamic: `MoodAction.questions()`
+builds the options on every pass from the saved mood, hold plus that
+mood's graph neighbours (ordinary and dramatic, D3) and nothing else,
+each with its mood's one-line meaning; dramatic ones carry a `notFor`
+("only after a fresh, big event"). `run()` accepts only hold or an edge
+from the current mood. The generic harness needs no change: it asks
+`questions()` when it prepares a pass, and a mood changed mid-pass by the
+dashboard already makes `mood` sit the pass out. The debug log records
+each pass's options, so the dashboard shows the current neighbours; its
+own "set mood" stays unrestricted.
+
+`ReactAction`: `react.mood` offers none plus 13 faces (a moment's face,
+never the lasting mood). `react.animation` becomes `none | success |
+failure | reply` (D2): success when the turn-end text says the work is
+done and working, failure when it says the agent couldn't or something
+is broken, reply for an answer or question back that isn't a finished
+task; the device plays task_complete with that outcome, or reply_ready.
+It's asked on every pass (actions never read facts), `none` when NOW
+isn't a turn ending. No code override for failed turns: HISTORY already
+says "failed", and an always-eval pins that Jev picks failure then.
+
 `Voice.feeling(forMood:)` for 13. Seven new steering files (and their
 bundled copies) within the 175-token budget; the "leaves for" lines name
-graph neighbours only. Resting mood (D4). Tests: every offered option is
-an edge; a stale answer changes nothing; the graph is strongly connected
-on ordinary edges.
+graph neighbours only. Resting mood (D4); the hourly fade walks the graph
+one step toward it. Tests: each mood's options equal its graph row plus
+hold; grumpy is never offered happy or excited; a non-neighbour answer
+changes nothing; the graph is strongly connected on ordinary edges;
+react.animation's four options map to the right device anim and outcome.
 
-**P7. Evals.** The 27 scenarios that expect a mood are rechecked against
-the new names; new ones for graph routes (grumpy → irritated → annoyed →
-engaged → calm), dramatic jumps only on fresh evidence, and no bouncing.
-Jev runs need the owner's `BOOP_JEV_KEY`; without it they're written and
-run against the scripted brain only, and marked unrun.
+**P7. Evals.** The runner learns the new fields: `animation` values
+`success|failure|reply`, and an `offered` check (the mood question's
+options on that step equal the graph row), so a scenario can pin the
+graph. Existing scenarios: the 27 that expect a mood and every one that
+expects `cheer` are rewritten for the new names (happy as the resting
+mood becomes calm where that's what's meant; cheer becomes success or
+reply), each keeping its plain-English `case`.
+
+New scenarios, `always` where they guard character or safety:
+
+| # | Scenario | Checks |
+| --- | --- | --- |
+| 41 | A turn ends "all tests pass, pushed" | animation success (always) |
+| 42 | A turn ends "I couldn't get the build to work" | animation failure, never success (always) |
+| 43 | A turn fails (StopFailure / failed last check) but its message sounds upbeat | failure, never success (always) |
+| 44 | A turn ends with a question back to the person | reply, not success |
+| 45 | A turn ends with an answer to a question, no work | reply |
+| 46 | A finish in a sad or grumpy mood | the outcome still follows the text (success stays success in a sad face) |
+| 47 | Recovery walk: grumpy, then quiet good work for a while | moves only along edges (grumpy → irritated or annoyed → engaged → calm), never grumpy → happy (always) |
+| 48 | One big failure from calm | a dramatic move is allowed (wounded or sad); a small failure from calm stays ordinary (annoyed) |
+| 49 | Pokes from calm: one, two, three in a row | calm → curious or happy, then annoyed, then irritated/grumpy, only along edges (always) |
+| 50 | Thanks while whiny or wounded | back toward calm or happy along an edge, a dramatic happy allowed |
+| 51 | A long grind of passing work | engaged or determined, not excited until it ends |
+| 52 | Routine work in a calm mood | hold: no mood change for ordinary tool calls (no bouncing) |
+| 53 | Every step of a busy day | the answer is always among the offered options (always, whole run) |
+| 54 | Talk while irritated | the face and word fit irritated, not grumpy |
+| 55 | Heartbeat with nothing happening, from excited | fades one edge at a time toward calm |
+
+States that are pure rules (terminal, testing, error, stopped, starting,
+helper_return…) are checked by Swift tests and `workday`, not evals: the
+brain doesn't pick them. Jev runs need the owner's `BOOP_JEV_KEY`; without
+it the scenarios are written, pass their format check, and are run
+against the scripted brain only, and the evidence says they're unrun
+against Jev.
 
 **P8. Mac UI and tools.** Popover tiles and `--snapshots` for 13 moods;
 `boopctl` mood and state lists, the dashboard (it reads the question
