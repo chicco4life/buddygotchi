@@ -509,10 +509,12 @@ personality or memory, only its touch calibration. What it does is in
   once v1 is verified.
 - **Dev tools:** `internal/tools/boopctl` for the device and `boopdev` for
   the app ([VERIFICATION.md](VERIFICATION.md) §2).
-- **Design review:** `internal/boop-design/` holds a standalone SVG and
-  procedural-SFX bank and a future mood-graph handover ([guide](../internal/boop-design/README.md)).
-  Production does not import this package. Its graph and additional states
-  do not change the current Mood action, steering or device protocol.
+- **Animation bank:** `internal/boop-design/` holds the SVG and
+  procedural-SFX bank the device's designs and sounds are built from, and
+  the mood-graph handover ([guide](../internal/boop-design/README.md)).
+  No production target imports it: facegen and sfxgen, internal tools,
+  build `firmware/assets/` from it ([DEVICE.md](DEVICE.md) §6,
+  [VOICE.md](VOICE.md) §10).
 
 What ships is in `app/` and `firmware/`; everything else (tests, evals,
 dev tools, skills, the firmware's simulator and unit tests) is in

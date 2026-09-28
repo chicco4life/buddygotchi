@@ -26,7 +26,7 @@ tools/.venv/.ok: tools/requirements.txt
 # The device's faces, firmware/assets/faces.h, from the animation bank's
 # designs (internal/boop-design/boop-sound-bank-v4/, which facegen runs with
 # node), checked against Chrome's drawing of them first. Rerun it when the
-# bank changes.
+# bank changes, then its sounds: node internal/tools/sfxgen/sfxgen.mjs.
 faces: tools
 	cd $(ROOT) && internal/tools/.venv/bin/python internal/tools/facegen/facegen.py --check
 

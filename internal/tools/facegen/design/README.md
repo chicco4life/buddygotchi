@@ -9,7 +9,7 @@ by hand, and no SVG is checked in: `facegen` runs `../bank.mjs` into
 `../build/` (ignored) each time.
 
 - `manifest.json`: the designs, in the device's order, which `facegen`
-  writes: each one's mood, state, variation (from 1
+  writes and `sfxgen` reads: each one's mood, state, variation (from 1
   within its mood and state), name, length in seconds, the host fact it's
   for (`outcome`, success or failure, for task_complete; `ctx`, new_task,
   session or continuation, for starting), and its SVG dialect (`v2`, the
@@ -26,4 +26,4 @@ What picks a design is the mood and the state, and a variation is picked
 at random, never the last one, among those for the host fact if there
 is one ([plan/BEHAVIORS.md](../../../../plan/BEHAVIORS.md) §2). To take a
 new version of the bank, update it in `internal/boop-design/`, run its
-checks, then `make -C internal faces`.
+checks, then `make -C internal faces` and `node internal/tools/sfxgen/sfxgen.mjs`.

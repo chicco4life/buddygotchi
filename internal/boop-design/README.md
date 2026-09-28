@@ -1,8 +1,11 @@
 # Boop animation and mood design package
 
 Updated 2026-09-28. The code-based animation/SFX bank and approved mood-graph
-handover, published together for review and later integration. Nothing here
-changes the shipped app, firmware enums, steering or hardware assets.
+handover. The bank is the one source of the device's designs and sounds:
+`facegen` runs its generator for the faces and `sfxgen` imports its
+timelines and synthesiser ([plan/DEVICE.md](../../plan/DEVICE.md) §6,
+[plan/VOICE.md](../../plan/VOICE.md) §10), so a change here changes the
+firmware once they're rerun.
 
 - [Animation bank](boop-sound-bank-v4/README.md): editable SVG generators,
   procedural sounds, portable browser player and coverage index.
@@ -48,15 +51,22 @@ dependency on the design workspace's V3 folder. Independent V3 fingerprints
 check preservation of the older SVGs and scores. See the
 [verification evidence](../../plan/evidence/2026-09-28-mood-design-push/README.md).
 
-## Integration boundary
+## How the device uses it
 
-Keep this review package separate from `internal/tools/facegen/design/` and
-`internal/tools/sfxgen/pack/` until the production transition is deliberately
-implemented and tested. That work needs matching updates to mood persistence,
-JEV choices, event-to-state mapping, protocol/firmware names, face and sound
-generation, and the specifications. The generic harness must not acquire mood
-graph logic. Publication of this package is not visual approval or a claim of
-device support.
+`make -C internal faces` runs the bank's generator
+(`internal/tools/facegen/bank.mjs` calls `makeScene` for every design) into
+`internal/tools/facegen/build/`, which git ignores, and turns the SVGs into
+`firmware/assets/faces.h`; `node internal/tools/sfxgen/sfxgen.mjs` then bakes
+the timelines, in the voice-first mix, into `firmware/assets/sfx.h`. Nothing
+is copied out of the bank by hand. The older moods' designs must come out as
+`qa/v3-fingerprints.json` has them; change one only deliberately, with the
+fingerprints in the same commit. The generator tags each flip-book step's
+face and mouth (`data-part`) and its blink (`data-blink`), which facegen and
+the device use; `qa/check.mjs` must pass after any change.
+
+The mood graph belongs to the Mac's Mood action, never the generic harness.
+Integration is not visual approval: the owner approves the new art and
+sounds before they merge to main.
 
 No recordings, execution logs, credentials, enclosure CAD, or the sound chat's
 unfinished scripts are part of this publication.

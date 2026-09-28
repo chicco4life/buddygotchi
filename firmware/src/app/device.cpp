@@ -397,7 +397,7 @@ void Device::followSound(uint32_t t) {
   show.t = b_.designMs(t);
   voice::FxEvent due[EffectTrack::kMaxOut];
   bool changed;
-  int n = fx_.follow(screenAt(t) == Screen::kPattern ? nullptr : &show, t, due, changed);
+  int n = fx_.follow(screenAt(t) == Screen::kPattern ? nullptr : &show, due, changed);
   if (changed) hal_.stopEffects();
   if (m.vol == 0) return;
   for (int i = 0; i < n; ++i) {
@@ -406,6 +406,7 @@ void Device::followSound(uint32_t t) {
     e.gain = due[i].gain;
     e.pitch = due[i].pitch;
     e.vol = uint8_t(m.vol);
+    e.duck = due[i].duck;
     hal_.effect(e);
     ++fxSent_;
     fxLast_ = e.clip;

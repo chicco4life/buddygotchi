@@ -386,7 +386,7 @@ short-term memory fresh ([ARCHITECTURE.md](ARCHITECTURE.md) §4.3).
 | Output | Used for | Never |
 | --- | --- | --- |
 | Mumbles | The brain's reactions | While something needs you; while the mic is on (§3.3) |
-| Sound effects | The face's design: working's clicks every loop, the cheer's fanfare, needs you's knocks and ding (the alert, once per request shown, §3.2), idle's swish at most every 45 s ([VOICE.md](VOICE.md) §10) | Asleep, no app, or a test pattern. Under a mumble they're half as loud, except needs you's |
+| Sound effects | The face's design: a few of working's clicks each loop, the cheer's fanfare, needs you's knocks and ding (the alert, once per request shown, §3.2) ([VOICE.md](VOICE.md) §10) | Idle, asleep, no app, listening, or a test pattern. Under a mumble they're a quarter as loud, except needs you's and the cheer's |
 | Amber light | Something needs you: amber at half (`#805800`) | Any other time, or with no app |
 | Backlight | Full (255) awake; 60/255 asleep and with no app; eases with each switch of design | Dimmed while something needs you |
 

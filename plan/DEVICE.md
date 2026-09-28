@@ -207,8 +207,8 @@ one. It holds until the reply:
   needs you, and a new request doesn't cut it
   ([BEHAVIORS.md](BEHAVIORS.md) §1). Push-to-talk cuts whatever was
   playing, as a tap does (`ended` `why` `tap`), and stops the line.
-- **Silent.** The pack's listening designs have sound effects, which the
-  device leaves out, so nothing competes with your voice.
+- **Silent.** The bank's mix leaves listening silent
+  ([VOICE.md](VOICE.md) §10), so nothing competes with your voice.
 
 BOOT held while the Mac's `listening` plays keeps the same face and
 tops its time up again. Input a tool injects with `dbg.press` behaves the
@@ -265,9 +265,9 @@ Nothing else is stored: the device ID comes from the Bluetooth MAC, and no
 `state` is kept.
 
 Fonts, faces, voice clips and sound effects are compiled in as arrays:
-the voice is 235 KB ([VOICE.md](VOICE.md) §8), the sound effects 146 KB
-(§10 there), the faces 1.14 MB (§6) and the fonts about 27 KB. The whole
-firmware is 2.44 MB, about 78% of app0.
+the voice is 235 KB ([VOICE.md](VOICE.md) §8), the sound effects 202 KB,
+154 KB of them clips (§10 there), the faces 1.14 MB (§6) and the fonts
+about 27 KB. The whole firmware is 2.50 MB, about 79% of app0.
 
 ## 6. Memory, drawing and speed
 
@@ -372,7 +372,7 @@ frames stay exact) and a press draws at once for its first 60 ms. A screenshot a
 
 | Measure | Value | Source |
 | --- | --- | --- |
-| Firmware size | 2.44 MB (2,443,587 bytes), 78% of app0 | The board build with the animation bank's 770 designs and the first pack's sounds, 2026-09-28 |
+| Firmware size | 2.50 MB (2,496,539 bytes), 79% of app0 | The board build with the animation bank's 770 designs and their sounds, 2026-09-28 |
 | Minimum free heap, through a 35-minute soak with brain reactions | 73.7 KB, 24 B below where it stood after the first minute | The bench board, firmware `c6ccb03`, [2026-09-28](evidence/2026-09-28-tonight/firmware/README.md) |
 | Frames a second through `perf --motion`'s cheers and wiggles | 15.5 on average, 6 at the least: 6–7 in a second of the cheer and 20–24 in a wiggle's, as in the simulator (14.4 on average) | The bench board, firmware `3284d55`, 60 s, the same |
 | Drawing and pushing one changed frame (`draw_us`, `push_us`), through the soak | 1.0 ms and 8.8 ms typically; 2.1 ms and 22.5 ms at the most | The same, firmware `c6ccb03` |

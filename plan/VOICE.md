@@ -263,40 +263,55 @@ a line that's playing.
 
 ## 10. Sound effects
 
-The animation pack (DEVICE.md §6) comes with procedural sounds: each
+The animation bank (DEVICE.md §6) comes with procedural sounds: each
 design has a timeline of short effects, such as key clicks, paper, a
-ding or a fanfare, made from oscillators and noise, never recordings.
-The device plays them with the face, on its own: it knows the mood, state
-and variation it draws, so no message carries them and the Mac doesn't
-know about them.
+knock, a ding or a fanfare, made from oscillators and noise, never
+recordings. The device plays them with the face, on its own: it knows the
+mood, state and variation it draws, so no message carries them and the Mac
+doesn't know about them.
 
-**The assets.** `internal/tools/sfxgen/sfxgen.mjs` runs the pack's own
-synthesiser (`internal/tools/sfxgen/pack/audio/`, unchanged) and reads the
-timelines of the device's states (`pack/scores/`; the pack's `listening`
-has no design on the device). It writes `firmware/assets/sfx.h`, with a
-version that `dbg.ping` reports as `fx` ([PROTOCOL.md](PROTOCOL.md) §5):
+**The assets.** `internal/tools/sfxgen/sfxgen.mjs` runs the bank's own
+synthesiser and recipes
+(`internal/boop-design/boop-sound-bank-v4/runtime/audio/`, unchanged) and
+takes each design's timeline from the bank's `makeScene`, for the designs
+facegen lists (`internal/tools/facegen/design/manifest.json`, so facegen
+runs first). It writes `firmware/assets/sfx.h`, with a version that
+`dbg.ping` reports as `fx` ([PROTOCOL.md](PROTOCOL.md) §5):
 
-- Each of the 47 effects the timelines use is rendered once, low-passed
+- Each of the 49 effects the timelines use is rendered once, low-passed
   and stored like the voice: 8-bit samples at 11.025 kHz, at full scale.
-  They take 146 KB (the test allows 180 KB).
-- An event's loudness is its clip's level times its gain in the pack.
-  The pack spans about 40 dB, which an 8-bit speaker loses in its hiss, so
+  They take 154 KB (the test allows 180 KB), and the timelines 48 KB. The
+  new moods brought three: `knock`, their needs-you taps, `brake`
+  (stopped) and `failedAttempt` (a failed finish, an error).
+- An event's loudness is its clip's level times its gain in the bank.
+  The bank spans about 40 dB, which an 8-bit speaker loses in its hiss, so
   the tool takes the square root: the loudest event plays as loud as a
-  syllable, the quietest at about a fifth of that, and the order holds.
-- The pack's pitch for an event (0.91–1.12) is kept, and the device
+  syllable, the quietest at about a tenth of that, and the order holds.
+- The bank's pitch for an event (0.91–1.12) is kept, and the device
   resamples the clip for it, as it does a syllable.
 
+**The voice-first mix.** The bank keeps its sounds sparse, so the voice
+comes first. Idle, asleep, no app, listening and waiting are silent. A
+routine design sounds at most about 30% of its contacts, in four
+gestures at most, which the mix picks afresh each loop, never moving one
+off its frame. The device has no bank to ask, so sfxgen bakes the bank's
+picks for loops 0 to 7 (`routineEvents`, seed 53) and the device plays
+loop n's as n % 8 (`voice::events`). Needs you, the finish and an error
+keep their whole timeline, and play it once.
+
 **When they play.** A design's events follow its clock, which starts
-with the design (a new look, or a new cheer) and runs on past its loops.
-Each timeline has the pack's policy:
+with the design (a new look, or a new cheer) and runs on past its loops;
+its loops are counted from its start. Each timeline has the bank's
+policy:
 
 | State | Policy | So |
 | --- | --- | --- |
-| working | Every loop | Its clicks and rustles repeat with the animation |
-| task_complete (the cheer) | First loop only | The fanfare, then room for a mumble |
-| needs_you | First loop only | Its knocks and taps, ending in the ding; its pose then holds, silent |
-| idle | Variation 1 silent; 2 and 3 their first loop, then at most once every 45 s | A small swish now and then |
-| asleep, no_app | Silent | |
+| working, planning, terminal, tool_use, searching, analyzing, testing | Every loop, each loop its own picks | A few clicks and rustles, never the same loop over and over |
+| The same, with a loop under 3.5 s | Every other loop: loops 0, 2, 4… | Room between a short loop's accents |
+| needs_you | First loop only | Its knocks or taps, ending in the ding; its pose then holds, silent |
+| task_complete, error | First loop only | The fanfare, or a failure's sputter (never a trophy), then room for a mumble |
+| starting, delegating, helper_return, reply_ready, stopped, poked, tap_spam | First loop only | A few contacts as it starts |
+| idle, asleep, no_app, listening, waiting | Silent | |
 
 - A change of design (another look, variation, mood or cheer, or the
   looks taking turns, [BEHAVIORS.md](BEHAVIORS.md) §2) stops the
@@ -310,18 +325,24 @@ Each timeline has the pack's policy:
   and sends none; volume sets their level as it does the voice's.
 
 **With a mumble.** Effects mix under the voice and don't stop it. While a
-line plays they are half as loud, except the needs-you signal (the
-pack's `alert*` clips), which never is. No line plays while something
-needs you (§9), so the ding is always heard. It is the only needs-you
-sound: a new request shown plays the performance again from its start
-([BEHAVIORS.md](BEHAVIORS.md) §3.2).
+line plays they are a quarter as loud, the bank's level, except needs
+you's, the finish's and an error's: the design decides, not the clip.
+No line plays while something needs you (§9), so the ding is always
+heard. It is the only needs-you sound: a new request shown plays the
+performance again from its start ([BEHAVIORS.md](BEHAVIORS.md) §3.2).
+Each design also has a voice window, the bank's `voiceWindows`: when a
+mumble over it may start, 0.12 s after the last attention cue ends for
+needs you, the finish and an error, and 0.45 s in for the rest. sfx.h
+carries its start (`voice::Score::voiceMs`); nothing waits for it yet.
 
 **Mixing.** Up to four effects play at once; a fifth replaces the oldest.
 The sum is added to the voice's samples and clipped. The amp stays on
 for about a second after the last sound, so a working design's clicks
 don't switch it on and off between them.
 
-**Checking it.** `test_effects` checks the assets, the policies, the
-timing and the mixer, and `test_device` the whole path to the Hal, with
+**Checking it.** `test_effects` checks the assets, the policies (the
+quiet states silent, the routine ones thinned and picked afresh each
+loop, the guarded ones played once and never turned down), the timing
+and the mixer, and `test_device` the whole path to the Hal, with
 `dbg.state`'s `audio.fx` ([PROTOCOL.md](PROTOCOL.md) §5). The sound
 itself is checked by ear on the bench board.
