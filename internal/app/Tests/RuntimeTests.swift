@@ -981,7 +981,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(due.next, 100 + MomentSchedule.maxWaitMs + 1, "or until the next has waited too long")
         schedule.tapped(now: 200)
         XCTAssertEqual(schedule.lineUntil, 200, "a tap's poke ends the face")
-        XCTAssertEqual(schedule.busyUntil, 200 + DeviceMoment.tapMs(mood: "happy", run: 1), "while it plays")
+        XCTAssertEqual(schedule.busyUntil, 200 + DeviceMoment.tapMs(mood: schedule.mood, run: 1), "while it plays")
     }
 
     /// BEHAVIORS.md §3.3: the schedule counts taps in a row as the device
