@@ -767,7 +767,7 @@ static void test_push_to_talk_timeouts() {
 // BEHAVIORS.md §2: which variation of listening shows is picked at random,
 // never the last one; a `variant` the Mac sends is shown as it says.
 static void test_listening_takes_turns_between_variations() {
-  TEST_ASSERT_EQUAL_INT(3, render::variants(SceneState::kListening));
+  TEST_ASSERT_EQUAL_INT(3, render::variants(render::Mood::kHappy, SceneState::kListening));
   Rig r;
   r.state(base("idle"));
   int last = -1;

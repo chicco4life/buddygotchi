@@ -3,6 +3,7 @@ set stays the one plan/VERIFICATION.md §2 lists. Needs no board."""
 import contextlib
 import io
 import json
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -61,10 +62,20 @@ class PlayTests(unittest.TestCase):
     def test_play_sets_the_mood(self):
         self.play("cheer", "--mood", "determined")
         self.assertEqual([m["mood"] for m in self.board.sent if m["t"] == "state"], ["determined"])
+        self.play("cheer", "--mood", "wounded")
+        self.assertEqual([m["mood"] for m in self.board.sent if m["t"] == "state"], ["wounded"])
         self.play("wiggle")
         self.assertEqual([m["mood"] for m in self.board.sent if m["t"] == "state"], ["happy"])
         with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
             cli.build_parser().parse_args(["play", "cheer", "--mood", "cheerful"])
+
+    def test_the_moods_are_the_devices(self):
+        """PROTOCOL.md §3: the moods boopctl sends are the device's thirteen,
+        in its order (firmware/src/render/anim.cpp)."""
+        src = (Path(__file__).resolve().parents[4] / "firmware" / "src" / "render" / "anim.cpp").read_text()
+        table = src[src.index("kMoods[] = {"):]
+        self.assertEqual(cli.MOODS, re.findall(r'"(\w+)"', table[:table.index("};")]))
+        self.assertEqual(len(cli.MOODS), 13)
 
     def test_play_sends_just_the_animation(self):
         self.assertEqual(self.play("cheer"), (0, ["cheer"]))

@@ -93,7 +93,7 @@ replace the code that knows the hardware.
 | `src/app/device.*` | The device core: parses each line, answers `dbg.*`, turns BOOT and touch into gestures, decides when to draw, and sends `status`, `input` and `ended` | Board and Mac |
 | `src/app/behaviour.*` | What Boop does ([BEHAVIORS.md](BEHAVIORS.md)): the last `state`, the moment and line playing and how each the Mac waits on ended, blinks, no app, and the light, backlight and sound cues they imply | Board and Mac |
 | `src/app/` (the rest) | The device clock and random numbers (`clock.h`), BOOT's taps and holds (`gesture.*`), touch calibration (`touch_cal.h`), line reassembly and Bluetooth packets (`line_reader.h`, `packets.h`), dropping a quiet link (`link_silence.h`), and the screenshot's CRC and base64 (`codec.*`) | Board and Mac |
-| `src/render/` | The 8-bit canvas, palette, anti-aliased shapes, fonts, the animation pack's player (`scene.*`), the face screen with bubble and strip (`screens.*`), the animation and mood names (`anim.*`) and the test pattern | Board and Mac |
+| `src/render/` | The 8-bit canvas, palette, anti-aliased shapes, fonts, the animation bank's player (`scene.*`), the face screen with bubble and strip (`screens.*`), the animation and mood names (`anim.*`) and the test pattern | Board and Mac |
 | `src/voice/player.*` | Turns a line or cue into samples ([VOICE.md](VOICE.md) §8) | Board and Mac |
 | `src/voice/effects.*`, `src/app/effect_track.*` | The sound effects' clips and timelines, the mixer that adds them to the voice, and when each event plays with the face ([VOICE.md](VOICE.md) §10) | Board and Mac |
 | `src/board/` | The pins; `board_hal.*`, the board's side of the core's `Hal` (buttons, touch, LED, backlight, NVS, heap, sound); `display.*`, the only code that knows LovyanGFX; `audio.*`, the DAC task | Board |
@@ -241,17 +241,21 @@ touch anywhere is a tap: only the touch position in
 
 ## 5. Flash and storage
 
-The Arduino core's `min_spiffs.csv`, with two app slots, so updates over
-Bluetooth can come later without a new layout:
+The Arduino core's `huge_app.csv`, with one 3 MB app slot. The faces of
+13 moods don't fit the 1.875 MB slot `min_spiffs.csv` had, and nothing
+updates over the air, so its second slot went to the firmware:
 
 | Partition | Size | Use |
 | --- | --- | --- |
 | nvs | 20 KB | The touch calibration (below) |
-| otadata | 8 KB | Which app slot boots |
-| app0 | 1.875 MB | The firmware, with its fonts, faces, voice and sound effects |
-| app1 | 1.875 MB | Kept for updates |
-| spiffs | 128 KB | Unused |
+| otadata | 8 KB | Which app slot boots: there's only app0 |
+| app0 | 3 MB | The firmware, with its fonts, faces, voice and sound effects |
+| spiffs | 896 KB | Unused |
 | coredump | 64 KB | Reserved for crash dumps |
+
+NVS sits at 0x9000, 20 KB, as it did in `min_spiffs.csv`, so reflashing
+with the new layout keeps the touch calibration. Flashing writes
+`boot_app0.bin` into otadata too, so the board boots app0.
 
 **NVS** holds one key: namespace `boop`, key `touchcal2`, the six
 calibration numbers with the screen width, height and rotation they were
@@ -262,8 +266,8 @@ Nothing else is stored: the device ID comes from the Bluetooth MAC, and no
 
 Fonts, faces, voice clips and sound effects are compiled in as arrays:
 the voice is 235 KB ([VOICE.md](VOICE.md) §8), the sound effects 146 KB
-(§10 there), the faces about 286 KB and the fonts about 27 KB. The whole
-firmware is 1.53 MB, about 78% of app0.
+(§10 there), the faces 1.14 MB (§6) and the fonts about 27 KB. The whole
+firmware is 2.44 MB, about 78% of app0.
 
 ## 6. Memory, drawing and speed
 
@@ -289,30 +293,67 @@ write that still times out restarts the DAC and counts in `dbg.state`'s
 simulator agree to the pixel. Every colour comes from one 256-entry
 palette (`render/palette.h`). Text, the bubble and the strip are
 anti-aliased: each pixel row samples 4 sub-scanlines of 1/16 px, and the
-coverage picks one of 8 steps from black up to the ink. The face is the
-animation pack's designs (`internal/tools/facegen/design/`: 7 moods × 7
-states, listening included, three variations each and working five, 125
-scenes once the shared ones are counted once), drawn as Chrome draws the SVGs: rectangles
-on whole pixels with step-wise timings, from `assets/faces.h`, which
-`internal/tools/facegen/facegen.py` generates. facegen bakes what the
-device can't do on its own into that form:
+coverage picks one of 8 steps from black up to the ink.
+
+**The face** is the animation bank's designs
+(`internal/boop-design/boop-sound-bank-v4/`, [its guide](../internal/boop-design/README.md)),
+drawn as Chrome draws their SVGs: rectangles on whole pixels with
+step-wise timings, from `assets/faces.h`, which
+`internal/tools/facegen/facegen.py` generates. facegen runs the bank's
+own generator (`internal/tools/facegen/bank.mjs`, with node) into its
+ignored `build/`, so the bank is the designs' one source, and lists them
+in `internal/tools/facegen/design/manifest.json`. There are 13 moods ×
+22 states, the order of `render::Mood` and `render::SceneState`
+([PROTOCOL.md](PROTOCOL.md) §3), and each mood and state has variations
+of its own, 770 designs in all, 704 scenes once the shared ones are
+counted once:
+
+| Moods | Variations |
+| --- | --- |
+| The older seven (happy to sad) | The first pack's: three of idle, needs you, asleep, no app and listening, and five of working. Of the newer states: five of task_complete (the first pack's three cheers, a newer one, and a failed one), three of starting (one a context), two of delegating and of helper_return, and one of each other |
+| The new six (calm to wounded) | Three of each state, five of working, nine of starting (three a context) and six of task_complete (three a result) |
+
+A variation can be for a host fact: task_complete's `outcome` (success
+or failure) and starting's context (new_task, session or continuation).
+`render::fitting` gives the variations that fit a fact, or all of them
+when none does, as the Mac's `FaceLoops.variants` does, and
+`render::variantOutcome` and `variantCtx` say what one is for. Asleep
+and no app look the same in every older mood, and in every new one.
+
+The bank writes its SVGs in three dialects, and facegen reads the
+animation of each, never its reduced-motion copy: the first pack's
+(V2), the older moods' newer states (V3), and the new moods' flip-books
+(V4). A flip-book draws a whole picture in each step, and only one step
+shows at a time: each step has its own face, with its mouth in it, which
+the bank's generator tags, and the device moves the face that shows for
+a tap and opens its mouth to talk (`render/scene.cpp`). A flip-book
+blinks in a step of its own, on the design's clock, so the device's
+blink (BEHAVIORS.md §2) leaves it be. facegen checks that each design
+shows at most one face and one mouth at a time. It bakes what the device
+can't do on its own into rectangles and steps:
 
 - **Scaled, turned or fractional shapes** are filled where a pixel's
-  centre is inside, as Chrome does.
+  centre is inside, as Chrome does; a centre on an edge goes to the shape
+  left of it or above it.
 - **A colour that fades** (the cheer's golds) becomes a step each time its
   RGB565 value changes, so it looks the same on the panel.
 - **A translucent group** is flattened as Chrome composites it, into
   pieces of one colour and opacity. The device blends each over the pixel
   beneath through a table (`kBlendOver`) of every blend the designs make.
-- **Each group's rectangles are stored once** and shared, since the
-  designs animate like a flip-book, and so are tracks' key times.
+- **What the designs repeat is stored once**: each group's rectangles,
+  and each track, its key times and its values. The flip-books repeat
+  themselves a lot, so the faces take 1.14 MB (§5).
 
-The pack's 83 colours sit in the palette after the ramps
-(`faces::kSceneBase`), and needs you's scenes are clipped above y 192,
-leaving the strip its lane. `faces.h` also has each design's loop
-(`loopMs`), which a moment's `loops` count ([PROTOCOL.md](PROTOCOL.md)
-§3), and how many variations each state has; facegen writes the same
-numbers for the Mac, in `app/BoopKit/Core/FaceLoops.swift`. The
+The designs' 89 colours sit in the palette after the ramps
+(`faces::kSceneBase`). Every design is clipped above y 192, leaving the
+strip its lane, but the first pack's looks, cheers and listening, which
+draw to the bottom of the screen. `faces.h` also has each
+design's loop (`loopMs`), which a moment's `loops` count
+([PROTOCOL.md](PROTOCOL.md) §3), how many variations each mood and state
+has and what each is for; facegen writes the same numbers for the Mac,
+in `app/BoopKit/Core/FaceLoops.swift`. The older moods' designs must come
+out of the bank byte for byte as they were captured (the bank's
+`qa/v3-fingerprints.json`), and facegen stops if one doesn't. The
 two fonts are Geist Mono (SIL Open Font License) at 13 and 22 px, stored
 as 4-bit coverage in `assets/fonts.h` and generated by
 `internal/tools/fontgen/fontgen.py`.
@@ -331,7 +372,7 @@ frames stay exact) and a press draws at once for its first 60 ms. A screenshot a
 
 | Measure | Value | Source |
 | --- | --- | --- |
-| Firmware size | 1.52 MB (1,521,655 bytes) | The board build with the animation pack, listening included, and its sound effects, 2026-09-28 |
+| Firmware size | 2.44 MB (2,443,587 bytes), 78% of app0 | The board build with the animation bank's 770 designs and the first pack's sounds, 2026-09-28 |
 | Minimum free heap, through a 35-minute soak with brain reactions | 73.7 KB, 24 B below where it stood after the first minute | The bench board, firmware `c6ccb03`, [2026-09-28](evidence/2026-09-28-tonight/firmware/README.md) |
 | Frames a second through `perf --motion`'s cheers and wiggles | 15.5 on average, 6 at the least: 6–7 in a second of the cheer and 20–24 in a wiggle's, as in the simulator (14.4 on average) | The bench board, firmware `3284d55`, 60 s, the same |
 | Drawing and pushing one changed frame (`draw_us`, `push_us`), through the soak | 1.0 ms and 8.8 ms typically; 2.1 ms and 22.5 ms at the most | The same, firmware `c6ccb03` |

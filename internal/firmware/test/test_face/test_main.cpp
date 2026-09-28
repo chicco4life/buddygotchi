@@ -115,18 +115,38 @@ static void test_every_anim_has_a_name_and_ends() {
   TEST_ASSERT_EQUAL_UINT32(700, kWiggleMs);
 }
 
-// harness/DECISIONS.md §2.3: the six moods, by the names the Mac sends,
-// and curious, whose designs the device keeps though the Mac never sends
-// it (PROTOCOL.md §3); a missing or unknown one is happy.
+// harness/DECISIONS.md §2.3: the thirteen moods of the mood graph, by the
+// names the Mac sends, in faces.h's order, the first seven keeping their
+// numbers (PROTOCOL.md §3); a missing or unknown one is happy.
 static void test_every_mood_has_a_name() {
-  TEST_ASSERT_EQUAL_INT(7, int(Mood::kCount));
+  TEST_ASSERT_EQUAL_INT(13, int(Mood::kCount));
   for (int i = 0; i < int(Mood::kCount); ++i) TEST_ASSERT_TRUE(moodFromName(moodName(Mood(i))) == Mood(i));
-  const char* names[] = {"happy", "excited", "proud", "curious", "determined", "grumpy", "sad"};
-  for (int i = 0; i < 7; ++i) TEST_ASSERT_EQUAL_STRING(names[i], moodName(Mood(i)));
-  for (const char* other : {"cheerful", "annoyed", "sleepy", "", "Happy"}) {
+  const char* names[] = {"happy", "excited", "proud",     "curious", "determined", "grumpy", "sad",
+                         "calm",  "engaged", "annoyed", "irritated", "whiny",      "wounded"};
+  for (int i = 0; i < 13; ++i) TEST_ASSERT_EQUAL_STRING(names[i], moodName(Mood(i)));
+  for (const char* other : {"cheerful", "sleepy", "angry", "", "Happy", "Calm"}) {
     TEST_ASSERT_TRUE_MESSAGE(moodFromName(other) == Mood::kHappy, other);
+    Mood m = Mood::kSad;
+    TEST_ASSERT_FALSE_MESSAGE(parseMood(other, m), other);
+    TEST_ASSERT_TRUE(m == Mood::kSad);  // untouched
   }
   TEST_ASSERT_TRUE(moodFromName(nullptr) == Mood::kHappy);
+}
+
+// PROTOCOL.md §3: the designs' 22 states by name, in faces.h's order, the
+// first seven keeping their numbers; a missing or unknown one is idle.
+static void test_every_state_has_a_name() {
+  TEST_ASSERT_EQUAL_INT(22, int(SceneState::kCount));
+  const char* names[] = {"idle",      "working",   "needs_you",  "task_complete", "asleep",  "no_app",
+                         "listening", "starting",  "planning",   "terminal",      "tool_use", "searching",
+                         "analyzing", "testing",   "delegating", "helper_return", "waiting", "reply_ready",
+                         "error",     "stopped",   "poked",      "tap_spam"};
+  for (int i = 0; i < 22; ++i) {
+    TEST_ASSERT_EQUAL_STRING(names[i], stateName(SceneState(i)));
+    TEST_ASSERT_TRUE(stateFromName(names[i]) == SceneState(i));
+  }
+  for (const char* other : {"cheer", "busy", "", "Idle"}) TEST_ASSERT_TRUE_MESSAGE(stateFromName(other) == SceneState::kIdle, other);
+  TEST_ASSERT_TRUE(stateFromName(nullptr) == SceneState::kIdle);
 }
 
 static void test_an_empty_strip_is_bare_glass() {
@@ -247,6 +267,7 @@ int main(int, char**) {
   RUN_TEST(test_palette_ramps_run_from_black_to_the_ink);
   RUN_TEST(test_every_anim_has_a_name_and_ends);
   RUN_TEST(test_every_mood_has_a_name);
+  RUN_TEST(test_every_state_has_a_name);
   RUN_TEST(test_an_empty_strip_is_bare_glass);
   RUN_TEST(test_the_strip_says_who_needs_you);
   RUN_TEST(test_squiggles_make_room_for_the_word);

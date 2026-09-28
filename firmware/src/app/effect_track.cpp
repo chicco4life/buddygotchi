@@ -11,7 +11,7 @@ int EffectTrack::follow(const render::SceneShow* s, uint32_t t, voice::FxEvent* 
     on_ = false;
     return 0;
   }
-  uint8_t variant = s->variant < render::variants(s->state) ? s->variant : 0;  // as the screen draws it
+  uint8_t variant = s->variant < render::variants(s->mood, s->state) ? s->variant : 0;  // as the screen draws it
   if (!on_ || s->mood != mood_ || s->state != state_ || variant != variant_ || s->t < lastT_) {
     // Another design, or the same one starting over: its timeline picks up
     // where its clock is, so a mood changing mid-loop doesn't replay what

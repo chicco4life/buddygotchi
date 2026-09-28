@@ -1,14 +1,23 @@
-"""Builds the device's faces from the animation pack as C tables.
+"""Builds the device's faces from the animation bank as C tables.
 
-The designs are the animation pack's animated SVGs, a few variations for
-each mood and state, in design/svg/<mood>/<state>/ (listed in
-design/manifest.json). This reads each one as rectangles and step-wise
-timings and writes firmware/assets/faces.h, plus the frames the firmware
-test checks the device's player against
-(internal/firmware/test/test_scene/frames.h), the faces the Mac's popover
-shows (app/Boop/Views/FaceDesigns.swift), and each design's loop length
-for the Mac (app/BoopKit/Core/FaceLoops.swift), which faces.h has too, so
-both sides time a moment's loops alike.
+The designs are the animation bank's (internal/boop-design/boop-sound-bank-v4/):
+13 moods × 22 states, each mood and state with variations of its own, some
+for a host fact (task_complete's outcome, starting's context). This runs the
+bank's own generator (bank.mjs, beside this) to write every design's SVG into
+build/, which git ignores, and lists the designs in design/manifest.json. It
+reads each SVG as rectangles and step-wise timings and writes
+firmware/assets/faces.h, plus the frames the firmware test checks the device's
+player against (internal/firmware/test/test_scene/frames.h), the faces the
+Mac's popover shows (app/Boop/Views/FaceDesigns.swift), and each design's loop
+length and host fact for the Mac (app/BoopKit/Core/FaceLoops.swift), which
+faces.h has too, so both sides time a moment's loops alike.
+
+The bank's SVGs come in three dialects: V2, the first pack's (`boop-motion`,
+and needs you's `alert-motion`); V3, the older moods' newer states
+(`state-motion`); and V4, the new moods' flip-books (`motion`), where each step
+shows a whole face of its own. Each has a still copy for reduced motion, which
+isn't read. The older moods' designs, V2 and V3, must come out of the bank
+byte for byte as they were captured (the bank's qa/v3-fingerprints.json).
 
 Every shape ends up on whole pixels and every change is a step, so the
 device draws each design as Chrome does: a scaled, rotated or fractional
@@ -38,6 +47,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 DESIGN = HERE / "design"
+MANIFEST = DESIGN / "manifest.json"
+BUILD = HERE / "build"  # the bank's SVGs, made afresh each run (ignored by git)
+BANK = REPO / "internal" / "boop-design" / "boop-sound-bank-v4"
 OUT = REPO / "firmware" / "assets" / "faces.h"
 FRAMES = REPO / "internal" / "firmware" / "test" / "test_scene" / "frames.h"
 SWIFT = REPO / "app" / "Boop" / "Views" / "FaceDesigns.swift"
@@ -46,10 +58,20 @@ CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 NS = "{http://www.w3.org/2000/svg}"
 W, H = 320, 240
 
-# The order of render::Mood and render::SceneState. Listening, push-to-talk's
-# face, comes last, so the other states keep the numbers they had before it.
-MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad"]
-STATES = ["idle", "working", "needs_you", "task_complete", "asleep", "no_app", "listening"]
+# The order of render::Mood and render::SceneState (plan/PROTOCOL.md §3): the
+# first seven of each keep the numbers they had before the rest came.
+MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad",
+         "calm", "engaged", "annoyed", "irritated", "whiny", "wounded"]
+STATES = ["idle", "working", "needs_you", "task_complete", "asleep", "no_app", "listening",
+          "starting", "planning", "terminal", "tool_use", "searching", "analyzing", "testing",
+          "delegating", "helper_return", "waiting", "reply_ready", "error", "stopped", "poked", "tap_spam"]
+# The host fact a design is for, as faces.h numbers it (faces::Outcome,
+# faces::Ctx): task_complete's outcome and starting's context; none for any.
+OUTCOMES = [None, "success", "failure"]
+CTXS = [None, "new_task", "session", "continuation"]
+# The group that holds a design's animation, by dialect; the still copy
+# beside it is the reduced-motion picture, which the device never shows.
+MOTION = ("boop-motion", "alert-motion", "state-motion", "motion")
 # The faces the popover's tile shows, as mood and look, from each one's
 # first variation. Asleep is one design for every mood, and the tile reads
 # happy's (app/Boop/Views/BoopFace.swift).
@@ -211,6 +233,7 @@ class Group:
     fill: Track | None = None
     role: str = "none"
     part: str = ""
+    blink: bool = False  # a flip-book step's face with its eyes shut (V4's data-blink)
     baking: bool = False  # a scaled or turned group, whose descendants are drawn into it
     rects: list[tuple[int, int, int, int, int]] = field(default_factory=list)  # x, y, w, h, colour
 
@@ -382,7 +405,8 @@ def path_polys(d: str) -> list[list[tuple[float, float]]]:
 def fill_polys(polys: list[list[tuple[float, float]]]) -> list[tuple[int, int, int, int]]:
     """Polygons filled nonzero, as rectangles: a pixel is filled when its
     centre is inside; a centre exactly on an edge belongs to the shape on the
-    edge's left, as Chrome draws it."""
+    edge's left, or above it, as Chrome draws it (it rounds a half-pixel edge
+    up)."""
     edges = []
     for p in polys:
         for k in range(len(p)):
@@ -399,7 +423,7 @@ def fill_polys(polys: list[list[tuple[float, float]]]) -> list[tuple[int, int, i
         cy = py + 0.5
         cross = []
         for x0, y0, x1, y1 in edges:
-            if min(y0, y1) <= cy < max(y0, y1):
+            if min(y0, y1) < cy <= max(y0, y1):
                 cross.append((x0 + (cy - y0) * (x1 - x0) / (y1 - y0), 1 if y1 > y0 else -1))
         run: list[tuple[int, int]] = []
         start = None
@@ -450,7 +474,7 @@ def shape_rects(el: ET.Element, m: Matrix) -> list[tuple[int, int, int, int]]:
 
 def read_scene(path: Path) -> Scene:
     root = ET.parse(path).getroot()
-    motion = next(el for el in root.iter() if el.get("class") in ("boop-motion", "alert-motion"))
+    motion = next(el for el in root.iter() if el.get("class") in MOTION)
     clip = (0, 0, W, H)
     clipped = next((el for el in root.iter() if el.get("clip-path")), None)
     if clipped is not None:
@@ -484,6 +508,7 @@ def read_scene(path: Path) -> Scene:
                 g.baking = True
             g.visible = opacity != 0
             g.part = el.get("data-part") or ""
+            g.blink = el.get("data-blink") == "1"
             for tr in tracks:
                 assert getattr(g, tr.kind) is None, f"{path.name}: one animation of each kind a group"
                 setattr(g, tr.kind, tr)
@@ -638,10 +663,11 @@ def assign_roles(scene: Scene, name: str) -> None:
             if 0 < shut <= BLINK_MAX_MS and a.visible and not b.visible:
                 a.role, b.role = "eyes_open", "eyes_closed"
                 break
-    # The props: named so, or a loose group drawn only in the props' band.
-    face = next((i for i, g in enumerate(groups) if g.role == "face"), -1)
+    # The props: named so, or a loose group drawn only in the props' band,
+    # never one with a face in it.
+    faces = {i for i, g in enumerate(groups) if g.role == "face"}
     for i, g in enumerate(groups):
-        if g.role != "none" or i == face:
+        if g.role != "none":
             continue
         top_level = g.parent < 0 or groups[g.parent].parent < 0 or (
             groups[g.parent].parent >= 0 and groups[groups[g.parent].parent].parent < 0 and not groups[g.parent].part)
@@ -651,14 +677,22 @@ def assign_roles(scene: Scene, name: str) -> None:
         for j in range(i + 1, len(groups)):
             if groups[j].parent in mine:
                 mine.add(j)
-        if face in mine:
+        if mine & faces:
             continue
         ys = [r[1] for j in mine for r in groups[j].rects]
         if PROP_PARTS.search(g.part) or (ys and min(ys) >= PROP_TOP):
             g.role = "prop"
+    # A flip-book (V4) has a face in each step, each with its mouth, and only
+    # one step shows at a time: the device moves, and talks with, the face
+    # that shows (render/scene.cpp).
     roles = [g.role for g in groups]
-    assert roles.count("face") == 1, f"{name}: one face"
+    assert roles.count("face") >= 1, f"{name}: a face"
     assert roles.count("mouth") >= 1, f"{name}: a mouth"
+    longest = max([tr.dur for tr in scene.tracks()] or [STILL_LOOP_MS])
+    for t in sorted(b for b in scene.boundaries(longest) if b < longest) or [0]:
+        _, shown, _ = place(scene, t, svg_blink=True, shut=False)
+        for role in ("face", "mouth"):
+            assert sum(shown[i] for i, r in enumerate(roles) if r == role) <= 1, f"{name}: one {role} at a time ({t} ms)"
 
 
 # ---- Drawing, as the device does and as the SVG does -------------------------
@@ -734,19 +768,23 @@ def canvas_index(color: int) -> int:
 # ---- Writing -----------------------------------------------------------------
 
 
-def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], sources: dict[int, str],
-         variants: list[int]) -> str:
+def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict[tuple[int, int, int], tuple[int, int]],
+         sources: dict[int, str], counts: dict[tuple[int, int], int]) -> str:
+    # The designs share much: the same rectangles, the same tracks, the same
+    # key times and values. Each is stored once, however many use it.
     tracks: list[str] = []
+    track_of: dict[tuple, int] = {}
     keys: list[int] = []
-    key_lists: dict[tuple[int, ...], int] = {}  # a track's key times, stored once
+    key_lists: dict[tuple[int, ...], int] = {}
     vals: list[int] = []
+    val_lists: dict[tuple[int, ...], int] = {}
     groups: list[str] = []
     rects: list[str] = []
-    lists: dict[tuple, tuple[int, int]] = {}  # a group's rectangles, stored once
+    lists: dict[tuple, tuple[int, int]] = {}
     scene_rows: list[str] = []
     max_groups = 0
     for n, s in enumerate(scenes):
-        g0, t0 = len(groups), len(tracks)
+        g0 = len(groups)
         for g in s.groups:
             ids = []
             for tr in (g.move, g.show, g.fill):
@@ -755,14 +793,18 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], sources: d
                 if tr is None or g.role in ("eyes_open", "eyes_closed"):
                     ids.append(0xFFFF)
                     continue
-                ids.append(len(tracks) - t0)
                 kt = tuple(tr.keys)
-                if kt not in key_lists:
-                    key_lists[kt] = len(keys)
-                    keys.extend(kt)
-                tracks.append(f"{{{tr.dur}, {len(tr.keys)}, {key_lists[kt]}, {len(vals)}}}")
-                for v in tr.values:
-                    vals.extend(v if tr.kind == "move" else v[:1])
+                vt = tuple(x for v in tr.values for x in (v if tr.kind == "move" else v[:1]))
+                if (tr.dur, kt, vt) not in track_of:
+                    if kt not in key_lists:
+                        key_lists[kt] = len(keys)
+                        keys.extend(kt)
+                    if vt not in val_lists:
+                        val_lists[vt] = len(vals)
+                        vals.extend(vt)
+                    track_of[(tr.dur, kt, vt)] = len(tracks)
+                    tracks.append(f"{{{tr.dur}, {len(tr.keys)}, {key_lists[kt]}, {val_lists[vt]}}}")
+                ids.append(track_of[(tr.dur, kt, vt)])
             key = tuple(g.rects)
             if key not in lists:
                 lists[key] = (len(rects), len(g.rects))
@@ -776,13 +818,13 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], sources: d
         max_groups = max(max_groups, len(s.groups))
         assert 0 < s.loop_ms() < 65536, "a loop fits a uint16_t"
         cx, cy, cw, ch = s.clip
-        scene_rows.append(f"{{{g0}, {len(s.groups)}, {t0}, {len(tracks) - t0}, {s.loop_ms()}, {cx}, {cy}, {cw}, {ch}}},"
-                          f"  // {n}: {sources[n]}")
+        scene_rows.append(f"{{{g0}, {len(s.groups)}, {s.loop_ms()}, {cx}, {cy}, {cw}, {ch}}},  // {n}: {sources[n]}")
     assert all(-128 <= v <= 127 for v in vals) and all(k < 65536 for k in keys)
+    assert len(tracks) < 0xFFFF and len(rects) < 65536, "tracks and rectangles fit a group's indexes"
     assert len(COLORS.rgb) + SCENE_BASE - 1 <= 256, "the scene colours fit the palette"
-    size = (len(rects) * 8 + len(groups) * 20 + len(tracks) * 12 + len(keys) * 2 + len(vals)
-            + len(scenes) * 20 + len(BLENDS.pairs) * len(COLORS.rgb))
-    maxv = max(variants)
+    size = (len(rects) * 8 + len(groups) * 18 + len(tracks) * 12 + len(keys) * 2 + len(vals)
+            + len(scenes) * 16 + len(BLENDS.pairs) * len(COLORS.rgb) + len(table) * 4 + len(counts) * 3)
+    maxv = max(counts.values())
 
     def block(name: str, ctype: str, rows: list[str], per_line: int = 1) -> list[str]:
         # The colours are constexpr: the palette is worked out at compile time.
@@ -794,10 +836,10 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], sources: d
         return out
 
     lines = [
-        "// Generated by internal/tools/facegen/facegen.py from the animation pack in",
-        "// internal/tools/facegen/design/. Do not edit.",
-        f"// {len(scenes)} scenes, {len(groups)} groups, {len(rects)} rectangles, {len(tracks)} tracks, "
-        f"{len(COLORS.rgb)} colours: about {size // 1024 + 1} KB.",
+        "// Generated by internal/tools/facegen/facegen.py from the animation bank in",
+        "// internal/boop-design/boop-sound-bank-v4/. Do not edit.",
+        f"// {len(table)} designs, {len(scenes)} scenes, {len(groups)} groups, {len(rects)} rectangles, "
+        f"{len(tracks)} tracks, {len(COLORS.rgb)} colours: about {size // 1024 + 1} KB.",
         "#pragma once",
         "#include <cstdint>",
         "",
@@ -836,7 +878,7 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], sources: d
         "  uint16_t parent;  // within the scene; 0xFFFF for the top",
         "  uint8_t role;",
         "  uint8_t visible;  // before any show track",
-        "  uint16_t move, show, fill;  // tracks within the scene; 0xFFFF for none",
+        "  uint16_t move, show, fill;  // into kTracks: tracks many groups can share; 0xFFFF for none",
         "  uint16_t rect0, rects;  // into kRects: a list many groups can share",
         "};",
         "struct Rect {",
@@ -848,39 +890,63 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], sources: d
         "// A step-wise animation: key k holds from kKeys[key0 + k] ms into each",
         "// run of `dur` ms. Its values, from kValues[val0], are two a key (dx and",
         "// dy) to move, and one a key to show (1 or 0) or to fill (a colour).",
-        "// Tracks with the same key times share them.",
+        "// Tracks with the same key times, or the same values, share them.",
         "struct Track {",
         "  uint16_t dur, n;",
         "  uint32_t key0, val0;",
         "};",
-        "// A scene's `loopMs` is how long it takes to play once through: its",
-        "// longest track but the blink, which the device times itself. A",
-        "// moment's loops count these (plan/PROTOCOL.md §3). Nothing is drawn",
-        "// outside its clip.",
+        "// A scene's groups are kGroups[group0] on, parents first. Its `loopMs` is",
+        "// how long it takes to play once through: its longest track but the",
+        "// blink, which the device times itself. A moment's loops count these",
+        "// (plan/PROTOCOL.md §3). Nothing is drawn outside its clip.",
         "struct Scene {",
         "  uint32_t group0;",
         "  uint16_t groups;",
-        "  uint32_t track0;",
-        "  uint16_t tracks;",
         "  uint16_t loopMs;",
         "  int16_t clipX, clipY, clipW, clipH;",
         "};",
         "",
         f"constexpr int kMaxGroups = {max_groups};",
         f"constexpr int kSceneCount = {len(scenes)};",
+        "",
+        f"// The moods and states, in render::Mood's and render::SceneState's order:",
+        f"// {', '.join(MOODS)};",
+        f"// {', '.join(STATES)}.",
+        f"constexpr int kMoodCount = {len(MOODS)};",
+        f"constexpr int kStateCount = {len(STATES)};",
         f"constexpr int kMaxVariants = {maxv};",
+        f"constexpr int kDesignCount = {len(table)};",
+        "// A design: a mood and state's variation, the scene it draws, and the host",
+        "// fact it's for, if any (plan/PROTOCOL.md §3), as render::Outcome and",
+        "// render::StartCtx number them: task_complete's outcome, 1 success or",
+        "// 2 failure, and starting's context, 1 new_task, 2 session or",
+        "// 3 continuation; 0 when it's for any.",
+        "struct Design {",
+        "  uint16_t scene;",
+        "  uint8_t outcome, ctx;",
+        "};",
         "",
     ]
     lines += block("kScenes", "Scene", scene_rows)
-    lines += [f"// How many variations each state has ({', '.join(STATES)}).",
-              f"static const uint8_t kVariants[{len(STATES)}] = {{{', '.join(map(str, variants))}}};"]
-    rows = []
+    first, rows_first, rows_count, design_rows = 0, [], [], []
     for m in range(len(MOODS)):
-        per = ", ".join("{" + ", ".join(str(table.get((m, s, v), 0)) for v in range(maxv)) + "}"
-                        for s in range(len(STATES)))
-        rows.append("{" + per + "},  // " + MOODS[m])
-    lines += [f"// The scene for each mood, state and variation.",
-              f"static const uint16_t kSceneOf[{len(MOODS)}][{len(STATES)}][{maxv}] = {{"] + ["  " + r for r in rows] + ["};"]
+        row_first, row_count = [], []
+        for st in range(len(STATES)):
+            n = counts[(m, st)]
+            row_first.append(str(first))
+            row_count.append(str(n))
+            for v in range(n):
+                o, c = meta[(m, st, v)]
+                design_rows.append(f"{{{table[(m, st, v)]}, {o}, {c}}}")
+            first += n
+        rows_first.append("{" + ", ".join(row_first) + "},  // " + MOODS[m])
+        rows_count.append("{" + ", ".join(row_count) + "},  // " + MOODS[m])
+    assert first == len(table) < 65536
+    lines += ["// Each mood and state's variations, in order: kVariants[m][s] designs from",
+              "// kDesigns[kFirst[m][s]] on.",
+              f"static const uint8_t kVariants[kMoodCount][kStateCount] = {{"] + ["  " + r for r in rows_count] + ["};"]
+    lines += [f"static const uint16_t kFirst[kMoodCount][kStateCount] = {{"] + ["  " + r for r in rows_first] + ["};"]
+    lines += block("kDesigns", "Design", design_rows, 8)
     lines += block("kGroups", "Group", groups, 2)
     lines += block("kRects", "Rect", rects, 5)
     lines += block("kTracks", "Track", tracks, 6)
@@ -888,6 +954,21 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], sources: d
     lines += block("kValues", "int8_t", [str(v) for v in vals], 32)
     lines += ["", "}  // namespace faces", "}  // namespace render", ""]
     return "\n".join(lines)
+
+
+def tile_face(scene: Scene, shut: bool) -> bytes:
+    """A tile's face: the design's face as it starts, its eyes open, or shut.
+    A flip-book (V4) shuts them in a step of its own, whose face is the one
+    tagged as its blink, so a shut tile shows that step's face."""
+    if not shut or any(g.role == "eyes_open" for g in scene.groups):
+        return render(scene, 0, face_only=True, shut=shut)
+    blinks = [i for i, g in enumerate(scene.groups) if g.blink]
+    longest = max([tr.dur for tr in scene.tracks()] or [STILL_LOOP_MS])
+    for t in sorted(b for b in scene.boundaries(longest) if b < longest):
+        _, shown, _ = place(scene, t, svg_blink=True, shut=False)
+        if any(shown[i] for i in blinks):
+            return render(scene, t, svg_blink=True, face_only=True)
+    return render(scene, 0, face_only=True)
 
 
 def emit_swift(scenes: list[Scene], table: dict[tuple[int, int, int], int]) -> str:
@@ -903,7 +984,7 @@ def emit_swift(scenes: list[Scene], table: dict[tuple[int, int, int], int]) -> s
         for shut in (False, True):
             if (n, shut) in rects_of:
                 continue
-            px = render(scenes[n], 0, face_only=True, shut=shut)
+            px = tile_face(scenes[n], shut)
             out = []
             for color in sorted(set(px) - {0}):
                 rows = []
@@ -934,8 +1015,8 @@ def emit_swift(scenes: list[Scene], table: dict[tuple[int, int, int], int]) -> s
             enc.append(base64.b64encode(data).decode())
         faces[f"{mood}/{state}"] = (enc[0], enc[1])
     lines = [
-        "// Generated by internal/tools/facegen/facegen.py from the animation pack in",
-        "// internal/tools/facegen/design/. Do not edit.",
+        "// Generated by internal/tools/facegen/facegen.py from the animation bank in",
+        "// internal/boop-design/boop-sound-bank-v4/. Do not edit.",
         "import CoreGraphics",
         "",
         "/// Each look's face as its first variation starts, open-eyed and",
@@ -960,52 +1041,88 @@ def emit_swift(scenes: list[Scene], table: dict[tuple[int, int, int], int]) -> s
     return "\n".join(lines)
 
 
-def emit_loops(scenes: list[Scene], table: dict[tuple[int, int, int], int], variants: list[int]) -> str:
-    """Each mood, state and variation's loop length, and how many variations
-    each state has, for the Mac: the numbers faces.h gives the device."""
+def emit_loops(scenes: list[Scene], table: dict[tuple[int, int, int], int],
+               meta: dict[tuple[int, int, int], tuple[int, int]], counts: dict[tuple[int, int], int]) -> str:
+    """Each mood, state and variation's loop length and host fact, for the
+    Mac: the numbers faces.h gives the device."""
+    def design(m: int, st: int, v: int) -> str:
+        o, c = meta[(m, st, v)]
+        fact = (f', outcome: "{OUTCOMES[o]}"' if o else "") + (f', ctx: "{CTXS[c]}"' if c else "")
+        return f"D({scenes[table[(m, st, v)]].loop_ms()}{fact})"
+
+    def names(xs: list[str]) -> str:
+        return "[" + ", ".join(f'"{x}"' for x in xs) + "]"
+
     lines = [
-        "// Generated by internal/tools/facegen/facegen.py from the animation pack in",
-        "// internal/tools/facegen/design/. Do not edit.",
+        "// Generated by internal/tools/facegen/facegen.py from the animation bank in",
+        "// internal/boop-design/boop-sound-bank-v4/. Do not edit.",
         "",
         "/// How long each design takes to play once through, in ms: its longest",
         "/// animation, leaving out the blink, which the device times on its own.",
         "/// A moment's `loops` count these, and the device's firmware/assets/faces.h",
         "/// has the same numbers (PROTOCOL.md §3).",
         "public enum FaceLoops {",
-        "    /// The designs' states, in `ms`'s order.",
-        "    public static let states = [" + ", ".join(f'"{st}"' for st in STATES) + "]",
+        "    /// The moods, in the device's order (`render::Mood`).",
+        f"    public static let moods = {names(MOODS)}",
         "",
-        "    /// How many variations each state has, in `states`' order: a state's",
-        "    /// variations are numbered from 1.",
-        "    public static let variants = [" + ", ".join(map(str, variants)) + "]",
+        "    /// The designs' states, in the device's order (`render::SceneState`).",
+        f"    public static let states = {names(STATES)}",
         "",
-        "    /// By mood, each state's loop lengths, one a variation, in `states`' order.",
-        "    public static let ms: [String: [[Int64]]] = [",
+        "    /// One design: its loop length, and the host fact it's for, if any:",
+        "    /// task_complete's `outcome` (success or failure), starting's `ctx`",
+        "    /// (new_task, session or continuation).",
+        "    public struct Design: Equatable, Sendable {",
+        "        public let ms: Int64",
+        "        public let outcome: String?",
+        "        public let ctx: String?",
+        "    }",
+        "",
+        "    static func D(_ ms: Int64, outcome: String? = nil, ctx: String? = nil) -> Design {",
+        "        Design(ms: ms, outcome: outcome, ctx: ctx)",
+        "    }",
+        "",
+        "    /// By mood, each state's designs in `states`' order, one a variation:",
+        "    /// a mood and state's variations are numbered from 1.",
+        "    public static let designs: [String: [[Design]]] = [",
     ]
     for m, mood in enumerate(MOODS):
-        per = ", ".join("[" + ", ".join(str(scenes[table[(m, s, v)]].loop_ms()) for v in range(variants[s])) + "]"
-                        for s in range(len(STATES)))
+        per = ", ".join("[" + ", ".join(design(m, st, v) for v in range(counts[(m, st)])) + "]"
+                        for st in range(len(STATES)))
         lines.append(f'        "{mood}": [{per}],')
     lines += [
         "    ]",
         "",
-        "    /// How many variations `state` has: 1 for a state it doesn't know.",
-        "    public static func count(state: String) -> Int {",
-        "        states.firstIndex(of: state).map { variants[$0] } ?? 1",
+        "    /// `mood`'s designs for `state`, as the device reads them: happy's for",
+        "    /// a mood it doesn't know, idle's for a state it doesn't.",
+        "    static func row(mood: String, state: String) -> [Design] {",
+        "        let row = designs[mood] ?? designs[\"happy\"]!",
+        "        return row[states.firstIndex(of: state) ?? 0]",
+        "    }",
+        "",
+        "    /// How many variations `mood` has for `state`.",
+        "    public static func count(mood: String, state: String) -> Int {",
+        "        row(mood: mood, state: state).count",
+        "    }",
+        "",
+        "    /// The variations (from 1) of `mood`'s `state` for an outcome and a",
+        "    /// context, nil matching any; all of them when none match.",
+        "    public static func variants(mood: String, state: String, outcome: String? = nil, ctx: String? = nil) -> [Int] {",
+        "        let row = row(mood: mood, state: state)",
+        "        let fit = row.indices.filter { i in",
+        "            (outcome == nil || row[i].outcome == outcome) && (ctx == nil || row[i].ctx == ctx)",
+        "        }.map { $0 + 1 }",
+        "        return fit.isEmpty ? Array(1...row.count) : fit",
         "    }",
         "",
         "    /// A design's loop length: `mood`'s design for `state`, variation",
-        "    /// `variant` (from 1), as the device reads them: happy's for a mood it",
-        "    /// doesn't know, idle's for a state it doesn't, and the first",
-        "    /// variation for one out of range.",
+        "    /// `variant` (from 1), the first variation for one out of range.",
         "    public static func ms(mood: String, state: String, variant: Int = 1) -> Int64 {",
-        "        let row = ms[mood] ?? ms[\"happy\"]!",
-        "        let loops = row[states.firstIndex(of: state) ?? 0]",
-        "        return loops[(1...loops.count).contains(variant) ? variant - 1 : 0]",
+        "        let row = row(mood: mood, state: state)",
+        "        return row[(1...row.count).contains(variant) ? variant - 1 : 0].ms",
         "    }",
         "",
         "    /// The longest loop of any design.",
-        "    public static var longest: Int64 { ms.values.flatMap { $0.flatMap { $0 } }.max()! }",
+        "    public static var longest: Int64 { designs.values.flatMap { $0.flatMap { $0.map(\\.ms) } }.max()! }",
         "}",
         "",
     ]
@@ -1109,17 +1226,50 @@ def check(scenes: list[Scene], files: dict[int, Path]) -> None:
           f"(blended pixels within one RGB565 step)")
 
 
-def load() -> tuple[list[Scene], dict[tuple[int, int, int], int], dict[int, str], dict[int, Path], list[int]]:
-    manifest = json.loads((DESIGN / "manifest.json").read_text())
+def export() -> list[dict]:
+    """Runs the bank's generator (bank.mjs) into build/ and returns its
+    designs in the device's order, after checking that the older moods'
+    come out as they were, and lists them in design/manifest.json."""
+    subprocess.run(["node", str(HERE / "bank.mjs"), "--out", str(BUILD)], check=True, stdout=subprocess.DEVNULL)
+    designs = json.loads((BUILD / "designs.json").read_text())
+    designs.sort(key=lambda a: (MOODS.index(a["mood"]), STATES.index(a["state"]), a["variation"]))
+    # The older moods' designs were captured before the new moods came
+    # (the bank's qa/v3-fingerprints.json): the first pack's (V2), which the
+    # device drew before, and the newer states' (V3). Each must come out
+    # byte for byte as it was.
+    prints = json.loads((BANK / "qa" / "v3-fingerprints.json").read_text())["hashes"]
+    older = [a for a in designs if a["dialect"] != "v4"]
+    changed = [a["id"] for a in older
+               if hashlib.sha256((BUILD / a["svg"]).read_bytes()).hexdigest() != prints.get(a["id"], {}).get("svg")]
+    if changed or len(older) != len(prints):
+        raise SystemExit(f"the bank's older designs changed: {', '.join(changed) or 'their number'} "
+                         "(internal/boop-design/boop-sound-bank-v4/qa/check.mjs says more)")
+    rows = [json.dumps({k: a[k] for k in ("id", "mood", "state", "variation", "name", "seconds", "outcome", "ctx",
+                                          "dialect") if k in a}) for a in designs]
+    MANIFEST.write_text(
+        "{\n"
+        ' "about": "The device\'s designs, from the animation bank\'s generator '
+        '(internal/boop-design/boop-sound-bank-v4/), in the device\'s order. Written by facegen.py; do not edit.",\n'
+        f' "moods": {json.dumps(MOODS)},\n'
+        f' "states": {json.dumps(STATES)},\n'
+        ' "designs": [\n  ' + ",\n  ".join(rows) + "\n ]\n}\n")
+    v2 = sum(a["dialect"] == "v2" for a in designs)
+    print(f"bank: {len(designs)} designs; the older moods' {v2} V2 and {len(older) - v2} V3 come out as captured")
+    return designs
+
+
+def load() -> tuple[list[Scene], dict[tuple[int, int, int], int], dict[tuple[int, int, int], tuple[int, int]],
+                    dict[int, str], dict[int, Path], dict[tuple[int, int], int]]:
     scenes: list[Scene] = []
     seen: dict[str, int] = {}
-    table: dict[tuple[int, int, int], int] = {}
+    table: dict[tuple[int, int, int], int] = {}  # mood, state, variation (from 0) → scene
+    meta: dict[tuple[int, int, int], tuple[int, int]] = {}  # the same → outcome and context, as numbered
     sources: dict[int, str] = {}
     files: dict[int, Path] = {}
-    variants = [0] * len(STATES)
-    for a in sorted(manifest["assets"], key=lambda a: (MOODS.index(a["mood"]), STATES.index(a["state"]), a["variation"])):
+    counts: dict[tuple[int, int], int] = {}  # mood, state → how many variations
+    for a in export():
         m, s, v = MOODS.index(a["mood"]), STATES.index(a["state"]), a["variation"] - 1
-        path = DESIGN / a["svgPath"]
+        path = BUILD / a["svg"]
         scene = read_scene(path)
         k = scene.key()
         if k not in seen:
@@ -1128,19 +1278,21 @@ def load() -> tuple[list[Scene], dict[tuple[int, int, int], int], dict[int, str]
             sources[seen[k]] = path.name
             files[seen[k]] = path
         table[(m, s, v)] = seen[k]
-        variants[s] = max(variants[s], v + 1)
+        meta[(m, s, v)] = (OUTCOMES.index(a.get("outcome")), CTXS.index(a.get("ctx")))
+        counts[(m, s)] = max(counts.get((m, s), 0), v + 1)
     for m in range(len(MOODS)):
         for s in range(len(STATES)):
-            assert all((m, s, v) in table for v in range(variants[s])), f"{MOODS[m]} {STATES[s]}: every variation"
+            n = counts.get((m, s), 0)
+            assert n and all((m, s, v) in table for v in range(n)), f"{MOODS[m]} {STATES[s]}: every variation"
     BLEND_TABLE.freeze(scenes)
-    return scenes, table, sources, files, variants
+    return scenes, table, meta, sources, files, counts
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--check", action="store_true", help="compare every scene with Chrome's rendering first")
     args = parser.parse_args()
-    scenes, table, sources, files, variants = load()
+    scenes, table, meta, sources, files, counts = load()
     if args.check:
         check(scenes, files)
     frames = []
@@ -1149,13 +1301,14 @@ def main() -> None:
             continue  # a shared design, checked once
         for t in scenes[n].samples():
             frames.append((m, s, v, t, zlib.crc32(bytes(canvas_index(c) for c in render(scenes[n], t)))))
-    OUT.write_text(emit(scenes, table, sources, variants))
+    OUT.write_text(emit(scenes, table, meta, sources, counts))
     SWIFT.write_text(emit_swift(scenes, table))
-    LOOPS.write_text(emit_loops(scenes, table, variants))
+    LOOPS.write_text(emit_loops(scenes, table, meta, counts))
     FRAMES.parent.mkdir(parents=True, exist_ok=True)
     FRAMES.write_text(emit_frames(frames))
-    print(f"wrote {OUT.relative_to(REPO)} ({len(scenes)} scenes), {FRAMES.relative_to(REPO)} ({len(frames)} frames)"
-          f", {SWIFT.relative_to(REPO)} and {LOOPS.relative_to(REPO)}")
+    print(f"wrote {OUT.relative_to(REPO)} ({len(table)} designs, {len(scenes)} scenes), "
+          f"{FRAMES.relative_to(REPO)} ({len(frames)} frames), {SWIFT.relative_to(REPO)}, "
+          f"{LOOPS.relative_to(REPO)} and {MANIFEST.relative_to(REPO)}")
 
 
 if __name__ == "__main__":

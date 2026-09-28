@@ -8,7 +8,8 @@ namespace {
 
 const char* const kNames[] = {"none", "cheer", "wiggle", "listening"};
 static_assert(sizeof(kNames) / sizeof(kNames[0]) == size_t(Anim::kCount), "one name per anim");
-const char* const kMoods[] = {"happy", "excited", "proud", "curious", "determined", "grumpy", "sad"};
+const char* const kMoods[] = {"happy", "excited", "proud",     "curious", "determined", "grumpy", "sad",
+                              "calm",  "engaged", "annoyed", "irritated", "whiny",      "wounded"};
 static_assert(sizeof(kMoods) / sizeof(kMoods[0]) == size_t(Mood::kCount), "one name per mood");
 
 }  // namespace

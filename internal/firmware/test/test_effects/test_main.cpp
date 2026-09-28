@@ -19,6 +19,10 @@ namespace {
 using render::Mood;
 using render::SceneState;
 
+// The moods sfx.h has sounds for: the older seven, until sfxgen reads the
+// animation bank.
+constexpr int kSounded = int(Mood::kCalm);
+
 int peak(const std::vector<uint8_t>& v) {
   int m = 0;
   for (uint8_t s : v) m = std::abs(int(s) - 128) > m ? std::abs(int(s) - 128) : m;
@@ -82,9 +86,9 @@ void test_every_design_has_a_timeline() {
   TEST_ASSERT_EQUAL(47, voice::effectCount());
   // About 180 KB was budgeted (VOICE.md §10).
   TEST_ASSERT_TRUE(voice::effectsBytes() < 180u * 1024);
-  for (int m = 0; m < int(Mood::kCount); ++m)
+  for (int m = 0; m < kSounded; ++m)
     for (int s = 0; s < int(SceneState::kCount); ++s)
-      for (int v = 0; v < render::variants(SceneState(s)); ++v) {
+      for (int v = 0; v < render::variants(Mood(m), SceneState(s)); ++v) {
         voice::Score sc = voice::score(m, s, v);
         uint32_t loop = render::loopMs(Mood(m), SceneState(s), v);
         uint16_t prev = 0;
@@ -107,7 +111,7 @@ void test_every_design_has_a_timeline() {
 
 // The pack's policies, by state (VOICE.md §10).
 void test_each_state_sounds_as_the_pack_says() {
-  for (int m = 0; m < int(Mood::kCount); ++m) {
+  for (int m = 0; m < kSounded; ++m) {
     for (int v = 0; v < 3; ++v) {
       TEST_ASSERT_TRUE(voice::score(m, int(SceneState::kAsleep), v).policy == voice::Policy::kSilent);
       TEST_ASSERT_TRUE(voice::score(m, int(SceneState::kNoApp), v).policy == voice::Policy::kSilent);
@@ -198,8 +202,8 @@ void test_entry_designs_sound_once() {
 
 // DEVICE.md §4: listening is silent, so nothing competes with your voice.
 void test_listening_is_silent() {
-  for (int m = 0; m < int(Mood::kCount); ++m) {
-    for (int v = 0; v < render::variants(SceneState::kListening); ++v) {
+  for (int m = 0; m < kSounded; ++m) {
+    for (int v = 0; v < render::variants(Mood(m), SceneState::kListening); ++v) {
       app::EffectTrack track;
       TEST_ASSERT_TRUE(voice::score(m, int(SceneState::kListening), v).policy == voice::Policy::kSilent);
       Heard h = follow(track, Mood(m), SceneState::kListening, uint8_t(v), 0, 20000);

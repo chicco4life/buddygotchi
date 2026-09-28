@@ -881,7 +881,7 @@ static void test_a_moment_carries_its_expression() {
   TEST_ASSERT_FALSE(exprAt(9 * loop));
   // Unknown: no expression, and the mumble still plays.
   size_t said = r.hal.said.size();
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"annoyed\"}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"cheerful\"}");
   TEST_ASSERT_EQUAL(int(said + 1), int(r.hal.said.size()));
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");

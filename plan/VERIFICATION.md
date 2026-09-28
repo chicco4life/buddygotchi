@@ -30,7 +30,8 @@ the owner.
 
 ## 2. The tools
 
-**Animation and mood design package (not production integration).**
+**The animation bank and the mood graph.** The bank is where the
+device's designs come from: `make -C internal faces` builds from it.
 `node internal/boop-design/boop-mood-spectrum-v2/validate.mjs` checks the
 approved graph topology. `node internal/boop-design/boop-sound-bank-v4/source/build.mjs`
 builds the portable runtime, offline review and manifests; `--svg` additionally
@@ -42,8 +43,8 @@ cue/frame, loop, text-lane and review-UI checks. Browser dependencies and
 overrides are in the [package guide](../internal/boop-design/README.md).
 All scripts support `--help`; none contacts JEV, ElevenLabs or a device.
 Evidence: [mood design publication](evidence/2026-09-28-mood-design-push/README.md).
-These checks are not firmware integration, physical audio tests or owner
-approval of the new art.
+These checks are not physical audio tests or the owner's approval of the
+new art.
 
 Every tool prints its flags with `--help` (`internal/tools/boopctl
 <command> --help`, `.build/debug/boopdev <command> --help`,
@@ -70,7 +71,7 @@ launch the menu-bar app or run the whole eval.
 | `make -C internal fw-test` | The firmware's unit tests on the Mac (`pio test -e native`) |
 | `make -C internal sim` | Every scenario in the simulator, against the goldens (L1) |
 | `make -C internal e2e` | Builds, then runs the pipeline check (L4) |
-| `make -C internal faces` | Regenerates the faces (`firmware/assets/faces.h`, the popover's `app/Boop/Views/FaceDesigns.swift`, the designs' loops for the Mac in `app/BoopKit/Core/FaceLoops.swift`, and the frames `fw-test` checks) from the animation pack in `internal/tools/facegen/design/` (its `manifest.json` lists the designs). It first draws each design at a dozen moments in Google Chrome and fails unless facegen's own drawing matches pixel for pixel in RGB565, a blended pixel within one step (1,358 frames of 125 scenes) |
+| `make -C internal faces` | Regenerates the faces (`firmware/assets/faces.h`, the popover's `app/Boop/Views/FaceDesigns.swift`, the designs' loops for the Mac in `app/BoopKit/Core/FaceLoops.swift`, the frames `fw-test` checks, and the designs' list in `internal/tools/facegen/design/manifest.json`) from the animation bank (`internal/boop-design/boop-sound-bank-v4/`), whose generator it runs with node. It stops if an older mood's design doesn't come out as it was captured, then draws each design at a dozen moments in Google Chrome and fails unless facegen's own drawing matches pixel for pixel in RGB565, a blended pixel within one step (7,970 frames of 704 scenes, 7 minutes or so) |
 | `make -C internal tools` | Makes or refreshes `internal/tools/.venv` (pyserial, Pillow, Textual). `internal/tools/boopctl` makes it on first run |
 | `make -C internal tools-test` | The tools' own tests, with no board or camera: `boopctl`'s commands and link, the dashboard (`test_dash.py`), the day's summary (`test_day.py`), the working day's script (`test_workday.py`) and the webcam recorder on synthetic video |
 
@@ -227,8 +228,9 @@ gets at least one scenario. Their pictures are the golden images in
   every moment running out (a reaction's borrowed face and the cheer's
   loops included) to the face never cutting hard
   (`test_behaviour`); the canvas and
-  renderer (`test_canvas`, `test_face`); the animation pack's player
-  against facegen's frames, every variation (`test_scene`); the voice
+  renderer (`test_canvas`, `test_face`); the animation bank's player
+  against facegen's frames, every mood, state and variation, and the
+  variations' host facts (`test_scene`); the voice
   player (`test_voice`); and the sound effects' assets, policies, timing
   and mixer (`test_effects`).
 - **The Mac app's look**, for Mac UI changes: run

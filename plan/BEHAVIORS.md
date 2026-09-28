@@ -189,10 +189,11 @@ The core keeps one entry per agent session, each **working**, **idle** or
 
 The device takes the first look that applies, draws it in the mood's
 design, and adds blinks of its own (180 ms,
-`kBlinkMs`). The designs are the animation pack's (the facegen designs,
-[DEVICE.md](DEVICE.md) §6): each look has three variations, and working
-five, which loop, except that needs you's plays its performance once and
-then holds its pending pose.
+`kBlinkMs`); the new moods' designs are flip-books that blink on their
+own clock. The designs are the animation bank's (the facegen designs,
+[DEVICE.md](DEVICE.md) §6): each look has three variations in every
+mood, and working five, which loop, except that needs you's plays its
+performance once and then holds its pending pose.
 
 **Which variation.** Each time the visual changes (a look, or needs you
 starting), the core picks one of its variations at random, never the one
@@ -399,7 +400,7 @@ stops a line that's playing.
 | --- | --- | --- | --- |
 | `cheer` | A reaction the brain cheers with (`react.animation`, [harness/DECISIONS.md](harness/DECISIONS.md) §3) | The task-complete scene of the reaction's mood: a trophy, a curtain call or a podium | The loops Jev picks, of 6.4–7.2 s each |
 | `wiggle` | A tap | The look's own design, swaying, with a pixel heart | 0.7 s |
-| `listening` | Push-to-talk (§3.3): BOOT held, or the Mac's mic on | The mood's listening scene from the animation pack, one of three at random (focus corners, headphones or an ear trumpet), silent ([DEVICE.md](DEVICE.md) §4) | Until the reply; 8 s after the mic goes off at most, and 30 s + 8 s in all |
+| `listening` | Push-to-talk (§3.3): BOOT held, or the Mac's mic on | The mood's listening scene from the animation bank, one of three at random (focus corners, headphones or an ear trumpet), silent ([DEVICE.md](DEVICE.md) §4) | Until the reply; 8 s after the mic goes off at most, and 30 s + 8 s in all |
 
 The device plays the wiggle and, for BOOT, `listening` on its own, at
 once; nothing replaces `listening` but the reply. Only the brain cheers:
