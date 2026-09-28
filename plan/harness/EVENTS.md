@@ -1,6 +1,6 @@
 # Boop: events and the view
 
-Updated 2026-09-28. What Boop records and what the brain hears. Every
+Updated 2026-09-29. What Boop records and what the brain hears. Every
 raw event goes into the transcript in one shape; the view folds them
 into view events, each with a line of text, and HISTORY and NOW are built
 from those ([HARNESS.md](HARNESS.md) §5). Actions only ever see a view
@@ -88,7 +88,7 @@ event that caused it:
 
 | Action | When | `data` |
 | --- | --- | --- |
-| `wiggle` | A poke, unless something needs you: the device wiggled by itself | `for` the poke, `message` `Boop wiggled on its own.` |
+| `wiggle` | A poke, unless something needs you or `listening` shows: the device played its poke by itself (the mood's `poked` design, `tap_spam` from the third in a row, [BEHAVIORS.md](../BEHAVIORS.md) §3.3). The action keeps its older name and message, which Jev reads, until the evals can check new wording | `for` the poke, `message` `Boop wiggled on its own.` |
 | `needs_you`, start | "Needs you" starts showing for a session, after Codex's grace ([ADAPTERS.md](../ADAPTERS.md) §4) | `for` the request's `tool` wait, `agent`, `message` |
 | `needs_you`, end | It clears | `agent`, `outcome`: `done` when answered, else `failed` with `why` (`nothing for 10 minutes`, `the session ended`, `forgotten`) |
 

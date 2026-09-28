@@ -183,5 +183,5 @@ changes.
 - **Not an agent.** It doesn't run tasks, spend money or act for you.
   Information only flows from your agents to Boop.
 - **Not tied to one AI.** Plain rules keep the screen true (looks,
-  "needs you", the wiggle); Jev adds every reaction. Without it, Boop
+  "needs you", the tap's poke); Jev adds every reaction. Without it, Boop
   still watches your agents, just without reacting.

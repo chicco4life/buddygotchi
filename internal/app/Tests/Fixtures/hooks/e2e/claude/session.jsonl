@@ -19,7 +19,8 @@
 {"expect": {"base": "working", "attn": null}}
 {"advance_ms": 400000}
 {"hook_event_name": "Stop", "session_id": "e2e-claude-1", "cwd": "/tmp/jetpack", "last_assistant_message": "PRIVATE_CLOSING_7009"}
-{"expect": {"moment": {"anim": "cheer"}}, "within_ms": 1000}
+# The brain's finish, which waits its turn behind a line still playing, 5 s at most (ARCHITECTURE.md §3.2).
+{"expect": {"moment": {"anim": "task_complete"}}, "within_ms": 6000}
 {"wait_ms": 4000}
 {"hook_event_name": "UserPromptSubmit", "session_id": "e2e-claude-1", "cwd": "/tmp/jetpack", "prompt": "PRIVATE_PROMPT_7010 now deploy it"}
 {"expect": {"base": "working"}}

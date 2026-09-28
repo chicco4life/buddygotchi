@@ -1,0 +1,37 @@
+{
+  "minutes": 10.0,
+  "samples": 110,
+  "reset": false,
+  "heap_min_start": 71472,
+  "heap_min_end": 71472,
+  "heap_min_drift": 0,
+  "final_screen": "face",
+  "final_moment": null,
+  "final_expr": null,
+  "answering": true,
+  "sent": {
+    "state": 178,
+    "moment": 169
+  },
+  "lost": {
+    "state": 0,
+    "moment": 0
+  },
+  "audio_errors": 0,
+  "link_glitches": [],
+  "torn_lines": 0,
+  "reactions": 56,
+  "ended": 56,
+  "ended_how": {
+    "skipped": 33,
+    "done": 9,
+    "cut (needs_you)": 2,
+    "cut (tap)": 7,
+    "cut (moment)": 5
+  },
+  "ended_missing": [],
+  "ended_twice": [],
+  "ended_unknown": [],
+  "ended_ok": true,
+  "ok": true
+}

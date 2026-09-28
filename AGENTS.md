@@ -119,8 +119,9 @@ rules that are easy to break:
 - **Only Voice knows Minion speech.** Only the memory store reads and writes
   the memory files. Only the device link knows Bluetooth or USB.
 - **The brain is never on the screen's path.** Rules keep the screen true
-  at once (the look, "needs you", the wiggle). Every reaction, a
-  finished turn's included, is the brain's, later or not at all.
+  at once (the look, "needs you", the tap's poke, the rules' one-shots).
+  Every reaction, a finished turn's included, is the brain's, later or
+  not at all.
 - **The brain is Jev: multiple choice only.** It answers questions about
   a plain-text state; there's no free text. Keep questions few, with
   options that say what they're not.

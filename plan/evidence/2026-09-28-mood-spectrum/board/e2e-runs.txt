@@ -1,0 +1,6 @@
+latency, hook launch to state on the device: n 17/27 hooks, p50 61 ms, p95 103 ms, max 103 ms
+brain moments: 9, early: 0, cut short by a newer moment: ['05:30:59.380 task_complete (757299679)', '05:31:13.656 mumble (757299682)'], with no `ended` from the device: 0
+PASS
+latency, hook launch to state on the device: n 17/27 hooks, p50 65 ms, p95 95 ms, max 95 ms
+brain moments: 8, early: 0, cut short by a newer moment: ['05:30:07.281 task_complete (1373190086)', '05:30:21.834 mumble (1373190089)'], with no `ended` from the device: 0
+PASS
