@@ -172,8 +172,9 @@ kinds, all with the `boop` personality unless the file says otherwise:
   cheers; poking it again and again keeps it grumpy while it goes on,
   and it calms down after; moods fade back to happy; and no face ever
   contradicts what happened.
-- **Tuning** (`01`, `07`, `10`–`12`, `14`, `15`, `18`, `19`, `21`,
-  `22`): single decisions, and the liveliness brief: Boop reacts often
+- **Tuning** (`01`, `07`, `10`–`12`, `14`, `15`, `18`, `19`, `21`–`23`):
+  single decisions ("nice" at a long turn done, not "yay", is `23`),
+  and the liveliness brief: Boop reacts often
   (every quick win, `19`; most of a busy half hour, `21`), never goes
   over 6 minutes of work with no reaction, even while another thread's
   quick turns keep waking the brain (`18`, `21`, `22`), and its mood

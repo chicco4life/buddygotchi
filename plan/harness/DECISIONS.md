@@ -89,7 +89,7 @@ event. It has two parts:
 
 | Personality | For | Its text |
 | --- | --- | --- |
-| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted, a little smug and lively: it never sits still for long, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a failed check is determined with "oops", held once; a check passing after failing proud with "finally", twice; a very long turn done excited with a cheer and "yay", three times, and failed sad, three times; a failed turn grumpy with "ugh", four pokes in a row grumpy with "nope", and a stopped turn and a single poke happy, "hmm" and no word, once. Any turn done gets a small happy face with no word, the same one each time. Only a very long turn done cheers, and the exclamation is kept for what stands out. A turn start gets nothing. Work still going gets a small face with no word at every working heartbeat, never none: happy in a long turn, determined in a very long one |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted, a little smug and lively: it never sits still for long, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a failed check is determined with "oops", held once; a check passing after failing proud with "finally", twice; a very long turn done excited with a cheer and "yay", three times, and failed sad, three times; a failed turn grumpy with "ugh", four pokes in a row grumpy with "nope", and a stopped turn and a single poke happy, "hmm" and no word, once. Any turn done gets a small happy face, the same one each time: a long one says "nice", and the rest no word. Only a very long turn done cheers, and the exclamation is kept for what stands out. A turn start gets nothing. Work still going gets a small face with no word at every working heartbeat, never none: happy in a long turn, determined in a very long one |
 | [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses and heartbeats included, always picks a word if one fits, and holds its faces long: twice for routine lines, up to four times for a fix or a very long turn done |
 
 "Never stays quiet" is still Jev's call: `none` stays an option, and the
@@ -162,7 +162,7 @@ meaning is its criterion.
 | `react.mood` | `react` | How should Boop react to NOW, if at all? It makes this mood's face for a moment, with a mumble. | the NOW section | the PERSONALITY and MOOD sections, PERSONALITY's Examples first | `none` and the six moods' faces |
 | `react.animation` | `react` | If Boop reacts, does it play an animation? | the NOW section | as `react.mood` | `none` and each reaction animation: today only `cheer` |
 | `react.loops` | `react` | If Boop reacts, how long does it hold the face? | the NOW section | as `react.mood` | Four lengths, once to four times |
-| `word.feeling` | `react` | If Boop mumbles, which exclamation fits NOW? | the NOW section | as `react.mood` | `none` and seven exclamations |
+| `word.feeling` | `react` | If Boop mumbles, which exclamation fits NOW? | the NOW section | as `react.mood` | `none` and eight exclamations |
 | `word.about` | `react` | If Boop mumbles, which topic word is NOW about? | the NOW section | the PERSONALITY section's Examples | `none` and four topics |
 
 **`react.mood` picks a face.** Its options are `none` and the six moods,
@@ -221,7 +221,7 @@ long.
 
 **The words** are two questions over two short lists, so the two picks
 are never near-synonyms: an exclamation, and what NOW is about. They're
-the eleven of Voice's real words ([VOICE.md](../VOICE.md) §6) that
+the twelve of Voice's real words ([VOICE.md](../VOICE.md) §6) that
 something in the state can ground, and a test checks each is one of
 Voice's.
 
@@ -229,7 +229,8 @@ Voice's.
 | --- | --- | --- |
 | `word.feeling` | `none` | No exclamation fits NOW |
 | | `finally` | Something worked after failing. Not for a first try |
-| | `yay` | A win |
+| | `yay` | A big win: a very long turn done. Not for a shorter turn done |
+| | `nice` | A solid win: a long turn done. Not for a short or very long turn, or a turn ending just after its fix |
 | | `oops` | Something just failed, once. Not for a failure that keeps repeating |
 | | `again` | The same thing failed again. Not for a first failure |
 | | `ugh` | Frustration: things keep going badly |

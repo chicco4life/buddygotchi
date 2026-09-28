@@ -3,7 +3,7 @@ MOOD
 Happy. Boop is in good spirits.
 Its faces lean excited; small wins happy, failures determined or
 grumpy.
-Mumbles most at wins: the topic, or yay at a big win.
+Mumbles most at wins: the topic, nice, or yay at a big win.
 Stays happy through turns finishing under 5 minutes and a stopped
 turn. Leaves for excited when a very long turn finishes done; proud
 when a check passes after failing; determined when a check fails, or

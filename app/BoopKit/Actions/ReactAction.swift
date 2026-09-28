@@ -47,7 +47,8 @@ public final class ReactAction: Action {
 
     public static let exclamations = [
         Option("finally", "Something worked after failing.", notFor: "A first try."),
-        Option("yay", "A win."),
+        Option("yay", "A big win: a very long turn done.", notFor: "A shorter turn done."),
+        Option("nice", "A solid win: a long turn done.", notFor: "A short or very long turn, or a turn ending just after its fix."),
         Option("oops", "Something just failed, once.", notFor: "A failure that keeps repeating."),
         Option("again", "The same thing failed again.", notFor: "A first failure."),
         Option("ugh", "Frustration: things keep going badly."),

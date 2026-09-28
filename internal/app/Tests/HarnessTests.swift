@@ -787,7 +787,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertNil(react.run(["react.mood": a("curious")]), "curious isn't a face the brain can pick (DECISIONS.md §3)")
         XCTAssertEqual(react.questions()[1].options.map(\.name), ["none", "cheer"])
         XCTAssertEqual(react.questions()[2].options.map(\.name), ["once", "twice", "three times", "four times"])
-        XCTAssertEqual(react.questions()[3].options.map(\.name), ["none", "finally", "yay", "oops", "again", "ugh", "nope", "hmm"])
+        XCTAssertEqual(react.questions()[3].options.map(\.name), ["none", "finally", "yay", "nice", "oops", "again", "ugh", "nope", "hmm"])
         XCTAssertEqual(react.questions()[4].options.map(\.name), ["none", "tests", "build", "deploy", "docs"])
         XCTAssertEqual(ReactAction.holds.indices.map { ReactAction.loops(["react.loops": a(ReactAction.holds[$0].name)]) },
                        [1, 2, 3, 4])

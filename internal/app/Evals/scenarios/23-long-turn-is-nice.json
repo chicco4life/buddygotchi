@@ -1,0 +1,10 @@
+{
+  "name": "A long turn done gets a 'nice'",
+  "case": "The agent works for three minutes and finishes well, with passing tests. That's a solid win but not a big one: Boop makes a small pleased face and mumbles 'nice', with no cheer, and stays happy.",
+  "why": "harness/DECISIONS.md §3: 'nice' is a long turn done, 'yay' a very long one; PERSONALITY's Examples: a long turn done is happy, \"nice\", once",
+  "steps": [
+    {"event": "turn started", "at": "0s"},
+    {"event": "command", "at": "1m", "topic": "tests", "failed": false},
+    {"event": "turn finished", "at": "3m", "expect": {"react": "happy|excited|proud", "animation": "none", "word": "nice", "mood": "happy"}}
+  ]
+}

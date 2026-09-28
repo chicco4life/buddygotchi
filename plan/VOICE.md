@@ -166,7 +166,7 @@ fixed vocabulary of 40 English words (`Sounds.vocabulary`):
   wow yes no nope okay again nice ugh boo whee hooray thanks hello more
   snack nap play good oh what`.
 
-The brain's word questions offer eleven of them, seven exclamations and
+The brain's word questions offer twelve of them, eight exclamations and
 the four topic words ([harness/DECISIONS.md](harness/DECISIONS.md) §3), so
 it can't ask for a word Boop can't say. The vocabulary is English
 everywhere: the gibberish needs no translation, and a stray English word
