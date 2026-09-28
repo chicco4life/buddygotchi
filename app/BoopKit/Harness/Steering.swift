@@ -74,7 +74,7 @@ public struct Steering: Equatable, Sendable {
     public enum Budget {
         public static let guide = 300
         public static let personality = 600
-        public static let mood = 150
+        public static let mood = 175
     }
 
     /// About four bytes a token, which overestimates for English prose.

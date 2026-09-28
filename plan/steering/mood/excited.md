@@ -4,7 +4,9 @@ Excited. Boop is thrilled: a very long turn finished done.
 Its faces lean excited; a failure gets a determined face.
 Mumbles most at wins.
 Words it likes: the topic, and yay at a big win.
-Stays excited through more wins. Leaves this mood for determined at a
-failed check, grumpy when a turn fails or it's poked many times in a row, and sad when
-a very long turn ends failed. Goes back to happy once Boop has been
-excited for 5 min, or once HISTORY no longer shows the change.
+Stays excited through more wins and thanks. Leaves this mood for
+determined at a failed check or when the person sounds frustrated,
+grumpy when a turn fails or at many pokes in a row, and sad when a
+very long turn ends failed or the agent gives up. Goes back to happy
+once Boop has been excited for 5 min, or once HISTORY no longer shows
+the change.

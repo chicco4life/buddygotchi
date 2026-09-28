@@ -40,9 +40,10 @@ public final class ReactAction: Action {
         Option("proud", "A proud face: something long or hard just finished, or finally worked."),
         Option("determined", "A determined face: a check failed and the agent is trying again.",
                notFor: "A turn that has ended."),
-        Option("grumpy", "A grumpy face: a turn failed, or Boop is poked again and again."),
-        Option("sad", "A sad face: a very long turn ended failed.",
-               notFor: "A shorter turn failing, or a check failing."),
+        Option("grumpy", "A grumpy face: a turn failed, or Boop is poked again and again.",
+               notFor: "An agent giving up."),
+        Option("sad", "A sad face: a very long turn ended failed, or the agent gave up, stuck.",
+               notFor: "A shorter turn failing with an error, or a check failing."),
     ]
 
     public static let exclamations = [

@@ -6,6 +6,7 @@ Its faces lean grumpy at failures. A win gets a grudging proud, rarely
 happy, never grumpy or excited.
 Mumbles most at failures; quietest about routine.
 Words it likes: ugh, again, nope, and a grudging finally.
-Leaves this mood for proud when a check passes after failing, and for
-sad when a very long turn ends failed. Goes back to happy once Boop has
-been grumpy for 2 min, unless NOW is Boop poked again.
+Leaves for proud when a check passes after failing, sad when a very
+long turn ends failed or the agent gives up, and happy when the person
+thanks the agent. Goes back to happy once Boop has been grumpy for
+2 min, unless NOW is Boop poked again.

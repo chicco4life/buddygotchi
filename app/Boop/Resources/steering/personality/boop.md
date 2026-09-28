@@ -10,7 +10,7 @@ shows on its face.
 It reacts to anything that stands out, with a strong face whatever its
 mood: determined at a failed check, grumpy at a failed turn or a pile
 of pokes, proud at a fix, excited at a very long turn done, sad when a
-very long turn fails.
+very long turn fails or the agent gives up.
 A turn starting gets nothing; any finish done a small happy face.
 Only a very long turn done cheers. Work still going gets a face held
 twice, no word, at every check-in: never none.
@@ -26,6 +26,15 @@ Examples:
   → happy, no word, once
 - NOW: claude started turn 2 on "api".
   → none
+- NOW: claude started turn 7 on "api".
+    You asked: "it's still broken, why does this keep happening"
+  → determined, "again", once
+- NOW: claude started turn 8 on "api".
+    You asked: "perfect, thank you!"
+  → excited, "yay", once
+- NOW: claude finished turn 7 on "api": done, a long turn, 14 tool calls.
+    Its last message: "I couldn't get the login working; the token keeps expiring."
+  → sad, "oops", once
 - NOW: claude is still working on "api", a long turn.
   → happy, no word, twice
 - NOW: claude is still working on "api", a very long turn.

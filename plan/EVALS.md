@@ -150,13 +150,16 @@ file-name order:
 | `steps[].at` | Virtual time since the start, in `h`, `m` and `s`: `0s`, `2m30s`, `1h5m` |
 | `steps[].topic`, `failed` | A command's topic and whether it failed |
 | `steps[].error` | A failed turn's error class |
+| `steps[].prompt` | What the person asked, on a `turn started`: NOW's `You asked:` note |
+| `steps[].message` | The agent's last message, on a `turn finished`: NOW's `Its last message:` note. A failed turn has none, as with Claude's `StopFailure` |
 | `steps[].workspace` | The thread's workspace, when it has one |
 | `steps[].session` | Claude's session, `s1` unless it says: another session is another thread, working at the same time |
 | `steps[].reaction` | How a reaction this step's passes start ends: `done` (the default), `in progress` (HISTORY keeps saying so), or `failed: <why>` (HISTORY leaves it out) |
 | `steps[].expect` | Any of `react`, `animation`, `word`, `loops` and `mood`, each a `\|`-separated list |
 
 A file with no `case`, an unknown key, event, personality, `expect` key
-or check, a bad `at`, `reaction` or check value, or nothing to check (no
+or check, a bad `at`, `reaction` or check value, a `prompt` or `message`
+on a step that can't carry it, or nothing to check (no
 `expect` and no `checks`) doesn't load, and the error names the file and
 step.
 
@@ -166,20 +169,24 @@ Each scenario's file says what it checks, in its `case`, so the list
 lives there: `boopdev eval --list` prints them all. They come in three
 kinds, all with the `boop` personality unless the file says otherwise:
 
-- **Always** (`02`–`06`, `08`, `09`, `13`, `16`, `17`, `23`): Boop's
+- **Always** (`02`–`06`, `08`, `09`, `13`, `16`, `17`, `23`, `28`): Boop's
   character. A failed check makes it determined and the fix proud; a
   failed turn grumpy, a very long one failed sad; a very long turn done
   cheers; poking it again and again keeps it grumpy while it goes on,
-  with one face per barrage, and it calms down after; moods fade back to happy; and no face ever
+  with one face per barrage, and it calms down after; moods fade back
+  to happy; plain requests and matter-of-fact finishes leave the mood
+  alone; and no face ever
   contradicts what happened.
-- **Tuning** (`01`, `07`, `10`–`12`, `14`, `15`, `18`, `19`, `21`–`23`):
+- **Tuning** (`01`, `07`, `10`–`12`, `14`, `15`, `18`, `19`, `21`–`27`):
   single decisions ("nice" at a long turn done, not "yay", is `23`),
   and the liveliness brief: Boop reacts often
   (every quick win, `19`; most of a busy half hour, `21`), never goes
   over 6 minutes of work with no reaction, even while another thread's
   quick turns keep waking the brain (`18`, `21`, `22`), and its mood
   drifts (happy → determined → excited) without bouncing. Repeats are
-  fine.
+  fine. And the moods the words bring (`24`–`27`): a frustrated request
+  determined, thanks excited, a long turn's hard work done proud, an
+  agent giving up sad.
 - **Known gaps** (`20`): flipping tests don't flip the mood. Its `gap`
   says why the steering can't get there alone.
 

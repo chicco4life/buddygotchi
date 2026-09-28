@@ -24,6 +24,10 @@ public struct Scenario: Sendable {
         public var failed: Bool?
         /// A failed turn's error class.
         public var error: String?
+        /// What you asked, on a turn start, and the agent's last message,
+        /// on a finish: the two notes Jev reads.
+        public var prompt: String?
+        public var message: String?
         /// How a reaction this step's passes start ends: `done` (the
         /// default), `in progress` (it never ends), or `failed: <why>`.
         public var reaction: String?
@@ -173,6 +177,10 @@ public struct Scenario: Sendable {
             step.topic = s["topic"] as? String
             step.failed = s["failed"] as? Bool
             step.error = s["error"] as? String
+            step.prompt = s["prompt"] as? String
+            step.message = s["message"] as? String
+            if step.prompt != nil, event != "turn started" { throw badStep("prompt is only for turn started") }
+            if step.message != nil, event != "turn finished" { throw badStep("message is only for turn finished") }
             if let reaction = s["reaction"] {
                 guard let text = reaction as? String, Scenario.end(text) != nil else {
                     throw badStep("reaction is done, in progress or failed: <why>")
@@ -511,8 +519,8 @@ public struct Eval {
                              cwd: cwd, data: data)) }
         }
         switch step.event {
-        case "turn started": return [hook(.turn, .start, "UserPromptSubmit")]
-        case "turn finished": return [hook(.turn, .end, "Stop", ["outcome": "done"])]
+        case "turn started": return [hook(.turn, .start, "UserPromptSubmit", step.prompt.map { ["prompt": .string($0)] } ?? [:])]
+        case "turn finished": return [hook(.turn, .end, "Stop", ["outcome": "done"].merging(step.message.map { ["message": .string($0)] } ?? [:]) { a, _ in a })]
         case "turn failed": return [hook(.turn, .end, "StopFailure", ["outcome": "failed", "error": .string(step.error ?? "api_error")])]
         case "command":
             var end: [String: JSONValue] = ["tool": "Bash", "failed": .bool(step.failed ?? false)]

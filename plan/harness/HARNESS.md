@@ -328,7 +328,7 @@ How to read HISTORY and NOW:
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
 bytes ÷ 4, which overestimates English: the guide 300 (now 296), a
-personality 600 (`boop` 459, `chatter` 320) and a mood 150 (112–147).
+personality 600 (`boop` 569, `chatter` 319) and a mood 175 (136–169), raised from 150 when the moods took four reasons from the notes ([DECISIONS.md](DECISIONS.md) §2.3): Jev reads only the current mood's file, so it costs at most 25 tokens a request.
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
 about 200 tokens and HISTORY's 40 view events about 1,200, and each
