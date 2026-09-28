@@ -183,11 +183,11 @@ while a line plays the bubble takes the whole lane in the strip's place
 (`render::kLaneTop`): the squiggles and the one real word in amber, in a
 box with stepped corners and a short tail up to the face, as the bank
 asks host text to be drawn. No line plays while something needs you, so
-the bubble never hides who's asking. The first pack's looks and cheers
-draw into the lane; the bubble blanks it, so their props there are cut
-at y 192 while it shows. The word is never cut while squiggles can make
-room: they go, one at a time from the side with more, before it's cut
-with "..".
+the bubble never hides who's asking. The first pack's looks and its
+successes for the finish draw into the lane; the bubble blanks it, so
+their props there are cut at y 192 while it shows. The word is never cut
+while squiggles can make room: they go, one at a time from the side with
+more, before it's cut with "..".
 
 ### Taps and push-to-talk
 
@@ -330,7 +330,7 @@ counted once:
 
 | Moods | Variations |
 | --- | --- |
-| The older seven (happy to sad) | The first pack's: three of idle, needs you, asleep, no app and listening, and five of working. Of the newer states: five of task_complete (the first pack's three cheers, a newer one, and a failed one), three of starting (one a context), two of delegating and of helper_return, and one of each other |
+| The older seven (happy to sad) | The first pack's: three of idle, needs you, asleep, no app and listening, and five of working. Of the newer states: five of task_complete (the first pack's three successes, a newer one, and a failed one), three of starting (one a context), two of delegating and of helper_return, and one of each other |
 | The new six (calm to wounded) | Three of each state, five of working, nine of starting (three a context) and six of task_complete (three a result) |
 
 A variation can be for a host fact: task_complete's `outcome` (success
@@ -361,8 +361,9 @@ can't do on its own into rectangles and steps:
 - **Scaled, turned or fractional shapes** are filled where a pixel's
   centre is inside, as Chrome does; a centre on an edge goes to the shape
   left of it or above it.
-- **A colour that fades** (the cheer's golds) becomes a step each time its
-  RGB565 value changes, so it looks the same on the panel.
+- **A colour that fades** (the golds of the first pack's successes)
+  becomes a step each time its RGB565 value changes, so it looks the same
+  on the panel.
 - **A translucent group** is flattened as Chrome composites it, into
   pieces of one colour and opacity. The device blends each over the pixel
   beneath through a table (`kBlendOver`) of every blend the designs make.
@@ -373,7 +374,8 @@ can't do on its own into rectangles and steps:
 The designs' 89 colours sit in the palette after the ramps
 (`faces::kSceneBase`). Every design is clipped above y 192, leaving the
 bottom lane to the strip and the bubble (§4), but the first pack's
-looks, cheers and listening, which draw to the bottom of the screen.
+looks, successes for the finish and listening, which draw to the bottom
+of the screen.
 `faces.h` also has each design's loop (`loopMs`), which a moment's
 `loops` count ([PROTOCOL.md](PROTOCOL.md) §3), how many variations each
 mood and state has and what each is for; facegen writes the same numbers

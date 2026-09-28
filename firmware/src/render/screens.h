@@ -13,8 +13,8 @@ namespace render {
 // Screen bands on the 320×240 screen, in pixels. The animation bank's
 // designs leave the bottom 48 px, the lane, for text: the strip sits in it,
 // and the bubble takes the whole lane while a line plays, in the strip's
-// place. The first pack's looks and cheers draw into the lane too; the
-// bubble blanks it.
+// place. The first pack's looks and its successes for the finish draw into
+// the lane too; the bubble blanks it.
 constexpr int kLaneTop = 192;   // the bottom lane: the bubble's
 constexpr int kStripTop = 204;  // the status strip, the bottom 36 px
 

@@ -1253,7 +1253,7 @@ static void test_moments_read_their_facts() {
     r.usbLine("{\"t\":\"dbg.state\"}");
     TEST_ASSERT_TRUE_MESSAGE(has(r.usb.text, c.reads), c.moment);
   }
-  // A cheer is a success: happy's failure isn't one it plays.
+  // A `cheer` is a success: happy's failure isn't one it plays.
   for (int i = 0; i < 20; ++i) {
     r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"variant\":5}");
     r.usb.text.clear();

@@ -4,8 +4,8 @@
 // (VOICE.md §10), and the design holds on until the line and its bubble
 // end, resting on its last frame. The bubble takes the bottom lane, in the
 // strip's place, while the line plays.
-// A success, excited: happy's first cheer design (6.4 s), whose window
-// opens 3.05 s in.
+// A success, excited: happy's first task-complete design (6.4 s), whose
+// window opens 3.05 s in.
 {"clock":0}
 {"t":"state","v":1,"base":"idle","busy":1}
 {"clock":1000}

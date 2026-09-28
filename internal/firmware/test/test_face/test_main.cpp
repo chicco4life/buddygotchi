@@ -241,7 +241,7 @@ static void test_squiggles_make_room_for_the_word() {
 // DEVICE.md §4, decision D10: the bubble sits in the bottom lane, below
 // y 192, which the animation bank's designs leave for text: it takes the
 // strip's place while it shows and leaves the design above untouched. Over
-// a design that draws to the bottom (the first pack's cheer), it blanks the
+// a design that draws to the bottom (the first pack's success), it blanks the
 // lane first.
 static void test_the_bubble_takes_the_lane() {
   Mumble m;

@@ -126,8 +126,8 @@ void iconDots(Canvas& c, int x, int y, uint8_t ink) {  // three dots: something 
 void drawStrip(Canvas& c, const Strip& s) {
   // An empty strip is bare glass: no divider under the face.
   if (!s.agent && !s.doneAgent && s.busy <= 0 && !s.noApp) return;
-  // The cheer's design fills the screen with colour: its names get a
-  // black band to be read on.
+  // The first pack's success designs for the finish fill the screen with
+  // colour: the finish's names get a black band to be read on.
   if (s.doneAgent) c.fillRect(0, kStripTop, kWidth, kHeight - kStripTop, kBlack);
   c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 1, inkAt(kInkDim, kLevels));
   const int cy = kStripCy, ty = cy - 10;
