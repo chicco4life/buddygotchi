@@ -20,8 +20,7 @@ Two actions, registered in this order (`Runtime`):
 | `mood` (§4) | Whether Boop's mood changes, and to what | `mood` | The `mood` file; MOOD from the next pass; the device's set of faces |
 | `react` (§5) | Whether Boop reacts, with which mood's face, which animation, for how long, and with which real word | `react.mood`, `react.animation`, `react.loops`, `word.feeling`, `word.about` | The device draws the look, or the animation when there is one, in that mood's design for the loops picked, and at least while a Minion line plays |
 
-All six questions (five on a poke streak's pass, which leaves out
-`mood`, §4) go in one request, and Jev answers each on its own
+All six questions go in one request, and Jev answers each on its own
 ([HARNESS.md](HARNESS.md) §7). So both actions are judged against the
 mood as it stood: on a pass that changes the mood, the reaction is still
 judged by the old one. The guide asks for the two to fit together (a
@@ -107,20 +106,19 @@ big win, a routine one its topic), and when it leaves, and for which
 mood. That last part is what the `mood` question
 judges by. No timer holds or ends a mood: how long one lasts is the
 steering's to say. Anything with some weight moves it: a first failure
-while the agent works on, a failed turn, a fix, a third clean finish in
-a row, or a turn of 5 minutes or more ending; never one or two routine
-finishes, a turn starting or a stopped turn. A poke streak can't move it
-at all: its pass doesn't ask the `mood` question ([EVENTS.md](EVENTS.md)
-§6). And every mood but happy goes back to happy after its minutes: 5,
-or 10 for sad (§2.1).
+while the agent works on, a failed turn, a poke streak, a fix, a third
+clean finish in a row, or a turn of 5 minutes or more ending; never one
+or two routine finishes, a turn starting or a stopped turn. And every
+mood but happy goes back to happy after its minutes: 2 for grumpy, which
+flares up and blows over, 10 for sad, and 5 for the rest (§2.1).
 
 | Mood | Its meaning (the `mood` option) | Leaves for (its file) |
 | --- | --- | --- |
-| `happy` | Good spirits: things are going fine | `excited` at a third clean finish in a row, or a clean turn of 5 minutes or more; `proud` when something that failed works; `determined` at a failure while the agent works on; `grumpy` when a turn fails; `sad` when a turn of 5 minutes or more ends failing. Stays happy through one or two routine finishes and a stopped turn |
-| `excited` | Thrilled: things are going right, such as a third clean finish in a row, or a clean turn of 5 minutes or more. Not for one or two routine wins | `determined` at a failure; `grumpy` when a turn fails; `sad` when a turn of 5 minutes or more ends failing; `happy` after 5 minutes |
+| `happy` | Good spirits: things are going fine | `excited` at a third clean finish in a row, or a clean turn of 5 minutes or more; `proud` when something that failed works; `determined` at a failure while the agent works on; `grumpy` when a turn fails or at a poke streak; `sad` when a turn of 5 minutes or more ends failing. Stays happy through one or two routine finishes and a stopped turn |
+| `excited` | Thrilled: things are going right, such as a third clean finish in a row, or a clean turn of 5 minutes or more. Not for one or two routine wins | `determined` at a failure; `grumpy` when a turn fails or at a poke streak; `sad` when a turn of 5 minutes or more ends failing; `happy` after 5 minutes |
 | `proud` | Something hard-won worked: a fix after a failure, or a turn of 5 minutes or more that fought through failures. Not for a routine finish, however long | The same as `excited` |
-| `determined` | Rooting for a retry: something failed and the agent is working on. Not for a turn that has ended | `proud` when what failed works; `grumpy` at 3 failures in a row or when a turn fails; `sad` when a turn of 5 minutes or more ends failing; `happy` after 5 minutes |
-| `grumpy` | Fed up: a turn failed, or 3 or more failures in a row. Not for a single failure in a turn still working | `proud` when what failed finally works; `sad` when a turn of 5 minutes or more ends failing; `happy` after 5 minutes |
+| `determined` | Rooting for a retry: something failed and the agent is working on. Not for a turn that has ended | `proud` when what failed works; `grumpy` at 3 failures in a row, when a turn fails or at a poke streak; `sad` when a turn of 5 minutes or more ends failing; `happy` after 5 minutes |
+| `grumpy` | Fed up, briefly: a turn failed, 3 or more failures in a row, or poked too much. Not for a single failure in a turn still working | `proud` when what failed finally works; `sad` when a turn of 5 minutes or more ends failing; `happy` after 2 minutes |
 | `sad` | Deflated: a turn of 5 minutes or more ended failing, or was stopped with failures left | `proud` when what failed finally works, staying sad through more failures before it; `happy` after 10 minutes |
 
 Each "after N minutes" counts from Boop's mood changing to it, or ends
@@ -144,7 +142,7 @@ meaning is its criterion.
 
 | Key | Asked by | Text | About | Judged by | Options |
 | --- | --- | --- | --- | --- | --- |
-| `mood` | `mood` | After NOW, what is Boop's mood? | the NOW and HISTORY sections | the MOOD section, its reason to leave | The six moods (§2.3). Not asked on a poke streak's pass |
+| `mood` | `mood` | After NOW, what is Boop's mood? | the NOW and HISTORY sections | the MOOD section, its reason to leave | The six moods (§2.3) |
 | `react.mood` | `react` | How should Boop react to NOW, if at all? It makes this mood's face for a moment, with a mumble. | the NOW section | the PERSONALITY and MOOD sections, PERSONALITY's Examples first | `none` and the six moods' faces |
 | `react.animation` | `react` | If Boop reacts, does it play an animation? | the NOW section | as `react.mood` | `none` and each reaction animation: today only `cheer` |
 | `react.loops` | `react` | If Boop reacts, how long does it hold the face? | the NOW section | as `react.mood` | Four lengths, once to four times |
@@ -239,9 +237,8 @@ the next `state` carries it.
 | Another mood | Saves it, tells the core, and returns `ok`, `Boop's mood changed: happy → grumpy.` MOOD is the new mood's file from the next pass, and a new `state` goes to the device at once |
 | Another mood, but the file can't be written | `ok: false`, `couldn't save the mood: …`, and nothing changes |
 
-A mood can change on any pass that asks, even straight after another
-change. A poke streak's pass doesn't: the event says `mood` sits it out,
-so the action gets no answer and isn't run ([HARNESS.md](HARNESS.md) §3).
+A mood can change on any pass, a poke streak's included, even straight
+after another change.
 
 **The dashboard** sets a mood through the same change
 ([HARNESS.md](HARNESS.md) §9), and gets a refusal where Jev's answer would

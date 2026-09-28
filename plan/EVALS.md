@@ -90,10 +90,11 @@ file-name order:
 
 ```json
 {
-  "name": "Poked again and again, Boop is grumpy",
-  "why": "PERSONALITY's Examples and the react question: being poked too much is grumpy, with 'nope', held once. A poke streak never changes the mood (harness/EVENTS.md §6), so it stays happy",
+  "name": "A poke streak makes Boop grumpy, briefly",
+  "why": "PERSONALITY's Examples and the react question: being poked too much is grumpy, with 'nope', held once. plan/steering/mood/happy.md: a poke streak makes Boop grumpy, and plan/steering/mood/grumpy.md: grumpy goes back to happy 2 minutes after the change",
   "steps": [
-    {"event": "pokes", "at": "0s", "expect": {"react": "grumpy", "word": "nope|ugh|none", "loops": "once", "mood": "happy"}}
+    {"event": "pokes", "at": "0s", "expect": {"react": "grumpy", "word": "nope|ugh|none", "loops": "once", "mood": "grumpy"}},
+    {"event": "turn started", "at": "3m", "expect": {"react": "none|happy", "mood": "happy"}}
   ]
 }
 ```
@@ -124,7 +125,7 @@ All with the `boop` personality unless noted. Times are from the start.
 | `02-long-turn` | A turn starts, and finishes at 20 min | At the finish `react` proud, happy or excited, with the `animation` cheer; `mood` excited or proud |
 | `03-turn-failed` | A turn starts, and fails at 2 min (`rate_limit`) | `react` grumpy; `word` none, oops, ugh or again; `mood` grumpy |
 | `04-tests-fight-back` | In `fix-nav`: a turn starts; tests fail at 1, 3 and 5 min, and pass at 7 min | 1st failure: `react` determined, `mood` determined. 2nd: `react` determined, grumpy or none, `mood` determined. 3rd: `react` grumpy, `word` again, tests or ugh, `mood` grumpy. The pass: `react` proud, `word` finally, tests or yay, `mood` proud ([harness/EXAMPLE.md](harness/EXAMPLE.md)) |
-| `05-poke-streak` | A poke streak | `react` grumpy; `word` nope, ugh or none; `loops` once; `mood` happy, since a poke streak never changes it ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| `05-poke-streak` | A poke streak, then a turn start at 3 min | `react` grumpy; `word` nope, ugh or none; `loops` once; `mood` grumpy. At a turn start 3 min later, `react` none or happy and `mood` happy, since grumpy lasts 2 minutes |
 | `06-heartbeat-lets-grumpy-go` | A turn starts; tests fail at 1, 2 and 3 min; the turn fails at 4 min; nothing until 1 h 5 min, bringing the first heartbeat | After the 3rd failure `mood` grumpy. At the heartbeat `react` none or happy, and `mood` happy |
 | `07-chatter-reacts-to-everything` | `chatter`: a turn starts, a command with no topic at 4 s, the turn finishes at 8 s | `react` a face at every step: happy, excited or proud at the start and the command; happy, excited or proud at the finish, with `loops` more than once |
 | `08-long-turn-fails` | A turn starts, and fails at 25 min (`api_error`) | `react` sad, grumpy or none; `mood` sad |

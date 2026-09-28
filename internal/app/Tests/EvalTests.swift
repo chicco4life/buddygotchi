@@ -87,8 +87,8 @@ final class EvalTests: XCTestCase {
         let result = try await Eval(brain: ScriptedBrain(always: [:]), steering: RuntimeTests.steering).run(scenario)
         XCTAssertFalse(result.passed)
         let report = Eval.report([result])
-        XCTAssertEqual(report.first, "FAIL  05-poke-streak.json  Poked again and again, Boop is grumpy")
-        XCTAssertTrue(report[1].contains("wanted react grumpy, word none|nope|ugh, loops once, mood happy; got react none, animation none, word none, loops none, mood happy"), report[1])
+        XCTAssertEqual(report.first, "FAIL  05-poke-streak.json  A poke streak makes Boop grumpy, briefly")
+        XCTAssertTrue(report[1].contains("wanted react grumpy, word none|nope|ugh, loops once, mood grumpy; got react none, animation none, word none, loops none, mood happy"), report[1])
         XCTAssertEqual(Eval.summary([[result]]), "0/1 passed")
     }
 }

@@ -7,7 +7,7 @@ finally works.
 Mumbles most at failures and at the fix.
 Words it likes: oops, again, finally.
 Leaves this mood for proud when what failed works, for grumpy at 3
-failures in a row or when a turn fails, and for sad when a turn of 5
+failures in a row, when a turn fails or at a poke streak, and for sad when a turn of 5
 minutes or more ends failing. Goes back to happy 5 minutes after Boop's
 mood changed to determined, or once HISTORY no longer
 shows the change.

@@ -171,31 +171,9 @@ final class HarnessTests: XCTestCase {
         }
     }
 
-    /// HARNESS.md §3, EVENTS.md §6: the actions an event says sit its pass
-    /// out aren't asked, get no answers and don't run, whatever the brain
-    /// says; the harness doesn't know why.
-    func testTheActionsAnEventLeavesOutSitItsPassOut() async throws {
-        let seen = Lines()
-        let brain = ScriptedBrain { _, questions in
-            seen.add(questions.map(\.key).joined(separator: ","))
-            return ["one": Answer(choice: "a"), "three": Answer(choice: "a")]
-        }
-        let first = Recorder("first", keys: ["one"], result: .done("Boop did one."))
-        let second = Recorder("second", keys: ["three"], result: .done("Boop did three."))
-        let (h, _) = harness(brain, [first, second])
-        var e = event(.pokes, at: 0, "You poked Boop 4 times in 3 s.")
-        e.sitsOut = ["first"]
-        let recorded = await h.respond(to: e)
-        let record = try XCTUnwrap(recorded)
-        XCTAssertEqual(seen.all, ["three"], "its questions aren't asked")
-        XCTAssertEqual(first.got, [], "it doesn't run")
-        XCTAssertEqual(record.actions.map(\.name), ["second"])
-    }
-
-    /// EVENTS.md §6, DECISIONS.md §4: a poke streak never changes the
-    /// mood: its pass asks no mood question, so even a brain that would
-    /// pick grumpy leaves it happy. Other events still ask it.
-    func testAPokeStreakNeverChangesTheMood() async throws {
+    /// EVENTS.md §6, DECISIONS.md §4: a poke streak's pass asks the mood
+    /// question like any other, so it can make Boop grumpy.
+    func testAPokeStreakCanMakeBoopGrumpy() async throws {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -206,15 +184,10 @@ final class HarnessTests: XCTestCase {
             return ["mood": Answer(choice: "grumpy")]
         }
         let (h, _) = harness(brain, [MoodAction(store: store)])
-        var pokes = event(.pokes, at: 0, "You poked Boop 4 times in 3 s.")
-        pokes.sitsOut = Core.pokesSitOut
-        let pass = await h.respond(to: pokes)
+        let pass = await h.respond(to: event(.pokes, at: 0, "You poked Boop 4 times in 3 s."))
         let poked = try XCTUnwrap(pass)
-        XCTAssertEqual(seen.all, [""], "no mood question")
-        XCTAssertEqual(poked.actions, [])
-        XCTAssertEqual(store.current, "happy", "the mood stays")
-        _ = await h.respond(to: event(.turnEnd, at: 1, "claude finished turn 1."))
-        XCTAssertEqual(seen.all.last, "mood", "other events ask it")
+        XCTAssertEqual(seen.all, ["mood"], "the mood question is asked")
+        XCTAssertEqual(poked.actions.map(\.name), ["mood"])
         XCTAssertEqual(store.current, "grumpy")
     }
 

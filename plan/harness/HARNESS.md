@@ -103,7 +103,6 @@ struct Event {
     var wakesBrain: Bool           // opens a pass; false: recorded and shown only
     var about: String?             // the thread it's about, opaque to the harness
     var facts: [String: JSONValue] // the kind's own fields, for logs and evals only
-    var sitsOut: Set<String>       // actions that sit its pass out, by name; usually none
 }
 ```
 
@@ -119,11 +118,6 @@ struct Event {
   except NOW's.
 - **`facts`** go to `debug.jsonl` and the evals. The harness never reads
   them.
-- **`sitsOut` is the core's call too.** The actions it names sit the
-  event's pass out: their questions aren't asked, so the pass's
-  `questions` leave them out, and they don't run. The harness honours it
-  without knowing why or reading the kind; the core sets it only for a
-  poke streak, which never changes the mood ([EVENTS.md](EVENTS.md) §6).
 
 ## 4. Actions: the output contract
 
@@ -133,7 +127,7 @@ An action is something Boop can do when the brain wakes
 ```swift
 protocol Action: AnyObject {
     var name: String { get }                     // "react"
-    func questions() -> [Question]               // asked on every pass it doesn't sit out, built fresh each time
+    func questions() -> [Question]               // asked on every pass, built fresh each time
     func run(_ answers: Answers) -> ActionResult? // its own answers; nil means "did nothing"
 }
 
@@ -153,7 +147,7 @@ final class Pending {
 **What the harness guarantees an action:**
 
 - Its questions go in the same request as every other action's, on
-  every pass but those whose event says it sits out (§3). Keys are
+  every pass. Keys are
   unique across all actions; the harness won't start otherwise.
 - It gets the answers to its own questions and no others. From Jev
   that's all of them, since an answer missing one is dropped whole (§7).

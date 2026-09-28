@@ -25,7 +25,7 @@ public final class MoodAction: Action {
                notFor: "A routine finish, however long."),
         Option("determined", "Rooting for a retry: something failed and the agent is working on.",
                notFor: "A turn that has ended."),
-        Option("grumpy", "Fed up: a turn failed, or 3 or more failures in a row.",
+        Option("grumpy", "Fed up, briefly: a turn failed, 3 or more failures in a row, or poked too much.",
                notFor: "A single failure in a turn still working."),
         Option("sad", "Deflated: a turn of 5 minutes or more ended failing, or was stopped with failures left."),
     ]

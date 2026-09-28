@@ -154,12 +154,10 @@ public final class Harness: @unchecked Sendable {
         }
     }
 
-    /// Step 3, on `home`: the state and every action's questions, but
-    /// those of the actions the event says sit its pass out.
+    /// Step 3, on `home`: the state and every action's questions.
     func prepare(_ entry: Transcript.Entry, brain: any Brain) -> Job {
         let state = StateText.build(transcript.entries, now: entry, at: clock(), parts(entry))
-        let sitsOut = if case .event(let event) = entry.body { event.sitsOut } else { Set<String>() }
-        return Job(brain: brain, state: state, questions: actions.filter { !sitsOut.contains($0.name) }.flatMap { $0.questions() },
+        return Job(brain: brain, state: state, questions: actions.flatMap { $0.questions() },
                    seen: transcript.entries.last?.seq ?? entry.seq)
     }
 
@@ -185,7 +183,7 @@ public final class Harness: @unchecked Sendable {
             record(.pass(pass), extra: ["brain": brainID ?? brain?.id ?? "none"])
         }
         let ran = pass.dropped == nil
-            ? runActions(pass.answers, forSeq: entry.seq, skipping: changedDuringPass, leavingOut: event.sitsOut) : []
+            ? runActions(pass.answers, forSeq: entry.seq, skipping: changedDuringPass) : []
         let record = Record(event: event, pass: pass, actions: ran)
         if let dropped = pass.dropped { log("harness: \(event.kind.rawValue) dropped: \(dropped)") }
         onRecord?(record)
@@ -193,12 +191,10 @@ public final class Harness: @unchecked Sendable {
 
     /// Hands each action its own answers, in order, and records what each
     /// reports. The ones named in `skipping` sit out: they changed since
-    /// the state the answers are about. The ones in `leavingOut` sit out
-    /// too, unlogged: the event said so, and their questions weren't asked.
-    func runActions(_ answers: Answers, forSeq: Int?, skipping: Set<String> = [],
-                    leavingOut: Set<String> = []) -> [Transcript.ActionRecord] {
+    /// the state the answers are about.
+    func runActions(_ answers: Answers, forSeq: Int?, skipping: Set<String> = []) -> [Transcript.ActionRecord] {
         var ran: [Transcript.ActionRecord] = []
-        for action in actions where !leavingOut.contains(action.name) {
+        for action in actions {
             if skipping.contains(action.name) {
                 log("harness: \(action.name) sat out the pass: the dashboard changed it while the pass ran")
                 continue

@@ -148,8 +148,8 @@ The mood is one of six: happy, excited, proud, determined, grumpy or
 sad ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). Only
 the brain's mood action changes it (§4 there; the dashboard can force
 one), and a new Boop starts happy. It's meant to shift visibly during
-ordinary work: a first failure, a failed turn, a fix or a third clean
-finish in a row moves it, it fades back to happy after a few minutes,
+ordinary work: a first failure, a failed turn, a poke streak, a fix or
+a third clean finish in a row moves it, it fades back to happy after a few minutes,
 and each change comes with a reaction in the new mood's face. The next
 `state` carries it and the device blinks into the new set of faces. No
 rule depends on the mood.
@@ -229,7 +229,7 @@ The light stays steady and nothing repeats. The brain is never involved.
 | --- | --- |
 | You press BOOT or touch the screen | The face dips 2 px at once, until you let go |
 | You let go: a tap | `wiggle`, replacing whatever is playing, a mumble included. Asleep and with no app too. The Mac hears of it; the brain doesn't |
-| 4 taps within 3 s: a poke streak | A `wiggle`, as always. The brain hears of the streak and may grumble, at most once a minute (`pokeTaps`, `pokeWindowMs`, `pokedEveryMs`); a sooner streak is only recorded. A streak never changes Boop's mood: its pass asks nothing about the mood ([harness/EVENTS.md](harness/EVENTS.md) §6). The count starts again after each streak |
+| 4 taps within 3 s: a poke streak | A `wiggle`, as always. The brain hears of the streak and may grumble, at most once a minute (`pokeTaps`, `pokeWindowMs`, `pokedEveryMs`); a sooner streak is only recorded. A streak can make Boop grumpy for a couple of minutes ([harness/EVENTS.md](harness/EVENTS.md) §6). The count starts again after each streak |
 | A tap while something needs you | The press dip only, and the count starts again: there a tap means "I saw it" |
 
 ### 3.4 The link

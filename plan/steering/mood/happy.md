@@ -8,4 +8,5 @@ Stays happy through one or two routine finishes and a stopped turn.
 Leaves this mood for excited at a third clean finish in a row, or a
 clean turn of 5 minutes or more; proud when something that failed
 works; determined at a failure while the agent works on; grumpy when a
-turn fails; sad when a turn of 5 minutes or more ends failing.
+turn fails or Boop is poked too much; sad when a turn of 5 minutes or
+more ends failing.

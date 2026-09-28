@@ -149,13 +149,11 @@ Esc on its prompt, wake it. Beyond the
 poke streak's minute, there's no cooldown: Jev decides every time whether
 Boop mumbles.
 
-**A poke streak never changes Boop's lasting mood.** Its pass asks
-whether Boop reacts, with which face and word, as any pass does, but not
-about the mood: the core names the `mood` action in the event's
-`sitsOut` (`Core.pokesSitOut`), so the harness leaves its question out
-and it doesn't run ([HARNESS.md](HARNESS.md) §3). Being poked is a
-moment, not a reason for a mood; the personality's Examples say how Boop
-reacts to it.
+**A poke streak can make Boop grumpy.** Its pass asks every question,
+the mood's included, as any pass does. The mood files say a poke streak
+is a reason for grumpy, and grumpy blows over after 2 minutes
+([DECISIONS.md](DECISIONS.md) §2.3); the personality's Examples say how
+Boop reacts to it.
 
 ## 7. Rule reactions and bookkeeping
 
