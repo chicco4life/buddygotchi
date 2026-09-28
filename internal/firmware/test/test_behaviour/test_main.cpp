@@ -113,7 +113,7 @@ static void test_the_looks_variations_take_turns() {
     seen[shown] = true;
   }
   for (bool v : seen) TEST_ASSERT_TRUE(v);
-  TEST_ASSERT_TRUE(turns >= 20 && turns <= 70);  // about one every 12 s
+  TEST_ASSERT_TRUE(turns >= 40 && turns <= 110);  // about one every 8 s
   TEST_ASSERT_TRUE(stays > 0);
 
   // The Mac's own new variation shows at once.

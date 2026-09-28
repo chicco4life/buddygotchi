@@ -196,8 +196,8 @@ the choice over later.
 
 **Taking turns.** A look that loops on (idle, working, asleep) doesn't
 play one variation for minutes: the device moves between them. The Mac's
-variation shows first. Once one has shown 8 s (`kTurnMinMs`), each end
-of its loop moves to another at random, never itself, with a 1 in 2
+variation shows first. Once one has shown 5 s (`kTurnMinMs`), each end
+of its loop moves to another at random, never itself, with a 2 in 3
 chance (`kTurnPct`), and otherwise plays another loop. The move blinks,
 as any change of design does, and the new one starts from the beginning
 of its loop, with its own sounds ([VOICE.md](VOICE.md) §10). A new mood

@@ -118,13 +118,15 @@ void Behaviour::advance(uint32_t t, Rng& rng) {
     if (expr_) consider(exprAt_ + exprMs_);
     consider(lastState_ + kNoAppMs);
     consider(nextBlink_);
+    // A loop's end is a turn only if the look could take one when it began.
     uint32_t turnAt = loopEnd(modelT_);
-    if (turnable(modelT_)) consider(turnAt);
+    bool turning = turnable(modelT_);
+    if (turning) consider(turnAt);
     if (!found) break;
     // Everything due at `next`, in a fixed order.
     resync(next);
     if (next == nextBlink_) startBlink(next, rng);
-    if (next == turnAt) turn(next, rng);
+    if (turning && next == turnAt) turn(next, rng);
   }
   resync(t);
 }

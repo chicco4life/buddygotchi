@@ -96,8 +96,8 @@ class Behaviour {
   // The looks' variations take turns (BEHAVIORS.md §2): once one has shown
   // kTurnMinMs, each end of its loop moves to another with kTurnPct chance,
   // else it plays another loop.
-  static constexpr uint32_t kTurnMinMs = 8000;
-  static constexpr int kTurnPct = 50;
+  static constexpr uint32_t kTurnMinMs = 5000;
+  static constexpr int kTurnPct = 67;
 
   void reset(uint32_t t, Rng& rng);
 
