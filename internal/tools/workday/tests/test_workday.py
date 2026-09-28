@@ -138,7 +138,9 @@ class ReportTests(unittest.TestCase):
             return {"kind": "turn_end", "facts": {"outcome": "done", "tools_failed": 0, **facts}}
         self.assertEqual(workday.classify(end(length_ms=59_000)), "short")
         self.assertEqual(workday.classify(end(length_ms=60_000)), "minutes")
-        self.assertEqual(workday.classify(end(length_ms=10 * 60_000)), "notable")
+        # plan/harness/DECISIONS.md §2.3: a turn of 5 minutes or more is a big moment.
+        self.assertEqual(workday.classify(end(length_ms=5 * 60_000 - 1)), "minutes")
+        self.assertEqual(workday.classify(end(length_ms=5 * 60_000)), "notable")
         self.assertEqual(workday.classify(end(length_ms=5_000, tools_failed=1)), "notable")
         self.assertEqual(workday.classify(end(length_ms=5_000, comeback="tests")), "notable")
         self.assertEqual(workday.classify(end(length_ms=5_000, outcome="failed")), "notable")

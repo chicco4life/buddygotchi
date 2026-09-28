@@ -34,6 +34,9 @@ final class EvalTests: XCTestCase {
             if now.contains("passed") {
                 return ["mood": a("proud"), "react.mood": a("proud"), "word.feeling": a("finally"), "word.about": a("tests")]
             }
+            if now.contains("failed") {
+                return ["mood": a("determined"), "react.mood": a("determined"), "word.feeling": a("oops"), "word.about": a("none")]
+            }
             return ["mood": a(state.contains("MOOD\nGrumpy") ? "grumpy" : "happy"), "react.mood": a("none"),
                     "word.feeling": a("none"), "word.about": a("none")]
         }

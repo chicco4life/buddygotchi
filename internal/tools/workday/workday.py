@@ -48,8 +48,8 @@ BIN = REPO / ".build" / "debug"
 MOODS = ["happy", "excited", "proud", "determined", "grumpy", "sad"]
 
 # A turn this long or longer, ending, is a big moment, not routine
-# (the steering's "a turn of 10 minutes or more").
-BIG_TURN_MS = 10 * 60_000
+# (the steering's "a turn of 5 minutes or more").
+BIG_TURN_MS = 5 * 60_000
 
 
 # ---------------------------------------------------------------- the day
@@ -601,9 +601,10 @@ def run(args: argparse.Namespace) -> int:
 
 
 # What a line is, for the report: `notable` lines should almost always get
-# a reaction; `minutes` (a clean finish of 1 to 10 minutes) often; `short`
+# a reaction; `minutes` (a clean finish of 1 to 5 minutes) often; `short`
 # (a clean finish under a minute) and `start` now and then; `quiet` is the
-# heartbeat. The mood shouldn't move for `start`, `short` or `minutes`.
+# heartbeat. The mood shouldn't move for `start`, `short` or `minutes`,
+# except for excited at a third clean finish in a row.
 CLASSES = ["notable", "minutes", "short", "start", "quiet"]
 ROUTINE = {"start", "short", "minutes"}
 
@@ -628,7 +629,7 @@ def classify(event: dict[str, Any]) -> str | None:
 
 
 def routine(event: dict[str, Any]) -> bool:
-    """A turn starting, or a turn done under 10 minutes with nothing
+    """A turn starting, or a turn done under 5 minutes with nothing
     failed and no comeback: the kind of line the mood shouldn't move for."""
     return classify(event) in ROUTINE
 
@@ -732,12 +733,13 @@ def report(paths: list[Path], as_json: bool = False) -> str:
     for p, r in zip(paths, runs):
         out += [f"## {p}", "",
                 "Reactions are to each kind of line that woke the brain, reacted/all: notable (failures, "
-                "fixes, failed or stopped turns, turns of 10 min or more, pokes), clean finishes of 1–10 min, "
+                "fixes, failed or stopped turns, turns of 5 min or more, pokes), clean finishes of 1–5 min, "
                 "clean finishes under a minute, turn starts, heartbeats.", "",
-                "Mood changes on a routine line (a turn start, or a clean finish under 10 min) are split: back "
-                "to happy (a mood fading), and any other (which the line shouldn't cause).", "",
+                "Mood changes on a routine line (a turn start, or a clean finish under 5 min) are split: back "
+                "to happy (a mood fading), and any other (which the line shouldn't cause, apart from excited at a "
+                "third clean finish in a row).", "",
                 "| Hour | Turns | Passes | Mood changes | … routine, to happy | … routine, other | Reactions "
-                "| notable | 1–10 min | short | starts | quiet | Faces |",
+                "| notable | 1–5 min | short | starts | quiet | Faces |",
                 "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
         rows = [(f"{h:02d}:00", v) for h, v in r["hours"].items()] + [("all", total(r))]
         for name, v in rows:

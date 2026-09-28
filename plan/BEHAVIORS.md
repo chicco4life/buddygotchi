@@ -147,7 +147,10 @@ another mood, blinks into the new design rather than cutting.
 The mood is one of six: happy, excited, proud, determined, grumpy or
 sad ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). Only
 the brain's mood action changes it (§4 there; the dashboard can force
-one), and a new Boop starts happy. The next
+one), and a new Boop starts happy. It's meant to shift visibly during
+ordinary work: a first failure, a failed turn, a fix or a third clean
+finish in a row moves it, it fades back to happy after a few minutes,
+and each change comes with a reaction in the new mood's face. The next
 `state` carries it and the device blinks into the new set of faces. No
 rule depends on the mood.
 

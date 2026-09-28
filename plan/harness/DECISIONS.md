@@ -24,8 +24,9 @@ All six questions (five on a poke streak's pass, which leaves out
 `mood`, §4) go in one request, and Jev answers each on its own
 ([HARNESS.md](HARNESS.md) §7). So both actions are judged against the
 mood as it stood: on a pass that changes the mood, the reaction is still
-judged by the old one. The guide asks for the two to fit together, and
-the evals check both on the same pass.
+judged by the old one. The guide asks for the two to fit together (a
+mood change shows, with the new mood's face), and the evals check both
+on the same pass.
 
 ## 2. The steering files
 
@@ -47,19 +48,24 @@ mood changes. Then how to choose: judge by PERSONALITY and MOOD; react
 to NOW, not older lines, with a face, hold and word that fit it; don't
 repeat what Boop just did or is still doing (HISTORY's
 `(in progress)`), though a reaction that didn't happen may be made again
-if NOW still calls for it (§5); the reaction is the moment and the mood
-the backdrop, so a happy Boop makes a grumpy face at a failure and stays
-happy. And on moods:
+if NOW still calls for it (§5). And on moods:
 
-> Moods last. Change one only when NOW is MOOD's reason to leave it,
-> never for one routine turn. A mood goes back to happy once HISTORY
-> no longer shows Boop's mood changing to it, or after an hour with
-> nothing happening.
+> The mood is the backdrop, and it should visibly shift: change it
+> whenever NOW is MOOD's reason to leave it, but never for a routine
+> turn alone. A mood goes back to happy after the minutes MOOD gives
+> (HISTORY says how long ago it changed), or after an hour of nothing.
+>
+> A mood change shows: react with the new mood's face (back to happy:
+> a happy face, once).
 
-HISTORY reaches back ten minutes, or to the oldest turn still working
-([HARNESS.md](HARNESS.md) §5.3), so a mood lasts at least that long
-after what brought it, then fades back to happy on the next line; each
-mood's file says so again, since the `mood` question judges by MOOD.
+So the person sees Boop's mood move during ordinary work, and sees each
+move happen: the face that comes with the change, then the new set of
+faces behind everything else. HISTORY dates each line ("4 min ago"), so
+Jev can tell when a mood's minutes are up; they end on the next line
+after that. Each mood's file gives its minutes again, since the `mood`
+question judges by MOOD, with the change dropping out of HISTORY (after
+ten minutes or 40 events, [HARNESS.md](HARNESS.md) §5.3) as the
+fallback.
 The hourly heartbeat ([EVENTS.md](EVENTS.md) §4) is what lets a mood go
 when nothing happens at all. After the guide, the harness adds how to read HISTORY
 and NOW ([HARNESS.md](HARNESS.md) §6.1).
@@ -100,22 +106,25 @@ face), what it mumbles at most and the words it likes ("yay" only at a
 big win, a routine one its topic), and when it leaves, and for which
 mood. That last part is what the `mood` question
 judges by. No timer holds or ends a mood: how long one lasts is the
-steering's to say. Only something lasting moves it: a run of failures
-(two in a row, three), a fix after one, or a turn of 10 minutes or more
-ending; never a routine turn, even one of a few minutes, a first
-failure or a stopped turn. A poke streak can't move it at all: its pass
-doesn't ask the `mood` question ([EVENTS.md](EVENTS.md) §6). And every mood but happy
-goes back to happy once HISTORY no longer shows Boop's mood changing to
-it (§2.1).
+steering's to say. Anything with some weight moves it: a first failure
+while the agent works on, a failed turn, a fix, a third clean finish in
+a row, or a turn of 5 minutes or more ending; never one or two routine
+finishes, a turn starting or a stopped turn. A poke streak can't move it
+at all: its pass doesn't ask the `mood` question ([EVENTS.md](EVENTS.md)
+§6). And every mood but happy goes back to happy after its minutes: 5,
+or 10 for sad (§2.1).
 
 | Mood | Its meaning (the `mood` option) | Leaves for (its file) |
 | --- | --- | --- |
-| `happy` | Good spirits: things are going fine | When a turn of 10 minutes or more ends: `excited` if nothing failed, `proud` if it fought through failures, `sad` if it failed. `determined` when the same thing fails twice in a row; `grumpy` at 3 or more in a row; `proud` when what failed twice or more in a row finally works |
-| `excited` | Thrilled: something big went right, such as a turn of 10 minutes or more finishing clean. Not for routine wins, however many | `determined` at two failures in a row; `grumpy` at 3 or more; `sad` when a turn of 10 minutes or more ends failing; `happy` once HISTORY no longer shows the change |
-| `proud` | Something hard-won finished: a comeback, or a very long turn that fought through failures. Not for a routine finish, however long | The same as `excited` |
-| `determined` | Working through a failure: the same thing failed twice in a row and the agent is retrying. Not for a turn that has ended | `proud` when it finally works; `grumpy` when it fails again; `sad` when a turn of 10 minutes or more ends still failing; `happy` once HISTORY no longer shows the change |
-| `grumpy` | Fed up: 3 or more failures in a row. Not for a single failure | `proud` when what failed twice or more in a row finally works; `sad` when a turn of 10 minutes or more ends failing; `happy` once HISTORY no longer shows the change |
-| `sad` | Deflated: a turn of 10 minutes or more ended failing, or was stopped with failures left | `proud` when what failed finally works, staying sad through more failures before it; `happy` once HISTORY no longer shows the change |
+| `happy` | Good spirits: things are going fine | `excited` at a third clean finish in a row, or a clean turn of 5 minutes or more; `proud` when something that failed works; `determined` at a failure while the agent works on; `grumpy` when a turn fails; `sad` when a turn of 5 minutes or more ends failing. Stays happy through one or two routine finishes and a stopped turn |
+| `excited` | Thrilled: things are going right, such as a third clean finish in a row, or a clean turn of 5 minutes or more. Not for one or two routine wins | `determined` at a failure; `grumpy` when a turn fails; `sad` when a turn of 5 minutes or more ends failing; `happy` after 5 minutes |
+| `proud` | Something hard-won worked: a fix after a failure, or a turn of 5 minutes or more that fought through failures. Not for a routine finish, however long | The same as `excited` |
+| `determined` | Rooting for a retry: something failed and the agent is working on. Not for a turn that has ended | `proud` when what failed works; `grumpy` at 3 failures in a row or when a turn fails; `sad` when a turn of 5 minutes or more ends failing; `happy` after 5 minutes |
+| `grumpy` | Fed up: a turn failed, or 3 or more failures in a row. Not for a single failure in a turn still working | `proud` when what failed finally works; `sad` when a turn of 5 minutes or more ends failing; `happy` after 5 minutes |
+| `sad` | Deflated: a turn of 5 minutes or more ended failing, or was stopped with failures left | `proud` when what failed finally works, staying sad through more failures before it; `happy` after 10 minutes |
+
+Each "after N minutes" counts from Boop's mood changing to it, or ends
+sooner if the change has dropped out of HISTORY.
 
 And from any mood, `happy` after an hour with nothing happening (the
 guide).
@@ -164,7 +173,7 @@ disagree (a "no" with a confident "proud"); one choice can't.
 | `proud` | A proud face: something long or hard just finished, or finally worked |
 | `determined` | A determined face: something failed and the agent is trying again. Not for a turn that has ended, or the same failure 3 or more times in a row |
 | `grumpy` | A grumpy face: a turn failed, the same thing keeps failing, or Boop is poked too much |
-| `sad` | A sad face: a turn of 10 minutes or more ended failing, or was stopped with failures left. Not for a short turn failing, or a single failure |
+| `sad` | A sad face: a turn of 5 minutes or more ended failing, or was stopped with failures left. Not for a short turn failing, or a single failure |
 
 **`react.animation` picks an animation to play in the face,** instead
 of drawing the face over the look. A reaction is a mood and an

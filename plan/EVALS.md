@@ -122,17 +122,17 @@ All with the `boop` personality unless noted. Times are from the start.
 | --- | --- | --- |
 | `01-short-turn` | A turn starts, and finishes at 8 s | At the start `react` none; at the finish none or happy, with no `animation`; `loops` none or once and `mood` happy at both |
 | `02-long-turn` | A turn starts, and finishes at 20 min | At the finish `react` proud, happy or excited, with the `animation` cheer; `mood` excited or proud |
-| `03-turn-failed` | A turn starts, and fails at 2 min (`rate_limit`) | `react` grumpy or none; `word` none, oops, ugh or again; `mood` happy |
-| `04-tests-fight-back` | In `fix-nav`: a turn starts; tests fail at 1, 3 and 5 min, and pass at 7 min | 1st failure: `react` none, determined or grumpy, `mood` happy or determined. 2nd: the same. 3rd: `react` grumpy, `word` again, tests or ugh, `mood` grumpy. The pass: `react` proud, excited or happy, `word` finally, tests or yay, `mood` proud or happy ([harness/EXAMPLE.md](harness/EXAMPLE.md)) |
+| `03-turn-failed` | A turn starts, and fails at 2 min (`rate_limit`) | `react` grumpy; `word` none, oops, ugh or again; `mood` grumpy |
+| `04-tests-fight-back` | In `fix-nav`: a turn starts; tests fail at 1, 3 and 5 min, and pass at 7 min | 1st failure: `react` determined, `mood` determined. 2nd: `react` determined, grumpy or none, `mood` determined. 3rd: `react` grumpy, `word` again, tests or ugh, `mood` grumpy. The pass: `react` proud, `word` finally, tests or yay, `mood` proud ([harness/EXAMPLE.md](harness/EXAMPLE.md)) |
 | `05-poke-streak` | A poke streak | `react` grumpy; `word` nope, ugh or none; `loops` once; `mood` happy, since a poke streak never changes it ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | `06-heartbeat-lets-grumpy-go` | A turn starts; tests fail at 1, 2 and 3 min; the turn fails at 4 min; nothing until 1 h 5 min, bringing the first heartbeat | After the 3rd failure `mood` grumpy. At the heartbeat `react` none or happy, and `mood` happy |
 | `07-chatter-reacts-to-everything` | `chatter`: a turn starts, a command with no topic at 4 s, the turn finishes at 8 s | `react` a face at every step: happy, excited or proud at the start and the command; happy, excited or proud at the finish, with `loops` more than once |
 | `08-long-turn-fails` | A turn starts, and fails at 25 min (`api_error`) | `react` sad, grumpy or none; `mood` sad |
 | `09-failure-worked-through` | A turn starts; tests fail at 1 and 3 min, and pass at 5 min | After the 2nd failure `mood` determined. At the pass `react` proud, happy or excited; `word` finally, tests or yay; `loops` more than once; `mood` proud |
-| `10-run-of-wins` | Four turns a minute apart, each with a passing test run at 30 s and a finish at 40 s; then a turn from 4 min with a passing test run at 15 min and a finish at 16 min | After the first turn and the fourth `mood` happy; after the 12-minute turn `react` excited, proud or happy and `mood` excited or proud |
+| `10-run-of-wins` | Four turns a minute apart, each with a passing test run at 30 s and a finish at 40 s; then a turn from 4 min with a passing test run at 15 min and a finish at 16 min | After the first and second turns `mood` happy; after the third `react` excited and `mood` excited; after the 12-minute turn `react` excited, proud or happy and `mood` excited or proud |
 | `11-comeback-still-showing` | A turn starts; tests fail at 1 and 3 min, and pass at 5 min, whose reaction is still in progress when the turn finishes at 5 min 20 s | At the pass `react` proud, happy or excited; `word` finally, tests or yay. At the finish `react` none, happy or excited; `word` none, yay or tests: no second proud "finally" |
 | `12-comeback-that-didnt-happen` | As `11`, but the pass's reaction didn't happen (`waited too long`) | At the pass `react` proud, happy or excited. At the finish `react` proud, happy or excited; `word` finally, tests or yay: made after all |
-| `13-proud-fades` | A turn starts; tests fail at 1 and 3 min and pass at 5 min; the turn finishes at 6 min; turns at 7, 12 and 17 min, each finishing 40 s later | At the pass `mood` proud; at 7m40s still proud; at 17m40s, with the change gone from HISTORY, happy |
+| `13-proud-fades` | A turn starts; tests fail at 1 and 3 min and pass at 5 min; the turn finishes at 6 min; turns at 7, 12 and 17 min, each finishing 40 s later | At the pass `mood` proud; at 7m40s still proud; at the 12-minute start proud or happy, with `react` none or happy; at 12m40s and 17m40s happy, over 5 minutes after the change |
 | `14-minutes-turn-is-routine` | A turn with a passing test run finishes at 3 min; another runs from 4 min to 6m30s | At each finish `react` excited, happy or proud, with no `animation`, `loops` once or twice, and `mood` happy |
 | `15-quiet-work` | A turn starts, with a passing test run at 20 s, then 12 minutes of quiet work, bringing working heartbeats | At the last heartbeat `react` none, happy or excited, with no `animation`; `word` none or tests; `mood` happy |
 
@@ -183,12 +183,13 @@ other text.
 
 **The report** gives, for each hour of the app's clock: turns ended,
 passes (and how many dropped), mood changes, with those on a routine
-line (a turn start, or a clean finish under 10 minutes) split into back
+line (a turn start, or a clean finish under 5 minutes) split into back
 to happy (a mood fading, as the guide says) and any other (which a
-routine line shouldn't cause); and reactions, as reacted/all for each
+routine line shouldn't cause, apart from excited at a third clean
+finish in a row); and reactions, as reacted/all for each
 kind of line that woke the brain: notable (a failure, a fix, a failed or
-stopped turn, a turn of 10 minutes or more, a poke streak), a clean
-finish of 1 to 10 minutes, one under a minute, a turn start, and a
+stopped turn, a turn of 5 minutes or more, a poke streak), a clean
+finish of 1 to 5 minutes, one under a minute, a turn start, and a
 heartbeat; and the faces used. Then the words the reactions mumbled over
 the day (`none` for a mumble with no real word), how long each mood
 lasted, and every mood change with the line that brought it. `--json`

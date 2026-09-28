@@ -61,7 +61,7 @@ public final class ReactAction: Action {
         Option("determined", "A determined face: something failed and the agent is trying again.",
                notFor: "A turn that has ended, or the same failure 3 or more times in a row."),
         Option("grumpy", "A grumpy face: a turn failed, the same thing keeps failing, or Boop is poked too much."),
-        Option("sad", "A sad face: a turn of 10 minutes or more ended failing, or was stopped with failures left.",
+        Option("sad", "A sad face: a turn of 5 minutes or more ended failing, or was stopped with failures left.",
                notFor: "A short turn failing, or a single failure."),
     ]
 

@@ -1,6 +1,6 @@
 {
-  "name": "A proud mood fades back to happy once its reason has left HISTORY",
-  "why": "plan/steering/guide.md and plan/steering/mood/proud.md: a mood goes back to happy once HISTORY no longer shows Boop's mood changing to it; until then routine turns leave it be",
+  "name": "A proud mood fades back to happy after 5 minutes",
+  "why": "plan/steering/guide.md and plan/steering/mood/proud.md: proud stays through routine turns and goes back to happy 5 minutes after the mood changed to it; the change back shows, with a happy face, on whichever line brings it (the turn start or its finish)",
   "steps": [
     {"event": "turn started", "at": "0s"},
     {"event": "command", "at": "1m", "topic": "tests", "failed": true},
@@ -9,8 +9,8 @@
     {"event": "turn finished", "at": "6m"},
     {"event": "turn started", "at": "7m"},
     {"event": "turn finished", "at": "7m40s", "expect": {"mood": "proud"}},
-    {"event": "turn started", "at": "12m"},
-    {"event": "turn finished", "at": "12m40s"},
+    {"event": "turn started", "at": "12m", "expect": {"react": "none|happy", "mood": "proud|happy"}},
+    {"event": "turn finished", "at": "12m40s", "expect": {"react": "none|happy", "mood": "happy"}},
     {"event": "turn started", "at": "17m"},
     {"event": "turn finished", "at": "17m40s", "expect": {"mood": "happy"}}
   ]

@@ -19,14 +19,15 @@ public final class MoodAction: Action {
     /// has a file in plan/steering/mood/, and a face on the device.
     public static let moods: [Option] = [
         Option("happy", "Good spirits: things are going fine."),
-        Option("excited", "Thrilled: something big went right, such as a turn of 10 minutes or more finishing clean.",
-               notFor: "Routine wins, however many."),
-        Option("proud", "Something hard-won finished: a comeback, or a very long turn that fought through failures.",
+        Option("excited", "Thrilled: things are going right, such as a third clean finish in a row, or a clean turn of 5 minutes or more.",
+               notFor: "One or two routine wins."),
+        Option("proud", "Something hard-won worked: a fix after a failure, or a turn of 5 minutes or more that fought through failures.",
                notFor: "A routine finish, however long."),
-        Option("determined", "Working through a failure: the same thing failed twice in a row and the agent is retrying.",
+        Option("determined", "Rooting for a retry: something failed and the agent is working on.",
                notFor: "A turn that has ended."),
-        Option("grumpy", "Fed up: 3 or more failures in a row.", notFor: "A single failure."),
-        Option("sad", "Deflated: a turn of 10 minutes or more ended failing, or was stopped with failures left."),
+        Option("grumpy", "Fed up: a turn failed, or 3 or more failures in a row.",
+               notFor: "A single failure in a turn still working."),
+        Option("sad", "Deflated: a turn of 5 minutes or more ended failing, or was stopped with failures left."),
     ]
 
     /// The mood a new state directory starts in.

@@ -330,8 +330,8 @@ How to read HISTORY and NOW:
 ### 6.2 Sizes
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
-bytes ÷ 4, which overestimates English: the guide 300 (now 294), a
-personality 600 (`boop` 600, `chatter` 329) and a mood 150 (110–150).
+bytes ÷ 4, which overestimates English: the guide 300 (now 300), a
+personality 600 (`boop` 600, `chatter` 329) and a mood 150 (114–134).
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
 about 225 tokens and HISTORY's 40 events about 1,200, so with the
