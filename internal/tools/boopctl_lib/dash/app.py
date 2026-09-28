@@ -20,7 +20,7 @@ from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Footer, Label, OptionList, RichLog, Static
 
-from boopctl_lib.common import send_line
+from boopctl_lib.common import MOODS, send_line
 from boopctl_lib.dash import controls
 from boopctl_lib.device import DeviceError
 from boopctl_lib.dash.feed import Board, Follower, clock, kind
@@ -280,8 +280,10 @@ class Dash(App[None]):
 
     @work
     async def action_mood(self) -> None:
+        # Any of the 13, as the app's dev line takes any: Jev is offered only
+        # the graph's moves from the mood now (harness/DECISIONS.md §4).
         asked = self.questions("mood")
-        mood = asked and await self.pick("Preview a mood" if self.look else "Set the mood", controls.options(asked[0]))
+        mood = asked and await self.pick("Preview a mood" if self.look else "Set the mood", list(MOODS))
         if mood and not self.look:
             self.command({"dev": "mood", "mood": mood})
         elif mood and self.face:
