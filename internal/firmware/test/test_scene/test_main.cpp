@@ -1,4 +1,4 @@
-// The animation pack's player (render/scene.h) against facegen's own
+// The animation bank's player (render/scene.h) against facegen's own
 // drawing of the designs, which facegen --check holds to Chrome's drawing
 // of the SVGs (plan/VERIFICATION.md L0).
 #include <unity.h>
@@ -77,27 +77,95 @@ static void test_every_scene_matches_facegen() {
   TEST_ASSERT_TRUE(sizeof(kFacegenFrames) / sizeof(kFacegenFrames[0]) > 1000);
 }
 
-// Each state has its variations, each a design of its own; one out of range
-// draws the first. Asleep and with no app, Boop looks the same in every mood.
+// PROTOCOL.md §3: each mood has its own variations of each state, each a
+// design of its own; one out of range draws the first. The older seven moods
+// have the first pack's (three a state, working five) and one or two of each
+// newer state; the six new ones three of each, nine starts (three a context)
+// and six finishes (three a result). Asleep and with no app, Boop looks the
+// same in every older mood, and in every new one.
 static void test_variations_and_shared_designs() {
-  const int want[] = {3, 5, 3, 3, 3, 3, 3};  // idle, working, needs you, the cheer, asleep, no app, listening
-  for (int s = 0; s < int(SceneState::kCount); ++s) {
-    TEST_ASSERT_EQUAL_INT(want[s], variants(SceneState(s)));
-    for (int v = 1; v < variants(SceneState(s)); ++v) {
-      TEST_ASSERT_NOT_EQUAL(sceneOf(Mood::kHappy, SceneState(s), 0), sceneOf(Mood::kHappy, SceneState(s), v));
-    }
-    TEST_ASSERT_EQUAL_INT(sceneOf(Mood::kHappy, SceneState(s), 0), sceneOf(Mood::kHappy, SceneState(s), 9));
-  }
+  const int older[] = {3, 5, 3, 5, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1};
+  const int newer[] = {3, 5, 3, 6, 3, 3, 3, 9, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
   for (int m = 0; m < int(Mood::kCount); ++m) {
+    for (int s = 0; s < int(SceneState::kCount); ++s) {
+      int n = variants(Mood(m), SceneState(s));
+      TEST_ASSERT_EQUAL_INT(m < int(Mood::kCalm) ? older[s] : newer[s], n);
+      TEST_ASSERT_TRUE(n >= 1 && n <= kMaxVariants);
+      for (int v = 1; v < n; ++v) {
+        TEST_ASSERT_NOT_EQUAL(sceneOf(Mood(m), SceneState(s), 0), sceneOf(Mood(m), SceneState(s), v));
+      }
+      TEST_ASSERT_EQUAL_INT(sceneOf(Mood(m), SceneState(s), 0), sceneOf(Mood(m), SceneState(s), 9));
+      TEST_ASSERT_EQUAL_INT(sceneOf(Mood(m), SceneState(s), 0), sceneOf(Mood(m), SceneState(s), -1));
+    }
+    Mood family = m < int(Mood::kCalm) ? Mood::kHappy : Mood::kCalm;
     for (int v = 0; v < 3; ++v) {
-      TEST_ASSERT_EQUAL_INT(sceneOf(Mood::kHappy, SceneState::kAsleep, v), sceneOf(Mood(m), SceneState::kAsleep, v));
-      TEST_ASSERT_EQUAL_INT(sceneOf(Mood::kHappy, SceneState::kNoApp, v), sceneOf(Mood(m), SceneState::kNoApp, v));
+      TEST_ASSERT_EQUAL_INT(sceneOf(family, SceneState::kAsleep, v), sceneOf(Mood(m), SceneState::kAsleep, v));
+      TEST_ASSERT_EQUAL_INT(sceneOf(family, SceneState::kNoApp, v), sceneOf(Mood(m), SceneState::kNoApp, v));
     }
     if (m) TEST_ASSERT_NOT_EQUAL(sceneOf(Mood::kHappy, SceneState::kIdle), sceneOf(Mood(m), SceneState::kIdle));
   }
+  // A mood or state the device doesn't know draws happy's, and idle's.
+  TEST_ASSERT_EQUAL_INT(sceneOf(Mood::kHappy, SceneState::kWorking), sceneOf(Mood::kCount, SceneState::kWorking));
+  TEST_ASSERT_EQUAL_INT(sceneOf(Mood::kSad, SceneState::kIdle), sceneOf(Mood::kSad, SceneState::kCount));
 }
 
-// A blink shows the design's closed eyes: only the face changes.
+// PROTOCOL.md §3: a finish's variations are each for a result, and a start's
+// for a context; the filters pick among those that fit, and every variation
+// when none does, as the Mac's FaceLoops.variants does.
+static void test_variations_for_a_result_or_a_context() {
+  uint8_t out[kMaxVariants];
+  for (int m = 0; m < int(Mood::kCount); ++m) {
+    Mood mood = Mood(m);
+    int done = variants(mood, SceneState::kTaskComplete);
+    int wins = 0, fails = 0;
+    for (int v = 0; v < done; ++v) {
+      Outcome o = variantOutcome(mood, SceneState::kTaskComplete, v);
+      TEST_ASSERT_TRUE(o == Outcome::kSuccess || o == Outcome::kFailure);
+      TEST_ASSERT_TRUE(variantCtx(mood, SceneState::kTaskComplete, v) == StartCtx::kNone);
+      (o == Outcome::kSuccess ? wins : fails)++;
+    }
+    TEST_ASSERT_EQUAL_INT(m < int(Mood::kCalm) ? 4 : 3, wins);  // the first pack's three cheers, and the newer ones
+    TEST_ASSERT_EQUAL_INT(m < int(Mood::kCalm) ? 1 : 3, fails);
+    for (Outcome o : {Outcome::kSuccess, Outcome::kFailure}) {
+      int n = fitting(mood, SceneState::kTaskComplete, o, StartCtx::kNone, out);
+      TEST_ASSERT_EQUAL_INT(o == Outcome::kSuccess ? wins : fails, n);
+      for (int i = 0; i < n; ++i) {
+        TEST_ASSERT_TRUE(variantOutcome(mood, SceneState::kTaskComplete, out[i]) == o);
+        if (i) TEST_ASSERT_TRUE(out[i] > out[i - 1]);
+      }
+    }
+    TEST_ASSERT_EQUAL_INT(done, fitting(mood, SceneState::kTaskComplete, Outcome::kNone, StartCtx::kNone, out));
+    int starts = variants(mood, SceneState::kStarting);
+    for (StartCtx c : {StartCtx::kNewTask, StartCtx::kSession, StartCtx::kContinuation}) {
+      int n = fitting(mood, SceneState::kStarting, Outcome::kNone, c, out);
+      TEST_ASSERT_EQUAL_INT(starts / 3, n);
+      for (int i = 0; i < n; ++i) TEST_ASSERT_TRUE(variantCtx(mood, SceneState::kStarting, out[i]) == c);
+    }
+    // A fact no variation is for, or one that doesn't apply, takes them all.
+    TEST_ASSERT_EQUAL_INT(starts, fitting(mood, SceneState::kStarting, Outcome::kSuccess, StartCtx::kNone, out));
+    TEST_ASSERT_EQUAL_INT(variants(mood, SceneState::kWorking),
+                          fitting(mood, SceneState::kWorking, Outcome::kFailure, StartCtx::kSession, out));
+    for (int s = 0; s < int(SceneState::kCount); ++s) {
+      if (s == int(SceneState::kTaskComplete) || s == int(SceneState::kStarting)) continue;
+      for (int v = 0; v < variants(mood, SceneState(s)); ++v) {
+        TEST_ASSERT_TRUE(variantOutcome(mood, SceneState(s), v) == Outcome::kNone);
+        TEST_ASSERT_TRUE(variantCtx(mood, SceneState(s), v) == StartCtx::kNone);
+      }
+    }
+  }
+  TEST_ASSERT_TRUE(outcomeFromName("failure") == Outcome::kFailure);
+  TEST_ASSERT_TRUE(outcomeFromName("win") == Outcome::kNone);
+  TEST_ASSERT_TRUE(outcomeFromName(nullptr) == Outcome::kNone);
+  TEST_ASSERT_TRUE(ctxFromName("continuation") == StartCtx::kContinuation);
+  TEST_ASSERT_TRUE(ctxFromName("resume") == StartCtx::kNone);
+  TEST_ASSERT_EQUAL_STRING("success", outcomeName(Outcome::kSuccess));
+  TEST_ASSERT_EQUAL_STRING("new_task", ctxName(StartCtx::kNewTask));
+  TEST_ASSERT_EQUAL_STRING("", ctxName(StartCtx::kNone));
+}
+
+// A blink shows the design's closed eyes: only the face changes. The new
+// moods' designs are flip-books that blink in a step of their own, on
+// their own clock, so the device's blink leaves them be (DEVICE.md §6).
 static void test_a_blink_shows_the_closed_eyes() {
   for (int m = 0; m < int(Mood::kCount); ++m) {
     Buf open, shut;
@@ -106,6 +174,10 @@ static void test_a_blink_shows_the_closed_eyes() {
     s.eyesShut = true;
     shut.draw(s);
     Box d = differ(open, shut);
+    if (m >= int(Mood::kCalm)) {
+      TEST_ASSERT_TRUE(d.empty());
+      continue;
+    }
     TEST_ASSERT_FALSE(d.empty());
     TEST_ASSERT_TRUE(d.y0 >= 40 && d.y1 < 130);  // the eyes, above the mouth
   }
@@ -113,7 +185,7 @@ static void test_a_blink_shows_the_closed_eyes() {
 
 // The bubble takes the props' room: the working props go, the face stays.
 static void test_the_prop_can_make_room() {
-  for (int v = 0; v < variants(SceneState::kWorking); ++v) {
+  for (int v = 0; v < variants(Mood::kHappy, SceneState::kWorking); ++v) {
     Buf with, without;
     with.draw(show(Mood::kHappy, SceneState::kWorking, 0, v));
     SceneShow s = show(Mood::kHappy, SceneState::kWorking, 0, v);
@@ -139,6 +211,30 @@ static void test_the_mouth_opens_to_talk() {
   TEST_ASSERT_EQUAL(kBlack, talking.at(160, 134));       // its hole
 }
 
+// A flip-book has a face, with its mouth, in each step: talking opens the
+// mouth of the face that shows, wherever that step has put it, and only the
+// mouth changes.
+static void test_a_flip_book_talks_with_the_face_that_shows() {
+  for (Mood m : {Mood::kCalm, Mood::kIrritated, Mood::kWhiny}) {
+    uint32_t loop = loopMs(m, SceneState::kWorking);
+    int moved = 0;
+    Box first;
+    for (uint32_t t = 0; t < loop; t += loop / 9) {
+      Buf closed, talking;
+      closed.draw(show(m, SceneState::kWorking, t));
+      SceneShow s = show(m, SceneState::kWorking, t);
+      s.mouthOpen = true;
+      talking.draw(s);
+      Box d = differ(closed, talking);
+      TEST_ASSERT_FALSE(d.empty());
+      TEST_ASSERT_TRUE(d.x0 >= 135 && d.x1 < 185 && d.y0 >= 110 && d.y1 < 155);  // about the mouth
+      if (first.empty()) first = d;
+      moved += d.x0 != first.x0 || d.y0 != first.y0;
+    }
+    TEST_ASSERT_TRUE(moved > 0);  // with the step's face, not in one place
+  }
+}
+
 // A tap's sway or a press moves the whole face; the props stay.
 static void test_the_face_moves_as_one() {
   Buf still, moved, back;
@@ -161,10 +257,31 @@ static void test_the_face_moves_as_one() {
   }
 }
 
+// A flip-book's face moves as one too: the face of the step that shows.
+static void test_a_flip_book_face_moves_as_one() {
+  for (uint32_t t : {0u, 900u, 2300u}) {
+    Buf still, moved;
+    still.draw(show(Mood::kEngaged, SceneState::kIdle, t));
+    SceneShow s = show(Mood::kEngaged, SceneState::kIdle, t);
+    s.dx = 3, s.dy = 2;
+    moved.draw(s);
+    int same = 0, face = 0;
+    for (int y = 40; y < 140; ++y) {
+      for (int x = 40; x < 290; ++x) {
+        if (still.at(x, y) == kBlack) continue;
+        ++face;
+        same += moved.at(x + 3, y + 2) == still.at(x, y);
+      }
+    }
+    TEST_ASSERT_TRUE(face > 100);
+    TEST_ASSERT_TRUE(same * 10 >= face * 9);
+  }
+}
+
 // Needs you's art stays above y 192: the bottom 48 px are the strip's.
 static void test_needs_you_leaves_the_bottom_lane() {
   for (int m = 0; m < int(Mood::kCount); ++m) {
-    for (int v = 0; v < variants(SceneState::kNeedsYou); ++v) {
+    for (int v = 0; v < variants(Mood(m), SceneState::kNeedsYou); ++v) {
       for (uint32_t t : {0u, 700u, 1500u, 3000u}) {
         Buf b;
         b.draw(show(Mood(m), SceneState::kNeedsYou, t, v));
@@ -216,10 +333,13 @@ int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_every_scene_matches_facegen);
   RUN_TEST(test_variations_and_shared_designs);
+  RUN_TEST(test_variations_for_a_result_or_a_context);
   RUN_TEST(test_a_blink_shows_the_closed_eyes);
   RUN_TEST(test_the_prop_can_make_room);
   RUN_TEST(test_the_mouth_opens_to_talk);
+  RUN_TEST(test_a_flip_book_talks_with_the_face_that_shows);
   RUN_TEST(test_the_face_moves_as_one);
+  RUN_TEST(test_a_flip_book_face_moves_as_one);
   RUN_TEST(test_needs_you_leaves_the_bottom_lane);
   RUN_TEST(test_frames_change_only_when_the_picture_can);
   RUN_TEST(test_a_fade_changes_the_frame);

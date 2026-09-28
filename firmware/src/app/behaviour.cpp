@@ -158,7 +158,7 @@ void Behaviour::settle(uint32_t t) {
 // Only the base's looks loop on: needs you holds its pose, and no app has
 // its one design. A moment or its expression holds the look as it is.
 bool Behaviour::turnable(uint32_t t) const {
-  return !held(t) && !noApp(t) && !momentOn(t) && !exprOn(t) && render::variants(model_.base) > 1;
+  return !held(t) && !noApp(t) && !momentOn(t) && !exprOn(t) && render::variants(model_.mood, model_.base) > 1;
 }
 
 uint32_t Behaviour::loopEnd(uint32_t t) const {
@@ -172,7 +172,7 @@ uint32_t Behaviour::loopEnd(uint32_t t) const {
 void Behaviour::turn(uint32_t t, Rng& rng) {
   if (!turnable(t) || int32_t(t - lookAt_) < int32_t(kTurnMinMs)) return;
   if (rng.range(1, 100) > kTurnPct) return;  // another loop of this one
-  int v = rng.range(0, render::variants(model_.base) - 2);
+  int v = rng.range(0, render::variants(model_.mood, model_.base) - 2);
   if (v >= lookVariant_) ++v;
   change(t, [&] { lookVariant_ = uint8_t(v); });
 }
@@ -394,7 +394,7 @@ void Behaviour::tap(uint32_t t) {
 }
 
 uint8_t Behaviour::pickListen(Rng& rng) const {
-  int n = render::variants(render::SceneState::kListening);
+  int n = render::variants(model_.mood, render::SceneState::kListening);
   if (n <= 1) return 0;
   if (lastListen_ >= n) return uint8_t(rng.range(0, n - 1));
   int v = rng.range(0, n - 2);
@@ -456,7 +456,7 @@ render::SceneShow Behaviour::show(uint32_t t) const {
   s.t = designMs(t);
   if (src_.animDesign()) s.t %= render::loopMs(s.mood, s.state, s.variant);
   // Needs you's performance plays once, then holds its pending pose, the
-  // frame it starts and ends on (the animation pack's contract).
+  // frame it starts and ends on (the animation bank's contract).
   if (s.state == render::SceneState::kNeedsYou && s.t >= render::loopMs(s.mood, s.state, s.variant)) s.t = 0;
   if (src_.anim == render::Anim::kWiggle) {
     // Two slow sways, not a shiver: at 175 ms and 7 px it read as trembling.

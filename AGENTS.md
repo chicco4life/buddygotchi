@@ -21,10 +21,10 @@ cheap ESP32 board with a screen is the body. Start with
 | `app/` | The Mac side that ships: the menu-bar app (`Boop`), the `boop-hook` hook client, and the `BoopKit` and `HookWire` libraries |
 | `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)), with its generated assets and build scripts |
 | `internal/` | Everything that doesn't ship ([its README](internal/README.md)): `boopdev` and its library, the Swift tests and eval scenarios, the sources of `Boop --headless` and `--snapshots`, and the firmware's simulator and unit tests (env `native`) |
-| `internal/tools/` | `boopctl` (device tool), `voicegen` (voice assets), `sfxgen` (the sound effects, from the animation pack), `fontgen` (the device's fonts), `facegen` (the device's faces, from the animation pack), `workday` (a scripted working day through the brain), `webcam/` (opt-in recorder) |
+| `internal/tools/` | `boopctl` (device tool), `voicegen` (voice assets), `sfxgen` (the sound effects, from the animation bank), `fontgen` (the device's fonts), `facegen` (the device's faces, from the animation bank), `workday` (a scripted working day through the brain), `webcam/` (opt-in recorder) |
 | `internal/skills/` | `doctor` (hook self-check) and `webcam-verify`, symlinked for Claude, Codex and Cursor |
 | `landing/` | The Next.js landing page (Vercel project root) |
-| `internal/boop-design/` | Code-based animation/SFX review bank and mood-graph handover; not production integration ([guide](internal/boop-design/README.md)) |
+| `internal/boop-design/` | The animation bank, the code the device's designs and sounds are built from (facegen and sfxgen run it), with its offline review, and the mood-graph handover ([guide](internal/boop-design/README.md)) |
 
 Code that doesn't ship goes in `internal/`: tests, evals, dev tools,
 skills and the simulator. Production targets (`HookWire`, `BoopKit`,
@@ -161,6 +161,7 @@ unpushed local `main`.
 | `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/{device.cpp,packets.h,link_silence.h}`, `internal/tools/boopctl_lib/` | `PROTOCOL.md` |
 | `firmware/src/board/`, `firmware/platformio.ini`, `internal/tools/fontgen/` | `DEVICE.md` |
 | `internal/tools/facegen/` (and its designs), `firmware/src/render/scene.*` | `DEVICE.md` §6 |
+| `internal/boop-design/boop-sound-bank-v4/` (the designs and their sounds) | `DEVICE.md` §6, `VOICE.md` §10 |
 | `Makefile`, `internal/Makefile`, `internal/tools/`, `internal/app/BoopDev/`, `internal/skills/`, tests | `VERIFICATION.md`, this file, `README.md` |
 | `internal/app/Boop/` (`--headless`, `--snapshots`), `internal/app/BoopDevKit/Replay.swift`, `internal/firmware/sim/`, `internal/firmware/test/` | `VERIFICATION.md` |
 | `internal/tools/boopctl_lib/dash/`, the dev lines and the dashboard's lines in `debug.jsonl` | `harness/HARNESS.md` §9 |

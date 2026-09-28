@@ -204,10 +204,12 @@ The core keeps one entry per agent session, each **working**, **idle** or
 
 The device takes the first look that applies, draws it in the mood's
 design, and adds blinks of its own (180 ms,
-`kBlinkMs`). The designs are the animation pack's (the facegen designs,
-[DEVICE.md](DEVICE.md) §6): each look has three variations, and working
-five, which loop, except that needs you's plays its performance once and
-then holds its pending pose.
+`kBlinkMs`); the new moods' designs are flip-books that blink on their
+own clock. The designs are the animation bank's (the facegen designs,
+[DEVICE.md](DEVICE.md) §6): each look has three variations in every
+mood, and working five, which loop, except that needs you's plays its
+performance once and then holds its pending pose. What the agents are
+doing and the one-shots have one to nine, by mood (§3.1).
 
 **Which variation.** Each time the visual changes (a look, what the
 agents are doing, or needs you starting), the core picks one of its
@@ -463,7 +465,7 @@ short-term memory fresh ([ARCHITECTURE.md](ARCHITECTURE.md) §4.3).
 | Output | Used for | Never |
 | --- | --- | --- |
 | Mumbles | The brain's reactions | While something needs you; while the mic is on (§3.3) |
-| Sound effects | The face's design: working's clicks every loop, the cheer's fanfare, needs you's knocks and ding (the alert, once per request shown, §3.2), idle's swish at most every 45 s ([VOICE.md](VOICE.md) §10) | Asleep, no app, or a test pattern. Under a mumble they're half as loud, except needs you's |
+| Sound effects | The face's design: a few of working's clicks each loop, the cheer's fanfare, needs you's knocks and ding (the alert, once per request shown, §3.2) ([VOICE.md](VOICE.md) §10) | Idle, asleep, no app, listening, or a test pattern. Under a mumble they're a quarter as loud, except needs you's and the cheer's |
 | Amber light | Something needs you: amber at half (`#805800`) | Any other time, or with no app |
 | Backlight | Full (255) awake; 60/255 asleep and with no app; eases with each switch of design | Dimmed while something needs you |
 
@@ -481,7 +483,7 @@ stops a line that's playing.
 | `stopped` | An interrupt that ends a turn (§3.1) | The mood's stopped design: the tools put down | Once |
 | `error` | A command that failed or timed out, at most every 30 s (§3.1) | The mood's error design | Once |
 | `helper_return` | A helper coming back (§3.1) | The mood's helper-return design: a report delivered | Once |
-| `listening` | Push-to-talk (§3.3): BOOT held, or the Mac's mic on | The mood's listening scene from the animation pack, one of three at random (focus corners, headphones or an ear trumpet), silent ([DEVICE.md](DEVICE.md) §4) | Until the reply; 8 s after the mic goes off at most, and 30 s + 8 s in all |
+| `listening` | Push-to-talk (§3.3): BOOT held, or the Mac's mic on | The mood's listening scene from the animation bank, one of three at random (focus corners, headphones or an ear trumpet), silent ([DEVICE.md](DEVICE.md) §4) | Until the reply; 8 s after the mic goes off at most, and 30 s + 8 s in all |
 
 The device plays the wiggle and, for BOOT, `listening` on its own, at
 once; nothing replaces `listening` but the reply. Only the brain cheers:

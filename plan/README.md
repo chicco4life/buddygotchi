@@ -27,6 +27,7 @@ of work. History is in git: the finished v1 build plan and its full
 decision log (`archived/plan-v1-build/`) and the previous generation's
 specs (`archived/plan-gen2/`) are at tag `archived-final`.
 
-Future design material is separate from these implemented contracts:
-[animation bank and mood graph](../internal/boop-design/README.md).
-Its handover documents intended integration, not behavior already shipped.
+The device's designs and sounds come from the
+[animation bank](../internal/boop-design/README.md) ([DEVICE.md](DEVICE.md)
+§6, [VOICE.md](VOICE.md) §10); its mood-graph handover is design material
+for the Mac's Mood action.

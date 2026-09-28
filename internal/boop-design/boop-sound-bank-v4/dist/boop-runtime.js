@@ -383,7 +383,10 @@ function face(a,s,blink=false){
  if(s){const curves={calm:[[0,0],[0,0],[0,-1],[0,-1],[0,0],[0,-2],[0,-1],[0,0],[0,0]],engaged:[[0,0],[-2,0],[2,-2],[-2,0],[2,-2],[0,-3],[2,0],[-1,0],[0,0]],annoyed:[[0,0],[3,0],[4,1],[4,1],[-2,0],[-3,0],[3,1],[3,0],[0,0]],irritated:[[0,0],[-3,1],[3,-2],[-3,2],[4,0],[-2,-3],[3,1],[-2,0],[0,0]],whiny:[[0,0],[-3,2],[2,4],[-3,2],[3,4],[0,-2],[-2,3],[2,1],[0,0]],wounded:[[0,0],[0,2],[-3,5],[-4,6],[0,3],[2,1],[0,4],[-1,2],[0,0]]};[dx,dy]=quiet?[0,s<5?2:0]:curves[m][s];}
  if(a.state==='poked'&&s>=2&&s<=4)dy+=s===2?8:3;
  if(a.state==='tap_spam'&&s>=2&&s<=6)dy+=s%2?12:6;
- return at(dx,dy,group(eyes+lips+cheeks+decor,`data-face="${quiet?'shared-rest':m}"`));
+ // The face and its mouth are tagged, so a renderer can find the one that shows
+ // in each flip-book step (facegen's face and mouth roles; the device's talking
+ // mouth), and so is the step's blink (the popover's tile blinks with it).
+ return at(dx,dy,group(eyes+group(lips,'data-part="mouth"')+cheeks+decor,`data-part="face" data-face="${quiet?'shared-rest':m}"${blink?' data-blink="1"':''}`));
 }
 
 function work(a,s,press){

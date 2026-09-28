@@ -881,7 +881,7 @@ static void test_a_moment_carries_its_expression() {
   TEST_ASSERT_FALSE(exprAt(9 * loop));
   // Unknown: no expression, and the mumble still plays.
   size_t said = r.hal.said.size();
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"annoyed\"}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"cheerful\"}");
   TEST_ASSERT_EQUAL(int(said + 1), int(r.hal.said.size()));
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
@@ -949,7 +949,7 @@ static void test_needs_you_hushes_a_line_for_its_alert() {
   r.hal.effects.clear();
   runClock(r, 110, 8000);
   TEST_ASSERT_TRUE(played(r.hal, "alertDing"));
-  for (const voice::Effect& e : r.hal.effects) TEST_ASSERT_TRUE(voice::effectAlert(e.clip));
+  for (const voice::Effect& e : r.hal.effects) TEST_ASSERT_FALSE(e.duck);  // no mumble turns it down
 }
 
 // PROTOCOL.md §4: a moment with an `id` gets one `ended` once all of it
@@ -1102,12 +1102,13 @@ static void test_the_face_plays_its_designs_sounds() {
   uint32_t loop = render::loopMs(render::Mood::kHappy, render::SceneState::kWorking, 0);
   voice::Score sc = voice::score(int(render::Mood::kHappy), int(render::SceneState::kWorking), 0);
   runClock(r, 0, 2 * loop - app::EffectTrack::kLeadMs - 10);
-  TEST_ASSERT_EQUAL(2 * sc.n, int(r.hal.effects.size()));
+  int two = voice::events(sc, 0).n + voice::events(sc, 1).n;  // each loop its own picks
+  TEST_ASSERT_EQUAL(two, int(r.hal.effects.size()));
   TEST_ASSERT_EQUAL(4, int(r.hal.effects[0].vol));
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   char fx[64];
-  std::snprintf(fx, sizeof(fx), "\"fx\":{\"sent\":%d,\"last\":\"%s\"}", 2 * sc.n,
+  std::snprintf(fx, sizeof(fx), "\"fx\":{\"sent\":%d,\"last\":\"%s\"}", two,
                 voice::effectName(r.hal.effects.back().clip));
   TEST_ASSERT_TRUE(has(r.usb.text, fx));
   r.usbLine("{\"t\":\"dbg.ping\"}");
@@ -1149,7 +1150,10 @@ static void test_the_sounds_follow_the_looks_turns() {
     voice::Score sc = voice::score(int(render::Mood::kHappy), int(render::SceneState::kWorking), now);
     for (const voice::Effect& e : r.hal.effects) {
       bool ours = false;
-      for (int i = 0; i < sc.n; ++i) ours |= voice::fxEvent(sc.first + i).clip == e.clip;
+      for (uint32_t loop = 0; loop < uint32_t(voice::kLoops); ++loop) {
+        voice::Events l = voice::events(sc, loop);
+        for (int i = 0; i < l.n; ++i) ours |= voice::fxEvent(l.first + i).clip == e.clip;
+      }
       TEST_ASSERT_TRUE(ours);
     }
     return;
@@ -1169,7 +1173,7 @@ static void test_needs_you_plays_its_ding_and_asleep_is_quiet() {
   TEST_ASSERT_TRUE(r.hal.effectStops > stops);
   runClock(r, 510, 8000);
   TEST_ASSERT_TRUE(played(r.hal, "alertDing"));
-  for (const voice::Effect& e : r.hal.effects) TEST_ASSERT_TRUE(voice::effectAlert(e.clip));
+  for (const voice::Effect& e : r.hal.effects) TEST_ASSERT_FALSE(e.duck);  // no mumble turns it down
   Rig a;
   a.usbLine("{\"t\":\"state\",\"base\":\"asleep\"}");
   runClock(a, 0, 20000);

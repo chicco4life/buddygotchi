@@ -1,4 +1,4 @@
-// The animation pack's designs as the device draws them: a scene for each
+// The animation bank's designs as the device draws them: a scene for each
 // mood, state and variation, from firmware/assets/faces.h, which
 // internal/tools/facegen/facegen.py generates from the designs' SVGs. A
 // scene is rectangles in groups that move, show and change colour in
@@ -12,17 +12,46 @@
 
 namespace render {
 
-// The designs' states, in faces.h's order. The task_complete design shows
-// the cheer and the listening design push-to-talk's listening; the others
-// are the looks, what the face shows when no moment plays.
-enum class SceneState : uint8_t { kIdle, kWorking, kNeedsYou, kTaskComplete, kAsleep, kNoApp, kListening, kCount };
+// The designs' states, in faces.h's order (plan/PROTOCOL.md §3): the first
+// seven keep the numbers they had before the rest came. The task_complete
+// design shows the cheer and the listening design push-to-talk's listening;
+// the other five of the first seven are the looks, what the face shows when
+// no moment plays. Nothing asks for the states after listening yet.
+enum class SceneState : uint8_t {
+  kIdle, kWorking, kNeedsYou, kTaskComplete, kAsleep, kNoApp, kListening,
+  kStarting, kPlanning, kTerminal, kToolUse, kSearching, kAnalyzing, kTesting,
+  kDelegating, kHelperReturn, kWaiting, kReplyReady, kError, kStopped, kPoked, kTapSpam,
+  kCount
+};
 // "idle", "working", "needs_you", "task_complete", "asleep", "no_app",
-// "listening".
+// "listening", "starting", "planning", "terminal", "tool_use", "searching",
+// "analyzing", "testing", "delegating", "helper_return", "waiting",
+// "reply_ready", "error", "stopped", "poked", "tap_spam".
 const char* stateName(SceneState s);
 SceneState stateFromName(const char* name);  // kIdle if missing or unknown
-// How many variations a state's design has; a state's variation is
-// 0..variants(s) - 1 here, and 1..variants(s) on the wire (PROTOCOL.md §3).
-int variants(SceneState s);
+
+// Each mood has its own variations of each state's design, 1 to kMaxVariants
+// of them; a variation is 0..variants(m, s) - 1 here, and 1..variants(m, s)
+// on the wire (PROTOCOL.md §3). One out of range draws the first.
+constexpr int kMaxVariants = 9;  // faces.h checks it
+int variants(Mood m, SceneState s);
+
+// The host fact a variation is for, when it's for one: task_complete's
+// outcome and starting's context (plan/PROTOCOL.md §3). kNone on a design
+// is for any; as a filter, it takes any.
+enum class Outcome : uint8_t { kNone, kSuccess, kFailure };
+enum class StartCtx : uint8_t { kNone, kNewTask, kSession, kContinuation };
+Outcome outcomeFromName(const char* name);  // "success" or "failure"; kNone otherwise
+StartCtx ctxFromName(const char* name);     // "new_task", "session" or "continuation"; kNone otherwise
+const char* outcomeName(Outcome o);         // "" for kNone
+const char* ctxName(StartCtx c);            // "" for kNone
+Outcome variantOutcome(Mood m, SceneState s, int variant);  // the first's for one out of range
+StartCtx variantCtx(Mood m, SceneState s, int variant);
+// The variations (from 0) of m's design for s that fit an outcome and a
+// context, kNone fitting any, in order into `out` (room for kMaxVariants),
+// and how many; every variation when none fits, as the Mac's
+// FaceLoops.variants does.
+int fitting(Mood m, SceneState s, Outcome o, StartCtx c, uint8_t* out);
 
 struct SceneShow {
   Mood mood = Mood::kHappy;

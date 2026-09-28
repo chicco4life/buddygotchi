@@ -1,7 +1,7 @@
 // The canvas palette: index → RGB565 (plan/DEVICE.md §6). Every colour on
 // the screen comes from this one table: "Warm Terminal", black glass with
 // grey text and one amber accent, plus the bring-up colours; then the
-// animation pack's colours, flat, which faces.h lists; and a stronger
+// animation bank's colours, flat, which faces.h lists; and a stronger
 // coral heart for a tap.
 //
 // Anti-aliased edges (text, the bubble and the strip) use ramps: 8 steps
@@ -113,7 +113,7 @@ constexpr PaletteTable makePalette() {
   for (int ink = 0; ink < kInkCount; ++ink) {
     for (int k = 1; k <= kLevels; ++k) p.c[inkAt(ink, k)] = rgb565(mix(kGlass, inkRgb(ink), k, kLevels));
   }
-  // The animation pack's colours, flat (render/scene.cpp), after the ramps.
+  // The animation bank's colours, flat (render/scene.cpp), after the ramps.
   for (int i = 1; i < faces::kColorCount; ++i) {
     const faces::Color& c = faces::kColors[i];
     p.c[faces::kSceneBase + i - 1] = rgb565(c.r, c.g, c.b);

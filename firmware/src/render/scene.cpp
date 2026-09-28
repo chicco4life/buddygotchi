@@ -12,10 +12,17 @@ namespace {
 using namespace faces;
 
 static_assert(kMaxGroups <= SceneFrame::kMaxGroups, "a scene's groups fit its frame");
-static_assert(int(Mood::kCount) == 7 && int(SceneState::kCount) == 7, "faces.h's moods and states");
+static_assert(int(Mood::kCount) == kMoodCount && int(SceneState::kCount) == kStateCount, "faces.h's moods and states");
+static_assert(faces::kMaxVariants <= render::kMaxVariants, "a state's variations fit");
+static_assert(int(Outcome::kFailure) == 2 && int(StartCtx::kContinuation) == 3, "faces.h's host facts");
 
-const char* const kStates[] = {"idle", "working", "needs_you", "task_complete", "asleep", "no_app", "listening"};
+const char* const kStates[] = {"idle",      "working",   "needs_you",  "task_complete", "asleep",        "no_app",
+                               "listening", "starting",  "planning",   "terminal",      "tool_use",      "searching",
+                               "analyzing", "testing",   "delegating", "helper_return", "waiting",       "reply_ready",
+                               "error",     "stopped",   "poked",      "tap_spam"};
 static_assert(sizeof(kStates) / sizeof(kStates[0]) == size_t(SceneState::kCount), "one name per state");
+const char* const kOutcomes[] = {"", "success", "failure"};
+const char* const kCtxs[] = {"", "new_task", "session", "continuation"};
 constexpr uint16_t kNone = 0xFFFF;
 
 // The small "o" the mouth becomes on a syllable, from the old curious
@@ -54,7 +61,9 @@ int step(const Track& tr, uint32_t t) {
 }
 
 // Where each group sits, whether it shows and the colour it fills with,
-// parents first.
+// parents first. A flip-book design has a face, and a mouth in it, in each
+// of its steps: `face` and `mouth` are the ones that show, which a tap
+// moves and talking opens.
 struct Placed {
   int16_t x[kMaxGroups], y[kMaxGroups];
   bool on[kMaxGroups];
@@ -70,34 +79,33 @@ void place(const Scene& sc, const SceneShow& s, Placed& p) {
     uint8_t fill = 0;
     if (g.parent != kNone) x += p.x[g.parent], y += p.y[g.parent], fill = p.fill[g.parent];
     if (g.move != kNone) {
-      const Track& tr = kTracks[sc.track0 + g.move];
+      const Track& tr = kTracks[g.move];
       uint32_t v = tr.val0 + 2 * uint32_t(step(tr, s.t));
       x += kValues[v], y += kValues[v + 1];
     }
     if (g.show != kNone) {
-      const Track& tr = kTracks[sc.track0 + g.show];
+      const Track& tr = kTracks[g.show];
       on = kValues[tr.val0 + step(tr, s.t)] != 0;
     }
     if (g.fill != kNone) {
-      const Track& tr = kTracks[sc.track0 + g.fill];
+      const Track& tr = kTracks[g.fill];
       fill = uint8_t(kValues[tr.val0 + step(tr, s.t)]);
     }
     switch (g.role) {
-      case kRoleFace:
-        x += s.dx, y += s.dy;
-        p.face = i;
-        break;
+      case kRoleFace: x += s.dx, y += s.dy; break;
       case kRoleEyesOpen: on = !s.eyesShut; break;
       case kRoleEyesClosed: on = s.eyesShut; break;
       case kRoleProp: on = on && !s.hideProp; break;
-      case kRoleMouth:
-        if (p.mouth < 0) p.mouth = i;
-        on = on && !s.mouthOpen;
-        break;
       default: break;
     }
+    on = on && (g.parent == kNone || p.on[g.parent]);
+    if (g.role == kRoleFace && on && p.face < 0) p.face = i;
+    if (g.role == kRoleMouth) {
+      if (on && p.mouth < 0) p.mouth = i;
+      on = on && !s.mouthOpen;
+    }
     p.x[i] = int16_t(x), p.y[i] = int16_t(y), p.fill[i] = fill;
-    p.on[i] = on && (g.parent == kNone || p.on[g.parent]);
+    p.on[i] = on;
   }
 }
 
@@ -135,9 +143,15 @@ void clipRect(Canvas& c, int x, int y, int w, int h, uint8_t ink, const Scene& s
   if (x1 > x0 && y1 > y0) c.fillRect(x0, y0, x1 - x0, y1 - y0, ink);
 }
 
-int clampVariant(SceneState s, int v) {
-  int n = variants(s);
-  return v >= 0 && v < n ? v : 0;
+int moodIndex(Mood m) { return int(m) < kMoodCount ? int(m) : 0; }
+int stateIndex(SceneState s) { return int(s) < kStateCount ? int(s) : 0; }
+
+// A mood and state's variation as the screen draws it: the first for one
+// out of range.
+const Design& design(Mood m, SceneState s, int variant) {
+  int mi = moodIndex(m), si = stateIndex(s);
+  int n = kVariants[mi][si];
+  return kDesigns[kFirst[mi][si] + (variant >= 0 && variant < n ? variant : 0)];
 }
 
 }  // namespace
@@ -152,13 +166,43 @@ SceneState stateFromName(const char* name) {
   return SceneState::kIdle;
 }
 
-int variants(SceneState s) { return kVariants[int(s) < int(SceneState::kCount) ? int(s) : 0]; }
+int variants(Mood m, SceneState s) { return kVariants[moodIndex(m)][stateIndex(s)]; }
 
-int sceneOf(Mood m, SceneState s, int variant) {
-  int mi = int(m) < int(Mood::kCount) ? int(m) : 0;
-  int si = int(s) < int(SceneState::kCount) ? int(s) : 0;
-  return kSceneOf[mi][si][clampVariant(SceneState(si), variant)];
+Outcome outcomeFromName(const char* name) {
+  for (int i = 1; name && i < int(sizeof(kOutcomes) / sizeof(kOutcomes[0])); ++i) {
+    if (!std::strcmp(name, kOutcomes[i])) return Outcome(i);
+  }
+  return Outcome::kNone;
 }
+
+StartCtx ctxFromName(const char* name) {
+  for (int i = 1; name && i < int(sizeof(kCtxs) / sizeof(kCtxs[0])); ++i) {
+    if (!std::strcmp(name, kCtxs[i])) return StartCtx(i);
+  }
+  return StartCtx::kNone;
+}
+
+const char* outcomeName(Outcome o) { return kOutcomes[int(o) <= int(Outcome::kFailure) ? int(o) : 0]; }
+const char* ctxName(StartCtx c) { return kCtxs[int(c) <= int(StartCtx::kContinuation) ? int(c) : 0]; }
+
+Outcome variantOutcome(Mood m, SceneState s, int variant) { return Outcome(design(m, s, variant).outcome); }
+StartCtx variantCtx(Mood m, SceneState s, int variant) { return StartCtx(design(m, s, variant).ctx); }
+
+int fitting(Mood m, SceneState s, Outcome o, StartCtx c, uint8_t* out) {
+  int n = variants(m, s), k = 0;
+  for (int v = 0; v < n; ++v) {
+    const Design& d = design(m, s, v);
+    if ((o == Outcome::kNone || d.outcome == uint8_t(o)) && (c == StartCtx::kNone || d.ctx == uint8_t(c))) {
+      out[k++] = uint8_t(v);
+    }
+  }
+  if (k == 0) {
+    for (int v = 0; v < n; ++v) out[k++] = uint8_t(v);
+  }
+  return k;
+}
+
+int sceneOf(Mood m, SceneState s, int variant) { return design(m, s, variant).scene; }
 
 uint32_t loopMs(Mood m, SceneState s, int variant) { return kScenes[sceneOf(m, s, variant)].loopMs; }
 
@@ -200,10 +244,7 @@ void drawScene(Canvas& c, const SceneShow& s) {
     }
   }
   if (s.mouthOpen && p.mouth >= 0) {
-    uint16_t parent = kGroups[sc.group0 + p.mouth].parent;
-    if (parent == kNone || p.on[parent]) {
-      for (const Box& b : kTalk) c.fillRect(b.x + p.x[p.mouth], b.y + p.y[p.mouth], b.w, b.h, sceneInk(1));
-    }
+    for (const Box& b : kTalk) c.fillRect(b.x + p.x[p.mouth], b.y + p.y[p.mouth], b.w, b.h, sceneInk(1));
   }
   if (s.heart && p.face >= 0) {
     int cx = kHeartX + p.x[p.face], cy = kHeartY + p.y[p.face];

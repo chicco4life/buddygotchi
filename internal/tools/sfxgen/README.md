@@ -1,12 +1,14 @@
 # sfxgen
 
 Builds `firmware/assets/sfx.h`, Boop's sound effects, from the animation
-pack's procedural sounds ([plan/VOICE.md](../../../plan/VOICE.md) §10):
+bank's procedural sounds ([plan/VOICE.md](../../../plan/VOICE.md) §10):
 
     node internal/tools/sfxgen/sfxgen.mjs [--wav-dir DIR]
 
-`pack/` is from the pack's 2026-09-28 release (V2): its synthesiser and
-recipes (`pack/audio/`, unchanged) and the timelines of the states the
-device draws (`pack/scores/`; the pack's `listening` is left out). The
-designs themselves are in `../facegen/design/`. To take a new release,
-replace both and rerun this and `make -C internal faces`.
+It imports the bank, `internal/boop-design/boop-sound-bank-v4/runtime/`:
+its synthesiser and recipes (`audio/`, unchanged) render the clips, and
+`makeScene` gives each design's timeline in the bank's voice-first mix.
+A routine design's picks of which contacts sound change each loop, so
+this bakes them for loops 0 to 7 (seed 53). The designs, in the device's
+order, are the ones `facegen` lists in `../facegen/design/manifest.json`:
+run `make -C internal faces` first when the bank changes.

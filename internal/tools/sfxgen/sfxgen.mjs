@@ -1,16 +1,24 @@
 // Builds Boop's sound effects (plan/VOICE.md §10) as C arrays, from the
-// animation pack's procedural sounds in pack/: its synthesiser and recipes
-// (pack/audio/, unchanged) and each design's timeline (pack/scores/, the
-// device's states only). The output, firmware/assets/sfx.h, is checked in;
-// rerun this only when the pack changes:
+// animation bank's procedural sounds (internal/boop-design/boop-sound-bank-v4/):
+// its synthesiser and recipes (runtime/audio/, unchanged) and each design's
+// timeline, which the bank's makeScene gives in its voice-first mix. The
+// designs, in the device's order, are the ones facegen lists
+// (internal/tools/facegen/design/manifest.json), so run facegen first. The
+// output, firmware/assets/sfx.h, is checked in; rerun this when the bank
+// changes:
 //
 //     node internal/tools/sfxgen/sfxgen.mjs [--wav-dir DIR]
 //
-// Each effect the timelines use is rendered once, at the pack's 44.1 kHz,
+// Each effect the timelines use is rendered once, at the bank's 44.1 kHz,
 // then filtered and cut down to 8-bit samples at 11.025 kHz, the voice's
-// format. All effects share one scale, so their levels keep the pack's
+// format. All effects share one scale, so their levels keep the bank's
 // balance. The device resamples a clip for an event's pitch, as it does a
 // syllable (firmware/src/voice/effects.cpp).
+//
+// The mix leaves most of a routine design's contacts out and picks, afresh
+// each loop, which few sound, never moving one off its frame. The device
+// has no bank to ask, so this bakes the bank's picks (routineEvents, seed
+// 53) for loops 0 to 7, and the device plays loop n's as n % 8.
 //
 // `--wav-dir` also writes every clip as a WAV, for listening.
 import crypto from 'node:crypto';
@@ -18,25 +26,26 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-import {effects} from './pack/audio/effects.mjs';
-import {renderRecipe, SAMPLE_RATE} from './pack/audio/synth.mjs';
+import {effects} from '../../boop-design/boop-sound-bank-v4/runtime/audio/effects.mjs';
+import {renderRecipe, SAMPLE_RATE} from '../../boop-design/boop-sound-bank-v4/runtime/audio/synth.mjs';
+import {makeScene} from '../../boop-design/boop-sound-bank-v4/runtime/bank.mjs';
+import {catalog, getAsset} from '../../boop-design/boop-sound-bank-v4/runtime/catalog.mjs';
+import {voiceWindows} from '../../boop-design/boop-sound-bank-v4/runtime/mood-art.mjs';
+import {protectedSoundStates, routineEvents} from '../../boop-design/boop-sound-bank-v4/runtime/quiet-mix.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../..');
+const bank = path.join(root, 'internal/boop-design/boop-sound-bank-v4');
+const manifestFile = path.join(root, 'internal/tools/facegen/design/manifest.json');
 const out = path.join(root, 'firmware/assets/sfx.h');
 
-// The device's moods and states, in faces.h's order, and each state's
-// variations (render/anim.h, render/scene.h). The pack's `listening` has no
-// design on the device and is left out.
-const moods = ['happy', 'excited', 'proud', 'curious', 'determined', 'grumpy', 'sad'];
-const states = ['idle', 'working', 'needs_you', 'task_complete', 'asleep', 'no_app'];
-const variants = [3, 5, 3, 3, 3, 3];
 const policies = ['silent', 'loop', 'entry', 'sparse'];
-
+const LOOPS = 8;  // the loops of a routine design whose picks are baked
+const SEED = 53;  // the bank's default seed for those picks
 const RATE = 11025;
 const DOWN = SAMPLE_RATE / RATE;  // 4
 const PEAK = 0.70;  // the synthesiser's output stage never goes past this
-// An event's loudness is its clip's level times its gain. The pack spans
+// An event's loudness is its clip's level times its gain. The bank spans
 // about 40 dB, and an 8-bit speaker loses the quiet end in its hiss, so
 // the square root squeezes the range and keeps the order: the loudest event
 // plays as loud as a syllable, and the quietest about a tenth as loud.
@@ -75,11 +84,33 @@ function clip(name) {
   return {data: Uint8Array.from(q.slice(0, end), v => 128 + v), level: peak / PEAK};
 }
 
-function scoreOf(mood, state, v) {
-  const file = path.join(here, 'pack/scores', mood, state, `${mood}.${state}.0${v}.json`);
-  const s = JSON.parse(fs.readFileSync(file, 'utf8'));
-  if (!policies.includes(s.policy)) throw new Error(`${file}: unknown policy ${s.policy}`);
-  return s;
+// A design's timeline: its policy, its event lists (one, or LOOPS for a
+// routine design whose picks change each loop), whether a mumble turns it
+// down, and its voice window's start.
+function timeline(d) {
+  const {score} = makeScene(d.id);
+  if (score.id !== d.id) throw new Error(`${d.id}: the bank made ${score.id}`);
+  if (!policies.includes(score.policy)) throw new Error(`${d.id}: unknown policy ${score.policy}`);
+  const routine = Boolean(score.mix?.gestures) && score.policy !== 'silent';
+  if (routine && JSON.stringify(routineEvents(score, 0, SEED)) !== JSON.stringify(score.events)) {
+    throw new Error(`${d.id}: the mix's first loop isn't its own events`);
+  }
+  const lists = score.policy === 'silent' ? [[]]
+    : routine && score.policy !== 'entry' ? Array.from({length: LOOPS}, (_, n) => routineEvents(score, n, SEED))
+    : [score.events];
+  // Sparse: the loops that sound, as the bank's player counts them
+  // (score.mjs cycleHasSound): 0, every, 2 × every…
+  const every = score.policy === 'sparse' ? Math.max(1, Math.ceil(score.intervalSeconds / score.seconds)) : 1;
+  const guarded = protectedSoundStates.includes(d.state);
+  // The voice window (mood-art.mjs voiceWindows): after a guarded design's
+  // attention cue, or from 0.45 s. The bank works it out for the new moods'
+  // designs; the older ones' follow the same rule on their own timelines.
+  const start = guarded ? Math.max(0, ...score.events.map(e => e.at + effects[e.effect].duration)) + 0.12 : 0.45;
+  const voiceMs = Math.round(Number(start.toFixed(6)) * 1000);
+  if (d.dialect === 'v4' && voiceMs !== Math.round(voiceWindows(getAsset(d.id)).earliestEntry * 1000)) {
+    throw new Error(`${d.id}: its voice window isn't the bank's`);
+  }
+  return {id: d.id, policy: score.policy, every, duck: !guarded, voiceMs, lists};
 }
 
 function writeWav(file, data) {
@@ -99,26 +130,61 @@ function main() {
     process.exit(2);
   }
 
-  const scores = [];
-  for (const mood of moods) for (const [si, state] of states.entries())
-    for (let v = 1; v <= variants[si]; v++) scores.push(scoreOf(mood, state, v));
-  const names = [...new Set(scores.flatMap(s => s.events.map(e => e.effect)))].sort();
+  const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+  const {moods, states, designs} = manifest;
+  // The designs must be the bank's, as facegen last listed them, or the
+  // sounds wouldn't line up with faces.h.
+  const listed = new Map(designs.map(d => [d.id, d]));
+  if (listed.size !== catalog.length ||
+      catalog.some(a => listed.get(a.id)?.variation !== a.variation || listed.get(a.id)?.seconds !== a.seconds)) {
+    throw new Error(`${path.relative(root, manifestFile)} isn't the bank's designs: run make -C internal faces first`);
+  }
+  const count = (m, s) => designs.filter(d => d.mood === m && d.state === s).length;
+  const scores = designs.map(timeline);
+  const events = scores.flatMap(s => s.lists.flat());
+  const names = [...new Set(events.map(e => e.effect))].sort();
   const made = names.map(clip);
   const clips = made.map(c => c.data);
 
   const hash = crypto.createHash('sha256');
-  for (const dir of ['pack/audio', 'pack/scores']) {
-    const walk = d => fs.readdirSync(d, {withFileTypes: true}).sort((a, b) => a.name < b.name ? -1 : 1)
-      .forEach(e => e.isDirectory() ? walk(path.join(d, e.name)) : hash.update(fs.readFileSync(path.join(d, e.name))));
-    walk(path.join(here, dir));
-  }
+  const walk = d => fs.readdirSync(d, {withFileTypes: true}).sort((a, b) => a.name < b.name ? -1 : 1)
+    .forEach(e => e.isDirectory() ? walk(path.join(d, e.name)) : hash.update(fs.readFileSync(path.join(d, e.name))));
+  walk(path.join(bank, 'runtime'));
+  hash.update(fs.readFileSync(manifestFile));
   hash.update(fs.readFileSync(fileURLToPath(import.meta.url)));
   const version = hash.digest('hex').slice(0, 12);
+
+  const loud = e => made[names.indexOf(e.effect)].level * (e.gain ?? 1);
+  const loudest = Math.max(...events.map(loud));
+  // Each list's events, stored once however many loops and designs share them.
+  const eventRows = [], spanRows = [], spanOf = new Map();
+  const span = list => {
+    const evs = list.map(e => ({
+      at: Math.round(e.at * 1000), clip: names.indexOf(e.effect),
+      gain: Math.max(1, Math.round(255 * Math.pow(loud(e) / loudest, SQUEEZE))), pitch: Math.round((e.pitch ?? 1) * 1000),
+    })).sort((a, b) => a.at - b.at || a.clip - b.clip);
+    if (evs.length > 255) throw new Error('too many events in a loop');
+    const key = JSON.stringify(evs);
+    if (!spanOf.has(key)) {
+      spanOf.set(key, spanRows.length);
+      spanRows.push(`{${eventRows.length}, ${evs.length}}`);
+      eventRows.push(...evs.map(e => `{${e.at}, ${e.clip}, ${e.gain}, ${e.pitch}}`));
+    }
+    return spanOf.get(key);
+  };
+  const lists = [], scoreRows = [];
+  for (const s of scores) {
+    const first = lists.length;
+    lists.push(...s.lists.map(span));
+    scoreRows.push(`{k${s.policy[0].toUpperCase()}${s.policy.slice(1)}, ${s.every}, ${s.duck}, ${s.lists.length}, ` +
+      `${first}, ${s.voiceMs}},  // ${s.id}`);
+  }
+  if (eventRows.length >= 65536 || lists.length >= 65536 || designs.length >= 65536) throw new Error('the tables outgrow their indexes');
 
   const bytes = clips.reduce((n, c) => n + c.length, 0);
   const L = [];
   L.push(`// Boop's sound effects: 8-bit unsigned samples at 11.025 kHz (plan/VOICE.md §10).`);
-  L.push(`// Generated by internal/tools/sfxgen/sfxgen.mjs from the animation pack's sounds.`);
+  L.push(`// Generated by internal/tools/sfxgen/sfxgen.mjs from the animation bank's sounds.`);
   L.push(`// Don't edit; rerun the tool. Include from one .cpp only (voice/effects.cpp).`);
   L.push('#pragma once', '#include <cstdint>', '', 'namespace sfx_assets {', '');
   L.push(`constexpr uint32_t kRate = ${RATE};`);
@@ -126,43 +192,47 @@ function main() {
   L.push(`constexpr int kClips = ${clips.length};`);
   L.push(`constexpr uint32_t kBytes = ${bytes};`);
   L.push(`constexpr int kMoods = ${moods.length};`, `constexpr int kStates = ${states.length};`);
-  L.push(`static const uint8_t kVariants[kStates] = {${variants.join(', ')}};`, '');
-  L.push('struct Clip {', '  const char* name;', '  uint32_t at;   // offset into kSamples',
-    '  uint16_t len;  // samples', '  bool alert;    // the needs-you signal: a mumble never turns it down', '};', '');
-  L.push('static const Clip kClip[] = {');
+  L.push(`constexpr int kLoops = ${LOOPS};  // a routine design's baked loops: loop n plays list n % kLoops`, '');
+  L.push('// Each mood and state\'s variations, as faces.h has them: kVariants[m][s]', '// scores from kScore[kFirst[m][s]] on.');
+  L.push('static const uint8_t kVariants[kMoods][kStates] = {',
+    ...moods.map(m => `    {${states.map(s => count(m, s)).join(', ')}},  // ${m}`), '};');
   let at = 0;
-  names.forEach((n, i) => { L.push(`    {"${n}", ${at}, ${clips[i].length}, ${n.startsWith('alert')}},`); at += clips[i].length; });
+  L.push('static const uint16_t kFirst[kMoods][kStates] = {',
+    ...moods.map(m => `    {${states.map(s => { const f = at; at += count(m, s); return f; }).join(', ')}},  // ${m}`), '};', '');
+  L.push('struct Clip {', '  const char* name;', '  uint32_t at;   // offset into kSamples', '  uint16_t len;  // samples', '};', '');
+  L.push('static const Clip kClip[] = {');
+  at = 0;
+  names.forEach((n, i) => { L.push(`    {"${n}", ${at}, ${clips[i].length}},`); at += clips[i].length; });
   L.push('};', '');
-  L.push('// When a design\'s events play: never, every loop, its first loop only, or', '// its first loop and then at most once per `intervalMs`.');
+  L.push('// When a design\'s events play: never, every loop, its first loop only, or', '// every `every`th loop from its first.');
   L.push('enum Policy : uint8_t { kSilent, kLoop, kEntry, kSparse };', '');
   L.push('struct Event {', '  uint16_t atMs;   // into the design\'s loop', '  uint8_t clip;',
     '  uint8_t gain;    // 1–255: 255 plays the clip as loud as a syllable', '  uint16_t pitch;  // permille: 1000 plays the clip as made', '};', '');
-  L.push('struct Score {', '  Policy policy;', '  uint32_t intervalMs;', '  uint16_t first;  // into kEvent', '  uint8_t n;', '};', '');
-  const loud = e => made[names.indexOf(e.effect)].level * (e.gain ?? 1);
-  const loudest = Math.max(...scores.flatMap(s => s.events.map(loud)));
-  const events = [], rows = [];
-  for (const s of scores) {
-    const evs = s.events.map(e => ({
-      at: Math.round(e.at * 1000), clip: names.indexOf(e.effect),
-      gain: Math.max(1, Math.round(255 * Math.pow(loud(e) / loudest, SQUEEZE))), pitch: Math.round((e.pitch ?? 1) * 1000),
-    })).sort((a, b) => a.at - b.at || a.clip - b.clip);
-    if (s.policy === 'silent') evs.length = 0;
-    if (evs.length > 255) throw new Error(`${s.id}: too many events`);
-    rows.push(`    {k${s.policy[0].toUpperCase()}${s.policy.slice(1)}, ${Math.round((s.intervalSeconds || 0) * 1000)}, ${events.length}, ${evs.length}},  // ${s.id}`);
-    events.push(...evs);
-  }
+  L.push('// An event list: kEvent[first] on, n of them, by time.', 'struct List {', '  uint16_t first;', '  uint8_t n;', '};', '');
+  L.push('struct Score {', '  Policy policy;', '  uint8_t every;     // sparse: the loops that sound are 0, every, 2 × every…',
+    '  bool duck;         // a mumble turns it down: all but needs you\'s, the finish\'s and an error\'s',
+    '  uint8_t lists;     // its loops\' event lists: 1, or kLoops for a routine design', '  uint16_t loop0;    // into kLoopList',
+    '  uint16_t voiceMs;  // its voice window\'s start: a mumble over it starts no sooner', '};', '');
   L.push('// Every design\'s timeline, by mood, then state, then variation.');
-  L.push('static const Score kScore[] = {', ...rows, '};', '');
+  L.push('static const Score kScore[] = {', ...scoreRows.map(r => '    ' + r), '};', '');
+  L.push('// Each score\'s loops\' lists, `lists` of them from its `loop0`, as indexes', '// into kList, which has each distinct list once.');
+  L.push('static const uint16_t kLoopList[] = {');
+  for (let i = 0; i < lists.length; i += 16) L.push('    ' + lists.slice(i, i + 16).join(', ') + ',');
+  L.push('};', '');
+  L.push('static const List kList[] = {');
+  for (let i = 0; i < spanRows.length; i += 8) L.push('    ' + spanRows.slice(i, i + 8).join(', ') + ',');
+  L.push('};', '');
   L.push('static const Event kEvent[] = {');
-  for (let i = 0; i < events.length; i += 6)
-    L.push('    ' + events.slice(i, i + 6).map(e => `{${e.at}, ${e.clip}, ${e.gain}, ${e.pitch}}`).join(', ') + ',');
+  for (let i = 0; i < eventRows.length; i += 6) L.push('    ' + eventRows.slice(i, i + 6).join(', ') + ',');
   L.push('};', '');
   const blob = Buffer.concat(clips.map(c => Buffer.from(c)));
   L.push('static const uint8_t kSamples[] = {');
   for (let i = 0; i < blob.length; i += 32) L.push('    ' + Array.from(blob.subarray(i, i + 32)).join(',') + ',');
   L.push('};', '', '}  // namespace sfx_assets', '');
   fs.writeFileSync(out, L.join('\n'));
-  console.log(`sfxgen: ${clips.length} clips, ${(bytes / 1024).toFixed(0)} KB, ${events.length} events in ${scores.length} timelines, version ${version}`);
+  const tables = scoreRows.length * 8 + lists.length * 2 + spanRows.length * 4 + eventRows.length * 6;
+  console.log(`sfxgen: ${clips.length} clips, ${(bytes / 1024).toFixed(0)} KB; ${scores.length} timelines, ` +
+    `${spanRows.length} event lists, ${eventRows.length} events, ${(tables / 1024).toFixed(0)} KB of tables; version ${version}`);
 
   if (wavDir) {
     fs.mkdirSync(wavDir, {recursive: true});

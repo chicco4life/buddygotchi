@@ -22,13 +22,13 @@ class EffectTrack {
   static constexpr int kMaxOut = 16;
 
   void reset();
-  // Follows `s`, the face at device time t, or silence when it's null (a
-  // test pattern). Its `t` is the design's clock as Behaviour::designMs
-  // gives it, which doesn't wrap: the timeline loops on its own. Fills
-  // `out` with the events now due, in order, and returns how many.
-  // `changed` is true when the design changed or started over: the last
-  // one's sounds stop before these play.
-  int follow(const render::SceneShow* s, uint32_t t, voice::FxEvent* out, bool& changed);
+  // Follows `s`, the face now, or silence when it's null (a test pattern).
+  // Its `t` is the design's clock as Behaviour::designMs gives it, which
+  // doesn't wrap: the timeline loops on its own, and its loops are counted
+  // from the design's start. Fills `out` with the events now due, in order,
+  // and returns how many. `changed` is true when the design changed or
+  // started over: the last one's sounds stop before these play.
+  int follow(const render::SceneShow* s, voice::FxEvent* out, bool& changed);
 
  private:
   bool on_ = false;  // following a design
@@ -39,10 +39,9 @@ class EffectTrack {
   uint32_t loopMs_ = 1;
   uint32_t lastT_ = 0;    // the design's clock last time
   uint32_t covered_ = 0;  // events before this, on the design's clock, are handled
-  int64_t cycle_ = -1;    // the loop covered_ is in, and whether it sounds
+  int64_t cycle_ = -1;    // the loop covered_ is in, whether it sounds, and its events
   bool cycleOn_ = false;
-  bool sparseEver_ = false;  // a sparse design last sounded at sparseAt_
-  uint32_t sparseAt_ = 0;
+  voice::Events list_;
 };
 
 }  // namespace app

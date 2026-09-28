@@ -141,7 +141,8 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     m.busy = doc["busy"] | 0;
     m.vol = heldTo(doc["vol"], 0, 10, 6);
     // The look's variation, from 1: missing reads as 1, and one out of range is held to it.
-    m.variant = uint8_t(heldTo(doc["variant"], 1, render::variants(m.attn ? render::SceneState::kNeedsYou : m.base), 1) - 1);
+    m.variant = uint8_t(
+        heldTo(doc["variant"], 1, render::variants(m.mood, m.attn ? render::SceneState::kNeedsYou : m.base), 1) - 1);
     b_.onState(m, at);
     if (m.attn || m.vol == 0) hush();  // VOICE.md §9
     if (m.vol == 0) hal_.stopEffects();
@@ -160,7 +161,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     } else {
       render::SceneState design =
           mo.anim == render::Anim::kListening ? render::SceneState::kListening : render::SceneState::kTaskComplete;
-      mo.variant = uint8_t(heldTo(doc["variant"], 1, render::variants(design), 1) - 1);
+      mo.variant = uint8_t(heldTo(doc["variant"], 1, render::variants(mo.expr ? mo.mood : b_.model().mood, design), 1) - 1);
     }
     mo.said = !doc["say"].isNull();
     mo.empty = doc["anim"].isNull() && !mo.said;  // the empty moment ends listening
@@ -396,7 +397,7 @@ void Device::followSound(uint32_t t) {
   show.t = b_.designMs(t);
   voice::FxEvent due[EffectTrack::kMaxOut];
   bool changed;
-  int n = fx_.follow(screenAt(t) == Screen::kPattern ? nullptr : &show, t, due, changed);
+  int n = fx_.follow(screenAt(t) == Screen::kPattern ? nullptr : &show, due, changed);
   if (changed) hal_.stopEffects();
   if (m.vol == 0) return;
   for (int i = 0; i < n; ++i) {
@@ -405,6 +406,7 @@ void Device::followSound(uint32_t t) {
     e.gain = due[i].gain;
     e.pitch = due[i].pitch;
     e.vol = uint8_t(m.vol);
+    e.duck = due[i].duck;
     hal_.effect(e);
     ++fxSent_;
     fxLast_ = e.clip;

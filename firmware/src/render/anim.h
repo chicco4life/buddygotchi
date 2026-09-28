@@ -22,8 +22,14 @@ const char* animName(Anim a);
 constexpr uint32_t kWiggleMs = 700;
 
 // Boop's mood, which picks the set of designs every look and animation is
-// drawn in (plan/PROTOCOL.md §3, plan/harness/DECISIONS.md §2.3).
-enum class Mood : uint8_t { kHappy, kExcited, kProud, kCurious, kDetermined, kGrumpy, kSad, kCount };
+// drawn in (plan/PROTOCOL.md §3, plan/harness/DECISIONS.md §2.3), in
+// faces.h's order: the first seven keep the numbers they had before the rest
+// came.
+enum class Mood : uint8_t {
+  kHappy, kExcited, kProud, kCurious, kDetermined, kGrumpy, kSad,
+  kCalm, kEngaged, kAnnoyed, kIrritated, kWhiny, kWounded,
+  kCount
+};
 Mood moodFromName(const char* name);  // kHappy if missing or unknown
 bool parseMood(const char* name, Mood& out);  // false, and `out` untouched, if missing or unknown
 const char* moodName(Mood m);

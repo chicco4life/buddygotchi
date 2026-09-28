@@ -1,22 +1,29 @@
-# The animation pack
+# The designs
 
-Release 2026-09-28 (V2), accepted by the owner: the device's faces, which
-`facegen` turns into `firmware/assets/faces.h`, the popover's tiles and
-the Mac's loop lengths ([plan/DEVICE.md](../../../../plan/DEVICE.md) §6).
+The device's faces come from the animation bank,
+[`internal/boop-design/boop-sound-bank-v4/`](../../../boop-design/boop-sound-bank-v4/README.md):
+its generator makes every design's SVG, and `facegen` turns them into
+`firmware/assets/faces.h`, the popover's tiles and the Mac's loop lengths
+([plan/DEVICE.md](../../../../plan/DEVICE.md) §6). Nothing here is drawn
+by hand, and no SVG is checked in: `facegen` runs `../bank.mjs` into
+`../build/` (ignored) each time.
 
-- `svg/<mood>/<state>/<mood>.<state>.<nn>.svg`: 7 moods × 7 states, three
-  variations each and working five. Asleep and no app look the same in
-  every mood. Listening is push-to-talk's face
-  ([plan/DEVICE.md](../../../../plan/DEVICE.md) §4), last in the device's
-  order so the other states keep their numbers.
-- `manifest.json`: the pack's catalogue, trimmed to these designs (each
-  one's name, action, caption, length and path).
+- `manifest.json`: the designs, in the device's order, which `facegen`
+  writes and `sfxgen` reads: each one's mood, state, variation (from 1
+  within its mood and state), name, length in seconds, the host fact it's
+  for (`outcome`, success or failure, for task_complete; `ctx`, new_task,
+  session or continuation, for starting), and its SVG dialect (`v2`, the
+  first pack's; `v3`, the older moods' newer states; `v4`, the new moods'
+  flip-books).
 
-The contract is the pack's: what picks a design is the mood and the
-state, and a variation is picked at random, never the last one
-([plan/BEHAVIORS.md](../../../../plan/BEHAVIORS.md) §2). Working, idle,
-asleep, no app and listening loop; needs you's performance plays once and
-holds its pending pose; the cheer (task complete) plays the loops the
-brain picks.
-The pack's procedural sounds, its browser player and its build scripts
-aren't used yet, and stay with the pack.
+13 moods × 22 states, 770 designs. The older seven moods keep the first
+pack's designs byte for byte (the bank's `qa/v3-fingerprints.json`, which
+`facegen` checks) and have one or two of most newer states; the six new
+moods have three of each. Asleep and no app look the same in every older
+mood, and in every new one.
+
+What picks a design is the mood and the state, and a variation is picked
+at random, never the last one, among those for the host fact if there
+is one ([plan/BEHAVIORS.md](../../../../plan/BEHAVIORS.md) §2). To take a
+new version of the bank, update it in `internal/boop-design/`, run its
+checks, then `make -C internal faces` and `node internal/tools/sfxgen/sfxgen.mjs`.

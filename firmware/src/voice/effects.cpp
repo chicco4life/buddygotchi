@@ -12,15 +12,12 @@ namespace {
 constexpr uint32_t kCutFade = kOutRate * 4 / 1000;
 
 static_assert(sfx_assets::kRate * 2 == kOutRate, "clips are half the output rate, as the voice's are");
+static_assert(sfx_assets::kLoops == kLoops, "the baked loops");
 
 int scoreIndex(int mood, int state, int variant) {
   if (mood < 0 || mood >= sfx_assets::kMoods || state < 0 || state >= sfx_assets::kStates) return -1;
-  if (variant < 0 || variant >= sfx_assets::kVariants[state]) variant = 0;
-  int i = 0;
-  for (int s = 0; s < sfx_assets::kStates; ++s) i += sfx_assets::kVariants[s];
-  i *= mood;
-  for (int s = 0; s < state; ++s) i += sfx_assets::kVariants[s];
-  return i + variant;
+  if (variant < 0 || variant >= sfx_assets::kVariants[mood][state]) variant = 0;
+  return sfx_assets::kFirst[mood][state] + variant;
 }
 
 }  // namespace
@@ -31,9 +28,20 @@ Score score(int mood, int state, int variant) {
   const sfx_assets::Score& s = sfx_assets::kScore[i];
   Score out;
   out.policy = Policy(s.policy);
-  out.intervalMs = s.intervalMs;
-  out.first = s.first;
-  out.n = s.n;
+  out.every = s.every;
+  out.duck = s.duck;
+  out.voiceMs = s.voiceMs;
+  out.lists = s.lists;
+  out.loop0 = s.loop0;
+  return out;
+}
+
+Events events(const Score& s, uint32_t loop) {
+  if (s.lists <= 0) return {};
+  const sfx_assets::List& l = sfx_assets::kList[sfx_assets::kLoopList[s.loop0 + int(loop % uint32_t(s.lists))]];
+  Events out;
+  out.first = l.first;
+  out.n = l.n;
   return out;
 }
 
@@ -54,7 +62,6 @@ int effectIndex(const char* name) {
     if (name && std::strcmp(name, sfx_assets::kClip[i].name) == 0) return i;
   return -1;
 }
-bool effectAlert(int clip) { return clip >= 0 && clip < sfx_assets::kClips && sfx_assets::kClip[clip].alert; }
 const char* effectsVersion() { return sfx_assets::kVersion; }
 uint32_t effectsBytes() { return sfx_assets::kBytes; }
 
@@ -73,7 +80,7 @@ void Effects::play(const Effect& e) {
   // Clips are 11.025 kHz and the output 22.05 kHz: half a source sample per step.
   v->step = uint32_t(e.pitch) * 32768u / 1000u;
   v->gain = int(e.gain) * (int(e.vol > 10 ? 10 : e.vol) * 256 / 10);
-  v->alert = effectAlert(e.clip);
+  v->duck = e.duck;
   v->fade = 0;
   v->seq = ++seq_;
 }
@@ -104,7 +111,7 @@ void Effects::mix(uint8_t* out, size_t n, bool duck) {
       const uint8_t* d = sfx_assets::kSamples + c.at;
       int a = int(d[k]) - 128, b = int(d[k + 1]) - 128;
       int s = a + int((int64_t(b - a) * f) >> 16);
-      int g = duck && !v.alert ? v.gain * kDuck / 256 : v.gain;
+      int g = duck && v.duck ? v.gain * kDuck / 256 : v.gain;
       s = int((int64_t(s) * g) >> 16);
       if (v.fade) {
         s = s * int(v.fade) / int(kCutFade);

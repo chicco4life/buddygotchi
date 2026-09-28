@@ -15,8 +15,10 @@ REPO = Path(__file__).resolve().parents[3]
 
 # The animation set (BEHAVIORS.md §5).
 ANIMS = ["cheer", "wiggle"]
-# Boop's moods, as `state` carries them (PROTOCOL.md §3, harness/DECISIONS.md §2.3).
-MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad"]
+# Boop's moods, as `state` carries them, in the device's order (PROTOCOL.md §3,
+# harness/DECISIONS.md §2.3).
+MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad",
+         "calm", "engaged", "annoyed", "irritated", "whiny", "wounded"]
 
 
 def boopdev_voice(feeling: str, word: str | None, count: int, seed: int | None = None) -> list[dict]:

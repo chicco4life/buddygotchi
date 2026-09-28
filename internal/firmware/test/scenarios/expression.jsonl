@@ -50,7 +50,7 @@
 // An unknown mood is ignored: the state's mood, and the mumble plays.
 {"clock":20000}
 {"t":"state","v":1,"base":"idle","mood":"curious"}
-{"t":"moment","say":{"syl":"ba po","ms":120},"mood":"annoyed"}
+{"t":"moment","say":{"syl":"ba po","ms":120},"mood":"cheerful"}
 {"expect":{"expr":null,"mood":"curious","audio":{"playing":true}}}
 // Needs you: nothing plays, and no face is borrowed.
 {"t":"state","v":1,"base":"idle","mood":"curious","attn":{"agent":"claude","project":"x","more":0}}
