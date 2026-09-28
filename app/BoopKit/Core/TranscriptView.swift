@@ -276,6 +276,12 @@ public final class TranscriptView {
     /// many view events woke the brain in it (EVENTS.md §4).
     public func reacted() { nextWorkBeatAt = nil }
 
+    /// The agent and the name of the thread `key` names (the view event's
+    /// `about`), as its lines name it: its workspace, else its project.
+    public func who(about key: String) -> (agent: String, thread: String)? {
+        threads[key].map { ($0.agent.short, $0.name) }
+    }
+
     func index(of id: Int) -> Int? {
         guard let first = events.first else { return nil }
         let at = id - first.id

@@ -1245,6 +1245,39 @@ static void test_no_app_at_30s_and_reconnect_blinks_back() {
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t + render::kBlendMs));
 }
 
+// BEHAVIORS.md §5: a cheer with `who` names that agent and thread in the
+// strip while it plays, and no longer; a wiggle, or a cheer without one,
+// names nobody.
+static void test_a_cheer_names_whose_turn_in_the_strip() {
+  Rig r;
+  r.at(1000);
+  Model m = base("idle");
+  m.busy = 1;
+  r.state(m);
+  MomentIn in;
+  in.anim = Anim::kCheer;
+  in.whoAgent = "codex";
+  in.whoThread = "fix-nav";
+  r.b.onMoment(in, r.t);
+  render::Strip strip = r.b.strip(r.t);
+  TEST_ASSERT_EQUAL_STRING("codex", strip.doneAgent);
+  TEST_ASSERT_EQUAL_STRING("fix-nav", strip.doneThread);
+  TEST_ASSERT_NULL(strip.agent);
+  TEST_ASSERT_EQUAL(1, strip.busy);
+  uint32_t left;
+  r.b.moment(r.t, left);
+  r.at(r.t + left - 1);
+  TEST_ASSERT_EQUAL_STRING("codex", r.b.strip(r.t).doneAgent);
+  r.at(r.t + 1);
+  TEST_ASSERT_NULL(r.b.strip(r.t).doneAgent);  // gone with the cheer
+  r.b.onMoment(in, r.t);
+  r.b.tap(r.t);  // a tap's wiggle replaces it
+  TEST_ASSERT_NULL(r.b.strip(r.t).doneAgent);
+  r.at(r.t + 5000);
+  r.moment(Anim::kCheer);  // no `who`
+  TEST_ASSERT_NULL(r.b.strip(r.t).doneAgent);
+}
+
 static void test_press_shows_within_20ms() {
   Rig r;
   r.state(base("idle"));
@@ -1373,6 +1406,7 @@ int main() {
   RUN_TEST(test_each_look_shows_its_design_in_the_mood);
   RUN_TEST(test_the_looks_variations_take_turns);
   RUN_TEST(test_no_app_at_30s_and_reconnect_blinks_back);
+  RUN_TEST(test_a_cheer_names_whose_turn_in_the_strip);
   RUN_TEST(test_press_shows_within_20ms);
   RUN_TEST(test_gestures_send_the_right_inputs);
   RUN_TEST(test_a_long_touch_during_needs_you_is_a_tap);

@@ -80,14 +80,15 @@ enum Snapshots {
     }
 
     /// `sessions` are agent, project, `wait`, `work` or `idle`, and
-    /// optionally the thread's name.
+    /// optionally the thread's name and its workspace.
     static func status(base: String = "working", sessions rows: [[String]] = [], vol: Int = 6,
                        connected: Bool = true, personality: Personality = .boop,
                        name: String = "Mochi", brain: String = "jev:jev-latest",
                        mood: String = MoodAction.initial, brainTrouble: BrainTrouble? = nil) -> Runtime.Status {
         let statuses: [String: SessionSummary.Status] = ["wait": .waiting, "work": .working, "idle": .idle]
         let sessions = rows.map {
-            SessionSummary(agent: $0[0], project: $0[1], name: $0.count > 3 ? $0[3] : nil, status: statuses[$0[2]]!)
+            SessionSummary(agent: $0[0], project: $0[1], name: $0.count > 3 && !$0[3].isEmpty ? $0[3] : nil,
+                           workspace: $0.count > 4 ? $0[4] : nil, status: statuses[$0[2]]!)
         }
         let wait = sessions.filter { $0.status == .waiting }
         let snapshot = StateSnapshot(
@@ -107,11 +108,12 @@ enum Snapshots {
         [
             ("asleep", model(installer, status: status(base: "asleep"))),
             ("working", model(installer, status: status(sessions: [
-                ["codex", "landing", "work"], ["codex", "buddygotchi", "work"],
+                ["codex", "landing", "work"], ["codex", "buddygotchi", "work", "", "main"],
+                ["claude", "buddygotchi", "work", "", "cheer-thread-name"], ["claude", "buddygotchi", "work", "", "heartbeat-fix"],
                 ["claude", "jetpack", "work"], ["claude", "notes", "idle"],
             ], mood: "determined"))),
             ("needs-you", model(installer, status: status(sessions: [
-                ["codex", "landing-page-redesign-v2", "wait", "Fix the hero image on mobile"], ["claude", "jetpack", "wait"],
+                ["codex", "landing-page-redesign-v2", "wait", "Fix the hero image on mobile", "fix-nav"], ["claude", "jetpack", "wait"],
                 ["codex", "buddygotchi", "work"], ["claude", "notes", "idle"],
             ]))),
             ("chatter", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], personality: .chatter))),

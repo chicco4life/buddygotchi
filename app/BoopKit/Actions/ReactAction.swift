@@ -17,16 +17,21 @@ public final class ReactAction: Action {
     let queue: (DeviceMoment, Pending) -> Void
     /// Why a mumble can't play now (something needs you), or nil.
     let blocked: () -> String?
+    /// The agent and thread NOW is about, or nil (a poke, an idle
+    /// heartbeat): a cheer names it on the device.
+    let who: () -> DeviceMoment.Who?
     /// Each line gets the next seed, so a logged line can be replayed.
     var seed: UInt64 = 0
     /// Picks each cheer's variation, never the last one (BEHAVIORS.md §5).
     var variants = SplitMix64(seed: 0xB00B)
     var lastCheer: Int?
 
-    public init(voice: Voice, queue: @escaping (DeviceMoment, Pending) -> Void, blocked: @escaping () -> String?) {
+    public init(voice: Voice, queue: @escaping (DeviceMoment, Pending) -> Void, blocked: @escaping () -> String?,
+                who: @escaping () -> DeviceMoment.Who? = { nil }) {
         self.voice = voice
         self.queue = queue
         self.blocked = blocked
+        self.who = who
     }
 
     static func article(_ word: String) -> String { "aeiou".contains(word.first ?? "x") ? "an" : "a" }
@@ -148,12 +153,14 @@ public final class ReactAction: Action {
         let loops = Self.loops(answers)
         let anim = Self.animation(answers)
         var variant: Int?
+        var who: DeviceMoment.Who?
         if anim == "cheer" {
             variant = Core.pickVariant(state: "task_complete", avoiding: lastCheer, &variants)
             lastCheer = variant
+            who = self.who()
         }
         let pending = Pending()
-        queue(DeviceMoment(anim: anim, say: line, mood: choice, loops: loops, variant: variant), pending)
+        queue(DeviceMoment(anim: anim, say: line, mood: choice, loops: loops, variant: variant, who: who), pending)
         // 5. What it started, as its line in HISTORY: in progress until
         // the device says how the moment ended.
         let did = anim.map { "Boop played \(Self.article($0)) \($0) in \(Self.article(choice)) \(choice) face" }

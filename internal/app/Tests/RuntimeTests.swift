@@ -587,6 +587,7 @@ final class RuntimeTests: XCTestCase {
         let cheer = moments()[before]
         XCTAssertTrue(cheer.hasPrefix(#"{"t":"moment","anim":"cheer","say":"#), "one moment: \(cheer)")
         XCTAssertTrue(cheer.contains(#""mood":"excited","loops":1,"variant":"#) && cheer.contains(#""id":"#), "in its face, held once, a variation, waited on: \(cheer)")
+        XCTAssertTrue(cheer.contains(#""who":{"agent":"claude","thread":"jetpack"},"id":"#), "names whose turn: \(cheer)")
         XCTAssertEqual(moments().count, before + 1, "no rule cheer besides")
     }
 

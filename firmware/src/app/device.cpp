@@ -153,6 +153,8 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     mo.loops = heldTo(doc["loops"], 1, Behaviour::kMaxLoops, 1);
     // The cheer's variation, from 1: missing reads as 1, and one out of range is held to it.
     mo.variant = uint8_t(heldTo(doc["variant"], 1, render::variants(render::SceneState::kTaskComplete), 1) - 1);
+    JsonObjectConst who = doc["who"];  // copied by onMoment, while doc lives
+    if (who) mo.whoAgent = who["agent"] | "", mo.whoThread = who["thread"] | "";
     voice::Line line;
     JsonObjectConst say = doc["say"];
     if (say) {

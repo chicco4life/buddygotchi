@@ -25,6 +25,10 @@ struct Strip {
   const char* project = "";
   const char* name = "";
   int more = 0;
+  // While a cheer plays, whose turn it cheers (oat, with a tick; null
+  // for none). Needs you's names win: the cheer doesn't play then.
+  const char* doneAgent = nullptr;
+  const char* doneThread = "";
   int busy = 0;  // sessions working (grey; hidden at zero)
   bool noApp = false;
 };

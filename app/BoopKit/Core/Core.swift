@@ -50,6 +50,9 @@ public final class Core {
         /// request brought: the strip shows it in the project's place
         /// (BEHAVIORS.md §3.2).
         var name: String?
+        /// The thread's workspace: a linked worktree's folder or the
+        /// branch, which tells two sessions in one project apart.
+        var workspace: String?
         /// Working on a turn: not idle, and not waiting on "needs you".
         var working = false
         /// When the turn now open started, and when the last one ended: a
@@ -139,6 +142,10 @@ public final class Core {
     }
 
     static func key(_ agent: Agent, _ id: String) -> String { agent.rawValue + "/" + id }
+
+    /// The name a request brought for the session `key` names (the view's
+    /// keys are the same), or nil.
+    public func name(about key: String) -> String? { sessions[key]?.name }
 
     /// The asker of a request that came as a `Notification` alone, which
     /// doesn't say who asked: any event from the session answers it.
@@ -232,8 +239,9 @@ public final class Core {
         // A session is where its events come from, except while a request
         // waits: the strip names where that was made, whatever folder a
         // sibling subagent works in meanwhile (BEHAVIORS.md §3.2).
-        if let project = place?.project, project != "unknown", !waiting {
-            s.project = project
+        if let place, place.project != "unknown", !waiting {
+            s.project = place.project
+            s.workspace = place.workspace
         }
 
         if step == .needsYou {
@@ -653,16 +661,20 @@ public struct SessionSummary: Equatable, Sendable {
     public var project: String
     /// The thread's name, once a request brought one.
     public var name: String?
+    /// The thread's workspace: a linked worktree's folder or the branch,
+    /// or nil when the folder has neither.
+    public var workspace: String?
     public var status: Status
 
-    public init(agent: String, project: String, name: String? = nil, status: Status) {
+    public init(agent: String, project: String, name: String? = nil, workspace: String? = nil, status: Status) {
         self.agent = agent
         self.project = project
         self.name = name
+        self.workspace = workspace
         self.status = status
     }
 
     init(_ s: Core.Session, _ status: Status) {
-        self.init(agent: s.agent.short, project: s.project, name: s.name, status: status)
+        self.init(agent: s.agent.short, project: s.project, name: s.name, workspace: s.workspace, status: status)
     }
 }

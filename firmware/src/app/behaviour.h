@@ -78,6 +78,10 @@ struct MomentIn {
   // many loops of the design it's drawn in the face holds. A wiggle
   // ignores it.
   int loops = 1;
+  // With the cheer, whose turn it cheers (`who`): named in the strip
+  // while it plays. Null for none.
+  const char* whoAgent = nullptr;
+  const char* whoThread = nullptr;
   // The Mac waits on it when `id` isn't 0 (PROTOCOL.md §3): its end comes
   // back as an Ended with this id and `from`, which is Device's link and
   // passes through untouched.
@@ -175,6 +179,8 @@ class Behaviour {
     uint8_t variant = 0;  // the cheer's
     uint32_t at = 0, ms = 0;
     uint32_t id = 0;
+    char agent[12] = "";  // the cheer's `who`; empty for none
+    char thread[24] = "";
   };
   // A mumble: the bubble, and the mouth following the syllables. It plays
   // over whatever face is showing.

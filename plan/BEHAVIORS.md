@@ -359,7 +359,12 @@ no rule does, so a finished turn is celebrated only when Jev reacts to
 it with `react.animation: cheer`. Which of the cheer's three variations
 plays is picked at random, never the last one, by `react` when it cheers
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5); the brain never sees
-them.
+them. While a cheer for a thread's turn plays, the strip says whose:
+a tick, then the agent and the thread (`codex · fix-nav`: its name as
+the agent's app shows it once a request brought one, else the worktree
+or branch, else the project), in white on a black band, since the
+cheer's design is colour to the edges. It goes with the cheer: when it
+ends, or a tap's wiggle or needs you cuts it.
 
 The brain's reaction is a mumble with a face:
 whatever look is showing is drawn in the reaction's

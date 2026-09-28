@@ -292,6 +292,10 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
     if (anim) {
       play(in.anim, t, CutBy::kMoment, in.loops, in.expr ? in.mood : model_.mood, in.variant);
       moment_.id = in.id;
+      if (in.anim == render::Anim::kCheer && in.whoAgent && in.whoAgent[0]) {
+        copyStr(moment_.agent, sizeof(moment_.agent), in.whoAgent);
+        copyStr(moment_.thread, sizeof(moment_.thread), in.whoThread);
+      }
     }
     if (mumble) startSay(in, t), say_.id = in.id;
     if (in.expr) {
@@ -457,13 +461,16 @@ uint8_t Behaviour::blTarget(uint32_t t) const {
 }
 
 // With no app the Mac's counts are stale, so only the unplugged
-// icon shows (BEHAVIORS.md §3.4).
+// icon shows (BEHAVIORS.md §3.4). While a cheer plays, whose turn it
+// cheers (BEHAVIORS.md §5).
 render::Strip Behaviour::strip(uint32_t t) const {
   render::Strip s;
   s.noApp = noApp(t);
   if (s.noApp) return s;
   s.busy = model_.busy;
   if (model_.attn) s.agent = model_.agent, s.project = model_.project, s.name = model_.name, s.more = model_.more;
+  if (momentOn(t) && moment_.anim == render::Anim::kCheer && moment_.agent[0])
+    s.doneAgent = moment_.agent, s.doneThread = moment_.thread;
   return s;
 }
 

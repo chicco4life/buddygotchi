@@ -1,6 +1,6 @@
 // Every animation (BEHAVIORS.md §5), at a characteristic frame. The cheer
 // plays its `loops` of happy's task-complete design (6.4 s), one when the
-// moment doesn't say.
+// moment doesn't say. With `who`, the strip names whose turn it cheers.
 {"clock":0}
 {"t":"state","v":1,"base":"idle"}
 {"clock":10000}
@@ -11,6 +11,13 @@
 {"clock":16399}
 {"expect":{"moment":{"anim":"cheer","left_ms":1}}}
 {"clock":16400}
+{"expect":{"moment":null}}
+{"t":"state","v":1,"base":"idle","busy":2}
+{"clock":20000}
+{"t":"moment","anim":"cheer","who":{"agent":"codex","thread":"landing-page-redesig.."}}
+{"clock":20190}
+{"shot":"cheer_who"}
+{"clock":26400}
 {"expect":{"moment":null}}
 {"t":"state","v":1,"base":"idle"}
 {"clock":30000}

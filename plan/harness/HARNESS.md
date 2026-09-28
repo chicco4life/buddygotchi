@@ -161,6 +161,10 @@ final class Pending {
   unique across all actions; the harness won't start otherwise.
 - It gets the answers to its own questions and no others. From Jev
   that's all of them, since an answer missing one is dropped whole (§7).
+- While they run, `Harness.acting` holds the NOW they answer, so
+  whoever wired an action can ask the view what it's about (`react`'s
+  cheer names the thread this way). The harness only holds it; nil for a
+  forced pass.
 - Actions run one at a time, in registration order, on `home`. A body
   with slow work hands it off and returns at once. One that takes over
   **300 ms** (`Harness.actionSlowMs`) is logged, since it holds up

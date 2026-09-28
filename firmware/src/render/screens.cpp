@@ -81,11 +81,19 @@ void iconNoApp(Canvas& c, int x, int y) {  // a plug on its cord, pointing at no
   c.fillRect(x + 10, y + 9, 4, 2, g);
 }
 
+void iconTick(Canvas& c, int x, int y, uint8_t ink) {  // a tick, 2 px strokes
+  for (int i = 0; i < 4; ++i) c.fillRect(x + 1 + i, y + 7 + i, 2, 2, ink);
+  for (int i = 0; i < 7; ++i) c.fillRect(x + 5 + i, y + 9 - i, 2, 2, ink);
+}
+
 }  // namespace
 
 void drawStrip(Canvas& c, const Strip& s) {
   // An empty strip is bare glass: no divider under the face.
-  if (!s.agent && s.busy <= 0 && !s.noApp) return;
+  if (!s.agent && !s.doneAgent && s.busy <= 0 && !s.noApp) return;
+  // The cheer's design fills the screen with colour: its names get a
+  // black band to be read on.
+  if (s.doneAgent) c.fillRect(0, kStripTop, kWidth, kHeight - kStripTop, kBlack);
   c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 1, inkAt(kInkDim, kLevels));
   const int cy = kStripCy, ty = cy - 10;
   int x = kMargin;
@@ -104,6 +112,13 @@ void drawStrip(Canvas& c, const Strip& s) {
     x = drawStringFit(c, kSmall, x + 15, ty, who, kInkAmber, room);
     if (more[0]) x = drawString(c, kSmall, x + 8, ty, more, kInkGrey);
     x += 14;
+  } else if (s.doneAgent) {
+    iconTick(c, x - 1, cy - 8, inkAt(kInkEye, kLevels));
+    // Who finished, cut to leave room for the working count.
+    int room = kWidth - kMargin - (x + 15) - (s.busy > 0 ? 29 + stringWidth(kSmall, busy) : 0);
+    char who[48];
+    std::snprintf(who, sizeof(who), "%s \xC2\xB7 %s", s.doneAgent, s.doneThread ? s.doneThread : "");
+    x = drawStringFit(c, kSmall, x + 15, ty, who, kInkEye, room) + 14;
   }
   if (s.busy > 0) {
     fillRing(c, px(x + 5), px(cy), px(5), px(3), kInkGrey);

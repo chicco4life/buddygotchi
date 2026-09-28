@@ -176,10 +176,15 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertEqual(DeviceMoment(say: line, mood: "proud", loops: 3, id: 12).jsonLine,
                        #"{"t":"moment","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"mood":"proud","loops":3,"id":12}"#)
         XCTAssertEqual(DeviceMoment(anim: "cheer", loops: 1).jsonLine, #"{"t":"moment","anim":"cheer","loops":1}"#)
+        // A cheer names whose turn it cheers, the thread cut as names are.
+        XCTAssertEqual(DeviceMoment(anim: "cheer", loops: 2, variant: 3, who: .init(agent: "codex", thread: "fix-nav"), id: 7).jsonLine,
+                       #"{"t":"moment","anim":"cheer","loops":2,"variant":3,"who":{"agent":"codex","thread":"fix-nav"},"id":7}"#)
+        XCTAssertEqual(DeviceMoment.Who(agent: "claude", thread: "claude/cheer-animation-thread-codex").thread, "claude/cheer-animatio..")
         let longest = VoiceLine(groups: [Array(repeating: "zzz", count: 8)], word: String(repeating: "w", count: 23), at: 8,
                                 tune: .bounce, ms: 180)
+        let longestWho = DeviceMoment.Who(agent: "claude", thread: String(repeating: "\u{1}", count: 23))
         XCTAssertLessThanOrEqual(DeviceMoment(anim: "wiggle", say: longest, mood: "determined", loops: DeviceMoment.maxLoops,
-                                              id: Int(Int32.max)).jsonLine.utf8.count,
+                                              variant: 5, who: longestWho, id: Int(Int32.max)).jsonLine.utf8.count,
                                  StateSnapshot.maxLine)
     }
 

@@ -294,13 +294,19 @@ public final class Runtime: @unchecked Sendable {
         let moments = self.moments
         let home = self.home
         var moodSaved: (String) -> Void = { _ in }
+        var acting: () -> ViewEvent? = { nil }
         let moodChanges = MoodAction(store: mood, clock: clock, changed: { moodSaved($0) })
         moodAction = moodChanges
         let react = ReactAction(voice: voice, queue: { moment, pending in
             view.reacted()  // the working heartbeat waits from here (EVENTS.md §4)
             moments.schedule.brain(moment, pending, now: clock())
             Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
-        }, blocked: { core.mumbleBlock })
+        }, blocked: { core.mumbleBlock }, who: {
+            // The thread's name as its agent's app shows it, once a request
+            // brought one, else the view's: its workspace, else its project.
+            guard let key = acting()?.about, let who = view.who(about: key) else { return nil }
+            return DeviceMoment.Who(agent: who.agent, thread: core.name(about: key) ?? who.thread)
+        })
         let actions: [any Action] = [moodChanges, react]
         let steering = options.steering
         let mood = self.mood
@@ -345,6 +351,7 @@ public final class Runtime: @unchecked Sendable {
         harness.whyNotStart = { pipeline.whyNotWake($0) }
         personalityNow = { [weak self] in self?.personality ?? .boop }
         moodSaved = { [weak self] in self?.moodChanged($0) }
+        acting = { [weak self] in self?.harness.acting }
         // A pass can change the mood, which the menu bar shows.
         harness.onRecord = { [weak self] record in
             log(record.logLine)

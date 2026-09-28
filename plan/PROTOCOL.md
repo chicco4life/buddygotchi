@@ -180,6 +180,9 @@ twice (a forced pass, from a dev line on the hook socket):
 | `mood` | one of `state`'s moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5). A wiggle never carries one | The expression: while this moment plays, the look (or the cheer) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
 | `loops` | int, optional | How many loops of its design a reaction's face holds, as Jev picked ([harness/DECISIONS.md](harness/DECISIONS.md) §5). None on a wiggle | Held to 1–6. Missing reads as 1. With the cheer, how many times its design plays. With a `mood` and no animation, how many loops of the design it's drawn in the face holds (below). A wiggle ignores it |
 | `variant` | int ≥ 1, optional | With the cheer: which of its variations plays, picked at random by `react`, never the last one ([harness/DECISIONS.md](harness/DECISIONS.md) §5) | The animation's variation. Missing reads as 1, and one past its variations is held to its last. A face with no animation takes the look's variation showing |
+| `who` | object, optional | With a brain reaction that cheers for a thread's turn: whose it is. None for a cheer about no thread (a poke, an idle heartbeat) | While the cheer plays, the strip names them ([BEHAVIORS.md](BEHAVIORS.md) §5). Ignored without the cheer |
+| `who.agent` | `claude` or `codex` | The thread's agent | Kept in 11 bytes |
+| `who.thread` | string, at most 23 bytes of UTF-8 | The thread's name: as its agent's app shows it once a request brought one (`attn.name`'s), else its workspace (a linked worktree's folder, else the branch), else its project, cut as `attn.project` is | Kept in 23 bytes |
 | `id` | int 1–2147483647, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Each time the app starts, its ids start at a random number and count up (back to 1 after 2147483647), so a moment an earlier launch left playing can't share an id with a new one | Answered with one `ended` carrying this `id` (§4). Missing, or anything but an integer from 1 to 4,294,967,295 (a fraction too): no `ended` |
 
 A tap's wiggle plays at once. A brain mumble waits its turn behind
@@ -197,7 +200,8 @@ in `FaceLoops`.
 - An animation replaces the moment playing, and stops any line. The
   cheer plays its `loops` of its design, which starts over each time,
   timed by the design of the mood it's drawn in when it starts; a wiggle
-  lasts 0.7 s.
+  lasts 0.7 s. A cheer with `who` names them in the strip for as long
+  as it plays.
 - A mumble with no animation plays over whatever face is showing and
   replaces any line playing. With an animation in the same moment, as a
   reaction that cheers sends, its bubble stays up at least as long as

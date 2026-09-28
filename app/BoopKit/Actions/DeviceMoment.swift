@@ -6,8 +6,23 @@ import Foundation
 /// expression: the device draws that mood's version of the look while the
 /// moment plays. The rules' moments never carry one. Whoever plays the
 /// cheer or a face says how many `loops` of its design. A moment the app
-/// waits on has an `id`, which the device's `ended` gives back (§4).
+/// waits on has an `id`, which the device's `ended` gives back (§4). A
+/// cheer for a thread's turn says `who`: the device names it in the strip
+/// while the cheer plays.
 public struct DeviceMoment: Equatable, Sendable {
+    /// The agent and thread a cheer is for.
+    public struct Who: Equatable, Sendable {
+        /// `claude` or `codex`.
+        public var agent: String
+        /// The thread's name, cut as `StateSnapshot.clip` cuts names.
+        public var thread: String
+
+        public init(agent: String, thread: String) {
+            self.agent = agent
+            self.thread = StateSnapshot.clip(thread, marked: true)
+        }
+    }
+
     public var anim: String?
     public var say: VoiceLine?
     public var mood: String?
@@ -18,15 +33,18 @@ public struct DeviceMoment: Equatable, Sendable {
     /// The animation's variation (the cheer's), from 1; nil sends none,
     /// which the device reads as 1.
     public var variant: Int?
+    /// With the cheer, whose turn it cheers; nil sends none.
+    public var who: Who?
     public var id: Int?
 
     public init(anim: String? = nil, say: VoiceLine? = nil, mood: String? = nil, loops: Int? = nil,
-                variant: Int? = nil, id: Int? = nil) {
+                variant: Int? = nil, who: Who? = nil, id: Int? = nil) {
         self.anim = anim
         self.say = say
         self.mood = mood
         self.loops = loops
         self.variant = variant
+        self.who = who
         self.id = id
     }
 
@@ -80,6 +98,9 @@ public struct DeviceMoment: Equatable, Sendable {
         if let mood { parts.append("\"mood\":\"\(mood)\"") }
         if let loops { parts.append("\"loops\":\(loops)") }
         if let variant { parts.append("\"variant\":\(variant)") }
+        if let who {
+            parts.append("\"who\":{\"agent\":\(Event.quote(who.agent)),\"thread\":\(Event.quote(who.thread))}")
+        }
         if let id { parts.append("\"id\":\(id)") }
         return "{" + parts.joined(separator: ",") + "}"
     }

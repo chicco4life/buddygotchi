@@ -167,7 +167,10 @@ The view's, in `TranscriptView.Config`, which the tick asks it about:
 has needed you longest, with how many more do; how many work; the
 volume ([PROTOCOL.md](PROTOCOL.md) §3). The popover's session list is
 derived the same way, and can change while the snapshot doesn't, as
-when a second idle session starts.
+when a second idle session starts. Each row names the project and,
+small beside it, the thread: its name once a request brought one, else
+its workspace (a linked worktree's folder, else the branch), so several
+sessions in one repo tell apart.
 
 **Clocks.** Timers run on a steady clock that never steps and keeps
 counting while the Mac sleeps, so setting the Mac's clock back can't
@@ -614,3 +617,4 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-28 | A reaction a tap cut short stays in HISTORY, `(in progress)` while the pokes go on (each within 3 s) and plain after, where any other reaction that ended failed is left out. And a poke doesn't wake the brain while the brain's reaction to its run's pokes in a row is in progress, unless the mood changed since it started. This narrows the row above's "every poke wakes the brain" | Each barrage of pokes got two "nope"s: the tap that cut the first one's pass saw no reaction and made it again. Keeping it in HISTORY alone still left Jev repeating it on half the passes (it matches PERSONALITY's Example word for word), and steering that stopped the repeats also stopped later rounds getting their face. A single poke's reaction doesn't hold the run, so a barrage can still turn a happy poke grumpy (eval `23`) | [harness/EVENTS.md](harness/EVENTS.md) §6–7 |
 | 2026-09-28 | The topic words gain "bug", "merge" and "review", already recorded, which Jev reads from your prompt and the agent's last message rather than a hook's tag. PERSONALITY names them in one line, with no Examples | The notes made these topics visible without new detection. Three Examples put `boop` at 729 tokens, over its 600 budget, and the option meanings alone got 10 of 10 in each new scenario | [harness/DECISIONS.md](harness/DECISIONS.md) §3, [VOICE.md](VOICE.md) §6, [evidence](evidence/2026-09-28-topic-words/README.md) |
 | 2026-09-28 | In a long grind Boop's mood may ease back to happy between check-ins and return to determined; `18-long-grind` drops its limit of 3 mood changes and keeps the one against flipping back within a minute | The owner's call: with check-ins every 1.5–3 minutes, happy → determined → happy → determined → excited over twenty minutes is expected, and the limit failed on main in 10 of 15 runs | [EVALS.md](EVALS.md) §4 |
+| 2026-09-28 | A cheer for a thread's turn names it: `moment.who` (agent and thread) goes with the cheer, and the strip shows it on a black band while the cheer plays. The popover's rows show each session's thread beside its project. Needs a reflash | A cheer said something finished but not which of several agents in one repo, and the popover listed six rows all named `buddygotchi` | [PROTOCOL.md](PROTOCOL.md) §3, [BEHAVIORS.md](BEHAVIORS.md) §5 |

@@ -164,8 +164,11 @@ struct OverviewPane: View {
                     .foregroundStyle(Theme.amberInk)
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(project.isEmpty ? agent : "\(agent) · \(project)")
-                        .font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        Text(project.isEmpty ? agent : "\(agent) · \(project)")
+                            .font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                        if let workspace = waiting?.workspace { ThreadName(workspace) }
+                    }
                     if !name.isEmpty {
                         Text(name).font(.system(size: 11, weight: .medium)).lineLimit(1).truncationMode(.tail)
                     }
@@ -212,7 +215,8 @@ struct OverviewPane: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Theme.inkSoft)
                         ForEach(KeyedSession.rows(status.sessions.filter { $0.agent == agent.rawValue })) { row in
-                            SessionRow(project: row.session.project, status: row.session.status)
+                            SessionRow(project: row.session.project, thread: row.session.name ?? row.session.workspace,
+                                       status: row.session.status)
                         }
                     }
                 }
@@ -269,8 +273,8 @@ func agentSymbol(_ short: String) -> String {
     }
 }
 
-/// A session keyed by its project and which of that project's sessions it
-/// is, so a row that changes status moves, instead of the row in its old
+/// A session keyed by its project and thread and which of those sessions
+/// it is, so a row that changes status moves, instead of the row in its old
 /// place crossfading to another project.
 struct KeyedSession: Identifiable {
     let id: String
@@ -279,18 +283,33 @@ struct KeyedSession: Identifiable {
     static func rows(_ sessions: [SessionSummary]) -> [KeyedSession] {
         var seen: [String: Int] = [:]
         return sessions.map { s in
-            let n = seen[s.project, default: 0]
-            seen[s.project] = n + 1
-            return KeyedSession(id: "\(s.project)#\(n)", session: s)
+            let place = s.workspace.map { "\(s.project)/\($0)" } ?? s.project
+            let n = seen[place, default: 0]
+            seen[place] = n + 1
+            return KeyedSession(id: "\(place)#\(n)", session: s)
         }
     }
 }
 
-/// One session: the project, and its status in a chip. The tone also runs
+/// A thread's name after its project, small and faint: which worktree or
+/// branch, when a project has several sessions.
+struct ThreadName: View {
+    let name: String
+    init(_ name: String) { self.name = name }
+
+    var body: some View {
+        Text(name)
+            .font(.system(size: 10.5, design: .monospaced)).foregroundStyle(Theme.inkSoft)
+            .lineLimit(1).truncationMode(.tail)
+    }
+}
+
+/// One session: the project, its thread, and its status in a chip. The tone also runs
 /// down a thin bar on the leading edge, so the amber of a waiting one stands
 /// out in a column of greys.
 struct SessionRow: View {
     let project: String
+    var thread: String?
     let status: SessionSummary.Status
 
     private var tone: Color {
@@ -319,9 +338,13 @@ struct SessionRow: View {
 
     var body: some View {
         HStack(spacing: Theme.gapSnug) {
-            Text(project.isEmpty ? "Unknown project" : project)
-                .font(.system(size: 12, weight: .medium))
-                .lineLimit(1).truncationMode(.middle)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(project.isEmpty ? "Unknown project" : project)
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1).truncationMode(.middle)
+                    .layoutPriority(1)
+                if let thread { ThreadName(thread) }
+            }
             Spacer(minLength: Theme.gapTight)
             StatusChip(text: label, tone: tone)
         }

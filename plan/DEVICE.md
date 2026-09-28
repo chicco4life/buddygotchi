@@ -169,7 +169,7 @@ knows nothing until the next `state`. Only the touch calibration survives
 | `pattern` | After `dbg.pattern`, until the next `state` | The test pattern (§7), a solid colour, or a calibration cross |
 | `no_app` | 30 s without a `state`, until the next | The no-app design and the unplugged icon ([BEHAVIORS.md](BEHAVIORS.md) §3.4) |
 | `needs_you` | The last `state` had `attn` | The mood's needs-you design, and who in the strip ([BEHAVIORS.md](BEHAVIORS.md) §3.2) |
-| `face` | Otherwise | The mood's design for `base`, or the cheer's while one plays |
+| `face` | Otherwise | The mood's design for `base`, or the cheer's while one plays, with whose turn it cheers in the strip ([BEHAVIORS.md](BEHAVIORS.md) §5) |
 
 On the three face screens the device draws the design, what it adds of
 its own (blinks, the wiggle's sway and heart, the press dip, the bubble

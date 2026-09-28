@@ -59,6 +59,10 @@ public final class Harness: @unchecked Sendable {
     /// Whether the brain has failed for long enough to say so (§7), and
     /// how many passes that asked it have dropped in a row.
     public private(set) var trouble: BrainTrouble?
+    /// The NOW whose answers the actions are running with, while they
+    /// run; nil otherwise, and for a forced pass. The harness only holds
+    /// it: whoever wired an action may ask it what NOW is about.
+    public private(set) var acting: ViewEvent?
     var droppedInARow = 0
     let actions: [any Action]
     /// Where events are recorded and the view is kept.
@@ -226,6 +230,8 @@ public final class Harness: @unchecked Sendable {
             extra["brain"] = brainID ?? brain?.id ?? "none"
         }
         logPass(pass, extra: extra)
+        acting = now
+        defer { acting = nil }
         let ran = pass.dropped == nil
             ? runActions(pass.answers, forSeq: now.seq, by: "brain", skipping: changedDuringPass) : []
         let record = Record(now: now, pass: pass, actions: ran)

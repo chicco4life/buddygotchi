@@ -758,7 +758,8 @@ final class HarnessTests: XCTestCase {
         var queued: [(moment: DeviceMoment, pending: Pending)] = []
         var sent: [DeviceMoment] { queued.map(\.moment) }
         var why: String?
-        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { queued.append(($0, $1)) }, blocked: { why })
+        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { queued.append(($0, $1)) }, blocked: { why },
+                                who: { .init(agent: "codex", thread: "fix-nav") })
         /// Runs `answers`, and checks the result is started with `message`
         /// and the handle its moment was queued with.
         func starts(_ answers: Answers, _ message: String, line: UInt = #line) {
@@ -796,7 +797,8 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(queued.last?.moment.anim, "cheer")
         XCTAssertTrue(queued.last!.moment.jsonLine.hasPrefix(#"{"t":"moment","anim":"cheer","say":"#), queued.last!.moment.jsonLine)
         let first = try! XCTUnwrap(queued.last?.moment.variant)
-        XCTAssertTrue(queued.last!.moment.jsonLine.hasSuffix(#","mood":"proud","loops":2,"variant":"# + "\(first)}"),
+        XCTAssertTrue(queued.last!.moment.jsonLine.hasSuffix(#","mood":"proud","loops":2,"variant":"# + "\(first)"
+                                                             + #","who":{"agent":"codex","thread":"fix-nav"}}"#),
                       queued.last!.moment.jsonLine)
         queued.removeLast()
         // BEHAVIORS.md §5: each cheer is one of the cheer's variations at
