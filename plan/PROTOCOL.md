@@ -1,6 +1,6 @@
 # Boop: protocol
 
-Updated 2026-09-28. Every message between the Boop Mac app and the device,
+Updated 2026-09-29. Every message between the Boop Mac app and the device,
 over Bluetooth or USB, and the debug messages tools send over USB. The
 code is the source: `app/BoopKit/DeviceLink/`, `StateSnapshot.swift` and
 `DeviceMoment.swift` on the Mac, `firmware/src/app/device.cpp` and
@@ -135,14 +135,14 @@ real line, from `boopdev replay` of the Codex approval fixture
 (`codex/synthetic/approval-asked.jsonl`):
 
 ```json
-{"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"codex","project":"landing","more":0,"id":1},"busy":0,"vol":6,"variant":1}
+{"t":"state","v":1,"base":"idle","mood":"calm","attn":{"agent":"codex","project":"landing","more":0,"id":1},"busy":0,"vol":6,"variant":1}
 ```
 
 And one while Claude runs a command, from the replay of
 `claude-code/synthetic/permission.jsonl` before it asks:
 
 ```json
-{"t":"state","v":1,"base":"working","act":"terminal","mood":"happy","busy":1,"vol":6,"variant":1}
+{"t":"state","v":1,"base":"working","act":"terminal","mood":"calm","busy":1,"vol":6,"variant":3}
 ```
 
 | Field | Type | The Mac sends | The device reads it as |
@@ -180,7 +180,7 @@ And a rule's one-shot, from the replay of
 `claude-code/synthetic/permission.jsonl`, as you send the prompt:
 
 ```json
-{"t":"moment","anim":"starting","variant":1,"ctx":"new_task"}
+{"t":"moment","anim":"starting","variant":3,"ctx":"new_task"}
 ```
 
 | Field | Type | The Mac sends | The device reads it as |
