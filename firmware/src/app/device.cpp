@@ -69,6 +69,8 @@ void Device::reset() {
   b_.reset(0, rng_);
   hush();
   sfxSeen_ = b_.sfx(sfxSeenAt_);
+  fx_.reset();
+  hal_.stopEffects();
   pattern_ = false;
   patternFill_ = -1;
   targetX_ = targetY_ = -1;
@@ -140,6 +142,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     m.variant = uint8_t(heldTo(doc["variant"], 1, render::variants(m.attn ? render::SceneState::kNeedsYou : m.base), 1) - 1);
     b_.onState(m, at);
     if (m.attn || m.vol == 0) hush();  // VOICE.md §9
+    if (m.vol == 0) hal_.stopEffects();
     pattern_ = false;
     dirty_ = true;
   } else if (!std::strcmp(t, "moment")) {
@@ -361,14 +364,34 @@ void Device::hush() {
 // Stops a line whose mumble ended or was replaced (a tap's wiggle, say),
 // and plays new sound cues (BEHAVIORS.md §4): the chirp, once when
 // something starts needing you. Its `state` has already hushed any line.
+// Then the face's sound effects (VOICE.md §10): its design's events as its
+// clock reaches them, and silence for the last design's when it changes.
 void Device::followSound(uint32_t t) {
   if (saying_ && (b_.momentSeq() != sayMoment_ || !b_.mumble(t))) hush();
   uint32_t at;
   const char* k = b_.sfx(at);
-  if (k == sfxSeen_ && at == sfxSeenAt_) return;
-  sfxSeen_ = k, sfxSeenAt_ = at;
   const Model& m = b_.model();
-  if (k && m.vol > 0) hal_.cue(voice::cueFromName(k), uint8_t(m.vol));
+  if (k != sfxSeen_ || at != sfxSeenAt_) {
+    sfxSeen_ = k, sfxSeenAt_ = at;
+    if (k && m.vol > 0) hal_.cue(voice::cueFromName(k), uint8_t(m.vol));
+  }
+  render::SceneShow show = b_.show(t);
+  show.t = b_.designMs(t);
+  voice::FxEvent due[EffectTrack::kMaxOut];
+  bool changed;
+  int n = fx_.follow(screenAt(t) == Screen::kPattern ? nullptr : &show, t, due, changed);
+  if (changed) hal_.stopEffects();
+  if (m.vol == 0) return;
+  for (int i = 0; i < n; ++i) {
+    voice::Effect e;
+    e.clip = due[i].clip;
+    e.gain = due[i].gain;
+    e.pitch = due[i].pitch;
+    e.vol = uint8_t(m.vol);
+    hal_.effect(e);
+    ++fxSent_;
+    fxLast_ = e.clip;
+  }
 }
 
 // Draws the frame for t, unless nothing on it can have changed since the
@@ -430,6 +453,7 @@ void Device::sendPing(Link to) {
   d["ble"] = hal_.bleState();
   if (hal_.bleName()[0]) d["name"] = hal_.bleName();
   d["voice"] = voice::assetsVersion();
+  d["fx"] = voice::effectsVersion();
   d["w"] = render::kWidth;  // the screen as drawn, for boopctl calibrate
   d["h"] = render::kHeight;
   char buf[320];
@@ -508,6 +532,10 @@ void Device::sendState(Link to) {
   out["wall_ms"] = ao.wallMs;
   out["cut"] = ao.cut;
   out["errors"] = ao.errors;
+  JsonObject fx = d["audio"]["fx"].to<JsonObject>();
+  fx["sent"] = fxSent_;
+  if (fxLast_ >= 0) fx["last"] = voice::effectName(fxLast_);
+  else fx["last"] = nullptr;
   uint32_t sfxAt;
   if (const char* sfx = b_.sfx(sfxAt)) {
     d["sfx"]["k"] = sfx;

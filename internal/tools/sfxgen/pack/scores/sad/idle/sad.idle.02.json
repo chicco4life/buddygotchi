@@ -1,0 +1,18 @@
+{
+  "id": "sad.idle.02",
+  "seconds": 10,
+  "policy": "sparse",
+  "intervalSeconds": 45,
+  "description": "A tiny cloth-like glance accent; at most once per 45 seconds.",
+  "character": "soft, damp and persistently trying",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 1.8,
+      "effect": "cloth",
+      "gain": 0.2,
+      "pitch": 0.93,
+      "label": "Quiet glance"
+    }
+  ]
+}

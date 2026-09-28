@@ -1,0 +1,18 @@
+{
+  "id": "excited.task_complete.01",
+  "seconds": 6.4,
+  "policy": "entry",
+  "intervalSeconds": 0,
+  "description": "2.85 s layered trophy fanfare with synthesized crowd-like cheer and applause; then room for a mumble.",
+  "character": "bright, brisk and springy",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.08,
+      "effect": "trophyB",
+      "gain": 0.86,
+      "pitch": 1.06,
+      "label": "Victory fanfare"
+    }
+  ]
+}

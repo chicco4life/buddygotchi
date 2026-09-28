@@ -1,0 +1,18 @@
+{
+  "id": "happy.task_complete.01",
+  "seconds": 6.4,
+  "policy": "entry",
+  "intervalSeconds": 0,
+  "description": "2.30 s layered trophy fanfare with synthesized applause; then room for a mumble.",
+  "character": "warm, light and buoyant",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.08,
+      "effect": "trophyA",
+      "gain": 0.86,
+      "pitch": 1,
+      "label": "Victory fanfare"
+    }
+  ]
+}

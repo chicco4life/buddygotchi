@@ -23,19 +23,29 @@ constexpr size_t kDmaBytes = 1024;
 constexpr size_t kChunk = kDmaBytes / 2;
 constexpr int kWriteTimeoutMs = 200;
 
-enum class Kind : uint8_t { kSay, kCue, kHush };
+// Effects neither replace nor hush a line: they mix under it.
+enum class Kind : uint8_t { kSay, kCue, kHush, kEffect, kStopEffects };
 struct Cmd {
   Kind kind;
   voice::Line line;
   voice::Cue cue;
   uint8_t vol;
+  voice::Effect effect;
 };
+// The amp stays on this many chunks (about a second) after the last sound:
+// what's queued has to play first, and a working design's clicks come a
+// few times a second, so it doesn't switch on and off between them.
+constexpr int kAmpHold = 44;
+// Deep enough for the busiest design's events between two passes of the
+// main loop, and a line.
+constexpr int kQueue = 8;
 
 dac_continuous_handle_t dac = nullptr;
 QueueHandle_t queue = nullptr;
 portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
 app::AudioOut stats;  // guarded by `lock`
 voice::Player player;
+voice::Effects effects;
 uint8_t chunk[kChunk];
 
 // The line being played, for its timeline. Writes return at the DMA's
@@ -52,7 +62,7 @@ struct Current {
 };
 Current cur;
 int64_t lastWriteUs = 0;
-int drain = 0;  // chunks left before the amp goes off: what's queued has to play first
+int drain = 0;  // chunks left before the amp goes off (kAmpHold)
 
 template <typename F>
 void locked(F f) {
@@ -80,7 +90,7 @@ void finish(bool cut) {
   cur = Current{};
 }
 
-void apply(const Cmd& c) {
+void applyVoice(const Cmd& c) {
   if (cur.line) finish(true);  // anything new replaces a line
   switch (c.kind) {
     case Kind::kSay:
@@ -95,13 +105,25 @@ void apply(const Cmd& c) {
       break;
     case Kind::kCue: player.cue(c.cue, c.vol); break;
     case Kind::kHush: player.stop(); break;
+    default: break;
   }
-  if (player.playing()) {
+}
+
+bool sounding() { return player.playing() || effects.playing(); }
+
+void apply(const Cmd& c) {
+  if (c.kind == Kind::kEffect || c.kind == Kind::kStopEffects) {
+    if (c.kind == Kind::kEffect) effects.play(c.effect);
+    else effects.stop();
+  } else {
+    applyVoice(c);
+  }
+  if (sounding()) {
     digitalWrite(pins::kAmpEnable, LOW);  // amp on (active low)
     drain = 0;
     locked([] { stats.playing = true; });
   } else if (drain == 0) {
-    drain = int(kDmaBufs) + 1;  // hushed: let the queue play out, then the amp goes off
+    drain = kAmpHold;  // hushed: let the queue play out, then the amp goes off
   }
 }
 
@@ -110,7 +132,10 @@ void task(void*) {
   for (;;) {
     while (xQueueReceive(queue, &c, 0) == pdTRUE) apply(c);
     bool was = player.playing();
+    bool wasAny = sounding();
+    bool speaking = player.speaking();  // a line, which the effects go under
     size_t made = player.render(chunk, kChunk);
+    effects.mix(chunk, kChunk, speaking);
     if (dac_continuous_write(dac, chunk, kChunk, nullptr, kWriteTimeoutMs) != ESP_OK) {
       // Wedged anyway: restart the DAC so the next line can play.
       dac_continuous_disable(dac);
@@ -119,11 +144,9 @@ void task(void*) {
     }
     lastWriteUs = esp_timer_get_time();
     if (cur.line && made) cur.samples += made, ++cur.chunks;
-    if (was && !player.playing()) {
-      finish(false);
-      drain = int(kDmaBufs) + 1;
-    }
-    if (drain > 0 && --drain == 0 && !player.playing()) {
+    if (was && !player.playing()) finish(false);
+    if (wasAny && !sounding()) drain = kAmpHold;
+    if (drain > 0 && --drain == 0 && !sounding()) {
       digitalWrite(pins::kAmpEnable, HIGH);
       locked([] { stats.playing = false; });
     }
@@ -153,7 +176,7 @@ bool audioBegin() {
   cfg.chan_mode = DAC_CHANNEL_MODE_SIMUL;
   if (dac_continuous_new_channels(&cfg, &dac) != ESP_OK) return false;
   if (dac_continuous_enable(dac) != ESP_OK) return false;
-  queue = xQueueCreate(2, sizeof(Cmd));
+  queue = xQueueCreate(kQueue, sizeof(Cmd));
   if (!queue) return false;
   // Above Bluetooth's host task, so the DMA never runs dry.
   if (xTaskCreatePinnedToCore(task, "voice", 3072, nullptr, configMAX_PRIORITIES - 3, nullptr, 0) != pdPASS)
@@ -163,17 +186,27 @@ bool audioBegin() {
 }
 
 void audioSay(const voice::Line& l) {
-  Cmd c{Kind::kSay, l, voice::Cue::kNone, 0};
+  Cmd c{Kind::kSay, l, voice::Cue::kNone, 0, {}};
   send(c);
 }
 
 void audioCue(voice::Cue cue, uint8_t vol) {
-  Cmd c{Kind::kCue, voice::Line{}, cue, vol};
+  Cmd c{Kind::kCue, voice::Line{}, cue, vol, {}};
   send(c);
 }
 
 void audioHush() {
-  Cmd c{Kind::kHush, voice::Line{}, voice::Cue::kNone, 0};
+  Cmd c{Kind::kHush, voice::Line{}, voice::Cue::kNone, 0, {}};
+  send(c);
+}
+
+void audioEffect(const voice::Effect& e) {
+  Cmd c{Kind::kEffect, voice::Line{}, voice::Cue::kNone, 0, e};
+  send(c);
+}
+
+void audioStopEffects() {
+  Cmd c{Kind::kStopEffects, voice::Line{}, voice::Cue::kNone, 0, {}};
   send(c);
 }
 

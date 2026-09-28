@@ -1,0 +1,47 @@
+{
+  "id": "happy.needs_you.01",
+  "seconds": 6,
+  "policy": "entry",
+  "intervalSeconds": 0,
+  "tailSeconds": 0,
+  "character": "Friendly pillow pats",
+  "description": "Two broad soft pats alternate left and right, with a happy bounce. Then the signature ding reveals a large request panel. The bottom 20% stays clear for text; the request stays pending.",
+  "events": [
+    {
+      "at": 0.42,
+      "effect": "alertSoftTap",
+      "gain": 0.3671,
+      "pitch": 1.06,
+      "label": "Friendly pillow pats · 1 / 2",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-0",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.02,
+      "effect": "alertSoftTap",
+      "gain": 0.3864,
+      "pitch": 1.06,
+      "label": "Friendly pillow pats · 2 / 2",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-1",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.38,
+      "effect": "alertDing",
+      "gain": 0.92,
+      "pitch": 1,
+      "label": "Ding · notification appears",
+      "sync": {
+        "part": "request-alert",
+        "pose": "reveal",
+        "frame": null
+      }
+    }
+  ]
+}

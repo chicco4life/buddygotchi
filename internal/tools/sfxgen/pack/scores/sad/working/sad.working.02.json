@@ -1,0 +1,131 @@
+{
+  "id": "sad.working.02",
+  "seconds": 5,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Bucket pings, clustered water drops, overflow and a draining gurgle.",
+  "character": "soft, damp and persistently trying",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.7,
+      "effect": "drop",
+      "gain": 0.5,
+      "pitch": 1,
+      "label": "Bucket fills",
+      "sync": {
+        "part": "story-buckets",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.4,
+      "effect": "drop",
+      "gain": 0.5,
+      "pitch": 1,
+      "label": "Bucket fills",
+      "sync": {
+        "part": "story-buckets",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.4,
+      "effect": "metal",
+      "gain": 0.19,
+      "pitch": 1,
+      "label": "Water hits bucket",
+      "sync": {
+        "part": "story-buckets",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.1,
+      "effect": "drop",
+      "gain": 0.5,
+      "pitch": 1,
+      "label": "Bucket fills",
+      "sync": {
+        "part": "story-buckets",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.1,
+      "effect": "splash",
+      "gain": 0.56,
+      "pitch": 1,
+      "label": "Overflow",
+      "sync": {
+        "part": "story-buckets",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.8,
+      "effect": "drop",
+      "gain": 0.5,
+      "pitch": 1,
+      "label": "Bucket fills",
+      "sync": {
+        "part": "story-buckets",
+        "frame": 4,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.8,
+      "effect": "metal",
+      "gain": 0.19,
+      "pitch": 1,
+      "label": "Water hits bucket",
+      "sync": {
+        "part": "story-buckets",
+        "frame": 4,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.8,
+      "effect": "splash",
+      "gain": 0.66,
+      "pitch": 1,
+      "label": "Overflow",
+      "sync": {
+        "part": "story-buckets",
+        "frame": 4,
+        "pose": null
+      }
+    },
+    {
+      "at": 3.58,
+      "effect": "bubble",
+      "gain": 0.59,
+      "pitch": 1,
+      "label": "Drain",
+      "sync": {
+        "part": "story-buckets",
+        "frame": 5,
+        "pose": null
+      }
+    },
+    {
+      "at": 4.14,
+      "effect": "splash",
+      "gain": 0.35,
+      "pitch": 1,
+      "label": "Water recedes",
+      "sync": {
+        "part": "story-buckets",
+        "frame": 7,
+        "pose": null
+      }
+    }
+  ]
+}

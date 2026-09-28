@@ -1,0 +1,71 @@
+{
+  "id": "grumpy.needs_you.01",
+  "seconds": 6,
+  "policy": "entry",
+  "intervalSeconds": 0,
+  "tailSeconds": 0,
+  "character": "Keyboard ultimatum",
+  "description": "Boop brandishes a keyboard side to side, then bashes its broad face against the glass. Then the signature ding reveals a large request panel. The bottom 20% stays clear for text; the request stays pending.",
+  "events": [
+    {
+      "at": 0.34,
+      "effect": "alertKeyboardTap",
+      "gain": 0.7448,
+      "pitch": 0.91,
+      "label": "Keyboard ultimatum · 1 / 4",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-0",
+        "frame": null
+      }
+    },
+    {
+      "at": 0.6,
+      "effect": "alertKeyboardTap",
+      "gain": 0.784,
+      "pitch": 0.91,
+      "label": "Keyboard ultimatum · 2 / 4",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-1",
+        "frame": null
+      }
+    },
+    {
+      "at": 0.84,
+      "effect": "alertKeyboardTap",
+      "gain": 0.7448,
+      "pitch": 0.91,
+      "label": "Keyboard ultimatum · 3 / 4",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-2",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.08,
+      "effect": "alertKeyboardTap",
+      "gain": 0.784,
+      "pitch": 0.91,
+      "label": "Keyboard ultimatum · 4 / 4",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-3",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.44,
+      "effect": "alertDing",
+      "gain": 0.98,
+      "pitch": 1,
+      "label": "Ding · notification appears",
+      "sync": {
+        "part": "request-alert",
+        "pose": "reveal",
+        "frame": null
+      }
+    }
+  ]
+}

@@ -52,6 +52,8 @@ class Player {
   void cue(Cue c, uint8_t vol);  // vol 0–10, as Line::vol
   void stop();
   bool playing() const { return total_ > 0 && pos_ < total_; }
+  // Playing a line, not a cue: the sound effects go under it (VOICE.md §10).
+  bool speaking() const { return playing() && cue_ == Cue::kNone; }
 
   // Fills `n` unsigned 8-bit samples (128 is silence). Returns how many
   // came from the line or cue; the rest are silence.

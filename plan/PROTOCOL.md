@@ -344,6 +344,7 @@ instead of running.
 | `ble` | `off` (Bluetooth didn't start), `idle` (neither advertising nor connected, so no Mac can find it), `adv` or `conn` |
 | `name` | `Boop-XXXX`; left out in the simulator |
 | `voice` | The voice assets' version ([VOICE.md](VOICE.md) §8) |
+| `fx` | The sound effects' version ([VOICE.md](VOICE.md) §10) |
 | `w`, `h` | The screen as drawn: 320 and 240 |
 
 **`dbg.state`'s fields.**
@@ -356,7 +357,7 @@ instead of running.
 | `expr` | The mood the face borrows while a moment with `mood` plays (§3), otherwise null |
 | `life` | `blink` while Boop blinks, otherwise null |
 | `led`, `bl` | The LED's colour as `#RRGGBB`, and the backlight level, 0–255 |
-| `audio` | `playing` while the mouth follows a line, and its `syllables`. `out` is what the sound output did: `ready` (the DAC started), `playing`, `lines` finished since boot, and for the last line `syl`, `word` (whether it had one), `plan_ms` (beats × `ms`), `out_ms` (samples rendered), `wall_ms` (the DAC's measured time), `cut` (hushed or replaced) and `errors` (DAC writes that timed out) |
+| `audio` | `playing` while the mouth follows a line, and its `syllables`. `out` is what the sound output did: `ready` (the DAC started), `playing` (the amp is on: something sounds, or did in the last second), `lines` finished since boot, and for the last line `syl`, `word` (whether it had one), `plan_ms` (beats × `ms`), `out_ms` (samples rendered), `wall_ms` (the DAC's measured time), `cut` (hushed or replaced) and `errors` (DAC writes that timed out). `fx` is the face's sound effects ([VOICE.md](VOICE.md) §10): `sent` to the sound output since boot, and the `last` one's clip, such as `{"sent":42,"last":"keyB"}`, or null before any |
 | `sfx` | The last sound cue and when, such as `{"k":"chirp","at":27000}`, or null ([BEHAVIORS.md](BEHAVIORS.md) §4), since tests can't hear |
 | `last_input` | The last input: `k` (`tap`, or `touch` when a touch starts), `at`, and `x` and `y` for a touch; null before any |
 | `rx` | The `state` and `moment` messages received since boot. The pipeline check times hooks by `rx.state` |

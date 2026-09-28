@@ -34,6 +34,8 @@ class BoardHal : public app::Hal {
   void say(const voice::Line& l) override;
   void cue(voice::Cue c, uint8_t vol) override;
   void hush() override;
+  void effect(const voice::Effect& e) override;
+  void stopEffects() override;
   app::AudioOut audioOut() override;
   const char* deviceId() override;
   const char* bleState() override;

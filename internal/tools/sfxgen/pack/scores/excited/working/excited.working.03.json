@@ -1,0 +1,59 @@
+{
+  "id": "excited.working.03",
+  "seconds": 4,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Short jet pulses follow the keyboard lift and descent; a light landing.",
+  "character": "bright, brisk and springy",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.56,
+      "effect": "jet",
+      "gain": 0.51,
+      "pitch": 1,
+      "label": "Jet pulse",
+      "sync": {
+        "part": "story-rocket",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.12,
+      "effect": "jet",
+      "gain": 0.8,
+      "pitch": 1,
+      "label": "Jet pulse",
+      "sync": {
+        "part": "story-rocket",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.68,
+      "effect": "jet",
+      "gain": 0.51,
+      "pitch": 1,
+      "label": "Jet pulse",
+      "sync": {
+        "part": "story-rocket",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.24,
+      "effect": "landing",
+      "gain": 0.38,
+      "pitch": 1,
+      "label": "Keyboard lands",
+      "sync": {
+        "part": "story-rocket",
+        "frame": 4,
+        "pose": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "id": "proud.task_complete.02",
+  "seconds": 7.2,
+  "policy": "entry",
+  "intervalSeconds": 0,
+  "description": "2.85 s theatrical reveal fanfare, cloth swish and synthesized crowd-like applause. No spoken words. MWHAHAHA lettering reserves a future voice layer; no fake speech added.",
+  "character": "deliberate, polished and theatrical",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.216,
+      "effect": "cloth",
+      "gain": 0.34,
+      "pitch": 1,
+      "label": "Curtains gather",
+      "sync": {
+        "part": "curtain-reveal",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 0.61,
+      "effect": "trophyB",
+      "gain": 0.82,
+      "pitch": 0.94,
+      "label": "Curtain-call fanfare"
+    },
+    {
+      "at": 1.08,
+      "effect": "swipe",
+      "gain": 0.3,
+      "pitch": 1,
+      "label": "Curtains part",
+      "sync": {
+        "part": "curtain-reveal",
+        "frame": 4,
+        "pose": null
+      }
+    }
+  ]
+}

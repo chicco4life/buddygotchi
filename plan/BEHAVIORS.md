@@ -252,11 +252,12 @@ short-term memory fresh ([ARCHITECTURE.md](ARCHITECTURE.md) §4.3).
 | --- | --- | --- |
 | Mumbles | The brain's reactions | While something needs you |
 | Chirp | Once when something starts needing you, and when the request shown changes (§3.2) | Anything else |
+| Sound effects | The face's design: working's clicks every loop, the cheer's fanfare, needs you's knocks and ding, idle's swish at most every 45 s ([VOICE.md](VOICE.md) §10) | Asleep, no app, or a test pattern. Under a mumble they're half as loud, except needs you's |
 | Amber light | Something needs you: amber at half (`#805800`) | Any other time, or with no app |
 | Backlight | Full (255) awake; 60/255 asleep and with no app; eases with each switch of design | Dimmed while something needs you |
 
-Mute (volume 0) silences all sound, but mumbles still show in the bubble
-and the light is unchanged. A `state` that brings "needs you" or volume 0
+Mute (volume 0) silences all sound, effects included, but mumbles still
+show in the bubble and the light is unchanged. A `state` that brings "needs you" or volume 0
 stops a line that's playing.
 
 ## 5. Animation set

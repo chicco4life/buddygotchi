@@ -37,6 +37,10 @@ struct FakeHal : app::Hal {
     cues.push_back(c);
   }
   void hush() override { ++hushes; }
+  std::vector<voice::Effect> effects;
+  int effectStops = 0;
+  void effect(const voice::Effect& e) override { effects.push_back(e); }
+  void stopEffects() override { ++effectStops; }
   bool touching = false;  // the panel, at the middle of the face
   bool touch(int& x, int& y) override {
     if (touching) x = 160, y = 100;
@@ -69,6 +73,21 @@ struct Rig {
 };
 
 bool has(const std::string& s, const char* needle) { return s.find(needle) != std::string::npos; }
+
+// Runs the frozen clock from `from` to `to` in 10 ms steps, ticking each.
+void runClock(Rig& r, uint32_t from, uint32_t to) {
+  for (uint32_t t = from; t <= to; t += 10) {
+    char step[64];
+    std::snprintf(step, sizeof(step), "{\"t\":\"dbg.clock\",\"freeze\":%u}", unsigned(t));
+    r.usbLine(step);
+  }
+}
+
+bool played(const FakeHal& h, const char* clip) {
+  for (const voice::Effect& e : h.effects)
+    if (e.clip == voice::effectIndex(clip)) return true;
+  return false;
+}
 
 }  // namespace
 
@@ -858,7 +877,8 @@ static void test_mute_and_needs_you_keep_it_silent() {
   TEST_ASSERT_EQUAL(1, q.hal.hushes);
 }
 
-// BEHAVIORS.md §4: the chirp is the only cue. A cheer plays none. Only
+// BEHAVIORS.md §4: the chirp is the only cue. A cheer plays none (its
+// fanfare is a sound effect, VOICE.md §10). Only
 // mute silences it: it's the one thing Boop must say.
 static void test_only_needs_you_chirps() {
   Rig r;
@@ -1018,8 +1038,70 @@ static void test_say_and_volume_are_held_in_range() {
   }
 }
 
+// VOICE.md §10: the face's design plays its sounds as its clock runs, at
+// the state's volume, and dbg.state and dbg.ping say so.
+static void test_the_face_plays_its_designs_sounds() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"mood\":\"happy\",\"vol\":4}");
+  uint32_t loop = render::loopMs(render::Mood::kHappy, render::SceneState::kWorking, 0);
+  voice::Score sc = voice::score(int(render::Mood::kHappy), int(render::SceneState::kWorking), 0);
+  runClock(r, 0, 2 * loop - app::EffectTrack::kLeadMs - 10);
+  TEST_ASSERT_EQUAL(2 * sc.n, int(r.hal.effects.size()));
+  TEST_ASSERT_EQUAL(4, int(r.hal.effects[0].vol));
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  char fx[64];
+  std::snprintf(fx, sizeof(fx), "\"fx\":{\"sent\":%d,\"last\":\"%s\"}", 2 * sc.n,
+                voice::effectName(r.hal.effects.back().clip));
+  TEST_ASSERT_TRUE(has(r.usb.text, fx));
+  r.usbLine("{\"t\":\"dbg.ping\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"fx\":\""));
+  // Muted: the sounds stop and no more are sent.
+  int stops = r.hal.effectStops;
+  size_t sent = r.hal.effects.size();
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"mood\":\"happy\",\"vol\":0}");
+  TEST_ASSERT_TRUE(r.hal.effectStops > stops);
+  runClock(r, 2 * loop, 3 * loop);
+  TEST_ASSERT_EQUAL(int(sent), int(r.hal.effects.size()));
+}
+
+// Needs you stops the last design's sounds and plays its own, ending in
+// the ding (VOICE.md §10); asleep is silent.
+static void test_needs_you_plays_its_ding_and_asleep_is_quiet() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
+  runClock(r, 0, 500);
+  int stops = r.hal.effectStops;
+  r.hal.effects.clear();
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"landing\"}}");
+  TEST_ASSERT_TRUE(r.hal.effectStops > stops);
+  runClock(r, 510, 8000);
+  TEST_ASSERT_TRUE(played(r.hal, "alertDing"));
+  for (const voice::Effect& e : r.hal.effects) TEST_ASSERT_TRUE(voice::effectAlert(e.clip));
+  Rig a;
+  a.usbLine("{\"t\":\"state\",\"base\":\"asleep\"}");
+  runClock(a, 0, 20000);
+  TEST_ASSERT_EQUAL(0, int(a.hal.effects.size()));
+}
+
+// A test pattern is silent: dbg.pattern stops the face's sounds.
+static void test_a_test_pattern_is_silent() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
+  runClock(r, 0, 300);
+  int stops = r.hal.effectStops;
+  r.usbLine("{\"t\":\"dbg.pattern\"}");
+  TEST_ASSERT_TRUE(r.hal.effectStops > stops);
+  size_t sent = r.hal.effects.size();
+  runClock(r, 310, 6000);
+  TEST_ASSERT_EQUAL(int(sent), int(r.hal.effects.size()));
+}
+
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(test_the_face_plays_its_designs_sounds);
+  RUN_TEST(test_needs_you_plays_its_ding_and_asleep_is_quiet);
+  RUN_TEST(test_a_test_pattern_is_silent);
   RUN_TEST(test_ping_reports_version_and_link);
   RUN_TEST(test_debug_is_ignored_over_ble);
   RUN_TEST(test_touch_calibration_maps_raw_to_screen);

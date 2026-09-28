@@ -1,0 +1,59 @@
+{
+  "id": "proud.working.05",
+  "seconds": 4,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "One exaggerated mechanical key clack, release and loose-key rattle.",
+  "character": "deliberate, polished and theatrical",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.56,
+      "effect": "creak",
+      "gain": 0.36,
+      "pitch": 1,
+      "label": "Key anticipation",
+      "sync": {
+        "part": "story-one-key",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.12,
+      "effect": "space",
+      "gain": 1,
+      "pitch": 1,
+      "label": "Giant key press",
+      "sync": {
+        "part": "story-one-key",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.68,
+      "effect": "release",
+      "gain": 0.73,
+      "pitch": 1,
+      "label": "Key releases",
+      "sync": {
+        "part": "story-one-key",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.68,
+      "effect": "keycap",
+      "gain": 0.28,
+      "pitch": 1,
+      "label": "Cap settles",
+      "sync": {
+        "part": "story-one-key",
+        "frame": 3,
+        "pose": null
+      }
+    }
+  ]
+}

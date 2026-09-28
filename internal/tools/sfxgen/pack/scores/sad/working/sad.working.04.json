@@ -1,0 +1,107 @@
+{
+  "id": "sad.working.04",
+  "seconds": 5,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Rain-like cube patters on the canopy and splashes down the sides.",
+  "character": "soft, damp and persistently trying",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.7,
+      "effect": "sprinkle",
+      "gain": 0.52,
+      "pitch": 1,
+      "label": "Rain hits canopy",
+      "sync": {
+        "part": "story-umbrella",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 0.7,
+      "effect": "splash",
+      "gain": 0.27,
+      "pitch": 1,
+      "label": "Side splash",
+      "sync": {
+        "part": "story-umbrella",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.4,
+      "effect": "sprinkle",
+      "gain": 0.52,
+      "pitch": 1,
+      "label": "Rain hits canopy",
+      "sync": {
+        "part": "story-umbrella",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.4,
+      "effect": "splash",
+      "gain": 0.27,
+      "pitch": 1,
+      "label": "Side splash",
+      "sync": {
+        "part": "story-umbrella",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.1,
+      "effect": "sprinkle",
+      "gain": 0.52,
+      "pitch": 1,
+      "label": "Rain hits canopy",
+      "sync": {
+        "part": "story-umbrella",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.1,
+      "effect": "splash",
+      "gain": 0.27,
+      "pitch": 1,
+      "label": "Side splash",
+      "sync": {
+        "part": "story-umbrella",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.8,
+      "effect": "sprinkle",
+      "gain": 0.52,
+      "pitch": 1,
+      "label": "Rain hits canopy",
+      "sync": {
+        "part": "story-umbrella",
+        "frame": 4,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.8,
+      "effect": "splash",
+      "gain": 0.27,
+      "pitch": 1,
+      "label": "Side splash",
+      "sync": {
+        "part": "story-umbrella",
+        "frame": 4,
+        "pose": null
+      }
+    }
+  ]
+}

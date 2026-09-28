@@ -8,11 +8,13 @@
 
 #include "app/behaviour.h"
 #include "app/clock.h"
+#include "app/effect_track.h"
 #include "app/gesture.h"
 #include "app/touch_cal.h"
 #include "render/anim.h"
 #include "render/canvas.h"
 #include "render/screens.h"
+#include "voice/effects.h"
 #include "voice/player.h"
 
 // A debug-only label: the face's state name in faint text at the top left.
@@ -76,6 +78,10 @@ struct Hal {
   virtual void say(const voice::Line& l) { (void)l; }
   virtual void cue(voice::Cue c, uint8_t vol) { (void)c, (void)vol; }
   virtual void hush() {}
+  // The face's sound effects (VOICE.md §10): one to play now, and stopping
+  // every one playing.
+  virtual void effect(const voice::Effect& e) { (void)e; }
+  virtual void stopEffects() {}
   virtual AudioOut audioOut() { return {}; }
   // The permanent ID in `status` (PROTOCOL.md §4).
   virtual const char* deviceId() { return kDefaultDeviceId; }
@@ -192,6 +198,11 @@ class Device {
   uint32_t sayMoment_ = 0;
   const char* sfxSeen_ = nullptr;
   uint32_t sfxSeenAt_ = 0;
+  // The face's sound effects: its timeline, and the effects handed to the
+  // Hal since boot, the last by its clip (dbg.state `audio.fx`).
+  EffectTrack fx_;
+  uint32_t fxSent_ = 0;
+  int fxLast_ = -1;
 
   LastInput last_;
   uint32_t led_ = 0;

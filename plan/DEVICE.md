@@ -95,9 +95,10 @@ replace the code that knows the hardware.
 | `src/app/` (the rest) | The device clock and random numbers (`clock.h`), button debouncing (`gesture.*`), touch calibration (`touch_cal.h`), line reassembly and Bluetooth packets (`line_reader.h`, `packets.h`), dropping a quiet link (`link_silence.h`), and the screenshot's CRC and base64 (`codec.*`) | Board and Mac |
 | `src/render/` | The 8-bit canvas, palette, anti-aliased shapes, fonts, the animation pack's player (`scene.*`), the face screen with bubble and strip (`screens.*`), the animation and mood names (`anim.*`) and the test pattern | Board and Mac |
 | `src/voice/player.*` | Turns a line or cue into samples ([VOICE.md](VOICE.md) §8) | Board and Mac |
+| `src/voice/effects.*`, `src/app/effect_track.*` | The sound effects' clips and timelines, the mixer that adds them to the voice, and when each event plays with the face ([VOICE.md](VOICE.md) §10) | Board and Mac |
 | `src/board/` | The pins; `board_hal.*`, the board's side of the core's `Hal` (buttons, touch, LED, backlight, NVS, heap, sound); `display.*`, the only code that knows LovyanGFX; `audio.*`, the DAC task | Board |
 | `src/link/ble.*` | The Nordic UART peripheral | Board |
-| `assets/` | Generated and checked in: `faces.h` (facegen), `fonts.h` (fontgen), `voice.h` (voicegen) ([VERIFICATION.md](VERIFICATION.md) §2) | Both |
+| `assets/` | Generated and checked in: `faces.h` (facegen), `fonts.h` (fontgen), `voice.h` (voicegen), `sfx.h` (sfxgen) ([VERIFICATION.md](VERIFICATION.md) §2) | Both |
 | `tools/pio.sh`, `tools/version.py` | PlatformIO with its packages inside the checkout; the version and git SHA baked into each build | — |
 
 Everything marked "Board and Mac" is plain C++ with integer maths. The
@@ -129,12 +130,13 @@ loop()
  └─ displayPush ─► only the changed bands, to the panel over SPI DMA
 
 Bluetooth task ─► received bytes into a 2 KB ring; connects and MTU as atomics
-voice task (core 0) ─► a 2-deep queue of lines, cues and hushes ─► player ─► DAC
+voice task (core 0) ─► an 8-deep queue of lines, cues, hushes and effects ─► player + effects ─► DAC
 ```
 
 Only the main loop touches the device core. The Bluetooth task only fills
 the ring, and the voice task only plays what it's handed (when the queue
-is full, the newest wins). A `dbg.*` line ends the batch of lines, so a
+is full, the newest wins). The main loop's pass hands it the face's sound
+effects as their frames come near ([VOICE.md](VOICE.md) §10). A `dbg.*` line ends the batch of lines, so a
 test's input and clock steps land between frames. The loop sleeps 1 ms
 when a pass had nothing to read.
 
@@ -206,7 +208,7 @@ Bluetooth can come later without a new layout:
 | --- | --- | --- |
 | nvs | 20 KB | The touch calibration (below) |
 | otadata | 8 KB | Which app slot boots |
-| app0 | 1.875 MB | The firmware, with its fonts, faces and voice |
+| app0 | 1.875 MB | The firmware, with its fonts, faces, voice and sound effects |
 | app1 | 1.875 MB | Kept for updates |
 | spiffs | 128 KB | Unused |
 | coredump | 64 KB | Reserved for crash dumps |
@@ -218,9 +220,10 @@ calibrate again after changing `kRotation`. It survives reflashing.
 Nothing else is stored: the device ID comes from the Bluetooth MAC, and no
 `state` is kept.
 
-Fonts, faces and voice clips are compiled in as arrays: the voice is
-226 KB ([VOICE.md](VOICE.md) §8), the faces about 278 KB and the fonts
-about 27 KB. The whole firmware is 1.35 MB, about 69% of app0.
+Fonts, faces, voice clips and sound effects are compiled in as arrays:
+the voice is 226 KB ([VOICE.md](VOICE.md) §8), the sound effects 146 KB
+(§10 there), the faces about 278 KB and the fonts about 27 KB. The whole
+firmware is 1.51 MB, about 77% of app0.
 
 ## 6. Memory, drawing and speed
 
@@ -237,7 +240,8 @@ about 27 KB. The whole firmware is 1.35 MB, about 69% of app0.
 given, ESP-IDF's DAC writes stop getting buffers back and time out for
 good (seen on this board). So the voice task always writes a full
 512-sample buffer, silence when there's nothing to say, runs above
-Bluetooth's host task, and turns the amp on only while something plays. A
+Bluetooth's host task, and turns the amp on only while something plays
+(and for about a second after, so a design's clicks don't toggle it). A
 write that still times out restarts the DAC and counts in `dbg.state`'s
 `audio.out.errors`.
 
@@ -287,7 +291,7 @@ frames stay exact) and a press draws at once for its first 60 ms. A screenshot a
 
 | Measure | Value | Source |
 | --- | --- | --- |
-| Firmware size | 1.35 MB | The board build with the animation pack, 2026-09-28 |
+| Firmware size | 1.51 MB | The board build with the animation pack and its sound effects, 2026-09-28 |
 | Minimum free heap, through a 35-minute soak with brain reactions | 73.7 KB, 24 B below where it stood after the first minute | The bench board, firmware `c6ccb03`, [2026-09-28](evidence/2026-09-28-tonight/firmware/README.md) |
 | Frames a second through `perf --motion`'s cheers and wiggles | 15.5 on average, 6 at the least: 6–7 in a second of the cheer and 20–24 in a wiggle's, as in the simulator (14.4 on average) | The bench board, firmware `3284d55`, 60 s, the same |
 | Drawing and pushing one changed frame (`draw_us`, `push_us`), through the soak | 1.0 ms and 8.8 ms typically; 2.1 ms and 22.5 ms at the most | The same, firmware `c6ccb03` |

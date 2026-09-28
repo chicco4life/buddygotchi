@@ -1,0 +1,54 @@
+{
+  "id": "excited.task_complete.03",
+  "seconds": 6.4,
+  "policy": "entry",
+  "intervalSeconds": 0,
+  "description": "2.65 s rising podium fanfare; the full chord lands at the top step, with synthesized applause.",
+  "character": "bright, brisk and springy",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.8,
+      "effect": "victoryPodium",
+      "gain": 0.86,
+      "pitch": 1.06,
+      "label": "Podium fanfare"
+    },
+    {
+      "at": 0.8,
+      "effect": "ratchet",
+      "gain": 0.22,
+      "pitch": 1,
+      "label": "Podium lift",
+      "sync": {
+        "part": "podium-rise",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.6,
+      "effect": "ratchet",
+      "gain": 0.22,
+      "pitch": 1,
+      "label": "Podium lift",
+      "sync": {
+        "part": "podium-rise",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.4,
+      "effect": "ratchet",
+      "gain": 0.22,
+      "pitch": 1,
+      "label": "Podium lift",
+      "sync": {
+        "part": "podium-rise",
+        "frame": 3,
+        "pose": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "id": "happy.working.05",
+  "seconds": 4,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "One broad stamp clack, light rebound and paper sliding out.",
+  "character": "warm, light and buoyant",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.56,
+      "effect": "creak",
+      "gain": 0.33,
+      "pitch": 1,
+      "label": "Stamp descends",
+      "sync": {
+        "part": "story-stamp",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.12,
+      "effect": "wood",
+      "gain": 0.94,
+      "pitch": 1,
+      "label": "Stamp lands",
+      "sync": {
+        "part": "story-stamp",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.68,
+      "effect": "latch",
+      "gain": 0.35,
+      "pitch": 1,
+      "label": "Stamp releases",
+      "sync": {
+        "part": "story-stamp",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.826667,
+      "effect": "paper",
+      "gain": 0.58,
+      "pitch": 1,
+      "label": "Card slides out",
+      "sync": {
+        "part": "story-stamp",
+        "frame": 5,
+        "pose": null
+      }
+    }
+  ]
+}

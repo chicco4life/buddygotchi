@@ -1,0 +1,47 @@
+{
+  "id": "proud.needs_you.01",
+  "seconds": 6,
+  "policy": "entry",
+  "intervalSeconds": 0,
+  "tailSeconds": 0,
+  "character": "Royal summons",
+  "description": "A grand stamp lands twice, leaving a bold request seal rather than an approval check. Then the signature ding reveals a large request panel. The bottom 20% stays clear for text; the request stays pending.",
+  "events": [
+    {
+      "at": 0.56,
+      "effect": "alertKnock",
+      "gain": 0.437,
+      "pitch": 0.98,
+      "label": "Royal summons · 1 / 2",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-0",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.2,
+      "effect": "alertKnock",
+      "gain": 0.46,
+      "pitch": 0.98,
+      "label": "Royal summons · 2 / 2",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-1",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.56,
+      "effect": "alertDing",
+      "gain": 0.92,
+      "pitch": 1,
+      "label": "Ding · notification appears",
+      "sync": {
+        "part": "request-alert",
+        "pose": "reveal",
+        "frame": null
+      }
+    }
+  ]
+}

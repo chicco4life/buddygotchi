@@ -1,0 +1,59 @@
+{
+  "id": "curious.working.05",
+  "seconds": 5,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Lid creak, opening latch, small discovery accent and lid settling.",
+  "character": "small tactile discoveries with pauses",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.7,
+      "effect": "creak",
+      "gain": 0.6,
+      "pitch": 1,
+      "label": "Lid lifts",
+      "sync": {
+        "part": "story-box",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.4,
+      "effect": "latch",
+      "gain": 0.48,
+      "pitch": 1,
+      "label": "Box opens",
+      "sync": {
+        "part": "story-box",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.4,
+      "effect": "shimmer",
+      "gain": 0.28,
+      "pitch": 1,
+      "label": "Small discovery",
+      "sync": {
+        "part": "story-box",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.8,
+      "effect": "wood",
+      "gain": 0.42,
+      "pitch": 1,
+      "label": "Lid settles",
+      "sync": {
+        "part": "story-box",
+        "frame": 4,
+        "pose": null
+      }
+    }
+  ]
+}

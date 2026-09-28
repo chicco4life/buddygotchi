@@ -1,0 +1,227 @@
+{
+  "id": "happy.working.01",
+  "seconds": 5,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Dry roller clicks; little parcel landings on the belt.",
+  "character": "warm, light and buoyant",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.333333,
+      "effect": "latch",
+      "gain": 0.25,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 0.666667,
+      "effect": "latch",
+      "gain": 0.25,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 4,
+        "pose": null
+      }
+    },
+    {
+      "at": 1,
+      "effect": "latch",
+      "gain": 0.44,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 6,
+        "pose": null
+      }
+    },
+    {
+      "at": 1,
+      "effect": "wood",
+      "gain": 0.4,
+      "pitch": 1,
+      "label": "Parcel lands",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 6,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.333333,
+      "effect": "latch",
+      "gain": 0.25,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 8,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.666667,
+      "effect": "latch",
+      "gain": 0.25,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 10,
+        "pose": null
+      }
+    },
+    {
+      "at": 2,
+      "effect": "latch",
+      "gain": 0.44,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 12,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.333333,
+      "effect": "latch",
+      "gain": 0.25,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 14,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.333333,
+      "effect": "wood",
+      "gain": 0.4,
+      "pitch": 1,
+      "label": "Parcel lands",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 14,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.666667,
+      "effect": "latch",
+      "gain": 0.25,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 16,
+        "pose": null
+      }
+    },
+    {
+      "at": 3,
+      "effect": "latch",
+      "gain": 0.44,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 18,
+        "pose": null
+      }
+    },
+    {
+      "at": 3.333333,
+      "effect": "latch",
+      "gain": 0.25,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 20,
+        "pose": null
+      }
+    },
+    {
+      "at": 3.666667,
+      "effect": "latch",
+      "gain": 0.25,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 22,
+        "pose": null
+      }
+    },
+    {
+      "at": 3.666667,
+      "effect": "wood",
+      "gain": 0.4,
+      "pitch": 1,
+      "label": "Parcel lands",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 22,
+        "pose": null
+      }
+    },
+    {
+      "at": 4,
+      "effect": "latch",
+      "gain": 0.44,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 24,
+        "pose": null
+      }
+    },
+    {
+      "at": 4.333333,
+      "effect": "latch",
+      "gain": 0.25,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 26,
+        "pose": null
+      }
+    },
+    {
+      "at": 4.666667,
+      "effect": "latch",
+      "gain": 0.25,
+      "pitch": 1,
+      "label": "Roller click",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 28,
+        "pose": null
+      }
+    },
+    {
+      "at": 4.666667,
+      "effect": "wood",
+      "gain": 0.4,
+      "pitch": 1,
+      "label": "Parcel lands",
+      "sync": {
+        "part": "story-conveyor",
+        "frame": 28,
+        "pose": null
+      }
+    }
+  ]
+}

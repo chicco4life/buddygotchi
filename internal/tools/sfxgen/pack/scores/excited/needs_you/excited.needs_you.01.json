@@ -1,0 +1,95 @@
+{
+  "id": "excited.needs_you.01",
+  "seconds": 6,
+  "policy": "entry",
+  "intervalSeconds": 0,
+  "tailSeconds": 0,
+  "character": "Everywhere at once",
+  "description": "Six rapid, broad pats jump around the screen, with a fading trail. Then the signature ding reveals a large request panel. The bottom 20% stays clear for text; the request stays pending.",
+  "events": [
+    {
+      "at": 0.26,
+      "effect": "alertSoftTap",
+      "gain": 0.4332,
+      "pitch": 1.12,
+      "label": "Everywhere at once · 1 / 6",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-0",
+        "frame": null
+      }
+    },
+    {
+      "at": 0.44,
+      "effect": "alertSoftTap",
+      "gain": 0.456,
+      "pitch": 1.12,
+      "label": "Everywhere at once · 2 / 6",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-1",
+        "frame": null
+      }
+    },
+    {
+      "at": 0.62,
+      "effect": "alertSoftTap",
+      "gain": 0.4332,
+      "pitch": 1.12,
+      "label": "Everywhere at once · 3 / 6",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-2",
+        "frame": null
+      }
+    },
+    {
+      "at": 0.8,
+      "effect": "alertSoftTap",
+      "gain": 0.456,
+      "pitch": 1.12,
+      "label": "Everywhere at once · 4 / 6",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-3",
+        "frame": null
+      }
+    },
+    {
+      "at": 0.98,
+      "effect": "alertSoftTap",
+      "gain": 0.4332,
+      "pitch": 1.12,
+      "label": "Everywhere at once · 5 / 6",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-4",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.16,
+      "effect": "alertSoftTap",
+      "gain": 0.456,
+      "pitch": 1.12,
+      "label": "Everywhere at once · 6 / 6",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-5",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.52,
+      "effect": "alertDing",
+      "gain": 0.95,
+      "pitch": 1,
+      "label": "Ding · notification appears",
+      "sync": {
+        "part": "request-alert",
+        "pose": "reveal",
+        "frame": null
+      }
+    }
+  ]
+}

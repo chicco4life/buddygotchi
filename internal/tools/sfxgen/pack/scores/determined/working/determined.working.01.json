@@ -1,0 +1,363 @@
+{
+  "id": "determined.working.01",
+  "seconds": 2.4,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Approved crisp 6.7-press/second keyboard rhythm; matched release clicks.",
+  "character": "precise, planted and evenly accented",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.05,
+      "effect": "key",
+      "gain": 0.95,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 0
+      }
+    },
+    {
+      "at": 0.095,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 0
+      }
+    },
+    {
+      "at": 0.2,
+      "effect": "keyB",
+      "gain": 0.78,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 1
+      }
+    },
+    {
+      "at": 0.245,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 1
+      }
+    },
+    {
+      "at": 0.35,
+      "effect": "keyC",
+      "gain": 0.78,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 2
+      }
+    },
+    {
+      "at": 0.395,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 2
+      }
+    },
+    {
+      "at": 0.5,
+      "effect": "space",
+      "gain": 0.78,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 3
+      }
+    },
+    {
+      "at": 0.545,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 3
+      }
+    },
+    {
+      "at": 0.65,
+      "effect": "key",
+      "gain": 0.95,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 4
+      }
+    },
+    {
+      "at": 0.695,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 4
+      }
+    },
+    {
+      "at": 0.8,
+      "effect": "keyB",
+      "gain": 0.78,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 5
+      }
+    },
+    {
+      "at": 0.845,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 5
+      }
+    },
+    {
+      "at": 0.95,
+      "effect": "keyC",
+      "gain": 0.78,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 6
+      }
+    },
+    {
+      "at": 0.995,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 6
+      }
+    },
+    {
+      "at": 1.1,
+      "effect": "space",
+      "gain": 0.78,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 7
+      }
+    },
+    {
+      "at": 1.145,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 7
+      }
+    },
+    {
+      "at": 1.25,
+      "effect": "key",
+      "gain": 0.95,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 8
+      }
+    },
+    {
+      "at": 1.295,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 8
+      }
+    },
+    {
+      "at": 1.4,
+      "effect": "keyB",
+      "gain": 0.78,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 9
+      }
+    },
+    {
+      "at": 1.445,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 9
+      }
+    },
+    {
+      "at": 1.55,
+      "effect": "keyC",
+      "gain": 0.78,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 10
+      }
+    },
+    {
+      "at": 1.595,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 10
+      }
+    },
+    {
+      "at": 1.7,
+      "effect": "space",
+      "gain": 0.78,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 11
+      }
+    },
+    {
+      "at": 1.745,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 11
+      }
+    },
+    {
+      "at": 1.85,
+      "effect": "key",
+      "gain": 0.95,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 12
+      }
+    },
+    {
+      "at": 1.895,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 12
+      }
+    },
+    {
+      "at": 2,
+      "effect": "keyB",
+      "gain": 0.78,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 13
+      }
+    },
+    {
+      "at": 2.045,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 13
+      }
+    },
+    {
+      "at": 2.15,
+      "effect": "keyC",
+      "gain": 0.78,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 14
+      }
+    },
+    {
+      "at": 2.195,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 14
+      }
+    },
+    {
+      "at": 2.3,
+      "effect": "space",
+      "gain": 0.78,
+      "pitch": 1,
+      "label": "Key press",
+      "sync": {
+        "key": "press",
+        "beat": 15
+      }
+    },
+    {
+      "at": 2.345,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 15
+      }
+    }
+  ]
+}

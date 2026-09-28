@@ -1,10 +1,12 @@
 # Boop: voice
 
 Updated 2026-09-28. How Boop's gibberish is built on the Mac, kept
-unintelligible, and played on the device. The code is the source:
-`app/BoopKit/Voice/` on the Mac, `firmware/src/voice/` and
-`firmware/src/board/audio.*` on the device, and
-`internal/tools/voicegen/` for the sounds.
+unintelligible, and played on the device, and the sound effects that go
+with the face's designs (§10). The code is the source:
+`app/BoopKit/Voice/` on the Mac, `firmware/src/voice/`,
+`firmware/src/app/effect_track.*` and `firmware/src/board/audio.*` on the
+device, and `internal/tools/voicegen/` and `internal/tools/sfxgen/` for
+the sounds.
 
 ## 1. What we're after
 
@@ -256,3 +258,66 @@ plays the chirp ([VERIFICATION.md](VERIFICATION.md) §2).
 When Boop mumbles, and when it mustn't, is in [BEHAVIORS.md](BEHAVIORS.md)
 §2, §4 and §6. On the device, a `state` with "needs you" or volume 0 stops
 a line that's playing.
+
+## 10. Sound effects
+
+The animation pack (DEVICE.md §6) comes with procedural sounds: each
+design has a timeline of short effects, such as key clicks, paper, a
+ding or a fanfare, made from oscillators and noise, never recordings.
+The device plays them with the face, on its own: it knows the mood, state
+and variation it draws, so no message carries them and the Mac doesn't
+know about them.
+
+**The assets.** `internal/tools/sfxgen/sfxgen.mjs` runs the pack's own
+synthesiser (`internal/tools/sfxgen/pack/audio/`, unchanged) and reads the
+timelines of the device's states (`pack/scores/`; the pack's `listening`
+has no design on the device). It writes `firmware/assets/sfx.h`, with a
+version that `dbg.ping` reports as `fx` ([PROTOCOL.md](PROTOCOL.md) §5):
+
+- Each of the 47 effects the timelines use is rendered once, low-passed
+  and stored like the voice: 8-bit samples at 11.025 kHz, at full scale.
+  They take 146 KB (the test allows 180 KB).
+- An event's loudness is its clip's level times its gain in the pack.
+  The pack spans about 40 dB, which an 8-bit speaker loses in its hiss, so
+  the tool takes the square root: the loudest event plays as loud as a
+  syllable, the quietest at about a fifth of that, and the order holds.
+- The pack's pitch for an event (0.91–1.12) is kept, and the device
+  resamples the clip for it, as it does a syllable.
+
+**When they play.** A design's events follow its clock, which starts
+with the design (a new look, or a new cheer) and runs on past its loops.
+Each timeline has the pack's policy:
+
+| State | Policy | So |
+| --- | --- | --- |
+| working | Every loop | Its clicks and rustles repeat with the animation |
+| task_complete (the cheer) | First loop only | The fanfare, then room for a mumble |
+| needs_you | First loop only | Its knocks and taps, ending in the ding; its pose then holds, silent |
+| idle | Variation 1 silent; 2 and 3 their first loop, then at most once every 45 s | A small swish now and then |
+| asleep, no_app | Silent | |
+
+- A change of design (another look, variation, mood or cheer) stops the
+  last one's effects with a 4 ms fade. The new timeline picks up where the
+  new design's clock is, so a mood changing mid-loop doesn't replay what
+  the loop already passed.
+- Events go to the audio task 70 ms ahead of their frame, about what the
+  DAC's DMA holds, so they leave the speaker with it. An event more than
+  150 ms late (a stalled loop) is dropped.
+- A test pattern (`dbg.pattern`) is silent. Volume 0 stops the effects
+  and sends none; volume sets their level as it does the voice's.
+
+**With a mumble.** Effects mix under the voice and don't stop it. While a
+line plays they are half as loud, except the needs-you signal (the
+pack's `alert*` clips), which never is. No line plays while something
+needs you (§9), so the ding is always heard. The chirp (§8) still comes
+first when something starts needing you.
+
+**Mixing.** Up to four effects play at once; a fifth replaces the oldest.
+The sum is added to the voice's samples and clipped. The amp stays on
+for about a second after the last sound, so a working design's clicks
+don't switch it on and off between them.
+
+**Checking it.** `test_effects` checks the assets, the policies, the
+timing and the mixer, and `test_device` the whole path to the Hal, with
+`dbg.state`'s `audio.fx` ([PROTOCOL.md](PROTOCOL.md) §5). The sound
+itself is checked by ear on the bench board.

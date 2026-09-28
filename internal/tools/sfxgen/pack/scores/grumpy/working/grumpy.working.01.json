@@ -1,0 +1,185 @@
+{
+  "id": "grumpy.working.01",
+  "seconds": 1.8,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Approved brittle keyboard fractures and scattered keycaps on every downstroke.",
+  "character": "brittle cracks and impatient material noises",
+  "tailSeconds": 0.06,
+  "events": [
+    {
+      "at": 0.15,
+      "effect": "bash",
+      "gain": 0.81,
+      "pitch": 1,
+      "label": "Keyboard fractures",
+      "sync": {
+        "key": "press",
+        "beat": 0
+      }
+    },
+    {
+      "at": 0.22,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 0
+      }
+    },
+    {
+      "at": 0.25,
+      "effect": "keycap",
+      "gain": 0.48,
+      "pitch": 1,
+      "label": "Loose key scatter"
+    },
+    {
+      "at": 0.45,
+      "effect": "bash",
+      "gain": 0.94,
+      "pitch": 1,
+      "label": "Keyboard fractures",
+      "sync": {
+        "key": "press",
+        "beat": 1
+      }
+    },
+    {
+      "at": 0.52,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 1
+      }
+    },
+    {
+      "at": 0.55,
+      "effect": "keycap",
+      "gain": 0.48,
+      "pitch": 1,
+      "label": "Loose key scatter"
+    },
+    {
+      "at": 0.75,
+      "effect": "bash",
+      "gain": 0.81,
+      "pitch": 1,
+      "label": "Keyboard fractures",
+      "sync": {
+        "key": "press",
+        "beat": 2
+      }
+    },
+    {
+      "at": 0.82,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 2
+      }
+    },
+    {
+      "at": 0.85,
+      "effect": "keycap",
+      "gain": 0.48,
+      "pitch": 1,
+      "label": "Loose key scatter"
+    },
+    {
+      "at": 1.05,
+      "effect": "bash",
+      "gain": 0.94,
+      "pitch": 1,
+      "label": "Keyboard fractures",
+      "sync": {
+        "key": "press",
+        "beat": 3
+      }
+    },
+    {
+      "at": 1.12,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 3
+      }
+    },
+    {
+      "at": 1.15,
+      "effect": "keycap",
+      "gain": 0.48,
+      "pitch": 1,
+      "label": "Loose key scatter"
+    },
+    {
+      "at": 1.35,
+      "effect": "bash",
+      "gain": 0.81,
+      "pitch": 1,
+      "label": "Keyboard fractures",
+      "sync": {
+        "key": "press",
+        "beat": 4
+      }
+    },
+    {
+      "at": 1.42,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 4
+      }
+    },
+    {
+      "at": 1.45,
+      "effect": "keycap",
+      "gain": 0.48,
+      "pitch": 1,
+      "label": "Loose key scatter"
+    },
+    {
+      "at": 1.65,
+      "effect": "bash",
+      "gain": 0.94,
+      "pitch": 1,
+      "label": "Keyboard fractures",
+      "sync": {
+        "key": "press",
+        "beat": 5
+      }
+    },
+    {
+      "at": 1.72,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "key": "release",
+        "beat": 5
+      }
+    },
+    {
+      "at": 1.75,
+      "effect": "keycap",
+      "gain": 0.48,
+      "pitch": 1,
+      "label": "Loose key scatter"
+    }
+  ]
+}

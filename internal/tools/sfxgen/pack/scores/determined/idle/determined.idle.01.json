@@ -1,0 +1,10 @@
+{
+  "id": "determined.idle.01",
+  "seconds": 8,
+  "policy": "silent",
+  "intervalSeconds": 45,
+  "description": "Intentional silence · breathing and blinking stay visual.",
+  "character": "precise, planted and evenly accented",
+  "tailSeconds": 0,
+  "events": []
+}

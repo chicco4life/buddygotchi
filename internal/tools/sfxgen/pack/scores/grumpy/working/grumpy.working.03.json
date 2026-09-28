@@ -1,0 +1,212 @@
+{
+  "id": "grumpy.working.03",
+  "seconds": 4.4,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Desk fracture, three glassy screen cracks, throw, wipes and replacement keys.",
+  "character": "brittle cracks and impatient material noises",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.32,
+      "effect": "bash",
+      "gain": 0.9,
+      "pitch": 1,
+      "label": "Desk fracture",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "desk"
+      }
+    },
+    {
+      "at": 0.68,
+      "effect": "glass",
+      "gain": 0.79,
+      "pitch": 1,
+      "label": "Screen crack 1",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "screen1"
+      }
+    },
+    {
+      "at": 0.725,
+      "effect": "snap",
+      "gain": 0.47,
+      "pitch": 1,
+      "label": "Plastic shell cracks"
+    },
+    {
+      "at": 1.05,
+      "effect": "glass",
+      "gain": 0.88,
+      "pitch": 1,
+      "label": "Screen crack 2",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "screen2"
+      }
+    },
+    {
+      "at": 1.095,
+      "effect": "snap",
+      "gain": 0.47,
+      "pitch": 1,
+      "label": "Plastic shell cracks"
+    },
+    {
+      "at": 1.48,
+      "effect": "glass",
+      "gain": 0.97,
+      "pitch": 1,
+      "label": "Screen crack 3",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "screen3"
+      }
+    },
+    {
+      "at": 1.525,
+      "effect": "snap",
+      "gain": 0.47,
+      "pitch": 1,
+      "label": "Plastic shell cracks"
+    },
+    {
+      "at": 1.96,
+      "effect": "swipe",
+      "gain": 0.95,
+      "pitch": 1,
+      "label": "Keyboard thrown",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "release"
+      }
+    },
+    {
+      "at": 2.22,
+      "effect": "keycap",
+      "gain": 0.36,
+      "pitch": 1,
+      "label": "Fragments exit",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "exit"
+      }
+    },
+    {
+      "at": 2.92,
+      "effect": "cloth",
+      "gain": 0.42,
+      "pitch": 1,
+      "label": "Wipe cracks away",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "wipe1"
+      }
+    },
+    {
+      "at": 3.06,
+      "effect": "cloth",
+      "gain": 0.42,
+      "pitch": 1,
+      "label": "Wipe cracks away",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "wipe2"
+      }
+    },
+    {
+      "at": 3.34,
+      "effect": "landing",
+      "gain": 0.38,
+      "pitch": 1,
+      "label": "Replacement keyboard",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "reload"
+      }
+    },
+    {
+      "at": 3.48,
+      "effect": "key",
+      "gain": 0.86,
+      "pitch": 1,
+      "label": "Back to typing",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "tap"
+      }
+    },
+    {
+      "at": 3.6,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "ready"
+      }
+    },
+    {
+      "at": 3.78,
+      "effect": "key",
+      "gain": 0.86,
+      "pitch": 1,
+      "label": "Back to typing",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "tap"
+      }
+    },
+    {
+      "at": 3.91,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "ready"
+      }
+    },
+    {
+      "at": 4.08,
+      "effect": "key",
+      "gain": 0.86,
+      "pitch": 1,
+      "label": "Back to typing",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "tap"
+      }
+    },
+    {
+      "at": 4.2,
+      "effect": "release",
+      "gain": 0.55,
+      "pitch": 1,
+      "label": "Key release",
+      "sync": {
+        "part": "story-throw",
+        "frame": null,
+        "pose": "ready"
+      }
+    }
+  ]
+}

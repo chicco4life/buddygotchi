@@ -120,6 +120,10 @@ class Behaviour {
   // The face at t: its design, the design's clock, and what the device
   // adds on top (render/scene.h).
   render::SceneShow show(uint32_t t) const;
+  // How long the face's design has been playing at t, counting on past its
+  // loops: show()'s clock before it wraps a cheer or holds needs you's pose.
+  // It starts over only with a new look or a new cheer.
+  uint32_t designMs(uint32_t t) const { return src_.anim == render::Anim::kCheer ? t - src_.at : t - lookAt_; }
   // A press has just come in: feedback the redraw cap mustn't hold back
   // (DEVICE.md §6).
   bool pressEasing(uint32_t t) const;

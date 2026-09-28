@@ -1,0 +1,71 @@
+{
+  "id": "sad.working.05",
+  "seconds": 5,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Small water sloshes track the raft; a soft deck creak on the low bob.",
+  "character": "soft, damp and persistently trying",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.7,
+      "effect": "splash",
+      "gain": 0.29,
+      "pitch": 1,
+      "label": "Raft sloshes",
+      "sync": {
+        "part": "story-raft",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.4,
+      "effect": "splash",
+      "gain": 0.29,
+      "pitch": 1,
+      "label": "Raft sloshes",
+      "sync": {
+        "part": "story-raft",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.1,
+      "effect": "splash",
+      "gain": 0.5,
+      "pitch": 1,
+      "label": "Raft sloshes",
+      "sync": {
+        "part": "story-raft",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.1,
+      "effect": "creak",
+      "gain": 0.3,
+      "pitch": 1,
+      "label": "Deck creaks",
+      "sync": {
+        "part": "story-raft",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.8,
+      "effect": "splash",
+      "gain": 0.29,
+      "pitch": 1,
+      "label": "Raft sloshes",
+      "sync": {
+        "part": "story-raft",
+        "frame": 4,
+        "pose": null
+      }
+    }
+  ]
+}

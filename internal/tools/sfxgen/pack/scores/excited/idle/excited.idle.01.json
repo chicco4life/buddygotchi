@@ -1,0 +1,10 @@
+{
+  "id": "excited.idle.01",
+  "seconds": 8,
+  "policy": "silent",
+  "intervalSeconds": 45,
+  "description": "Intentional silence · breathing and blinking stay visual.",
+  "character": "bright, brisk and springy",
+  "tailSeconds": 0,
+  "events": []
+}

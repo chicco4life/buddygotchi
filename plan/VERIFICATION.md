@@ -108,6 +108,7 @@ commands go through the bridge.
 | Tool | What it does |
 | --- | --- |
 | `internal/tools/.venv/bin/python internal/tools/voicegen/voicegen.py [--out FILE] [--wav-dir DIR]` | Rebuilds the voice assets, `firmware/assets/voice.h`, with macOS `say` ([VOICE.md](VOICE.md) §8); `--wav-dir` also writes every clip as a WAV |
+| `node internal/tools/sfxgen/sfxgen.mjs [--wav-dir DIR]` | Rebuilds the sound effects, `firmware/assets/sfx.h`, from the animation pack's synthesiser and timelines in `internal/tools/sfxgen/pack/` ([VOICE.md](VOICE.md) §10); `--wav-dir` also writes every clip as a WAV |
 | `internal/tools/.venv/bin/python internal/tools/fontgen/fontgen.py [--ttf-dir DIR]` | Rebuilds the device's fonts, `firmware/assets/fonts.h`, from Geist Mono ([DEVICE.md](DEVICE.md) §6); the `.ttf` files are in `landing/node_modules` after `npm ci` there, by default |
 | `internal/tools/.venv/bin/python internal/tools/facegen/facegen.py [--check]` | What `make -C internal faces` runs; without `--check` it skips the comparison with Chrome |
 | `python3 internal/tools/workday/workday.py plan\|run\|report` | A scripted 8-hour working day through `Boop --headless` and its brain on a compressed clock, and a report of what Boop did hour by hour: mood changes, reactions by kind of line, faces, and the day's words (L5, [EVALS.md](EVALS.md) §5). `run --state DIR` (short, under `/tmp`; it's deleted first), `--seed N` (1), `--brain jev\|scripted` (jev, with `BOOP_JEV_KEY`), `--personality`, `--out DIR`, `--verbose`; `report FILE…` takes `debug.jsonl` files, `--json` |
@@ -212,8 +213,9 @@ gets at least one scenario. Their pictures are the golden images in
   loops included) to the face never cutting hard
   (`test_behaviour`); the canvas and
   renderer (`test_canvas`, `test_face`); the animation pack's player
-  against facegen's frames, every variation (`test_scene`); and the voice
-  player (`test_voice`).
+  against facegen's frames, every variation (`test_scene`); the voice
+  player (`test_voice`); and the sound effects' assets, policies, timing
+  and mixer (`test_effects`).
 - **The Mac app's look**, for Mac UI changes: run
   `.build/debug/Boop --snapshots DIR` and open every PNG and check:
   nothing clipped, no debug data, text readable, the Warm Terminal

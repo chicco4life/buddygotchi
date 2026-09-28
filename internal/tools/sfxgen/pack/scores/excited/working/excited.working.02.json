@@ -1,0 +1,119 @@
+{
+  "id": "excited.working.02",
+  "seconds": 3,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Soft catches and short air swishes around the cube orbit.",
+  "character": "bright, brisk and springy",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.3,
+      "effect": "swipe",
+      "gain": 0.2,
+      "pitch": 1,
+      "label": "Cube travels",
+      "sync": {
+        "part": "story-juggle",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 0.6,
+      "effect": "rubber",
+      "gain": 0.47,
+      "pitch": 1,
+      "label": "Soft catch",
+      "sync": {
+        "part": "story-juggle",
+        "frame": 6,
+        "pose": null
+      }
+    },
+    {
+      "at": 0.9,
+      "effect": "swipe",
+      "gain": 0.2,
+      "pitch": 1,
+      "label": "Cube travels",
+      "sync": {
+        "part": "story-juggle",
+        "frame": 9,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.2,
+      "effect": "rubber",
+      "gain": 0.47,
+      "pitch": 1,
+      "label": "Soft catch",
+      "sync": {
+        "part": "story-juggle",
+        "frame": 12,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.5,
+      "effect": "swipe",
+      "gain": 0.2,
+      "pitch": 1,
+      "label": "Cube travels",
+      "sync": {
+        "part": "story-juggle",
+        "frame": 15,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.8,
+      "effect": "rubber",
+      "gain": 0.47,
+      "pitch": 1,
+      "label": "Soft catch",
+      "sync": {
+        "part": "story-juggle",
+        "frame": 18,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.1,
+      "effect": "swipe",
+      "gain": 0.2,
+      "pitch": 1,
+      "label": "Cube travels",
+      "sync": {
+        "part": "story-juggle",
+        "frame": 21,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.4,
+      "effect": "rubber",
+      "gain": 0.47,
+      "pitch": 1,
+      "label": "Soft catch",
+      "sync": {
+        "part": "story-juggle",
+        "frame": 24,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.7,
+      "effect": "swipe",
+      "gain": 0.2,
+      "pitch": 1,
+      "label": "Cube travels",
+      "sync": {
+        "part": "story-juggle",
+        "frame": 27,
+        "pose": null
+      }
+    }
+  ]
+}

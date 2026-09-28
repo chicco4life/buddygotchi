@@ -1,0 +1,47 @@
+{
+  "id": "proud.needs_you.03",
+  "seconds": 6.4,
+  "policy": "entry",
+  "intervalSeconds": 0,
+  "tailSeconds": 0,
+  "character": "Ahem, spotlight",
+  "description": "Two curtains sweep inward with soft thumps, then part to present Boop. Then the signature ding reveals a gently swinging bell. The bottom 20% stays clear for text; the request stays pending.",
+  "events": [
+    {
+      "at": 0.5,
+      "effect": "alertSoftTap",
+      "gain": 0.437,
+      "pitch": 0.98,
+      "label": "Ahem, spotlight · 1 / 2",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-0",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.18,
+      "effect": "alertSoftTap",
+      "gain": 0.46,
+      "pitch": 0.98,
+      "label": "Ahem, spotlight · 2 / 2",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-1",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.54,
+      "effect": "alertDing",
+      "gain": 0.92,
+      "pitch": 1,
+      "label": "Ding · notification appears",
+      "sync": {
+        "part": "request-alert",
+        "pose": "reveal",
+        "frame": null
+      }
+    }
+  ]
+}

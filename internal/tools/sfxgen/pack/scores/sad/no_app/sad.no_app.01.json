@@ -1,0 +1,10 @@
+{
+  "id": "sad.no_app.01",
+  "seconds": 9,
+  "policy": "silent",
+  "intervalSeconds": 0,
+  "description": "Intentional silence · shared quiet routine · no simulated breathing or snores.",
+  "character": "soft, damp and persistently trying",
+  "tailSeconds": 0,
+  "events": []
+}

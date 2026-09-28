@@ -1,0 +1,83 @@
+{
+  "id": "grumpy.needs_you.03",
+  "seconds": 6.4,
+  "policy": "entry",
+  "intervalSeconds": 0,
+  "tailSeconds": 0,
+  "character": "Two-paw tantrum",
+  "description": "Heavy broad pats alternate sides, ending with a simultaneous two-paw shove. Then the signature ding reveals a gently swinging bell. The bottom 20% stays clear for text; the request stays pending.",
+  "events": [
+    {
+      "at": 0.25,
+      "effect": "alertKnock",
+      "gain": 0.7448,
+      "pitch": 0.91,
+      "label": "Two-paw tantrum · 1 / 5",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-0",
+        "frame": null
+      }
+    },
+    {
+      "at": 0.43,
+      "effect": "alertKnock",
+      "gain": 0.784,
+      "pitch": 0.91,
+      "label": "Two-paw tantrum · 2 / 5",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-1",
+        "frame": null
+      }
+    },
+    {
+      "at": 0.61,
+      "effect": "alertKnock",
+      "gain": 0.7448,
+      "pitch": 0.91,
+      "label": "Two-paw tantrum · 3 / 5",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-2",
+        "frame": null
+      }
+    },
+    {
+      "at": 0.79,
+      "effect": "alertKnock",
+      "gain": 0.784,
+      "pitch": 0.91,
+      "label": "Two-paw tantrum · 4 / 5",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-3",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.06,
+      "effect": "alertKnock",
+      "gain": 0.7448,
+      "pitch": 0.91,
+      "label": "Two-paw tantrum · 5 / 5",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-4",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.42,
+      "effect": "alertDing",
+      "gain": 0.98,
+      "pitch": 1,
+      "label": "Ding · notification appears",
+      "sync": {
+        "part": "request-alert",
+        "pose": "reveal",
+        "frame": null
+      }
+    }
+  ]
+}

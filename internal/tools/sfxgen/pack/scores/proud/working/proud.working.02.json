@@ -1,0 +1,155 @@
+{
+  "id": "proud.working.02",
+  "seconds": 4,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Baton air swishes answered by shuffling cards; no orchestral backing.",
+  "character": "deliberate, polished and theatrical",
+  "tailSeconds": 0.03,
+  "events": [
+    {
+      "at": 0.56,
+      "effect": "swipe",
+      "gain": 0.32,
+      "pitch": 1,
+      "label": "Baton flourish",
+      "sync": {
+        "part": "story-conductor",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 0.56,
+      "effect": "paper",
+      "gain": 0.34,
+      "pitch": 1,
+      "label": "Cards shuffle",
+      "sync": {
+        "part": "story-conductor",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.12,
+      "effect": "swipe",
+      "gain": 0.32,
+      "pitch": 1,
+      "label": "Baton flourish",
+      "sync": {
+        "part": "story-conductor",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.68,
+      "effect": "swipe",
+      "gain": 0.32,
+      "pitch": 1,
+      "label": "Baton flourish",
+      "sync": {
+        "part": "story-conductor",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.68,
+      "effect": "paper",
+      "gain": 0.34,
+      "pitch": 1,
+      "label": "Cards shuffle",
+      "sync": {
+        "part": "story-conductor",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.24,
+      "effect": "swipe",
+      "gain": 0.32,
+      "pitch": 1,
+      "label": "Baton flourish",
+      "sync": {
+        "part": "story-conductor",
+        "frame": 4,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.64,
+      "effect": "swipe",
+      "gain": 0.32,
+      "pitch": 1,
+      "label": "Baton flourish",
+      "sync": {
+        "part": "story-conductor",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.64,
+      "effect": "paper",
+      "gain": 0.34,
+      "pitch": 1,
+      "label": "Cards shuffle",
+      "sync": {
+        "part": "story-conductor",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 3.04,
+      "effect": "swipe",
+      "gain": 0.32,
+      "pitch": 1,
+      "label": "Baton flourish",
+      "sync": {
+        "part": "story-conductor",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 3.44,
+      "effect": "swipe",
+      "gain": 0.32,
+      "pitch": 1,
+      "label": "Baton flourish",
+      "sync": {
+        "part": "story-conductor",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 3.44,
+      "effect": "paper",
+      "gain": 0.34,
+      "pitch": 1,
+      "label": "Cards shuffle",
+      "sync": {
+        "part": "story-conductor",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 3.76,
+      "effect": "swipe",
+      "gain": 0.32,
+      "pitch": 1,
+      "label": "Baton flourish",
+      "sync": {
+        "part": "story-conductor",
+        "frame": 0,
+        "pose": null
+      }
+    }
+  ]
+}

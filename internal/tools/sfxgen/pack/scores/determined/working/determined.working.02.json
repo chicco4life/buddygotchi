@@ -1,0 +1,119 @@
+{
+  "id": "determined.working.02",
+  "seconds": 5,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Gritty cube scrapes and short landings on each step.",
+  "character": "precise, planted and evenly accented",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.7,
+      "effect": "slide",
+      "gain": 0.59,
+      "pitch": 1,
+      "label": "Cube scrapes uphill",
+      "sync": {
+        "part": "story-uphill",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 0.7,
+      "effect": "wood",
+      "gain": 0.35,
+      "pitch": 1,
+      "label": "Next step",
+      "sync": {
+        "part": "story-uphill",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.4,
+      "effect": "slide",
+      "gain": 0.59,
+      "pitch": 1,
+      "label": "Cube scrapes uphill",
+      "sync": {
+        "part": "story-uphill",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.4,
+      "effect": "wood",
+      "gain": 0.35,
+      "pitch": 1,
+      "label": "Next step",
+      "sync": {
+        "part": "story-uphill",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.1,
+      "effect": "slide",
+      "gain": 0.59,
+      "pitch": 1,
+      "label": "Cube scrapes uphill",
+      "sync": {
+        "part": "story-uphill",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.1,
+      "effect": "wood",
+      "gain": 0.35,
+      "pitch": 1,
+      "label": "Next step",
+      "sync": {
+        "part": "story-uphill",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.8,
+      "effect": "slide",
+      "gain": 0.59,
+      "pitch": 1,
+      "label": "Cube scrapes uphill",
+      "sync": {
+        "part": "story-uphill",
+        "frame": 4,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.8,
+      "effect": "wood",
+      "gain": 0.35,
+      "pitch": 1,
+      "label": "Next step",
+      "sync": {
+        "part": "story-uphill",
+        "frame": 4,
+        "pose": null
+      }
+    },
+    {
+      "at": 3.5,
+      "effect": "swipe",
+      "gain": 0.34,
+      "pitch": 1,
+      "label": "Load delivered",
+      "sync": {
+        "part": "story-uphill",
+        "frame": 5,
+        "pose": null
+      }
+    }
+  ]
+}

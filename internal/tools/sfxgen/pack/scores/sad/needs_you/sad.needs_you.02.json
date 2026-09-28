@@ -1,0 +1,47 @@
+{
+  "id": "sad.needs_you.02",
+  "seconds": 7.2,
+  "policy": "entry",
+  "intervalSeconds": 0,
+  "tailSeconds": 0,
+  "character": "Please notice me",
+  "description": "Two soft pads press and slowly slip down the glass while Boop waits tearfully. Then the signature ding reveals a pulsing warning card. The bottom 20% stays clear for text; the request stays pending.",
+  "events": [
+    {
+      "at": 0.74,
+      "effect": "alertSoftTap",
+      "gain": 0.1563,
+      "pitch": 0.97,
+      "label": "Please notice me · 1 / 2",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-0",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.86,
+      "effect": "alertSoftTap",
+      "gain": 0.1646,
+      "pitch": 0.97,
+      "label": "Please notice me · 2 / 2",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-1",
+        "frame": null
+      }
+    },
+    {
+      "at": 2.22,
+      "effect": "alertDing",
+      "gain": 0.88,
+      "pitch": 1,
+      "label": "Ding · notification appears",
+      "sync": {
+        "part": "request-alert",
+        "pose": "reveal",
+        "frame": null
+      }
+    }
+  ]
+}

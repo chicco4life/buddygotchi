@@ -1,0 +1,47 @@
+{
+  "id": "proud.needs_you.02",
+  "seconds": 7.2,
+  "policy": "entry",
+  "intervalSeconds": 0,
+  "tailSeconds": 0,
+  "character": "Gentlemanly cane tap",
+  "description": "A chunky hooked cane lifts and taps the glass with theatrical composure. Then the signature ding reveals a pulsing warning card. The bottom 20% stays clear for text; the request stays pending.",
+  "events": [
+    {
+      "at": 0.56,
+      "effect": "alertKnock",
+      "gain": 0.437,
+      "pitch": 0.98,
+      "label": "Gentlemanly cane tap · 1 / 2",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-0",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.3,
+      "effect": "alertKnock",
+      "gain": 0.46,
+      "pitch": 0.98,
+      "label": "Gentlemanly cane tap · 2 / 2",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-1",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.66,
+      "effect": "alertDing",
+      "gain": 0.92,
+      "pitch": 1,
+      "label": "Ding · notification appears",
+      "sync": {
+        "part": "request-alert",
+        "pose": "reveal",
+        "frame": null
+      }
+    }
+  ]
+}

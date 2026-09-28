@@ -1,0 +1,59 @@
+{
+  "id": "proud.working.01",
+  "seconds": 5,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Small lift-motor strokes, a latch and a restrained sparkle.",
+  "character": "deliberate, polished and theatrical",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.7,
+      "effect": "motor",
+      "gain": 0.48,
+      "pitch": 1,
+      "label": "Workstation rises",
+      "sync": {
+        "part": "story-pedestal",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.4,
+      "effect": "latch",
+      "gain": 0.49,
+      "pitch": 1,
+      "label": "Platform locks",
+      "sync": {
+        "part": "story-pedestal",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.4,
+      "effect": "shimmer",
+      "gain": 0.34,
+      "pitch": 1,
+      "label": "Show-off sparkle",
+      "sync": {
+        "part": "story-pedestal",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.8,
+      "effect": "motor",
+      "gain": 0.32,
+      "pitch": 1,
+      "label": "Platform lowers",
+      "sync": {
+        "part": "story-pedestal",
+        "frame": 4,
+        "pose": null
+      }
+    }
+  ]
+}

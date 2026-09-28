@@ -1,0 +1,47 @@
+{
+  "id": "happy.needs_you.03",
+  "seconds": 6.4,
+  "policy": "entry",
+  "intervalSeconds": 0,
+  "tailSeconds": 0,
+  "character": "A little delivery",
+  "description": "A little parcel bumps the glass; its lid pops up to reveal a request card. Then the signature ding reveals a gently swinging bell. The bottom 20% stays clear for text; the request stays pending.",
+  "events": [
+    {
+      "at": 0.56,
+      "effect": "alertSoftTap",
+      "gain": 0.3671,
+      "pitch": 1.06,
+      "label": "A little delivery · 1 / 2",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-0",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.18,
+      "effect": "alertSoftTap",
+      "gain": 0.3864,
+      "pitch": 1.06,
+      "label": "A little delivery · 2 / 2",
+      "sync": {
+        "part": "request-alert",
+        "pose": "knock-1",
+        "frame": null
+      }
+    },
+    {
+      "at": 1.54,
+      "effect": "alertDing",
+      "gain": 0.92,
+      "pitch": 1,
+      "label": "Ding · notification appears",
+      "sync": {
+        "part": "request-alert",
+        "pose": "reveal",
+        "frame": null
+      }
+    }
+  ]
+}

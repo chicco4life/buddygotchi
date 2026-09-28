@@ -374,7 +374,8 @@ render::SceneShow Behaviour::show(uint32_t t) const {
   s.mood = src_.mood;
   s.state = src_.state();
   s.variant = src_.variant();
-  s.t = src_.anim == render::Anim::kCheer ? (t - src_.at) % render::loopMs(s.mood, s.state, s.variant) : t - lookAt_;
+  s.t = designMs(t);
+  if (src_.anim == render::Anim::kCheer) s.t %= render::loopMs(s.mood, s.state, s.variant);
   // Needs you's performance plays once, then holds its pending pose, the
   // frame it starts and ends on (the animation pack's contract).
   if (s.state == render::SceneState::kNeedsYou && s.t >= render::loopMs(s.mood, s.state, s.variant)) s.t = 0;

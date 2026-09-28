@@ -1,0 +1,203 @@
+{
+  "id": "grumpy.working.04",
+  "seconds": 2.7,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Three fast paper scrunch–squeeze–throw sequences, then a fresh sheet.",
+  "character": "brittle cracks and impatient material noises",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.12,
+      "effect": "crumple",
+      "gain": 0.91,
+      "pitch": 1,
+      "label": "Crumple paper",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "scrunch0"
+      }
+    },
+    {
+      "at": 0.23,
+      "effect": "tear",
+      "gain": 0.63,
+      "pitch": 1,
+      "label": "Squeeze",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "squeeze0"
+      }
+    },
+    {
+      "at": 0.31,
+      "effect": "paper",
+      "gain": 0.45,
+      "pitch": 1,
+      "label": "Tight paper ball",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "ball0"
+      }
+    },
+    {
+      "at": 0.41,
+      "effect": "swipe",
+      "gain": 0.65,
+      "pitch": 1,
+      "label": "Throw paper",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "toss0"
+      }
+    },
+    {
+      "at": 0.62,
+      "effect": "cushion",
+      "gain": 0.52,
+      "pitch": 1,
+      "label": "Paper lands",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "edge0"
+      }
+    },
+    {
+      "at": 0.84,
+      "effect": "crumple",
+      "gain": 0.91,
+      "pitch": 1,
+      "label": "Crumple paper",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "scrunch1"
+      }
+    },
+    {
+      "at": 0.94,
+      "effect": "tear",
+      "gain": 0.63,
+      "pitch": 1,
+      "label": "Squeeze",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "squeeze1"
+      }
+    },
+    {
+      "at": 1.04,
+      "effect": "paper",
+      "gain": 0.45,
+      "pitch": 1,
+      "label": "Tight paper ball",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "ball1"
+      }
+    },
+    {
+      "at": 1.14,
+      "effect": "swipe",
+      "gain": 0.65,
+      "pitch": 1,
+      "label": "Throw paper",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "toss1"
+      }
+    },
+    {
+      "at": 1.36,
+      "effect": "cushion",
+      "gain": 0.52,
+      "pitch": 1,
+      "label": "Paper lands",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "edge1"
+      }
+    },
+    {
+      "at": 1.57,
+      "effect": "crumple",
+      "gain": 0.91,
+      "pitch": 1,
+      "label": "Crumple paper",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "scrunch2"
+      }
+    },
+    {
+      "at": 1.67,
+      "effect": "tear",
+      "gain": 0.63,
+      "pitch": 1,
+      "label": "Squeeze",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "squeeze2"
+      }
+    },
+    {
+      "at": 1.77,
+      "effect": "paper",
+      "gain": 0.45,
+      "pitch": 1,
+      "label": "Tight paper ball",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "ball2"
+      }
+    },
+    {
+      "at": 1.87,
+      "effect": "swipe",
+      "gain": 0.65,
+      "pitch": 1,
+      "label": "Throw paper",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "toss2"
+      }
+    },
+    {
+      "at": 2.08,
+      "effect": "cushion",
+      "gain": 0.52,
+      "pitch": 1,
+      "label": "Paper lands",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "edge2"
+      }
+    },
+    {
+      "at": 2.4,
+      "effect": "paper",
+      "gain": 0.6,
+      "pitch": 1,
+      "label": "Fresh page",
+      "sync": {
+        "part": "story-crumple",
+        "frame": null,
+        "pose": "feed"
+      }
+    }
+  ]
+}

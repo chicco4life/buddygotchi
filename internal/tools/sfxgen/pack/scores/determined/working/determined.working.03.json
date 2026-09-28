@@ -1,0 +1,99 @@
+{
+  "id": "determined.working.03",
+  "seconds": 5,
+  "policy": "loop",
+  "intervalSeconds": 0,
+  "description": "Paired brick placements, with different-size block resonances.",
+  "character": "precise, planted and evenly accented",
+  "tailSeconds": 0,
+  "events": [
+    {
+      "at": 0.7,
+      "effect": "wood",
+      "gain": 0.59,
+      "pitch": 1,
+      "label": "Bricks placed",
+      "sync": {
+        "part": "story-brick-wall",
+        "frame": 1,
+        "pose": null
+      }
+    },
+    {
+      "at": 0.744,
+      "effect": "wood",
+      "gain": 0.35,
+      "pitch": 1.12,
+      "label": "Second brick settles"
+    },
+    {
+      "at": 1.4,
+      "effect": "wood",
+      "gain": 0.59,
+      "pitch": 1,
+      "label": "Bricks placed",
+      "sync": {
+        "part": "story-brick-wall",
+        "frame": 2,
+        "pose": null
+      }
+    },
+    {
+      "at": 1.444,
+      "effect": "wood",
+      "gain": 0.35,
+      "pitch": 1.12,
+      "label": "Second brick settles"
+    },
+    {
+      "at": 2.1,
+      "effect": "wood",
+      "gain": 0.59,
+      "pitch": 1,
+      "label": "Bricks placed",
+      "sync": {
+        "part": "story-brick-wall",
+        "frame": 3,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.144,
+      "effect": "wood",
+      "gain": 0.35,
+      "pitch": 1.12,
+      "label": "Second brick settles"
+    },
+    {
+      "at": 2.8,
+      "effect": "wood",
+      "gain": 0.59,
+      "pitch": 1,
+      "label": "Bricks placed",
+      "sync": {
+        "part": "story-brick-wall",
+        "frame": 4,
+        "pose": null
+      }
+    },
+    {
+      "at": 2.844,
+      "effect": "wood",
+      "gain": 0.35,
+      "pitch": 1.12,
+      "label": "Second brick settles"
+    },
+    {
+      "at": 3.475,
+      "effect": "slide",
+      "gain": 0.38,
+      "pitch": 1,
+      "label": "Wall slides out",
+      "sync": {
+        "part": "story-brick-wall",
+        "frame": 5,
+        "pose": null
+      }
+    }
+  ]
+}

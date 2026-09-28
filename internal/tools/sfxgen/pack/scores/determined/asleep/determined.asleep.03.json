@@ -1,0 +1,10 @@
+{
+  "id": "determined.asleep.03",
+  "seconds": 12,
+  "policy": "silent",
+  "intervalSeconds": 0,
+  "description": "Intentional silence · shared quiet routine · no simulated breathing or snores.",
+  "character": "precise, planted and evenly accented",
+  "tailSeconds": 0,
+  "events": []
+}
