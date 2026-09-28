@@ -224,11 +224,13 @@ public struct Eval {
         let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, pending in
             if let end = ending.end { pending.finish(end) } else { ending.open.append(pending) }
         }, blocked: { core.mumbleBlock }, clock: { clock.now })
-        let actions: [any Action] = [MoodAction(store: mood), react]
+        let moodAction = MoodAction(store: mood, clock: { clock.now })
+        let actions: [any Action] = [moodAction, react]
         let steering = self.steering
         let harness = Harness(brain: brain, actions: actions, parts: { entry in
             Runtime.stateParts(for: entry, steering: steering, personality: scenario.personality, mood: mood.current,
-                               core: core, react: react, time: time, now: clock.now, wall: clock.now)
+                               core: core, react: react, moodAction: moodAction, time: time, now: clock.now,
+                               wall: clock.now)
         }, home: home, clock: { clock.now }, debugLog: debugLog)
 
         var checks: [Check] = []

@@ -76,6 +76,7 @@ such as `claude_code/s1`.
 | | `tools`, `tools_failed` | This turn's finished tool calls, and how many failed | Yes |
 | | `topics` | Each topic seen this turn, in first-seen order, with its last state: `passing` or `failing` for `tests`, `build` and `deploy`; `edited` for `docs` | Yes: `Tests passing, build failing.` |
 | | `comeback` | The last topic whose pass this turn ended a run of failures, or null | Yes |
+| | `clean_run` | Turns finished `done` with no tool failing, in a row across every thread, this one included; 0 when this one isn't (`Core.cleanRun`) | Yes |
 | `tool_use` | `thread` | §3 | Yes |
 | | `tool` | The tool's category (below) | Only in a routine line |
 | | `tool_name`, `tool_use_id` | As the agent reports them | No |
@@ -182,7 +183,7 @@ marked "in the line" in §4.1 (`EventLine` in
 | Kind | Line |
 | --- | --- |
 | `turn_start` | `claude started turn 7 on "fix-nav" (landing), right after its last one.` The gap reads `, right after its last one`, `, a while after its last one` or `, after a long break`, and is left out for a thread's first turn |
-| `turn_end` | `claude finished turn 7 on "fix-nav" (landing): done after 18 min, a very long turn, 41 tools (6 failed). Tests passing, build passing. A comeback on tests.` `failed`, `failed (rate limit)` or `stopped` in place of `done`; `(N failed)`, the topics and the comeback only when there are any |
+| `turn_end` | `claude finished turn 7 on "fix-nav" (landing): done after 18 min, a very long turn, 41 tools (6 failed). Tests passing, build passing. A comeback on tests.` `failed`, `failed (rate limit)` or `stopped` in place of `done`; `(N failed)`, the topics and the comeback only when there are any; then `3 clean finishes in a row.` from the second clean finish in a row, so the brain needn't count them |
 | `tool_use`, notable | `claude's tests failed on "fix-nav" (landing).`, `… failed again on "…", 3 in a row.`, `… passed on "…" after 3 failures in a row.` An error other than `exit_code` goes in brackets: `(timed out)`, `(denied)`, `(error)` |
 | `tool_use`, routine | By category: `claude ran a command on "…".`, `edited a file`, `read a file`, `searched`, `looked something up on the web`, `started a subagent`, and `used a tool` for `mcp` and `other`; ` It failed.` added when it did |
 | `pokes` | `You poked Boop 4 times in 2 s, again a while after the last time.` The last part reads `, again right after the last time`, `, again a while after the last time` or `, again after a long break`, and is left out the first time |

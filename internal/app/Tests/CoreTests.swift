@@ -422,7 +422,7 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.send(.activity, tool: "Edit", id: "e")
         rig.wait(30_000)
         rig.send(.activity, tool: "Edit", failed: false, id: "e")
-        XCTAssertEqual(woke(rig.send(.turnEnd)), [#"claude finished turn 1 on "landing": done after 30 s, a long turn, 1 tool."#])
+        XCTAssertEqual(woke(rig.send(.turnEnd)), [#"claude finished turn 1 on "landing": done after 30 s, a long turn, 1 tool. 2 clean finishes in a row."#])
         rig.wait(1000)
         XCTAssertEqual(events(rig.send(.turnEnd)), [], "no turn open")
     }

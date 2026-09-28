@@ -1370,7 +1370,7 @@ final class RuntimeTests: XCTestCase {
         runtime.home.sync { runtime.dev(Data(#"{"dev":"advance","ms":10800000,"asleep":true}"#.utf8)) }
         clock.now += 10_000
         hook("Stop")
-        XCTAssertEqual(lastLine(), #"claude finished turn 2 on "jetpack": done after 40 s, a long turn, 0 tools."#)
+        XCTAssertEqual(lastLine(), #"claude finished turn 2 on "jetpack": done after 40 s, a long turn, 0 tools. 2 clean finishes in a row."#)
     }
 
     /// harness/EVENTS.md §6: a failing test wakes the brain while the
@@ -1488,18 +1488,23 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// harness/HARNESS.md §5.3, EVENTS.md §8: HISTORY closes with `react`'s
-    /// line naming Boop's last reaction, once there is one, then the core's
+    /// line naming Boop's last reaction, once there is one, then `mood`'s
+    /// time in a mood other than happy (DECISIONS.md §4), then the core's
     /// status line; the harness only places them.
-    func testHistoryClosesWithTheLastReaction() {
+    func testHistoryClosesWithTheLastReactionAndTheMoodsTime() throws {
         var now: Int64 = 1_790_000_000_000
         let core = Core(config: .init())
         let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, _ in }, blocked: { nil },
                                 clock: { now })
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-since-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let moodAction = MoodAction(store: MoodStore(stateDir: dir), clock: { now })
         let event = Transcript.Entry(seq: 1, receivedAtMs: now, body: .event(Event(.turnEnd, at: now, line: "claude finished turn 2 on \"api\".",
                                                                                    wakesBrain: true)))
         func status() -> String {
             Runtime.stateParts(for: event, steering: Self.steering, personality: .boop, mood: "happy", core: core, react: react,
-                               time: LocalTime(timeZone: TimeZone(identifier: "UTC")!), now: now, wall: now).status
+                               moodAction: moodAction, time: LocalTime(timeZone: TimeZone(identifier: "UTC")!), now: now, wall: now).status
         }
         XCTAssertEqual(status(), "Working now: nothing else.", "no reaction yet")
         _ = react.run(["react.mood": Answer(choice: "proud", probabilities: ["proud": 0.9]),
@@ -1508,7 +1513,20 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(status(), #"""
             Boop's last reaction, 2 min ago: a proud face and "…finally!".
             Working now: nothing else.
+            """#, "happy says nothing")
+        _ = moodAction.change(to: "grumpy")
+        now += 30_000
+        XCTAssertEqual(status(), #"""
+            Boop's last reaction, 2 min ago: a proud face and "…finally!".
+            Boop has been grumpy for under a minute.
+            Working now: nothing else.
             """#)
+        now += 2 * 60_000
+        XCTAssertEqual(moodAction.sinceLine(at: now), "Boop has been grumpy for 2 min.", "whole minutes, as HISTORY's")
+        XCTAssertNil(MoodAction(store: MoodStore(stateDir: dir)).sinceLine(at: now),
+                     "grumpy on disk, but nothing before a change since launch")
+        _ = moodAction.change(to: "happy")
+        XCTAssertNil(moodAction.sinceLine(at: now), "back to happy")
     }
 }
 

@@ -104,6 +104,27 @@ final class EventTests: XCTestCase {
         XCTAssertEqual(hook(.turnStart, workspace: nil).first?.line, #"claude started turn 3 on "landing", a while after its last one."#)
     }
 
+    /// EVENTS.md §4.1, §8: a finish says how many clean finishes in a row
+    /// it makes, across threads, from the second; any other finish starts
+    /// the count again.
+    func testCleanFinishesInARow() {
+        func finish(_ session: String, _ end: BoopEvent.Kind = .turnEnd) -> Event {
+            hook(.turnStart, session: session)
+            rig.wait(10_000)
+            return hook(end, session: session).first { $0.kind == .turnEnd }!
+        }
+        let first = finish("s1")
+        XCTAssertEqual(first.facts["clean_run"], .int(1))
+        XCTAssertFalse(first.line.contains("in a row"), first.line)
+        XCTAssertTrue(finish("s1").line.hasSuffix(" 2 clean finishes in a row."))
+        let third = finish("s2")
+        XCTAssertTrue(third.line.hasSuffix(" 3 clean finishes in a row."), third.line)
+        XCTAssertEqual(finish("s1", .turnFailed).facts["clean_run"], .int(0))
+        let after = finish("s1")
+        XCTAssertEqual(after.facts["clean_run"], .int(1))
+        XCTAssertFalse(after.line.contains("in a row"), after.line)
+    }
+
     /// EVENTS.md §6: nothing wakes the brain while something needs you, or
     /// with no brain; the events still come.
     func testGates() {

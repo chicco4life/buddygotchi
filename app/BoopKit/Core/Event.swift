@@ -95,7 +95,7 @@ public enum EventLine {
 
     public static func turnEnd(agent: String, turn: Int, thread: String, outcome: String, error: String?,
                                lengthMs: Int64, tools: Int, toolsFailed: Int, topics: [(String, String)],
-                               comeback: String?) -> String {
+                               comeback: String?, cleanRun: Int = 0) -> String {
         let how = switch outcome {
         case "failed": "failed" + (error.map { " (\($0.replacingOccurrences(of: "_", with: " ")))" } ?? "")
         case "stopped": "stopped"
@@ -109,6 +109,7 @@ public enum EventLine {
             line += " " + states.prefix(1).uppercased() + states.dropFirst() + "."
         }
         if let comeback { line += " A comeback on \(comeback)." }
+        if cleanRun >= 2 { line += " \(cleanRun) clean finishes in a row." }
         return line
     }
 

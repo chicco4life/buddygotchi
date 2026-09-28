@@ -9,18 +9,35 @@ public final class MoodAction: Action {
     let store: MoodStore
     /// Called with the new mood once it's saved, so the device hears of it.
     let changed: (String) -> Void
+    /// The time, on the harness's clock.
+    let clock: () -> Int64
+    /// When this action last changed the mood, on `clock`; nil before it
+    /// has since launch.
+    var changedAt: Int64?
 
-    public init(store: MoodStore, changed: @escaping (String) -> Void = { _ in }) {
+    public init(store: MoodStore, clock: @escaping () -> Int64 = { 0 }, changed: @escaping (String) -> Void = { _ in }) {
         self.store = store
+        self.clock = clock
         self.changed = changed
+    }
+
+    /// How long Boop has been in its mood, for the lines that close HISTORY
+    /// (harness/HARNESS.md §5.3): `Boop has been proud for 7 min.`, so
+    /// the mood files' minutes need no sums. Nil while happy, where every
+    /// mood fades to, and before a change since launch.
+    public func sinceLine(at now: Int64) -> String? {
+        guard store.current != MoodAction.initial, let at = changedAt else { return nil }
+        let ms = now - at
+        let span = ms < 60_000 ? "under a minute" : ms < 60 * 60_000 ? "\(ms / 60_000) min" : "\(ms / 3_600_000) h"
+        return "Boop has been \(store.current) for \(span)."
     }
 
     /// Each mood and its meaning, the `mood` question's criterion. Each also
     /// has a file in plan/steering/mood/, and a face on the device.
     public static let moods: [Option] = [
         Option("happy", "Good spirits: things are going fine."),
-        Option("excited", "Thrilled: things are going right, such as a third clean finish in a row, or a clean turn of 5 minutes or more.",
-               notFor: "One or two routine wins."),
+        Option("excited", "Thrilled: NOW says 3 clean finishes in a row (not 4 or more), or a turn of 5 minutes or more finished clean.",
+               notFor: "One or two routine wins, or work still going."),
         Option("proud", "Something hard-won worked: a fix after a failure, or a turn of 5 minutes or more that fought through failures.",
                notFor: "A routine finish, however long."),
         Option("determined", "Rooting for a retry: something failed and the agent is working on.",
@@ -56,6 +73,7 @@ public final class MoodAction: Action {
         } catch {
             return .failed("couldn't save the mood: \(error)")
         }
+        changedAt = clock()
         changed(to)
         return .done("Boop's mood changed: \(from) → \(to).")
     }

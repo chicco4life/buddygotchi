@@ -265,11 +265,13 @@ progress (step 3).
 5. **HISTORY closes** with the lines the runtime hands it, placed as
    they come: `react`'s naming Boop's last reaction and how long ago it
    started, in step 4's wording, once there is one
-   ([DECISIONS.md](DECISIONS.md) §5), then the core's status line
-   ([EVENTS.md](EVENTS.md) §8):
+   ([DECISIONS.md](DECISIONS.md) §5), then `mood`'s saying how long Boop
+   has been in a mood other than happy, once it has changed since launch
+   (§4 there), then the core's status line ([EVENTS.md](EVENTS.md) §8):
 
    ```
-   Boop's last reaction, just now: an excited face and "…tests!".
+   Boop's last reaction, 2 min ago: a proud face and "…finally!".
+   Boop has been grumpy for under a minute.
    Working now: nothing else.
    ```
 6. **NOW** is a heading with the time and weekday, NOW's line, then its
@@ -324,8 +326,8 @@ How to read HISTORY and NOW:
 ### 6.2 Sizes
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
-bytes ÷ 4, which overestimates English: the guide 300 (now 300), a
-personality 600 (`boop` 600, `chatter` 329) and a mood 150 (114–134).
+bytes ÷ 4, which overestimates English: the guide 300 (now 299), a
+personality 600 (`boop` 600, `chatter` 329) and a mood 150 (117–144).
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
 about 225 tokens and HISTORY's 40 events about 1,200, so with the

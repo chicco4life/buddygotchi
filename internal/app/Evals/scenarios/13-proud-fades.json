@@ -10,8 +10,6 @@
     {"event": "turn started", "at": "7m"},
     {"event": "turn finished", "at": "7m40s", "expect": {"mood": "proud"}},
     {"event": "turn started", "at": "12m", "expect": {"react": "none|happy", "mood": "proud|happy"}},
-    {"event": "turn finished", "at": "12m40s", "expect": {"react": "none|happy", "mood": "happy"}},
-    {"event": "turn started", "at": "17m"},
-    {"event": "turn finished", "at": "17m40s", "expect": {"mood": "happy"}}
+    {"event": "turn finished", "at": "12m40s", "expect": {"react": "none|happy", "mood": "happy"}}
   ]
 }

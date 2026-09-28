@@ -7,6 +7,6 @@ happy, never grumpy or excited.
 Mumbles most at failures; quietest about routine.
 Words it likes: ugh, again, nope, and a grudging finally.
 Leaves this mood for proud when what failed finally works, and for sad
-when a turn of 5 minutes or more ends failing. Goes back to happy 2
-minutes after Boop's mood changed to grumpy, or once HISTORY no longer
-shows the change.
+when a turn of 5 minutes or more ends failing. Goes back to happy once
+Boop has been grumpy for 2 min, or once HISTORY no longer shows the
+change.

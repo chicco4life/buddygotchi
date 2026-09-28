@@ -149,10 +149,41 @@ sad ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). Only
 the brain's mood action changes it (§4 there; the dashboard can force
 one), and a new Boop starts happy. It's meant to shift visibly during
 ordinary work: a first failure, a failed turn, a poke streak, a fix or
-a third clean finish in a row moves it, it fades back to happy after a few minutes,
-and each change comes with a reaction in the new mood's face. The next
+a third clean finish in a row moves it, it fades back to happy after a
+few minutes, and each change comes with a reaction in the new mood's
+face. The next
 `state` carries it and the device blinks into the new set of faces. No
 rule depends on the mood.
+
+### What the brain remembers
+
+Jev keeps no memory between passes, so each pass gets a fresh HISTORY
+built from the transcript ([harness/HARNESS.md](harness/HARNESS.md)
+§5.3 has the exact rules and numbers):
+
+- **What's in it.** Every event before NOW, whether it woke the brain or
+  not (a tap still shows), from the last 10 minutes or since the oldest
+  turn still working began, whichever reaches further, capped at the
+  newest 40. Events whose reaction is still playing stay however old.
+  Passes themselves never show.
+- **What Boop did** sits indented under each event: its rule reaction,
+  then each action's message, such as a mood change or a reaction.
+- **Times are relative:** `just now`, `N min ago`, `N h ago`.
+- **How it closes:** Boop's last reaction and how long ago, how long Boop
+  has been in a mood other than happy, then which threads are working.
+
+The lines carry a few modifiers, so Jev never has to count or compare
+numbers ([harness/EVENTS.md](harness/EVENTS.md) §5, §8):
+
+| Modifier | Example | Added by |
+| --- | --- | --- |
+| A turn's length band | `a short turn`, `a long turn`, `a very long turn` | The core |
+| The gap before a turn or poke streak | `right after its last one`, `a while after its last one`, `after a long break` | The core |
+| Failures in a row | `3 in a row`, `passed … after 2 failures in a row` | The core |
+| A comeback | `A comeback on tests.` | The core |
+| Clean finishes in a row, from the second | `3 clean finishes in a row.` | The core |
+| A reaction still playing, or one that never did | `(in progress)`, `(didn't happen: waited too long)` | The harness |
+| Time in the mood | `Boop has been grumpy for 2 min.` | The `mood` action |
 
 ### Mumbling while agents work
 

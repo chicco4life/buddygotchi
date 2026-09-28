@@ -167,6 +167,11 @@ public final class Core {
     /// Heartbeats sent since then.
     var heartbeats = 0
 
+    // Clean finishes (harness/EVENTS.md §8).
+    /// Turns finished `done` with no tool failing, in a row across every
+    /// thread; any other finish starts it again.
+    var cleanRun = 0
+
     /// `lastActiveDay` is today's date from `short-term.md`, if there is one,
     /// so a restart doesn't start the day again.
     public init(config: Config, lastActiveDay: String? = nil) {
@@ -785,16 +790,18 @@ public final class Core {
     func turnEndEvent(_ s: Session, outcome: String, error: String?, lengthMs: Int64, reaction: String?,
                       _ now: Int64, _ fx: inout [CoreEffect]) {
         let topics = s.topicStates.map { ($0.topic, $0.state) }
+        cleanRun = outcome == "done" && s.toolsFailed == 0 ? cleanRun + 1 : 0
         let line = EventLine.turnEnd(agent: s.agent.short, turn: s.turns, thread: threadLine(s), outcome: outcome,
                                      error: error, lengthMs: lengthMs, tools: s.tools, toolsFailed: s.toolsFailed,
-                                     topics: topics, comeback: s.comeback)
+                                     topics: topics, comeback: s.comeback, cleanRun: cleanRun)
         var topicFacts: [String: JSONValue] = [:]
         for (topic, state) in topics { topicFacts[topic] = .string(state) }
         fx.append(.event(Event(.turnEnd, at: now, line: line, reaction: reaction, wakesBrain: wakes, about: s.key,
                                facts: ["thread": threadFacts(s), "outcome": .string(outcome), "error": .of(error),
                                        "length": .string(Band.length(ms: lengthMs)), "length_ms": .int(lengthMs),
                                        "tools": .int(Int64(s.tools)), "tools_failed": .int(Int64(s.toolsFailed)),
-                                       "topics": .object(topicFacts), "comeback": .of(s.comeback)])))
+                                       "topics": .object(topicFacts), "comeback": .of(s.comeback),
+                                       "clean_run": .int(Int64(cleanRun))])))
     }
 
     /// A finished tool call: counted for the turn, and an event when it's

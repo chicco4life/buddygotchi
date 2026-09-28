@@ -114,8 +114,8 @@ flares up and blows over, 10 for sad, and 5 for the rest (§2.1).
 
 | Mood | Its meaning (the `mood` option) | Leaves for (its file) |
 | --- | --- | --- |
-| `happy` | Good spirits: things are going fine | `excited` at a third clean finish in a row, or a clean turn of 5 minutes or more; `proud` when something that failed works; `determined` at a failure while the agent works on; `grumpy` when a turn fails or at a poke streak; `sad` when a turn of 5 minutes or more ends failing. Stays happy through one or two routine finishes and a stopped turn |
-| `excited` | Thrilled: things are going right, such as a third clean finish in a row, or a clean turn of 5 minutes or more. Not for one or two routine wins | `determined` at a failure; `grumpy` when a turn fails or at a poke streak; `sad` when a turn of 5 minutes or more ends failing; `happy` after 5 minutes |
+| `happy` | Good spirits: things are going fine | `excited` when NOW says 3 clean finishes in a row (not 4 or more, so a long clean stretch excites it once), or a turn of 5 minutes or more finishing clean; `proud` when something that failed works; `determined` at a failure while the agent works on; `grumpy` when a turn fails or at a poke streak; `sad` when a turn of 5 minutes or more ends failing. Stays happy through one or two routine finishes, a stopped turn and work still going |
+| `excited` | Thrilled: NOW says 3 clean finishes in a row, not 4 or more ([EVENTS.md](EVENTS.md) §8), or a turn of 5 minutes or more finished clean. Not for one or two routine wins, or work still going | `determined` at a failure; `grumpy` when a turn fails or at a poke streak; `sad` when a turn of 5 minutes or more ends failing; `happy` after 5 minutes |
 | `proud` | Something hard-won worked: a fix after a failure, or a turn of 5 minutes or more that fought through failures. Not for a routine finish, however long | The same as `excited` |
 | `determined` | Rooting for a retry: something failed and the agent is working on. Not for a turn that has ended | `proud` when what failed works; `grumpy` at 3 failures in a row, when a turn fails or at a poke streak; `sad` when a turn of 5 minutes or more ends failing; `happy` after 5 minutes |
 | `grumpy` | Fed up, briefly: a turn failed, 3 or more failures in a row, or poked too much. Not for a single failure in a turn still working | `proud` when what failed finally works; `sad` when a turn of 5 minutes or more ends failing; `happy` after 2 minutes |
@@ -239,6 +239,18 @@ the next `state` carries it.
 
 A mood can change on any pass, a poke streak's included, even straight
 after another change.
+
+**How long Boop has been in its mood.** `mood` also hands the runtime a
+line for the end of HISTORY, after `react`'s ([HARNESS.md](HARNESS.md)
+§5.3): `Boop has been proud for 7 min.`, in whole minutes as HISTORY's
+times are (`under a minute` below one, hours past an hour), counted from
+the change it last made (`MoodAction.sinceLine`). It's left out while
+Boop is happy, and before the action has changed the mood since launch,
+where the change leaving HISTORY is the mood files' fallback. The mood
+files' minutes ("once Boop has been grumpy for 2 min") are read against
+it: without it, Jev saw `7 min ago: … Boop's mood changed: determined →
+proud` and kept Boop proud at 0.68–0.75, where its 5 minutes were up
+(`make eval`'s `13-proud-fades`, 0 of 3 runs before, 3 of 3 after).
 
 **The dashboard** sets a mood through the same change
 ([HARNESS.md](HARNESS.md) §9), and gets a refusal where Jev's answer would
