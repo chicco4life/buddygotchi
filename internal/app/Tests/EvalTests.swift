@@ -29,12 +29,12 @@ final class EvalTests: XCTestCase {
             let now = state.components(separatedBy: "\nNOW (").last ?? ""
             func a(_ c: String) -> Answer { Answer(choice: c, probabilities: [c: 0.9]) }
             if now.contains("3 in a row") {
-                return ["mood": a("grumpy"), "react": a("grumpy"), "word.feeling": a("again"), "word.about": a("tests")]
+                return ["mood": a("grumpy"), "react.mood": a("grumpy"), "word.feeling": a("again"), "word.about": a("tests")]
             }
             if now.contains("passed") {
-                return ["mood": a("proud"), "react": a("proud"), "word.feeling": a("finally"), "word.about": a("tests")]
+                return ["mood": a("proud"), "react.mood": a("proud"), "word.feeling": a("finally"), "word.about": a("tests")]
             }
-            return ["mood": a(state.contains("MOOD\nGrumpy") ? "grumpy" : "happy"), "react": a("none"),
+            return ["mood": a(state.contains("MOOD\nGrumpy") ? "grumpy" : "happy"), "react.mood": a("none"),
                     "word.feeling": a("none"), "word.about": a("none")]
         }
         let scenario = try Scenario(file: Self.scenarios.appendingPathComponent("04-tests-fight-back.json"))
@@ -56,7 +56,7 @@ final class EvalTests: XCTestCase {
         let brain = ScriptedBrain { state, _ in
             states.add(state)
             let proud = Answer(choice: "proud", probabilities: ["proud": 1])
-            return ["react": proud, "mood": proud]
+            return ["react.mood": proud, "mood": proud]
         }
         let eval = Eval(brain: brain, steering: RuntimeTests.steering)
         for (file, marker) in [("11-comeback-still-showing.json", " (in progress)\n"),
@@ -85,7 +85,7 @@ final class EvalTests: XCTestCase {
         XCTAssertFalse(result.passed)
         let report = Eval.report([result])
         XCTAssertEqual(report.first, "FAIL  05-poke-streak.json  Poked again and again, Boop is grumpy")
-        XCTAssertTrue(report[1].contains("wanted react grumpy, word none|nope|ugh, loops once, mood happy; got react none, word none, loops none, mood happy"), report[1])
+        XCTAssertTrue(report[1].contains("wanted react grumpy, word none|nope|ugh, loops once, mood happy; got react none, animation none, word none, loops none, mood happy"), report[1])
         XCTAssertEqual(Eval.summary([[result]]), "0/1 passed")
     }
 }

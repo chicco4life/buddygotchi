@@ -336,12 +336,17 @@ def fate(row: Line) -> tuple[str, str]:
     return "ok", "  ✓ played"
 
 
-# The reaction: a face, or a face with the cheer (`proud-cheer`).
-FACE = "react"
+# The reaction's face is `react.mood`, and its animation `react.animation`.
+# Older logs name the face `react`, and for a while it carried the cheer
+# too (`proud-cheer`); `answer` reads either.
+FACE = "react.mood"
 
 
 def answer(p: Line, key: str) -> Line:
-    return (p.get("answers") or {}).get(key, {})
+    answers = p.get("answers") or {}
+    if key == FACE and key not in answers:
+        key = "react"
+    return answers.get(key, {})
 
 
 def choice(p: Line, key: str) -> str | None:
@@ -358,9 +363,11 @@ def word_keys(p: Line) -> list[str]:
 
 
 def picks_text(p: Line) -> str:
-    """The reaction, its word and its hold, each with its probability:
-    `proud-cheer 0.82 · "finally" 0.71 · three times 0.64`."""
+    """The face, its animation, its word and its hold, each with its
+    probability: `proud 0.82 · cheer 0.90 · "finally" 0.71 · three times 0.64`."""
     parts = [f"{choice(p, FACE)} {prob(p, FACE):.2f}"]
+    if choice(p, "react.animation") not in (None, "none"):
+        parts.append(f"{choice(p, 'react.animation')} {prob(p, 'react.animation'):.2f}")
     words = [(choice(p, k), prob(p, k)) for k in word_keys(p) if choice(p, k) not in (None, "none")]
     parts += [f"“{w}” {v:.2f}" for w, v in words] or ["no word"]
     if choice(p, "react.loops"):
@@ -375,6 +382,8 @@ def reaction_text(row: Line) -> str:
     words = [choice(p, k) for k in word_keys(p) if choice(p, k) not in (None, "none")]
     loops = choice(p, "react.loops")
     face, _, anim = (choice(p, FACE) or "?").partition("-")
+    if choice(p, "react.animation") not in (None, "none"):
+        anim = choice(p, "react.animation")
     what = (f"a {anim} in " if anim else "") + f"{'an' if face[0] in 'aeiou' else 'a'} {face}"
     what += " face" if anim else " reaction face"
     return (what + (f", {loops}" if loops else "")

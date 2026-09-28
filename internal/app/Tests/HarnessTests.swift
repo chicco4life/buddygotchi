@@ -695,7 +695,7 @@ final class HarnessTests: XCTestCase {
     }
 
     func testQuestionKeysMustBeUniqueAcrossActions() {
-        XCTAssertEqual(Set(Self.realActions().flatMap { $0.questions().map(\.key) }).count, 5)
+        XCTAssertEqual(Set(Self.realActions().flatMap { $0.questions().map(\.key) }).count, 6)
     }
 
     static func realActions() -> [any Action] {
@@ -730,13 +730,13 @@ final class HarnessTests: XCTestCase {
             XCTAssertEqual(queued.count, before + 1, "one moment queued", line: line)
             XCTAssertEqual(result, queued.last.map { .started(message, $0.pending) }, line: line)
         }
-        XCTAssertNil(react.run(["react": a("none")]))
-        starts(["react": a("grumpy"), "word.feeling": a("again", 0.57), "word.about": a("tests", 0.81),
+        XCTAssertNil(react.run(["react.mood": a("none")]))
+        starts(["react.mood": a("grumpy"), "word.feeling": a("again", 0.57), "word.about": a("tests", 0.81),
                 "react.loops": a("twice")],
                #"Boop made a grumpy face, held twice, and mumbled "…again!""#)
-        starts(["react": a("proud"), "word.feeling": a("again", 0.31), "word.about": a("tests", 0.79)],
+        starts(["react.mood": a("proud"), "word.feeling": a("again", 0.31), "word.about": a("tests", 0.79)],
                #"Boop made a proud face, held once, and mumbled "…tests!""#)
-        starts(["react": a("happy"), "word.feeling": a("none"), "word.about": a("docs", 0.2), "react.loops": a("four times")],
+        starts(["react.mood": a("happy"), "word.feeling": a("none"), "word.about": a("docs", 0.2), "react.loops": a("four times")],
                "Boop made a happy face, held four times, and mumbled.")
         XCTAssertEqual(sent.count, 3)
         XCTAssertEqual(Set(queued.map { ObjectIdentifier($0.pending) }).count, 3, "a handle each")
@@ -746,36 +746,40 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(sent.map(\.loops), [2, 1, 4], "for its loops")
         XCTAssertEqual(sent[0].say?.tune, .flat, "grumpy mumbles in annoyed's voice")
         XCTAssertTrue(sent[0].jsonLine.hasSuffix(#","mood":"grumpy","loops":2}"#), sent[0].jsonLine)
-        XCTAssertNil(react.run(["react": a("annoyed")]), "annoyed was a feeling, not a face")
-        starts(["react": a("excited"), "react.loops": a("three times")], "Boop made an excited face, held three times, and mumbled.")
+        XCTAssertNil(react.run(["react.mood": a("annoyed")]), "annoyed was a feeling, not a face")
+        starts(["react.mood": a("excited"), "react.loops": a("three times")], "Boop made an excited face, held three times, and mumbled.")
         XCTAssertEqual(queued.last?.moment.loops, 3)
         queued.removeLast()
-        // DECISIONS.md §3, §5: a `-cheer` choice plays the cheer in that face;
-        // an animation the device doesn't play isn't a choice.
-        XCTAssertEqual(ReactAction.animations, ["cheer"])
-        starts(["react": a("proud-cheer"), "react.loops": a("twice"), "word.feeling": a("finally")],
+        // DECISIONS.md §3, §5: `react.animation` plays the cheer in the face;
+        // `none`, a missing answer or an animation the device doesn't play
+        // is just the face.
+        XCTAssertEqual(ReactAction.animations.map(\.name), ["cheer"])
+        starts(["react.mood": a("proud"), "react.animation": a("cheer"), "react.loops": a("twice"), "word.feeling": a("finally")],
                #"Boop played a cheer in a proud face, held twice, and mumbled "…finally!""#)
         XCTAssertEqual(queued.last?.moment.anim, "cheer")
         XCTAssertTrue(queued.last!.moment.jsonLine.hasPrefix(#"{"t":"moment","anim":"cheer","say":"#), queued.last!.moment.jsonLine)
         XCTAssertTrue(queued.last!.moment.jsonLine.hasSuffix(#","mood":"proud","loops":2}"#), queued.last!.moment.jsonLine)
         XCTAssertEqual(react.lastLine(at: 0), #"Boop's last reaction, just now: a cheer in a proud face and "…finally!"."#)
         queued.removeLast()
-        for pick in ["happy-wiggle", "happy-confetti", "cheer", "curious-cheer"] {
-            XCTAssertNil(react.run(["react": a(pick)]), pick)
+        for pick in ["none", "wiggle", "confetti"] {
+            starts(["react.mood": a("happy"), "react.animation": a(pick)], "Boop made a happy face, held once, and mumbled.")
+            XCTAssertNil(queued.last?.moment.anim, pick)
+            queued.removeLast()
         }
+        XCTAssertNil(react.run(["react.mood": a("proud-cheer")]), "a face and an animation are separate questions")
         why = "something needs you"
-        for expression in ReactAction.reactions.map(\.name) {
-            XCTAssertEqual(react.run(["react": a(expression)]), .failed("something needs you"))
+        for expression in ReactAction.expressions.map(\.name) {
+            XCTAssertEqual(react.run(["react.mood": a(expression)]), .failed("something needs you"))
         }
         XCTAssertEqual(sent.count, 3, "no face or mumble while something needs you")
-        XCTAssertEqual(react.questions().map(\.key), ["react", "react.loops", "word.feeling", "word.about"])
-        XCTAssertEqual(react.questions()[0].options.map(\.name),
-                       ["none"] + MoodAction.moods.map(\.name) + MoodAction.moods.map { $0.name + "-cheer" },
-                       "the six moods' faces, alone and with the cheer")
-        XCTAssertNil(react.run(["react": a("curious")]), "curious isn't a face the brain can pick (DECISIONS.md §3)")
-        XCTAssertEqual(react.questions()[1].options.map(\.name), ["once", "twice", "three times", "four times"])
-        XCTAssertEqual(react.questions()[2].options.map(\.name), ["none", "finally", "yay", "oops", "again", "ugh", "nope", "hmm"])
-        XCTAssertEqual(react.questions()[3].options.map(\.name), ["none", "tests", "build", "deploy", "docs"])
+        XCTAssertEqual(react.questions().map(\.key), ["react.mood", "react.animation", "react.loops", "word.feeling", "word.about"])
+        XCTAssertEqual(react.questions()[0].options.map(\.name), ["none"] + MoodAction.moods.map(\.name),
+                       "the faces are the six moods'")
+        XCTAssertNil(react.run(["react.mood": a("curious")]), "curious isn't a face the brain can pick (DECISIONS.md §3)")
+        XCTAssertEqual(react.questions()[1].options.map(\.name), ["none", "cheer"])
+        XCTAssertEqual(react.questions()[2].options.map(\.name), ["once", "twice", "three times", "four times"])
+        XCTAssertEqual(react.questions()[3].options.map(\.name), ["none", "finally", "yay", "oops", "again", "ugh", "nope", "hmm"])
+        XCTAssertEqual(react.questions()[4].options.map(\.name), ["none", "tests", "build", "deploy", "docs"])
         XCTAssertEqual(ReactAction.holds.indices.map { ReactAction.loops(["react.loops": a(ReactAction.holds[$0].name)]) },
                        [1, 2, 3, 4])
         XCTAssertEqual(ReactAction.loops([:]), 1)
@@ -795,7 +799,7 @@ final class HarnessTests: XCTestCase {
         let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { queued.append($1) }, blocked: { nil },
                                 clock: { now })
         XCTAssertNil(react.lastLine(at: now))
-        _ = react.run(["react": a("excited"), "word.feeling": a("none"), "word.about": a("tests", 0.8)])
+        _ = react.run(["react.mood": a("excited"), "word.feeling": a("none"), "word.about": a("tests", 0.8)])
         XCTAssertEqual(react.lastLine(at: now), #"Boop's last reaction, just now: an excited face and "…tests!"."#,
                        "in progress counts")
         queued[0].finish(.done)
@@ -805,7 +809,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(react.lastLine(at: now + 2 * 3_600_000), #"Boop's last reaction, 2 h ago: an excited face and "…tests!"."#,
                        "past HISTORY's 10 minutes too")
         now += 90_000
-        _ = react.run(["react": a("happy")])
+        _ = react.run(["react.mood": a("happy")])
         XCTAssertEqual(react.lastLine(at: now), "Boop's last reaction, just now: a happy face, with no word.")
         queued[1].finish(.failed("waited too long"))
         XCTAssertEqual(react.lastLine(at: now), #"Boop's last reaction, 1 min ago: an excited face and "…tests!"."#,

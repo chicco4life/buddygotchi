@@ -347,7 +347,7 @@ if __name__ == "__main__":
 
 
 class FaceKeyTests(unittest.TestCase):
-    def test_the_reaction(self) -> None:
-        self.assertEqual(day.face({"answers": {"react": {"choice": "proud-cheer"}}}), "proud-cheer")
+    def test_either_key(self) -> None:  # react.mood, or react in older logs
+        self.assertEqual(day.face({"answers": {"react.mood": {"choice": "proud"}}}), "proud")
         self.assertEqual(day.face({"answers": {"react": {"choice": "grumpy"}}}), "grumpy")
         self.assertIsNone(day.face({"answers": {}}))

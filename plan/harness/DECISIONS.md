@@ -18,9 +18,9 @@ Two actions, registered in this order (`Runtime`):
 | Action | Decides | Its questions | Effect |
 | --- | --- | --- | --- |
 | `mood` (§4) | Whether Boop's mood changes, and to what | `mood` | The `mood` file; MOOD from the next pass; the device's set of faces |
-| `react` (§5) | Whether Boop reacts, with which mood's face, alone or with the cheer, for how long, and with which real word | `react`, `react.loops`, `word.feeling`, `word.about` | The device draws the look, or the animation when there is one, in that mood's design for the loops picked, and at least while a Minion line plays |
+| `react` (§5) | Whether Boop reacts, with which mood's face, which animation, for how long, and with which real word | `react.mood`, `react.animation`, `react.loops`, `word.feeling`, `word.about` | The device draws the look, or the animation when there is one, in that mood's design for the loops picked, and at least while a Minion line plays |
 
-All five questions (four on a poke streak's pass, which leaves out
+All six questions (five on a poke streak's pass, which leaves out
 `mood`, §4) go in one request, and Jev answers each on its own
 ([HARNESS.md](HARNESS.md) §7). So both actions are judged against the
 mood as it stood: on a pass that changes the mood, the reaction is still
@@ -136,18 +136,16 @@ meaning is its criterion.
 | Key | Asked by | Text | About | Judged by | Options |
 | --- | --- | --- | --- | --- | --- |
 | `mood` | `mood` | After NOW, what is Boop's mood? | the NOW and HISTORY sections | the MOOD section, its reason to leave | The six moods (§2.3). Not asked on a poke streak's pass |
-| `react` | `react` | How should Boop react to NOW, if at all? It makes this mood's face for a moment, with a cheer if its choice says so, and a mumble. | the NOW section | the PERSONALITY and MOOD sections, PERSONALITY's Examples first | `none`, the six moods' faces, and each with the cheer (`proud-cheer`) |
-| `react.loops` | `react` | If Boop reacts, how long does it hold the face? | the NOW section | as `react` | Four lengths, once to four times |
-| `word.feeling` | `react` | If Boop mumbles, which exclamation fits NOW? | the NOW section | as `react` | `none` and seven exclamations |
+| `react.mood` | `react` | How should Boop react to NOW, if at all? It makes this mood's face for a moment, with a mumble. | the NOW section | the PERSONALITY and MOOD sections, PERSONALITY's Examples first | `none` and the six moods' faces |
+| `react.animation` | `react` | If Boop reacts, does it play an animation? | the NOW section | as `react.mood` | `none` and each reaction animation: today only `cheer` |
+| `react.loops` | `react` | If Boop reacts, how long does it hold the face? | the NOW section | as `react.mood` | Four lengths, once to four times |
+| `word.feeling` | `react` | If Boop mumbles, which exclamation fits NOW? | the NOW section | as `react.mood` | `none` and seven exclamations |
 | `word.about` | `react` | If Boop mumbles, which topic word is NOW about? | the NOW section | the PERSONALITY section's Examples | `none` and four topics |
 
-**`react` picks the whole reaction in one choice:** a mood × a visual
-for a moment, as the screen is a mood × a state. Its options are
-`none`, the six moods' faces, and each face with the cheer. A face alone
-draws whatever look is showing (working, idle) in that mood's design;
-with the cheer (`proud-cheer`), the device plays the mood's
-task-complete scene instead (a trophy, a curtain call or a podium; it
-picks). Either holds for the loops `react.loops` picks, and at least while the mumble
+**`react.mood` picks a face.** Its options are `none` and the six moods,
+and a reaction is that mood's face for a moment: the device draws
+whatever look is showing (working, idle) in that mood's design, or the
+animation `react.animation` picks, for the loops `react.loops` picks, and at least while the mumble
 plays, then goes back to Boop's mood ([PROTOCOL.md](../PROTOCOL.md) §3).
 The mood is the backdrop and the face the moment, so they can differ on
 purpose: a happy Boop at work scowls grumpily at a failing test for a
@@ -155,16 +153,10 @@ loop of the working design, then smiles again.
 The designs are the reactions' meaning; the sound follows the face
 (Voice picks a feeling for each mood, [VOICE.md](../VOICE.md) §4).
 
-`react` asks whether and how at once. Separate questions for whether,
-the face and the animation could disagree (a "no" with a confident
-"proud", or a cheer with no face); one choice can't. No rule cheers, so
-a `-cheer` choice is the only way a finish is celebrated. A new
-reaction animation adds a choice for each face (`proud-oops`, say),
-each with its own meaning, once its art exists; candidates are an
-`oops` for a first failure, a `slump` when things keep failing, a
-`huff` at a poke streak and a `ponder` at a stopped turn.
+`react.mood` asks whether and how at once. A separate yes/no and face could
+disagree (a "no" with a confident "proud"); one choice can't.
 
-| `react` | Meaning |
+| `react.mood` | Meaning |
 | --- | --- |
 | `none` | Stay quiet: nothing in NOW is worth a face and a mumble, or HISTORY shows Boop still making the one it calls for (in progress). Not for anything PERSONALITY's Examples react to that Boop isn't already doing |
 | `happy` | A happy face: pleased, a turn went fine or a small win |
@@ -173,16 +165,27 @@ each with its own meaning, once its art exists; candidates are an
 | `determined` | A determined face: something failed and the agent is trying again. Not for a turn that has ended, or the same failure 3 or more times in a row |
 | `grumpy` | A grumpy face: a turn failed, the same thing keeps failing, or Boop is poked too much |
 | `sad` | A sad face: a turn of 10 minutes or more ended failing, or was stopped with failures left. Not for a short turn failing, or a single failure |
-| `happy-cheer` | A cheer in a happy face: something finished well, and it stands out. Not for a routine finish |
-| `excited-cheer` | A cheer in an excited face: something big went right, such as a long turn finishing clean. Not for a routine finish, however long |
-| `proud-cheer` | A cheer in a proud face: a hard-won finish, a comeback. Not for a first try |
-| `determined-cheer` | A cheer in a determined face: it finally worked while the agent kept pushing. Not for a clean finish |
-| `grumpy-cheer` | A cheer in a grumpy face: a grudging win after a run of failures. Not for a clean finish |
-| `sad-cheer` | A cheer in a sad face: relief through tears, a long hard turn that finally finished. Not for a turn that ended failing |
+
+**`react.animation` picks an animation to play in the face,** instead
+of drawing the face over the look. A reaction is a mood and an
+animation, as the screen is a mood and a state. Today the only one is
+the cheer, the mood's task-complete scene (a trophy, a curtain call or
+a podium; the device picks). No rule cheers, so this is the only way a
+finish is celebrated. It's asked on every pass and only read when
+`react.mood` picks a face; a missing or unknown answer is `none`. A new
+reaction animation is a new option here with its own meaning, once its
+art exists; candidates are an `oops` for a first failure, a `slump`
+when things keep failing, a `huff` at a poke streak and a `ponder` at a
+stopped turn.
+
+| `react.animation` | Meaning |
+| --- | --- |
+| `none` | Just the face, over whatever look is showing: the usual |
+| `cheer` | Something just finished or finally worked, and it stands out. Not for a routine finish, a failure, or anything still going |
 
 **`react.loops` picks how long the face holds,** in loops of the design
 it's drawn in. It's asked on every pass and only
-read when `react` picks a face; a missing answer holds it once. The
+read when `react.mood` picks a face; a missing answer holds it once. The
 personality's Examples set the scale: boop mostly holds once, chatter
 long.
 
@@ -247,8 +250,7 @@ gate, which says when something needs you.
 
 `run`:
 
-1. **Whether:** `react` missing, `none` or not one of its reactions →
-   `nil`; otherwise its face, and the cheer if the choice ends `-cheer`. Since
+1. **Whether:** `react.mood` missing, `none` or not a mood → `nil`. Since
    `none`'s meaning rules out anything PERSONALITY's Examples react to, a
    moment worth a reaction doesn't lose to it just because Jev can't
    settle on one face. It still covers a reaction Boop is making already:
@@ -266,7 +268,7 @@ gate, which says when something needs you.
    mood (`Voice.feeling(forMood:)`), with the word, each line with the
    next seed. It's queued as a `moment` with `say`, the face as `mood`
    and `react.loops`' pick as `loops` (1–4, `ReactAction.loops`), with
-   `anim: cheer` for a `-cheer` choice, and otherwise no animation,
+   `react.animation`'s pick as `anim` when it isn't `none`, and otherwise no animation,
    so it plays over whatever is showing (a wiggle included). Either way
    it waits until any line or face playing has finished. A face the last reaction
    holds on for its loops after its mumble is the exception: this one

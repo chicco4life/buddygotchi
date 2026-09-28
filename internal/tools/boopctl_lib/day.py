@@ -318,8 +318,10 @@ def span(ms: int) -> str:
 
 
 def face(p: dict) -> str | None:
-    """A pass's reaction: a face, or one with the cheer (`proud-cheer`)."""
-    return ((p.get("answers") or {}).get("react") or {}).get("choice")
+    """A pass's reaction face: `react.mood`, which older logs name
+    `react`."""
+    answers = p.get("answers") or {}
+    return (answers.get("react.mood") or answers.get("react") or {}).get("choice")
 
 
 def minutes(ms: int) -> str:

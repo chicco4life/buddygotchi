@@ -594,15 +594,17 @@ if __name__ == "__main__":
 
 
 class ReactionKeysTests(unittest.TestCase):
-    """harness/DECISIONS.md §3: one `react` choice, a face alone or with
-    the cheer (`proud-cheer`)."""
+    """harness/DECISIONS.md §3: a reaction is `react.mood` and
+    `react.animation`; older logs name the face `react`."""
 
     def test_the_face_and_its_cheer(self) -> None:
-        from boopctl_lib.dash.feed import picks_text, reaction_text
+        from boopctl_lib.dash.feed import choice, picks_text, reaction_text
         a = lambda c, p=1.0: {"choice": c, "p": {c: p}}  # noqa: E731
-        now = {"answers": {"react": a("proud-cheer", 0.82), "react.loops": a("twice"), "word.feeling": a("finally", 0.71)},
-               "questions": ["react", "react.loops", "word.feeling"]}
-        self.assertEqual(picks_text(now), "proud-cheer 0.82 · “finally” 0.71 · twice 1.00")
+        now = {"answers": {"react.mood": a("proud", 0.82), "react.animation": a("cheer", 0.9),
+                           "react.loops": a("twice"), "word.feeling": a("finally", 0.71)},
+               "questions": ["react.mood", "react.animation", "react.loops", "word.feeling"]}
+        self.assertEqual(picks_text(now), "proud 0.82 · cheer 0.90 · “finally” 0.71 · twice 1.00")
         self.assertEqual(reaction_text({"pass": now}), "a cheer in a proud face, twice, “…finally!”")
-        face = {"answers": {"react": a("grumpy"), "react.loops": a("once")}, "questions": ["react", "react.loops"]}
-        self.assertEqual(reaction_text({"pass": face}), "a grumpy reaction face, once")
+        old = {"answers": {"react": a("grumpy"), "react.loops": a("once")}, "questions": ["react", "react.loops"]}
+        self.assertEqual(choice(old, "react.mood"), "grumpy", "an older log's `react`")
+        self.assertEqual(reaction_text({"pass": old}), "a grumpy reaction face, once")

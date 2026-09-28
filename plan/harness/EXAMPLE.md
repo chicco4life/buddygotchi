@@ -6,8 +6,9 @@ answers, and the actions. How it works is in [HARNESS.md](HARNESS.md),
 [EVENTS.md](EVENTS.md) and [DECISIONS.md](DECISIONS.md); this file only
 shows it.
 
-Everything here is real, recorded before `react` gained its `-cheer`
-choices on 2026-09-28. It's run 1 of the eval scenario
+Everything here is real, recorded before the reaction's questions were
+renamed on 2026-09-28: its `react` is today's `react.mood`, and it had
+no `react.animation` yet. It's run 1 of the eval scenario
 `04-tests-fight-back` ([EVALS.md](../EVALS.md) §4) in a `make eval`
 against `jev:jev-latest` on 2026-09-28, with today's code and the
 steering as retuned for livelier reactions that night

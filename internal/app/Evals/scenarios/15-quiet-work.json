@@ -4,6 +4,6 @@
   "steps": [
     {"event": "turn started", "at": "0s"},
     {"event": "command", "at": "20s", "topic": "tests", "failed": false},
-    {"event": "wait", "at": "12m", "expect": {"react": "none|happy|excited", "word": "none|tests", "mood": "happy"}}
+    {"event": "wait", "at": "12m", "expect": {"react": "none|happy|excited", "animation": "none", "word": "none|tests", "mood": "happy"}}
   ]
 }

@@ -116,7 +116,7 @@ final class RuntimeTests: XCTestCase {
         let lines = DebugLines()
         var options = try options(transport, brain: ScriptedBrain(id: "scripted", always: [
             "mood": Answer(choice: "grumpy", probabilities: ["grumpy": 0.7]),
-            "react": Answer(choice: "grumpy", probabilities: ["grumpy": 0.6]),
+            "react.mood": Answer(choice: "grumpy", probabilities: ["grumpy": 0.6]),
             "word.feeling": Answer(choice: "again", probabilities: ["again": 0.5]),
         ]))
         options.debug = true
@@ -184,14 +184,14 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(printed.contains { $0.hasPrefix("core: event turn_start") }, "\(printed)")
         XCTAssertTrue(printed.contains { $0.hasPrefix("▸ 1 turn_start: claude started turn 1") }, "\(printed)")
         let pass = try XCTUnwrap(printed.first { $0.hasPrefix("  pass scripted") })
-        XCTAssertTrue(pass.contains("react excited 1.00"), pass)
+        XCTAssertTrue(pass.contains("react.mood excited 1.00"), pass)
         XCTAssertTrue(pass.contains("    │ You are the mind of Boop"), "the first state in full")
         XCTAssertTrue(printed.contains("  … react: Boop made an excited face, held once, and mumbled \"…yay!\""), "started: \(printed)")
         XCTAssertTrue(printed.contains { $0.hasPrefix("  ✗ react (") && $0.hasSuffix(") didn't happen: no device connected") },
                       "the fake device never connected: \(printed)")
         let p = try XCTUnwrap(debugLines().compactMap { $0["pass"] as? [String: Any] }.first)
         XCTAssertTrue((p["state"] as? String)?.hasPrefix("You are the mind of Boop") == true)
-        XCTAssertEqual(p["questions"] as? [String], ["mood", "react", "react.loops", "word.feeling", "word.about"])
+        XCTAssertEqual(p["questions"] as? [String], ["mood", "react.mood", "react.animation", "react.loops", "word.feeling", "word.about"])
     }
 
     /// harness/HARNESS.md §9: each launch keeps the last one's lines as
@@ -248,9 +248,9 @@ final class RuntimeTests: XCTestCase {
         let lines = debugLines()
         let questions = try XCTUnwrap(lines.first?["questions"] as? [[String: Any]], "the questions come first")
         XCTAssertEqual(lines.filter { $0["questions"] != nil }.count, 1, "once")
-        XCTAssertEqual(questions.map { $0["key"] as? String }, ["mood", "react", "react.loops", "word.feeling", "word.about"])
-        XCTAssertEqual(questions.map { $0["action"] as? String }, ["mood", "react", "react", "react", "react"])
-        XCTAssertEqual(questions[1]["text"] as? String, "How should Boop react to NOW, if at all? It makes this mood's face for a moment, with a cheer if its choice says so, and a mumble.")
+        XCTAssertEqual(questions.map { $0["key"] as? String }, ["mood", "react.mood", "react.animation", "react.loops", "word.feeling", "word.about"])
+        XCTAssertEqual(questions.map { $0["action"] as? String }, ["mood", "react", "react", "react", "react", "react"])
+        XCTAssertEqual(questions[1]["text"] as? String, "How should Boop react to NOW, if at all? It makes this mood's face for a moment, with a mumble.")
         let none = try XCTUnwrap((questions[1]["options"] as? [[String: Any]])?.first)
         XCTAssertEqual(none["name"] as? String, "none")
         XCTAssertEqual(none["what"] as? String, "Stay quiet: nothing in NOW is worth a face and a mumble, "
@@ -322,7 +322,7 @@ final class RuntimeTests: XCTestCase {
         eventually("no brain") { runtime.home.sync { !runtime.readingJevKey && runtime.jevKey != nil } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
 
-        dev(#"{"dev":"answer","answers":{"react":"grumpy","word.feeling":"again"}}"#)
+        dev(#"{"dev":"answer","answers":{"react.mood":"grumpy","word.feeling":"again"}}"#)
         eventually("a mumble with no brain") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) && $0.contains(#""word":"again""#) } }
         dev(#"{"dev":"mood","mood":"grumpy"}"#)
         eventually("grumpy") { runtime.home.sync { runtime.mood.current == "grumpy" } }
@@ -340,8 +340,8 @@ final class RuntimeTests: XCTestCase {
         let pass = try XCTUnwrap(lines.compactMap { $0["pass"] as? [String: Any] }.first)
         XCTAssertTrue(pass["for"] is NSNull)
         XCTAssertEqual(pass["by"] as? String, "dashboard")
-        XCTAssertEqual(pass["questions"] as? [String], ["react", "word.feeling"])
-        XCTAssertEqual((pass["answers"] as? [String: [String: Any]])?["react"]?["p"] as? [String: Double], ["grumpy": 1])
+        XCTAssertEqual(pass["questions"] as? [String], ["react.mood", "word.feeling"])
+        XCTAssertEqual((pass["answers"] as? [String: [String: Any]])?["react.mood"]?["p"] as? [String: Double], ["grumpy": 1])
         let actions = lines.compactMap { $0["action"] as? [String: Any] }
         XCTAssertEqual(actions.map { $0["message"] as? String }, [#"Boop made a grumpy face, held once, and mumbled "…again!""#,
                                                                 "Boop's mood changed: happy → grumpy.",
@@ -367,7 +367,7 @@ final class RuntimeTests: XCTestCase {
         defer { runtime.stop() }
         XCTAssertTrue(HookSocket.send(hook("PermissionRequest", tool: "Bash"), to: socketPath))
         eventually("needs you") { transport.sent.contains { $0.contains(#""attn":"#) } }
-        dev(#"{"dev":"answer","answers":{"react":"happy"}}"#)
+        dev(#"{"dev":"answer","answers":{"react.mood":"happy"}}"#)
         eventually("the refusal") {
             self.debugLines().contains { ($0["action"] as? [String: Any])?["message"] as? String == "something needs you" }
         }
@@ -664,7 +664,7 @@ final class RuntimeTests: XCTestCase {
         func react() throws -> (seq: Int, moment: String) {
             clock.now = max(clock.now, runtime.home.sync { runtime.moments.schedule.lineUntil })
             return try runtime.home.sync {
-                XCTAssertEqual(runtime.harness.force(["react": "happy"]).map(\.name), ["react"])
+                XCTAssertEqual(runtime.harness.force(["react.mood": "happy"]).map(\.name), ["react"])
                 let seq = try XCTUnwrap(runtime.harness.transcript.entries.last {
                     if case .action = $0.body { true } else { false }
                 }?.seq)
@@ -1033,7 +1033,7 @@ final class RuntimeTests: XCTestCase {
         runtime.home.sync {}
         let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
         func react(_ mood: String) {
-            runtime.home.sync { _ = runtime.harness.force(["react": mood, "react.loops": "twice"]) }
+            runtime.home.sync { _ = runtime.harness.force(["react.mood": mood, "react.loops": "twice"]) }
         }
         func device(_ line: String) {
             transport.onLine?(line)
@@ -1252,7 +1252,7 @@ final class RuntimeTests: XCTestCase {
             runtime.home.sync {}
         }
         func react(_ mood: String) {
-            runtime.home.sync { _ = runtime.harness.force(["react": mood, "react.loops": "twice"]) }
+            runtime.home.sync { _ = runtime.harness.force(["react.mood": mood, "react.loops": "twice"]) }
         }
         let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
         func ends() -> [Pending.End] {
@@ -1300,7 +1300,7 @@ final class RuntimeTests: XCTestCase {
         }
         let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
         runtime.home.sync {
-            for mood in ["excited", "proud", "grumpy"] { _ = runtime.harness.force(["react": mood]) }
+            for mood in ["excited", "proud", "grumpy"] { _ = runtime.harness.force(["react.mood": mood]) }
         }
         XCTAssertEqual(moments(), 1)
         clock.now += 2000
@@ -1421,7 +1421,7 @@ final class RuntimeTests: XCTestCase {
         transport.onConnection?(true)
         runtime.home.sync {}
         func react(_ mood: String) {
-            runtime.home.sync { _ = runtime.harness.force(["react": mood, "react.loops": "twice"]) }
+            runtime.home.sync { _ = runtime.harness.force(["react.mood": mood, "react.loops": "twice"]) }
         }
         let pumpAt = { runtime.home.sync { runtime.moments.pumpAt } }
 
@@ -1490,7 +1490,7 @@ final class RuntimeTests: XCTestCase {
                                time: LocalTime(timeZone: TimeZone(identifier: "UTC")!), now: now, wall: now).status
         }
         XCTAssertEqual(status(), "Working now: nothing else.", "no reaction yet")
-        _ = react.run(["react": Answer(choice: "proud", probabilities: ["proud": 0.9]),
+        _ = react.run(["react.mood": Answer(choice: "proud", probabilities: ["proud": 0.9]),
                        "word.feeling": Answer(choice: "finally", probabilities: ["finally": 0.9])])
         now += 2 * 60_000
         XCTAssertEqual(status(), #"""

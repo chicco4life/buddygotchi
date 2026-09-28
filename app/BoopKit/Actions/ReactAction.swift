@@ -1,11 +1,10 @@
 import Foundation
 
-/// Whether Boop reacts to NOW, and how: one choice of a mood's face, alone
-/// or with an animation (`proud`, `proud-cheer`), then how long it holds
-/// and which real word (harness/DECISIONS.md §5). A reaction is a mood × a
-/// visual for a moment: the device draws that mood's design of whatever
-/// look is showing, or of the animation (the cheer), for a number of its
-/// loops (PROTOCOL.md §3). It comes with
+/// Whether Boop reacts to NOW: with which mood's face, which animation,
+/// for how long, and with which real word (harness/DECISIONS.md §5). A
+/// reaction is a mood × a visual for a moment: the device draws that
+/// mood's design of whatever look is showing, or of the animation picked
+/// (the cheer), for a number of its loops (PROTOCOL.md §3). It comes with
 /// a Minion line from Voice, and plays once any line or reaction's face
 /// playing has finished. It's started, not done, until whoever plays the
 /// moment ends its handle.
@@ -80,38 +79,19 @@ public final class ReactAction: Action {
         Option("docs", "NOW is about docs."),
     ]
 
-    /// The animations a reaction can play in its face, named after it in
-    /// its choice (`proud-cheer`). Today only the cheer, the mood's
-    /// task-complete scene: no rule cheers, so this is the only way a
-    /// finish is celebrated (DECISIONS.md §3).
-    public static let animations = ["cheer"]
-
-    /// Each face with the cheer, in `expressions`' order: what the cheer in
-    /// that mood means, as the finished scenes act it out (DECISIONS.md §3).
-    public static let cheers = [
-        Option("happy-cheer", "A cheer in a happy face: something finished well, and it stands out.",
-               notFor: "A routine finish."),
-        Option("excited-cheer", "A cheer in an excited face: something big went right, such as a long turn finishing clean.",
-               notFor: "A routine finish, however long."),
-        Option("proud-cheer", "A cheer in a proud face: a hard-won finish, a comeback.", notFor: "A first try."),
-        Option("determined-cheer", "A cheer in a determined face: it finally worked while the agent kept pushing.",
-               notFor: "A clean finish."),
-        Option("grumpy-cheer", "A cheer in a grumpy face: a grudging win after a run of failures.", notFor: "A clean finish."),
-        Option("sad-cheer", "A cheer in a sad face: relief through tears, a long hard turn that finally finished.",
-               notFor: "A turn that ended failing."),
+    /// The animations a reaction can play in its face (DECISIONS.md §3):
+    /// today only the cheer, the mood's task-complete scene. No rule
+    /// cheers, so this is the only way a finish is celebrated.
+    public static let animations = [
+        Option("cheer", "Something just finished or finally worked, and it stands out.",
+               notFor: "A routine finish, a failure, or anything still going."),
     ]
 
-    /// Every `react` choice but `none`: a face alone, or with the cheer.
-    public static let reactions = expressions + cheers
-
-    /// The face and animation `react` picked, or nil for `none`, a missing
-    /// answer or one that isn't a reaction.
-    public static func reaction(_ answers: Answers) -> (face: String, anim: String?)? {
-        guard let pick = answers["react"]?.choice, reactions.contains(where: { $0.name == pick }) else { return nil }
-        for anim in animations where pick.hasSuffix("-" + anim) {
-            return (String(pick.dropLast(anim.count + 1)), anim)
-        }
-        return (pick, nil)
+    /// The animation `react.animation` picked, or nil for none, a missing
+    /// answer or one the device doesn't play.
+    public static func animation(_ answers: Answers) -> String? {
+        let pick = answers["react.animation"]?.choice
+        return animations.contains { $0.name == pick } ? pick : nil
     }
 
     /// How long the face holds, in loops of the design it's drawn in: the
@@ -144,12 +124,15 @@ public final class ReactAction: Action {
     public func questions() -> [Question] {
         let byBoth = "the PERSONALITY and MOOD sections, PERSONALITY's Examples first"
         return [
-            Question(key: "react", text: "How should Boop react to NOW, if at all? It makes this mood's face for a moment, with a cheer if its choice says so, and a mumble.",
+            Question(key: "react.mood", text: "How should Boop react to NOW, if at all? It makes this mood's face for a moment, with a mumble.",
                      about: "the NOW section", judgeBy: byBoth,
                      options: [Option("none", "Stay quiet: nothing in NOW is worth a face and a mumble, "
                                           + "or HISTORY shows Boop still making the one it calls for (in progress).",
                                       notFor: "Anything PERSONALITY's Examples react to that Boop isn't already doing.")]
-                         + Self.reactions),
+                         + Self.expressions),
+            Question(key: "react.animation", text: "If Boop reacts, does it play an animation?", about: "the NOW section",
+                     judgeBy: byBoth,
+                     options: [Option("none", "Just the face, over whatever look is showing: the usual.")] + Self.animations),
             Question(key: "react.loops", text: "If Boop reacts, how long does it hold the face?", about: "the NOW section",
                      judgeBy: byBoth, options: Self.holds),
             Question(key: "word.feeling", text: "If Boop mumbles, which exclamation fits NOW?", about: "the NOW section",
@@ -161,8 +144,10 @@ public final class ReactAction: Action {
     }
 
     public func run(_ answers: Answers) -> ActionResult? {
-        // 1. Does Jev want a reaction at all, and which?
-        guard let (choice, anim) = Self.reaction(answers) else { return nil }
+        // 1. Does Jev want a reaction at all, and with which face?
+        guard let choice = answers["react.mood"]?.choice, Self.expressions.contains(where: { $0.name == choice }) else {
+            return nil
+        }
         // 2. The word: the exclamation if Jev is sure enough, else the topic, else none.
         let word = Self.word(answers)
         // 3. This action's own rules.
@@ -172,6 +157,7 @@ public final class ReactAction: Action {
         // The face holds its loops, and at least as long as the line plays.
         let line = voice.line(Voice.feeling(forMood: choice), word: word, seed: seed)
         let loops = Self.loops(answers)
+        let anim = Self.animation(answers)
         let pending = Pending()
         made = made.suffix(4) + [(choice, anim, word, clock(), pending)]
         queue(DeviceMoment(anim: anim, say: line, mood: choice, loops: loops), pending)

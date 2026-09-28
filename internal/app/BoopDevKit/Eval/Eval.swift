@@ -32,9 +32,11 @@ public struct Scenario: Sendable {
     /// What a pass should come to: each a set of acceptable values, `none`
     /// included where staying quiet or no word is fine.
     public struct Expectation: Sendable, Equatable {
-        /// Jev's `react` pick: `none`, a mood's face, or one with the
-        /// cheer (`proud-cheer`).
+        /// Jev's `react.mood` pick: `none` or a mood's face.
         public var react: Set<String>?
+        /// The animation the reaction played (`react.animation`'s pick), or
+        /// `none` when it played none or Boop didn't react.
+        public var animation: Set<String>?
         /// The word the mumble used, or `none`.
         public var word: Set<String>?
         /// How long the face held (`react.loops`' pick), or `none` when
@@ -43,9 +45,10 @@ public struct Scenario: Sendable {
         /// The mood after the pass.
         public var mood: Set<String>?
 
-        public init(react: Set<String>? = nil, word: Set<String>? = nil, loops: Set<String>? = nil,
-                    mood: Set<String>? = nil) {
+        public init(react: Set<String>? = nil, animation: Set<String>? = nil, word: Set<String>? = nil,
+                    loops: Set<String>? = nil, mood: Set<String>? = nil) {
             self.react = react
+            self.animation = animation
             self.word = word
             self.loops = loops
             self.mood = mood
@@ -105,10 +108,10 @@ public struct Scenario: Sendable {
                     guard let text = v as? String else { throw badStep("expect.\(key) is like \"proud|excited\"") }
                     return Set(text.split(separator: "|").map { $0.trimmingCharacters(in: .whitespaces) })
                 }
-                let unknown = Set(e.keys).subtracting(["react", "word", "loops", "mood"])
-                guard unknown.isEmpty else { throw badStep("expect has only react, word, loops and mood") }
-                step.expect = Expectation(react: try set("react"), word: try set("word"), loops: try set("loops"),
-                                          mood: try set("mood"))
+                let unknown = Set(e.keys).subtracting(["react", "animation", "word", "loops", "mood"])
+                guard unknown.isEmpty else { throw badStep("expect has only react, animation, word, loops and mood") }
+                step.expect = Expectation(react: try set("react"), animation: try set("animation"), word: try set("word"),
+                                          loops: try set("loops"), mood: try set("mood"))
             }
             return step
         }
@@ -152,9 +155,10 @@ public struct Eval {
         public var step: Int
         public var line: String
         public var expected: Scenario.Expectation
-        /// What happened: the react pick, the word used, how long the face
-        /// held, the mood after.
+        /// What happened: the react.mood pick, the animation played, the
+        /// word used, how long the face held, the mood after.
         public var react: String?
+        public var animation: String?
         public var word: String?
         public var loops: String?
         public var mood: String
@@ -164,6 +168,7 @@ public struct Eval {
         public var passed: Bool {
             guard dropped == nil else { return false }
             if let r = expected.react, !r.contains(react ?? "none") { return false }
+            if let a = expected.animation, !a.contains(animation ?? "none") { return false }
             if let w = expected.word, !w.contains(word ?? "none") { return false }
             if let l = expected.loops, !l.contains(loops ?? "none") { return false }
             if let m = expected.mood, !m.contains(mood) { return false }
@@ -172,11 +177,12 @@ public struct Eval {
 
         public var summary: String {
             let want = [expected.react.map { "react \($0.sorted().joined(separator: "|"))" },
+                        expected.animation.map { "animation \($0.sorted().joined(separator: "|"))" },
                         expected.word.map { "word \($0.sorted().joined(separator: "|"))" },
                         expected.loops.map { "loops \($0.sorted().joined(separator: "|"))" },
                         expected.mood.map { "mood \($0.sorted().joined(separator: "|"))" }].compactMap { $0 }
             let got = dropped.map { "dropped: \($0)" }
-                ?? "react \(react ?? "none"), word \(word ?? "none"), loops \(loops ?? "none"), mood \(mood)"
+                ?? "react \(react ?? "none"), animation \(animation ?? "none"), word \(word ?? "none"), loops \(loops ?? "none"), mood \(mood)"
             return "  step \(step): \(line)\n    wanted \(want.joined(separator: ", ")); got \(got)"
         }
     }
@@ -243,9 +249,10 @@ public struct Eval {
             guard let record = last else {
                 throw EvalError("\(scenario.file) step \(i + 1): expects a pass, but nothing woke the brain")
             }
-            let react = record.pass.answers["react"]?.choice
+            let react = record.pass.answers["react.mood"]?.choice
             let ran = record.actions.contains { $0.name == "react" && $0.result.ok }
             checks.append(Check(step: i + 1, line: record.event.line, expected: expect, react: react,
+                                animation: ran ? ReactAction.animation(record.pass.answers) : nil,
                                 word: ran ? ReactAction.word(record.pass.answers) : nil,
                                 loops: ran ? ReactAction.holds[ReactAction.loops(record.pass.answers) - 1].name : nil,
                                 mood: mood.current, dropped: record.pass.dropped, latencyMs: record.pass.latencyMs))

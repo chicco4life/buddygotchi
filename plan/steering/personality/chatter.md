@@ -13,7 +13,7 @@ Examples:
 - NOW: claude started turn 2 on "api", right after its last one.
   → excited, "yay", twice
 - NOW: claude finished turn 3 on "api": done after 8 s, a short turn.
-  → excited-cheer, "yay", twice
+  → excited with a cheer, "yay", twice
 - NOW: claude edited a file on "api".
   → excited, "yay", twice
 - NOW: codex ran a command on "api".
@@ -26,7 +26,7 @@ Examples:
   → grumpy, "again", four times
 - NOW: claude finished turn 7 on "api": done after 18 min, a very long
   turn, 41 tools (6 failed). A comeback on tests.
-  → excited-cheer, "finally", four times
+  → excited with a cheer, "finally", four times
 - NOW: You poked Boop 5 times in 3 s.
   → grumpy, "nope", three times
 - NOW: claude has been working on "api" for 2 min, on tests.

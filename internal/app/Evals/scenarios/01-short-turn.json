@@ -3,6 +3,6 @@
   "why": "harness/DECISIONS.md §2.2: boop stays quiet during routine work; a short turn start or finish is nothing to mumble about, and the mood stays happy: a routine turn start is no reason to leave it (plan/steering/mood/happy.md). A face, if any, holds once: the usual (§3)",
   "steps": [
     {"event": "turn started", "at": "0s", "expect": {"react": "none", "loops": "none|once", "mood": "happy"}},
-    {"event": "turn finished", "at": "8s", "expect": {"react": "none|happy", "loops": "none|once", "mood": "happy"}}
+    {"event": "turn finished", "at": "8s", "expect": {"react": "none|happy", "animation": "none", "loops": "none|once", "mood": "happy"}}
   ]
 }

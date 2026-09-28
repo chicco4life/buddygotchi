@@ -16,6 +16,6 @@
     {"event": "turn finished", "at": "3m40s", "expect": {"mood": "happy"}},
     {"event": "turn started", "at": "4m"},
     {"event": "command", "at": "15m", "topic": "tests", "failed": false},
-    {"event": "turn finished", "at": "16m", "expect": {"react": "excited-cheer|proud-cheer|happy-cheer", "mood": "excited|proud"}}
+    {"event": "turn finished", "at": "16m", "expect": {"react": "excited|proud|happy", "animation": "cheer", "mood": "excited|proud"}}
   ]
 }

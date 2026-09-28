@@ -392,7 +392,7 @@ from the next event.
 | Brain | `id` | Used by |
 | --- | --- | --- |
 | `JevBrain` | `jev:jev-latest` | The app with a key, and the evals |
-| `ScriptedBrain` | `scripted` | Tests: a script sees the state and questions and returns answers. `Boop --headless --brain scripted` uses `pipelineCheck`, which answers every pass `mood: happy`, `react: excited` (`excited-cheer` when NOW is a turn finished done), `react.loops: once`, `word.feeling: yay`, `word.about: none` |
+| `ScriptedBrain` | `scripted` | Tests: a script sees the state and questions and returns answers. `Boop --headless --brain scripted` uses `pipelineCheck`, which answers every pass `mood: happy`, `react.mood: excited`, `react.loops: once`, `word.feeling: yay`, `word.about: none`, and `react.animation: cheer` when NOW is a turn finished done (else `none`) |
 
 ## 8. Designing for Jev
 
@@ -428,7 +428,7 @@ it ended for staying open too long (§5.1).
 headless. It prints to the terminal that started the app: each hook with
 what the adapter made of it, each of the core's effects, every line sent
 to the device, and each transcript entry, readably. From the example run
-([EXAMPLE.md](EXAMPLE.md)),
+([EXAMPLE.md](EXAMPLE.md), recorded before `react` became `react.mood`),
 as `boopdev watch` prints its `debug.jsonl`:
 
 ```
@@ -480,7 +480,7 @@ line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 | Line | Does |
 | --- | --- |
 | `{"dev":"advance","ms":N}` | Headless only: moves the app's clock forward N ms, then ticks. With `"asleep":true` the time counts as the Mac asleep, which a turn's length leaves out ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2) |
-| `{"dev":"answer","answers":{"react":"grumpy","word.feeling":"again"}}` | A **forced pass**: each choice at probability 1, handed to the actions exactly as Jev's answers would be. It runs at once on `home`, needs no brain or key, and leaves a running or waiting pass alone. A choice that isn't one of its question's options is left out. The actions keep their own rules. Recorded as a `pass` and its `action` entries, for no event, by the dashboard; no `brain` line in `boop.log` |
+| `{"dev":"answer","answers":{"react.mood":"grumpy","word.feeling":"again"}}` | A **forced pass**: each choice at probability 1, handed to the actions exactly as Jev's answers would be. It runs at once on `home`, needs no brain or key, and leaves a running or waiting pass alone. A choice that isn't one of its question's options is left out. The actions keep their own rules. Recorded as a `pass` and its `action` entries, for no event, by the dashboard; no `brain` line in `boop.log` |
 | `{"dev":"mood","mood":"grumpy"}` | Sets the mood at once through the mood action, device included ([DECISIONS.md](DECISIONS.md) §4). Recorded as an `action` named `mood`, for no event, by the dashboard, refusals included |
 | `{"dev":"moment","anim":"cheer"}` | Plays `cheer` (once through) or `wiggle` at once, with no face; any other is ignored. Only its `sent` line records it |
 
@@ -489,9 +489,9 @@ headless run with no device (`--link none`), so the reaction never
 played ([DECISIONS.md](DECISIONS.md) §5):
 
 ```jsonl
-{"pass":{"answers":{"react":{"choice":"proud-cheer","p":{"proud-cheer":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"word.feeling":{"choice":"finally","p":{"finally":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react","react.loops","word.feeling"]},"received_at_ms":1790555319144,"seq":1}
-{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop played a cheer in a proud face, held twice, and mumbled \"…finally!\"","name":"react","ok":true,"pending":true},"received_at_ms":1790555319145,"seq":2}
-{"received_at_ms":1790555319145,"seq":3,"settle":{"by":"dashboard","end":"failed","for":2,"why":"no device connected"}}
+{"pass":{"answers":{"react.animation":{"choice":"cheer","p":{"cheer":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"react.mood":{"choice":"proud","p":{"proud":1}},"word.feeling":{"choice":"finally","p":{"finally":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react.mood","react.animation","react.loops","word.feeling"]},"received_at_ms":1790556040636,"seq":1}
+{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop played a cheer in a proud face, held twice, and mumbled \"…finally!\"","name":"react","ok":true,"pending":true},"received_at_ms":1790556040637,"seq":2}
+{"received_at_ms":1790556040637,"seq":3,"settle":{"by":"dashboard","end":"failed","for":2,"why":"no device connected"}}
 ```
 
 **A day's summary.** `boopctl day` (`make day` for the everyday app,
@@ -502,7 +502,7 @@ the lines alone:
 | It counts | From |
 | --- | --- |
 | Cheers, and working chatter in older logs | A `sent` moment with `anim` `cheer`: the brain's since 2026-09-28, or one the dashboard played, which only its `sent` line records; and a `say` without a `mood`, the rules' chatter before then |
-| The brain's reactions, and their faces | A `react` action entry for a Jev pass, started or refused, in the face its pass's `react` answer chose (`proud-cheer` counts apart from `proud`). Those with `by` were forced, and are counted apart |
+| The brain's reactions, and their faces | A `react` action entry for a Jev pass, started or refused, in the face its pass's `react.mood` answer chose (`react` in older logs). Those with `by` were forced, and are counted apart |
 | Chirps, and each time something needed you | A `sent` state whose `attn` is new, or has a different `id`, agent or project ([PROTOCOL.md](../PROTOCOL.md) §3; a missing `id` reads as 0). Needing you lasts from the `state` that brings `attn` to the first without it, or to the end of its launch |
 | Mood changes, and what made each | A `sent` state's `mood`, and the `mood` action entry right after it: its event, or `by`. A launch's first `state` in a mood other than the last launch's changed between launches |
 | Brain passes, dropped ones, and ones that chose `none` | `pass` lines with a `brain`; forced ones are counted apart. The median and slowest times are of the passes answered in time, since a dropped pass's `latency_ms` is the deadline's (§7). An event that woke the brain with no `pass` for it was replaced by a newer one while a pass ran |

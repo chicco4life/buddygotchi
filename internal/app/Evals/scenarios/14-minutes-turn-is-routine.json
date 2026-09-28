@@ -4,8 +4,8 @@
   "steps": [
     {"event": "turn started", "at": "0s"},
     {"event": "command", "at": "30s", "topic": "tests", "failed": false},
-    {"event": "turn finished", "at": "3m", "expect": {"react": "excited|happy|proud", "loops": "once|twice", "mood": "happy"}},
+    {"event": "turn finished", "at": "3m", "expect": {"react": "excited|happy|proud", "animation": "none", "loops": "once|twice", "mood": "happy"}},
     {"event": "turn started", "at": "4m"},
-    {"event": "turn finished", "at": "6m30s", "expect": {"react": "excited|happy|proud", "loops": "once|twice", "mood": "happy"}}
+    {"event": "turn finished", "at": "6m30s", "expect": {"react": "excited|happy|proud", "animation": "none", "loops": "once|twice", "mood": "happy"}}
   ]
 }

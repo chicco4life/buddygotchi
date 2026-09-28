@@ -46,9 +46,8 @@ JEV  (the brain; decides everything expressive)
 
   SHIFT MOOD    mood             happy … sad        lasts; restyles all
   ─────────────────────────────────────────────────────────────────────
-  REACT         react            none | a mood | a mood-cheer
-  (a moment)                     e.g. proud, proud-cheer; more animations
-                                 as art arrives
+  REACT         react.mood       none | a mood      the face, or nothing
+  (a moment)    react.animation  none | cheer       more as art arrives
                 react.loops      once … 4 times     how long it holds
   ─────────────────────────────────────────────────────────────────────
   SAY           word.feeling     none | yay, oops, again, finally, …
@@ -56,7 +55,7 @@ JEV  (the brain; decides everything expressive)
                 → at most one real word, inside Minion gibberish
 
   e.g. tests pass after 3 failures:
-       mood → proud;  react: proud-cheer, twice, "…finally!"
+       mood → proud;  react: proud × cheer, twice, "…finally!"
   e.g. a 5 s routine turn:  nothing
 
 
@@ -252,12 +251,12 @@ stops a line that's playing.
 
 | Name | Used for | Look | Length |
 | --- | --- | --- | --- |
-| `cheer` | A reaction the brain cheers with (a `-cheer` choice of `react`, [harness/DECISIONS.md](harness/DECISIONS.md) §3) | The task-complete scene of the reaction's mood: a trophy, a curtain call or a podium | The loops Jev picks |
+| `cheer` | A reaction the brain cheers with (`react.animation`, [harness/DECISIONS.md](harness/DECISIONS.md) §3) | The task-complete scene of the reaction's mood: a trophy, a curtain call or a podium | The loops Jev picks |
 | `wiggle` | A tap | The look's own design, swaying, with a pixel heart | 0.7 s |
 
 The device plays the wiggle on its own, at once. Only the brain cheers:
 no rule does, so a finished turn is celebrated only when Jev reacts to
-it with a `-cheer` choice, such as `proud-cheer`. Each mood and state has a few variations of its
+it with `react.animation: cheer`. Each mood and state has a few variations of its
 scene, and the device picks one, never the one it played last; the brain
 never sees them.
 

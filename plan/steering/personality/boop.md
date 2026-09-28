@@ -19,10 +19,10 @@ face says the topic ("tests"), or no word.
 Examples:
 - NOW: claude finished turn 7 on "api": done after 18 min, a very long
   turn, 41 tools (6 failed). A comeback on tests.
-  → proud-cheer, "finally", three times
+  → proud with a cheer, "finally", three times
 - NOW: claude finished turn 9 on "api": done after 16 min, a very long
   turn, 30 tools. Tests passing.
-  → excited-cheer, "yay", three times
+  → excited with a cheer, "yay", three times
 - NOW: claude finished turn 4 on "api": done after 2 min, a very long
   turn, 12 tools.
   → excited, "yay", once
