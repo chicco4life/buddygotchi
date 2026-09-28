@@ -26,7 +26,7 @@ from rich.console import Console  # noqa: E402
 from boopctl_lib.common import REPO, send_line  # noqa: E402
 from boopctl_lib.dash import controls  # noqa: E402
 from boopctl_lib.dash.app import PREVIEW_RESEND_S, Dash, StateView  # noqa: E402
-from boopctl_lib.dash.face import CROP, SCALE, WHOLE, blocks, render  # noqa: E402
+from boopctl_lib.dash.face import CROP, SCALE, blocks, render  # noqa: E402
 from boopctl_lib.dash.feed import STALE_S, Board, Follower, clock, kind  # noqa: E402
 from boopctl_lib.scenario import GOLDEN  # noqa: E402
 
@@ -336,8 +336,6 @@ class FaceTests(unittest.TestCase):
         shot = golden_shot(GOLDEN / "base" / "idle.png")
         crop = render(shot).plain.split("\n")
         self.assertEqual((len(crop[0]), len(crop)), (107, 24), "107×48 blocks, two per cell")
-        whole = render(shot, whole=True).plain.split("\n")
-        self.assertEqual((len(whole[0]), len(whole)), (107, 40))
 
     def test_each_block_is_its_most_common_colour(self):
         # A 6×3 image: a block of five 1s and four 2s, then one of three
@@ -363,13 +361,12 @@ class FaceTests(unittest.TestCase):
                 outside = [(x, y) for y in range(BUBBLE_TOP) for x in range(w)
                            if indexes[y * w + x] != background and not (x0 <= x < x1 and y0 <= y)]
                 self.assertEqual(outside, [])
-                grid = blocks(indexes, w, WHOLE)
+                grid = blocks(indexes, w, (0, 0, w, h))
                 for by, row in enumerate(grid[: BUBBLE_TOP // SCALE]):
                     for bx, index in enumerate(row):
                         inside = x0 <= bx * SCALE < x1 and y0 <= by * SCALE
                         self.assertTrue(inside or index == background, (bx, by))
                 render(shot)
-                render(shot, whole=True)
 
 
 QUESTIONS = next(line["questions"] for line in fixture_lines() if "questions" in line)
@@ -399,20 +396,18 @@ class ControlsTests(unittest.TestCase):
         self.assertEqual((line["t"], line["say"]["word"], line["mood"], line["loops"]), ("moment", "again", "grumpy", 3))
         self.assertEqual(line["say"]["tune"], "flat", "grumpy's face mumbles in annoyed's voice")
         self.assertIn("syl", line["say"])
+        self.assertNotIn("anim", line)
+        self.assertEqual(controls.preview_mumble("proud", None, 1, "cheer")["anim"], "cheer",
+                         "an animation as react.animation picks it")
 
     def test_confirmations(self):
         pending = controls.Pending()
         pending.add({"dev": "mood", "mood": "grumpy"}, now=0)
         pending.add({"dev": "answer", "answers": {"react": "happy"}}, now=0)
-        pending.add({"dev": "moment", "anim": "cheer"}, now=0)
         lines = fixture_lines()
         first = next(i for i, line in enumerate(lines) if dashboard_action(line))
         seen = [pending.seen(line) for line in lines[first:]]
-        self.assertEqual([s for s in seen if s], ["mood", "answer", "moment"], "in the order they landed")
-        pending.add({"dev": "moment", "anim": "wiggle"}, now=0)
-        self.assertIsNone(pending.seen({"sent": {"t": "moment", "anim": "cheer"}}), "a rule's cheer isn't it")
-        self.assertIsNone(pending.seen({"sent": {"t": "moment", "say": {"syl": "pi"}}}), "nor a mumble")
-        self.assertEqual(pending.seen({"sent": {"t": "moment", "anim": "wiggle"}}), "moment")
+        self.assertEqual([s for s in seen if s], ["mood", "answer"], "in the order they landed")
         pending.add({"dev": "mood", "mood": "grumpy"}, now=0)
         self.assertEqual(pending.late(now=1.9), [])
         self.assertEqual(pending.late(now=2.0), ["mood"], "nothing within 2 s")
@@ -472,7 +467,6 @@ class Socket:
 
 class FakeFace:
     def __init__(self) -> None:
-        self.whole = False
         self.sent: list[dict] = []
         self.restarts: list[dict | None] = []
         self.running = False
@@ -548,13 +542,11 @@ class AppTests(unittest.TestCase):
 
                 await pick("m", 5)  # grumpy
                 await pick("r", 6, 4, 0)  # grumpy, again, none
-                await pick("a", 0)
-                got = server.wait(3)
+                got = server.wait(2)
                 self.assertEqual(got, [{"dev": "mood", "mood": "grumpy"},
                                        {"dev": "answer", "answers": {"react": "grumpy", "word.feeling": "again",
-                                                                     "word.about": "none"}},
-                                       {"dev": "moment", "anim": "cheer"}])
-                self.assertEqual(len(app.pending.waiting), 3)
+                                                                     "word.about": "none"}}])
+                self.assertEqual(len(app.pending.waiting), 2)
                 with log.open("a") as f:
                     f.write('{"event":{"seq":28,"ts":1790498700000,"source":"boop","type":"action","specific_type":"mood",'
                             '"data":{"by":"dashboard","for":null,"latency_ms":0,"message":"already grumpy","ok":false}},'
@@ -570,17 +562,15 @@ class AppTests(unittest.TestCase):
                 self.assertIn("PREVIEW: working", app.query_one("#face").border_title)
                 await pick("m", 6)  # sad: the mood's faces, on the sim only
                 self.assertEqual((face.sent[-1]["base"], face.sent[-1]["mood"]), ("working", "sad"))
-                await pick("a", 1)
-                self.assertEqual(face.sent[-1], {"t": "moment", "anim": "wiggle"})
-                self.assertEqual(len(server.wait(4, timeout=0.3)), 3, "nothing went to the app")
+                self.assertEqual(len(server.wait(3, timeout=0.3)), 2, "nothing went to the app")
                 with log.open("a") as f:
                     f.write('{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":1790498700002}\n')
                 app.poll()
-                self.assertEqual(face.sent[-1], {"t": "moment", "anim": "wiggle"}, "the app's lines wait")
+                self.assertEqual(face.sent[-1]["mood"], "sad", "the app's lines wait")
                 if (REPO / ".build" / "debug" / "boopdev").exists():
                     await pick("r", 5, 0)  # grumpy's face, no word: a moment with its `mood`
                     for _ in range(100):
-                        if face.sent[-1].get("mood"):
+                        if face.sent[-1]["t"] == "moment":
                             break
                         await pilot.pause(0.05)
                     self.assertEqual((face.sent[-1]["t"], face.sent[-1]["mood"]), ("moment", "grumpy"))
@@ -593,9 +583,6 @@ class AppTests(unittest.TestCase):
                 self.assertEqual(face.restarts[-1], latest, "leaving Preview replays the latest state")
                 self.assertIn("live", app.query_one("#face").border_title)
 
-                await pilot.press("z")
-                self.assertTrue(face.whole)
-                self.assertIn("whole screen", app.query_one("#face").border_title)
                 await pilot.press("s")
                 await pilot.pause()
                 self.assertIsInstance(app.screen, StateView)

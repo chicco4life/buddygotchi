@@ -517,12 +517,6 @@ public final class Runtime: @unchecked Sendable {
             let result = harness.force(moodAction) { moodAction.change(to: to) }
             options.log("dev: mood \(to)" + (result.map { $0.ok ? "" : ": \($0.message)" } ?? ""))
             changed()
-        case "moment":
-            // Through the moment schedule, played at once: a cheer once
-            // through its design, or a wiggle.
-            guard let anim = object["anim"] as? String, DeviceMoment.anims.contains(anim) else { return }
-            playRule(DeviceMoment(anim: anim))
-            options.log("dev: moment \(anim)")
         case "report":
             saveReport { _ in }
         default:
@@ -584,15 +578,6 @@ public final class Runtime: @unchecked Sendable {
         let now = options.clock()
         link.update(snapshot, now: now)
         moments.schedule.show(look: snapshot.base, mood: snapshot.mood, attn: snapshot.attn != nil, now: now)
-        pump()
-    }
-
-    /// A moment the dashboard asked for: it plays at once. Anything the
-    /// brain has waiting waits for its line, or plays over its animation
-    /// now.
-    func playRule(_ moment: DeviceMoment) {
-        link.play(moment)
-        moments.schedule.rule(moment, now: options.clock())
         pump()
     }
 

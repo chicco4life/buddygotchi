@@ -1,7 +1,7 @@
 import Foundation
 
 /// What plays on the device and until when (ARCHITECTURE.md §3.2). The
-/// tap's wiggle and the dashboard's moments play at once. The brain's wait
+/// tap's wiggle plays at once. The brain's wait
 /// their turn: one at a time, each once the line playing has finished, and
 /// a reaction's face too unless it's the brain's own, held on for its
 /// loops after its mumble: the next reaction replaces that, so none cuts
@@ -38,7 +38,7 @@ public struct MomentSchedule {
     /// the device, since every line reaches it a little after it's sent.
     public static let linkSlackMs: Int64 = 500
 
-    /// When the tap's or the dashboard's animation playing ends.
+    /// When the tap's animation playing ends.
     public private(set) var animUntil: Int64 = 0
     /// When the line playing ends, and with it a reaction's face, as the
     /// app reckons it; or when the device said the brain's moment ended.
@@ -48,7 +48,7 @@ public struct MomentSchedule {
     /// its mumble has played, from which the next brain moment may replace
     /// its face.
     public private(set) var holder: (id: Int, until: Int64, sayUntil: Int64)?
-    /// When a cheer the dashboard played ends; nil before the first.
+    /// When a cheer played at once ends; nil before the first.
     public private(set) var cheerUntil: Int64?
     /// The look and mood of the last `state` sent.
     public var look = "idle"
@@ -87,8 +87,7 @@ public struct MomentSchedule {
         return max(ms, moment.playMs(look: "task_complete", mood: mood))
     }
 
-    /// A moment played at once (the tap's wiggle, or the dashboard's
-    /// cheer or wiggle). An animation replaces the one playing
+    /// A moment played at once (the tap's wiggle). An animation replaces the one playing
     /// and stops the line, and with it the brain's moment; a line replaces
     /// the line. Anything waiting waits for a new line too. While
     /// something needs you, the device plays none of it.

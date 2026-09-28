@@ -29,10 +29,8 @@ def confirms(line: Line) -> Callable[[Line], bool]:
     """Which debug.jsonl line shows that a dev line landed."""
     if line["dev"] == "answer":
         return lambda o: kind(o) == "pass" and o["pass"].get("by") == "dashboard"
-    if line["dev"] == "mood":
-        return lambda o: (kind(o) == "event" and o["event"].get("type") == "action"
-                          and o["event"].get("data", {}).get("by") == "dashboard" and o["event"].get("specific_type") == "mood")
-    return lambda o: kind(o) == "sent" and o["sent"].get("anim") == line["anim"] and "say" not in o["sent"]
+    return lambda o: (kind(o) == "event" and o["event"].get("type") == "action"
+                      and o["event"].get("data", {}).get("by") == "dashboard" and o["event"].get("specific_type") == "mood")
 
 
 class Pending:
@@ -76,8 +74,12 @@ def preview_state(latest: Line | None, look: str, mood: str | None = None) -> Li
     return state
 
 
-def preview_mumble(face: str, word: str | None, loops: int = 1) -> Line:
+def preview_mumble(face: str, word: str | None, loops: int = 1, anim: str | None = None) -> Line:
     """A reaction as the react action sends it: the line the app's Voice
-    builds for that mood's face, from `boopdev voice MOOD --json`, and the
-    face as the moment's `mood`, held `loops` times (PROTOCOL.md §3)."""
-    return {"t": "moment", "say": boopdev_voice(face, word, 1, random.randint(1, 1 << 30))[0], "mood": face, "loops": loops}
+    builds for that mood's face, from `boopdev voice MOOD --json`, the face
+    as the moment's `mood`, held `loops` times, and `anim` if one was
+    picked (PROTOCOL.md §3)."""
+    line: Line = {"t": "moment", "say": boopdev_voice(face, word, 1, random.randint(1, 1 << 30))[0], "mood": face, "loops": loops}
+    if anim:
+        line["anim"] = anim
+    return line

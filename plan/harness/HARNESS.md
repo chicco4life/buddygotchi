@@ -491,7 +491,6 @@ line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 | `{"dev":"advance","ms":N}` | Headless only: moves the app's clock forward N ms, then ticks |
 | `{"dev":"answer","answers":{"react.mood":"grumpy","word.feeling":"again"}}` | A **forced pass**: each choice at probability 1, handed to the actions exactly as Jev's answers would be. It runs at once on `home`, needs no brain or key, and leaves a running or waiting pass alone. A choice that isn't one of its question's options is left out. The actions keep their own rules. Logged as a `pass` line, and its actions recorded `by` `dashboard`, for no event; no `brain` line in `boop.log` |
 | `{"dev":"mood","mood":"grumpy"}` | Sets the mood at once through the mood action, device included ([DECISIONS.md](DECISIONS.md) §4). Recorded as an `action` named `mood`, for no event, `by` `dashboard`, refusals included |
-| `{"dev":"moment","anim":"cheer"}` | Plays `cheer` (once through) or `wiggle` at once, with no face; any other is ignored. Only its `sent` line records it |
 | `{"dev":"report"}` | Saves a bug report, as the button does (below) |
 
 A forced pass that cheers, its action and the action's end, from a
@@ -528,7 +527,7 @@ the lines alone:
 
 | It counts | From |
 | --- | --- |
-| Cheers, and working chatter in older logs | A `sent` moment with `anim` `cheer`: the brain's since 2026-09-28, or one the dashboard played, which only its `sent` line records; and a `say` without a `mood`, the rules' chatter before then |
+| Cheers, and working chatter in older logs | A `sent` moment with `anim` `cheer`: the brain's since 2026-09-28 (older logs also have ones the dashboard played, which only their `sent` line records); and a `say` without a `mood`, the rules' chatter before then |
 | The brain's reactions, and their faces | A `react` action for a Jev pass, started or refused, in the face its pass's `react.mood` answer chose (`react` in older logs). Those `by` the dashboard were forced, and are counted apart |
 | Alerts, and each time something needed you | A `sent` state whose `attn` is new, or has a different `id`, agent or project ([PROTOCOL.md](../PROTOCOL.md) §3; a missing `id` reads as 0). Needing you lasts from the `state` that brings `attn` to the first without it, or to the end of its launch |
 | Mood changes, and what made each | A `sent` state's `mood`, and the `mood` action right after it: its view event, or `by` the dashboard. A launch's first `state` in a mood other than the last launch's changed between launches |

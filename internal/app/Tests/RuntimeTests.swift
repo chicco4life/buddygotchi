@@ -277,6 +277,13 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(HookSocket.send(Data((json + "\n").utf8), to: socketPath))
     }
 
+    /// A moment played at once, as the tap's wiggle is, sent too. On `home`.
+    func playAtOnce(_ runtime: Runtime, _ moment: DeviceMoment) {
+        runtime.link.play(moment)
+        runtime.moments.schedule.rule(moment, now: runtime.options.clock())
+        runtime.pump()
+    }
+
     /// harness/HARNESS.md §9: debug mode also writes the
     /// dashboard's lines, with no `seq`: every action's questions once at
     /// launch, every line sent to the device verbatim (with no transport
@@ -360,8 +367,7 @@ final class RuntimeTests: XCTestCase {
     /// The dashboard's dev lines. A forced pass needs no
     /// brain and mumbles as Jev's would; a forced mood changes as Jev's
     /// does, device included; each is recorded for no event, by the
-    /// dashboard. A moment goes
-    /// through the schedule, and one with no known animation is ignored.
+    /// dashboard.
     func testTheDashboardsDevLines() throws {
         let transport = FakeTransport()
         var options = try options(transport, readJevKey: { nil })
@@ -379,13 +385,6 @@ final class RuntimeTests: XCTestCase {
         eventually("grumpy") { runtime.home.sync { runtime.mood.current == "grumpy" } }
         dev(#"{"dev":"mood","mood":"happy"}"#)
         eventually("happy again") { runtime.home.sync { runtime.mood.current == "happy" } }
-        dev(#"{"dev":"moment","anim":"cheer"}"#)
-        eventually("the cheer") { transport.sent.contains(#"{"t":"moment","anim":"cheer"}"#) }
-        dev(#"{"dev":"moment","anim":"dance"}"#)
-        dev(#"{"dev":"moment"}"#)
-        dev(#"{"dev":"moment","anim":"wiggle"}"#)
-        eventually("the wiggle after them") { transport.sent.contains(#"{"t":"moment","anim":"wiggle"}"#) }
-        XCTAssertFalse(transport.sent.contains { $0.contains("dance") || $0 == #"{"t":"moment"}"# })
 
         let lines = debugLines()
         let pass = try XCTUnwrap(lines.compactMap { $0["pass"] as? [String: Any] }.first)
@@ -432,7 +431,7 @@ final class RuntimeTests: XCTestCase {
         try runtime.start()
         defer { runtime.stop() }
         dev(#"{"dev":"mood","mood":"grumpy"}"#)
-        dev(#"{"dev":"moment","anim":"cheer"}"#)
+        dev(#"{"dev":"answer","answers":{"react.mood":"grumpy","react.animation":"cheer"}}"#)
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
         eventually("the hook after them") { transport.sent.contains { $0.contains(#""base":"working""#) } }
         runtime.home.sync {}
@@ -1111,8 +1110,8 @@ final class RuntimeTests: XCTestCase {
         clock.now += 1000
         react("grumpy")
         XCTAssertEqual(moments(), 2, "waits for the second")
-        runtime.home.sync { runtime.playRule(DeviceMoment(anim: "cheer", loops: 1)) }
-        XCTAssertEqual(moments(), 4, "a cheer the dashboard played stops the second, and the third plays over the cheer")
+        runtime.home.sync { playAtOnce(runtime, DeviceMoment(anim: "cheer", loops: 1)) }
+        XCTAssertEqual(moments(), 4, "a cheer played at once stops the second, and the third plays over the cheer")
 
         clock.now += 300
         react("excited")
@@ -1197,7 +1196,7 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// ARCHITECTURE.md §3.2: what the device does on its own reaches the
-    /// schedule. A tap's wiggle replaces a cheer the dashboard played, and
+    /// schedule. A tap's wiggle replaces a cheer played at once, and
     /// such a cheer lets a reaction waiting behind a face play at once,
     /// over it;
     /// and each tick drops a reaction that has waited 5 s, before the
@@ -1215,13 +1214,13 @@ final class RuntimeTests: XCTestCase {
         runtime.home.sync {}
         let line = VoiceLine(groups: [["bi"]], word: nil, at: 1, tune: .up, ms: 100)
 
-        runtime.home.sync { runtime.playRule(DeviceMoment(anim: "cheer")) }
+        runtime.home.sync { playAtOnce(runtime, DeviceMoment(anim: "cheer")) }
         clock.now += 300
         transport.onLine?(#"{"t":"input","k":"tap"}"#)
         runtime.home.sync {}
         XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.cheerUntil }, clock.now, "the wiggle replaced it")
         clock.now += 1000
-        runtime.home.sync { runtime.playRule(DeviceMoment(anim: "cheer")) }
+        runtime.home.sync { playAtOnce(runtime, DeviceMoment(anim: "cheer")) }
         clock.now += 300
         let asking = StateSnapshot(base: "idle", mood: "happy", attn: .init(agent: "claude", project: "x", more: 0, id: 1),
                                    busy: 0, vol: 6)
@@ -1241,7 +1240,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(moments().last?.contains(#""mood":"proud""#) == true)
         clock.now += 1000
         let before = moments().count
-        runtime.home.sync { runtime.playRule(DeviceMoment(anim: "cheer")) }
+        runtime.home.sync { playAtOnce(runtime, DeviceMoment(anim: "cheer")) }
         XCTAssertEqual(moments().count, before + 2, "the cheer, then the waiting reaction over it")
         XCTAssertTrue(moments().last?.contains(#""mood":"happy""#) == true)
 

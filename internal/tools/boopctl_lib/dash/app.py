@@ -20,7 +20,7 @@ from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Footer, Label, OptionList, RichLog, Static
 
-from boopctl_lib.common import ANIMS, send_line
+from boopctl_lib.common import send_line
 from boopctl_lib.dash import controls
 from boopctl_lib.device import DeviceError
 from boopctl_lib.dash.feed import Board, Follower, clock, kind
@@ -40,8 +40,6 @@ LEAVE = "leave Preview"
 
 
 class Face(Protocol):
-    whole: bool
-
     def start(self) -> None: ...
     def stop(self) -> None: ...
     def send(self, message: dict) -> None: ...
@@ -121,11 +119,9 @@ class Dash(App[None]):
     BINDINGS = [
         Binding("m", "mood", "mood"),
         Binding("r", "react", "react"),
-        Binding("a", "animate", "animate"),
         Binding("p", "preview", "preview"),
-        Binding("t", "timeline", "timeline"),
+        Binding("t", "timeline", "toggle timeline"),
         Binding("s", "state", "Jev's state"),
-        Binding("z", "whole", "whole screen"),
         Binding("q", "quit", "quit"),
     ]
 
@@ -263,7 +259,7 @@ class Dash(App[None]):
 
     def title_face(self) -> None:
         mode = f"PREVIEW: {self.look}" if self.look else "live"
-        self.face_view.border_title = f"face · {mode}" + (" · whole screen" if self.face and self.face.whole else "")
+        self.face_view.border_title = f"face · {mode}"
 
     # The keys.
 
@@ -298,17 +294,20 @@ class Dash(App[None]):
         if not asked:
             return
         if self.look:
-            # Preview: any reaction, its face, how long it holds and a mumble,
-            # straight to the dashboard's sim.
+            # Preview: any reaction, its face, its animation, how long it
+            # holds and a mumble, straight to the dashboard's sim.
             face = await self.pick("Preview a reaction: the face", [o for o in controls.options(asked[0]) if o != "none"])
+            anims = [o for q in asked if q["key"] == "react.animation" for o in controls.options(q)]
+            anim = face and (await self.pick("…its animation", anims) if anims else "none")
             holds = [o for q in asked if q["key"] == "react.loops" for o in controls.options(q)]
-            hold = face and (await self.pick("…how long it holds", holds) if holds else "once")
+            hold = anim and (await self.pick("…how long it holds", holds) if holds else "once")
             words = [o for q in asked if q["key"].startswith("word.") for o in controls.options(q) if o != "none"]
             word = hold and await self.pick("…and its word", ["none"] + words)
             if word and self.face:
                 loops = holds.index(hold) + 1 if hold in holds else 1
                 try:  # boopdev runs off the event loop, so the face keeps moving
-                    line = await asyncio.to_thread(controls.preview_mumble, face, None if word == "none" else word, loops)
+                    line = await asyncio.to_thread(controls.preview_mumble, face, None if word == "none" else word, loops,
+                                                   None if anim == "none" else anim)
                     self.face.send(line)
                 except DeviceError as exc:
                     self.notify(str(exc), severity="error")
@@ -320,16 +319,6 @@ class Dash(App[None]):
                 return
             choices[q["key"]] = choice
         self.command({"dev": "answer", "answers": choices})
-
-    @work
-    async def action_animate(self) -> None:
-        anim = await self.pick("Play an animation" + (" (Preview)" if self.look else ""), ANIMS)
-        if not anim:
-            return
-        if not self.look:
-            self.command({"dev": "moment", "anim": anim})
-        elif self.face:
-            self.face.send({"t": "moment", "anim": anim})
 
     @work
     async def action_preview(self) -> None:
@@ -358,11 +347,6 @@ class Dash(App[None]):
 
     def action_timeline(self) -> None:
         self.timeline.set_class(not self.timeline.has_class("shown"), "shown")
-
-    def action_whole(self) -> None:
-        if self.face:
-            self.face.whole = not self.face.whole
-            self.title_face()
 
 
 def run(state_dir: Path, socket_path: str, sim_program: str) -> None:

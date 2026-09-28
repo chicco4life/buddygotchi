@@ -19,10 +19,8 @@ from boopctl_lib.image import rgb888
 SCALE = 3
 # (x0, y0, x1, y1), end exclusive: the band above the bubble, which the
 # animation pack's designs fill edge to edge (a cheer's backdrop, needs
-# you's panel), 107×48 blocks, so 107×24 cells. WHOLE is the screen,
-# 107×40 cells.
+# you's panel), 107×48 blocks, so 107×24 cells.
 CROP = (0, 0, 320, 144)
-WHOLE = (0, 0, 320, 240)
 FPS = 12
 
 
@@ -62,9 +60,9 @@ def halfblocks(rows: list[list[int]], palette: list[int]) -> Text:
     return text
 
 
-def render(shot: tuple[list[int], bytes, tuple[int, int]], whole: bool = False) -> Text:
+def render(shot: tuple[list[int], bytes, tuple[int, int]]) -> Text:
     palette, indexes, (width, _) = shot
-    return halfblocks(blocks(indexes, width, WHOLE if whole else CROP), palette)
+    return halfblocks(blocks(indexes, width, CROP), palette)
 
 
 class SimFace:
@@ -76,7 +74,6 @@ class SimFace:
         self.program = program
         self.on_frame = on_frame
         self.on_error = on_error
-        self.whole = False
         self.lines: queue.Queue[dict | None] = queue.Queue()
         self.thread = threading.Thread(target=self._run, daemon=True)
 
@@ -108,9 +105,9 @@ class SimFace:
                             return
                         sim.send(message)
                     shot = sim.shot()
-                    if (shot, self.whole) != drawn:  # most frames don't move
-                        drawn = (shot, self.whole)
-                        self.on_frame(render(shot, self.whole))
+                    if shot != drawn:  # most frames don't move
+                        drawn = shot
+                        self.on_frame(render(shot))
                     time.sleep(max(0.0, 1 / FPS - (time.monotonic() - started)))
         except (DeviceError, OSError, ValueError) as exc:
             self.on_error(f"boop-sim stopped: {exc}")
