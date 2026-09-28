@@ -641,7 +641,7 @@ public final class Core {
 
     /// One of several askers in a session was answered, so Claude shows
     /// another's prompt now: a different request, with its own number, so
-    /// the device chirps if it's the one shown (BEHAVIORS.md §3.2).
+    /// the device alerts again if it's the one shown (BEHAVIORS.md §3.2).
     func anotherRequest(_ s: inout Session) {
         if s.needsSince != nil { s.ask = takeAsk() }
     }

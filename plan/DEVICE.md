@@ -156,7 +156,7 @@ knows nothing until the next `state`. Only the touch calibration survives
 | A blink | The device's own timer ([BEHAVIORS.md](BEHAVIORS.md) §2) | Its end, or an animation |
 | A design switch: the eyes shut and the backlight eases | Any change to another design | Its end |
 | The press dip | BOOT or a touch going down | Its release |
-| The last sound cue | A new "needs you" (`chirp`) | Nothing; `dbg.state` reports it |
+| The alert: needs you's performance starting over | A new request shown | Nothing; `dbg.state` reports when (`alert`) |
 | No app, latched | 30 s without a `state` | The next `state` |
 | A test pattern or light held by `dbg.pattern` or `dbg.light` | The debug message | The next `state` |
 | The clock, running or frozen | `dbg.clock`, `dbg.reset` | `dbg.clock` `run`, or 60 s with no `dbg.*` |

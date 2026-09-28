@@ -271,7 +271,7 @@ otherwise goes idle.
 - **Codex's reviewer approving** sends no hook either, as far as the
   hand-written fixtures know: the next hook is the command's own result.
   So a command the reviewer approves that runs past the 2 s grace shows
-  "needs you", and chirps, from 2 s until it ends, as an approved long
+  "needs you", with its alert, from 2 s until it ends, as an approved long
   command of Claude's does; so does any command whose review takes over
   2 s. Nobody was asked. A recorded Codex session would
   show whether Codex sends something the grace could wait for.

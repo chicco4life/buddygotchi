@@ -164,12 +164,12 @@ class Board:
             self.moods.append({"at": at, "mood": mood, "from": None, "cause": "at launch"})
         elif mood != before.get("mood"):
             self.moods.append({"at": at, "mood": mood, "from": before.get("mood"), "cause": None})
-        # Needs you: a new request, or a different one, chirps (PROTOCOL.md §3).
+        # Needs you: a new request, or a different one, alerts (PROTOCOL.md §3).
         old, new = (before or {}).get("attn"), now.get("attn")
         ident = lambda a: (a.get("id", 0), a.get("agent"), a.get("project"))  # noqa: E731
         if new and (not old or ident(old) != ident(new)):
             more = f" (+{new['more']})" if new.get("more") else ""
-            what = ("needs you: " if not old else "needs you now: ") + f"{new['agent']} · {new['project']}{more} · chirp"
+            what = ("needs you: " if not old else "needs you now: ") + f"{new['agent']} · {new['project']}{more} · alert"
             self.reflexes.append({"at": at, "what": what, "attn": True, "trigger": None})
         elif old and not new:
             self.reflexes.append({"at": at, "what": "needs you cleared", "attn": True, "trigger": None})

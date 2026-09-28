@@ -1,7 +1,6 @@
 // The behaviour state machine (plan/BEHAVIORS.md): what
 // the Mac last said, the moment and the mumble playing, blinks, needs
-// you, local reactions to inputs, and the light, backlight and sound cues
-// they imply. Pure C++ and a function of the device clock: every time-based
+// you, local reactions to inputs, and the light and backlight they imply. Pure C++ and a function of the device clock: every time-based
 // change happens at an exact millisecond, so a frozen clock gives the same
 // frames on the board and in the simulator. Device owns the I/O.
 #pragma once
@@ -151,9 +150,11 @@ class Behaviour {
   // What the face is following at t: the animation ("cheer"), or the look
   // ("idle", "working", "asleep", "needs_you", "no_app").
   const char* faceName(uint32_t t) const;
-  const char* sfx(uint32_t& at) const {
-    at = sfxAt_;
-    return sfx_;
+  // When needs you's performance, with its knocks and ding, last started
+  // for a new request (BEHAVIORS.md §3.2); false before any.
+  bool alerted(uint32_t& at) const {
+    at = alertAt_;
+    return alerted_;
   }
   const Model& model() const { return model_; }
 
@@ -221,7 +222,6 @@ class Behaviour {
   // design it's drawn in, ending on a loop boundary of that design's clock.
   uint32_t holdMs(render::Mood mood, int loops, uint32_t t) const;
   void startSay(const MomentIn& in, uint32_t t);
-  void sound(const char* k, uint32_t t);
   // Every change goes through here: `f` changes the state at t, and if
   // what the face follows changed to another design, the eyes shut for a
   // moment; a new look starts its design's clock. The backlight eases from
@@ -299,8 +299,8 @@ class Behaviour {
   uint32_t nextBlink_ = 0;
   bool pressed_ = false;
   uint32_t pressAt_ = 0;
-  const char* sfx_ = nullptr;
-  uint32_t sfxAt_ = 0;
+  bool alerted_ = false;
+  uint32_t alertAt_ = 0;
   uint32_t modelT_ = 0;
   uint32_t momentSeq_ = 0;
 };

@@ -33,7 +33,7 @@ AUTOMATIC  (plain rules, instant, no brain needed)
 ═══════════════════════════════════════════════════════════════════════
   • The agents' activity picks the state visual:
       asleep / idle / working / needs you / no app
-  • Needs you wins over everything: amber light, one chirp, who's asking
+  • Needs you wins over everything: amber light, its alert, who's asking
   • A tap → the device plays the wiggle at once
   • Needs you and no app are never Jev's to show
 
@@ -210,9 +210,9 @@ Boop only tells you. You approve on the Mac, in the agent's own prompt.
 
 | When | What Boop does |
 | --- | --- |
-| An agent needs approval | The needs-you look and its amber sign, the amber light, the strip naming agent and project, and one soft chirp. A moment or mumble playing stops |
+| An agent needs approval | The needs-you look and its amber sign, the amber light, the strip naming agent and project, and the alert: the needs-you performance with its knocks and ding, once ([VOICE.md](VOICE.md) §10). A moment or mumble playing stops |
 | More than one needs you | The strip shows the one waiting longest, with "+N" for the rest |
-| A different request becomes the one shown | One more chirp: another session's, even in the same project, or another subagent's in the same session once the first is answered |
+| A different request becomes the one shown | The alert again, the performance starting over behind a blink: another session's, even in the same project, or another subagent's in the same session once the first is answered |
 | You tap Boop | The press dip only; it stays amber (§3.3) |
 | You answer on the Mac | The agent carries on; once nothing needs you, Boop blinks back to its base look. A long command you approved keeps "needs you" up until it finishes ([ADAPTERS.md](ADAPTERS.md) §4) |
 | You deny with Esc | Claude sends nothing, so Boop stays amber until Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §4) |
@@ -251,8 +251,7 @@ short-term memory fresh ([ARCHITECTURE.md](ARCHITECTURE.md) §4.3).
 | Output | Used for | Never |
 | --- | --- | --- |
 | Mumbles | The brain's reactions | While something needs you |
-| Chirp | Once when something starts needing you, and when the request shown changes (§3.2) | Anything else |
-| Sound effects | The face's design: working's clicks every loop, the cheer's fanfare, needs you's knocks and ding, idle's swish at most every 45 s ([VOICE.md](VOICE.md) §10) | Asleep, no app, or a test pattern. Under a mumble they're half as loud, except needs you's |
+| Sound effects | The face's design: working's clicks every loop, the cheer's fanfare, needs you's knocks and ding (the alert, once per request shown, §3.2), idle's swish at most every 45 s ([VOICE.md](VOICE.md) §10) | Asleep, no app, or a test pattern. Under a mumble they're half as loud, except needs you's |
 | Amber light | Something needs you: amber at half (`#805800`) | Any other time, or with no app |
 | Backlight | Full (255) awake; 60/255 asleep and with no app; eases with each switch of design | Dimmed while something needs you |
 

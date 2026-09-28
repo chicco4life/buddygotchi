@@ -29,13 +29,8 @@ struct FakeHal : app::Hal {
   const char* fwVersion() override { return "t"; }
   const char* gitSha() override { return "abc"; }
   std::vector<voice::Line> said;
-  std::vector<voice::Cue> cues;
   int hushes = 0;
   void say(const voice::Line& l) override { said.push_back(l); }
-  void cue(voice::Cue c, uint8_t vol) override {
-    (void)vol;
-    cues.push_back(c);
-  }
   void hush() override { ++hushes; }
   std::vector<voice::Effect> effects;
   int effectStops = 0;
@@ -612,43 +607,54 @@ static void test_the_redraw_cap_doesnt_delay_a_press() {
   }
 }
 
-// BEHAVIORS.md §3.2: one chirp per request, amber at half, nothing more
-// while it waits; a different request chirps again.
-static void test_attention_shows_needs_you_and_chirps_once() {
+// dbg.state's `alert`: when needs you's performance last started for a
+// new request, or null.
+static std::string alertOf(Rig& r) {
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  size_t i = r.usb.text.find("\"alert\":");
+  if (i == std::string::npos) return "missing";
+  size_t j = r.usb.text.find_first_of(",}", i);
+  return r.usb.text.substr(i + 8, j - i - 8);
+}
+
+// BEHAVIORS.md §3.2: the performance, knocks and ding, once per request,
+// amber at half, nothing more while it waits; a different request plays it
+// again.
+static void test_attention_shows_needs_you_and_alerts_once() {
   Rig r;
+  TEST_ASSERT_EQUAL_STRING("null", alertOf(r).c_str());
   const char* landing = "{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"landing\"}}";
   r.usbLine(landing);
   TEST_ASSERT_EQUAL(app::Screen::kNeedsYou, r.dev.screen());
   TEST_ASSERT_EQUAL_UINT32(0x805800, r.hal.led);
-  TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));
-  TEST_ASSERT_TRUE(r.hal.cues[0] == voice::Cue::kChirp);
+  TEST_ASSERT_EQUAL_STRING("0", alertOf(r).c_str());
   for (uint32_t t : {20000u, 40000u, 60000u, 80000u, 100000u, 120000u, 140000u}) {
     char step[64];
     std::snprintf(step, sizeof(step), "{\"t\":\"dbg.clock\",\"freeze\":%u}", unsigned(t));
     r.usbLine(step);
     r.usbLine(landing);
   }
-  TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));
+  TEST_ASSERT_EQUAL_STRING("0", alertOf(r).c_str());
   TEST_ASSERT_EQUAL_UINT32(0x805800, r.hal.led);
-  // A different project chirps again, and so does a different request
+  // A different project alerts again, and so does a different request
   // with the same names: the Mac numbers each one in `attn.id`.
   r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"site\",\"id\":4}}");
-  TEST_ASSERT_EQUAL(2, int(r.hal.cues.size()));
+  TEST_ASSERT_EQUAL_STRING("140000", alertOf(r).c_str());
   r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"site\",\"more\":1,\"id\":4}}");
-  TEST_ASSERT_EQUAL(2, int(r.hal.cues.size()));
+  TEST_ASSERT_EQUAL_STRING("140000", alertOf(r).c_str());
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":150000}");
   r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"site\",\"id\":5}}");
-  TEST_ASSERT_EQUAL(3, int(r.hal.cues.size()));
-  r.usb.text.clear();
-  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_EQUAL_STRING("150000", alertOf(r).c_str());
   TEST_ASSERT_TRUE(has(r.usb.text, "\"attn\":{\"agent\":\"codex\",\"project\":\"site\",\"more\":0,\"id\":5}"));
   r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
   TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
   TEST_ASSERT_EQUAL_UINT32(0, r.hal.led);
-  // Muted, no chirp.
+  // Muted, nothing sounds.
   Rig m;
   m.usbLine("{\"t\":\"state\",\"base\":\"working\",\"vol\":0,\"attn\":{\"agent\":\"codex\",\"project\":\"landing\"}}");
-  TEST_ASSERT_EQUAL(0, int(m.hal.cues.size()));
+  runClock(m, 0, 8000);
+  TEST_ASSERT_EQUAL(0, int(m.hal.effects.size()));
 }
 
 // BEHAVIORS.md §3.4: no app after 30 s of silence. dbg.state still says
@@ -877,23 +883,20 @@ static void test_mute_and_needs_you_keep_it_silent() {
   TEST_ASSERT_EQUAL(1, q.hal.hushes);
 }
 
-// BEHAVIORS.md §4: the chirp is the only cue. A cheer plays none (its
-// fanfare is a sound effect, VOICE.md §10). Only
-// mute silences it: it's the one thing Boop must say.
-static void test_only_needs_you_chirps() {
+// BEHAVIORS.md §4: a line playing when something starts needing you is
+// hushed, and needs you's own sounds, all alerts, play in its place.
+static void test_needs_you_hushes_a_line_for_its_alert() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\"}");
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":3000}");
-  TEST_ASSERT_EQUAL(0, int(r.hal.cues.size()));
-  // A line playing when something starts needing you is hushed for the chirp.
   r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":3100}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":100}");
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
   TEST_ASSERT_EQUAL(1, r.hal.hushes);
-  TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));
-  TEST_ASSERT_TRUE(r.hal.cues[0] == voice::Cue::kChirp);
+  r.hal.effects.clear();
+  runClock(r, 110, 8000);
+  TEST_ASSERT_TRUE(played(r.hal, "alertDing"));
+  for (const voice::Effect& e : r.hal.effects) TEST_ASSERT_TRUE(voice::effectAlert(e.clip));
 }
 
 // PROTOCOL.md §4: a moment with an `id` gets one `ended` once all of it
@@ -1125,7 +1128,7 @@ int main() {
   RUN_TEST(test_motion_redraws_at_most_every_16ms);
   RUN_TEST(test_a_still_picture_isnt_redrawn);
   RUN_TEST(test_the_redraw_cap_doesnt_delay_a_press);
-  RUN_TEST(test_attention_shows_needs_you_and_chirps_once);
+  RUN_TEST(test_attention_shows_needs_you_and_alerts_once);
   RUN_TEST(test_no_app_after_30s_of_silence);
   RUN_TEST(test_moment_plays_then_ends_and_a_new_one_replaces_it);
   RUN_TEST(test_a_moment_with_nothing_to_play_is_ignored);
@@ -1134,7 +1137,7 @@ int main() {
   RUN_TEST(test_say_reaches_the_player);
   RUN_TEST(test_a_say_on_its_own_plays_the_mumble);
   RUN_TEST(test_mute_and_needs_you_keep_it_silent);
-  RUN_TEST(test_only_needs_you_chirps);
+  RUN_TEST(test_needs_you_hushes_a_line_for_its_alert);
   RUN_TEST(test_state_carries_the_mood);
   RUN_TEST(test_lines_over_512_bytes_are_dropped);
   RUN_TEST(test_say_and_volume_are_held_in_range);

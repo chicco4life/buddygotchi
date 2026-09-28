@@ -171,7 +171,7 @@ class ColumnsTests(unittest.TestCase):
 
     def test_the_automatic_reactions(self):
         """Each reflex with what set it off: the cheer and its turn end, the
-        chirp and the request, the taps' wiggles the board plays itself, the
+        alert and the request, the taps' wiggles the board plays itself, the
         working chatter, and a cheer the dashboard played, with no event."""
         rows = self.board.reflex_column()
         reflex = self.texts(rows)
@@ -187,7 +187,7 @@ class ColumnsTests(unittest.TestCase):
         at = reflex.index(next(t for t in reflex if t.endswith(f"working chatter “{chatter['syl']}”")))
         self.assertEqual(reflex[at + 1], "  an agent is working")
         self.assertTrue(reflex[-3].endswith(" needs you cleared"))
-        self.assertTrue(reflex[-2].endswith(" needs you: claude · jetpack · chirp"))
+        self.assertTrue(reflex[-2].endswith(" needs you: claude · jetpack · alert"))
         self.assertEqual(reflex[-1], '  ▸ claude needs you on "jetpack".')
         self.assertEqual(rows[-2][0], "attn")
 

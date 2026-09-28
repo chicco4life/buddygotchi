@@ -32,7 +32,6 @@ class BoardHal : public app::Hal {
   void frameUs(uint32_t& draw, uint32_t& push) override { draw = drawUs_, push = pushUs_; }
   bool ampOn() override;
   void say(const voice::Line& l) override;
-  void cue(voice::Cue c, uint8_t vol) override;
   void hush() override;
   void effect(const voice::Effect& e) override;
   void stopEffects() override;

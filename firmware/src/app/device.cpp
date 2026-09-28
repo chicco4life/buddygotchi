@@ -68,7 +68,6 @@ void Device::reset() {
   rng_.seed(0);
   b_.reset(0, rng_);
   hush();
-  sfxSeen_ = b_.sfx(sfxSeenAt_);
   fx_.reset();
   hal_.stopEffects();
   pattern_ = false;
@@ -362,19 +361,12 @@ void Device::hush() {
 }
 
 // Stops a line whose mumble ended or was replaced (a tap's wiggle, say),
-// and plays new sound cues (BEHAVIORS.md §4): the chirp, once when
-// something starts needing you. Its `state` has already hushed any line.
-// Then the face's sound effects (VOICE.md §10): its design's events as its
-// clock reaches them, and silence for the last design's when it changes.
+// then plays the face's sound effects (VOICE.md §10): its design's events
+// as its clock reaches them, and silence for the last design's when it
+// changes or starts over (needs you's, for a new request).
 void Device::followSound(uint32_t t) {
   if (saying_ && (b_.momentSeq() != sayMoment_ || !b_.mumble(t))) hush();
-  uint32_t at;
-  const char* k = b_.sfx(at);
   const Model& m = b_.model();
-  if (k != sfxSeen_ || at != sfxSeenAt_) {
-    sfxSeen_ = k, sfxSeenAt_ = at;
-    if (k && m.vol > 0) hal_.cue(voice::cueFromName(k), uint8_t(m.vol));
-  }
   render::SceneShow show = b_.show(t);
   show.t = b_.designMs(t);
   voice::FxEvent due[EffectTrack::kMaxOut];
@@ -536,13 +528,9 @@ void Device::sendState(Link to) {
   fx["sent"] = fxSent_;
   if (fxLast_ >= 0) fx["last"] = voice::effectName(fxLast_);
   else fx["last"] = nullptr;
-  uint32_t sfxAt;
-  if (const char* sfx = b_.sfx(sfxAt)) {
-    d["sfx"]["k"] = sfx;
-    d["sfx"]["at"] = sfxAt;
-  } else {
-    d["sfx"] = nullptr;
-  }
+  uint32_t alertAt;
+  if (b_.alerted(alertAt)) d["alert"] = alertAt;
+  else d["alert"] = nullptr;
   if (last_.k) {
     JsonObject li = d["last_input"].to<JsonObject>();
     li["k"] = last_.k;

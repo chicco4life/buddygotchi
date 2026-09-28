@@ -24,12 +24,10 @@ constexpr size_t kChunk = kDmaBytes / 2;
 constexpr int kWriteTimeoutMs = 200;
 
 // Effects neither replace nor hush a line: they mix under it.
-enum class Kind : uint8_t { kSay, kCue, kHush, kEffect, kStopEffects };
+enum class Kind : uint8_t { kSay, kHush, kEffect, kStopEffects };
 struct Cmd {
   Kind kind;
   voice::Line line;
-  voice::Cue cue;
-  uint8_t vol;
   voice::Effect effect;
 };
 // The amp stays on this many chunks (about a second) after the last sound:
@@ -103,7 +101,6 @@ void applyVoice(const Cmd& c) {
         cur.startUs = lastWriteUs;
       }
       break;
-    case Kind::kCue: player.cue(c.cue, c.vol); break;
     case Kind::kHush: player.stop(); break;
     default: break;
   }
@@ -133,7 +130,7 @@ void task(void*) {
     while (xQueueReceive(queue, &c, 0) == pdTRUE) apply(c);
     bool was = player.playing();
     bool wasAny = sounding();
-    bool speaking = player.speaking();  // a line, which the effects go under
+    bool speaking = player.playing();  // a line, which the effects go under
     size_t made = player.render(chunk, kChunk);
     effects.mix(chunk, kChunk, speaking);
     if (dac_continuous_write(dac, chunk, kChunk, nullptr, kWriteTimeoutMs) != ESP_OK) {
@@ -186,27 +183,22 @@ bool audioBegin() {
 }
 
 void audioSay(const voice::Line& l) {
-  Cmd c{Kind::kSay, l, voice::Cue::kNone, 0, {}};
-  send(c);
-}
-
-void audioCue(voice::Cue cue, uint8_t vol) {
-  Cmd c{Kind::kCue, voice::Line{}, cue, vol, {}};
+  Cmd c{Kind::kSay, l, {}};
   send(c);
 }
 
 void audioHush() {
-  Cmd c{Kind::kHush, voice::Line{}, voice::Cue::kNone, 0, {}};
+  Cmd c{Kind::kHush, voice::Line{}, {}};
   send(c);
 }
 
 void audioEffect(const voice::Effect& e) {
-  Cmd c{Kind::kEffect, voice::Line{}, voice::Cue::kNone, 0, e};
+  Cmd c{Kind::kEffect, voice::Line{}, e};
   send(c);
 }
 
 void audioStopEffects() {
-  Cmd c{Kind::kStopEffects, voice::Line{}, voice::Cue::kNone, 0, {}};
+  Cmd c{Kind::kStopEffects, voice::Line{}, {}};
   send(c);
 }
 

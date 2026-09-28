@@ -127,11 +127,11 @@ void test_short_beats_cut_the_clip_with_a_fade() {
   TEST_ASSERT_INT_WITHIN(2, 128, out.back());
 }
 
-// VOICE.md §8: a line cut short, hushed or replaced by another line or the
-// chirp, fades from where it was over 4 ms instead of stepping to silence
-// in one sample, which clicks.
+// VOICE.md §8: a line cut short, hushed or replaced by another line,
+// fades from where it was over 4 ms instead of stepping to silence in one
+// sample, which clicks.
 void test_a_cut_fades_instead_of_clicking() {
-  for (int how = 0; how < 3; ++how) {
+  for (int how = 0; how < 2; ++how) {
     voice::Line l = line(kFour, 4);
     l.vol = 10;
     voice::Player p;
@@ -142,12 +142,10 @@ void test_a_cut_fades_instead_of_clicking() {
     voice::Line silent = line(kFour, 2);
     silent.syl[0] = silent.syl[1] = voice::kSilent;
     if (how == 0) p.stop();
-    else if (how == 1) p.start(silent);
-    else p.cue(voice::Cue::kChirp, 10);
+    else p.start(silent);
     std::vector<uint8_t> out(200);
     p.render(out.data(), out.size());
     TEST_ASSERT_INT_WITHIN(2, s, out[0]);
-    if (how == 2) continue;  // the chirp's own wave steps more than that
     for (size_t i = 1; i < out.size(); ++i) TEST_ASSERT_INT_WITHIN(2, out[i - 1], out[i]);
     TEST_ASSERT_EQUAL_UINT8(128, out[22050 * 4 / 1000]);  // gone after 4 ms
   }
@@ -197,18 +195,10 @@ void test_unknown_syllables_keep_their_beat_silent() {
   TEST_ASSERT_EQUAL(0, sounding(out));
 }
 
-void test_names_and_cues() {
+void test_names() {
   TEST_ASSERT_TRUE(voice::tuneFromName("up") == voice::Tune::kUp);
   TEST_ASSERT_TRUE(voice::tuneFromName("lift") == voice::Tune::kLift);
   TEST_ASSERT_TRUE(voice::tuneFromName(nullptr) == voice::Tune::kFlat);
-  TEST_ASSERT_TRUE(voice::cueFromName("chirp") == voice::Cue::kChirp);
-  TEST_ASSERT_TRUE(voice::cueFromName("jingle") == voice::Cue::kNone);  // the chirp is the only cue
-  voice::Player p;
-  p.cue(voice::Cue::kChirp, 6);
-  TEST_ASSERT_EQUAL_UINT32(22050 * 90 / 1000, p.total());
-  TEST_ASSERT_TRUE(sounding(renderAll(p)) > 1000);
-  p.cue(voice::Cue::kChirp, 0);
-  TEST_ASSERT_FALSE(p.playing());
 }
 
 int main() {
@@ -223,6 +213,6 @@ int main() {
   RUN_TEST(test_volume_scales_and_zero_mutes);
   RUN_TEST(test_same_seed_same_sound);
   RUN_TEST(test_unknown_syllables_keep_their_beat_silent);
-  RUN_TEST(test_names_and_cues);
+  RUN_TEST(test_names);
   return UNITY_END();
 }

@@ -2,7 +2,7 @@
 from debug mode's logs (plan/harness/HARNESS.md §9). It reads the state dir's
 debug.jsonl and the earlier launches' debug.<n>.jsonl, oldest first, and
 sums up one local day by the hour: cheers, working chatter, the brain's
-reactions and their faces, chirps, mood changes, passes, and the brain's
+reactions and their faces, alerts, mood changes, passes, and the brain's
 reactions that didn't happen; then each mood change with its cause, each
 time something needed you and how long it took to clear, and why reactions
 didn't happen. What the dashboard forced is counted apart from the brain.
@@ -91,7 +91,7 @@ class Hour:
     chatter: int = 0
     reactions: int = 0
     faces: Counter = field(default_factory=Counter)
-    chirps: int = 0
+    alerts: int = 0
     moods: int = 0
     passes: int = 0
     dropped: int = 0
@@ -115,7 +115,7 @@ class NeedsYou:
     start: int
     end: int = 0
     who: list[str] = field(default_factory=list)
-    chirps: int = 0
+    alerts: int = 0
     open: bool = False  # still up when its launch's log ends
 
 
@@ -190,15 +190,15 @@ def summarise(launches: list[Launch], date: str) -> Day:
                 a = body.get("attn")
                 # A missing id reads as 0, as on the device.
                 shown = (a.get("agent"), a.get("project"), a.get("id", 0)) if a else None
-                if shown and shown != attn:  # a new one, or a different one: one chirp (PROTOCOL.md §3)
+                if shown and shown != attn:  # a new one, or a different one: one alert (PROTOCOL.md §3)
                     if episode is None:
                         episode = NeedsYou(t)
                     who = " · ".join(map(str, shown[:2]))
                     if not episode.who or episode.who[-1] != who:
                         episode.who.append(who)
                     if h:
-                        h.chirps += 1
-                        episode.chirps += 1
+                        h.alerts += 1
+                        episode.alerts += 1
                 if not shown and episode:
                     episode.end = t
                     day.needs.append(episode)
@@ -332,7 +332,7 @@ def faces(c: Counter) -> str:
     return ", ".join(f"{name} {n}" for name, n in sorted(c.items(), key=lambda kv: (-kv[1], kv[0])))
 
 
-COLUMNS = [("cheers", "cheers"), ("chatter", "chatter"), ("reactions", "reacts"), ("chirps", "chirps"),
+COLUMNS = [("cheers", "cheers"), ("chatter", "chatter"), ("reactions", "reacts"), ("alerts", "alerts"),
            ("moods", "moods"), ("passes", "passes"), ("dropped", "dropped"), ("missed", "missed"), ("taps", "taps")]
 
 
@@ -368,7 +368,7 @@ def render(day: Day) -> str:
                "didn't happen (below);")
     out.append("cheers are every cheer played (the brain's since 2026-09-28); chatter is the rules' working chatter, "
                "which only logs from before then have;")
-    out.append("chirps are states bringing a new needs-you or a different one.")
+    out.append("alerts are states bringing a new needs-you or a different one.")
 
     out.append("")
     passes = day.total().passes
@@ -396,7 +396,7 @@ def render(day: Day) -> str:
     who = max((len(" → ".join(n.who)) for n in day.needs), default=0)
     for n in day.needs:
         took = f"{span(n.end - n.start)}" + (" (still up when the log ends)" if n.open else "")
-        out.append(f"  {clock(n.start)}  {' → '.join(n.who):<{who}}  {took}" + (f", {n.chirps} chirps" if n.chirps > 1 else ""))
+        out.append(f"  {clock(n.start)}  {' → '.join(n.who):<{who}}  {took}" + (f", {n.alerts} alerts" if n.alerts > 1 else ""))
 
     out.append("")
     forced = sum(m.forced for m in day.misses)

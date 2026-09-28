@@ -634,12 +634,12 @@ def cmd_play(args: argparse.Namespace) -> int:
 
 
 def play_needs(args: argparse.Namespace) -> int:
-    """Holds a "needs you" for a while (BEHAVIORS.md §3.2): one chirp, the
-    only sound cue, amber at half, the face turned to you. Prints what the
-    board shows and whether the chirp played, then clears it, and the face
-    blends back. Ctrl-C clears it early."""
+    """Holds a "needs you" for a while (BEHAVIORS.md §3.2): its performance
+    with knocks and the ding, amber at half, the face turned to you. Prints
+    what the board shows and whether the ding was sent (VOICE.md §10), then
+    clears it, and the face blends back. Ctrl-C clears it early."""
     attn = {"agent": args.agent, "project": args.project, "more": args.more}
-    chirp = None
+    alert = ding = None
     with Device(args.port) as dev:
         show_begin(dev)
         start = time.monotonic()
@@ -650,8 +650,11 @@ def play_needs(args: argparse.Namespace) -> int:
                 if resend is None or now >= resend:
                     show_state(dev, args.vol, attn=attn, mood=args.mood)
                     resend = now + 10
-                if chirp != "chirp" and now - start < 3:
-                    chirp = ((st := dev.request({"t": "dbg.state"})).get("sfx") or {}).get("k")
+                if ding is None and now - start < 8:
+                    st = dev.request({"t": "dbg.state"})
+                    alert = st.get("alert")
+                    if ((st.get("audio") or {}).get("fx") or {}).get("last") == "alertDing":
+                        ding = now - start
                     if not shown and now - start >= 0.3:
                         print(f"{now - start:6.1f} s  screen {st['screen']}  led {st['led']}  bl {st['bl']}", flush=True)
                         shown = True
@@ -660,9 +663,10 @@ def play_needs(args: argparse.Namespace) -> int:
             pass
         finally:
             show_state(dev, args.vol, mood=args.mood)
-    print("chirp: " + ("played" if chirp == "chirp" else f"not played (last cue {chirp})"))
+    print("alert: " + ("started" if alert is not None else "not started"))
+    print("ding: " + (f"sent at {ding:.1f} s" if ding is not None else "not sent"))
     print("cleared: Boop goes back to idle")
-    return 0 if chirp == "chirp" else 1
+    return 0 if alert is not None and ding is not None else 1
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -679,7 +683,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_send)
     vol = {"type": int, "choices": range(1, 11), "default": 6, "metavar": "1-10", "help": "volume (default 6)"}
     p = sub.add_parser("play", help="play an animation (with --say, a mumble over it), a fake needs-you "
-                                    "with its chirp, or the bring-up pattern")
+                                    "with its ding, or the bring-up pattern")
     p.add_argument("what", choices=ANIMS + ["needs", "pattern"],
                    help=", ".join(ANIMS) + "; needs; pattern")
     p.add_argument("--say", choices=FEELINGS, metavar="FEELING", help=f"a mumble with this feeling: {', '.join(FEELINGS)}")

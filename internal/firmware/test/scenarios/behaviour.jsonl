@@ -29,7 +29,7 @@
 {"t":"state","v":1,"base":"working","busy":1}
 {"clock":27000}
 {"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1}
-{"expect":{"screen":"needs_you","led":"#805800","bl":255,"sfx":{"k":"chirp","at":27000}}}
+{"expect":{"screen":"needs_you","led":"#805800","bl":255,"alert":27000}}
 {"t":"moment","anim":"cheer"}
 {"expect":{"moment":null}}
 // A tap while something needs you: the press dip only (BEHAVIORS.md §3.2).

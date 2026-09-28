@@ -84,7 +84,7 @@ class FixtureTests(unittest.TestCase):
 
     def test_what_boop_did_by_the_hour(self):
         t = self.day.total()
-        self.assertEqual((t.cheers, t.chatter, t.reactions, t.chirps, t.moods, t.passes, t.dropped, t.missed, t.taps),
+        self.assertEqual((t.cheers, t.chatter, t.reactions, t.alerts, t.moods, t.passes, t.dropped, t.missed, t.taps),
                          (3, 17, 15, 4, 6, 15, 0, 2, 5))
         self.assertEqual(sorted(self.day.hours), [1, 2, 3, 4, 5, 6])
         self.assertEqual([self.day.hours[h].reactions for h in range(1, 7)], [5, 5, 1, 3, 1, 0])
@@ -107,7 +107,7 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(t.cheers, sum(1 for s in sent if s.get("anim") == "cheer"))
 
     def test_needs_you_from_attn_appearing_to_clearing(self):
-        needs = [(day.clock(n.start), n.end - n.start, n.who, n.chirps, n.open) for n in self.day.needs]
+        needs = [(day.clock(n.start), n.end - n.start, n.who, n.alerts, n.open) for n in self.day.needs]
         self.assertEqual(needs, [
             ("01:34", 12028, ["claude · jetpack"], 1, False),
             ("01:47", 363666, ["codex · landing", "claude · jetpack"], 2, False),
@@ -149,10 +149,10 @@ class FixtureTests(unittest.TestCase):
         lines = text.splitlines()
         self.assertEqual(lines[0], "Boop's day: Monday 2026-09-28, 01:34–06:01, 2 launches")
         head = next(i for i, x in enumerate(lines) if x.startswith("hour"))
-        self.assertEqual(lines[head].split(), ["hour", "cheers", "chatter", "reacts", "chirps", "moods", "passes",
+        self.assertEqual(lines[head].split(), ["hour", "cheers", "chatter", "reacts", "alerts", "moods", "passes",
                                                "dropped", "missed", "taps", "needs", "you", "faces"])
         self.assertEqual([x.split()[0] for x in lines[head + 1:head + 8]], ["01", "02", "03", "04", "05", "06", "all"])
-        self.assertIn("  01:47  codex · landing → claude · jetpack  6 min 4 s, 2 chirps", lines)
+        self.assertIn("  01:47  codex · landing → claude · jetpack  6 min 4 s, 2 alerts", lines)
         self.assertIn("  1× cut short: you tapped Boop (forced): 01:53", lines)
         self.assertIn("Reactions that didn't happen: 2 of the brain's 15, and 5 of the 8 forced from the dashboard",
                       lines)
@@ -195,7 +195,7 @@ class SmallDayTests(unittest.TestCase):
             action(at("09:05:01"), 3, 1, "mood", message="Boop's mood changed: happy → grumpy."),
             action(at("09:05:01"), 4, 1, "react", pending=True),
             {"settle": {"for": 4, "end": "done"}, "seq": 5, "received_at_ms": at("09:05:03")},
-            state(at("09:10:00"), ("claude", "a"), mood="grumpy"),  # needs you: a chirp
+            state(at("09:10:00"), ("claude", "a"), mood="grumpy"),  # needs you: an alert
             state(at("09:20:00"), ("claude", "a"), mood="excited"),  # the dashboard's mood line
             action(at("09:20:00"), 6, None, "mood", message="Boop's mood changed: grumpy → excited."),
             a_pass(at("09:30:00"), 7, None, react="happy"),
@@ -206,7 +206,7 @@ class SmallDayTests(unittest.TestCase):
             {"questions": [], "received_at_ms": at("10:00:00")}, status(at("10:00:00"), False),
             state(at("10:00:00"), mood="excited"),  # carried over: no change
             status(at("10:10:00"), True),
-            state(at("10:15:00"), ("claude", "a"), mood="excited"),  # a chirp again: 10:00's state had no attn
+            state(at("10:15:00"), ("claude", "a"), mood="excited"),  # an alert again: 10:00's state had no attn
             state(at("10:20:00"), mood="excited"),
             event(at("10:30:00"), 1, "tool_use"),
             a_pass(at("10:30:01"), 2, 1, react="curious"),
@@ -226,7 +226,7 @@ class SmallDayTests(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_the_hours(self):
-        row = lambda h: (h.reactions, dict(h.faces), h.chirps, h.moods, h.passes, h.missed, h.needs_ms // 60_000)
+        row = lambda h: (h.reactions, dict(h.faces), h.alerts, h.moods, h.passes, h.missed, h.needs_ms // 60_000)
         self.assertEqual({hr: row(h) for hr, h in self.day.hours.items()}, {
             9: (1, {"grumpy": 1}, 1, 2, 1, 0, 30),
             10: (1, {"curious": 1}, 1, 0, 1, 1, 5),
@@ -242,7 +242,7 @@ class SmallDayTests(unittest.TestCase):
         ])
 
     def test_needs_you_across_the_relaunch(self):
-        self.assertEqual([(day.clock(n.start), n.end - n.start, n.chirps, n.open) for n in self.day.needs], [
+        self.assertEqual([(day.clock(n.start), n.end - n.start, n.alerts, n.open) for n in self.day.needs], [
             ("09:10", 30 * 60_000, 1, True), ("10:15", 5 * 60_000, 1, False)])
 
     def test_running_and_connected(self):
@@ -262,9 +262,9 @@ class SmallDayTests(unittest.TestCase):
 
 
 class RuleTests(unittest.TestCase):
-    def test_a_chirp_is_a_new_needs_you_or_a_different_one(self):
+    def test_a_alert_is_a_new_needs_you_or_a_different_one(self):
         """PROTOCOL.md §3: a new attn, or a different agent or project,
-        chirps once; the keepalive's repeats and a changed `more` don't."""
+        alerts once; the keepalive's repeats and a changed `more` don't."""
         d = day.summarise([launch(
             state(at("09:00:00")),
             state(at("09:01:00"), ("claude", "a")),
@@ -275,13 +275,13 @@ class RuleTests(unittest.TestCase):
             state(at("09:10:00"), ("claude", "a")),
             state(at("09:12:00"), ("claude", "a")),
         )], "2026-09-28")
-        self.assertEqual(d.total().chirps, 3)
-        self.assertEqual([(n.end - n.start, n.chirps, n.open) for n in d.needs], [(180_000, 2, False), (120_000, 1, True)],
+        self.assertEqual(d.total().alerts, 3)
+        self.assertEqual([(n.end - n.start, n.alerts, n.open) for n in d.needs], [(180_000, 2, False), (120_000, 1, True)],
                          "one still up when its launch's log ends")
         self.assertIn("(still up when the log ends)", day.render(d))
 
-    def test_a_different_request_with_the_same_names_chirps(self):
-        """PROTOCOL.md §3: a different `attn.id` chirps even with the same
+    def test_a_different_request_with_the_same_names_alerts(self):
+        """PROTOCOL.md §3: a different `attn.id` alerts even with the same
         agent and project (two worktrees of one repo); the same id again
         doesn't."""
         d = day.summarise([launch(
@@ -292,15 +292,15 @@ class RuleTests(unittest.TestCase):
             state(at("09:02:10"), ("claude", "a"), id=2, more=1),
             state(at("09:03:00")),
         )], "2026-09-28")
-        self.assertEqual(d.total().chirps, 2)
-        self.assertEqual([(n.who, n.chirps) for n in d.needs], [(["claude · a"], 2)])
-        self.assertIn("  09:01  claude · a  2 min, 2 chirps", day.render(d).splitlines())
+        self.assertEqual(d.total().alerts, 2)
+        self.assertEqual([(n.who, n.alerts) for n in d.needs], [(["claude · a"], 2)])
+        self.assertIn("  09:01  claude · a  2 min, 2 alerts", day.render(d).splitlines())
 
     def test_needs_you_across_midnight_counts_on_each_day(self):
         lines = launch(state(at("23:50:00", "2026-09-27"), ("claude", "a")), state(at("00:10:00")))
         before, after = (day.summarise([lines], d) for d in ("2026-09-27", "2026-09-28"))
         self.assertEqual((before.hours[23].needs_ms, after.hours[0].needs_ms), (600_000, 600_000))
-        self.assertEqual((before.total().chirps, after.total().chirps), (1, 0))
+        self.assertEqual((before.total().alerts, after.total().alerts), (1, 0))
 
     def test_dropped_passes_and_skipped_events(self):
         t = at("10:00:00")

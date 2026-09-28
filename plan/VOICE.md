@@ -236,10 +236,8 @@ Crossing uses), then feeds the DAC at 22.05 kHz from a task of its own
   has no clip for isn't played.
 - The device clamps `ms` to 60–400 and plays at most 12 syllables of a
   line.
-- A line cut short (hushed, or replaced by a new line or the chirp) fades
+- A line cut short (hushed, or replaced by a new line) fades
   out over 4 ms under what comes next, so the cut doesn't click.
-- The needs-you chirp is a synthesised 90 ms tone rising from 1.2 to
-  2.4 kHz. It only comes with "needs you", which already stops any line.
 
 **The mouth** opens for the first half of each beat for as long as the
 sound lasts, and the bubble shows the word among squiggles until 1.2 s
@@ -251,7 +249,7 @@ still play.
 the bench board's speaker ([DEVICE.md](DEVICE.md) §3):
 `internal/tools/boopctl mumble` plays every feeling with and without a
 word (`--levels` compares volumes), and `internal/tools/boopctl play needs`
-plays the chirp ([VERIFICATION.md](VERIFICATION.md) §2).
+plays needs you's alert ([VERIFICATION.md](VERIFICATION.md) §2).
 
 ## 9. How often Boop talks
 
@@ -309,8 +307,9 @@ Each timeline has the pack's policy:
 **With a mumble.** Effects mix under the voice and don't stop it. While a
 line plays they are half as loud, except the needs-you signal (the
 pack's `alert*` clips), which never is. No line plays while something
-needs you (§9), so the ding is always heard. The chirp (§8) still comes
-first when something starts needing you.
+needs you (§9), so the ding is always heard. It is the only needs-you
+sound: a new request shown plays the performance again from its start
+([BEHAVIORS.md](BEHAVIORS.md) §3.2).
 
 **Mixing.** Up to four effects play at once; a fifth replaces the oldest.
 The sum is added to the voice's samples and clipped. The amp stays on

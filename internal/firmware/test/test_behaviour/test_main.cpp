@@ -49,10 +49,10 @@ struct Rig {
     uint32_t left;
     return b.moment(t, left);
   }
-  std::string sfx() {
+  // When needs you's performance last started for a new request.
+  std::string alert() {
     uint32_t at;
-    const char* k = b.sfx(at);
-    return k ? std::string(k) + "@" + std::to_string(at) : "";
+    return b.alerted(at) ? "alert@" + std::to_string(at) : "";
   }
 };
 
@@ -81,14 +81,15 @@ void keepAlive(Rig& r, const Model& m, uint32_t to) {
 
 }  // namespace
 
-// BEHAVIORS.md §3.2: one chirp when a request starts, amber at half until
-// it's answered, and nothing grows or nudges while it waits.
-static void test_needs_you_chirps_once_and_stays_amber() {
+// BEHAVIORS.md §3.2: the performance, with its knocks and ding, once when
+// a request starts, amber at half until it's answered, and nothing grows
+// or nudges while it waits.
+static void test_needs_you_alerts_once_and_stays_amber() {
   Rig r;
   r.at(1000);
   r.state(attn());
   TEST_ASSERT_EQUAL(Screen::kNeedsYou, r.b.screen(r.t));
-  TEST_ASSERT_EQUAL_STRING("chirp@1000", r.sfx().c_str());
+  TEST_ASSERT_EQUAL_STRING("alert@1000", r.alert().c_str());
   TEST_ASSERT_EQUAL_HEX32(0x805800, r.b.led(r.t));
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t));
   // The performance plays once, then holds its pending pose.
@@ -98,47 +99,50 @@ static void test_needs_you_chirps_once_and_stays_amber() {
   first.eyesShut = false;
   for (uint32_t t = 20000; t <= 300000; t += 10000) {
     r.at(t);
-    r.state(attn());  // the same request: no second chirp
-    TEST_ASSERT_EQUAL_STRING("chirp@1000", r.sfx().c_str());
+    r.state(attn());  // the same request: the performance doesn't play again
+    TEST_ASSERT_EQUAL_STRING("alert@1000", r.alert().c_str());
     TEST_ASSERT_EQUAL_HEX32(0x805800, r.b.led(t));
     TEST_ASSERT_EQUAL_HEX32(0x805800, r.b.led(t + 5000));
     SceneShow now = r.b.show(t);
     now.eyesShut = false;  // blinks go on
     TEST_ASSERT_TRUE(render::sceneFrame(first) == render::sceneFrame(now));  // nothing else moves
   }
-  // A different request chirps once more.
+  // A different request plays the performance again, from its start.
   r.state(attn("other"));
-  TEST_ASSERT_EQUAL_STRING("chirp@300000", r.sfx().c_str());
+  TEST_ASSERT_EQUAL_STRING("alert@300000", r.alert().c_str());
+  TEST_ASSERT_EQUAL_UINT32(0, r.b.designMs(r.t));
+  r.at(300000 + 400);
+  TEST_ASSERT_EQUAL_UINT32(400, r.b.show(r.t).t);
 }
 
-// BEHAVIORS.md §3.2: a different request shown chirps once more, even with
+// BEHAVIORS.md §3.2: a different request shown alerts once more, even with
 // the same agent and project (two worktrees of one repo): the Mac numbers
 // each request in `attn.id` (PROTOCOL.md §3). More waiting behind it, a
 // resent state, or a Mac too old to send a number, doesn't.
-static void test_a_different_request_with_the_same_names_chirps() {
+static void test_a_different_request_with_the_same_names_alerts() {
   Rig r;
   r.at(1000);
   Model a = attn();
   a.attnId = 7;
   r.state(a);
-  TEST_ASSERT_EQUAL_STRING("chirp@1000", r.sfx().c_str());
+  TEST_ASSERT_EQUAL_STRING("alert@1000", r.alert().c_str());
   r.at(2000);
   Model more = a;
   more.more = 1;
   r.state(more);  // another waits behind it: "+1" only
   r.state(more);  // resent
-  TEST_ASSERT_EQUAL_STRING("chirp@1000", r.sfx().c_str());
+  TEST_ASSERT_EQUAL_STRING("alert@1000", r.alert().c_str());
   r.at(3000);
   Model b = attn();
   b.attnId = 8;
   r.state(b);  // the first answered: the other request is shown
-  TEST_ASSERT_EQUAL_STRING("chirp@3000", r.sfx().c_str());
+  TEST_ASSERT_EQUAL_STRING("alert@3000", r.alert().c_str());
   TEST_ASSERT_EQUAL(Screen::kNeedsYou, r.b.screen(r.t));
   r.at(4000);
   r.state(attn());  // no number: agent and project alone, as before
   r.at(5000);
   r.state(attn());
-  TEST_ASSERT_EQUAL_STRING("chirp@4000", r.sfx().c_str());
+  TEST_ASSERT_EQUAL_STRING("alert@4000", r.alert().c_str());
 }
 
 // BEHAVIORS.md §3.2: a tap while something needs you is the press dip
@@ -159,7 +163,7 @@ static void test_tap_during_needs_you_is_only_the_dip_and_stays_amber() {
   keepAlive(r, attn(), 125000);
   TEST_ASSERT_EQUAL(Screen::kNeedsYou, r.b.screen(r.t));
   TEST_ASSERT_EQUAL_HEX32(0x805800, r.b.led(r.t));
-  TEST_ASSERT_EQUAL_STRING("chirp@0", r.sfx().c_str());
+  TEST_ASSERT_EQUAL_STRING("alert@0", r.alert().c_str());
 }
 
 // BEHAVIORS.md §3.2: answered on the Mac, the face blinks back to the
@@ -488,7 +492,7 @@ static void test_moments_end_and_replace() {
   TEST_ASSERT_EQUAL(Anim::kCheer, r.anim());
   TEST_ASSERT_EQUAL_HEX32(0, r.b.led(r.t));
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t));
-  TEST_ASSERT_EQUAL_STRING("", r.sfx().c_str());
+  TEST_ASSERT_EQUAL_STRING("", r.alert().c_str());
   r.at(loop);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
   r.moment(Anim::kCheer);
@@ -1276,8 +1280,8 @@ static void test_a_long_touch_during_needs_you_is_a_tap() {
 
 int main() {
   UNITY_BEGIN();
-  RUN_TEST(test_needs_you_chirps_once_and_stays_amber);
-  RUN_TEST(test_a_different_request_with_the_same_names_chirps);
+  RUN_TEST(test_needs_you_alerts_once_and_stays_amber);
+  RUN_TEST(test_a_different_request_with_the_same_names_alerts);
   RUN_TEST(test_a_new_launchs_moment_is_its_own);
   RUN_TEST(test_tap_during_needs_you_is_only_the_dip_and_stays_amber);
   RUN_TEST(test_answering_on_the_mac_blinks_back);

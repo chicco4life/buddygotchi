@@ -14,7 +14,7 @@ anyone else's and recognisably yours.
 It also happens to keep an eye on your AI agents. When you run three Claude
 sessions and two Codex threads at once, Boop watches them for you. It
 naps while no agent is open, works along at a little keyboard while they
-do, mutters now and then, lights up amber and chirps once when one needs
+do, mutters now and then, lights up amber and knocks once when one needs
 your approval on the Mac, and celebrates a finish that earns it.
 
 The order matters. **The personality is the product.** Status and nudges
@@ -92,7 +92,7 @@ harness evals check the brain's part ([EVALS.md](EVALS.md)).
   in one place: the device's strip counts those working and those that
   need you, and the Mac app lists them all.
 - **Tells you when you're needed.** An amber light, an amber sign, one
-  chirp, and the agent and project in the strip. You answer on the Mac,
+  knock-and-ding, and the agent and project in the strip. You answer on the Mac,
   in the agent's own prompt ([BEHAVIORS.md](BEHAVIORS.md) §3.2).
 - **Reacts like a creature.** Four states (asleep, idle, working, needs
   you) and a wiggle for every tap; with Jev, mumbles while agents work
@@ -150,7 +150,7 @@ changes.
    just happened: which agent, which project or worktree, how a turn or a
    test run went. Your code, prompts and agents' transcripts never leave
    the Mac ([harness/EVENTS.md](harness/EVENTS.md) §9).
-8. **Never nags, never guilts.** One chirp per request, and the Mac app
+8. **Never nags, never guilts.** One alert per request, and the Mac app
    never sends notifications.
 9. **No leaderboards.** Nothing about you is ranked or shared.
 10. **It's your pet, not a brand mascot.** Boop is never branded as Claude

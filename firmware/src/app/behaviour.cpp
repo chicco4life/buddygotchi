@@ -100,11 +100,6 @@ void Behaviour::startBlink(uint32_t t, Rng& rng) {
   nextBlink_ = t + (blink_ ? kBlinkMs : 0) + blinkGap(rng);
 }
 
-void Behaviour::sound(const char* k, uint32_t t) {
-  sfx_ = k;
-  sfxAt_ = t;
-}
-
 void Behaviour::advance(uint32_t t, Rng& rng) {
   if (int32_t(t - modelT_) < 0) {  // the clock went back: no history to replay
     modelT_ = t;
@@ -229,8 +224,10 @@ void Behaviour::onState(const Model& m, uint32_t t) {
     lastState_ = t;
     stale_ = false;
     ledOverride_ = blOverride_ = false;
-    if (fresh) {  // a new "needs you": one chirp, and attention wins
-      sound("chirp", t);
+    if (fresh) {  // a new request: its performance plays from the start, and attention wins
+      alerted_ = true, alertAt_ = t;
+      lookAt_ = t;
+      if (had) switched_ = true, switchAt_ = t;  // starting over mid-performance: the eyes hide the jump
       if (momentOn(t)) cut(moment_.id, CutBy::kNeedsYou), moment_.anim = render::Anim::kNone;
       if (sayOn(t)) cut(say_.id, CutBy::kNeedsYou);
       say_ = Say{};  // no mumbles while something needs you

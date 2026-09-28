@@ -92,7 +92,6 @@ uint32_t BoardHal::heapMin() { return heap_caps_get_minimum_free_size(MALLOC_CAP
 bool BoardHal::ampOn() { return digitalRead(pins::kAmpEnable) == LOW; }
 
 void BoardHal::say(const voice::Line& l) { audioSay(l); }
-void BoardHal::cue(voice::Cue c, uint8_t vol) { audioCue(c, vol); }
 void BoardHal::hush() { audioHush(); }
 void BoardHal::effect(const voice::Effect& e) { audioEffect(e); }
 void BoardHal::stopEffects() { audioStopEffects(); }

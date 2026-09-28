@@ -1,15 +1,15 @@
-// Needs you (BEHAVIORS.md §3.2): who, +N more, one chirp per
+// Needs you (BEHAVIORS.md §3.2): who, +N more, its performance once per
 // request, amber at half until it's answered, then back to the base look.
 {"clock":0}
 {"t":"state","v":1,"base":"working","busy":2}
 {"clock":1000}
 {"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1}
 {"clock":1100}
-{"expect":{"screen":"needs_you","attn":{"agent":"codex","project":"landing"},"led":"#805800","bl":255,"sfx":{"k":"chirp","at":1000}}}
+{"expect":{"screen":"needs_you","attn":{"agent":"codex","project":"landing"},"led":"#805800","bl":255,"alert":1000}}
 {"shot":"blend"}
 {"clock":1500}
 {"shot":"needs-you"}
-// The same request again doesn't chirp again, and nothing grows.
+// The same request again doesn't play it again, and nothing grows.
 {"clock":20000}
 {"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1}
 {"clock":40000}
@@ -21,13 +21,13 @@
 {"clock":100000}
 {"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1}
 {"clock":121000}
-{"expect":{"screen":"needs_you","led":"#805800","sfx":{"k":"chirp","at":1000}}}
+{"expect":{"screen":"needs_you","led":"#805800","alert":1000}}
 {"shot":"plus-one-more"}
-// A different request chirps once more. Its project, a-very-long-project-name,
+// A different request plays it once more. Its project, a-very-long-project-name,
 // comes cut by the Mac to 23 bytes ending ".." (PROTOCOL.md §3).
 {"t":"state","v":1,"base":"working","attn":{"agent":"claude","project":"a-very-long-project-n..","more":0},"busy":1}
 {"clock":122000}
-{"expect":{"sfx":{"k":"chirp","at":121000}}}
+{"expect":{"alert":121000}}
 {"shot":"long-project"}
 {"t":"state","v":1,"base":"working","busy":2}
 {"clock":122200}

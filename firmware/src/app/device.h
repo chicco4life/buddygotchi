@@ -76,7 +76,6 @@ struct Hal {
   virtual bool ampOn() { return false; }
   // Sound (VOICE.md §8). The board plays on the DAC; the default drops it.
   virtual void say(const voice::Line& l) { (void)l; }
-  virtual void cue(voice::Cue c, uint8_t vol) { (void)c, (void)vol; }
   virtual void hush() {}
   // The face's sound effects (VOICE.md §10): one to play now, and stopping
   // every one playing.
@@ -192,12 +191,9 @@ class Device {
   bool touchInjected_ = false;  // it's dbg.touch's, not the panel's
   uint32_t touchSeenReal_ = 0;
 
-  // The line playing (its moment's number), and the last sound cue handled
-  // (played or dropped).
+  // The line playing (its moment's number).
   bool saying_ = false;
   uint32_t sayMoment_ = 0;
-  const char* sfxSeen_ = nullptr;
-  uint32_t sfxSeenAt_ = 0;
   // The face's sound effects: its timeline, and the effects handed to the
   // Hal since boot, the last by its clip (dbg.state `audio.fx`).
   EffectTrack fx_;

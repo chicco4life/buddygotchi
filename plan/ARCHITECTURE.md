@@ -39,7 +39,7 @@ approve on the Mac as you normally would.
 └────────────────────────┬──────────────────────────▲─────────────────┘
                          │ state, moment            │ input, status, ended
                          ▼                          │
-             Device: draws, plays, blinks, chirps, reports taps
+             Device: draws, plays, blinks, alerts, reports taps
 ```
 
 **Following one event:**
@@ -74,7 +74,7 @@ needed, but it doesn't celebrate or react (decision log, 2026-09-28).
 
 | Loop | Runs on | Speed | Does | Never does |
 | --- | --- | --- | --- | --- |
-| Reflex | Device | < 20 ms | Tap feedback, blinks, playing moments, the needs-you chirp and light | Wait for the Mac |
+| Reflex | Device | < 20 ms | Tap feedback, blinks, playing moments, the needs-you alert and light | Wait for the Mac |
 | Reactive | Core → device link | < 200 ms p95 | Hook → rule → `state` or moment | Wait for the brain |
 | Deliberative | Harness + Jev → actions | A pass has 1.5 s; its mumble then waits up to 5 s for its turn | A change of mood, every reaction (a face and a mumble), a finished turn's included | Block the reactive loop |
 
@@ -431,7 +431,7 @@ What crosses each boundary, in the order an event travels:
 ## 7. Device
 
 The device is a thin client. It draws what the latest `state` says, plays
-moments, runs its own short timers (blinks, the needs-you chirp, the
+moments, runs its own short timers (blinks, the needs-you alert, the
 no-app look after 30 s without a `state`), reports taps and says how
 each brain reaction ended. It keeps no
 personality or memory, only its touch calibration. What it does is in
@@ -583,3 +583,4 @@ which also has the full log up to 2026-09-27.
 | 2026-09-28 | No rule mumbles: working chatter becomes a working heartbeat, an event that wakes the brain after a quiet stretch of work (the personality's `working_heartbeat`, restarted by any event that woke the brain), and Jev decides whether Boop mumbles, with which face and word. With no brain, Boop works silently | Chatter was the last expressive thing a rule did; a mumble that ignores Boop's mood and what just happened reads as filler. The timer stays a rule so the brain is asked at a steady pace | [BEHAVIORS.md](BEHAVIORS.md) §2, [harness/EVENTS.md](harness/EVENTS.md) §4 |
 | 2026-09-28 | The device draws the finalized animation pack: 7 moods × 6 states, with three variations each and working five, which the core (the look) and `react` (the cheer) pick at random, never the last one, and send as `variant`. Needs you's performance plays once, then holds. facegen bakes the pack's scaling, fades and translucency into whole-pixel steps and a blend table, and checks it against Chrome (a blended pixel within one RGB565 step). The partition stays as it is. Its sound came next (the row below) | The owner accepted the pack as Boop's look. A rule picks the variation for now so it can move into the harness later without a device change; the tables (278 KB) fit the current app slot | [BEHAVIORS.md](BEHAVIORS.md) §2, [DEVICE.md](DEVICE.md) §6, [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-28 | The device plays the animation pack's sound effects with its designs: sfxgen renders the pack's 47 procedural effects once into 8-bit 11.025 kHz clips (146 KB) with the loudness range square-rooted, and the device follows each design's timeline and policy (working every loop, the cheer and needs you once, idle at most every 45 s, asleep and no app silent). No message carries them. They mix under a mumble at half level, except needs you's alert clips | The owner wanted the pack's sounds, low quality being fine. Storing each design's whole soundtrack would take about 7 MB and synthesising on the board is too slow, so the clips are stored once and sequenced, as the voice's syllables are. The owner chose effects under the mumble, with the ding always heard | [VOICE.md](VOICE.md) §10, [BEHAVIORS.md](BEHAVIORS.md) §4, [DEVICE.md](DEVICE.md) §5, [evidence](evidence/2026-09-28-sound-effects/README.md) |
+| 2026-09-28 | The needs-you chirp is gone. Needs you's own performance, with its knocks and ding, is the alert: it plays when a request starts showing, and a different request shown starts it over behind a blink. `dbg.state` reports `alert` (when it last started) instead of `sfx` | The owner dropped the chirp once the pack gave needs you a sound; restarting the performance keeps the rule that each request shown is announced once | [BEHAVIORS.md](BEHAVIORS.md) §3.2, [VOICE.md](VOICE.md) §10, [PROTOCOL.md](PROTOCOL.md) §5 |

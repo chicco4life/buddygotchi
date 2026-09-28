@@ -22,3 +22,14 @@ board's speaker (L6). The owner's `make debug` app had the board over
 Bluetooth. Listening previews of six designs, the pack's browser sound
 next to the device's mixer output (without the speaker), were rendered
 off the repo into `~/Downloads/boop-sfx-previews/`.
+
+## The chirp removed
+
+The owner dropped the chirp once needs you had the pack's sound: its
+performance is the alert, and a different request shown starts it over
+behind a blink. After that change: `make -C internal fw-test` 128 of 128;
+`test_effects`, `test_device`, `test_behaviour` and `test_voice` under
+ASan and UBSan 10, 40, 27 and 11, no findings; `make -C internal sim` 11
+scenarios with one picture changed and accepted (`needs_you/long-project`,
+the performance starting over for the new request); boopctl's tests OK;
+`make build` complete; the board build 1,511,839 bytes (76.9%).

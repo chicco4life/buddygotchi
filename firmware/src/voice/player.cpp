@@ -1,6 +1,5 @@
 #include "voice/player.h"
 
-#include <cmath>
 #include <cstring>
 
 #include "app/clock.h"
@@ -13,7 +12,7 @@ namespace {
 using voice_assets::Clip;
 
 constexpr uint32_t kFadeOut = kOutRate * 5 / 1000;  // a clip cut short fades over 5 ms
-// A line or cue cut short (hushed, or replaced) fades from where it was to
+// A line cut short (hushed, or replaced) fades from where it was to
 // silence over 4 ms, under whatever comes next: a step in one sample clicks.
 constexpr uint32_t kCutFade = kOutRate * 4 / 1000;
 
@@ -44,12 +43,6 @@ Tune tuneFromName(const char* s) {
   if (!std::strcmp(s, "bounce")) return Tune::kBounce;
   if (!std::strcmp(s, "lift")) return Tune::kLift;
   return Tune::kFlat;
-}
-
-Cue cueFromName(const char* s) {
-  if (!s) return Cue::kNone;
-  if (!std::strcmp(s, "chirp")) return Cue::kChirp;
-  return Cue::kNone;
 }
 
 int syllableIndex(const char* s, size_t n) {
@@ -125,20 +118,11 @@ void Player::start(const Line& l) {
   if (gain_ == 0) total_ = 0;  // muted: nothing to play
 }
 
-void Player::cue(Cue c, uint8_t vol) {
-  stop();
-  if (c == Cue::kNone || vol == 0) return;
-  cue_ = c;
-  gain_ = vol * 256 / 10;
-  total_ = kOutRate * 90 / 1000;
-}
-
 void Player::stop() {
   fadeFrom_ = playing() || fade_ ? last_ : 0;
   fade_ = fadeFrom_ ? kCutFade : 0;
   nSlots_ = slotAt_ = 0;
   pos_ = total_ = src_ = 0;
-  cue_ = Cue::kNone;
 }
 
 int16_t Player::lineSample(uint32_t i) {
@@ -158,23 +142,12 @@ int16_t Player::lineSample(uint32_t i) {
   return int16_t(v);
 }
 
-int16_t Player::cueSample(uint32_t i) const {
-  float t = float(i) / kOutRate;
-  float T = float(total_) / kOutRate;
-  const float f0 = 1200, f1 = 2400;  // rising, like a question
-  float phase = f0 * t + (f1 - f0) * t * t / (2 * T);  // in cycles
-  float x = phase - std::floor(phase);
-  float tri = x < 0.5f ? 4 * x - 1 : 3 - 4 * x;
-  float env = t < 0.003f ? t / 0.003f : 1 - t / T;
-  return int16_t(100 * tri * env);
-}
-
 size_t Player::render(uint8_t* out, size_t n) {
   size_t made = 0;
   for (size_t j = 0; j < n; ++j) {
     int v = 0;
     if (pos_ < total_) {
-      v = cue_ != Cue::kNone ? cueSample(pos_) : lineSample(pos_);
+      v = lineSample(pos_);
       ++pos_;
       ++made;
     }
