@@ -46,6 +46,15 @@ struct PopoverView: View {
                         Label("Settings", systemImage: "gearshape")
                     }
                     .keyboardShortcut(",", modifiers: .command)
+                    Button {
+                        model.saveReport()
+                    } label: {
+                        Image(systemName: "ladybug")
+                    }
+                    .keyboardShortcut("b", modifiers: .command)
+                    .disabled(model.runtime == nil)
+                    .help("Save a bug report: what Boop saw and did this launch, to hand to an agent")
+                    .accessibilityLabel("Save a bug report")
                 } else if model.pane == .settings {
                     // The versions, where Settings would be.
                     Text("Boop \(BoopVersion.current)" + (model.status?.device.map { " · firmware \($0.fw)" } ?? ""))

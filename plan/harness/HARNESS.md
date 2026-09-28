@@ -471,6 +471,7 @@ line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 | `{"dev":"answer","answers":{"react.mood":"grumpy","word.feeling":"again"}}` | A **forced pass**: each choice at probability 1, handed to the actions exactly as Jev's answers would be. It runs at once on `home`, needs no brain or key, and leaves a running or waiting pass alone. A choice that isn't one of its question's options is left out. The actions keep their own rules. Recorded as a `pass` and its `action` entries, for no event, by the dashboard; no `brain` line in `boop.log` |
 | `{"dev":"mood","mood":"grumpy"}` | Sets the mood at once through the mood action, device included ([DECISIONS.md](DECISIONS.md) §4). Recorded as an `action` named `mood`, for no event, by the dashboard, refusals included |
 | `{"dev":"moment","anim":"cheer"}` | Plays `cheer` (once through) or `wiggle` at once, with no face; any other is ignored. Only its `sent` line records it |
+| `{"dev":"report"}` | Saves a bug report, as the button does (below) |
 
 A forced pass that cheers, its action and the action's end, from a
 headless run with no device (`--link none`), so the reaction never
@@ -481,6 +482,22 @@ played ([DECISIONS.md](DECISIONS.md) §5):
 {"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop played a cheer in a proud face, held twice, and mumbled \"…finally!\"","name":"react","ok":true,"pending":true},"received_at_ms":1790556040637,"seq":2}
 {"received_at_ms":1790556040637,"seq":3,"settle":{"by":"dashboard","end":"failed","for":2,"why":"no device connected"}}
 ```
+
+**A bug report.** The ladybug button in the popover's footer (⌘B)
+saves everything needed to work out afterwards what Boop saw and did
+this launch, debug mode or not, then shows it in Finder and copies its
+path, to hand to an agent. For that, the app always keeps this launch's
+`debug.jsonl` lines in memory (`DebugLog.Recent`), states and all, up
+to 8 MB, the oldest let go first; they go nowhere until the button is
+pressed. The report is a new folder,
+`bug-reports/<yyyy-MM-dd-HHmmss>/` in the state directory:
+
+| File | Holds |
+| --- | --- |
+| `debug.jsonl` | Those lines, in the format above, so `boopdev watch` prints it |
+| `boop.log` | The log's last megabyte: replaced events, late answers, actions that sat a pass out |
+| `settings.json`, `mood` | Copies, when they exist |
+| `about.json` | The app's and firmware's versions, the link, whether it's connected, debug mode, the personality, mood, brain and sessions, and when it was taken (`taken_at_ms` on the app's clock, `taken_at_wall_ms`) |
 
 **A day's summary.** `boopctl day` (`make day` for the everyday app,
 [VERIFICATION.md](../VERIFICATION.md) §2) reads `debug.jsonl` and the

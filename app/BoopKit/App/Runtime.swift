@@ -269,13 +269,18 @@ public final class Runtime: @unchecked Sendable {
         name = longTerm.name
         settings = AppSettings.load(from: options.stateDir)
         link = DeviceLink(transport: options.link, log: log)
-        if options.debug {
+        let recent = DebugLog.Recent()
+        self.recent = recent
+        do {
             let moments = self.moments
-            let debugLog = debugLogURL
+            let debugLog = options.debug ? debugLogURL : nil
             let clock = options.clock
             link.onSend = { line in
+                let sent = DebugLog.line("sent", line, at: clock())
+                recent.add(sent)
+                guard let debugLog else { return }
                 log("link \(moments.brainSending ? "brain" : "rules") → " + line)
-                Harness.appendLine(DebugLog.line("sent", line, at: clock()), to: debugLog)
+                Harness.appendLine(sent, to: debugLog)
             }
         }
 
@@ -322,7 +327,12 @@ public final class Runtime: @unchecked Sendable {
             DebugLog.start(debugLogURL)
             let printer = DebugLog.Printer()
             let print = options.debugPrint
-            harness.onDebugLine = { line in printer.readable(line).map(print) }
+            harness.onDebugLine = { line in
+                recent.add(line)
+                printer.readable(line).map(print)
+            }
+        } else {
+            harness.onDebugLine = { recent.add($0) }
         }
         // No event's pass starts while something needs you, not even one
         // that woke the brain before and waited (harness/EVENTS.md §6).
@@ -355,8 +365,10 @@ public final class Runtime: @unchecked Sendable {
         let home = self.home
         // The questions line is debug.jsonl's first, before the socket or the
         // link can add one, so a changed first line means a new launch.
-        if options.debug {
-            home.sync { Harness.appendLine(DebugLog.questions(harness.actions, at: options.clock()), to: debugLogURL) }
+        home.sync { [recent] in
+            let questions = DebugLog.questions(harness.actions, at: options.clock())
+            recent.add(questions)
+            if options.debug { Harness.appendLine(questions, to: debugLogURL) }
         }
         // Hooks are timed on the runtime's clock, which headless mode can move.
         let clock = options.clock
@@ -505,6 +517,8 @@ public final class Runtime: @unchecked Sendable {
             guard let anim = object["anim"] as? String, DeviceMoment.anims.contains(anim) else { return }
             playRule(DeviceMoment(anim: anim))
             options.log("dev: moment \(anim)")
+        case "report":
+            saveReport { _ in }
         default:
             break  // such as boopdev replay's probe
         }
@@ -635,12 +649,17 @@ public final class Runtime: @unchecked Sendable {
         let status = Status(name: name, snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
                             connected: link.connected, device: link.status, personality: personality,
                             brain: harness.brain?.id ?? "none")
-        if options.debug, let line = DebugLog.status(status, at: now, last: &lastStatus) { Harness.appendLine(line, to: debugLogURL) }
+        if let line = DebugLog.status(status, at: now, last: &lastStatus) {
+            recent.add(line)
+            if options.debug { Harness.appendLine(line, to: debugLogURL) }
+        }
         onChange?(status)
     }
 
     /// The last `status` line written to `debug.jsonl`, without its time.
     var lastStatus: String?
+    /// This launch's debug lines, debug mode or not, for `saveReport`.
+    let recent: DebugLog.Recent
 
     func saveSettings(_ change: (inout AppSettings) -> Void) {
         change(&settings)
@@ -707,6 +726,55 @@ public final class Runtime: @unchecked Sendable {
                 if jevKey == nil { jevKey = .some(key) }
                 useBrain()
                 changed()
+            }
+        }
+    }
+
+    /// Where `saveReport` puts its folders, in the state directory.
+    public static let reportsDir = "bug-reports"
+    /// How much of the end of `boop.log` a report copies.
+    static let reportLogBytes = 1 << 20
+
+    /// A bug report (harness/HARNESS.md §9): everything needed to work out
+    /// afterwards what Boop saw and did, in a new folder under
+    /// `bug-reports/`. `debug.jsonl` is this launch's debug lines, debug
+    /// mode or not, which `boopdev watch` reads; `boop.log` is the log's
+    /// end; `settings.json` and `mood` are copied; `about.json` is the
+    /// versions and the status now. Calls `done` on `home` with the folder,
+    /// or nil if it couldn't be made.
+    public func saveReport(_ done: @escaping @Sendable (URL?) -> Void) {
+        home.async { [self] in
+            let format = DateFormatter()
+            format.dateFormat = "yyyy-MM-dd-HHmmss"
+            let dir = options.stateDir.appendingPathComponent(Self.reportsDir)
+                .appendingPathComponent(format.string(from: Date(timeIntervalSince1970: Double(options.wallClock()) / 1000)))
+            let fm = FileManager.default
+            do {
+                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+                try Data(recent.kept.map { $0 + "\n" }.joined().utf8).write(to: dir.appendingPathComponent(DebugLog.fileName))
+                if let log = FileHandle(forReadingAtPath: options.stateDir.appendingPathComponent("boop.log").path) {
+                    let end = (try? log.seekToEnd()) ?? 0
+                    try? log.seek(toOffset: end > UInt64(Self.reportLogBytes) ? end - UInt64(Self.reportLogBytes) : 0)
+                    try? log.readToEnd()?.write(to: dir.appendingPathComponent("boop.log"))
+                    try? log.close()
+                }
+                for name in [AppSettings.file, MoodStore.fileName] {
+                    try? fm.copyItem(at: options.stateDir.appendingPathComponent(name), to: dir.appendingPathComponent(name))
+                }
+                let now = options.clock()
+                let about: [String: Any] = [
+                    "app": BoopVersion.current, "firmware": link.status?.fw ?? NSNull(), "device": link.status?.id ?? NSNull(),
+                    "link": options.link?.name ?? "none", "connected": link.connected, "debug": options.debug,
+                    "personality": personality.rawValue, "mood": mood.current, "brain": harness.brain?.id ?? "none",
+                    "taken_at_ms": now, "taken_at_wall_ms": options.wallClock(),
+                    "sessions": core.sessionList(at: now).map { ["agent": $0.agent, "project": $0.project, "status": $0.status.rawValue] },
+                ]
+                try Data(DebugLog.json(about).utf8).write(to: dir.appendingPathComponent("about.json"))
+                options.log("report: saved \(dir.path)")
+                done(dir)
+            } catch {
+                options.log("report: can't save: \(error)")
+                done(nil)
             }
         }
     }

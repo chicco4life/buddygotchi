@@ -123,6 +123,19 @@ final class AppModel: ObservableObject {
         runtime?.setPersonality(personality)
     }
 
+    /// Saves a bug report (harness/HARNESS.md §9), shows it in Finder and
+    /// copies its path, to hand to an agent.
+    func saveReport() {
+        runtime?.saveReport { dir in
+            Task { @MainActor in
+                guard let dir else { return }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(dir.path, forType: .string)
+                NSWorkspace.shared.activateFileViewerSelecting([dir])
+            }
+        }
+    }
+
     /// Jev's key changed: the brain uses it from the next event.
     func jevKeyChanged(_ key: String?) {
         runtime?.reloadBrain(jevKey: key)

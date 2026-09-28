@@ -146,6 +146,53 @@ final class RuntimeTests: XCTestCase {
         XCTAssertFalse(lines.lock.withLock { lines.log.contains { $0.contains("PERSONALITY") } }, "the state stays out of boop.log")
     }
 
+    /// harness/HARNESS.md §9: a bug report, debug mode or not, holds this
+    /// launch's debug lines (a pass's whole state included), the log's end,
+    /// the settings and mood files, and the status in `about.json`.
+    func testABugReportKeepsEverythingOutsideDebugMode() throws {
+        let transport = FakeTransport()
+        let runtime = try Runtime(options(transport, brain: ScriptedBrain(id: "scripted", always: [
+            "react.mood": Answer(choice: "grumpy", probabilities: ["grumpy": 1]),
+        ])))
+        try Data("an old line\n".utf8).write(to: dir.appendingPathComponent("boop.log"))
+        var statuses: [Runtime.Status] = []  // on `home`
+        runtime.onChange = { statuses.append($0) }
+        try runtime.start()
+        defer { runtime.stop() }
+        transport.onConnection?(true)
+        eventually("the brain") { runtime.home.sync { statuses.last?.brain == "scripted" } }
+        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
+        eventually("a mumble") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) } }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent(DebugLog.fileName).path),
+                       "no debug.jsonl outside debug mode")
+        let saved = Lines()
+        runtime.saveReport { saved.add($0?.path ?? "none") }
+        eventually("the report") { !saved.all.isEmpty }
+        let report = URL(fileURLWithPath: saved.all[0])
+        XCTAssertEqual(report.deletingLastPathComponent().lastPathComponent, Runtime.reportsDir)
+        let lines = try String(contentsOf: report.appendingPathComponent(DebugLog.fileName), encoding: .utf8).split(separator: "\n")
+        XCTAssertTrue(lines[0].hasPrefix(#"{"questions":"#), "the questions first")
+        XCTAssertTrue(lines.contains { $0.contains(#""pass":"#) && $0.contains("PERSONALITY") }, "a pass with its whole state")
+        XCTAssertTrue(lines.contains { $0.hasPrefix(#"{"sent":"#) }, "the lines sent to the device")
+        XCTAssertTrue(lines.contains { $0.hasPrefix(#"{"status":"#) }, "the status")
+        try XCTAssertEqual(String(contentsOf: report.appendingPathComponent("boop.log"), encoding: .utf8), "an old line\n")
+        let about = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: report.appendingPathComponent("about.json"))) as? [String: Any])
+        XCTAssertEqual(about["brain"] as? String, "scripted")
+        XCTAssertEqual(about["connected"] as? Bool, true)
+    }
+
+    /// harness/HARNESS.md §9: the report's lines are capped at
+    /// `DebugLog.Recent.maxBytes`, the oldest let go first.
+    func testRecentLinesAreCapped() {
+        let recent = DebugLog.Recent()
+        let line = String(repeating: "x", count: 1023)
+        for _ in 0..<(DebugLog.Recent.maxBytes / 1024 + 5000) { recent.add(line) }
+        recent.add("last")
+        XCTAssertEqual(recent.kept.last, "last")
+        XCTAssertLessThanOrEqual(recent.kept.reduce(0) { $0 + $1.utf8.count + 1 }, DebugLog.Recent.maxBytes)
+        XCTAssertGreaterThan(recent.kept.count, DebugLog.Recent.maxBytes / 1024 - 2)
+    }
+
     /// harness/HARNESS.md §9: debug mode logs every hook with what it became
     /// and every line to the device, starts debug.jsonl afresh with every
     /// entry (keeping the last launch's as debug.1.jsonl), and prints them

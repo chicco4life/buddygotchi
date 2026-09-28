@@ -379,6 +379,7 @@ everyday Boop.
 | `boop.log` | The app's log, appended: startup, hook placement and repairs, the link connecting and dropping, the device's id and firmware, taps, memory recoveries, dropped brain moments, one `brain …` line per pass, and hooks only when armed or in debug mode. Never Jev's state ([harness/HARNESS.md](harness/HARNESS.md) §9) | Always |
 | `debug.jsonl` | Debug mode only: a `questions` line first, then every transcript entry, every line sent to the device and each status change, as JSON lines ([harness/HARNESS.md](harness/HARNESS.md) §9) | Emptied at each launch with `--debug`, after a copy of the last launch's goes to `debug.1.jsonl` |
 | `debug.<n>.jsonl` | Earlier launches' `debug.jsonl`, `debug.1.jsonl` the latest, as many as [harness/HARNESS.md](harness/HARNESS.md) §9 keeps | At each launch with `--debug`; the oldest is let go |
+| `bug-reports/<yyyy-MM-dd-HHmmss>/` | A bug report: this launch's debug lines, Jev's states included, the log's end, the settings, the mood and `about.json` ([harness/HARNESS.md](harness/HARNESS.md) §9) | When you press the bug button in the popover |
 | `doctor-armed` | While it's under 10 minutes old, the app logs every hook ([ADAPTERS.md](ADAPTERS.md) §6) | By the `doctor` skill; the app removes an older one |
 | `bin/boop-hook` | The copy of the hook client every hook entry calls ([ADAPTERS.md](ADAPTERS.md) §5) | By the everyday menu-bar app, at launch, when it differs |
 

@@ -47,6 +47,34 @@ public enum DebugLog {
         return line("status", value, at: ms)
     }
 
+    /// This launch's debug lines kept in memory, debug mode or not, for a
+    /// bug report (§9): the oldest are let go past `maxBytes`. Touched only
+    /// on `home`.
+    public final class Recent {
+        /// About a busy day's worth: a pass's line, the biggest, is under 10 KB.
+        public static let maxBytes = 8 << 20
+
+        var lines: [String] = []
+        var bytes = 0
+        var dropped = 0
+
+        public init() {}
+
+        public func add(_ line: String) {
+            lines.append(line)
+            bytes += line.utf8.count + 1
+            while bytes > Recent.maxBytes, lines.count - dropped > 1 {
+                bytes -= lines[dropped].utf8.count + 1
+                dropped += 1
+                // Compacted now and then, not on every drop.
+                if dropped > 1000 { lines.removeFirst(dropped); dropped = 0 }
+            }
+        }
+
+        /// The kept lines, oldest first.
+        public var kept: ArraySlice<String> { lines[dropped...] }
+    }
+
     /// How many earlier launches' files are kept beside the file, so a
     /// relaunch mid-day doesn't lose the morning (`boopctl day` reads them
     /// all): `debug.1.jsonl` is the launch before this one, up to
