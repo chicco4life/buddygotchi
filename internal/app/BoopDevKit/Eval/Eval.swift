@@ -367,26 +367,6 @@ public struct Eval {
     let brain: any Brain
     let steering: Steering
 
-    /// The brain, noting the options each pass's mood question offered, so
-    /// a step and the whole run can be checked against them.
-    struct Noting: Brain {
-        let inner: any Brain
-        let offered: Offered
-        var id: String { inner.id }
-        func answer(state: String, questions: [Question], deadline: Duration) async throws -> Answers {
-            offered.names = questions.first { $0.key == MoodAction.actionName }?.options.map(\.name) ?? []
-            return try await inner.answer(state: state, questions: questions, deadline: deadline)
-        }
-    }
-
-    final class Offered: @unchecked Sendable {
-        private let lock = NSLock()
-        private var stored: [String] = []
-        var names: [String] {
-            get { lock.withLock { stored } }
-            set { lock.withLock { stored = newValue } }
-        }
-    }
     /// Every entry of every run, for `boopdev watch`.
     public var debugLog: URL?
 
@@ -423,8 +403,7 @@ public struct Eval {
         if scenario.mood != mood.current { _ = moodAction.change(to: scenario.mood) }
         let actions: [any Action] = [moodAction, react]
         let steering = self.steering
-        let offered = Offered()
-        let harness = Harness(brain: Noting(inner: brain, offered: offered), actions: actions, pipeline: pipeline, parts: { _ in
+        let harness = Harness(brain: brain, actions: actions, pipeline: pipeline, parts: { _ in
             Runtime.stateParts(steering: steering, personality: scenario.personality, mood: mood.current,
                                view: view, moodAction: moodAction, time: time, now: clock.now,
                                wall: clock.now)
@@ -446,7 +425,6 @@ public struct Eval {
             var last: Harness.Record?
             func respond(_ views: [ViewEvent]) async {
                 for view in views {
-                    offered.names = []
                     guard let record = await harness.respond(to: view) else { continue }
                     last = record
                     let ran = record.actions.contains { $0.name == "react" && $0.result.ok }
@@ -457,7 +435,8 @@ public struct Eval {
                                                  animation: ReactAction.animation(answers) ?? "none",
                                                  word: ReactAction.word(answers) ?? "none") : nil,
                         loops: ran ? ReactAction.holds[ReactAction.loops(answers) - 1].name : nil,
-                        mood: mood.current, dropped: record.pass.dropped, offered: offered.names,
+                        mood: mood.current, dropped: record.pass.dropped,
+                        offered: record.questions.first { $0.key == MoodAction.actionName }?.options.map(\.name) ?? [],
                         answer: answers[MoodAction.actionName]?.choice))
                 }
             }

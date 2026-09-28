@@ -41,6 +41,9 @@ public final class Harness: @unchecked Sendable {
         public var now: ViewEvent
         public var pass: Pass
         public var actions: [ActionRecord]
+        /// The questions the pass asked, with the options it offered; none
+        /// for a pass that couldn't start.
+        public var questions: [Question] = []
 
         /// The app log's line (§9): the view event's kind, the latency and
         /// which actions returned a result, never their messages.
@@ -241,7 +244,7 @@ public final class Harness: @unchecked Sendable {
         defer { acting = nil }
         let ran = pass.dropped == nil
             ? runActions(pass.answers, forSeq: now.seq, by: "brain", skipping: changedDuringPass) : []
-        let record = Record(now: now, pass: pass, actions: ran)
+        let record = Record(now: now, pass: pass, actions: ran, questions: job?.questions ?? [])
         if let dropped = pass.dropped { log("harness: \(now.name) dropped: \(dropped)") }
         onRecord?(record)
     }
