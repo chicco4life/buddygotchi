@@ -1,6 +1,6 @@
 # Mood spectrum V4: integration plan
 
-Updated 2026-09-28. How the design package on `codex/boop-mood-spectrum-v4`
+Updated 2026-09-29. How the design package on `codex/boop-mood-spectrum-v4`
 (`72ca30df`, `internal/boop-design/`) becomes the shipped Boop: 13 moods on
 Jev's mood graph, 22 activity states, 770 performances and their sounds,
 on the Mac and the board. It's a work plan, not a spec. Each phase updates
@@ -289,3 +289,12 @@ its bundled copy, `internal/app/Evals/`, `internal/app/BoopDevKit/Eval/`.
 Each lane updates the specs for its files. Shared hotspots
 (`Runtime.swift`, `DeviceMoment.swift`, the ARCHITECTURE decision log)
 are merged by the orchestrator.
+
+## 7. Status, 2026-09-29
+
+Done: P0–P10 on this branch (the lanes merged, the board checked over
+USB, the specs swept and the decision log written); what ran is in the
+[integration's README](README.md). Left: the Jev evals of the final
+steering with the states merged (the key ran out of credit), the owner's
+look and listen (D9), and anything over Bluetooth. `/simplify` and the
+webcam pass come after this.

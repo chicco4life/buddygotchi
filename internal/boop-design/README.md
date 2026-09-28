@@ -1,6 +1,6 @@
 # Boop animation and mood design package
 
-Updated 2026-09-28. The code-based animation/SFX bank and approved mood-graph
+Updated 2026-09-29. The code-based animation/SFX bank and approved mood-graph
 handover. The bank is the one source of the device's designs and sounds:
 `facegen` runs its generator for the faces and `sfxgen` imports its
 timelines and synthesiser ([plan/DEVICE.md](../../plan/DEVICE.md) §6,
@@ -13,7 +13,9 @@ firmware once they're rerun.
   the HTML in a browser, or serve the review directory locally.
 - [Mood graph and JEV handover](boop-mood-spectrum-v2/HANDOVER.md):
   neighbor choices, dramatic-edge gating, migration and voice guidance.
-- [Machine-readable graph](boop-mood-spectrum-v2/mood-graph.json).
+- [Machine-readable graph](boop-mood-spectrum-v2/mood-graph.json). The
+  app ships it as `app/BoopKit/Actions/MoodGraph.swift`, which a test
+  holds to this file move for move ([plan/harness/DECISIONS.md](../../plan/harness/DECISIONS.md) §4).
 
 From the **repository root**, with Node.js:
 
