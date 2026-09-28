@@ -189,6 +189,96 @@ final class ViewTests: XCTestCase {
         XCTAssertEqual(rig.view.event(seen[0].id)?.did, [])
     }
 
+    /// EVENTS.md §7: a reaction a tap cut short stays in progress while
+    /// the pokes go on (3 s apart at most), so the barrage gets it once;
+    /// it reads as done once they stop, or once anything else happens.
+    func testAReactionATapCutStaysInProgressWhileThePokesGoOn() {
+        func react(to poke: ViewEvent) -> Int {
+            rig.pipeline.record(Event(ts: rig.now, source: .boop, type: .action, phase: .start, specificType: "react",
+                                      data: ["for": .int(Int64(poke.seq)), "by": "brain", "ok": true,
+                                             "message": "Boop made a grumpy face."])).seq
+        }
+        func cut(_ seq: Int) {
+            rig.pipeline.record(Event(ts: rig.now, source: .boop, type: .action, phase: .end, specificType: "react",
+                                      data: ["for": .int(Int64(seq)), "by": "brain", "outcome": "failed",
+                                             "why": .string(TranscriptView.cutByTap)]))
+        }
+        func state(_ poke: ViewEvent) -> [ViewEvent.Did.State] {
+            rig.view.event(poke.id)!.did.filter { $0.by == "brain" }.map(\.state)
+        }
+        let first = events(rig.poke())[0]
+        cut(react(to: first))
+        rig.wait(2900)
+        _ = rig.poke()
+        XCTAssertEqual(state(first), [.inProgress], "the pokes go on")
+        rig.wait(3000)
+        _ = rig.poke()
+        XCTAssertEqual(state(first), [.done], "3 s apart is a new run")
+
+        let again = events(rig.poke())[0]
+        cut(react(to: again))
+        hook(.turnStart)
+        XCTAssertEqual(state(again), [.done], "something else happened")
+
+        rig.wait(1000)
+        let other = events(rig.poke())[0]
+        rig.pipeline.record(Event(ts: rig.now, source: .boop, type: .action, phase: .end, specificType: "react",
+                                  data: ["for": .int(Int64(react(to: other))), "by": "brain", "outcome": "failed",
+                                         "why": "cut short: something newer played"]))
+        XCTAssertEqual(state(other), [], "any other cut is gone")
+    }
+
+    /// EVENTS.md §6: a poke doesn't wake the brain while the brain's
+    /// reaction to its run's pokes in a row is in progress, a tap-cut one
+    /// included, unless the mood changed since it started. A single
+    /// poke's reaction doesn't count, and a new run (3 s apart) wakes it.
+    func testAPokeWaitsWhileItsRunIsBeingAnswered() {
+        func react(to poke: ViewEvent, _ name: String = "react", started: Bool = true) -> Int {
+            rig.pipeline.record(Event(ts: rig.now, source: .boop, type: .action, phase: started ? .start : nil,
+                                      specificType: name, data: ["for": .int(Int64(poke.seq)), "by": "brain", "ok": true,
+                                                                 "message": "Boop did it."])).seq
+        }
+        func end(_ seq: Int, _ why: String? = nil) {
+            rig.pipeline.record(Event(ts: rig.now, source: .boop, type: .action, phase: .end, specificType: "react",
+                                      data: ["for": .int(Int64(seq)), "by": "brain", "outcome": why == nil ? "done" : "failed",
+                                             "why": why.map { .string($0) } ?? .null]))
+        }
+        let answering = "Boop is answering these pokes"
+        let single = events(rig.poke())[0]
+        XCTAssertTrue(single.wakesBrain)
+        end(react(to: single), TranscriptView.cutByTap)
+        rig.wait(500)
+        let first = events(rig.poke())[0]
+        XCTAssertTrue(first.wakesBrain, "a single poke's reaction doesn't answer the barrage")
+        let happy = react(to: first)
+        rig.wait(500)
+        var next = events(rig.poke())[0]
+        XCTAssertFalse(next.wakesBrain, "its reaction is playing")
+        XCTAssertEqual(rig.pipeline.whyNotWake(next), answering)
+        end(happy, TranscriptView.cutByTap)
+        rig.wait(500)
+        next = events(rig.poke())[0]
+        XCTAssertFalse(next.wakesBrain, "cut short by a tap, it's still in progress")
+
+        _ = react(to: next, MoodAction.actionName, started: false)
+        rig.wait(500)
+        next = events(rig.poke())[0]
+        XCTAssertTrue(next.wakesBrain, "the mood changed since")
+        let grumpy = react(to: next)
+        rig.wait(500)
+        XCTAssertFalse(events(rig.poke())[0].wakesBrain, "the new reaction answers the run")
+        end(grumpy)
+        rig.wait(500)
+        XCTAssertTrue(events(rig.poke())[0].wakesBrain, "it played out")
+
+        let last = events(rig.poke())[0]
+        end(react(to: last), TranscriptView.cutByTap)
+        rig.wait(2900)
+        XCTAssertFalse(events(rig.poke())[0].wakesBrain, "within 3 s, the same run")
+        rig.wait(3000)
+        XCTAssertTrue(events(rig.poke())[0].wakesBrain, "3 s apart is a new run")
+    }
+
     /// EVENTS.md §4: an hour with nothing happening, and no thread working,
     /// brings a heartbeat, and so does every hour after that. While a
     /// thread works, the working heartbeat comes instead.

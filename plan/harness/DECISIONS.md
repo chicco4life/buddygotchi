@@ -335,7 +335,7 @@ how it ended ([PROTOCOL.md](../PROTOCOL.md) §4):
 | End | When | By |
 | --- | --- | --- |
 | `done` | The device says its mumble played to the end, and its face its loops, or until a newer moment (the next reaction's included), a tap or "needs you" ended the face after the mumble: it was seen and heard | The runtime, from the device's `ended` |
-| `failed`, `cut short: you tapped Boop` | The device says a tap's wiggle stopped its mumble | The same |
+| `failed`, `cut short: you tapped Boop` | The device says a tap's wiggle stopped its mumble. HISTORY keeps its line, `(in progress)` while the pokes go on and plain after: you saw it start, and a barrage of pokes would otherwise get the same face twice ([EVENTS.md](EVENTS.md) §7) | The same |
 | `failed`, `cut short: something newer played` | The device says a newer moment stopped its mumble: a line | The same |
 | `failed`, `cut short: something needed you` | The device says "needs you" started while its mumble played | The same |
 | `failed`, `cut short` | The device says something else stopped it (`dbg.reset`), or doesn't say what | The same |

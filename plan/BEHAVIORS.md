@@ -42,7 +42,7 @@ AUTOMATIC  (plain rules, instant, no brain needed)
 JEV  (the brain; decides everything expressive)
 ═══════════════════════════════════════════════════════════════════════
   Asked on view events:  turn start/end · tests/build/deploy fail or
-                         pass · every poke · heartbeat (quiet work, or
+                         pass · a poke · heartbeat (quiet work, or
                          an idle hour)
 
   One request, multiple choice:
@@ -115,7 +115,8 @@ WHAT JEV SEES  (built fresh for every ask; Jev keeps no memory)
   message: "…"`, each cut to 300 characters. No streaks, times, gaps,
   error reasons or topic lists; the view events' facts keep them for
   logs and evals. A reaction that didn't happen isn't shown, so it may
-  be made again.
+  be made again; one your tap cut short did happen, and stays, in
+  progress while the pokes go on.
 
   CLOSING LINE  (end of HISTORY)
   ─────────────────────────────────────────────────────────────────────
@@ -312,8 +313,8 @@ until nothing needs you.
 | When | What Boop does |
 | --- | --- |
 | You press BOOT or touch the screen | The face dips 2 px at once, until you let go |
-| You let go: a tap | `wiggle`, replacing whatever is playing, a mumble included. Asleep and with no app too. The Mac records it as a poke, with the wiggle under it, and the brain hears of every one |
-| Pokes in a row | Each within 3 s of the last (`TranscriptView.Config.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. How Boop reacts is the steering's; many in a row can make Boop grumpy for a couple of minutes ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| You let go: a tap | `wiggle`, replacing whatever is playing, a mumble included. Asleep and with no app too. The Mac records it as a poke, with the wiggle under it, and the brain hears of it, but not while it's answering the pokes before ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| Pokes in a row | Each within 3 s of the last (`TranscriptView.Config.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. How Boop reacts is the steering's; many in a row can make Boop grumpy for a couple of minutes. While the brain's reaction to them is in progress, a tap-cut one included, the pokes after it don't wake the brain, unless the mood changed since, so a barrage gets one "nope" ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | A tap while something needs you | The press dip only, with no wiggle: there a tap means "I saw it". The brain still hears of the poke ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 
 ### 3.4 The link

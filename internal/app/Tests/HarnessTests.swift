@@ -394,7 +394,7 @@ final class HarnessTests: XCTestCase {
         var records: [Harness.Record] = []
         let first = event(h, home, "first"), second = event(h, home, "second")
         home.sync {
-            h.mayStart = { _ in !needsYou }
+            h.whyNotStart = { _ in needsYou ? "something needs you" : nil }
             h.onRecord = { records.append($0) }
             h.take([first])
             h.take([second])

@@ -99,15 +99,20 @@ public final class Pipeline {
         return e
     }
 
-    /// Whether a view event may wake the brain now: with a brain, and,
-    /// but for a poke, while nothing needs you (harness/EVENTS.md §6).
-    public func mayWake(_ v: ViewEvent) -> Bool {
-        brain && (TranscriptView.wakesWhileNeeded.contains(v.type) || !core.needsYouShowing)
+    /// Why a view event may not wake the brain now, or nil if it may: it
+    /// needs a brain; nothing but a poke wakes it while something needs
+    /// you; and a poke doesn't while the brain's reaction to its run is in
+    /// progress, with the mood unchanged (harness/EVENTS.md §6).
+    public func whyNotWake(_ v: ViewEvent) -> String? {
+        if !brain { return "no brain" }
+        if !TranscriptView.wakesWhileNeeded.contains(v.type) && core.needsYouShowing { return "something needs you" }
+        if v.type == .poke && view.pokesAnswered { return "Boop is answering these pokes" }
+        return nil
     }
 
     func gated(_ step: Step, wake: Bool = true) -> Step {
         var step = step
-        step.views = view.gate(step.views) { wake && self.mayWake($0) }
+        step.views = view.gate(step.views) { wake && self.whyNotWake($0) == nil }
         for v in step.views { onView?(v) }
         return step
     }

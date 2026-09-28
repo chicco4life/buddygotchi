@@ -132,7 +132,7 @@ thread's key, `<agent>/<session>`, such as `claude_code/s1`.
 | `tool` wait | "Needs you" starts showing (the core's `needs_you` action), after Codex's 2 s grace | The thread | Never |
 | `tool` end | A tool call finishes and is notable, or any with `tool_uses: all` | Its result, whether it passed after failing, its time's band and its category | Yes |
 | `tool` start | A tool call starts (not kept by default) | Its topic and the thread | No |
-| `poke` | Every poke | How many pokes in a row: each within 3 s of the one before (`TranscriptView.Config.inARowMs`) | Always, even while something needs you (§6) |
+| `poke` | Every poke | How many pokes in a row: each within 3 s of the one before (`TranscriptView.Config.inARowMs`) | Yes, even while something needs you, but not while Boop is answering its run (§6) |
 | `heartbeat` | While no thread works, each whole hour since the last agent event or poke (`TranscriptView.Config.heartbeatMs`). While any thread works, once the personality's `working_heartbeat` wait has passed since Boop last reacted (`TranscriptView.reacted`, which the runtime calls as a reaction starts), however many view events woke the brain in it ([BEHAVIORS.md](../BEHAVIORS.md) §2) | The idle hours, or the thread working longest | Yes |
 
 A thread **works** while its turn is open, nothing waits on you, and it
@@ -218,14 +218,20 @@ only when its kind says so (§4), and never:
   ([HARNESS.md](HARNESS.md) §7);
 - while something needs you ([BEHAVIORS.md](../BEHAVIORS.md) §3.2), a
   poke aside: you poking Boop is the one thing that may reach it then
-  (`TranscriptView.wakesWhileNeeded`).
+  (`TranscriptView.wakesWhileNeeded`);
+- for a poke, while Boop is answering its run: the brain's reaction to
+  the run's pokes in a row is in progress, a tap-cut one included (§7),
+  and the mood hasn't changed since it started
+  (`TranscriptView.pokesAnswered`). A reaction to the run's first,
+  single poke doesn't count: the barrage after it is new to the brain.
 
-The pipeline checks both once the core has had the event
-(`Pipeline.mayWake`), so an event that answers a request wakes it: tests
+The pipeline checks these once the core has had the event
+(`Pipeline.whyNotWake`), so an event that answers a request wakes it: tests
 that fail right after you approved them, or the turn Claude's idle
 notice stops after you pressed Esc on its prompt. The harness checks
 again when a view event that waited behind a running pass would start
-its own ([HARNESS.md](HARNESS.md) §2). There's no cooldown: Jev decides
+its own ([HARNESS.md](HARNESS.md) §2): a poke that came during the pass
+whose reaction now answers its run is dropped. There's no cooldown: Jev decides
 every time whether Boop mumbles, and a view event that wakes it starts
 the working heartbeat's wait again.
 
@@ -241,7 +247,11 @@ Every action is a raw event (§2), and the view puts it under the view
 event it's `for`, as a `did` line; one forced by the dashboard, for none,
 goes under the latest. HISTORY shows the lines in order, a started one
 marked `(in progress)` until its end. A failed action isn't shown, and
-neither is a started one that ended failed. NOW's last line is what the
+neither is a started one that ended failed, but for a reaction your tap
+cut short (`cut short: you tapped Boop`): you saw it start, so its line
+stays, and stays `(in progress)` while the pokes go on (each within 3 s
+of the last, §6), so the barrage doesn't wake the brain for it again. The next poke
+after that, or any other event, makes it plain. NOW's last line is what the
 rules did (the `wiggle`), or `Boop did nothing on its own.`
 ([HARNESS.md](HARNESS.md) §5.3).
 

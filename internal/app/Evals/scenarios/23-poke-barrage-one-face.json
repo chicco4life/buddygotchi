@@ -1,0 +1,11 @@
+{
+  "name": "A barrage of pokes gets one grumpy face, not one per poke",
+  "case": "The person pokes Boop four times in a row, and each tap cuts short the face Boop is making, then keeps poking a second later. Boop gets grumpy at the first barrage, with a grumpy face, and doesn't make it again for the pokes that keep coming right after: its face for them is still in progress, even though a tap cut it short. At most two faces in all: a happy one at the first poke, then the grumpy one.",
+  "always": true,
+  "why": "PERSONALITY's Examples: one poke gets a happy face, four in a row a grumpy one with 'nope'. harness/EVENTS.md §6-7: a reaction a tap cut short stays in progress while the pokes go on, and a poke doesn't wake the brain while the reaction to its run is in progress with the mood unchanged. The first step checks its last pass; the second wakes nothing, so the run check counts the faces",
+  "steps": [
+    {"event": "pokes", "at": "0s", "reaction": "failed: cut short: you tapped Boop", "expect": {"mood": "grumpy"}},
+    {"event": "pokes", "at": "1s", "reaction": "failed: cut short: you tapped Boop"}
+  ],
+  "checks": {"reactions": "1-2"}
+}

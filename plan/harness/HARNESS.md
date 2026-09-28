@@ -74,10 +74,11 @@ What the picture leaves out:
 - After every pass, dropped ones included, the runtime hears of it
   (`onRecord`) and writes its app log line (§9). Then the waiting view
   event's pass starts, unless it may no longer wake the brain
-  (`Harness.mayStart`, the pipeline's `mayWake`): while something needs
-  you only a poke may ([EVENTS.md](EVENTS.md) §6), so any other is logged
-  as a pass dropped with `something needs you`, and the brain isn't
-  asked.
+  (`Harness.whyNotStart`, the pipeline's `whyNotWake`): while something
+  needs you only a poke may, and a poke may not while Boop is answering
+  its run ([EVENTS.md](EVENTS.md) §6). It's logged as a pass dropped
+  with that reason (`something needs you`, `Boop is answering these
+  pokes`), and the brain isn't asked.
 - An action that started something reports its end later, on `home`,
   and the harness records it as the action's `end`. The runtime's 1 s
   tick also ticks the harness, which ends any left open too long (§5.1),
@@ -369,7 +370,7 @@ reactions. The `pass` line's `dropped` says why:
 | `jev: HTTP <status>` | Not 200, after the retry. Only the status is kept, since an error body may repeat the request |
 | `jev: no answers` | The body had no `answers` object |
 | `jev: no usable answer for <key>` | A question left out, or answered with an option it doesn't have |
-| `something needs you` | The view event waited behind a running pass, and something needed you by the time its turn came (§2). The brain wasn't asked, so the line has no state and a `latency_ms` of 0 |
+| `something needs you`, `Boop is answering these pokes` | The view event waited behind a running pass, and by the time its turn came something needed you, or, for a poke, the pass's reaction answered its run ([EVENTS.md](EVENTS.md) §6). The brain wasn't asked, so the line has no state and a `latency_ms` of 0 |
 | `cancelled`, or an error's own text | The pass's task was cancelled, or the request failed some other way |
 
 **When Jev keeps failing, the popover says so.** The harness counts the

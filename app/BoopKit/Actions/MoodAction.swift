@@ -5,7 +5,8 @@ import Foundation
 /// device gets it in the next `state`. How long a mood lasts is the
 /// steering's to say, not a rule's.
 public final class MoodAction: Action {
-    public let name = "mood"
+    public static let actionName = "mood"
+    public let name = MoodAction.actionName
     let store: MoodStore
     /// Called with the new mood once it's saved, so the device hears of it.
     let changed: (String) -> Void

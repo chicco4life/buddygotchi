@@ -75,10 +75,9 @@ public final class Harness: @unchecked Sendable {
     public var onRecord: ((Record) -> Void)?
     /// Called on `home` with every pass's `debug.jsonl` line, file or not.
     public var onDebugLine: ((String) -> Void)?
-    /// Whether a waiting view event's pass may start now: not while
-    /// something needs you, when nothing but a poke wakes the brain
-    /// (EVENTS.md §6).
-    public var mayStart: (ViewEvent) -> Bool = { _ in true }
+    /// Why a waiting view event's pass may not start now, or nil if it
+    /// may: the pipeline's gate, asked again (EVENTS.md §6).
+    public var whyNotStart: (ViewEvent) -> String? = { _ in nil }
 
     /// The whole pass must finish within this.
     public static let deadlineMs = 1500
@@ -182,10 +181,10 @@ public final class Harness: @unchecked Sendable {
                 changedDuringPass = []
                 if let next = waiting {
                     waiting = nil
-                    if mayStart(next) {
-                        start(next)
+                    if let why = whyNotStart(next) {
+                        finish(next, nil, .failure(BrainError(why)), latencyMs: 0, brainID: job.brain.id)
                     } else {
-                        finish(next, nil, .failure(BrainError("something needs you")), latencyMs: 0, brainID: job.brain.id)
+                        start(next)
                     }
                 }
             }

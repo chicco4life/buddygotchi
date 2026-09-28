@@ -208,6 +208,13 @@ public final class TranscriptView {
 
     /// Where each started action's line is, by its `action` event's `seq`.
     var started: [Int: (view: Int, did: Int, name: String)] = [:]
+    /// The reactions a tap cut short, by their `action` event's `seq`,
+    /// still `(in progress)` while the run of pokes goes on (EVENTS.md §7).
+    var heldByPokes: Set<Int> = []
+    /// The brain's latest reaction to this run's pokes in a row, by its
+    /// `action` event's `seq`, and whether the mood changed since it
+    /// started.
+    var runReaction: (seq: Int, moodChanged: Bool)?
 
     public init(config: Config = Config(), place: @escaping (String) -> Adapter.Place = { Adapter.place(cwd: $0) }) {
         self.config = config
@@ -241,6 +248,7 @@ public final class TranscriptView {
     @discardableResult
     public func take(_ e: Event) -> [ViewEvent] {
         let first = nextID
+        if !heldByPokes.isEmpty && !continuesThePokes(e) { releasePokes() }
         switch e.type {
         case .session, .turn, .tool, .subagent: agentEvent(e)
         case .poke: poke(e)
@@ -509,12 +517,16 @@ public final class TranscriptView {
 
     // MARK: Pokes
 
-    /// A poke, which always wakes the brain, with how many came in a row:
-    /// each within `inARowMs` of the one before (BEHAVIORS.md §3.3).
+    /// A poke, which wakes the brain, with how many came in a row: each
+    /// within `inARowMs` of the one before (BEHAVIORS.md §3.3). The
+    /// pipeline's gate holds it back while `pokesAnswered`.
     func poke(_ e: Event) {
         let now = e.ts
         noteActivity(now)
-        if let last = pokes.last, now - last >= config.inARowMs { pokes.removeAll() }
+        if let last = pokes.last, now - last >= config.inARowMs {
+            pokes.removeAll()
+            runReaction = nil
+        }
         pokes.append(now)
         let count = pokes.count
         let seconds = max(1, Int((now - pokes[0] + 999) / 1000))
@@ -585,10 +597,14 @@ public final class TranscriptView {
         }
         switch e.phase {
         case .end?:
-            // How a started action ended: plain if done, gone if not.
+            // How a started action ended: plain if done, gone if not. One
+            // a tap cut short you saw begin: it stays in progress while
+            // the pokes go on, so they don't get it again.
             guard let action = e["for"]?.int.map(Int.init), let at = started.removeValue(forKey: action),
                   events.indices.contains(at.view), events[at.view].did.indices.contains(at.did) else { return }
-            if e["outcome"]?.string == "done" {
+            if e["why"]?.string == Self.cutByTap {
+                heldByPokes.insert(action)
+            } else if e["outcome"]?.string == "done" {
                 events[at.view].did[at.did].state = .done
             } else {
                 events[at.view].did.remove(at: at.did)
@@ -607,7 +623,41 @@ public final class TranscriptView {
             events[target].did.append(ViewEvent.Did(message: message, by: e["by"]?.string ?? "brain",
                                                     state: started ? .inProgress : .done, seq: e.seq))
             if started { self.started[e.seq] = (target, events[target].did.count - 1, e.specificType) }
+            // A single poke's reaction doesn't answer the run: the pokes
+            // after it are a barrage, which the brain hears.
+            if started, events[target].type == .poke, let first = pokes.first, events[target].ts >= first,
+               (events[target].facts["in_a_row"]?.int ?? 1) > 1 {
+                runReaction = (e.seq, false)
+            } else if e.specificType == MoodAction.actionName {
+                runReaction?.moodChanged = true
+            }
         }
+    }
+
+    /// Why a reaction ended failed when your tap's wiggle cut it: it
+    /// stays in HISTORY, in progress until the pokes stop, so the pokes
+    /// after it don't get it again (EVENTS.md §7).
+    public static let cutByTap = "cut short: you tapped Boop"
+
+    /// Whether `e` leaves a tap-cut reaction in progress: an action, or
+    /// a poke in the same run.
+    func continuesThePokes(_ e: Event) -> Bool {
+        switch e.type {
+        case .action: true
+        case .poke: pokes.last.map { e.ts - $0 < config.inARowMs } ?? false
+        default: false
+        }
+    }
+
+    /// The pokes stopped, or something else happened: the reactions they
+    /// cut short read as done.
+    func releasePokes() {
+        for v in events.indices {
+            for d in events[v].did.indices where heldByPokes.contains(events[v].did[d].seq) {
+                events[v].did[d].state = .done
+            }
+        }
+        heldByPokes = []
     }
 
     /// The started actions still in progress, by their `action` event's
@@ -633,6 +683,15 @@ public final class TranscriptView {
             t.waiting = false
             if threads[key] != nil { threads[key] = t }
         }
+    }
+
+    /// Whether the brain's reaction to this run's pokes in a row (not to
+    /// its first, single poke) is still in progress, a tap-cut one
+    /// included, and the mood hasn't changed since it started: then
+    /// another poke of the run doesn't wake the brain (EVENTS.md §6).
+    public var pokesAnswered: Bool {
+        guard let r = runReaction, !r.moodChanged else { return false }
+        return started[r.seq] != nil || heldByPokes.contains(r.seq)
     }
 
     /// Whether something needs you, as the view has it.

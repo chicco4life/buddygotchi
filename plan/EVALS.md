@@ -166,11 +166,11 @@ Each scenario's file says what it checks, in its `case`, so the list
 lives there: `boopdev eval --list` prints them all. They come in three
 kinds, all with the `boop` personality unless the file says otherwise:
 
-- **Always** (`02`–`06`, `08`, `09`, `13`, `16`, `17`): Boop's
+- **Always** (`02`–`06`, `08`, `09`, `13`, `16`, `17`, `23`): Boop's
   character. A failed check makes it determined and the fix proud; a
   failed turn grumpy, a very long one failed sad; a very long turn done
   cheers; poking it again and again keeps it grumpy while it goes on,
-  and it calms down after; moods fade back to happy; and no face ever
+  with one face per barrage, and it calms down after; moods fade back to happy; and no face ever
   contradicts what happened.
 - **Tuning** (`01`, `07`, `10`–`12`, `14`, `15`, `18`, `19`, `21`–`23`):
   single decisions ("nice" at a long turn done, not "yay", is `23`),

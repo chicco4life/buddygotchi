@@ -191,13 +191,15 @@ public final class Runtime: @unchecked Sendable {
         static func end(_ ended: MomentEnded) -> Pending.End {
             switch ended.how {
             case .done: .done
+            case .cut where ended.why == "tap": .failed(TranscriptView.cutByTap)
             case .cut: .failed("cut short" + (ended.why.flatMap { cutBy[$0] }.map { ": " + $0 } ?? ""))
             case .skipped: .failed("something needed you")
             }
         }
 
-        /// What cut a moment short, as HISTORY says it; `reset` is a tool's.
-        static let cutBy = ["tap": "you tapped Boop", "moment": "something newer played",
+        /// What cut a moment short, as its end says it; a tap's is
+        /// `TranscriptView.cutByTap`, and `reset` is a tool's.
+        static let cutBy = ["moment": "something newer played",
                             "needs_you": "something needed you"]
 
         /// Gives up on each moment whose `ended` hasn't come by its
@@ -340,7 +342,7 @@ public final class Runtime: @unchecked Sendable {
         // No event's pass starts while something needs you, not even one
         // that woke the brain before and waited (harness/EVENTS.md §6).
         let pipeline = self.pipeline
-        harness.mayStart = { pipeline.mayWake($0) }
+        harness.whyNotStart = { pipeline.whyNotWake($0) }
         personalityNow = { [weak self] in self?.personality ?? .boop }
         moodSaved = { [weak self] in self?.moodChanged($0) }
         // A pass can change the mood, which the menu bar shows.
