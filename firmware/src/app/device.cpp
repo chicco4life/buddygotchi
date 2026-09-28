@@ -437,7 +437,7 @@ void Device::followSound(uint32_t t) {
     e.gain = due[i].gain;
     e.pitch = due[i].pitch;
     e.vol = uint8_t(m.vol);
-    e.duck = due[i].duck;
+    e.duck = fx_.duck();
     hal_.effect(e);
     ++fxSent_;
     fxLast_ = e.clip;
@@ -463,13 +463,12 @@ void Device::render(uint32_t t) {
       render::drawPattern(canvas_);
     }
   } else {  // the face, needs you and no app: what differs is in the show and the strip
-    render::SceneShow face = b_.show(t);
-    render::SceneFrame frame = render::sceneFrame(face);
+    render::SceneFrame frame = render::sceneFrame(b_.show(t));
     const render::Mumble* mumble = b_.mumble(t);
     if (!dirty_ && frame == drawnFrame_ && (mumble != nullptr) == drawnBubble_) return;
     drawnFrame_ = frame;
     drawnBubble_ = mumble != nullptr;
-    render::drawFaceScreen(canvas_, face, mumble, b_.strip(t));
+    render::drawFaceScreen(canvas_, frame, mumble, b_.strip(t));
   }
   labelDrawn_ = debugLabel(t);
   if (labelDrawn_) canvas_.drawText(2, 2, labelDrawn_, render::inkAt(render::kInkDim, render::kLevels));

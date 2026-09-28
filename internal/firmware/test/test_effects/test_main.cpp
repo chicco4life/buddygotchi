@@ -222,12 +222,12 @@ void test_a_mumble_turns_effects_down_but_not_the_attention_cues() {
   ding.duck = false;
   TEST_ASSERT_EQUAL(peak(mixed(ding)), peak(mixed(ding, true)));
   TEST_ASSERT_INT_WITHIN(2, peak(mixed(effect("alertDing"))) / 4, peak(mixed(effect("alertDing"), true)));
-  // The track hands each event its design's rule.
+  // The track gives the rule of the design whose events it hands over.
   for (SceneState s : {SceneState::kNeedsYou, SceneState::kWorking}) {
     app::EffectTrack track;
     Heard h = follow(track, Mood::kCalm, s, 0, 0, 6000);
     TEST_ASSERT_TRUE(h.ev.size() > 0);
-    for (const voice::FxEvent& e : h.ev) TEST_ASSERT_EQUAL(s != SceneState::kNeedsYou, e.duck);
+    TEST_ASSERT_EQUAL(s != SceneState::kNeedsYou, track.duck());
   }
 }
 

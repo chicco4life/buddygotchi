@@ -45,9 +45,12 @@ struct Mumble {
 };
 
 // The face as its design shows it, and the bubble when there's a mumble,
-// else the strip.
-void drawFaceScreen(Canvas& c, const SceneShow& face, const Mumble* mumble, const Strip& s);
+// else the strip. The face is a frame sceneFrame made, or a show for the
+// tests, as drawScene takes it.
+void drawFaceScreen(Canvas& c, const SceneFrame& face, const Mumble* mumble, const Strip& s);
+inline void drawFaceScreen(Canvas& c, const SceneShow& face, const Mumble* mumble, const Strip& s) {
+  drawFaceScreen(c, sceneFrame(face), mumble, s);
+}
 void drawStrip(Canvas& c, const Strip& s);
-void drawBubble(Canvas& c, const Mumble& m);
 
 }  // namespace render

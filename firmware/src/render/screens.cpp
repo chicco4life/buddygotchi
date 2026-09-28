@@ -72,8 +72,7 @@ void drawBox(Canvas& c, int w) {
   c.fillRect(kWidth / 2 - L, top - 2 * L, 2 * L, L, uint8_t(ink));
 }
 
-}  // namespace
-
+// The mumble in its bubble, which takes the whole lane.
 void drawBubble(Canvas& c, const Mumble& m) {
   c.fillRect(0, kLaneTop, kWidth, kHeight - kLaneTop, kBlack);  // the lane is the bubble's
   const int gap = 8, sq = 22, room = kWidth - 2 * kMargin - 2 * (kBubblePad + kBubbleLine);
@@ -99,8 +98,6 @@ void drawBubble(Canvas& c, const Mumble& m) {
   if (hasWord) x = drawStringFit(c, kLarge, x, cy - kLarge.baseline + 8, m.word, kInkAmber, maxWord) + gap;
   for (int i = 0; i < after; ++i) x = squiggle(c, x, cy, kInkGrey) + gap;
 }
-
-namespace {
 
 // Status-strip icons, 16 px boxes with (x, y) at the top left.
 void iconNoApp(Canvas& c, int x, int y) {  // a plug on its cord, pointing at nothing
@@ -168,7 +165,7 @@ void drawStrip(Canvas& c, const Strip& s) {
   if (s.noApp) iconNoApp(c, kWidth - kMargin - 16, cy - 8);
 }
 
-void drawFaceScreen(Canvas& c, const SceneShow& face, const Mumble* mumble, const Strip& s) {
+void drawFaceScreen(Canvas& c, const SceneFrame& face, const Mumble* mumble, const Strip& s) {
   c.fill(kBlack);
   drawScene(c, face);
   if (mumble) drawBubble(c, *mumble);

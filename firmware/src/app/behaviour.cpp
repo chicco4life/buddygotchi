@@ -1,5 +1,6 @@
 #include "app/behaviour.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "render/raster.h"
@@ -448,9 +449,9 @@ void Behaviour::pressUp() { pressed_ = false; }
 // Otherwise it plays poked in Boop's mood, or tap_spam from the run's
 // third tap on, cutting whatever plays.
 void Behaviour::tap(uint32_t t, Rng& rng) {
-  bool inRun = tapped_ && int32_t(t - lastTap_) < int32_t(kTapRunMs);
-  taps_ = inRun && taps_ < 1000 ? taps_ + 1 : inRun ? taps_ : 1;
-  tapped_ = true, lastTap_ = t;
+  bool inRun = taps_ > 0 && int32_t(t - lastTap_) < int32_t(kTapRunMs);
+  taps_ = inRun ? std::min(taps_ + 1, 1000) : 1;
+  lastTap_ = t;
   if (held(t)) return;
   const render::Anim a = taps_ >= kTapSpamFrom ? render::Anim::kTapSpam : render::Anim::kPoked;
   const uint8_t v = pick(a, model_.mood, 0, render::Outcome::kNone, render::StartCtx::kNone, rng);

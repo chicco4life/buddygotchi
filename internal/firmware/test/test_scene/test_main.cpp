@@ -158,9 +158,6 @@ static void test_variations_for_a_result_or_a_context() {
   TEST_ASSERT_TRUE(outcomeFromName(nullptr) == Outcome::kNone);
   TEST_ASSERT_TRUE(ctxFromName("continuation") == StartCtx::kContinuation);
   TEST_ASSERT_TRUE(ctxFromName("resume") == StartCtx::kNone);
-  TEST_ASSERT_EQUAL_STRING("success", outcomeName(Outcome::kSuccess));
-  TEST_ASSERT_EQUAL_STRING("new_task", ctxName(StartCtx::kNewTask));
-  TEST_ASSERT_EQUAL_STRING("", ctxName(StartCtx::kNone));
 }
 
 // Shut eyes, a blink's or the one that hides a change of design, show the

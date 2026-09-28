@@ -23,7 +23,7 @@ enum class Anim : uint8_t {
 // By the names the Mac sends: kNone if unknown. "cheer" reads as
 // kTaskComplete (the device plays a success) and "wiggle" as kPoked.
 Anim animFromName(const char* name);
-const char* animName(Anim a);  // the design's state's name, such as "task_complete"
+const char* animName(Anim a);  // its design's state's name, such as "task_complete"; "none" for kNone
 
 // Boop's mood, which picks the set of designs every look and animation is
 // drawn in (plan/PROTOCOL.md §3, plan/harness/DECISIONS.md §2.3), in
