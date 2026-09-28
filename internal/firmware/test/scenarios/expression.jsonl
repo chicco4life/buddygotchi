@@ -26,13 +26,13 @@
 // mumble over it borrows proud's cheer.
 {"clock":10000}
 {"t":"state","v":1,"base":"idle","mood":"curious"}
-{"t":"moment","anim":"cheer"}
+{"t":"moment","anim":"cheer","variant":1}
 {"clock":10180}
-{"expect":{"moment":{"anim":"cheer"},"expr":null}}
+{"expect":{"moment":{"anim":"task_complete","variant":1},"expr":null}}
 {"shot":"cheer-curious"}
 {"clock":10200}
 {"t":"moment","say":{"syl":"lo-pa gom-gom","word":"finally","at":0,"tune":"lift","ms":135},"mood":"proud","loops":1}
-{"expect":{"moment":{"anim":"cheer","left_ms":6200},"expr":"proud"}}
+{"expect":{"moment":{"anim":"task_complete","left_ms":6200},"expr":"proud"}}
 {"clock":10800}
 {"shot":"cheer-proud"}
 // The bubble goes at 10200 + (4 + 2) × 135 + 1200 = 12210, and the face
@@ -40,9 +40,9 @@
 // 16400, when the cheer ends too: a cheer's variation loops alike in every
 // mood.
 {"clock":12210}
-{"expect":{"moment":{"anim":"cheer"},"expr":"proud","audio":{"syllables":0}}}
+{"expect":{"moment":{"anim":"task_complete"},"expr":"proud","audio":{"syllables":0}}}
 {"clock":16399}
-{"expect":{"moment":{"anim":"cheer","left_ms":1},"expr":"proud"}}
+{"expect":{"moment":{"anim":"task_complete","left_ms":1},"expr":"proud"}}
 {"clock":16400}
 {"expect":{"moment":null,"expr":null,"mood":"curious"}}
 {"clock":16560}

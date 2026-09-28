@@ -12,9 +12,17 @@ namespace {
 
 constexpr int kMargin = 12;
 
-// The middle of the bubble and of the strip.
-constexpr int kBubbleCy = (kBubbleTop + kStripTop) / 2;
+// The middle of the strip.
 constexpr int kStripCy = (kStripTop + kHeight) / 2;
+
+// The bubble: a box in the lane with stepped corners and a short tail up to
+// the face, as the animation bank asks host text to be shown (its
+// README), its outline 2 px of the dim ink.
+constexpr int kBubbleTop = kLaneTop + 4;  // under the tail
+constexpr int kBubbleBottom = kHeight - 2;
+constexpr int kBubbleCy = (kBubbleTop + kBubbleBottom) / 2;
+constexpr int kBubblePad = 10;  // from the outline to what's inside, left and right
+constexpr int kBubbleLine = 2;
 
 void plotInk(Canvas& c, int x, int y, int level, int ink) { c.pixels()[y * kWidth + x] = inkAt(ink, level); }
 
@@ -48,8 +56,27 @@ int squiggle(Canvas& c, int x, int cy, int ink) {
   return x + w;
 }
 
-void drawMumble(Canvas& c, const Mumble& m) {
-  const int gap = 8, sq = 22, room = kWidth - 2 * kMargin;
+// The box around `w` px of what's in it, centred, and the tail over its middle.
+void drawBox(Canvas& c, int w) {
+  const int L = kBubbleLine, ink = inkAt(kInkDim, kLevels);
+  int bw = w + 2 * (kBubblePad + L), left = (kWidth - bw) / 2, top = kBubbleTop, h = kBubbleBottom - kBubbleTop;
+  c.fillRect(left + 2 * L, top, bw - 4 * L, L, uint8_t(ink));          // the edges
+  c.fillRect(left + 2 * L, top + h - L, bw - 4 * L, L, uint8_t(ink));
+  c.fillRect(left, top + 2 * L, L, h - 4 * L, uint8_t(ink));
+  c.fillRect(left + bw - L, top + 2 * L, L, h - 4 * L, uint8_t(ink));
+  c.fillRect(left + L, top + L, L, L, uint8_t(ink));                   // the stepped corners
+  c.fillRect(left + bw - 2 * L, top + L, L, L, uint8_t(ink));
+  c.fillRect(left + L, top + h - 2 * L, L, L, uint8_t(ink));
+  c.fillRect(left + bw - 2 * L, top + h - 2 * L, L, L, uint8_t(ink));
+  c.fillRect(kWidth / 2 - 2 * L, top - L, 4 * L, L, uint8_t(ink));     // the tail, up to the face
+  c.fillRect(kWidth / 2 - L, top - 2 * L, 2 * L, L, uint8_t(ink));
+}
+
+}  // namespace
+
+void drawBubble(Canvas& c, const Mumble& m) {
+  c.fillRect(0, kLaneTop, kWidth, kHeight - kLaneTop, kBlack);  // the lane is the bubble's
+  const int gap = 8, sq = 22, room = kWidth - 2 * kMargin - 2 * (kBubblePad + kBubbleLine);
   bool hasWord = m.word && *m.word && m.at >= 0;
   int before = hasWord ? m.at : m.syllables, after = hasWord ? m.syllables - m.at : 0;
   before = clamp(before, 0, 3);
@@ -66,11 +93,14 @@ void drawMumble(Canvas& c, const Mumble& m) {
   int maxWord = room - (before + after) * (sq + gap);
   if (wordW > maxWord) wordW = maxWord;
   int total = (before + after) * (sq + gap) + wordW - (hasWord ? 0 : gap);
+  drawBox(c, total);
   int x = (kWidth - total) / 2, cy = kBubbleCy;
   for (int i = 0; i < before; ++i) x = squiggle(c, x, cy, kInkGrey) + gap;
   if (hasWord) x = drawStringFit(c, kLarge, x, cy - kLarge.baseline + 8, m.word, kInkAmber, maxWord) + gap;
   for (int i = 0; i < after; ++i) x = squiggle(c, x, cy, kInkGrey) + gap;
 }
+
+namespace {
 
 // Status-strip icons, 16 px boxes with (x, y) at the top left.
 void iconNoApp(Canvas& c, int x, int y) {  // a plug on its cord, pointing at nothing
@@ -84,6 +114,14 @@ void iconNoApp(Canvas& c, int x, int y) {  // a plug on its cord, pointing at no
 void iconTick(Canvas& c, int x, int y, uint8_t ink) {  // a tick, 2 px strokes
   for (int i = 0; i < 4; ++i) c.fillRect(x + 1 + i, y + 7 + i, 2, 2, ink);
   for (int i = 0; i < 7; ++i) c.fillRect(x + 5 + i, y + 9 - i, 2, 2, ink);
+}
+
+void iconCross(Canvas& c, int x, int y, uint8_t ink) {  // a cross, 2 px strokes
+  for (int i = 0; i < 8; ++i) c.fillRect(x + 3 + i, y + 4 + i, 2, 2, ink), c.fillRect(x + 10 - i, y + 4 + i, 2, 2, ink);
+}
+
+void iconDots(Canvas& c, int x, int y, uint8_t ink) {  // three dots: something to say
+  for (int i = 0; i < 3; ++i) c.fillRect(x + 2 + 4 * i, y + 9, 2, 2, ink);
 }
 
 }  // namespace
@@ -113,7 +151,10 @@ void drawStrip(Canvas& c, const Strip& s) {
     if (more[0]) x = drawString(c, kSmall, x + 8, ty, more, kInkGrey);
     x += 14;
   } else if (s.doneAgent) {
-    iconTick(c, x - 1, cy - 8, inkAt(kInkEye, kLevels));
+    uint8_t eye = inkAt(kInkEye, kLevels);
+    if (s.doneOutcome == Outcome::kSuccess) iconTick(c, x - 1, cy - 8, eye);
+    else if (s.doneOutcome == Outcome::kFailure) iconCross(c, x - 1, cy - 8, eye);
+    else iconDots(c, x - 1, cy - 8, eye);
     // Who finished, cut to leave room for the working count.
     int room = kWidth - kMargin - (x + 15) - (s.busy > 0 ? 29 + stringWidth(kSmall, busy) : 0);
     char who[48];
@@ -130,8 +171,8 @@ void drawStrip(Canvas& c, const Strip& s) {
 void drawFaceScreen(Canvas& c, const SceneShow& face, const Mumble* mumble, const Strip& s) {
   c.fill(kBlack);
   drawScene(c, face);
-  if (mumble) drawMumble(c, *mumble);
-  drawStrip(c, s);
+  if (mumble) drawBubble(c, *mumble);
+  else drawStrip(c, s);
 }
 
 }  // namespace render

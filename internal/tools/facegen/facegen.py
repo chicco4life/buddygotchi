@@ -81,12 +81,12 @@ TILES = [(mood, state) for mood in MOODS
 # kPaletteUsed): scene colour 0 is the black field, the canvas's 0, and
 # colour i the palette's SCENE_BASE + i - 1.
 SCENE_BASE = 96
-# What the device does with a group (render::faces::Role).
-ROLES = ["none", "face", "mouth", "prop", "eyes_open", "eyes_closed"]
-# Groups the bubble hides while it shows (render/scene.h hideProp): the
-# props named so, and any other loose group drawn only in the props' band.
-PROP_PARTS = re.compile(r"(^|-)(prop|activity|cue|keyboard)$")
-PROP_TOP = 144  # the band the props share with the bubble (render/screens.h kBubbleTop)
+# What the device does with a group (render::faces::Role): the face it
+# moves and the mouth it opens to talk; the first pack's eyes, open and
+# shut, which it blinks on its own clock; and a flip-book's steps, each a
+# face, one of them the face with its eyes shut, which it shows to hide a
+# change of design, as it shuts the others' eyes (render/scene.cpp).
+ROLES = ["none", "face", "mouth", "eyes_open", "eyes_closed", "step", "blink_step"]
 # A blink's closed eyes show for at most this long in a loop.
 BLINK_MAX_MS = 400
 # Moments the check and the frames sample, in ms; each scene skips those
@@ -663,28 +663,20 @@ def assign_roles(scene: Scene, name: str) -> None:
             if 0 < shut <= BLINK_MAX_MS and a.visible and not b.visible:
                 a.role, b.role = "eyes_open", "eyes_closed"
                 break
-    # The props: named so, or a loose group drawn only in the props' band,
-    # never one with a face in it.
-    faces = {i for i, g in enumerate(groups) if g.role == "face"}
-    for i, g in enumerate(groups):
-        if g.role != "none":
-            continue
-        top_level = g.parent < 0 or groups[g.parent].parent < 0 or (
-            groups[g.parent].parent >= 0 and groups[groups[g.parent].parent].parent < 0 and not groups[g.parent].part)
-        if not top_level:
-            continue
-        mine = {i}
-        for j in range(i + 1, len(groups)):
-            if groups[j].parent in mine:
-                mine.add(j)
-        if mine & faces:
-            continue
-        ys = [r[1] for j in mine for r in groups[j].rects]
-        if PROP_PARTS.search(g.part) or (ys and min(ys) >= PROP_TOP):
-            g.role = "prop"
     # A flip-book (V4) has a face in each step, each with its mouth, and only
     # one step shows at a time: the device moves, and talks with, the face
-    # that shows (render/scene.cpp).
+    # that shows (render/scene.cpp). It blinks in a step of its own, whose
+    # face the bank tags; to hide a change of design, the device shows that
+    # step in place of the others, as it shuts the first pack's eyes.
+    faces = [i for i, g in enumerate(groups) if g.role == "face"]
+    if any(groups[i].blink for i in faces):
+        for i in faces:
+            step = groups[i].parent
+            while step >= 0 and not groups[step].show:
+                step = groups[step].parent
+            assert step >= 0 and groups[step].role == "none", f"{name}: each face in a step of its own"
+            groups[step].role = "blink_step" if groups[i].blink else "step"
+        assert [g.role for g in groups].count("blink_step") == 1, f"{name}: one step blinks"
     roles = [g.role for g in groups]
     assert roles.count("face") >= 1, f"{name}: a face"
     assert roles.count("mouth") >= 1, f"{name}: a mouth"
@@ -713,6 +705,8 @@ def place(scene: Scene, t: int, svg_blink: bool, shut: bool) -> tuple[list[tuple
         vis = g.visible
         if g.show and (svg_blink or g.role not in ("eyes_open", "eyes_closed")):
             vis = bool(g.show.values[g.show.index(t)][0])
+            if shut and not svg_blink and g.role in ("step", "blink_step"):
+                vis = g.role == "blink_step"  # the flip-book's own shut eyes, in every step's place
         elif g.role == "eyes_open":
             vis = not shut
         elif g.role == "eyes_closed":
@@ -768,7 +762,7 @@ def canvas_index(color: int) -> int:
 # ---- Writing -----------------------------------------------------------------
 
 
-def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict[tuple[int, int, int], tuple[int, int]],
+def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict[tuple[int, int, int], tuple[int, int, int]],
          sources: dict[int, str], counts: dict[tuple[int, int], int]) -> str:
     # The designs share much: the same rectangles, the same tracks, the same
     # key times and values. Each is stored once, however many use it.
@@ -847,7 +841,7 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict
         "namespace faces {",
         "",
         "// What the device does with a group besides drawing it (render/scene.cpp).",
-        "enum Role : uint8_t { kRoleNone, kRoleFace, kRoleMouth, kRoleProp, kRoleEyesOpen, kRoleEyesClosed };",
+        "enum Role : uint8_t { " + ", ".join("kRole" + "".join(w.title() for w in r.split("_")) for r in ROLES) + " };",
         "",
         "// The designs' colours: 0 is the black field, the canvas's 0, and colour i",
         "// is the palette's kSceneBase + i - 1 (render/palette.h).",
@@ -936,7 +930,7 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict
             row_first.append(str(first))
             row_count.append(str(n))
             for v in range(n):
-                o, c = meta[(m, st, v)]
+                o, c, _ = meta[(m, st, v)]
                 design_rows.append(f"{{{table[(m, st, v)]}, {o}, {c}}}")
             first += n
         rows_first.append("{" + ", ".join(row_first) + "},  // " + MOODS[m])
@@ -1042,12 +1036,18 @@ def emit_swift(scenes: list[Scene], table: dict[tuple[int, int, int], int]) -> s
 
 
 def emit_loops(scenes: list[Scene], table: dict[tuple[int, int, int], int],
-               meta: dict[tuple[int, int, int], tuple[int, int]], counts: dict[tuple[int, int], int]) -> str:
-    """Each mood, state and variation's loop length and host fact, for the
-    Mac: the numbers faces.h gives the device."""
+               meta: dict[tuple[int, int, int], tuple[int, int, int]], counts: dict[tuple[int, int], int]) -> str:
+    """Each mood, state and variation's loop length, voice window and host
+    fact, for the Mac: the numbers faces.h and sfx.h give the device."""
+    # Most designs' voice window starts at the same moment: that's the
+    # default, and only the others are written out.
+    windows = [w for _, _, w in meta.values()]
+    usual = max(set(windows), key=windows.count)
+
     def design(m: int, st: int, v: int) -> str:
-        o, c = meta[(m, st, v)]
-        fact = (f', outcome: "{OUTCOMES[o]}"' if o else "") + (f', ctx: "{CTXS[c]}"' if c else "")
+        o, c, w = meta[(m, st, v)]
+        fact = ((f", voice: {w}" if w != usual else "") + (f', outcome: "{OUTCOMES[o]}"' if o else "")
+                + (f', ctx: "{CTXS[c]}"' if c else ""))
         return f"D({scenes[table[(m, st, v)]].loop_ms()}{fact})"
 
     def names(xs: list[str]) -> str:
@@ -1060,7 +1060,9 @@ def emit_loops(scenes: list[Scene], table: dict[tuple[int, int, int], int],
         "/// How long each design takes to play once through, in ms: its longest",
         "/// animation, leaving out the blink, which the device times on its own.",
         "/// A moment's `loops` count these, and the device's firmware/assets/faces.h",
-        "/// has the same numbers (PROTOCOL.md §3).",
+        "/// has the same numbers (PROTOCOL.md §3). And each design's voice window,",
+        "/// when a line over its animation starts, as firmware/assets/sfx.h has it",
+        "/// (VOICE.md §10).",
         "public enum FaceLoops {",
         "    /// The moods, in the device's order (`render::Mood`).",
         f"    public static let moods = {names(MOODS)}",
@@ -1068,17 +1070,19 @@ def emit_loops(scenes: list[Scene], table: dict[tuple[int, int, int], int],
         "    /// The designs' states, in the device's order (`render::SceneState`).",
         f"    public static let states = {names(STATES)}",
         "",
-        "    /// One design: its loop length, and the host fact it's for, if any:",
-        "    /// task_complete's `outcome` (success or failure), starting's `ctx`",
-        "    /// (new_task, session or continuation).",
+        "    /// One design: its loop length, its voice window's start (a line",
+        "    /// that comes with its animation starts no sooner), and the host fact",
+        "    /// it's for, if any: task_complete's `outcome` (success or failure),",
+        "    /// starting's `ctx` (new_task, session or continuation).",
         "    public struct Design: Equatable, Sendable {",
         "        public let ms: Int64",
+        "        public let voiceMs: Int64",
         "        public let outcome: String?",
         "        public let ctx: String?",
         "    }",
         "",
-        "    static func D(_ ms: Int64, outcome: String? = nil, ctx: String? = nil) -> Design {",
-        "        Design(ms: ms, outcome: outcome, ctx: ctx)",
+        f"    static func D(_ ms: Int64, voice: Int64 = {usual}, outcome: String? = nil, ctx: String? = nil) -> Design {{",
+        "        Design(ms: ms, voiceMs: voice, outcome: outcome, ctx: ctx)",
         "    }",
         "",
         "    /// By mood, each state's designs in `states`' order, one a variation:",
@@ -1119,6 +1123,15 @@ def emit_loops(scenes: list[Scene], table: dict[tuple[int, int, int], int],
         "    public static func ms(mood: String, state: String, variant: Int = 1) -> Int64 {",
         "        let row = row(mood: mood, state: state)",
         "        return row[(1...row.count).contains(variant) ? variant - 1 : 0].ms",
+        "    }",
+        "",
+        "    /// When a line that comes with the animation of `mood`'s design for",
+        "    /// `state`, variation `variant` (from 1), starts: its voice window, in",
+        "    /// ms from the design's start; the first variation's for one out of",
+        "    /// range.",
+        "    public static func voiceMs(mood: String, state: String, variant: Int = 1) -> Int64 {",
+        "        let row = row(mood: mood, state: state)",
+        "        return row[(1...row.count).contains(variant) ? variant - 1 : 0].voiceMs",
         "    }",
         "",
         "    /// The longest loop of any design.",
@@ -1248,7 +1261,7 @@ def export() -> list[dict]:
         raise SystemExit(f"the bank's older designs changed: {', '.join(changed) or 'their number'} "
                          "(internal/boop-design/boop-sound-bank-v4/qa/check.mjs says more)")
     rows = [json.dumps({k: a[k] for k in ("id", "mood", "state", "variation", "name", "seconds", "outcome", "ctx",
-                                          "dialect") if k in a}) for a in designs]
+                                          "voiceMs", "dialect") if k in a}) for a in designs]
     MANIFEST.write_text(
         "{\n"
         ' "about": "The device\'s designs, from the animation bank\'s generator '
@@ -1261,12 +1274,12 @@ def export() -> list[dict]:
     return designs
 
 
-def load() -> tuple[list[Scene], dict[tuple[int, int, int], int], dict[tuple[int, int, int], tuple[int, int]],
+def load() -> tuple[list[Scene], dict[tuple[int, int, int], int], dict[tuple[int, int, int], tuple[int, int, int]],
                     dict[int, str], dict[int, Path], dict[tuple[int, int], int]]:
     scenes: list[Scene] = []
     seen: dict[str, int] = {}
     table: dict[tuple[int, int, int], int] = {}  # mood, state, variation (from 0) → scene
-    meta: dict[tuple[int, int, int], tuple[int, int]] = {}  # the same → outcome and context, as numbered
+    meta: dict[tuple[int, int, int], tuple[int, int, int]] = {}  # the same → outcome and context, as numbered, and voice window
     sources: dict[int, str] = {}
     files: dict[int, Path] = {}
     counts: dict[tuple[int, int], int] = {}  # mood, state → how many variations
@@ -1281,7 +1294,7 @@ def load() -> tuple[list[Scene], dict[tuple[int, int, int], int], dict[tuple[int
             sources[seen[k]] = path.name
             files[seen[k]] = path
         table[(m, s, v)] = seen[k]
-        meta[(m, s, v)] = (OUTCOMES.index(a.get("outcome")), CTXS.index(a.get("ctx")))
+        meta[(m, s, v)] = (OUTCOMES.index(a.get("outcome")), CTXS.index(a.get("ctx")), a["voiceMs"])
         counts[(m, s)] = max(counts.get((m, s), 0), v + 1)
     for m in range(len(MOODS)):
         for s in range(len(STATES)):

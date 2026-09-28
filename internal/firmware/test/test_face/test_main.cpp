@@ -92,27 +92,32 @@ static void test_palette_ramps_run_from_black_to_the_ink() {
   TEST_ASSERT_EQUAL_HEX16(rgb565(255, 0, 0), paletteAt(kRed));  // the bring-up pattern's colours stay
 }
 
-// BEHAVIORS.md §5: three animations, and nothing else. The wiggle is
-// 0.7 s; the cheer lasts its loops of its design, and every design has a
-// loop (PROTOCOL.md §3); listening lasts until the reply (DEVICE.md §4).
+// BEHAVIORS.md §5: the animations, each by its design's state's name, and
+// nothing else: the brain's finish (task_complete, reply_ready), the rules'
+// one-shots (starting, stopped, error, helper_return), a tap's (poked,
+// tap_spam) and listening. The older names read as the new: "cheer" is the
+// finish, "wiggle" the poke. Each plays its own design, and every design
+// has a loop (PROTOCOL.md §3).
 static void test_every_anim_has_a_name_and_ends() {
-  TEST_ASSERT_EQUAL_INT(4, int(Anim::kCount));  // with kNone
+  TEST_ASSERT_EQUAL_INT(10, int(Anim::kCount));  // with kNone
+  const char* names[] = {"task_complete", "reply_ready", "starting", "stopped", "error",
+                         "helper_return", "poked",       "tap_spam", "listening"};
   for (int i = 1; i < int(Anim::kCount); ++i) {
     Anim a = Anim(i);
+    TEST_ASSERT_EQUAL_STRING(names[i - 1], animName(a));
     TEST_ASSERT_TRUE(animFromName(animName(a)) == a);
+    TEST_ASSERT_EQUAL_STRING(animName(a), stateName(animState(a)));  // its own design
   }
+  TEST_ASSERT_TRUE(animFromName("cheer") == Anim::kTaskComplete);
+  TEST_ASSERT_TRUE(animFromName("wiggle") == Anim::kPoked);
   for (int m = 0; m < int(Mood::kCount); ++m) {
     for (int s = 0; s < int(SceneState::kCount); ++s) TEST_ASSERT_TRUE(loopMs(Mood(m), SceneState(s)) > 0);
   }
-  for (const char* name : {"cheer", "wiggle", "listening"}) {
-    TEST_ASSERT_TRUE_MESSAGE(animFromName(name) != Anim::kNone, name);
-  }
   for (const char* gone : {"dance", "oops", "side_eye", "stretch", "yawn", "zip", "gobble", "rumble", "levelup",
                            "happy", "proud", "smug", "curious", "sleepy", "worried", "sulky", "love", "nod",
-                           "thinking", "shrug"}) {
+                           "thinking", "shrug", "idle", "working", "terminal", "needs_you", "no_app", "none"}) {
     TEST_ASSERT_TRUE_MESSAGE(animFromName(gone) == Anim::kNone, gone);
   }
-  TEST_ASSERT_EQUAL_UINT32(700, kWiggleMs);
 }
 
 // harness/DECISIONS.md §2.3: the thirteen moods of the mood graph, by the
@@ -217,7 +222,7 @@ static void test_squiggles_make_room_for_the_word() {
     Buf b;
     drawFaceScreen(b.c, SceneShow{}, &m, Strip{});
     int n = 0;
-    for (int y = kBubbleTop; y < kStripTop; ++y) {
+    for (int y = kLaneTop; y < kHeight; ++y) {
       for (int x = 0; x < kWidth; ++x) n += b.c.get(x, y) == inkAt(kInkAmber, kLevels);
     }
     return n;
@@ -229,8 +234,71 @@ static void test_squiggles_make_room_for_the_word() {
   longest.syllables = 2, longest.at = 1, longest.word = "a-very-long-mumbled-word";
   Buf b;
   drawFaceScreen(b.c, SceneShow{}, &longest, Strip{});
-  for (int y = kBubbleTop; y < kStripTop; ++y) {  // cut, but inside the margins
+  for (int y = kLaneTop; y < kHeight; ++y) {  // cut, but inside the margins
     for (int x : {0, 11, kWidth - 12, kWidth - 1}) TEST_ASSERT_EQUAL_INT(kBlack, b.c.get(x, y));
+  }
+}
+
+// DEVICE.md §4, decision D10: the bubble sits in the bottom lane, below
+// y 192, which the animation bank's designs leave for text: it takes the
+// strip's place while it shows and leaves the design above untouched. Over
+// a design that draws to the bottom (the first pack's cheer), it blanks the
+// lane first.
+static void test_the_bubble_takes_the_lane() {
+  Mumble m;
+  m.syllables = 4, m.at = 2, m.word = "yay";
+  Strip s;
+  s.busy = 2, s.doneAgent = "codex", s.doneThread = "landing", s.doneOutcome = Outcome::kSuccess;
+  for (SceneState st : {SceneState::kIdle, SceneState::kTaskComplete}) {
+    SceneShow face;
+    face.state = st;
+    Buf with, without, face0;
+    drawFaceScreen(with.c, face, &m, s);
+    drawFaceScreen(without.c, face, nullptr, s);
+    drawFaceScreen(face0.c, face, nullptr, Strip{});
+    for (int y = 0; y < kLaneTop; ++y) {  // the design, as it was
+      for (int x = 0; x < kWidth; ++x) TEST_ASSERT_EQUAL(face0.c.get(x, y), with.c.get(x, y));
+    }
+    int amber = 0, eye = 0;
+    for (int y = kLaneTop; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        uint8_t v = with.c.get(x, y);
+        amber += v == inkAt(kInkAmber, kLevels);
+        eye += v == inkAt(kInkEye, kLevels);
+        TEST_ASSERT_TRUE(v < faces::kSceneBase);  // the design's colours are gone from the lane
+      }
+    }
+    TEST_ASSERT_TRUE(amber > 20);   // the word
+    TEST_ASSERT_EQUAL_INT(0, eye);  // not the strip's names, which show without it
+    int names = 0;
+    for (int y = kStripTop; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) names += without.c.get(x, y) == inkAt(kInkEye, kLevels);
+    }
+    TEST_ASSERT_TRUE(names > 20);
+  }
+}
+
+// BEHAVIORS.md §5: while the brain's finish plays, the strip names whose
+// turn it was after a mark for its result: a tick for a success, a cross
+// for a failure, three dots for a reply; each draws differently.
+static void test_the_strip_marks_the_finish() {
+  auto mark = [](Outcome o) {
+    Strip s;
+    s.doneAgent = "codex", s.doneThread = "landing", s.doneOutcome = o;
+    Buf b;
+    drawStrip(b.c, s);
+    std::vector<uint8_t> icon;
+    for (int y = kStripTop + 1; y < kHeight; ++y) {
+      for (int x = 0; x < 28; ++x) icon.push_back(b.c.get(x, y));
+    }
+    return icon;
+  };
+  auto tick = mark(Outcome::kSuccess), cross = mark(Outcome::kFailure), dots = mark(Outcome::kNone);
+  TEST_ASSERT_TRUE(tick != cross && cross != dots && tick != dots);
+  for (const auto& icon : {tick, cross, dots}) {
+    int lit = 0;
+    for (uint8_t v : icon) lit += v == inkAt(kInkEye, kLevels);
+    TEST_ASSERT_TRUE(lit > 0);
   }
 }
 
@@ -271,6 +339,8 @@ int main(int, char**) {
   RUN_TEST(test_an_empty_strip_is_bare_glass);
   RUN_TEST(test_the_strip_says_who_needs_you);
   RUN_TEST(test_squiggles_make_room_for_the_word);
+  RUN_TEST(test_the_bubble_takes_the_lane);
+  RUN_TEST(test_the_strip_marks_the_finish);
   RUN_TEST(test_fonts_are_monospaced_and_utf8_aware);
   return UNITY_END();
 }

@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "render/raster.h"
+#include "voice/effects.h"
 
 namespace app {
 
@@ -48,6 +49,22 @@ render::SceneState baseFromName(const char* name) {
   return s == render::SceneState::kWorking || s == render::SceneState::kAsleep ? s : render::SceneState::kIdle;
 }
 
+render::SceneState actFromName(const char* name) {
+  using render::SceneState;
+  SceneState s = render::stateFromName(name);
+  switch (s) {
+    case SceneState::kPlanning:
+    case SceneState::kTerminal:
+    case SceneState::kToolUse:
+    case SceneState::kSearching:
+    case SceneState::kAnalyzing:
+    case SceneState::kTesting:
+    case SceneState::kDelegating:
+    case SceneState::kWaiting: return s;
+    default: return SceneState::kWorking;
+  }
+}
+
 // Forgets everything but what the Mac is owed: each moment it waits on
 // has stopped playing, cut short.
 void Behaviour::reset(uint32_t t, Rng& rng) {
@@ -73,9 +90,17 @@ bool Behaviour::momentOn(uint32_t t) const {
 
 bool Behaviour::listening(uint32_t t) const { return momentOn(t) && moment_.anim == render::Anim::kListening; }
 
-bool Behaviour::held(uint32_t t) const { return (model_.attn && !noApp(t)) || listening(t); }
+// What shows, first first (BEHAVIORS.md §1): no app, listening, needs you,
+// then a tap's poke and the moments, then the look. So with no app, while
+// something needs you and while listening waits for the reply, a tap only
+// dips the face and a moment's animation is skipped.
+bool Behaviour::held(uint32_t t) const { return noApp(t) || model_.attn || listening(t); }
 
 bool Behaviour::sayOn(uint32_t t) const { return say_.say.syllables > 0 && within(t, say_.at, say_.ms); }
+
+bool Behaviour::sayDue(uint32_t t) const {
+  return say_.say.syllables > 0 && int32_t(t - say_.at) < int32_t(say_.ms);
+}
 
 bool Behaviour::exprOn(uint32_t t) const { return expr_ && within(t, exprAt_, exprMs_); }
 
@@ -93,11 +118,12 @@ uint32_t Behaviour::blinkGap(Rng& rng) const {
   return uint32_t(rng.range(lo, hi));
 }
 
-// A blink, unless an animation is playing or Boop is asleep.
+// A blink, unless an animation is playing, Boop is asleep, or the look is
+// a flip-book, which blinks by itself.
 void Behaviour::startBlink(uint32_t t, Rng& rng) {
   Source s = sourceAt(t);
   blink_ = s.anim == render::Anim::kNone && s.look != render::SceneState::kAsleep &&
-           s.look != render::SceneState::kNoApp;
+           s.look != render::SceneState::kNoApp && !render::blinksItself(s.mood, s.look, s.lookVariant);
   blinkAt_ = t;
   nextBlink_ = t + (blink_ ? kBlinkMs : 0) + blinkGap(rng);
 }
@@ -149,16 +175,17 @@ void Behaviour::resync(uint32_t t) {
 // source, so the face doesn't change.
 void Behaviour::settle(uint32_t t) {
   if (switched_ && !within(t, switchAt_, render::kBlendMs)) switched_ = false;
-  if (say_.say.syllables > 0 && !within(t, say_.at, say_.ms)) say_ = Say{};
+  if (say_.say.syllables > 0 && !sayDue(t)) say_ = Say{};
   if (blFade_ && !within(t, blAt_, render::kBlendMs)) blFade_ = false;
 }
 
 // ---- Taking turns (BEHAVIORS.md §2) ---------------------------------------
 
-// Only the base's looks loop on: needs you holds its pose, and no app has
-// its one design. A moment or its expression holds the look as it is.
+// Only the looks that loop on take turns: needs you holds its pose, and no
+// app has its one design. A moment or its expression holds the look as it
+// is.
 bool Behaviour::turnable(uint32_t t) const {
-  return !held(t) && !noApp(t) && !momentOn(t) && !exprOn(t) && render::variants(model_.mood, model_.base) > 1;
+  return !held(t) && !momentOn(t) && !exprOn(t) && render::variants(model_.mood, model_.look()) > 1;
 }
 
 uint32_t Behaviour::loopEnd(uint32_t t) const {
@@ -172,7 +199,7 @@ uint32_t Behaviour::loopEnd(uint32_t t) const {
 void Behaviour::turn(uint32_t t, Rng& rng) {
   if (!turnable(t) || int32_t(t - lookAt_) < int32_t(kTurnMinMs)) return;
   if (rng.range(1, 100) > kTurnPct) return;  // another loop of this one
-  int v = rng.range(0, render::variants(model_.mood, model_.base) - 2);
+  int v = rng.range(0, render::variants(model_.mood, model_.look()) - 2);
   if (v >= lookVariant_) ++v;
   change(t, [&] { lookVariant_ = uint8_t(v); });
 }
@@ -184,7 +211,7 @@ void Behaviour::turn(uint32_t t, Rng& rng) {
 // was stopped early. Its expression holds on after its mumble, and ending
 // that early doesn't cut it: the reaction was seen and heard.
 bool Behaviour::holds(uint32_t id, uint32_t t) const {
-  return (momentOn(t) && moment_.id == id) || (sayOn(t) && say_.id == id) || (exprOn(t) && exprId_ == id);
+  return (momentOn(t) && moment_.id == id) || (sayDue(t) && say_.id == id) || (exprOn(t) && exprId_ == id);
 }
 
 void Behaviour::wait(uint32_t id, uint8_t from) {
@@ -253,7 +280,7 @@ void Behaviour::onState(const Model& m, uint32_t t) {
                             std::strncmp(model_.project, m.project, sizeof(m.project)));
     // Another visual, or another variation of it from the Mac, starts the
     // looks' turns over from the Mac's; the same one again leaves them.
-    bool look = m.attn != model_.attn || m.base != model_.base || m.variant != model_.variant;
+    bool look = m.attn != model_.attn || m.look() != model_.look() || m.variant != model_.variant;
     model_ = m;
     if (look) lookVariant_ = m.variant;
     lastState_ = t;
@@ -266,7 +293,7 @@ void Behaviour::onState(const Model& m, uint32_t t) {
       // Listening is the one moment that plays on (BEHAVIORS.md §1), so
       // push-to-talk still works.
       if (momentOn(t) && !listening(t)) cut(moment_.id, CutBy::kNeedsYou), moment_.anim = render::Anim::kNone;
-      if (sayOn(t)) cut(say_.id, CutBy::kNeedsYou);
+      if (sayDue(t)) cut(say_.id, CutBy::kNeedsYou);
       say_ = Say{};  // no mumbles while something needs you
       expr_ = false;
     }
@@ -275,51 +302,64 @@ void Behaviour::onState(const Model& m, uint32_t t) {
   });
 }
 
-// A moment with an anim replaces the one playing, and its mumble too; the
-// cheer plays its loops. A mumble on its own plays over whatever face is
-// showing, replacing any line (PROTOCOL.md §3). A moment with an
-// expression draws the look in its mood for as long as its animation
-// plays, or with none for its loops of the design it's drawn in, and at
-// least as long as its mumble and bubble. Attention wins (BEHAVIORS.md
-// §1): while something needs you, no animation takes the face over and no
-// mumble plays. A moment the Mac waits on that plays nothing ends at once,
-// skipped.
+// A moment with an animation replaces the one playing, and its mumble too;
+// the animation plays its loops of its design. A mumble on its own plays
+// over whatever face is showing, replacing any line (PROTOCOL.md §3). With
+// an animation, the line starts at its design's voice window (VOICE.md
+// §10), and the animation holds on until the line and its bubble are over
+// rather than the line being hurried. A moment with an expression draws
+// the design showing in its mood for as long as its animation plays, or
+// with none for its loops of the design it's drawn in, and at least as long
+// as its mumble and bubble. What outranks the moments (BEHAVIORS.md §1): no
+// app, and while something needs you no animation takes the face over and
+// no mumble plays. A moment the Mac waits on that plays nothing ends at
+// once, skipped.
 //
-// Listening (DEVICE.md §4) plays even then, and holds until the reply: any
-// moment with a `say` is the reply, and ends it before playing as it would
-// have; so does the empty moment, which does nothing else. Until then no
-// other animation plays. A listening moment while listening carries on
-// with the same design, its time starting over.
+// Listening (DEVICE.md §4) plays even while something needs you, and holds
+// until the reply: a moment with a `say` is the reply, and ends it before
+// playing as it would have; so does the empty moment, which does nothing
+// else. Nothing else ends it or plays while it waits: not a one-shot, a
+// finish, a face on its own or an animation the device doesn't know. A
+// listening moment while listening carries on with the same design, its
+// time starting over.
 bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
   if (in.id) forget(in.id);
   const bool listen = in.anim == render::Anim::kListening;
   if (listening(t) && !listen && (in.said || in.empty)) change(t, [&] { moment_.anim = render::Anim::kNone; });
   bool anim = in.anim != render::Anim::kNone && (listen || !held(t));
-  bool mumble = in.syllables > 0 && !model_.attn;
+  bool mumble = in.syllables > 0 && !model_.attn && !noApp(t);
   if (!anim && !mumble) {
     if (in.id) report(Ended{in.id, MomentEnd::kSkipped, CutBy::kNone, in.from});
     return false;
   }
   change(t, [&] {
+    const render::Mood mood = in.expr ? in.mood : model_.mood;  // the mood it's drawn in
+    uint32_t voice = 0;  // when its line starts, from t
     if (anim && listen && listening(t)) {
       if (moment_.id && moment_.id != in.id) cut(moment_.id, CutBy::kMoment);
       moment_.ms = (t - moment_.at) + kListenMs + kReplyWaitMs;
       moment_.id = in.id;
     } else if (anim) {
-      play(in.anim, t, CutBy::kMoment, in.loops, in.expr ? in.mood : model_.mood, in.variant);
+      play(in.anim, t, CutBy::kMoment, in.loops, mood, in.variant);
       moment_.id = in.id;
-      if (in.anim == render::Anim::kCheer && in.whoAgent && in.whoAgent[0]) {
+      bool finish = in.anim == render::Anim::kTaskComplete || in.anim == render::Anim::kReplyReady;
+      if (finish && in.whoAgent && in.whoAgent[0]) {
         copyStr(moment_.agent, sizeof(moment_.agent), in.whoAgent);
         copyStr(moment_.thread, sizeof(moment_.thread), in.whoThread);
       }
+      if (!listen) voice = voice::score(int(mood), int(render::animState(in.anim)), in.variant).voiceMs;
     }
-    if (mumble) startSay(in, t), say_.id = in.id;
+    if (mumble) {
+      startSay(in, t, t + voice);
+      say_.id = in.id;
+      if (anim && !listen && voice + say_.ms > moment_.ms) moment_.ms = voice + say_.ms;
+    }
     if (in.expr) {
       expr_ = true;
       exprMood_ = in.mood;
       exprAt_ = t;
       exprMs_ = anim ? moment_.ms : holdMs(in.mood, in.loops, t);
-      if (mumble && say_.ms > exprMs_) exprMs_ = say_.ms;
+      if (mumble && voice + say_.ms > exprMs_) exprMs_ = voice + say_.ms;
       exprId_ = in.id;
     }
     if (in.id) wait(in.id, in.from);
@@ -327,41 +367,59 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
   return mumble;
 }
 
+uint8_t Behaviour::pick(render::Anim a, render::Mood mood, int wanted, render::Outcome o, render::StartCtx c,
+                        Rng& rng) const {
+  const render::SceneState s = render::animState(a);
+  uint8_t fit[render::kMaxVariants];
+  int n = render::fitting(mood, s, o, c, fit);
+  for (int i = 0; i < n; ++i) {
+    if (fit[i] + 1 == wanted) return fit[i];
+  }
+  uint8_t others[render::kMaxVariants];
+  int k = 0;
+  for (int i = 0; i < n; ++i) {
+    if (fit[i] + 1 != last_[int(s)]) others[k++] = fit[i];
+  }
+  if (k <= 1) return k ? others[0] : fit[0];  // one to choose: no roll
+  return others[rng.range(0, k - 1)];
+}
+
 // Whatever of the moment playing still plays is cut short, by `by`.
 void Behaviour::play(render::Anim a, uint32_t t, CutBy by, int loops, render::Mood mood, uint8_t variant) {
   if (momentOn(t)) cut(moment_.id, by);
-  if (sayOn(t)) cut(say_.id, by);
+  if (sayDue(t)) cut(say_.id, by);
   moment_ = Moment{};
   ++momentSeq_;
   moment_.anim = a;
   moment_.variant = variant;
   moment_.at = t;
-  moment_.ms = a == render::Anim::kWiggle ? render::kWiggleMs
-               : a == render::Anim::kCheer
-                   ? uint32_t(loops) * render::loopMs(mood, render::SceneState::kTaskComplete, variant)
-               : a == render::Anim::kListening ? kListenMs + kReplyWaitMs
-                                               : 0;
-  if (a == render::Anim::kListening) lastListen_ = variant;
+  const render::SceneState s = render::animState(a);
+  if (a == render::Anim::kListening) {
+    moment_.ms = kListenMs + kReplyWaitMs;
+    moment_.playMs = UINT32_MAX;  // its design loops on until the reply
+  } else {
+    moment_.ms = moment_.playMs = uint32_t(loops) * render::loopMs(mood, s, variant);
+  }
+  moment_.outcome = render::variantOutcome(mood, s, variant);
+  last_[int(s)] = uint8_t(variant + 1);
   say_ = Say{};  // a new moment replaces the line, and its expression
   expr_ = false;
   blink_ = false;
 }
 
-// The design is the cheer's while one plays, on the cheer's clock, else
-// the look's, on the look's; the first loop ends at its clock's next
-// boundary after t, so it can be short. A later change of look or cheer
-// doesn't move the end.
+// The design is the animation's while one plays, on its clock, else the
+// look's, on the look's; the first loop ends at its clock's next boundary
+// after t, so it can be short. A later change of look or animation doesn't
+// move the end.
 uint32_t Behaviour::holdMs(render::Mood mood, int loops, uint32_t t) const {
-  bool cheer = momentOn(t) && moment_.anim == render::Anim::kCheer;
   Source src = sourceAt(t);
-  uint32_t loop = cheer ? render::loopMs(mood, render::SceneState::kTaskComplete, moment_.variant)
-                        : render::loopMs(mood, src.look, src.lookVariant);
-  uint32_t into = (t - (cheer ? moment_.at : lookAt_)) % loop;
+  uint32_t loop = render::loopMs(mood, src.state(), src.variant());
+  uint32_t into = (t - (src.anim != render::Anim::kNone ? src.at : lookAt_)) % loop;
   return loop - into + uint32_t(loops - 1) * loop;
 }
 
-void Behaviour::startSay(const MomentIn& in, uint32_t t) {
-  if (sayOn(t)) cut(say_.id, CutBy::kMoment);
+void Behaviour::startSay(const MomentIn& in, uint32_t t, uint32_t at) {
+  if (sayDue(t)) cut(say_.id, CutBy::kMoment);
   say_ = Say{};
   expr_ = false;  // a new line ends the last moment's expression
   ++momentSeq_;
@@ -372,10 +430,8 @@ void Behaviour::startSay(const MomentIn& in, uint32_t t) {
   s.say.at = s.word[0] ? in.at : -1;
   s.sylMs = in.ms;
   s.speakMs = uint32_t(in.syllables + (s.word[0] ? 2 : 0)) * s.sylMs;  // a word is two beats
-  s.at = t;
+  s.at = at;
   s.ms = s.speakMs + kBubbleReadMs;
-  // With an animation, the bubble stays at least as long as it plays.
-  if (moment_.anim != render::Anim::kNone && moment_.at == t && moment_.ms > s.ms) s.ms = moment_.ms;
 }
 
 // ---- Inputs ----------------------------------------------------------------
@@ -387,18 +443,18 @@ void Behaviour::pressDown(uint32_t t) {
 
 void Behaviour::pressUp() { pressed_ = false; }
 
-// While the face is held, a tap shows the press dip only.
-void Behaviour::tap(uint32_t t) {
+// Every tap counts in the run, those that only dip the face too, as the
+// Mac counts pokes; while the face is held, a tap shows the press dip only.
+// Otherwise it plays poked in Boop's mood, or tap_spam from the run's
+// third tap on, cutting whatever plays.
+void Behaviour::tap(uint32_t t, Rng& rng) {
+  bool inRun = tapped_ && int32_t(t - lastTap_) < int32_t(kTapRunMs);
+  taps_ = inRun && taps_ < 1000 ? taps_ + 1 : inRun ? taps_ : 1;
+  tapped_ = true, lastTap_ = t;
   if (held(t)) return;
-  change(t, [&] { play(render::Anim::kWiggle, t, CutBy::kTap); });
-}
-
-uint8_t Behaviour::pickListen(Rng& rng) const {
-  int n = render::variants(model_.mood, render::SceneState::kListening);
-  if (n <= 1) return 0;
-  if (lastListen_ >= n) return uint8_t(rng.range(0, n - 1));
-  int v = rng.range(0, n - 2);
-  return uint8_t(v >= lastListen_ ? v + 1 : v);
+  const render::Anim a = taps_ >= kTapSpamFrom ? render::Anim::kTapSpam : render::Anim::kPoked;
+  const uint8_t v = pick(a, model_.mood, 0, render::Outcome::kNone, render::StartCtx::kNone, rng);
+  change(t, [&] { play(a, t, CutBy::kTap, 1, model_.mood, v); });
 }
 
 // BOOT held: listening at once, even while something needs you, cutting
@@ -406,8 +462,12 @@ uint8_t Behaviour::pickListen(Rng& rng) const {
 // mic), it carries on with the same design.
 void Behaviour::talkOn(uint32_t t, Rng& rng) {
   change(t, [&] {
-    if (listening(t)) moment_.ms = (t - moment_.at) + kListenMs + kReplyWaitMs;
-    else play(render::Anim::kListening, t, CutBy::kTap, 1, model_.mood, pickListen(rng));
+    if (listening(t)) {
+      moment_.ms = (t - moment_.at) + kListenMs + kReplyWaitMs;
+    } else {
+      uint8_t v = pick(render::Anim::kListening, model_.mood, 0, render::Outcome::kNone, render::StartCtx::kNone, rng);
+      play(render::Anim::kListening, t, CutBy::kTap, 1, model_.mood, v);
+    }
   });
 }
 
@@ -427,46 +487,46 @@ Screen Behaviour::screen(uint32_t t) const {
   return model_.attn ? Screen::kNeedsYou : Screen::kFace;
 }
 
+// No app shows over everything; then an animation (listening only, while
+// something needs you) over the look: needs you's, or what the agents are
+// doing, idle, working or asleep.
 Behaviour::Source Behaviour::sourceAt(uint32_t t) const {
   Source s;
+  if (noApp(t)) {  // no Mac to pick a variation: the first
+    s.look = render::SceneState::kNoApp;
+    s.mood = model_.mood;
+    return s;
+  }
   s.mood = exprOn(t) ? exprMood_ : model_.mood;  // the moment's expression, or the mood
-  if (noApp(t)) {
-    s.look = render::SceneState::kNoApp;  // no Mac to pick one: the first
-  } else if (model_.attn) {
+  if (model_.attn) {
     s.look = render::SceneState::kNeedsYou;
     s.lookVariant = model_.variant;
   } else {
-    s.look = model_.base;
+    s.look = model_.look();
     s.lookVariant = lookVariant_;
   }
   if (momentOn(t)) s.anim = moment_.anim, s.at = moment_.at, s.animVariant = moment_.variant;
   return s;
 }
 
-// The design and its clock: the cheer's from when it began, starting over
-// each loop, a look's from when the look began, so a tap's wiggle doesn't
-// restart it. On top: a blink, or the blink that hides a change of design;
-// the wiggle's sway and heart; the bubble taking the prop's room, and the
-// mouth an "o" for the first half of each syllable; and the press's dip.
+// The design and its clock: an animation's from when it began, starting
+// over each loop and resting on its last frame once its loops are over, a
+// look's from when the look began. On top: a blink, or the blink that hides
+// a change of design; the mouth an "o" for the first half of each syllable;
+// and the press's dip.
 render::SceneShow Behaviour::show(uint32_t t) const {
   render::SceneShow s;
   s.mood = src_.mood;
   s.state = src_.state();
   s.variant = src_.variant();
   s.t = designMs(t);
-  if (src_.animDesign()) s.t %= render::loopMs(s.mood, s.state, s.variant);
+  const uint32_t loop = render::loopMs(s.mood, s.state, s.variant);
+  if (src_.anim != render::Anim::kNone) s.t = s.t >= moment_.playMs ? loop - 1 : s.t % loop;
   // Needs you's performance plays once, then holds its pending pose, the
   // frame it starts and ends on (the animation bank's contract).
-  if (s.state == render::SceneState::kNeedsYou && s.t >= render::loopMs(s.mood, s.state, s.variant)) s.t = 0;
-  if (src_.anim == render::Anim::kWiggle) {
-    // Two slow sways, not a shiver: at 175 ms and 7 px it read as trembling.
-    uint32_t lt = t - src_.at;
-    s.dx = int16_t(3 * render::isin(int(lt % 350 * 1024 / 350)) / 1024);
-    s.heart = lt < 100 ? 1 : 2;
-  }
+  if (s.state == render::SceneState::kNeedsYou && s.t >= loop) s.t = 0;
   s.eyesShut = blinking(t) || (switched_ && within(t, switchAt_, render::kBlendMs));
   if (sayOn(t)) {
-    s.hideProp = true;
     uint32_t lt = t - say_.at;
     s.mouthOpen = say_.sylMs && lt < say_.speakMs && lt % say_.sylMs < say_.sylMs / 2;
   }
@@ -506,20 +566,25 @@ uint8_t Behaviour::blTarget(uint32_t t) const {
 }
 
 // With no app the Mac's counts are stale, so only the unplugged
-// icon shows (BEHAVIORS.md §3.4). While a cheer plays, whose turn it
-// cheers (BEHAVIORS.md §5).
+// icon shows (BEHAVIORS.md §3.4). While the brain's finish plays, whose
+// turn it was (BEHAVIORS.md §5).
 render::Strip Behaviour::strip(uint32_t t) const {
   render::Strip s;
   s.noApp = noApp(t);
   if (s.noApp) return s;
   s.busy = model_.busy;
   if (model_.attn) s.agent = model_.agent, s.project = model_.project, s.name = model_.name, s.more = model_.more;
-  if (momentOn(t) && moment_.anim == render::Anim::kCheer && moment_.agent[0])
-    s.doneAgent = moment_.agent, s.doneThread = moment_.thread;
+  bool finish = moment_.anim == render::Anim::kTaskComplete || moment_.anim == render::Anim::kReplyReady;
+  if (momentOn(t) && finish && moment_.agent[0]) {
+    s.doneAgent = moment_.agent, s.doneThread = moment_.thread, s.doneOutcome = moment_.outcome;
+  }
   return s;
 }
 
-const render::Mumble* Behaviour::mumble(uint32_t t) const { return sayOn(t) ? &say_.say : nullptr; }
+// With no app, no line shows: it outranks the moments.
+const render::Mumble* Behaviour::mumble(uint32_t t) const { return sayOn(t) && !noApp(t) ? &say_.say : nullptr; }
+
+bool Behaviour::lineAhead(uint32_t t) const { return sayDue(t) && !sayOn(t); }
 
 render::Anim Behaviour::moment(uint32_t t, uint32_t& left) const {
   if (!momentOn(t)) {

@@ -102,11 +102,13 @@ function timeline(d) {
   // (score.mjs cycleHasSound): 0, every, 2 × every…
   const every = score.policy === 'sparse' ? Math.max(1, Math.ceil(score.intervalSeconds / score.seconds)) : 1;
   const guarded = protectedSoundStates.includes(d.state);
-  // The voice window (mood-art.mjs voiceWindows): after a guarded design's
-  // attention cue, or from 0.45 s. The bank works it out for the new moods'
-  // designs; the older ones' follow the same rule on their own timelines.
-  const start = guarded ? Math.max(0, ...score.events.map(e => e.at + effects[e.effect].duration)) + 0.12 : 0.45;
-  const voiceMs = Math.round(Number(start.toFixed(6)) * 1000);
+  // The voice window, as facegen lists it (its bank.mjs works it out by the
+  // bank's rule, mood-art.mjs voiceWindows), so the Mac's FaceLoops has the
+  // same: the bank's own reckoning for the new moods' designs must agree.
+  const voiceMs = d.voiceMs;
+  if (!Number.isInteger(voiceMs) || voiceMs < 0 || voiceMs >= 65536) {
+    throw new Error(`${d.id}: no voice window in the manifest: run make -C internal faces first`);
+  }
   if (d.dialect === 'v4' && voiceMs !== Math.round(voiceWindows(getAsset(d.id)).earliestEntry * 1000)) {
     throw new Error(`${d.id}: its voice window isn't the bank's`);
   }

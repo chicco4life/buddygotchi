@@ -1,6 +1,6 @@
-// The animation set (plan/BEHAVIORS.md §5) by name, and Boop's mood. What
-// each look and animation looks like in each mood is its mood design, which
-// render/scene.h draws.
+// The animation set (plan/BEHAVIORS.md §5) by name, and Boop's mood. Each
+// animation plays a design of its own in a mood (render/scene.h animState),
+// which render/scene.h draws.
 #pragma once
 #include <cstdint>
 
@@ -8,18 +8,22 @@ namespace render {
 
 enum class Anim : uint8_t {
   kNone,
-  kCheer,
-  kWiggle,
+  kTaskComplete,  // the brain's finish: a turn done or failed ("cheer" is its success)
+  kReplyReady,    // the brain's finish: an answer, or a question back
+  kStarting,      // the rules' one-shots (plan/PROTOCOL.md §3)
+  kStopped,
+  kError,
+  kHelperReturn,
+  kPoked,      // a tap; the Mac's "wiggle" reads as one
+  kTapSpam,    // the third tap in a row and on
   kListening,  // push-to-talk: the listening design, until the reply
   kCount,
 };
 
-Anim animFromName(const char* name);  // kNone if unknown
-const char* animName(Anim a);
-// A tap's wiggle is always this long. The cheer lasts its loops of its
-// design (render/scene.h loopMs, plan/BEHAVIORS.md §5), and listening until
-// the reply (app/behaviour.h).
-constexpr uint32_t kWiggleMs = 700;
+// By the names the Mac sends: kNone if unknown. "cheer" reads as
+// kTaskComplete (the device plays a success) and "wiggle" as kPoked.
+Anim animFromName(const char* name);
+const char* animName(Anim a);  // the design's state's name, such as "task_complete"
 
 // Boop's mood, which picks the set of designs every look and animation is
 // drawn in (plan/PROTOCOL.md §3, plan/harness/DECISIONS.md §2.3), in

@@ -4,7 +4,7 @@
 {"clock":0}
 {"t":"state","v":1,"base":"working","busy":1}
 {"clock":1000}
-{"t":"moment","anim":"cheer","say":{"syl":"bi do ba na","word":"done!","at":4,"tune":"up","ms":120}}
+{"t":"moment","say":{"syl":"bi do ba na","word":"done!","at":4,"tune":"up","ms":120}}
 {"clock":1400}
 {"shot":"word-at-end"}
 {"clock":10000}
@@ -30,13 +30,14 @@
 {"expect":{"moment":null,"audio":{"playing":false,"syllables":0}}}
 {"clock":34000}
 {"shot":"bubble-gone"}
-// Over an animation, a mumble leaves it playing.
+// Over an animation, a mumble leaves it playing, and plays at once; the
+// bubble blanks the lane, which the first pack's cheer fills with gold.
 {"t":"state","v":1,"base":"idle"}
 {"clock":40000}
-{"t":"moment","anim":"cheer"}
+{"t":"moment","anim":"cheer","variant":1}
 {"clock":40300}
 {"t":"moment","say":{"syl":"ba-na po","word":"yay","at":3,"tune":"up","ms":120}}
-{"expect":{"moment":{"anim":"cheer","left_ms":6100},"audio":{"playing":true,"syllables":3}}}
+{"expect":{"moment":{"anim":"task_complete","left_ms":6100},"audio":{"playing":true,"syllables":3}}}
 {"clock":40500}
 {"shot":"over-cheer"}
 // The word is what matters: squiggles make room for it before it's cut.

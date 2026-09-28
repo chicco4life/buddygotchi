@@ -163,41 +163,32 @@ static void test_variations_for_a_result_or_a_context() {
   TEST_ASSERT_EQUAL_STRING("", ctxName(StartCtx::kNone));
 }
 
-// A blink shows the design's closed eyes: only the face changes. The new
-// moods' designs are flip-books that blink in a step of their own, on
-// their own clock, so the device's blink leaves them be (DEVICE.md §6).
+// Shut eyes, a blink's or the one that hides a change of design, show the
+// design's closed eyes: only the face changes. The first pack's designs
+// shut their eyes; a new mood's flip-book shows the face of its own blink
+// step in place of the step showing (DEVICE.md §6, and which designs blink
+// by themselves).
 static void test_a_blink_shows_the_closed_eyes() {
   for (int m = 0; m < int(Mood::kCount); ++m) {
-    Buf open, shut;
-    open.draw(show(Mood(m), SceneState::kIdle));
-    SceneShow s = show(Mood(m), SceneState::kIdle);
-    s.eyesShut = true;
-    shut.draw(s);
-    Box d = differ(open, shut);
-    if (m >= int(Mood::kCalm)) {
-      TEST_ASSERT_TRUE(d.empty());
-      continue;
+    for (SceneState st : {SceneState::kIdle, SceneState::kWorking, SceneState::kPoked, SceneState::kTaskComplete}) {
+      if (st == SceneState::kTaskComplete && m < int(Mood::kCalm)) continue;  // the first pack's cheers, colour to the edges
+      Buf open, shut;
+      open.draw(show(Mood(m), st, 300));
+      SceneShow s = show(Mood(m), st, 300);
+      TEST_ASSERT_FALSE(eyesClosed(s));
+      s.eyesShut = true;
+      TEST_ASSERT_TRUE(eyesClosed(s));
+      TEST_ASSERT_EQUAL(m >= int(Mood::kCalm), blinksItself(Mood(m), st, 0));
+      shut.draw(s);
+      Box d = differ(open, shut);
+      TEST_ASSERT_FALSE(d.empty());
+      TEST_ASSERT_TRUE(d.y0 >= 40 && d.y1 < 150);  // the face
     }
-    TEST_ASSERT_FALSE(d.empty());
-    TEST_ASSERT_TRUE(d.y0 >= 40 && d.y1 < 130);  // the eyes, above the mouth
   }
 }
 
-// The bubble takes the props' room: the working props go, the face stays.
-static void test_the_prop_can_make_room() {
-  for (int v = 0; v < variants(Mood::kHappy, SceneState::kWorking); ++v) {
-    Buf with, without;
-    with.draw(show(Mood::kHappy, SceneState::kWorking, 0, v));
-    SceneShow s = show(Mood::kHappy, SceneState::kWorking, 0, v);
-    s.hideProp = true;
-    without.draw(s);
-    Box d = differ(with, without);
-    TEST_ASSERT_FALSE(d.empty());
-    TEST_ASSERT_TRUE(d.y0 >= 144);  // the props' band (render/screens.h kBubbleTop)
-  }
-}
-
-// Talking, the mouth is a small "o" where it was.
+// Talking, the mouth is a small "o" where it was, in its colour: the
+// first pack's where it always sat.
 static void test_the_mouth_opens_to_talk() {
   Buf closed, talking;
   closed.draw(show(Mood::kHappy, SceneState::kIdle));
@@ -207,14 +198,36 @@ static void test_the_mouth_opens_to_talk() {
   Box d = differ(closed, talking);
   TEST_ASSERT_FALSE(d.empty());
   TEST_ASSERT_TRUE(d.x0 >= 145 && d.x1 < 175 && d.y0 >= 125 && d.y1 < 142);
-  TEST_ASSERT_EQUAL(sceneInk(1), talking.at(154, 129));  // the o's ring
+  TEST_ASSERT_EQUAL(sceneInk(1), talking.at(154, 129));  // the o's ring, at (153, 128)
+  TEST_ASSERT_EQUAL(sceneInk(1), talking.at(153, 128));
   TEST_ASSERT_EQUAL(kBlack, talking.at(160, 134));       // its hole
+  // The first pack's cheer draws its face dark on gold: the o is dark too.
+  Buf cheer;
+  SceneShow c = show(Mood::kHappy, SceneState::kTaskComplete, 300);
+  c.mouthOpen = true;
+  cheer.draw(c);
+  Buf shut;
+  c.mouthOpen = false;
+  shut.draw(c);
+  Box o = differ(shut, cheer);
+  TEST_ASSERT_FALSE(o.empty());
+  TEST_ASSERT_EQUAL(cheer.at(o.x0 + 1, o.y0 + 1), cheer.at(o.x0 + 1, o.y1));  // one colour, all round
+  TEST_ASSERT_NOT_EQUAL(sceneInk(1), cheer.at(o.x0 + 1, o.y0 + 1));
 }
 
 // A flip-book has a face, with its mouth, in each step: talking opens the
-// mouth of the face that shows, wherever that step has put it, and only the
-// mouth changes.
+// mouth of the face that shows, wherever that step has put it, on the mouth
+// it draws, and only the mouth changes.
 static void test_a_flip_book_talks_with_the_face_that_shows() {
+  // Calm's mouth at rest is 22 × 4 px at (149, 123): the o sits on it.
+  Buf rest, open;
+  rest.draw(show(Mood::kCalm, SceneState::kIdle));
+  SceneShow t = show(Mood::kCalm, SceneState::kIdle);
+  t.mouthOpen = true;
+  open.draw(t);
+  Box o = differ(rest, open);
+  TEST_ASSERT_TRUE(o.y0 <= 123 && o.y1 >= 126);  // over the lips, not below them
+  TEST_ASSERT_TRUE(o.x0 >= 149 && o.x1 <= 170);
   for (Mood m : {Mood::kCalm, Mood::kIrritated, Mood::kWhiny}) {
     uint32_t loop = loopMs(m, SceneState::kWorking);
     int moved = 0;
@@ -235,19 +248,19 @@ static void test_a_flip_book_talks_with_the_face_that_shows() {
   }
 }
 
-// A tap's sway or a press moves the whole face; the props stay.
+// A press moves the whole face; the props stay.
 static void test_the_face_moves_as_one() {
   Buf still, moved, back;
   still.draw(show(Mood::kHappy, SceneState::kWorking));
   SceneShow s = show(Mood::kHappy, SceneState::kWorking);
-  s.dx = 3, s.dy = 2;
+  s.dy = 2;
   moved.draw(s);
   int same = 0, face = 0;
   for (int y = 40; y < 140; ++y) {
     for (int x = 40; x < 290; ++x) {
       if (still.at(x, y) == kBlack) continue;
       ++face;
-      same += moved.at(x + 3, y + 2) == still.at(x, y);
+      same += moved.at(x, y + 2) == still.at(x, y);
     }
   }
   TEST_ASSERT_TRUE(face > 100);
@@ -263,14 +276,14 @@ static void test_a_flip_book_face_moves_as_one() {
     Buf still, moved;
     still.draw(show(Mood::kEngaged, SceneState::kIdle, t));
     SceneShow s = show(Mood::kEngaged, SceneState::kIdle, t);
-    s.dx = 3, s.dy = 2;
+    s.dy = 2;
     moved.draw(s);
     int same = 0, face = 0;
     for (int y = 40; y < 140; ++y) {
       for (int x = 40; x < 290; ++x) {
         if (still.at(x, y) == kBlack) continue;
         ++face;
-        same += moved.at(x + 3, y + 2) == still.at(x, y);
+        same += moved.at(x, y + 2) == still.at(x, y);
       }
     }
     TEST_ASSERT_TRUE(face > 100);
@@ -335,7 +348,6 @@ int main(int, char**) {
   RUN_TEST(test_variations_and_shared_designs);
   RUN_TEST(test_variations_for_a_result_or_a_context);
   RUN_TEST(test_a_blink_shows_the_closed_eyes);
-  RUN_TEST(test_the_prop_can_make_room);
   RUN_TEST(test_the_mouth_opens_to_talk);
   RUN_TEST(test_a_flip_book_talks_with_the_face_that_shows);
   RUN_TEST(test_the_face_moves_as_one);

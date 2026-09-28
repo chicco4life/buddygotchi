@@ -1,20 +1,22 @@
-// Every animation (BEHAVIORS.md §5), at a characteristic frame. The cheer
-// plays its `loops` of happy's task-complete design (6.4 s), one when the
-// moment doesn't say. With `who`, the strip names whose turn it cheers.
+// The older names for the animations (BEHAVIORS.md §5), at a
+// characteristic frame. The cheer is the finish's success: its `loops` of
+// happy's first task-complete design (6.4 s), one when the moment doesn't
+// say. With `who`, the strip names whose turn it cheers, after a tick. The
+// dashboard's wiggle is a tap's poke.
 {"clock":0}
 {"t":"state","v":1,"base":"idle"}
 {"clock":10000}
-{"t":"moment","anim":"cheer"}
+{"t":"moment","anim":"cheer","variant":1}
 {"clock":10190}
-{"expect":{"moment":{"anim":"cheer"}}}
+{"expect":{"moment":{"anim":"task_complete","variant":1}}}
 {"shot":"cheer"}
 {"clock":16399}
-{"expect":{"moment":{"anim":"cheer","left_ms":1}}}
+{"expect":{"moment":{"anim":"task_complete","left_ms":1}}}
 {"clock":16400}
 {"expect":{"moment":null}}
 {"t":"state","v":1,"base":"idle","busy":2}
 {"clock":20000}
-{"t":"moment","anim":"cheer","who":{"agent":"codex","thread":"landing-page-redesig.."}}
+{"t":"moment","anim":"cheer","variant":1,"who":{"agent":"codex","thread":"landing-page-redesig.."}}
 {"clock":20190}
 {"shot":"cheer_who"}
 {"clock":26400}
@@ -23,16 +25,16 @@
 {"clock":30000}
 {"t":"moment","anim":"wiggle"}
 {"clock":30090}
-{"expect":{"moment":{"anim":"wiggle"}}}
-{"shot":"wiggle"}
+{"expect":{"moment":{"anim":"poked","left_ms":2710}}}
+{"shot":"poked"}
 {"t":"state","v":1,"base":"idle"}
-// The empty moment, with neither `anim` nor `say`, never ends a cheer
-// (PROTOCOL.md §3).
+// The empty moment, with neither `anim`, `say` nor `mood`, never ends
+// another animation (PROTOCOL.md §3).
 {"clock":50000}
-{"t":"moment","anim":"cheer"}
+{"t":"moment","anim":"cheer","variant":1}
 {"clock":50500}
 {"t":"moment"}
-{"expect":{"moment":{"anim":"cheer","left_ms":5900}}}
+{"expect":{"moment":{"anim":"task_complete","left_ms":5900}}}
 {"t":"state","v":1,"base":"idle"}
 // The Mac's own listening (DEVICE.md §4) holds until the reply; the empty
 // moment ends it and does nothing else: the face blends back.
@@ -58,14 +60,15 @@
 {"expect":{"moment":null}}
 // Two loops: the design plays again from its start, so 190 ms into the
 // second loop looks as 190 ms into the first.
-{"t":"state","v":1,"base":"idle"}
 {"clock":90000}
-{"t":"moment","anim":"cheer","loops":2}
-{"expect":{"moment":{"anim":"cheer","left_ms":12800}}}
+{"t":"state","v":1,"base":"idle"}
+{"t":"moment","anim":"cheer","variant":1,"loops":2}
+{"expect":{"moment":{"anim":"task_complete","left_ms":12800}}}
 {"clock":96590}
-{"expect":{"moment":{"anim":"cheer","left_ms":6210}}}
+{"expect":{"moment":{"anim":"task_complete","left_ms":6210}}}
 {"shot":"cheer-second-loop"}
+{"t":"state","v":1,"base":"idle"}
 {"clock":102799}
-{"expect":{"moment":{"anim":"cheer","left_ms":1}}}
+{"expect":{"moment":{"anim":"task_complete","left_ms":1}}}
 {"clock":102800}
 {"expect":{"moment":null}}

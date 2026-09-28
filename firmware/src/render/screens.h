@@ -1,8 +1,7 @@
-// The screen: the face, drawn as its mood design, with
-// the bubble when there's a mumble and the status strip at the bottom. The
-// same drawing serves the face, needs-you and no-app screens; only what it
-// shows differs. Pure drawing: the device core decides what to show and
-// passes it in.
+// The screen: the face, drawn as its mood design, and in the bottom lane
+// the status strip, or the bubble while there's a mumble. The same drawing
+// serves the face, needs-you and no-app screens; only what it shows differs.
+// Pure drawing: the device core decides what to show and passes it in.
 #pragma once
 #include <cstdint>
 
@@ -11,11 +10,13 @@
 
 namespace render {
 
-// Screen bands on the 320×240 screen, in pixels. The face's
-// design has everything above the strip; its props (the keyboard, the
-// sign, the card) sit in the band the bubble takes when it shows.
-constexpr int kStripTop = 204;   // the status strip, the bottom 36 px
-constexpr int kBubbleTop = 144;  // the bubble, the 60 px above the strip
+// Screen bands on the 320×240 screen, in pixels. The animation bank's
+// designs leave the bottom 48 px, the lane, for text: the strip sits in it,
+// and the bubble takes the whole lane while a line plays, in the strip's
+// place. The first pack's looks and cheers draw into the lane too; the
+// bubble blanks it.
+constexpr int kLaneTop = 192;   // the bottom lane: the bubble's
+constexpr int kStripTop = 204;  // the status strip, the bottom 36 px
 
 struct Strip {
   // While something needs you (amber; null when nothing does): who, the
@@ -25,10 +26,12 @@ struct Strip {
   const char* project = "";
   const char* name = "";
   int more = 0;
-  // While a cheer plays, whose turn it cheers (oat, with a tick; null
-  // for none). Needs you's names win: the cheer doesn't play then.
+  // While the brain's finish plays, whose turn it was (null for none),
+  // after a tick for a success, a cross for a failure, or dots for a
+  // reply. Needs you's names win: the finish doesn't play then.
   const char* doneAgent = nullptr;
   const char* doneThread = "";
+  Outcome doneOutcome = Outcome::kNone;
   int busy = 0;  // sessions working (grey; hidden at zero)
   bool noApp = false;
 };
@@ -41,9 +44,10 @@ struct Mumble {
   const char* word = nullptr;
 };
 
-// The face as its design shows it, the bubble when there's a mumble (the
-// face's show hides its prop to make room), and the strip.
+// The face as its design shows it, and the bubble when there's a mumble,
+// else the strip.
 void drawFaceScreen(Canvas& c, const SceneShow& face, const Mumble* mumble, const Strip& s);
 void drawStrip(Canvas& c, const Strip& s);
+void drawBubble(Canvas& c, const Mumble& m);
 
 }  // namespace render
