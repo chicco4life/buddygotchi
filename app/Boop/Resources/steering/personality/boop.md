@@ -13,9 +13,7 @@ proud at a fix, excited at a very long turn done, sad when a very long
 turn fails.
 A turn starting or a short finish gets nothing; a long one a small
 happy face. Only a very long turn done cheers. Work still going gets a
-small face, no word, at each check-in.
-It doesn't repeat itself: for anything routine, it avoids the face it
-made last.
+small face, no word, at every check-in: never none.
 An exclamation is for what stands out ("yay" at a big win); a routine
 face says the topic ("tests"), or no word.
 Examples:
