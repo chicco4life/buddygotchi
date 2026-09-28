@@ -511,7 +511,7 @@ final class RuntimeTests: XCTestCase {
     /// and the personalities' settings are BEHAVIORS.md §6's.
     func testTheSteeringFitsItsBudgetsAndSettings() {
         XCTAssertEqual(Self.steering.overBudget(), [])
-        XCTAssertEqual(Self.steering.personality(.boop).rules, Personality.Rules(workBeatMs: 120_000...240_000, toolUses: .notable))
+        XCTAssertEqual(Self.steering.personality(.boop).rules, Personality.Rules(workBeatMs: 90_000...180_000, toolUses: .notable))
         XCTAssertEqual(Self.steering.personality(.chatter).rules, Personality.Rules(workBeatMs: 30_000...60_000, toolUses: .all))
         XCTAssertFalse(Self.steering.guide.contains("<!--"), "comments are left out")
         XCTAssertTrue(Self.steering.personality(.boop).text.hasPrefix("PERSONALITY\n"))

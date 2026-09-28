@@ -19,7 +19,7 @@ public enum Personality: String, CaseIterable, Sendable {
         public var workBeatMs: ClosedRange<Int>?
         public var toolUses: ToolUses
 
-        public init(workBeatMs: ClosedRange<Int>? = 120_000...240_000, toolUses: ToolUses = .notable) {
+        public init(workBeatMs: ClosedRange<Int>? = 90_000...180_000, toolUses: ToolUses = .notable) {
             self.workBeatMs = workBeatMs
             self.toolUses = toolUses
         }

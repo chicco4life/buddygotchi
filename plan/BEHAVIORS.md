@@ -381,7 +381,7 @@ tap's wiggle are the same for every personality.
 
 | Setting | What it sets | `boop` (the default) | `chatter` (debugging) |
 | --- | --- | --- | --- |
-| `working_heartbeat` | How often a quiet stretch of work reaches the brain: every so many seconds, as a range, or `none` | 120–240 s | 30–60 s |
+| `working_heartbeat` | How often a quiet stretch of work reaches the brain: every so many seconds, as a range, or `none` | 90–180 s | 30–60 s |
 | `tool_uses` | Which tool calls' ends the view keeps, and the brain hears of: `notable` (a failure, or a pass after failures) or `all` ([harness/EVENTS.md](harness/EVENTS.md) §3) | `notable` | `all` |
 
 A missing or unreadable setting keeps the default. Changing personality

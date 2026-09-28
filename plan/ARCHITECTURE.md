@@ -159,7 +159,7 @@ The view's, in `TranscriptView.Config`, which the tick asks it about:
 | Timer | Value | Spec |
 | --- | --- | --- |
 | Pokes in a row: each within | 3 s | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
-| Working heartbeat, after no reaction from Boop | The personality's range (120–240 s for `boop`) | [BEHAVIORS.md](BEHAVIORS.md) §2, §6 |
+| Working heartbeat, after no reaction from Boop | The personality's range (90–180 s for `boop`) | [BEHAVIORS.md](BEHAVIORS.md) §2, §6 |
 | Heartbeat while nothing works | Every hour with no agent event or poke | [harness/EVENTS.md](harness/EVENTS.md) §4 |
 
 **The snapshot** is derived, never stored: `asleep` with no sessions,

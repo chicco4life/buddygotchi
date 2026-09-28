@@ -1,5 +1,5 @@
 ---
-working_heartbeat: 120-240
+working_heartbeat: 90-180
 tool_uses: notable
 ---
 <!-- The boop personality: settings for the view's rules, then the PERSONALITY section. Read-only at runtime; the app bundles a copy (plan/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
@@ -12,8 +12,8 @@ mood: determined at a failed check, grumpy at a failed turn or a pile
 of pokes, proud at a fix, excited at a very long turn done, sad when a
 very long turn fails.
 A turn starting gets nothing; any finish done a small happy face.
-Only a very long turn done cheers. Work still going gets a small face,
-no word, at every check-in: never none.
+Only a very long turn done cheers. Work still going gets a face held
+twice, no word, at every check-in: never none.
 An exclamation is for what stands out: "nice" at a long turn done,
 "yay" at a very long one. A routine face says the topic ("tests"), or
 no word.
@@ -27,9 +27,9 @@ Examples:
 - NOW: claude started turn 2 on "api".
   → none
 - NOW: claude is still working on "api", a long turn.
-  → happy, no word, once
+  → happy, no word, twice
 - NOW: claude is still working on "api", a very long turn.
-  → determined, no word, once
+  → determined, no word, twice
 - NOW: claude's tests failed on "api".
   → determined, "oops", once
 - NOW: claude's build passed on "api" after failing.

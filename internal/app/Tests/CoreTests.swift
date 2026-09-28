@@ -1342,7 +1342,7 @@ final class CorePersonalityTests: XCTestCase {
         for gap in fast { XCTAssertTrue((30_000...61_000).contains(gap), "\(gap)") }
         let usual = beatGaps(CoreRig(seed: 7))
         XCTAssertGreaterThan(usual.count, 25)
-        for gap in usual { XCTAssertTrue((120_000...241_000).contains(gap), "\(gap)") }
+        for gap in usual { XCTAssertTrue((90_000...181_000).contains(gap), "\(gap)") }
         XCTAssertEqual(beatGaps(CoreRig(seed: 7, rules: Personality.Rules(workBeatMs: nil))), [])
     }
 
@@ -1406,10 +1406,10 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(CoreRig().state.base, "asleep")
     }
 
-    /// BEHAVIORS.md §2, harness/EVENTS.md §4: every 2–4 minutes of quiet
+    /// BEHAVIORS.md §2, harness/EVENTS.md §4: every 1.5–3 minutes of quiet
     /// work, day or night, the brain hears how long the thread working
     /// longest has worked, and on what.
-    func testTheWorkingHeartbeatEveryTwoToFourMinutesOfQuietWork() {
+    func testTheWorkingHeartbeatEveryOneAndAHalfToThreeMinutesOfQuietWork() {
         for start in [CoreRig.start, CoreRig.start + 9 * 3600 * 1000 + 1_800_000] {  // 14:00 and 23:30
             let rig = CoreRig(start: start, seed: 7)
             rig.send(.turnStart)
@@ -1426,8 +1426,8 @@ final class CoreRulesTests: XCTestCase {
             }
             XCTAssertGreaterThan(times.count, 12)
             for (a, b) in zip(times, times.dropFirst()) {
-                XCTAssertGreaterThanOrEqual(b - a, 120_000)
-                XCTAssertLessThanOrEqual(b - a, 241_000)
+                XCTAssertGreaterThanOrEqual(b - a, 90_000)
+                XCTAssertLessThanOrEqual(b - a, 181_000)
             }
             XCTAssertTrue(said.allSatisfy { $0.hasPrefix(#"claude is still working on "landing", a "#) && $0.hasSuffix(" turn.") })
         }
