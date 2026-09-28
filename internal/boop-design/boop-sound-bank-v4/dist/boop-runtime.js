@@ -283,6 +283,7 @@ const {pixelText}=load("state-art.mjs");
 const {moodProfiles}=load("mood-catalog.mjs");
 const {sustainedStates}=load("state-catalog.mjs");
 const {effects}=load("audio/effects.mjs");
+const {protectedSoundStates}=load("quiet-mix.mjs");
 const green='#83D99A',deep='#244634',amberDark='#352915';
 const round=x=>Number(x.toFixed(6));
 const safe=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
@@ -581,13 +582,18 @@ function moodScore(a){
  for(const e of events)if(!effects[e.effect])throw new Error('Missing effect '+e.effect);
  return {id:a.id,seconds:a.seconds,policy:plan.policy,intervalSeconds:plan.intervalSeconds,character:profile.character,description:a.caption+' Sparse code-generated material effects, no speech or music bed.',events,tailSeconds:round(Math.max(0,...events.map(e=>e.at+effects[e.effect].duration-a.seconds)))};
 }
+// When speech may enter over a scene, in seconds: .12 s after its last
+// attention cue ends for needs_you, task_complete and error, else .45 s.
+// The quiet mix keeps those states' cues, so the score may be mixed or not.
+function voiceStart(state,score){
+ return protectedSoundStates.includes(state)?Math.max(0,...score.events.map(e=>e.at+effects[e.effect].duration))+.12:.45;
+}
 function voiceWindows(a){
- const score=moodScore(a),protectedScene=['needs_you','task_complete','error'].includes(a.state);
- const start=protectedScene?Math.max(0,...score.events.map(e=>e.at+effects[e.effect].duration))+.12:.45;
+ const start=voiceStart(a.state,moodScore(a)),protectedScene=protectedSoundStates.includes(a.state);
  return {suggested: true,duckRoutineSfx:!protectedScene,earliestEntry:round(start),latestExit:round(a.seconds-.25),fitsWithinCycle:start<a.seconds-.25,note:'Candidate entry/exit bounds, not a generated recording. If the take does not fit, extend the host hold or follow after the animation; never speed up speech to force it.'};
 }
 
-return {moodPlan,renderMoodScene,moodScore,voiceWindows};},
+return {moodPlan,renderMoodScene,moodScore,voiceStart,voiceWindows};},
 "mood-catalog.mjs":()=>{
 // Six new characters. No mood aliases and no externally selected intensity.
 const newMoods=['calm','engaged','annoyed','irritated','whiny','wounded'];

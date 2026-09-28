@@ -352,15 +352,14 @@ you's, the finish's and an error's: the design decides, not the clip.
 No line plays while something needs you (§9), so the ding is always
 heard. It is the only needs-you sound: a new request shown plays the
 performance again from its start ([BEHAVIORS.md](BEHAVIORS.md) §3.2).
-Each design also has a voice window, the bank's `voiceWindows`: when a
+Each design also has a voice window, by the bank's `voiceStart`: when a
 mumble over it may start, 0.12 s after the last attention cue ends for
 needs you, the finish and an error, and 0.45 s in for the rest. facegen
-works it out for every design (`bank.mjs`, the bank's rule, which the
-bank itself only states for the new moods') and lists it in its
-manifest; sfxgen checks it against the bank's for the new moods' designs
-and writes it into sfx.h (`voice::Score::voiceMs`), where the device
-starts a line that comes with an animation (§9), and facegen into the
-Mac's `FaceLoops` (`voiceMs`).
+works it out for every design (`bank.mjs`; the bank's own `voiceWindows`
+gives it only for the new moods') and lists it in its manifest; sfxgen
+writes it into sfx.h (`voice::Score::voiceMs`), where the device starts
+a line that comes with an animation (§9), and facegen into the Mac's
+`FaceLoops` (`voiceMs`).
 
 **Mixing.** Up to four effects play at once; a fifth replaces the oldest.
 The sum is added to the voice's samples and clipped. The amp stays on

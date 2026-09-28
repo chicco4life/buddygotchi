@@ -171,9 +171,7 @@ class BlendTable:
         for sc in scenes:
             if not any(c >= BLEND and c != INHERIT for g in sc.groups for *_, c in g.rects):
                 continue
-            longest = max([tr.dur for tr in sc.tracks()] or [STILL_LOOP_MS])
-            times = sorted(t for t in sc.boundaries(longest) if t < longest) or [0]
-            for t in times:
+            for t in sc.step_times() or [0]:
                 for shut in (False, True):
                     render(sc, t, shut=shut)
                 render(sc, t, svg_blink=True)
@@ -257,6 +255,12 @@ class Scene:
     def samples(self) -> list[int]:
         bounds = self.boundaries(max(SAMPLES) + 1)
         return [t for t in SAMPLES if t == 0 or all(abs(t - b) > 4 for b in bounds)]
+
+    def step_times(self) -> list[int]:
+        """The moments something steps in one pass through the design's
+        longest track, in order; none for a design with no tracks."""
+        longest = max((tr.dur for tr in self.tracks()), default=0)
+        return sorted(t for t in self.boundaries(longest) if t < longest)
 
     def key(self) -> str:
         return hashlib.sha1(repr((self.groups, self.clip)).encode()).hexdigest()
@@ -680,8 +684,7 @@ def assign_roles(scene: Scene, name: str) -> None:
     roles = [g.role for g in groups]
     assert roles.count("face") >= 1, f"{name}: a face"
     assert roles.count("mouth") >= 1, f"{name}: a mouth"
-    longest = max([tr.dur for tr in scene.tracks()] or [STILL_LOOP_MS])
-    for t in sorted(b for b in scene.boundaries(longest) if b < longest) or [0]:
+    for t in scene.step_times() or [0]:
         _, shown, _ = place(scene, t, svg_blink=True, shut=False)
         for role in ("face", "mouth"):
             assert sum(shown[i] for i, r in enumerate(roles) if r == role) <= 1, f"{name}: one {role} at a time ({t} ms)"
@@ -957,8 +960,7 @@ def tile_face(scene: Scene, shut: bool) -> bytes:
     if not shut or any(g.role == "eyes_open" for g in scene.groups):
         return render(scene, 0, face_only=True, shut=shut)
     blinks = [i for i, g in enumerate(scene.groups) if g.blink]
-    longest = max([tr.dur for tr in scene.tracks()] or [STILL_LOOP_MS])
-    for t in sorted(b for b in scene.boundaries(longest) if b < longest):
+    for t in scene.step_times():
         _, shown, _ = place(scene, t, svg_blink=True, shut=False)
         if any(shown[i] for i in blinks):
             return render(scene, t, svg_blink=True, face_only=True)
@@ -1311,12 +1313,15 @@ def main() -> None:
     scenes, table, meta, sources, files, counts = load()
     if args.check:
         check(scenes, files)
+    # canvas_index as a table, for bytes.translate to map a whole frame at
+    # once: a frame's pixels are scene colours, so the padding is never read.
+    canvas = bytes(canvas_index(c) for c in range(len(COLORS.rgb))).ljust(256, b"\0")
     frames = []
     for (m, s, v), n in sorted(table.items()):
         if sources[n] != f"{MOODS[m]}.{STATES[s]}.{v + 1:02d}.svg":
             continue  # a shared design, checked once
         for t in scenes[n].samples():
-            frames.append((m, s, v, t, zlib.crc32(bytes(canvas_index(c) for c in render(scenes[n], t)))))
+            frames.append((m, s, v, t, zlib.crc32(render(scenes[n], t).translate(canvas))))
     OUT.write_text(emit(scenes, table, meta, sources, counts))
     SWIFT.write_text(emit_swift(scenes, table))
     LOOPS.write_text(emit_loops(scenes, table, meta, counts))

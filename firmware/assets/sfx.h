@@ -7,7 +7,7 @@
 namespace sfx_assets {
 
 constexpr uint32_t kRate = 11025;
-constexpr const char* kVersion = "7ca61930348a";
+constexpr const char* kVersion = "768b38d359b5";
 constexpr int kClips = 49;
 constexpr uint32_t kBytes = 157609;
 constexpr int kMoods = 13;
