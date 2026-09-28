@@ -14,6 +14,7 @@ final class EvalTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(all.count, 7)
         XCTAssertTrue(all.allSatisfy { !$0.story.isEmpty }, "every scenario says its case in plain words")
         XCTAssertTrue(all.contains { $0.always }, "some scenarios are Boop's character")
+        XCTAssertTrue(all.contains { $0.steps.contains { $0.session == "s2" } }, "a step can be another session's")
         XCTAssertEqual(Scenario.range("1-3"), 1...3)
         XCTAssertEqual(Scenario.range("2-"), 2...Int.max)
         XCTAssertEqual(Scenario.range("-4"), 0...4)
@@ -116,13 +117,21 @@ final class EvalTests: XCTestCase {
     }
 
     /// EVALS.md §3's whole-run checks, against a brain that makes the same
-    /// excited "tests" face at every pass and never changes the mood: it's
-    /// the same reaction five times running, of one kind, and the mood
-    /// never moves; the turn is never quiet for long.
+    /// excited "tests" face at every pass and never changes the mood, over
+    /// five quick wins: it's the same reaction ten times running (starts
+    /// and finishes), of one kind, and the mood never moves.
     func testWholeRunChecksCatchTheSameReactionAgainAndAgain() async throws {
         let brain = ScriptedBrain(always: ["react.mood": Answer(choice: "excited", probabilities: ["excited": 0.9]),
                                            "word.about": Answer(choice: "tests", probabilities: ["tests": 0.9])])
-        let scenario = try Scenario(file: Self.scenarios.appendingPathComponent("19-same-win-again.json"))
+        let steps = (0..<5).map { i in
+            #"{"event":"turn started","at":"\#(i)m"},{"event":"command","at":"\#(i)m20s","topic":"tests","failed":false},"#
+                + #"{"event":"turn finished","at":"\#(i)m30s"}"#
+        }.joined(separator: ",")
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("19-same-win-again.json")
+        try Data(#"{"name":"n","case":"c","why":"w","checks":{"max_same_in_a_row":2,"min_variety":2,"reactions":"2-","mood_changes":"-2"},"steps":[\#(steps)]}"#.utf8)
+            .write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let scenario = try Scenario(file: file)
         let result = try await Eval(brain: brain, steering: RuntimeTests.steering).run(scenario)
         XCTAssertFalse(result.passed)
         let failed = Dictionary(uniqueKeysWithValues: result.runChecks.map { ($0.name, $0) })

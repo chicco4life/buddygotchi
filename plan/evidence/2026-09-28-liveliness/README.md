@@ -182,3 +182,52 @@ big just went right") rule them out, so for a routine win no other
 face fits. `20-no-flail` didn't move either: the determined option's
 "a check failed" matches NOW word for word, whatever it's told to
 weigh.
+
+## React often, and a heartbeat that waits from the last reaction
+
+The owner's call: repeats are fine, as long as Boop reacts more often.
+So:
+
+- **Every finish done gets a small happy face,** the same one each
+  time (`boop.md`).
+- **The working heartbeat's wait starts again when Boop reacts,** not at
+  any event that woke the brain (`Core.reacted`, [EVENTS.md](../../harness/EVENTS.md)
+  §4). Before, another thread's quick turns could keep restarting it.
+- **Determined stays through routine finishes.** The heartbeat change
+  let a long `docs` turn drift Boop to determined, and a quick `api`
+  finish then turned it back to happy a minute later, three times from
+  17:11 to 17:20 in one of the first two runs.
+
+The evals:
+
+- `19` is now "quick wins each get a reaction" (4 of 5 at least), no
+  longer a gap.
+- `21` drops its repeat check and wants 10 reactions or more.
+- New `22-other-thread-keeps-busy`: a 15-minute turn while a second
+  session (the new step field `session`) does a quick turn every two
+  minutes. It wants no more than 6 minutes of work with no reaction.
+- `workday.py check` drops its repeat limits (still reported) and wants
+  0.8 reactions per turn ended or more.
+- `CoreTests` pin the new wait.
+
+Full eval ([eval-react-often.txt](eval-react-often.txt)): 21 of 22, all
+but the `20-no-flail` gap, in every run. The working day, seed 1, the
+final steering twice against `main`'s twice
+([workday-checks-react-often.txt](workday-checks-react-often.txt)):
+
+| | Before | After |
+| --- | --- | --- |
+| Reactions a day | 57, 55 | 219, 214 |
+| Reactions per turn ended | 0.30, 0.28 | 1.13, 1.11 |
+| Short finishes with a face | 0/157 | 157/157 |
+| Heartbeats that woke the brain | 8, 7 | 13, 8 |
+| Longest work with no reaction | 9.1, 16.0 min | 3.7, 3.7 min |
+| Work over 6 minutes with no reaction | 2, 1 | 0, 0 |
+| Mood changes | 31, 31 | 33, 33 |
+| Longest work happy all through | 16.1 min | 9.1 min |
+| Mood bounces | 1 (14:23) | 1 (14:23) |
+| Same as the reaction before | 48% | 79%, 78% (repeats are fine) |
+
+Every limit holds in both after runs, and neither before run meets
+them. The 14:23 bounce is the `20-no-flail` gap: a quick finish turns a
+new grumpy back to happy within the minute.

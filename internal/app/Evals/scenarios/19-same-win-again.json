@@ -1,29 +1,25 @@
 {
-  "name": "The same win again and again doesn't get the same reaction every time",
-  "case": "The agent does five turns in a row, each a couple of minutes long, and each one passes its tests and finishes well. Boop keeps reacting, but it doesn't make the exact same face and word five times running: it varies the face, drops the word, or skips one now and then. Nothing here is big, so there's no cheer, and the mood never goes sad or grumpy.",
-  "gap": "Jev reads HISTORY (happy drops from 0.97 to about 0.85 as happy faces pile up), but for a routine win the only other answer it moves to is none: PERSONALITY's Example gives a long finish 'happy, no word' and the other faces' meanings rule them out, so there's no other face that fits. Naming the guide in judgeBy and 'the face Boop made last' in react.mood's about didn't change that (2026-09-28). Needs either more than one fitting reaction for a routine win (an Example allowing happy or proud, the topic word or none) with the harness picking among Jev's close choices, or variety from another channel (words, holds, new reaction animations).",
-  "why": "The owner's liveliness brief (2026-09-28): a repetition penalty, since the same reaction over and over is boring. plan/steering/guide.md: don't repeat what Boop just did",
+  "name": "Quick wins again and again each get a reaction",
+  "case": "The agent does five quick turns in a row, a minute apart, and each one passes its tests and finishes within half a minute. Boop reacts to every one, or nearly: a small pleased face each time. The same face every time is fine; staying quiet isn't. Nothing here is big, so there's no cheer, and the mood never goes sad or grumpy.",
+  "why": "The owner's liveliness brief (2026-09-28): react often, and repeats are fine. PERSONALITY's Examples: a short turn done gets a small happy face",
   "checks": {
-    "max_same_in_a_row": 2,
-    "reactions": "2-",
-    "min_variety": 2,
-    "mood_changes": "-2"
+    "reactions": "4-"
   },
   "steps": [
     {"event": "turn started", "at": "0s"},
-    {"event": "command", "at": "1m", "topic": "tests", "failed": false},
-    {"event": "turn finished", "at": "2m", "expect": {"animation": "none", "mood": "happy|excited"}},
+    {"event": "command", "at": "0m20s", "topic": "tests", "failed": false},
+    {"event": "turn finished", "at": "0m30s", "expect": {"animation": "none", "mood": "happy|excited"}},
+    {"event": "turn started", "at": "1m"},
+    {"event": "command", "at": "1m20s", "topic": "tests", "failed": false},
+    {"event": "turn finished", "at": "1m30s", "expect": {"animation": "none", "mood": "happy|excited"}},
+    {"event": "turn started", "at": "2m"},
+    {"event": "command", "at": "2m20s", "topic": "tests", "failed": false},
+    {"event": "turn finished", "at": "2m30s", "expect": {"animation": "none", "mood": "happy|excited"}},
     {"event": "turn started", "at": "3m"},
-    {"event": "command", "at": "4m", "topic": "tests", "failed": false},
-    {"event": "turn finished", "at": "5m", "expect": {"animation": "none", "mood": "happy|excited"}},
-    {"event": "turn started", "at": "6m"},
-    {"event": "command", "at": "7m", "topic": "tests", "failed": false},
-    {"event": "turn finished", "at": "8m", "expect": {"animation": "none", "mood": "happy|excited"}},
-    {"event": "turn started", "at": "9m"},
-    {"event": "command", "at": "10m", "topic": "tests", "failed": false},
-    {"event": "turn finished", "at": "11m", "expect": {"animation": "none", "mood": "happy|excited"}},
-    {"event": "turn started", "at": "12m"},
-    {"event": "command", "at": "13m", "topic": "tests", "failed": false},
-    {"event": "turn finished", "at": "14m", "expect": {"animation": "none", "mood": "happy|excited"}}
+    {"event": "command", "at": "3m20s", "topic": "tests", "failed": false},
+    {"event": "turn finished", "at": "3m30s", "expect": {"animation": "none", "mood": "happy|excited"}},
+    {"event": "turn started", "at": "4m"},
+    {"event": "command", "at": "4m20s", "topic": "tests", "failed": false},
+    {"event": "turn finished", "at": "4m30s", "expect": {"animation": "none", "mood": "happy|excited"}}
   ]
 }

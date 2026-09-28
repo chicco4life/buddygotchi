@@ -719,20 +719,20 @@ def summarize(path: Path) -> dict[str, Any]:
         working[-1][1] = max(ev["at"] for ev in events.values())
     return {"hours": {k: hours[k] for k in sorted(hours)}, "changes": changes, "reactions": reactions,
             "mood_minutes": {k: round(v / 60_000) for k, v in spans.most_common()},
-            "lively": liveliness(working, reactions, changes)}
+            "lively": {**liveliness(working, reactions, changes),
+                       "min_reactions_per_turn": round(len(reactions) / max(1, sum(h["turns"] for h in hours.values())), 2)}}
 
 
 # ------------------------------------------------------------- liveliness
 
 # The loose limits `check` holds a day to (plan/EVALS.md §5): each catches
 # a clear failure of the owner's brief (2026-09-28), an animated Boop that
-# doesn't repeat itself, idle for long or flail, and is to be tightened
-# once the day meets it.
+# reacts often, never idles for long and doesn't flail (repeats are fine),
+# and is to be tightened once the day meets it.
 LIMITS = {
     "longest_quiet_min": 8,       # the longest stretch of work with no reaction
     "quiet_over_6_min": 3,        # stretches of work over 6 minutes with no reaction
-    "longest_same_run": 3,        # the same face, cheer and word in a row
-    "repeat_pct": 50,             # reactions the same as the one before
+    "min_reactions_per_turn": 0.8,  # reactions over turns ended
     "mood_bounces": 1,            # a mood changing back to the one it left within a minute
     "min_mood_changes": 10,       # over the day
     "longest_happy_working_min": 45,  # the longest stretch of work happy all through
@@ -801,6 +801,8 @@ def check(paths: list[Path]) -> tuple[str, bool]:
                     "mood_bounces": "".join(f"; {b}" for b in lv["bounces"]),
                     "longest_happy_working_min": f' (from {lv["longest_happy_working_at"]})'}.get(key, "")
             out.append(f'{"ok  " if held else "FAIL"}  {key} {"≥" if key.startswith("min_") else "≤"} {limit}: {got}{note}')
+        out.append(f'      (repeats, not held to a limit: {lv["repeat_pct"]}% the same as the one before, '
+                   f'at most {lv["longest_same_run"]} in a row)')
     return "\n".join(out), ok
 
 

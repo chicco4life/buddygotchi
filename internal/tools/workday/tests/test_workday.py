@@ -163,13 +163,17 @@ class ReportTests(unittest.TestCase):
             text, ok = workday.check([path])
         self.assertEqual(lv["longest_quiet_min"], 17.0)
         self.assertEqual(lv["quiet_over_6_min"], 1)
-        self.assertEqual((lv["longest_same_run"], lv["longest_same_what"], lv["repeat_pct"]), (2, "happy", 100))
+        self.assertEqual((lv["longest_same_run"], lv["longest_same_what"], lv["repeat_pct"]), (2, "happy", 100),
+                         "reported, not held to a limit")
         self.assertEqual(lv["mood_bounces"], 1)
         self.assertEqual(lv["min_mood_changes"], 2)
         self.assertEqual(lv["longest_happy_working_min"], 17.0)
         self.assertFalse(ok)
         self.assertIn("FAIL  longest_quiet_min ≤ 8: 17.0", text)
         self.assertIn("ok    quiet_over_6_min ≤ 3: 1", text)
+        self.assertEqual(lv["min_reactions_per_turn"], 2.0, "two reactions, one turn ended")
+        self.assertIn("ok    min_reactions_per_turn ≥ 0.8: 2.0", text)
+        self.assertIn("(repeats, not held to a limit: 100% the same as the one before, at most 2 in a row)", text)
 
     def test_classes(self) -> None:
         def end(**facts) -> dict:

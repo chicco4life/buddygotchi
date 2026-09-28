@@ -1306,6 +1306,28 @@ final class CorePersonalityTests: XCTestCase {
         XCTAssertEqual(beatGaps(CoreRig(seed: 7, rules: Personality.Rules(workBeatMs: nil))), [])
     }
 
+    /// harness/EVENTS.md §4: the working heartbeat waits from Boop's last
+    /// reaction, not from the last event that woke the brain. Quick turns
+    /// on another thread every 30 s don't hold off a long turn's heartbeats
+    /// (45–90 s here); a reaction every 30 s does.
+    func testTheWorkingHeartbeatWaitsFromBoopsLastReaction() {
+        func beats(reacting: Bool) -> Int {
+            let rig = CoreRig(seed: 7, rules: .chatty)
+            rig.send(.turnStart, session: "long")
+            var n = 0
+            for _ in 0..<20 {
+                n += workBeats(rig.wait(15_000)).count
+                rig.send(.turnStart, session: "quick")
+                n += workBeats(rig.wait(15_000)).count
+                rig.send(.turnEnd, session: "quick")
+                if reacting { rig.core.reacted() }
+            }
+            return n
+        }
+        XCTAssertGreaterThanOrEqual(beats(reacting: false), 6, "10 minutes of other threads' events")
+        XCTAssertEqual(beats(reacting: true), 0, "a reaction every 30 s")
+    }
+
     /// A new personality applies from the next event, with no restart.
     func testANewPersonalityAppliesAtOnce() {
         let rig = CoreRig(rules: Personality.Rules(workBeatMs: nil))
@@ -1371,16 +1393,22 @@ final class CoreRulesTests: XCTestCase {
         }
     }
 
-    /// harness/EVENTS.md §4: any event that wakes the brain starts the wait
-    /// again, so the working heartbeat never lands right after one.
-    func testAnEventThatWakesTheBrainRestartsTheWorkingHeartbeat() {
+    /// harness/EVENTS.md §4: the wait counts from Boop's last reaction. An
+    /// event that wakes the brain doesn't start it again, so a failure Boop
+    /// didn't react to leaves the heartbeat due on time; one it reacted to
+    /// starts the wait again.
+    func testAReactionRestartsTheWorkingHeartbeatAndAnEventAloneDoesnt() {
         let rig = CoreRig(seed: 7, rules: Personality.Rules(workBeatMs: 60_000...60_000))
         rig.send(.turnStart)
         rig.wait(1000)  // the wait starts: due in 60 s
         rig.wait(50_000)
         XCTAssertEqual(woke(rig.send(.activity, tool: "Bash", topic: "tests", failed: true)).count, 1, "a failure wakes it")
-        XCTAssertEqual(workBeats(rig.wait(20_000)), [], "not 60 s after work started")
-        XCTAssertEqual(workBeats(rig.wait(60_000)).count, 1, "60 s after the failure")
+        XCTAssertEqual(workBeats(rig.wait(20_000)).count, 1, "60 s after work started, with no reaction")
+        rig.wait(50_000)
+        rig.send(.activity, tool: "Bash", topic: "tests", failed: true)
+        rig.core.reacted()
+        XCTAssertEqual(workBeats(rig.wait(20_000)), [], "not 60 s after the last heartbeat: Boop reacted")
+        XCTAssertEqual(workBeats(rig.wait(60_000)).count, 1, "60 s after the reaction")
     }
 
     func testNoWorkingHeartbeatWhenIdle() {

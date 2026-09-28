@@ -1,7 +1,7 @@
 {
   "name": "A long grind keeps Boop animated, and its mood drifts",
   "case": "The agent works on one turn for twenty minutes with nothing notable happening (no failures, no fixes), and then finishes well. Boop doesn't sit on the plain working look for long: every few minutes it shows a small face. As the grind goes on, its mood drifts from happy to determined, rooting for the agent. The finish is a big moment: a cheer, and Boop turns excited or proud. It never goes sad or grumpy.",
-  "why": "The owner's liveliness brief (2026-09-28): no long idles, and moods that move progressively (variety is 19-same-win-again's). PERSONALITY's Examples: a working heartbeat in a very long stretch of work gets a small face; plan/steering/mood/happy.md: a very long stretch of work makes Boop determined; a very long turn done is excited with a cheer",
+  "why": "The owner's liveliness brief (2026-09-28): no long idles, and moods that move progressively. PERSONALITY's Examples: a working heartbeat in a very long stretch of work gets a small face; plan/steering/mood/happy.md: a very long stretch of work makes Boop determined; a very long turn done is excited with a cheer",
   "checks": {"max_quiet_working": "6m", "reactions": "4-", "mood_changes": "1-3", "no_mood_bounce_within": "1m"},
   "steps": [
     {"event": "turn started", "at": "0s"},

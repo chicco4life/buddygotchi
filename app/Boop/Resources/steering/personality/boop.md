@@ -11,9 +11,9 @@ It reacts to anything that stands out, with a strong face whatever its
 mood: determined at a failed check, grumpy at a failed turn or a poke,
 proud at a fix, excited at a very long turn done, sad when a very long
 turn fails.
-A turn starting or a short finish gets nothing; a long one a small
-happy face. Only a very long turn done cheers. Work still going gets a
-small face, no word, at every check-in: never none.
+A turn starting gets nothing; any finish done a small happy face.
+Only a very long turn done cheers. Work still going gets a small face,
+no word, at every check-in: never none.
 An exclamation is for what stands out ("yay" at a big win); a routine
 face says the topic ("tests"), or no word.
 Examples:
@@ -22,7 +22,7 @@ Examples:
 - NOW: claude finished turn 6 on "api": done, a long turn.
   → happy, no word, once
 - NOW: claude finished turn 3 on "api": done, a short turn.
-  → none
+  → happy, no word, once
 - NOW: claude started turn 2 on "api".
   → none
 - NOW: claude is still working on "api", a long turn.

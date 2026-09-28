@@ -14,8 +14,11 @@ public struct Scenario: Sendable {
         public var event: String
         /// Virtual time since the scenario started, in ms.
         public var atMs: Int64
-        /// The thread's workspace; it's always Claude's session in `landing`.
+        /// The thread's workspace; it's always Claude's, in `landing`.
         public var workspace: String?
+        /// Claude's session, `s1` unless the step says: another session is
+        /// another thread, working at the same time.
+        public var session: String?
         /// A command: its topic, and whether it failed.
         public var topic: String?
         public var failed: Bool?
@@ -166,6 +169,7 @@ public struct Scenario: Sendable {
             guard let at = s["at"] as? String, let atMs = Scenario.ms(at) else { throw badStep("at is like 0m, 90s or 2m30s") }
             var step = Step(event: event, atMs: atMs)
             step.workspace = s["workspace"] as? String
+            step.session = s["session"] as? String
             step.topic = s["topic"] as? String
             step.failed = s["failed"] as? Bool
             step.error = s["error"] as? String
@@ -341,6 +345,7 @@ public struct Eval {
         // does once it has; one left in progress stays so.
         let ending = Ending()
         let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, pending in
+            core.reacted()
             if let end = ending.end { pending.finish(end) } else { ending.open.append(pending) }
         }, blocked: { core.mumbleBlock })
         let moodAction = MoodAction(store: mood, clock: { clock.now })
@@ -354,9 +359,10 @@ public struct Eval {
 
         var checks: [Check] = []
         var timeline: [Pass] = []
-        // When the scenario's turn works, from the steps: [start, end].
+        // When any of the scenario's turns works, from the steps: [start, end].
         var working: [(Int64, Int64)] = []
         var since: Int64?
+        var open: Set<String> = []
         for (i, step) in scenario.steps.enumerated() {
             // Time passes a second at a time, as the app ticks, and what a
             // tick brings (a heartbeat) is answered then, as in the app.
@@ -382,11 +388,17 @@ public struct Eval {
                 await respond(Eval.events(core.tick(at: clock.now)))
             }
             await respond(Eval.events(Eval.feed(step, core, at: clock.now)))
+            let session = step.session ?? "s1"
             switch step.event {
-            case "turn started": since = since ?? step.atMs
+            case "turn started":
+                since = since ?? step.atMs
+                open.insert(session)
             case "turn finished", "turn failed":
-                if let s = since { working.append((s, step.atMs)) }
-                since = nil
+                open.remove(session)
+                if open.isEmpty, let s = since {
+                    working.append((s, step.atMs))
+                    since = nil
+                }
             default: break
             }
             guard let expect = step.expect else { continue }
@@ -484,10 +496,10 @@ public struct Eval {
     }
 
     /// A step as it reaches the core: the hook events or device input it
-    /// stands for, in Claude's session `s1` in `landing`.
+    /// stands for, in Claude's session (`s1` unless it says) in `landing`.
     static func feed(_ step: Scenario.Step, _ core: Core, at now: Int64) -> [CoreEffect] {
         func hook(_ kind: BoopEvent.Kind, _ detail: BoopEvent.Detail = .init()) -> [CoreEffect] {
-            core.handle(BoopEvent(agent: .claudeCode, session: "s1", project: "landing", workspace: step.workspace,
+            core.handle(BoopEvent(agent: .claudeCode, session: step.session ?? "s1", project: "landing", workspace: step.workspace,
                                   event: kind, detail: detail, ts: now))
         }
         switch step.event {

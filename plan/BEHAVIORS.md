@@ -208,8 +208,9 @@ rule depends on the mood.
 
 No rule mumbles. While agents work, the core sends the brain a working
 heartbeat as often as the personality says (§6), each wait drawn at
-random from its range and started again by any event that wakes the
-brain, so it only comes in a quiet stretch of work
+random from its range and started again whenever Boop reacts, so it
+comes after a stretch of work with no reaction, however busy other
+threads are
 ([harness/EVENTS.md](harness/EVENTS.md) §4). Jev decides whether Boop
 mumbles then, with which face and word, as for any other event. With no
 brain, Boop works silently.
@@ -353,6 +354,6 @@ tap's wiggle are the same for every personality.
 A missing or unreadable setting keeps the default. Changing personality
 restarts the working heartbeat's wait at the new pace. What the brain adds on top is
 Jev's call each time, steered by the text: `boop` reacts to anything
-that stands out, gives a long finish and each working heartbeat a
+that stands out, gives every finish done and each working heartbeat a
 small face, so a long stretch of work never sits on one look for
 long, and `chatter` reacts to everything, over the top.

@@ -152,7 +152,7 @@ public final class Core {
     var shown: (visual: String, variant: Int) = ("", 1)
     var lastVariant: [String: Int] = [:]
     /// When the working heartbeat is next due; nil until work starts, and
-    /// again after any event that woke the brain (harness/EVENTS.md §4).
+    /// again after Boop reacts (harness/EVENTS.md §4).
     var nextWorkBeatAt: Int64?
     /// The wall clock less the steady one, for days and times of day.
     var wallOffsetMs: Int64 = 0
@@ -216,7 +216,6 @@ public final class Core {
             sessions[key] = s
         }
         publish(now, &fx)
-        restartWorkBeat(fx)
         return fx
     }
 
@@ -489,7 +488,6 @@ public final class Core {
             tapped(now, &fx)
         }
         publish(now, &fx)
-        restartWorkBeat(fx)
         return fx
     }
 
@@ -536,7 +534,6 @@ public final class Core {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
         publish(now, &fx)
-        restartWorkBeat(fx)
         return fx
     }
 
@@ -720,8 +717,8 @@ public final class Core {
 
     /// The working heartbeat (BEHAVIORS.md §2, harness/EVENTS.md §4): while
     /// agents work, an event for the brain once the personality's wait has
-    /// passed with no event that woke it, so the brain may mumble in a
-    /// quiet stretch of work. It names the thread working longest and how
+    /// passed with no reaction from Boop, so the brain may mumble in a
+    /// stretch of work that has none. It names the thread working longest and how
     /// long its turn has been, as a band. No rule mumbles.
     func workingHeartbeat(_ now: Int64, _ fx: inout [CoreEffect]) {
         let working = sessions.values.filter { isWorking($0, now) && $0.needsSince == nil }
@@ -743,11 +740,11 @@ public final class Core {
                                facts: ["thread": threadFacts(s), "working_ms": .int(ms), "topic": .of(s.topic)])))
     }
 
-    /// Any event that woke the brain starts the working heartbeat's wait
-    /// again, so it comes only in a quiet stretch.
-    func restartWorkBeat(_ fx: [CoreEffect]) {
-        let woke = fx.contains { if case .event(let e) = $0 { e.wakesBrain } else { false } }
-        if woke { nextWorkBeatAt = nil }
+    /// Boop started a reaction: the working heartbeat starts its wait
+    /// again, so it comes after a stretch of work with no reaction, however
+    /// many events woke the brain in it (harness/EVENTS.md §4).
+    public func reacted() {
+        nextWorkBeatAt = nil
     }
 
     // MARK: - Events (harness/EVENTS.md)

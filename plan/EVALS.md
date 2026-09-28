@@ -34,8 +34,8 @@ Wednesday 14:00 UTC and stands still while Jev answers.
 | `pokes` | Four taps at once from the device: a poke streak |
 | `wait` | Nothing; only time passes |
 
-Every event is Claude's, in session `s1` of project `landing`, with the
-step's `workspace` if it has one.
+Every event is Claude's, in project `landing`, in session `s1` or the
+step's `session`, with the step's `workspace` if it has one.
 
 **The check.** A step with `expect` is checked against the last pass
 woken on the way to it and by it, so a `wait` checks the heartbeat its
@@ -147,6 +147,7 @@ file-name order:
 | `steps[].topic`, `failed` | A command's topic and whether it failed |
 | `steps[].error` | A failed turn's error class |
 | `steps[].workspace` | The thread's workspace, when it has one |
+| `steps[].session` | Claude's session, `s1` unless it says: another session is another thread, working at the same time |
 | `steps[].reaction` | How a reaction this step's passes start ends: `done` (the default), `in progress` (HISTORY keeps saying so), or `failed: <why>` (HISTORY leaves it out) |
 | `steps[].expect` | Any of `react`, `animation`, `word`, `loops` and `mood`, each a `\|`-separated list |
 
@@ -167,14 +168,15 @@ kinds, all with the `boop` personality unless the file says otherwise:
   cheers; poking it again and again keeps it grumpy while it goes on,
   and it calms down after; moods fade back to happy; and no face ever
   contradicts what happened.
-- **Tuning** (`01`, `07`, `10`–`12`, `14`, `15`, `18`, `21`): single
-  decisions, and the liveliness brief over a long grind (`18`) and a busy
-  half hour (`21`): no more than 6 minutes of work with no reaction, a
-  mood that drifts (happy → determined → excited) without bouncing,
-  and, over the half hour, no 4 reactions in a row the same.
-- **Known gaps** (`19`, `20`): the same win five times gets five
-  different-enough reactions, and flipping tests don't flip the mood.
-  Their `gap` says why the steering can't get there alone.
+- **Tuning** (`01`, `07`, `10`–`12`, `14`, `15`, `18`, `19`, `21`,
+  `22`): single decisions, and the liveliness brief: Boop reacts often
+  (every quick win, `19`; most of a busy half hour, `21`), never goes
+  over 6 minutes of work with no reaction, even while another thread's
+  quick turns keep waking the brain (`18`, `21`, `22`), and its mood
+  drifts (happy → determined → excited) without bouncing. Repeats are
+  fine.
+- **Known gaps** (`20`): flipping tests don't flip the mood. Its `gap`
+  says why the steering can't get there alone.
 
 A new decision or a change to the steering files gets a scenario that
 shows it, and `make eval` before it's committed.
@@ -237,8 +239,9 @@ gives all that and every reaction.
 
 **Liveliness.** The report also gives, for the day: the longest stretch
 of work (any agent in a turn) with no reaction, and how many went over
-6 minutes; how many reactions were the same as the one before, and the
-longest run of the same; mood bounces (a mood changing back to the one
+6 minutes; reactions per turn ended; how many reactions were the same
+as the one before, and the longest run of the same (reported, with no
+limit: repeats are fine); mood bounces (a mood changing back to the one
 it left within a minute); and the longest stretch of work with Boop
 happy all through. `workday.py check FILE…` holds each run to loose
 limits (`LIMITS` in `workday.py`) and exits 1 if one fails:
@@ -247,8 +250,7 @@ limits (`LIMITS` in `workday.py`) and exits 1 if one fails:
 | --- | --- |
 | `longest_quiet_min` | 8 at most |
 | `quiet_over_6_min` | 3 at most |
-| `longest_same_run` | 3 at most |
-| `repeat_pct` | 50 at most |
+| `min_reactions_per_turn` | 0.8 at least (reactions over turns ended) |
 | `mood_bounces` | 1 at most |
 | `min_mood_changes` | 10 at least |
 | `longest_happy_working_min` | 45 at most |

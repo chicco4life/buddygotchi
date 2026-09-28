@@ -57,7 +57,7 @@ such as `claude_code/s1`.
 | `turn_end` | A turn Boop saw start ends `done`, `failed` or `stopped` (§4.1) | — | Yes |
 | `tool_use` | A tool call finishes and is notable (§4.1), or any call with the personality's `tool_uses: all` ([BEHAVIORS.md](../BEHAVIORS.md) §6) | — | Yes |
 | `pokes` | Taps make a poke streak ([BEHAVIORS.md](../BEHAVIORS.md) §3.3) | `Boop wiggled on its own.` | Yes, unless it comes within a minute of the last streak that could (`Core.Config.pokedEveryMs`) |
-| `heartbeat` | While no thread works, each whole hour since the last hook or tap (`Core.Config.heartbeatMs`); none before the first since launch. While any thread works, once the personality's `working_heartbeat` wait has passed with no event that woke the brain ([BEHAVIORS.md](../BEHAVIORS.md) §2) | — | Yes |
+| `heartbeat` | While no thread works, each whole hour since the last hook or tap (`Core.Config.heartbeatMs`); none before the first since launch. While any thread works, once the personality's `working_heartbeat` wait has passed since Boop last reacted (`Core.reacted`, which the runtime calls as a reaction starts), however many events woke the brain in it ([BEHAVIORS.md](../BEHAVIORS.md) §2) | — | Yes |
 | `tap` | Any other tap | `Boop wiggled on its own.`, or none while something needs you | Never |
 | `needs_you` | An agent starts needing you ([ADAPTERS.md](../ADAPTERS.md) §4) | — | Never |
 

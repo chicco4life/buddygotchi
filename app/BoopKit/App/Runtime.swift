@@ -303,6 +303,7 @@ public final class Runtime: @unchecked Sendable {
         let moodChanges = MoodAction(store: mood, clock: clock, changed: { moodSaved($0) })
         moodAction = moodChanges
         let react = ReactAction(voice: voice, queue: { moment, pending in
+            core.reacted()  // the working heartbeat waits from here (EVENTS.md §4)
             moments.schedule.brain(moment, pending, now: clock())
             Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
         }, blocked: { core.mumbleBlock })

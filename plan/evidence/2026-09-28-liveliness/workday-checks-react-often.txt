@@ -1,0 +1,32 @@
+## base1/debug.jsonl
+FAIL  longest_quiet_min ≤ 8: 9.1 (from 11:15)
+ok    quiet_over_6_min ≤ 3: 2
+FAIL  min_reactions_per_turn ≥ 0.8: 0.3
+ok    mood_bounces ≤ 1: 1; 14:23 grumpy → happy, back at 14:23
+ok    min_mood_changes ≥ 10: 31
+ok    longest_happy_working_min ≤ 45: 16.1 (from 17:04)
+      (repeats, not held to a limit: 48% the same as the one before, at most 8 in a row)
+## base2/debug.jsonl
+FAIL  longest_quiet_min ≤ 8: 16.0 (from 11:08)
+ok    quiet_over_6_min ≤ 3: 1
+FAIL  min_reactions_per_turn ≥ 0.8: 0.28
+ok    mood_bounces ≤ 1: 1; 14:23 grumpy → happy, back at 14:23
+ok    min_mood_changes ≥ 10: 31
+ok    longest_happy_working_min ≤ 45: 16.1 (from 17:04)
+      (repeats, not held to a limit: 48% the same as the one before, at most 8 in a row)
+## hb3/debug.jsonl
+ok    longest_quiet_min ≤ 8: 3.7 (from 17:07)
+ok    quiet_over_6_min ≤ 3: 0
+ok    min_reactions_per_turn ≥ 0.8: 1.13
+ok    mood_bounces ≤ 1: 1; 14:23 grumpy → happy, back at 14:23
+ok    min_mood_changes ≥ 10: 33
+ok    longest_happy_working_min ≤ 45: 9.1 (from 11:15)
+      (repeats, not held to a limit: 79% the same as the one before, at most 43 in a row)
+## hb4/debug.jsonl
+ok    longest_quiet_min ≤ 8: 3.7 (from 17:07)
+ok    quiet_over_6_min ≤ 3: 0
+ok    min_reactions_per_turn ≥ 0.8: 1.11
+ok    mood_bounces ≤ 1: 1; 14:23 grumpy → happy, back at 14:23
+ok    min_mood_changes ≥ 10: 33
+ok    longest_happy_working_min ≤ 45: 9.1 (from 11:15)
+      (repeats, not held to a limit: 78% the same as the one before, at most 42 in a row)
