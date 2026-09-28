@@ -81,6 +81,6 @@ Tests, the simulator and the other dev tools are in
 ([plan/VERIFICATION.md](plan/VERIFICATION.md) lists them). The specs start
 at [plan/README.md](plan/README.md).
 
-The [animation bank and mood graph](internal/boop-design/README.md) are
-the source of the device's designs and sounds, which facegen and sfxgen
-build from, with an offline review, and the mood graph's handover.
+The [animation bank](internal/boop-design/README.md) is where the
+device's designs and sounds come from: facegen and sfxgen build from it.
+It has an offline review, and the mood graph's handover sits beside it.

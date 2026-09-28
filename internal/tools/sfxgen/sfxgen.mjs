@@ -29,7 +29,7 @@ import {fileURLToPath} from 'node:url';
 import {effects} from '../../boop-design/boop-sound-bank-v4/runtime/audio/effects.mjs';
 import {renderRecipe, SAMPLE_RATE} from '../../boop-design/boop-sound-bank-v4/runtime/audio/synth.mjs';
 import {makeScene} from '../../boop-design/boop-sound-bank-v4/runtime/bank.mjs';
-import {getAsset} from '../../boop-design/boop-sound-bank-v4/runtime/catalog.mjs';
+import {catalog, getAsset} from '../../boop-design/boop-sound-bank-v4/runtime/catalog.mjs';
 import {voiceWindows} from '../../boop-design/boop-sound-bank-v4/runtime/mood-art.mjs';
 import {protectedSoundStates, routineEvents} from '../../boop-design/boop-sound-bank-v4/runtime/quiet-mix.mjs';
 
@@ -132,6 +132,13 @@ function main() {
 
   const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
   const {moods, states, designs} = manifest;
+  // The designs must be the bank's, as facegen last listed them, or the
+  // sounds wouldn't line up with faces.h.
+  const listed = new Map(designs.map(d => [d.id, d]));
+  if (listed.size !== catalog.length ||
+      catalog.some(a => listed.get(a.id)?.variation !== a.variation || listed.get(a.id)?.seconds !== a.seconds)) {
+    throw new Error(`${path.relative(root, manifestFile)} isn't the bank's designs: run make -C internal faces first`);
+  }
   const count = (m, s) => designs.filter(d => d.mood === m && d.state === s).length;
   const scores = designs.map(timeline);
   const events = scores.flatMap(s => s.lists.flat());

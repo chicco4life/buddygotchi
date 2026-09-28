@@ -65,8 +65,8 @@ MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad",
 STATES = ["idle", "working", "needs_you", "task_complete", "asleep", "no_app", "listening",
           "starting", "planning", "terminal", "tool_use", "searching", "analyzing", "testing",
           "delegating", "helper_return", "waiting", "reply_ready", "error", "stopped", "poked", "tap_spam"]
-# The host fact a design is for, as faces.h numbers it (faces::Outcome,
-# faces::Ctx): task_complete's outcome and starting's context; none for any.
+# The host fact a design is for, as faces.h numbers it (render::Outcome,
+# render::StartCtx): task_complete's outcome and starting's context; none for any.
 OUTCOMES = [None, "success", "failure"]
 CTXS = [None, "new_task", "session", "continuation"]
 # The group that holds a design's animation, by dialect; the still copy
@@ -1230,7 +1230,10 @@ def export() -> list[dict]:
     """Runs the bank's generator (bank.mjs) into build/ and returns its
     designs in the device's order, after checking that the older moods'
     come out as they were, and lists them in design/manifest.json."""
-    subprocess.run(["node", str(HERE / "bank.mjs"), "--out", str(BUILD)], check=True, stdout=subprocess.DEVNULL)
+    try:
+        subprocess.run(["node", str(HERE / "bank.mjs"), "--out", str(BUILD)], check=True, stdout=subprocess.DEVNULL)
+    except FileNotFoundError:
+        raise SystemExit("facegen needs node: the bank's generator is JavaScript")
     designs = json.loads((BUILD / "designs.json").read_text())
     designs.sort(key=lambda a: (MOODS.index(a["mood"]), STATES.index(a["state"]), a["variation"]))
     # The older moods' designs were captured before the new moods came

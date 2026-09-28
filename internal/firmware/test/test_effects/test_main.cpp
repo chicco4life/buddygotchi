@@ -137,6 +137,7 @@ void test_every_design_has_a_timeline() {
 // are silent; needs you's knocks end in the ding, and it, the finish and
 // an error play on their first loop only and never duck under a mumble;
 // routine designs sound a few of their contacts, picked afresh each loop.
+// Each design's voice window is where the bank puts it.
 void test_each_state_sounds_as_the_bank_says() {
   int working = 0, varied = 0;
   for (int m = 0; m < int(Mood::kCount); ++m) {
@@ -144,6 +145,11 @@ void test_each_state_sounds_as_the_bank_says() {
       for (int v = 0; v < render::variants(Mood(m), SceneState(s)); ++v) {
         voice::Score sc = voice::score(m, s, v);
         TEST_ASSERT_EQUAL(!guarded(s), sc.duck);
+        // The voice window opens 0.45 s in, or 0.12 s after a guarded
+        // design's last cue has played out.
+        std::vector<voice::FxEvent> first = loopEvents(sc, 0);
+        if (!guarded(s)) TEST_ASSERT_EQUAL_UINT16(450, sc.voiceMs);
+        else TEST_ASSERT_TRUE(sc.voiceMs >= (first.empty() ? 0 : first.back().atMs) + 120);
         switch (SceneState(s)) {
           case SceneState::kIdle:
           case SceneState::kAsleep:

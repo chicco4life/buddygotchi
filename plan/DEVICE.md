@@ -265,8 +265,8 @@ Nothing else is stored: the device ID comes from the Bluetooth MAC, and no
 `state` is kept.
 
 Fonts, faces, voice clips and sound effects are compiled in as arrays:
-the voice is 235 KB ([VOICE.md](VOICE.md) §8), the sound effects 202 KB,
-154 KB of them clips (§10 there), the faces 1.14 MB (§6) and the fonts
+the voice is 235 KB ([VOICE.md](VOICE.md) §8), the sound effects 208 KB
+with their timelines (§10 there), the faces 1.19 MB (§6) and the fonts
 about 27 KB. The whole firmware is 2.50 MB, about 79% of app0.
 
 ## 6. Memory, drawing and speed
@@ -342,7 +342,7 @@ can't do on its own into rectangles and steps:
   beneath through a table (`kBlendOver`) of every blend the designs make.
 - **What the designs repeat is stored once**: each group's rectangles,
   and each track, its key times and its values. The flip-books repeat
-  themselves a lot, so the faces take 1.14 MB (§5).
+  themselves a lot, so the faces take 1.19 MB (§5).
 
 The designs' 89 colours sit in the palette after the ramps
 (`faces::kSceneBase`). Every design is clipped above y 192, leaving the
