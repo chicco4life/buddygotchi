@@ -77,9 +77,8 @@ and NOW ([HARNESS.md](HARNESS.md) §6.1).
 `personality/<name>.md`, chosen in Settings and used from the next
 event. It has two parts:
 
-- **Front matter** for the core's rules: how often the working heartbeat
-  comes,
-  and which tool uses become events. Its values are
+- **Front matter** for the view's rules: how often the working heartbeat
+  comes, and which tool calls' ends the view keeps. Its values are
   [BEHAVIORS.md](../BEHAVIORS.md) §6's, and it never reaches Jev.
 - **The text,** which is the PERSONALITY section: who this Boop is, how
   often it speaks up, and its Examples, each a NOW line and what it
@@ -90,7 +89,7 @@ event. It has two parts:
 
 | Personality | For | Its text |
 | --- | --- | --- |
-| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted, a little smug and lively: it never sits still for long, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a failed check is determined with "oops", held once; a check passing after failing proud with "finally", twice; a very long turn done excited with a cheer and "yay", three times, and failed sad, three times; a failed turn grumpy with "ugh", a poke streak grumpy with "nope", and a stopped turn happy with "hmm", once. Any turn done gets a small happy face with no word, the same one each time. Only a very long turn done cheers, and the exclamation is kept for what stands out. A turn start gets nothing. Work still going gets a small face with no word at every working heartbeat, never none: happy in a long turn, determined in a very long one |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted, a little smug and lively: it never sits still for long, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a failed check is determined with "oops", held once; a check passing after failing proud with "finally", twice; a very long turn done excited with a cheer and "yay", three times, and failed sad, three times; a failed turn grumpy with "ugh", four pokes in a row grumpy with "nope", and a stopped turn and a single poke happy, "hmm" and no word, once. Any turn done gets a small happy face with no word, the same one each time. Only a very long turn done cheers, and the exclamation is kept for what stands out. A turn start gets nothing. Work still going gets a small face with no word at every working heartbeat, never none: happy in a long turn, determined in a very long one |
 | [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses and heartbeats included, always picks a word if one fits, and holds its faces long: twice for routine lines, up to four times for a fix or a very long turn done |
 
 "Never stays quiet" is still Jev's call: `none` stays an option, and the
@@ -109,12 +108,12 @@ big win, a routine one its topic), and when it leaves, and for which
 mood. That last part is what the `mood` question
 judges by. No timer holds or ends a mood: how long one lasts is the
 steering's to say. The rules read only what the lines say
-([EVENTS.md](EVENTS.md) §8), with no streaks or counts:
+([EVENTS.md](EVENTS.md) §8), with no streaks:
 
 - a failed check while the agent works on: determined;
 - the agent still working on a very long turn (its working heartbeat):
   happy drifts to determined, rooting for it;
-- a failed turn, or a poke streak: grumpy;
+- a failed turn, or many pokes in a row: grumpy;
 - a check passing after failing: proud;
 - a very long turn (5 minutes or more) ending done: excited; ending
   failed: sad.
@@ -123,7 +122,7 @@ Nothing else moves it: not a short or long finish, a turn starting or a
 stopped turn. Every mood but happy goes back to happy after its minutes,
 read against HISTORY's closing `Boop has been X for N min.`: 2 for
 grumpy, which flares up and blows over, 10 for sad, and 5 for the rest
-(§2.1). Two things hold a mood past them: a poke streak keeps Boop
+(§2.1). Two things hold a mood past them: pokes coming again and again keep Boop
 grumpy while it goes on, and a very long turn still working keeps it
 determined. Proud rides out a failed check, with a determined face, so
 tests flipping back and forth don't flip the mood (`20-no-flail`, a
@@ -131,11 +130,11 @@ known gap still: [EVALS.md](../EVALS.md) §4).
 
 | Mood | Its meaning (the `mood` option) | Leaves for (its file) |
 | --- | --- | --- |
-| `happy` | Good spirits: things are going fine | `excited` when a very long turn finishes done; `proud` when a check passes after failing; `determined` when a check fails, or the agent is still working on a very long turn; `grumpy` when a turn fails or at a poke streak; `sad` when a very long turn ends failed. Stays happy through turns finishing under 5 minutes and a stopped turn |
-| `excited` | Thrilled: a very long turn finished done. Not for a shorter turn finishing, or work still going | `determined` at a failed check; `grumpy` when a turn fails or at a poke streak; `sad` when a very long turn ends failed; `happy` after 5 minutes |
-| `proud` | Something hard-won worked: a check passed after failing. Not for a turn finishing | `excited` when a very long turn finishes done; `grumpy` when a turn fails or at a poke streak; `sad` when a very long turn ends failed; `happy` after 5 minutes. Stays through routine turns and a failed check |
-| `determined` | Rooting for a retry: a check failed and the agent is working on. Not for a turn that has ended | `proud` when a check passes after failing; `excited` when a very long turn finishes done; `grumpy` when a turn fails or at a poke streak; `sad` when a very long turn ends failed; `happy` after 5 minutes, unless the agent is still working on a very long turn. Stays through more failed checks, long work and routine finishes |
-| `grumpy` | Fed up, briefly: a turn failed, or Boop was poked again and again. Not for a check failing while the agent works on | `proud` when a check passes after failing; `sad` when a very long turn ends failed; `happy` after 2 minutes, but never at a poke streak |
+| `happy` | Good spirits: things are going fine | `excited` when a very long turn finishes done; `proud` when a check passes after failing; `determined` when a check fails, or the agent is still working on a very long turn; `grumpy` when a turn fails or it's poked many times in a row; `sad` when a very long turn ends failed. Stays happy through turns finishing under 5 minutes and a stopped turn |
+| `excited` | Thrilled: a very long turn finished done. Not for a shorter turn finishing, or work still going | `determined` at a failed check; `grumpy` when a turn fails or it's poked many times in a row; `sad` when a very long turn ends failed; `happy` after 5 minutes |
+| `proud` | Something hard-won worked: a check passed after failing. Not for a turn finishing | `excited` when a very long turn finishes done; `grumpy` when a turn fails or it's poked many times in a row; `sad` when a very long turn ends failed; `happy` after 5 minutes. Stays through routine turns and a failed check |
+| `determined` | Rooting for a retry: a check failed and the agent is working on. Not for a turn that has ended | `proud` when a check passes after failing; `excited` when a very long turn finishes done; `grumpy` when a turn fails or it's poked many times in a row; `sad` when a very long turn ends failed; `happy` after 5 minutes, unless the agent is still working on a very long turn. Stays through more failed checks, long work and routine finishes |
+| `grumpy` | Fed up, briefly: a turn failed, or Boop was poked again and again. Not for a check failing while the agent works on | `proud` when a check passes after failing; `sad` when a very long turn ends failed; `happy` after 2 minutes, but never while Boop is being poked |
 | `sad` | Deflated: a very long turn finished failed. Not for a shorter turn failing | `proud` when a check passes after failing, staying sad through more failures before it; `happy` after 10 minutes |
 
 Each "after N minutes" counts from Boop's mood changing to it, or ends
@@ -199,7 +198,7 @@ finish is celebrated. It's asked on every pass and only read when
 `react.mood` picks a face; a missing or unknown answer is `none`. A new
 reaction animation is a new option here with its own meaning, once its
 art exists; candidates are an `oops` for a first failure, a `slump`
-when things keep failing, a `huff` at a poke streak and a `ponder` at a
+when things keep failing, a `huff` at a pile of pokes and a `ponder` at a
 stopped turn.
 
 | `react.animation` | Meaning |
@@ -254,7 +253,7 @@ the next `state` carries it.
 | Another mood | Saves it, tells the core, and returns `ok`, `Boop's mood changed: happy → grumpy.` MOOD is the new mood's file from the next pass, and a new `state` goes to the device at once |
 | Another mood, but the file can't be written | `ok: false`, `couldn't save the mood: …`, and nothing changes |
 
-A mood can change on any pass, a poke streak's included, even straight
+A mood can change on any pass, a poke's included, even straight
 after another change.
 
 **How long Boop has been in its mood.** `mood` also hands the runtime a
@@ -359,18 +358,20 @@ says otherwise ([EVALS.md](../EVALS.md) §1, §3).
 [HARNESS.md](HARNESS.md) §9 has a reaction and its end in `debug.jsonl`,
 from a headless run with no device. With the board on USB and Boop
 asleep, a forced proud reaction held twice: its moment, its action and
-the settle the device's `ended` (`done`) brought 14.0 s later, at the
+the end the device's `ended` (`done`) brought 14.0 s later, at the
 second loop boundary of the asleep design's 8 s clock, long after its
-1.9 s mumble:
+1.9 s mumble (recorded before the raw transcript, and rewritten into
+today's lines by
+`plan/evidence/2026-09-28-raw-transcript-view/convert_fixtures.py`):
 
 ```jsonl
 {"sent":{"t":"moment","say":{"syl":"da-to-lon","word":"finally","at":3,"tune":"lift","ms":135},"mood":"proud","loops":2,"id":1710758195},"received_at_ms":1790531820132}
-{"action":{"by":"dashboard","for":null,"latency_ms":1,"message":"Boop made a proud face, held twice, and mumbled \"…finally!\"","name":"react","ok":true,"pending":true},"received_at_ms":1790531820132,"seq":2}
-{"received_at_ms":1790531834106,"seq":3,"settle":{"by":"dashboard","end":"done","for":2}}
+{"event":{"seq":2,"ts":1790531820132,"source":"boop","type":"action","phase":"start","specific_type":"react","data":{"by":"dashboard","for":null,"latency_ms":1,"message":"Boop made a proud face, held twice, and mumbled \"…finally!\"","ok":true}},"received_at_ms":1790531820132}
+{"event":{"seq":3,"ts":1790531834106,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"dashboard","for":2,"outcome":"done"}},"received_at_ms":1790531834106}
 ```
 
 ## 6. An example
 
-[EXAMPLE.md](EXAMPLE.md) follows one real pass end to end: the events,
-the transcript, the state and questions, Jev's answers, and what the
-actions did.
+[EXAMPLE.md](EXAMPLE.md) follows one real pass end to end: the view
+event, the transcript, the state and questions, Jev's answers, and what
+the actions did.

@@ -12,8 +12,8 @@ with the vision.
 | [VOICE.md](VOICE.md) | The gibberish: how it's built, checked and played |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | The parts and their boundaries, the data flow, queues and timers, what Boop keeps on disk, budgets, and the decisions in force |
 | [ADAPTERS.md](ADAPTERS.md) | The hook client, the event each hook becomes, session states and "needs you", and installing the hooks |
-| [harness/HARNESS.md](harness/HARNESS.md) | The harness: how an event becomes a question for Jev and an answer becomes an action; the transcript and the state |
-| [harness/EVENTS.md](harness/EVENTS.md) | The seven kinds of event the core hands the harness: their facts, lines and rule reactions, and which wake the brain |
+| [harness/HARNESS.md](harness/HARNESS.md) | The harness: how a view event becomes a question for Jev and an answer becomes an action; the transcript and the state |
+| [harness/EVENTS.md](harness/EVENTS.md) | What goes in the transcript: raw events, their seven types and their data; and the view over it: view events, their facts and lines, what's kept, and which wake the brain |
 | [harness/DECISIONS.md](harness/DECISIONS.md) | What Boop decides: the steering files, the questions, how answers are read, and the actions |
 | [harness/EXAMPLE.md](harness/EXAMPLE.md) | One turn of failing tests end to end, from a real eval run: events, transcript, state, Jev's answers and what Boop does |
 | [steering/](steering/guide.md) | The guide, personalities and moods Jev reads, read-only and bundled in the app ([harness/DECISIONS.md](harness/DECISIONS.md) §2) |

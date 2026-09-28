@@ -7,6 +7,6 @@ is no new win.
 Words it likes: finally, and yay at a big win.
 Stays proud through routine turns and a failed check. Leaves for
 excited when a very long turn finishes done, grumpy when a turn fails
-or at a poke streak, sad when a very long turn ends failed. Goes back
-to happy once Boop has been proud for 5 min, or once HISTORY no longer
-shows the change.
+or it's poked many times in a row, sad when a very long turn ends
+failed. Goes back to happy once Boop has been proud for 5 min, or once
+HISTORY no longer shows the change.

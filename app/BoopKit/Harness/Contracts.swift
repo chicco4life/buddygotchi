@@ -1,14 +1,19 @@
 import Foundation
 
-/// A JSON value, for what the harness logs but never reads: an event's
-/// facts (harness/HARNESS.md §3).
-public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, ExpressibleByDictionaryLiteral {
+/// A JSON value: a raw event's `data` and a view event's facts
+/// (harness/EVENTS.md). The harness logs them but never reads them.
+public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, ExpressibleByDictionaryLiteral,
+    ExpressibleByBooleanLiteral, ExpressibleByIntegerLiteral {
     case string(String)
     case int(Int64)
+    case bool(Bool)
+    case array([JSONValue])
     case object([String: JSONValue])
     case null
 
     public init(stringLiteral value: String) { self = .string(value) }
+    public init(booleanLiteral value: Bool) { self = .bool(value) }
+    public init(integerLiteral value: Int64) { self = .int(value) }
     public init(dictionaryLiteral elements: (String, JSONValue)...) {
         self = .object(Dictionary(elements, uniquingKeysWith: { $1 }))
     }
@@ -21,10 +26,29 @@ public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, Expressi
         switch self {
         case .string(let s): s
         case .int(let n): NSNumber(value: n)
+        case .bool(let b): b
+        case .array(let a): a.map(\.foundation)
         case .object(let o): o.mapValues(\.foundation)
         case .null: NSNull()
         }
     }
+
+    /// A value from what `JSONSerialization` read. Fractions are cut to
+    /// whole numbers: nothing Boop writes has any.
+    public init(foundation value: Any?) {
+        switch value {
+        case let s as String: self = .string(s)
+        case let n as NSNumber:
+            self = CFGetTypeID(n) == CFBooleanGetTypeID() ? .bool(n.boolValue) : .int(n.int64Value)
+        case let a as [Any]: self = .array(a.map { JSONValue(foundation: $0) })
+        case let o as [String: Any]: self = .object(o.mapValues { JSONValue(foundation: $0) })
+        default: self = .null
+        }
+    }
+
+    public var string: String? { if case .string(let s) = self { s } else { nil } }
+    public var int: Int64? { if case .int(let n) = self { n } else { nil } }
+    public var bool: Bool? { if case .bool(let b) = self { b } else { nil } }
 }
 
 // MARK: - Actions: the output contract (harness/HARNESS.md §4)

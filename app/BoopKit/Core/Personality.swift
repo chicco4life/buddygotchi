@@ -2,7 +2,7 @@ import Foundation
 
 /// Who Boop is: a file in `plan/steering/personality/`, chosen in Settings
 /// (BEHAVIORS.md §6, harness/DECISIONS.md §2.2). Its settings drive the
-/// core's rules; its text is the PERSONALITY section of Jev's state.
+/// view's rules; its text is the PERSONALITY section of Jev's state.
 public enum Personality: String, CaseIterable, Sendable {
     /// The default.
     case boop
@@ -11,7 +11,7 @@ public enum Personality: String, CaseIterable, Sendable {
 
     /// The settings a personality file's front matter sets for the core.
     public struct Rules: Equatable, Sendable {
-        /// Which finished tool calls become events (harness/EVENTS.md §4).
+        /// Which finished tool calls the view keeps (harness/EVENTS.md §3).
         public enum ToolUses: String, Sendable { case notable, all }
 
         /// The working heartbeat's wait, in milliseconds, or none

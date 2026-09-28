@@ -1,47 +1,80 @@
 import Foundation
 
-/// The harness (harness/HARNESS.md): records every event the core hands it,
-/// and for each one that wakes the brain, builds the state, asks every
-/// action's questions in one request, hands each action its own answers,
-/// and records what they report. It never reads an event's facts or an
-/// action's answers, builds Minion speech or talks to the device.
+/// The harness (harness/HARNESS.md): for each view event that wakes the
+/// brain, builds the state, asks every action's questions in one request,
+/// hands each action its own answers, and records what they report as
+/// `action` events in the transcript. It never reads a view event's facts
+/// or an action's answers, builds Minion speech or talks to the device.
 ///
-/// One pass runs at a time; a newer event that wakes the brain replaces one
-/// that's waiting. Everything but the brain call runs on `home`.
+/// One pass runs at a time; a newer view event that wakes the brain
+/// replaces one that's waiting. Everything but the brain call runs on
+/// `home`.
 public final class Harness: @unchecked Sendable {
-    /// What one pass did, for the app log and tests.
-    public struct Record: Sendable {
-        public var event: Event
-        public var pass: Transcript.Pass
-        public var actions: [Transcript.ActionRecord]
+    /// What the brain was asked and answered for one view event, or the
+    /// answers the dashboard forced, for none (`forSeq` nil). Only
+    /// `debug.jsonl` keeps it.
+    public struct Pass: Equatable, Sendable {
+        /// The raw event its view event came from.
+        public var forSeq: Int?
+        public var answers: Answers
+        /// Why nothing ran: Jev failed, was late, or had no answer.
+        public var dropped: String?
+        public var latencyMs: Int
+    }
 
-        /// The app log's line (§9): the event's kind, the latency and which
-        /// actions returned a result, never their messages.
-        public var logLine: String {
-            "brain \(event.kind.rawValue) \(pass.latencyMs) ms → "
-                + (pass.dropped.map { "dropped: \($0)" } ?? Transcript.ActionRecord.names(actions))
+    /// What one action reported, and its `action` event's `seq`.
+    public struct ActionRecord: Equatable, Sendable {
+        public var name: String
+        public var result: ActionResult
+        public var latencyMs: Int
+        public var seq: Int
+
+        /// Which actions returned a result, for the app log:
+        /// `mood, react (failed)`, or `nothing`.
+        public static func names(_ records: [ActionRecord]) -> String {
+            records.isEmpty ? "nothing" : records.map { $0.name + ($0.result.ok ? "" : " (failed)") }.joined(separator: ", ")
         }
     }
+
+    /// What one pass did, for the app log and tests.
+    public struct Record: Sendable {
+        public var now: ViewEvent
+        public var pass: Pass
+        public var actions: [ActionRecord]
+
+        /// The app log's line (§9): the view event's kind, the latency and
+        /// which actions returned a result, never their messages.
+        public var logLine: String {
+            "brain \(now.name) \(pass.latencyMs) ms → "
+                + (pass.dropped.map { "dropped: \($0)" } ?? ActionRecord.names(actions))
+        }
+    }
+
+    /// Who forces passes and actions, for no view event: its actions are
+    /// `by` it (harness/HARNESS.md §9).
+    public static let forcedBy = "dashboard"
 
     /// The brain in use, or nil for none (no key): no pass runs.
     public private(set) var brain: (any Brain)?
     let actions: [any Action]
-    /// Everything the state needs besides the transcript, for the pass on
-    /// an event: the static parts, the closing line and the clock.
-    let parts: (Transcript.Entry) -> StateText.Parts
+    /// Where events are recorded and the view is kept.
+    public let pipeline: Pipeline
+    /// Everything the state needs besides the view, for the pass on a view
+    /// event: the static parts, the closing line and the clock.
+    let parts: (ViewEvent) -> StateText.Parts
     let home: DispatchQueue
     let clock: @Sendable () -> Int64
     let debugLog: URL?
     let log: (String) -> Void
 
-    public let transcript = Transcript()
     /// Called on `home` after every pass, dropped ones included.
     public var onRecord: ((Record) -> Void)?
-    /// Called on `home` with every `debug.jsonl` line, file or not.
+    /// Called on `home` with every pass's `debug.jsonl` line, file or not.
     public var onDebugLine: ((String) -> Void)?
-    /// Whether a waiting event's pass may start now: not while something
-    /// needs you, when no event wakes the brain (EVENTS.md §6).
-    public var mayStart: () -> Bool = { true }
+    /// Whether a waiting view event's pass may start now: not while
+    /// something needs you, when nothing but a poke wakes the brain
+    /// (EVENTS.md §6).
+    public var mayStart: (ViewEvent) -> Bool = { _ in true }
 
     /// The whole pass must finish within this.
     public static let deadlineMs = 1500
@@ -52,27 +85,28 @@ public final class Harness: @unchecked Sendable {
     public static let pendingMaxMs: Int64 = 60_000
 
     var running: Int?
-    var waiting: Transcript.Entry?
+    var waiting: ViewEvent?
     /// The actions the dashboard made act while the running pass ran: the
     /// pass's state is from before, so they sit its answers out (§2).
     var changedDuringPass: Set<String> = []
 
     /// A started action, still in progress: its name, when its result was
-    /// recorded, and whether it was forced.
+    /// recorded, and who it was by.
     struct Open {
         var name: String
         var since: Int64
-        var forced: Bool
+        var by: String
     }
 
-    /// Started actions still in progress, by their `action` entry's `seq`.
+    /// Started actions still in progress, by their `action` event's `seq`.
     var open: [Int: Open] = [:]
 
-    public init(brain: (any Brain)?, actions: [any Action], parts: @escaping (Transcript.Entry) -> StateText.Parts,
-                home: DispatchQueue, clock: @escaping @Sendable () -> Int64, debugLog: URL? = nil,
-                log: @escaping (String) -> Void = { _ in }) {
+    public init(brain: (any Brain)?, actions: [any Action], pipeline: Pipeline,
+                parts: @escaping (ViewEvent) -> StateText.Parts, home: DispatchQueue,
+                clock: @escaping @Sendable () -> Int64, debugLog: URL? = nil, log: @escaping (String) -> Void = { _ in }) {
         self.brain = brain
         self.actions = actions
+        self.pipeline = pipeline
         self.parts = parts
         self.home = home
         self.clock = clock
@@ -88,20 +122,18 @@ public final class Harness: @unchecked Sendable {
         self.brain = brain
     }
 
-    /// An event from the core: recorded, and a pass for it if it wakes the
+    /// View events from the pipeline: a pass for each that wakes the
     /// brain. Call on `home`.
-    public func take(_ event: Event) {
+    public func take(_ views: [ViewEvent]) {
         dispatchPrecondition(condition: .onQueue(home))
-        let entry = append(.event(event), at: event.receivedAtMs)
-        guard event.wakesBrain, brain != nil else { return }
-        if running != nil {
-            if let old = waiting, case .event(let e) = old.body {
-                log("harness: \(e.kind.rawValue) replaced by a newer \(event.kind.rawValue)")
+        for view in views where view.wakesBrain && brain != nil {
+            if running != nil {
+                if let old = waiting { log("harness: \(old.name) replaced by a newer \(view.name)") }
+                waiting = view
+                continue
             }
-            waiting = entry
-            return
+            start(view)
         }
-        start(entry)
     }
 
     /// Nothing running and nothing waiting. Call on `home`.
@@ -113,7 +145,7 @@ public final class Harness: @unchecked Sendable {
     // MARK: A pass (§3)
 
     /// What a pass sends, fixed when it starts on `home`, and the last
-    /// entry its state saw.
+    /// event its state saw.
     struct Job: Sendable {
         var brain: any Brain
         var state: String
@@ -123,14 +155,14 @@ public final class Harness: @unchecked Sendable {
 
     var nextPass = 0
 
-    func start(_ entry: Transcript.Entry) {
+    func start(_ now: ViewEvent) {
         guard let brain else { return }
         nextPass += 1
         let id = nextPass
         running = id
         changedDuringPass = []
-        let job = prepare(entry, brain: brain)
-        let kind = if case .event(let event) = entry.body { event.kind.rawValue } else { "?" }
+        let job = prepare(now, brain: brain)
+        let kind = now.name
         Task { [self] in
             let (result, ms) = await Harness.ask(job) { [weak self] ms, late in
                 self?.home.async { [weak self] in
@@ -140,11 +172,11 @@ public final class Harness: @unchecked Sendable {
             home.async { [self] in
                 guard running == id else { return }
                 running = nil
-                finish(entry, job, result, latencyMs: ms)
+                finish(now, job, result, latencyMs: ms)
                 changedDuringPass = []
                 if let next = waiting {
                     waiting = nil
-                    if mayStart() {
+                    if mayStart(next) {
                         start(next)
                     } else {
                         finish(next, nil, .failure(BrainError("something needs you")), latencyMs: 0, brainID: job.brain.id)
@@ -155,20 +187,19 @@ public final class Harness: @unchecked Sendable {
     }
 
     /// Step 3, on `home`: the state and every action's questions.
-    func prepare(_ entry: Transcript.Entry, brain: any Brain) -> Job {
-        let state = StateText.build(transcript.entries, now: entry, at: clock(), parts(entry))
+    func prepare(_ now: ViewEvent, brain: any Brain) -> Job {
+        let state = StateText.build(pipeline.view.events, now: now, at: clock(), parts(now))
         return Job(brain: brain, state: state, questions: actions.flatMap { $0.questions() },
-                   seen: transcript.entries.last?.seq ?? entry.seq)
+                   seen: pipeline.transcript.events.last?.seq ?? now.seq)
     }
 
     /// Steps 5–7, on `home`: each action gets its own answers, in order,
     /// and everything is recorded.
     /// A pass with no `job` never asked the brain `brainID`: a waiting
-    /// event whose pass couldn't start.
-    func finish(_ entry: Transcript.Entry, _ job: Job?, _ result: Result<Answers, BrainError>, latencyMs: Int,
+    /// view event whose pass couldn't start.
+    func finish(_ now: ViewEvent, _ job: Job?, _ result: Result<Answers, BrainError>, latencyMs: Int,
                 brainID: String? = nil) {
-        guard case .event(let event) = entry.body else { return }
-        var pass = Transcript.Pass(forSeq: entry.seq, answers: [:], dropped: nil, latencyMs: latencyMs)
+        var pass = Pass(forSeq: now.seq, answers: [:], dropped: nil, latencyMs: latencyMs)
         switch result {
         case .failure(let error):
             pass.dropped = error.description
@@ -176,24 +207,27 @@ public final class Harness: @unchecked Sendable {
         case .success(let answers):
             pass.answers = answers
         }
+        var nowJSON: [String: Any] = ["id": now.id, "type": now.type.rawValue, "line": now.line]
+        if let phase = now.phase { nowJSON["phase"] = phase.rawValue }
+        var extra: [String: Any] = ["now": nowJSON]
         if let job {
-            record(.pass(pass), extra: ["state": job.state, "questions": job.questions.map(\.key), "brain": job.brain.id,
-                                        "seen": job.seen])
+            extra.merge(["state": job.state, "questions": job.questions.map(\.key), "brain": job.brain.id, "seen": job.seen]) { $1 }
         } else {
-            record(.pass(pass), extra: ["brain": brainID ?? brain?.id ?? "none"])
+            extra["brain"] = brainID ?? brain?.id ?? "none"
         }
+        logPass(pass, extra: extra)
         let ran = pass.dropped == nil
-            ? runActions(pass.answers, forSeq: entry.seq, skipping: changedDuringPass) : []
-        let record = Record(event: event, pass: pass, actions: ran)
-        if let dropped = pass.dropped { log("harness: \(event.kind.rawValue) dropped: \(dropped)") }
+            ? runActions(pass.answers, forSeq: now.seq, by: "brain", skipping: changedDuringPass) : []
+        let record = Record(now: now, pass: pass, actions: ran)
+        if let dropped = pass.dropped { log("harness: \(now.name) dropped: \(dropped)") }
         onRecord?(record)
     }
 
     /// Hands each action its own answers, in order, and records what each
     /// reports. The ones named in `skipping` sit out: they changed since
     /// the state the answers are about.
-    func runActions(_ answers: Answers, forSeq: Int?, skipping: Set<String> = []) -> [Transcript.ActionRecord] {
-        var ran: [Transcript.ActionRecord] = []
+    func runActions(_ answers: Answers, forSeq: Int?, by: String, skipping: Set<String> = []) -> [ActionRecord] {
+        var ran: [ActionRecord] = []
         for action in actions {
             if skipping.contains(action.name) {
                 log("harness: \(action.name) sat out the pass: the dashboard changed it while the pass ran")
@@ -205,20 +239,26 @@ public final class Harness: @unchecked Sendable {
             let ms = (ContinuousClock.now - started).ms
             if ms > Harness.actionSlowMs { log("harness: \(action.name) took \(ms) ms; slow work should be handed off") }
             guard let result else { continue }
-            let a = Transcript.ActionRecord(forSeq: forSeq, name: action.name, result: result, latencyMs: ms)
-            ran.append(a)
-            record(a)
+            ran.append(record(action.name, result, forSeq: forSeq, by: by, latencyMs: ms))
         }
         return ran
     }
 
-    /// Records an action's result. A started one stays open until its
-    /// handle ends, and its end is recorded as a `settle` entry (§5.1).
-    func record(_ a: Transcript.ActionRecord) {
-        let entry = append(.action(a), at: clock())
-        guard let pending = a.result.pending else { return }
-        open[entry.seq] = Open(name: a.name, since: entry.receivedAtMs, forced: a.forSeq == nil)
-        pending.bind { [weak self] end in self?.settle(entry.seq, end) }
+    /// Records an action's result as an `action` event (EVENTS.md §2): one
+    /// that started something is a `start`, open until its handle ends and
+    /// its `end` is recorded (§5.1).
+    func record(_ name: String, _ result: ActionResult, forSeq: Int?, by: String, latencyMs: Int) -> ActionRecord {
+        let started = result.ok && result.pending != nil
+        let e = pipeline.record(Event(ts: clock(), source: .boop, type: .action, phase: started ? .start : nil,
+                                      specificType: name,
+                                      data: ["for": forSeq.map { .int(Int64($0)) } ?? .null, "by": .string(by),
+                                             "ok": .bool(result.ok), "message": .string(result.message),
+                                             "latency_ms": .int(Int64(latencyMs))]))
+        if started, let pending = result.pending {
+            open[e.seq] = Open(name: name, since: e.ts, by: by)
+            pending.bind { [weak self] end in self?.settle(e.seq, end) }
+        }
+        return ActionRecord(name: name, result: result, latencyMs: latencyMs, seq: e.seq)
     }
 
     /// Ends an open action; one already ended is left alone. A handle is
@@ -226,7 +266,12 @@ public final class Harness: @unchecked Sendable {
     func settle(_ seq: Int, _ end: Pending.End) {
         dispatchPrecondition(condition: .onQueue(home))
         guard let item = open.removeValue(forKey: seq) else { return }
-        record(.settle(Transcript.Settle(forSeq: seq, end: end)), extra: item.forced ? ["by": Transcript.forcedBy] : [:])
+        var data: [String: JSONValue] = ["for": .int(Int64(seq)), "by": .string(item.by)]
+        switch end {
+        case .done: data["outcome"] = "done"
+        case .failed(let why): data["outcome"] = "failed"; data["why"] = .string(why)
+        }
+        pipeline.record(Event(ts: clock(), source: .boop, type: .action, phase: .end, specificType: item.name, data: data))
     }
 
     /// Ends every action still in progress `pendingMaxMs` after its result,
@@ -245,17 +290,18 @@ public final class Harness: @unchecked Sendable {
     /// A pass whose answers are given, not asked: each choice at
     /// probability 1, handed to the actions exactly as Jev's would be. It
     /// runs at once, needs no brain, and leaves the pass running or waiting
-    /// alone. It's recorded for no event; a choice that isn't one of its
+    /// alone. It's for no view event; a choice that isn't one of its
     /// question's options is left out. Call on `home`.
-    public func force(_ choices: [String: String]) -> [Transcript.ActionRecord] {
+    public func force(_ choices: [String: String]) -> [ActionRecord] {
         dispatchPrecondition(condition: .onQueue(home))
         let asked = actions.flatMap { $0.questions() }.filter { q in q.options.contains { $0.name == choices[q.key] } }
         let answers = Dictionary(uniqueKeysWithValues: asked.compactMap { q in
             choices[q.key].map { (q.key, Answer(choice: $0, probabilities: [$0: 1])) }
         })
         if answers.count < choices.count { log("harness: forced answers left out: \(Set(choices.keys).subtracting(answers.keys).sorted())") }
-        record(.pass(Transcript.Pass(forSeq: nil, answers: answers, dropped: nil, latencyMs: 0)), extra: ["questions": asked.map(\.key)])
-        let ran = runActions(answers, forSeq: nil)
+        logPass(Pass(forSeq: nil, answers: answers, dropped: nil, latencyMs: 0),
+                extra: ["questions": asked.map(\.key), "by": Harness.forcedBy])
+        let ran = runActions(answers, forSeq: nil, by: Harness.forcedBy)
         for a in ran where a.result.ok { changedOutsidePass(a.name) }
         return ran
     }
@@ -267,40 +313,31 @@ public final class Harness: @unchecked Sendable {
     }
 
     /// One action doing `body` outside any pass, such as setting the mood
-    /// the dashboard picked: its result is recorded for no event. Call on
-    /// `home`.
+    /// the dashboard picked: its result is recorded for no view event.
+    /// Call on `home`.
     public func force(_ action: any Action, _ body: () -> ActionResult?) -> ActionResult? {
         dispatchPrecondition(condition: .onQueue(home))
         let started = ContinuousClock.now
         guard let result = body() else { return nil }
-        record(Transcript.ActionRecord(forSeq: nil, name: action.name, result: result, latencyMs: (ContinuousClock.now - started).ms))
+        _ = record(action.name, result, forSeq: nil, by: Harness.forcedBy, latencyMs: (ContinuousClock.now - started).ms)
         if result.ok { changedOutsidePass(action.name) }
         return result
     }
 
-    /// Appends and logs one entry.
-    @discardableResult
-    func append(_ body: Transcript.Body, at ms: Int64, extra: [String: Any] = [:]) -> Transcript.Entry {
-        let entry = transcript.append(body, at: ms)
-        if debugLog != nil || onDebugLine != nil {
-            let line = Transcript.json(entry, extra: extra)
-            if let debugLog { Harness.appendLine(line, to: debugLog) }
-            onDebugLine?(line)
-        }
-        return entry
+    /// A pass's `debug.jsonl` line (§9).
+    func logPass(_ pass: Pass, extra: [String: Any]) {
+        guard debugLog != nil || onDebugLine != nil else { return }
+        let line = DebugLog.pass(pass, extra: extra, at: clock())
+        if let debugLog { Harness.appendLine(line, to: debugLog) }
+        onDebugLine?(line)
     }
 
-    func record(_ body: Transcript.Body, extra: [String: Any] = [:]) {
-        append(body, at: clock(), extra: extra)
-    }
-
-    /// One event straight through, without the queue: for the evals. Don't
-    /// call on `home`. Returns nil when it didn't wake the brain.
-    public func respond(to event: Event) async -> Record? {
-        let (entry, job): (Transcript.Entry, Job?) = home.sync {
-            let entry = append(.event(event), at: event.receivedAtMs)
-            guard event.wakesBrain, let brain else { return (entry, nil) }
-            return (entry, prepare(entry, brain: brain))
+    /// One view event straight through, without the queue: for the evals.
+    /// Don't call on `home`. Returns nil when it doesn't wake the brain.
+    public func respond(to now: ViewEvent) async -> Record? {
+        let job: Job? = home.sync {
+            guard now.wakesBrain, let brain else { return nil }
+            return prepare(now, brain: brain)
         }
         guard let job else { return nil }
         let (result, ms) = await Harness.ask(job)
@@ -308,7 +345,7 @@ public final class Harness: @unchecked Sendable {
             var out: Record?
             let keep = onRecord
             onRecord = { out = $0; keep?($0) }
-            finish(entry, job, result, latencyMs: ms)
+            finish(now, job, result, latencyMs: ms)
             onRecord = keep
             return out
         }
@@ -370,7 +407,7 @@ public final class Harness: @unchecked Sendable {
     }
 
     /// Appends `line` and a newline, opening the file for each line.
-    static func appendLine(_ line: String, to url: URL) {
+    public static func appendLine(_ line: String, to url: URL) {
         let data = Data((line + "\n").utf8)
         if let handle = try? FileHandle(forWritingTo: url) {
             defer { try? handle.close() }

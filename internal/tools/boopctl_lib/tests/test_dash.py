@@ -39,6 +39,24 @@ def fixture_lines(path: Path = FIXTURE) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines()]
 
 
+def dashboard_action(line: dict) -> dict:
+    """A raw action event's data, if the dashboard forced it."""
+    data = line.get("event", {}).get("data", {})
+    return data if line.get("event", {}).get("type") == "action" and data.get("by") == "dashboard" else {}
+
+
+def at_by_seq(lines: list[dict]) -> dict[int, int]:
+    """Each line's time by its raw event's seq, or its view event's id
+    (the converted fixtures keep the old seqs as both)."""
+    out = {}
+    for line in lines:
+        if "event" in line:
+            out[line["event"]["seq"]] = line["received_at_ms"]
+        elif "view" in line:
+            out[line["view"]["id"]] = line["received_at_ms"]
+    return out
+
+
 def board_after(lines: list[dict]) -> tuple[Board, list[tuple[str, str]]]:
     board = Board()
     rows = [row for row in map(board.apply, lines) if row]
@@ -48,20 +66,22 @@ def board_after(lines: list[dict]) -> tuple[Board, list[tuple[str, str]]]:
 class FeedTests(unittest.TestCase):
     """The fixture: boopdev replay of the e2e Claude session into
     `Boop --headless --debug --brain scripted`, then the dashboard's dev
-    lines and a few more hooks (plan/evidence/2026-09-27-dashboard)."""
+    lines and a few more hooks (plan/evidence/2026-09-27-dashboard),
+    rewritten into today's lines by
+    plan/evidence/2026-09-28-raw-transcript-view/convert_fixtures.py."""
 
     def test_the_fixture_has_every_kind_of_line(self):
         kinds = [kind(line) for line in fixture_lines()]
         self.assertEqual(kinds[0], "questions", "written first, once")
         self.assertEqual(kinds.count("questions"), 1)
-        self.assertEqual(set(kinds), {"questions", "sent", "status", "event", "pass", "action"})
+        self.assertEqual(set(kinds), {"questions", "sent", "status", "view", "event", "pass"})
 
     def test_the_timeline(self):
         board, rows = board_after(fixture_lines())
         events = [text for style, text in rows if style == "event"]
         self.assertEqual([e.split(":")[0] for e in events][:5],
-                         ["▸ 1 turn_start", "▸ 4 needs_you (no pass)", "▸ 5 turn_end", "▸ 8 turn_start", "▸ 11 turn_end"])
-        self.assertIn("[Boop cheered on its own.]", events[2])
+                         ["▸ 1 turn start", "▸ 4 tool wait (no pass)", "▸ 5 turn end", "▸ 8 turn start", "▸ 11 turn end"])
+        self.assertIn(("ok", "  ✓ cheer (by rule): Boop cheered on its own."), rows, "a rule's action, under its view event")
         self.assertIn("failed (rate limit)", events[4])
         self.assertIn(("fail", "  ✗ react (by dashboard): something needs you"), rows)
         self.assertIn(("ok", "  ✓ mood (by dashboard): Boop's mood changed: happy → grumpy."), rows)
@@ -90,7 +110,7 @@ class FeedTests(unittest.TestCase):
         self.assertEqual(facts["sessions"], "0 working, 1 idle, 0 waiting", "from the status")
         self.assertEqual(facts["brain"], "scripted · 0 ms · dropped 0")
         self.assertEqual(facts["board"], "not connected (the sim shows what it would)")
-        needs = next(i for i, line in enumerate(fixture_lines()) if line.get("event", {}).get("kind") == "needs_you")
+        needs = next(i for i, line in enumerate(fixture_lines()) if line.get("view", {}).get("phase") == "wait")
         board, _ = board_after(fixture_lines()[: needs + 1])
         facts = dict(board.facts(board.newest_ms))
         self.assertEqual(facts["needs you"], "claude · jetpack")
@@ -110,28 +130,32 @@ class FeedTests(unittest.TestCase):
         self.assertEqual(dict(board.facts(1))["sessions"], "1 working, 2 idle, 2 waiting")
         self.assertEqual(dict(board.facts(1))["needs you"], "claude · a (+1)")
 
-    def test_a_started_action_and_its_settle(self):
-        """harness/HARNESS.md §5.2: a started action is in progress until a
-        settle for its seq says how it ended. The lines are the shapes
-        HarnessTests pins."""
+    def test_a_started_action_and_its_end(self):
+        """harness/HARNESS.md §5.2: a started action is in progress until
+        its end, an action event `for` its seq, says how it ended. The
+        lines are the shapes HarnessTests pins."""
         board = Board()
         board.apply(next(line for line in fixture_lines() if kind(line) == "questions"))
         lines = [
             '{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}}},"by":"dashboard","dropped":null,"for":null,'
-            '"latency_ms":0,"questions":["react"]},"received_at_ms":1,"seq":1}',
-            '{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a grumpy face and mumbled.",'
-            '"name":"react","ok":true,"pending":true},"received_at_ms":2,"seq":2}',
+            '"latency_ms":0,"questions":["react"]},"received_at_ms":1}',
+            '{"event":{"seq":2,"ts":2,"source":"boop","type":"action","phase":"start","specific_type":"react","data":'
+            '{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a grumpy face and mumbled.","ok":true}},'
+            '"received_at_ms":2}',
         ]
         rows = [board.apply(json.loads(line)) for line in lines]
         self.assertEqual(rows[1], ("dim", "  … react (by dashboard): Boop made a grumpy face and mumbled."))
         self.assertEqual(board.decided_column()[-1], ("playing", "  ▶ playing"))
         self.assertEqual(dict(board.facts(2))["showing"], "a grumpy reaction face")
-        row = board.apply(json.loads('{"received_at_ms":3,"seq":3,"settle":{"by":"dashboard","end":"failed","for":2,'
-                                     '"why":"waited too long"}}'))
+        row = board.apply(json.loads('{"event":{"seq":3,"ts":3,"source":"boop","type":"action","phase":"end",'
+                                     '"specific_type":"react","data":{"by":"dashboard","outcome":"failed","for":2,'
+                                     '"why":"waited too long"}},"received_at_ms":3}'))
         self.assertEqual(row, ("fail", "  ✗ react (2) didn't happen: waited too long"))
         self.assertEqual(board.decided_column()[-1], ("fail", "  ✗ didn't happen: waited too long"))
         self.assertEqual(dict(board.facts(3))["showing"], "its ? look", "no state yet")
-        row = board.apply(json.loads('{"received_at_ms":4,"seq":4,"settle":{"end":"done","for":2}}'))
+        row = board.apply(json.loads('{"event":{"seq":4,"ts":4,"source":"boop","type":"action","phase":"end",'
+                                     '"specific_type":"react","data":{"by":"brain","outcome":"done","for":2}},'
+                                     '"received_at_ms":4}'))
         self.assertEqual(row, ("ok", "  ✓ react (2) done"))
         self.assertEqual(board.decided_column()[-1], ("ok", "  ✓ played"))
 
@@ -142,16 +166,19 @@ class ColumnsTests(unittest.TestCase):
     (plan/evidence/2026-09-28-tonight/dash: a headless app whose USB link is
     a boop-sim, a forced mood, the e2e Claude session, a forced reaction
     that played, a forced pass that chose none, a cheer from the dashboard,
-    and four taps on the sim's screen, a poke streak), then edited, since
+    and four taps on the sim's screen, then a poke streak), then edited, since
     the scripted brain answers everything at probability 1: the first
     pass's mood and the turn end's reaction, word and hold were given
     other probabilities, and the pass for the failed deploy was made a
     dropped one, its reaction's action, moment and settle taken out
-    (make_fixture.py there)."""
+    (make_fixture.py there). It was recorded before the raw transcript,
+    and rewritten into today's lines by
+    plan/evidence/2026-09-28-raw-transcript-view/convert_fixtures.py, so
+    its lines keep that run's words."""
 
     def setUp(self):
         self.board, _ = board_after(fixture_lines(COLUMNS))
-        self.at = {line["seq"]: line["received_at_ms"] for line in fixture_lines(COLUMNS) if "seq" in line}
+        self.at = at_by_seq(fixture_lines(COLUMNS))
 
     def texts(self, rows):
         return [text for _, text in rows]
@@ -159,11 +186,12 @@ class ColumnsTests(unittest.TestCase):
     def test_the_mood(self):
         """The mood now and since when, then each change with what made it:
         the event and the brain's probability for the new mood, or the
-        dashboard, or the launch; and the poke streak's pass sitting out."""
+        dashboard, or the launch; and the pokes' pass sitting out, as that run's did."""
         mood = self.texts(self.board.mood_column())
         changes = [line for line in fixture_lines(COLUMNS) if line.get("sent", {}).get("t") == "state"]
         self.assertEqual(mood[0], f"happy since {clock(self.at[4])}", "the state sent with the mood action")
-        self.assertEqual(mood[2], f"{clock(self.at[32])} · mood sat out: You poked Boop 4 times in 3 s.")
+        poked = next(line for line in fixture_lines(COLUMNS) if line.get("pass", {}).get("for") == 31)
+        self.assertEqual(mood[2], f"{clock(poked['received_at_ms'])} · mood sat out: You poked Boop 4 times in 3 s.")
         self.assertEqual(mood[3:6], [f"{clock(self.at[4])} grumpy → happy", '  ▸ claude started turn 1 on "jetpack".',
                                      "  scripted: happy 0.87"])
         self.assertEqual(mood[6:8], [f"{clock(self.at[1])} happy → grumpy", "  forced by dashboard"])
@@ -219,7 +247,7 @@ class ColumnsTests(unittest.TestCase):
         ])
         self.assertEqual(self.board.dropped, 1)
         # A forced reaction refused while something needs you (the old fixture's).
-        refused = [line for line in fixture_lines() if line.get("pass", {}).get("by") or line.get("action", {}).get("by")]
+        refused = [line for line in fixture_lines() if line.get("pass", {}).get("by") or dashboard_action(line)]
         board, _ = board_after(fixture_lines(COLUMNS) + refused[-2:])
         self.assertEqual(self.texts(board.decided_column())[1:3], ["  happy 1.00 · no word",
                                                                    "  ✗ didn't happen: something needs you"])
@@ -228,7 +256,7 @@ class ColumnsTests(unittest.TestCase):
         """Boop now's `showing`: a reaction until its settle, a reflex for
         SHOWING_MS after it, else the look."""
         lines = fixture_lines(COLUMNS)
-        forced = next(i for i, line in enumerate(lines) if line.get("action", {}).get("message", "").startswith(
+        forced = next(i for i, line in enumerate(lines) if dashboard_action(line).get("message", "").startswith(
             "Boop made a proud face"))
         board, _ = board_after(lines[: forced + 1])
         self.assertEqual(dict(board.facts(board.newest_ms))["showing"], "a proud reaction face, three times, “…finally!”")
@@ -378,7 +406,7 @@ class ControlsTests(unittest.TestCase):
         pending.add({"dev": "answer", "answers": {"react": "happy"}}, now=0)
         pending.add({"dev": "moment", "anim": "cheer"}, now=0)
         lines = fixture_lines()
-        first = next(i for i, line in enumerate(lines) if line.get("action", {}).get("by"))
+        first = next(i for i, line in enumerate(lines) if dashboard_action(line))
         seen = [pending.seen(line) for line in lines[first:]]
         self.assertEqual([s for s in seen if s], ["mood", "answer", "moment"], "in the order they landed")
         pending.add({"dev": "moment", "anim": "wiggle"}, now=0)
@@ -528,8 +556,9 @@ class AppTests(unittest.TestCase):
                                        {"dev": "moment", "anim": "cheer"}])
                 self.assertEqual(len(app.pending.waiting), 3)
                 with log.open("a") as f:
-                    f.write('{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"already grumpy",'
-                            '"name":"mood","ok":false},"received_at_ms":1790498700000,"seq":28}\n')
+                    f.write('{"event":{"seq":28,"ts":1790498700000,"source":"boop","type":"action","specific_type":"mood",'
+                            '"data":{"by":"dashboard","for":null,"latency_ms":0,"message":"already grumpy","ok":false}},'
+                            '"received_at_ms":1790498700000}\n')
                     f.write('{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":1790498700001}\n')
                 app.poll()
                 self.assertEqual([name for _, name, _ in app.pending.waiting], ["answer"])

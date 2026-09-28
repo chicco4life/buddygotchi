@@ -148,8 +148,9 @@ changes.
    runs there. With one, each decision goes to TypeSafe with Boop's
    steering (its guide, personality and mood) and short lines about what
    just happened: which agent, which project or worktree, how a turn or a
-   test run went. Your code, prompts and agents' transcripts never leave
-   the Mac ([harness/EVENTS.md](harness/EVENTS.md) §9).
+   test run went, with what you asked and the agent's last message, cut
+   short. Your code, commands, tool output and agents' transcripts never
+   leave the Mac ([harness/EVENTS.md](harness/EVENTS.md) §9).
 8. **Never nags, never guilts.** One alert per request, and the Mac app
    never sends notifications.
 9. **No leaderboards.** Nothing about you is ranked or shared.

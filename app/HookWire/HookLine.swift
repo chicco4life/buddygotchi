@@ -3,7 +3,8 @@ import Foundation
 /// The one line `boop-hook` sends to the app: only the fields ADAPTERS.md §2
 /// keeps. Prompt text, tool input and file contents never get this far; the
 /// topic tag is worked out from the tool input in memory, then the input is
-/// dropped with the rest of the payload.
+/// dropped with the rest of the payload. The words it keeps are your
+/// prompt (`UserPromptSubmit`) and the agent's last message (`Stop`).
 public struct HookLine: Equatable, Sendable {
     /// `claude` or `codex`, from `boop-hook <agent>`.
     public var agent: String
@@ -30,13 +31,19 @@ public struct HookLine: Equatable, Sendable {
     /// subagent's hooks the parent's session, so this tells siblings apart;
     /// nil for the main agent.
     public var agentID: String?
+    /// `Stop`'s `last_assistant_message`: what the agent said as it
+    /// finished, up to `maxMessage` characters.
+    public var message: String?
+    /// `UserPromptSubmit`'s `prompt`: what you asked, up to `maxMessage`
+    /// characters.
+    public var prompt: String?
     /// When the hook ran, in milliseconds.
     public var ts: Int64
 
     public init(agent: String, hook: String, session: String, cwd: String? = nil, tool: String? = nil,
                 topic: String? = nil, error: String? = nil, kind: String? = nil, interrupt: Bool = false,
                 toolError: String? = nil, toolUseID: String? = nil, agentType: String? = nil,
-                agentID: String? = nil, ts: Int64) {
+                agentID: String? = nil, message: String? = nil, prompt: String? = nil, ts: Int64) {
         self.agent = agent
         self.hook = hook
         self.session = session
@@ -50,12 +57,16 @@ public struct HookLine: Equatable, Sendable {
         self.toolUseID = toolUseID
         self.agentType = agentType
         self.agentID = agentID
+        self.message = message
+        self.prompt = prompt
         self.ts = ts
     }
 
     /// Longest value kept for any field, so a strange payload can't make the
     /// line large.
     static let maxField = 200
+    /// Longest prompt or last assistant message kept.
+    public static let maxMessage = 2000
 
     /// Picks the kept fields out of a raw hook payload. Returns nil when the
     /// payload has no hook name or session.
@@ -83,6 +94,10 @@ public struct HookLine: Equatable, Sendable {
             if hook == "PostToolUseFailure" && !line.interrupt {
                 line.toolError = ToolError.classify(json["error"] as? String)
             }
+        case "UserPromptSubmit":
+            line.prompt = string(json["prompt"], max: maxMessage)
+        case "Stop":
+            line.message = string(json["last_assistant_message"], max: maxMessage)
         case "StopFailure":
             line.error = string(json["error"]) ?? string(json["error_type"])
         case "Notification":
@@ -117,9 +132,9 @@ public struct HookLine: Equatable, Sendable {
         return line
     }
 
-    static func string(_ value: Any?) -> String? {
+    static func string(_ value: Any?, max: Int = maxField) -> String? {
         guard let s = value as? String, !s.isEmpty else { return nil }
-        return s.count > maxField ? String(s.prefix(maxField)) : s
+        return s.count > max ? String(s.prefix(max)) : s
     }
 
     // MARK: Wire form
@@ -136,6 +151,8 @@ public struct HookLine: Equatable, Sendable {
         if let toolUseID { object["tool_use_id"] = toolUseID }
         if let agentType { object["agent_type"] = agentType }
         if let agentID { object["agent_id"] = agentID }
+        if let message { object["message"] = message }
+        if let prompt { object["prompt"] = prompt }
         // No `.sortedKeys`: nothing reads the order, and sorting loads
         // locale-aware comparison, about half of a hook's few milliseconds.
         var data = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
@@ -153,6 +170,7 @@ public struct HookLine: Equatable, Sendable {
                         error: string(object["error"]), kind: string(object["kind"]),
                         interrupt: object["interrupt"] as? Bool == true, toolError: string(object["tool_error"]),
                         toolUseID: string(object["tool_use_id"]), agentType: string(object["agent_type"]),
-                        agentID: string(object["agent_id"]), ts: ts)
+                        agentID: string(object["agent_id"]), message: string(object["message"], max: maxMessage),
+                        prompt: string(object["prompt"], max: maxMessage), ts: ts)
     }
 }

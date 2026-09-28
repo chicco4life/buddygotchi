@@ -336,8 +336,10 @@ public struct Eval {
         let start = Replay.defaultStart
         let clock = VirtualClock(start)
         let rules = steering.personality(scenario.personality).rules
-        let core = Core(config: .init(rules: rules, time: time, seed: 1), lastActiveDay: time.day(start))
+        let core = Core(config: .init(time: time, seed: 1), lastActiveDay: time.day(start))
         core.setWallClock(start, at: start)
+        let view = TranscriptView(config: .init(rules: rules, seed: 1))
+        let pipeline = Pipeline(core: core, view: view)
         let mood = MoodStore(stateDir: dir)
         let home = DispatchQueue(label: "boop.eval")
         // No device: a reaction's moment goes nowhere and ends as the step
@@ -345,17 +347,21 @@ public struct Eval {
         // does once it has; one left in progress stays so.
         let ending = Ending()
         let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, pending in
-            core.reacted()
+            view.reacted()
             if let end = ending.end { pending.finish(end) } else { ending.open.append(pending) }
         }, blocked: { core.mumbleBlock })
         let moodAction = MoodAction(store: mood, clock: { clock.now })
         let actions: [any Action] = [moodAction, react]
         let steering = self.steering
-        let harness = Harness(brain: brain, actions: actions, parts: { _ in
+        let harness = Harness(brain: brain, actions: actions, pipeline: pipeline, parts: { _ in
             Runtime.stateParts(steering: steering, personality: scenario.personality, mood: mood.current,
-                               core: core, moodAction: moodAction, time: time, now: clock.now,
+                               view: view, moodAction: moodAction, time: time, now: clock.now,
                                wall: clock.now)
         }, home: home, clock: { clock.now }, debugLog: debugLog)
+        if let debugLog {
+            pipeline.onRecord = { Harness.appendLine(DebugLog.event($0), to: debugLog) }
+            pipeline.onView = { Harness.appendLine(DebugLog.view($0), to: debugLog) }
+        }
 
         var checks: [Check] = []
         var timeline: [Pass] = []
@@ -367,14 +373,14 @@ public struct Eval {
             // Time passes a second at a time, as the app ticks, and what a
             // tick brings (a heartbeat) is answered then, as in the app.
             var last: Harness.Record?
-            func respond(_ events: [Event]) async {
-                for event in events {
-                    guard let record = await harness.respond(to: event) else { continue }
+            func respond(_ views: [ViewEvent]) async {
+                for view in views {
+                    guard let record = await harness.respond(to: view) else { continue }
                     last = record
                     let ran = record.actions.contains { $0.name == "react" && $0.result.ok }
                     let answers = record.pass.answers
                     timeline.append(Pass(
-                        atMs: clock.now - start, line: record.event.line,
+                        atMs: clock.now - start, line: record.now.line,
                         reaction: ran ? Reaction(face: answers["react.mood"]?.choice ?? "none",
                                                  animation: ReactAction.animation(answers) ?? "none",
                                                  word: ReactAction.word(answers) ?? "none") : nil,
@@ -385,9 +391,11 @@ public struct Eval {
             ending.end = step.reaction.flatMap(Scenario.end) ?? .done
             while clock.now < start + step.atMs {
                 clock.now = min(start + step.atMs, clock.now + 1000)
-                await respond(Eval.events(core.tick(at: clock.now)))
+                await respond(home.sync { pipeline.tick(at: clock.now).views })
             }
-            await respond(Eval.events(Eval.feed(step, core, at: clock.now)))
+            // Each input's view events get their passes before the next, as
+            // the app's would once the brain answered.
+            for input in Eval.inputs(step, at: clock.now) { await respond(home.sync { input(pipeline).views }) }
             let session = step.session ?? "s1"
             switch step.event {
             case "turn started":
@@ -407,7 +415,7 @@ public struct Eval {
             }
             let react = record.pass.answers["react.mood"]?.choice
             let ran = record.actions.contains { $0.name == "react" && $0.result.ok }
-            checks.append(Check(step: i + 1, line: record.event.line, expected: expect, react: react,
+            checks.append(Check(step: i + 1, line: record.now.line, expected: expect, react: react,
                                 animation: ran ? ReactAction.animation(record.pass.answers) : nil,
                                 word: ran ? ReactAction.word(record.pass.answers) : nil,
                                 loops: ran ? ReactAction.holds[ReactAction.loops(record.pass.answers) - 1].name : nil,
@@ -491,29 +499,30 @@ public struct Eval {
         var open: [Pending] = []
     }
 
-    static func events(_ fx: [CoreEffect]) -> [Event] {
-        fx.compactMap { if case .event(let e) = $0 { return e } else { return nil } }
-    }
-
-    /// A step as it reaches the core: the hook events or device input it
-    /// stands for, in Claude's session (`s1` unless it says) in `landing`.
-    static func feed(_ step: Scenario.Step, _ core: Core, at now: Int64) -> [CoreEffect] {
-        func hook(_ kind: BoopEvent.Kind, _ detail: BoopEvent.Detail = .init()) -> [CoreEffect] {
-            core.handle(BoopEvent(agent: .claudeCode, session: step.session ?? "s1", project: "landing", workspace: step.workspace,
-                                  event: kind, detail: detail, ts: now))
+    /// A step as it reaches the pipeline: the hook events or pokes it
+    /// stands for, in Claude's session (`s1` unless it says) in `landing`,
+    /// each one input.
+    public static func inputs(_ step: Scenario.Step, at now: Int64) -> [(Pipeline) -> Pipeline.Step] {
+        let cwd = step.workspace.map { "/eval/landing/.worktrees/\($0)" } ?? "/eval/landing"
+        let session = step.session ?? "s1"
+        func hook(_ type: Event.Kind, _ phase: Event.Phase, _ specific: String,
+                  _ data: [String: JSONValue] = [:]) -> (Pipeline) -> Pipeline.Step {
+            { $0.agent(Event(ts: now, source: .claude, type: type, phase: phase, specificType: specific, session: session,
+                             cwd: cwd, data: data)) }
         }
         switch step.event {
-        case "turn started": return hook(.turnStart)
-        case "turn finished": return hook(.turnEnd)
-        case "turn failed": return hook(.turnFailed, .init(error: step.error ?? "api_error"))
+        case "turn started": return [hook(.turn, .start, "UserPromptSubmit")]
+        case "turn finished": return [hook(.turn, .end, "Stop", ["outcome": "done"])]
+        case "turn failed": return [hook(.turn, .end, "StopFailure", ["outcome": "failed", "error": .string(step.error ?? "api_error")])]
         case "command":
-            var fx = hook(.activity, .init(tool: "Bash", topic: step.topic))
-            var done = BoopEvent.Detail(tool: "Bash", topic: step.topic, failed: step.failed ?? false,
-                                        toolError: step.failed == true ? "exit_code" : nil)
-            done.done = true
-            fx += hook(.activity, done)
-            return fx
-        case "pokes": return (0..<4).flatMap { _ in core.input(.tap, at: now) }
+            var end: [String: JSONValue] = ["tool": "Bash", "failed": .bool(step.failed ?? false)]
+            if let topic = step.topic { end["topic"] = .string(topic) }
+            if step.failed == true { end["error"] = "exit_code" }
+            var start: [String: JSONValue] = ["tool": "Bash"]
+            if let topic = step.topic { start["topic"] = .string(topic) }
+            return [hook(.tool, .start, "PreToolUse", start),
+                    hook(.tool, .end, step.failed == true ? "PostToolUseFailure" : "PostToolUse", end)]
+        case "pokes": return (0..<4).map { _ in { $0.poke(at: now) } }
         default: return []  // wait
         }
     }

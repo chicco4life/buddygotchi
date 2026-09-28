@@ -16,8 +16,8 @@ Line = dict[str, Any]
 # keepalive (PROTOCOL.md §3), so a newest line older than this means no app
 # is writing the file.
 STALE_S = 15
-# An event written this soon after a reflex's `sent` line is what set it off:
-# the app sends to the device first, then records the event.
+# A view event written this soon after a reflex's `sent` line is what set it
+# off: the app sends to the device first, then records the view event.
 TRIGGER_MS = 1000
 # A cheer, a wiggle or a mumble counts as what's showing for this long.
 SHOWING_MS = 4000
@@ -61,8 +61,38 @@ class Follower:
 
 
 def kind(line: Line) -> str:
-    """`event`, `pass`, `action`, `settle`, `sent`, `status` or `questions`."""
+    """`event` (a raw event the transcript recorded), `view` (what the brain
+    may hear of), `pass`, `sent`, `status` or `questions`."""
     return next((k for k in line if k not in ("seq", "received_at_ms")), "?")
+
+
+def view_name(view: Line) -> str:
+    """A view event's type and phase: `turn end`, `tool wait`, `poke`."""
+    return view.get("type", "?") + (f" {view['phase']}" if view.get("phase") else "")
+
+
+def action(event: Line) -> Line | None:
+    """A raw `action` event's start, or its only line, as the dashboard reads
+    it: its name, whether it worked, its message, whether it's still going,
+    who it's by (`dashboard`, `rule` or none for the brain) and what it's
+    for. None for any other event, and for an action's end."""
+    if event.get("type") != "action" or event.get("phase") == "end":
+        return None
+    data = event.get("data", {})
+    by = data.get("by")
+    return {"name": event.get("specific_type"), "ok": bool(data.get("ok")), "message": data.get("message", ""),
+            "pending": event.get("phase") == "start", "by": None if by == "brain" else by, "for": data.get("for"),
+            "session": event.get("session")}
+
+
+def action_end(event: Line) -> Line | None:
+    """A raw `action` event's end: how the action it's `for` went."""
+    if event.get("type") != "action" or event.get("phase") != "end":
+        return None
+    data = event.get("data", {})
+    by = data.get("by")
+    return {"name": event.get("specific_type"), "for": data.get("for"), "end": data.get("outcome"), "why": data.get("why"),
+            "by": None if by == "brain" else by}
 
 
 def clock(ms: int) -> str:
@@ -76,8 +106,8 @@ class Board:
         self.questions: list[Line] = []
         self.status: Line = {}
         self.state: Line | None = None  # the latest `state` sent to the device
-        self.events: dict[int, Line] = {}
-        self.names: dict[int, str] = {}  # each action's name by its seq, for its settle
+        self.events: dict[int, Line] = {}  # view events by the raw event that made them
+        self.names: dict[int, str] = {}  # each action's name by its seq, for its end
         self.latency_ms: int | None = None  # Jev's last
         self.dropped = 0
         self.jev_state: str | None = None  # the latest state a brain read, for `s`
@@ -105,11 +135,13 @@ class Board:
             return "status", "status: " + status_text(body, before)
         if k == "sent":
             return self._sent(body, at)
-        if k == "event":
-            self.events[seq] = body
+        if k == "view":
+            self.events[(body.get("from") or [0])[-1]] = body
             self._event(body, at)
-            text = f"▸ {seq} {body['kind']}{'' if body.get('wakes_brain') else ' (no pass)'}: {body['line']}"
-            return "event", text + (f"  [{body['reaction']}]" if body.get("reaction") else "")
+            text = f"▸ {body.get('id')} {view_name(body)}{'' if body.get('wakes_brain') else ' (no pass)'}: {body['line']}"
+            return "event", text + "".join(f"  [{note}]" for note in body.get("notes") or [])
+        if k == "event":
+            return self._raw(body, at)
         if k == "pass":
             if body.get("brain") and body.get("state"):
                 self.jev_state = body["state"]
@@ -122,19 +154,31 @@ class Board:
                 return "fail", f"  pass {who} for {body.get('for')}: dropped: {body['dropped']}"
             picks = " · ".join(f"{key} {a['choice']}" for key, a in answers(body))
             return "pass", f"  pass {who}" + (f" for {body['for']}" if body.get("for") else "") + f": {picks}"
-        if k == "action":
-            self.names[seq] = body["name"]
-            self._action(body, seq, at)
-            by = f" (by {body['by']})" if body.get("by") else ""
-            style, mark = ("fail", "✗") if not body["ok"] else ("dim", "…") if body.get("pending") else ("ok", "✓")
-            return style, f"  {mark} {body['name']}{by}: {body['message']}"
-        if k == "settle":
-            if row := self._decided_by_action.get(body["for"]):
-                row["settle"] = body
-            name = f"{self.names.get(body['for'], '?')} ({body['for']})"
-            if body["end"] == "done":
+        return None
+
+    def _raw(self, event: Line, at: int) -> tuple[str, str] | None:
+        """A raw event: only actions have a row; the view says the rest."""
+        seq = event.get("seq")
+        if a := action(event):
+            if a["name"] == "needs_you":
+                return None  # the state's strip shows it, and the view its line
+            self.names[seq] = a["name"]
+            if a["by"] == "rule":
+                self._rule(a, at)
+            else:
+                self._action(a, seq, at)
+            by = f" (by {a['by']})" if a.get("by") else ""
+            style, mark = ("fail", "✗") if not a["ok"] else ("dim", "…") if a.get("pending") else ("ok", "✓")
+            return style, f"  {mark} {a['name']}{by}: {a['message']}"
+        if end := action_end(event):
+            if end["name"] == "needs_you":
+                return None
+            if row := self._decided_by_action.get(end["for"]):
+                row["settle"] = end
+            name = f"{self.names.get(end['for'], '?')} ({end['for']})"
+            if end["end"] == "done":
                 return "ok", f"  ✓ {name} done"
-            return "fail", f"  ✗ {name} didn't happen: {body.get('why')}"
+            return "fail", f"  ✗ {name} didn't happen: {end.get('why')}"
         return None
 
     # Sorting lines into the columns.
@@ -174,24 +218,35 @@ class Board:
         elif old and not new:
             self.reflexes.append({"at": at, "what": "needs you cleared", "attn": True, "trigger": None})
 
-    def _event(self, event: Line, at: int) -> None:
-        """An event names what set off the reflex just sent before it: the
-        cheer's turn end, or the request that needs you. One with a reaction
-        the device plays by itself (the tap's wiggle) is a reflex of its own."""
+    def _event(self, view: Line, at: int) -> None:
+        """A view event of a request that waits on you names the needs-you
+        strip just sent before it."""
+        if view_name(view) != "tool wait":
+            return
         waiting = [r for r in self.reflexes[-3:] if r["trigger"] is None and at - r["at"] <= TRIGGER_MS]
-        want = "anim" if event.get("reaction") else "attn"
-        match = next((r for r in waiting if r.get(want)), None)
+        match = next((r for r in waiting if r.get("attn")), None)
         if match:
-            match["trigger"] = "▸ " + event["line"]
-        elif event.get("reaction"):
-            self.reflexes.append({"at": at, "what": event["reaction"], "trigger": "▸ " + event["line"]})
-            self._reflex = (at, event["reaction"])
+            match["trigger"] = "▸ " + view["line"]
+
+    def _rule(self, a: Line, at: int) -> None:
+        """A rule's action names what set off the animation just sent before
+        it; one the device plays by itself (the poke's wiggle) is a reflex
+        of its own. Either way its trigger is the view event it's for."""
+        event = self.events.get(a.get("for"))
+        trigger = "▸ " + event["line"] if event else None
+        waiting = [r for r in self.reflexes[-3:] if r["trigger"] is None and at - r["at"] <= TRIGGER_MS]
+        match = next((r for r in waiting if r.get("anim")), None)
+        if match:
+            match["trigger"] = trigger
+            return
+        self.reflexes.append({"at": at, "what": a["message"], "trigger": trigger})
+        self._reflex = (at, a["message"])
 
     def _pass(self, body: Line, seq: int, at: int) -> None:
         mood_keys = {q["key"] for q in self.questions if q["action"] == "mood"}
         row = {"at": at, "seq": seq, "pass": body, "event": self.events.get(body.get("for")), "react": None,
                "settle": None,
-               # A poke streak's pass asks no mood question: the mood sat it out.
+               # A pass that asks no mood question: the mood sat it out.
                "sat_out": bool(body.get("brain") and "questions" in body and mood_keys
                                and not mood_keys & set(body["questions"]))}
         self.decided.append(row)

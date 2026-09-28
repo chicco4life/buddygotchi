@@ -7,9 +7,14 @@ answers, and the actions. How it works is in [HARNESS.md](HARNESS.md),
 shows it.
 
 **Stale:** recorded before the lines Jev reads lost their streaks, times,
-counts and closing lines on 2026-09-28 ([ARCHITECTURE.md](../ARCHITECTURE.md)'s
-decision log); today's are in [EVENTS.md](EVENTS.md) §8 and
-[HARNESS.md](HARNESS.md) §5.3. It will be re-recorded with the evals.
+counts and closing lines on 2026-09-28, and before the raw transcript and
+its view replaced the core's events the same day
+([ARCHITECTURE.md](../ARCHITECTURE.md)'s decision log). Today the
+transcript holds raw events ([EVENTS.md](EVENTS.md) §2), the brain reads
+view events with their lines and notes (§8 there), and `debug.jsonl` has
+`event`, `view` and `pass` lines, with no `action` or `settle` lines of
+their own ([HARNESS.md](HARNESS.md) §9). It will be re-recorded with the
+evals, which need Jev's key.
 
 Everything here is real, recorded before the reaction's questions were
 renamed on 2026-09-28: its `react` is today's `react.mood`, and it had

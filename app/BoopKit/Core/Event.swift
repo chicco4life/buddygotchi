@@ -1,55 +1,154 @@
 import Foundation
 
-/// Something that happened, as the core hands it to the harness
-/// (harness/HARNESS.md §3): its line, what Boop already did about it by
-/// rule, and whether it wakes the brain. Its facts are for logs and evals;
-/// the harness never reads them. The kinds, their facts and their lines are
-/// harness/EVENTS.md's.
+/// The agents Boop listens to.
+public enum Agent: String, Sendable {
+    case claudeCode = "claude_code"
+    case codex
+
+    /// The short name used on the device, in lines and as an event's
+    /// `source`.
+    public var short: String {
+        switch self {
+        case .claudeCode: "claude"
+        case .codex: "codex"
+        }
+    }
+
+    /// The name `boop-hook` is called with.
+    public init?(hookName: String) {
+        switch hookName {
+        case "claude", "claude_code": self = .claudeCode
+        case "codex": self = .codex
+        default: return nil
+        }
+    }
+}
+
+/// One thing that happened, as the transcript keeps it (harness/EVENTS.md
+/// §1): the same metadata for every event, and `data` for what only its
+/// type has. Agents' hooks, the device, the clock and Boop's own actions
+/// all arrive as these. Nothing reads meaning into one but the core and
+/// the view.
 public struct Event: Equatable, Sendable {
-    public enum Kind: String, Sendable {
-        case turnStart = "turn_start"
-        case turnEnd = "turn_end"
-        case toolUse = "tool_use"
-        case pokes
-        case heartbeat
-        case tap
-        case needsYou = "needs_you"
+    /// Where it came from.
+    public enum Source: String, Sendable {
+        case claude, codex, device, clock, boop
     }
 
-    public var kind: Kind
-    public var receivedAtMs: Int64
-    /// What happened, as HISTORY and NOW show it (EVENTS.md §8).
-    public var line: String
-    /// What Boop already did by rule, as its line; nil for nothing.
-    public var reaction: String?
-    public var wakesBrain: Bool
-    /// The thread it's about, as the core keys its sessions, for tests;
-    /// the harness never reads it. Nil for pokes, taps and idle heartbeats.
-    public var about: String?
-    public var facts: [String: JSONValue]
-
-    public init(_ kind: Kind, at ms: Int64, line: String, reaction: String? = nil, wakesBrain: Bool,
-                about: String? = nil, facts: [String: JSONValue] = [:]) {
-        self.kind = kind
-        self.receivedAtMs = ms
-        self.line = line
-        self.reaction = reaction
-        self.wakesBrain = wakesBrain
-        self.about = about
-        self.facts = facts
+    /// What it is, whatever agent it came from (EVENTS.md §2).
+    public enum Kind: String, Sendable, CaseIterable {
+        case session, turn, tool, subagent, poke, heartbeat, action
     }
 
-    /// The event as one JSON object, for `debug.jsonl`.
-    public var json: [String: Any] {
-        var o: [String: Any] = ["kind": kind.rawValue, "line": line, "wakes_brain": wakesBrain,
-                                "facts": facts.mapValues(\.foundation)]
-        o["reaction"] = reaction ?? NSNull()
-        return o
+    /// Where in its life a thing with a start and an end is: a tool call
+    /// can also `wait` on you. Nil for one that just happens.
+    public enum Phase: String, Sendable {
+        case start, wait, end
     }
 
-    /// `turn_end · claude finished …`, for debug mode.
+    /// Its place in the transcript, counting on across days and launches;
+    /// 0 until it's recorded.
+    public var seq: Int
+    /// When it happened, in unix milliseconds.
+    public var ts: Int64
+    public var source: Source
+    public var type: Kind
+    public var phase: Phase?
+    /// The source's own name for it: `PreToolUse`, `Interrupt`, `input`,
+    /// an action's name.
+    public var specificType: String
+    /// The agent's session; for Boop's action about a session, that one.
+    public var session: String?
+    /// The Claude subagent it came from, by `agent_id`.
+    public var subagent: String?
+    public var cwd: String?
+    /// What only this type has (EVENTS.md §2).
+    public var data: [String: JSONValue]
+
+    public init(seq: Int = 0, ts: Int64, source: Source, type: Kind, phase: Phase? = nil, specificType: String,
+                session: String? = nil, subagent: String? = nil, cwd: String? = nil, data: [String: JSONValue] = [:]) {
+        self.seq = seq
+        self.ts = ts
+        self.source = source
+        self.type = type
+        self.phase = phase
+        self.specificType = specificType
+        self.session = session
+        self.subagent = subagent
+        self.cwd = cwd
+        self.data = data
+    }
+
+    /// The agent it came from, for an agent's event.
+    public var agent: Agent? {
+        switch source {
+        case .claude: .claudeCode
+        case .codex: .codex
+        default: nil
+        }
+    }
+
+    public subscript(_ key: String) -> JSONValue? { data[key] }
+
+    /// The source for an agent's events.
+    public static func source(_ agent: Agent) -> Source {
+        agent == .claudeCode ? .claude : .codex
+    }
+
+    // MARK: The transcript's line
+
+    /// The event as one JSON line, metadata first in a fixed order, then
+    /// `data` with its keys sorted.
+    public var jsonLine: String {
+        var parts = ["\"seq\":\(seq)", "\"ts\":\(ts)", "\"source\":\(Event.quote(source.rawValue))",
+                     "\"type\":\(Event.quote(type.rawValue))"]
+        if let phase { parts.append("\"phase\":\(Event.quote(phase.rawValue))") }
+        parts.append("\"specific_type\":\(Event.quote(specificType))")
+        if let session { parts.append("\"session\":\(Event.quote(session))") }
+        if let subagent { parts.append("\"subagent\":\(Event.quote(subagent))") }
+        if let cwd { parts.append("\"cwd\":\(Event.quote(cwd))") }
+        parts.append("\"data\":" + Event.encode(data.mapValues(\.foundation)))
+        return "{" + parts.joined(separator: ",") + "}"
+    }
+
+    /// The event a transcript line holds, or nil for a line that isn't one.
+    public init?(jsonLine line: some StringProtocol) {
+        guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else { return nil }
+        self.init(json: o)
+    }
+
+    public init?(json o: [String: Any]) {
+        guard let seq = (o["seq"] as? NSNumber)?.intValue, let ts = (o["ts"] as? NSNumber)?.int64Value,
+              let source = (o["source"] as? String).flatMap(Source.init(rawValue:)),
+              let type = (o["type"] as? String).flatMap(Kind.init(rawValue:)),
+              let specific = o["specific_type"] as? String else { return nil }
+        let data = (o["data"] as? [String: Any] ?? [:]).mapValues { JSONValue(foundation: $0) }
+        self.init(seq: seq, ts: ts, source: source, type: type, phase: (o["phase"] as? String).flatMap(Phase.init(rawValue:)),
+                  specificType: specific, session: o["session"] as? String, subagent: o["subagent"] as? String,
+                  cwd: o["cwd"] as? String, data: data)
+    }
+
+    /// `12 tool end PostToolUse claude s1 · tool Bash, failed true`, for
+    /// debug mode and replays.
     public var summary: String {
-        "\(kind.rawValue)\(wakesBrain ? "" : " (no pass)") · \(line)" + (reaction.map { " · \($0)" } ?? "")
+        let what = [type.rawValue, phase?.rawValue, specificType, source.rawValue, session].compactMap { $0 }
+        let facts = data.keys.sorted().compactMap { key -> String? in
+            guard let value = data[key] else { return nil }
+            switch value {
+            case .string(let s): return "\(key) \(s.count > 60 ? String(s.prefix(60)) + "…" : s)"
+            case .int(let n): return "\(key) \(n)"
+            case .bool(let b): return "\(key) \(b)"
+            default: return nil
+            }
+        }
+        return what.joined(separator: " ") + (facts.isEmpty ? "" : " · " + facts.joined(separator: ", "))
+    }
+
+    static func quote(_ s: String) -> String { encode([s]).dropFirst().dropLast().description }
+
+    static func encode(_ value: Any) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
+        return String(decoding: data, as: UTF8.self)
     }
 }
 
@@ -59,94 +158,5 @@ public enum Band {
     /// under a minute, long under 5 minutes, very long past that.
     public static func length(ms: Int64) -> String {
         ms < 60_000 ? "short" : ms < 5 * 60_000 ? "long" : "very long"
-    }
-}
-
-/// The lines events and rule reactions are written as (EVENTS.md §8). Only
-/// facts shown to Jev reach them.
-public enum EventLine {
-    /// A thread as the lines name it: `"fix-nav" (landing)`, or just
-    /// `"landing"` when the name is the project.
-    public static func thread(name: String, project: String) -> String {
-        name == project ? "\"\(name)\"" : "\"\(name)\" (\(project))"
-    }
-
-    public static func turnStart(agent: String, turn: Int, thread: String) -> String {
-        "\(agent) started turn \(turn) on \(thread)."
-    }
-
-    /// `claude finished turn 7 on "fix-nav" (landing): done, a very long
-    /// turn.`: the outcome and the length band, nothing else.
-    public static func turnEnd(agent: String, turn: Int, thread: String, outcome: String, lengthMs: Int64) -> String {
-        let how = outcome == "failed" || outcome == "stopped" ? outcome : "done"
-        return "\(agent) finished turn \(turn) on \(thread): \(how), a \(Band.length(ms: lengthMs)) turn."
-    }
-
-    /// A tool use that woke the brain: a check that failed, or passed after
-    /// failing.
-    public static func check(agent: String, topic: String, thread: String, failed: Bool) -> String {
-        "\(agent)'s \(topic) \(failed ? "failed" : "passed") on \(thread)\(failed ? "" : " after failing")."
-    }
-
-    /// Any other tool use, with the personality's `tool_uses: all`.
-    public static func routine(agent: String, category: String, thread: String, failed: Bool?) -> String {
-        let what = switch category {
-        case "shell": "ran a command"
-        case "edit": "edited a file"
-        case "read": "read a file"
-        case "search": "searched"
-        case "web": "looked something up on the web"
-        case "subagent": "started a subagent"
-        default: "used a tool"
-        }
-        return "\(agent) \(what) on \(thread)." + (failed == true ? " It failed." : "")
-    }
-
-    public static let pokes = "You poked Boop again and again."
-
-    public static func heartbeat(hours: Int) -> String {
-        "Nothing has happened for \(hours) hour\(hours == 1 ? "" : "s")."
-    }
-
-    /// The working heartbeat: `claude is still working on "fix-nav"
-    /// (landing), a long turn.`, the band of the turn so far.
-    public static func working(agent: String, thread: String, ms: Int64) -> String {
-        "\(agent) is still working on \(thread), a \(Band.length(ms: ms)) turn."
-    }
-
-    /// The words the lines use, as the guide explains them after how to
-    /// read the layout (EVENTS.md §8.1). Kept here, next to the lines.
-    public static let words = """
-        - claude and codex are the person's coding agents.
-        - A thread is one conversation with an agent, named after its workspace:
-          "fix-nav" (landing) is the thread fix-nav in the project landing.
-        - A turn is one request to a thread. It ends done, failed or stopped.
-        - Tests, build, deploy and docs are what a command was about; failed
-          means it ended with an error.
-        - Turns are short (under a minute), long (under 5 minutes) or very
-          long (5 minutes or more).
-        """
-
-    public static let tap = "You tapped Boop."
-
-    public static func needsYou(agent: String, thread: String) -> String {
-        "\(agent) needs you on \(thread)."
-    }
-
-    public static let wiggled = "Boop wiggled on its own."
-
-    /// The tool's category (EVENTS.md §4).
-    public static func category(tool: String?) -> String {
-        guard let tool else { return "other" }
-        if tool.hasPrefix("mcp__") { return "mcp" }
-        switch tool {
-        case "Bash", "shell", "exec_command", "local_shell": return "shell"
-        case "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch": return "edit"
-        case "Read": return "read"
-        case "Grep", "Glob", "LS": return "search"
-        case "WebFetch", "WebSearch": return "web"
-        case "Task", "Agent": return "subagent"
-        default: return "other"
-        }
     }
 }

@@ -104,10 +104,14 @@ rules that are easy to break:
 
 - **Decisions and effects are separate.** The core and the brain decide.
   Actions (`mood`, `react`) carry out effects and check their own rules.
-- **The harness is generic.** It records events, asks every action's
+- **Everything goes through the transcript.** Hooks, pokes, heartbeats
+  and every action are raw events in one shape; the view folds them into
+  what the brain hears ([plan/harness/EVENTS.md](plan/harness/EVENTS.md)).
+  Anything else is a log line.
+- **The harness is generic.** It takes view events, asks every action's
   questions in one request and hands each action its own answers. It
-  never reads an event's facts, builds Minion speech, writes files or
-  talks to the device.
+  never reads a view event's facts, builds Minion speech or talks to the
+  device.
 - **Only Voice knows Minion speech.** Only the memory store reads and writes
   the memory files. Only the device link knows Bluetooth or USB.
 - **The brain is never on the screen's path.** Rules keep the screen true
@@ -119,7 +123,9 @@ rules that are easy to break:
 - **The steering files are read-only at runtime.** `plan/steering/` is
   the single source, and the app bundles a copy in
   `app/Boop/Resources/steering/`.
-- **No code, file contents, prompts or agent transcripts go to the brain.**
+- **No code, commands, tool output, file contents or agent transcripts go
+  to the brain.** The only words are your prompt and the agent's last
+  message, cut short.
 - **"Needs you" and the screen priority are plain rules in the core.**
 - **The device only renders and reports.** It receives the same messages
   over Bluetooth and USB. Its drawing code stays independent of the display
@@ -140,11 +146,11 @@ unpushed local `main`.
 
 | When you change | Update |
 | --- | --- |
-| `app/BoopKit/Core/`, `firmware/src/app/behaviour.*` | `BEHAVIORS.md` |
+| `app/BoopKit/Core/Core.swift`, `firmware/src/app/behaviour.*` | `BEHAVIORS.md` |
 | `firmware/src/render/`, `firmware/src/app/gesture.*` | `DEVICE.md` |
 | `app/HookWire/`, `app/BoopHook/`, `app/BoopKit/Adapters/`, `app/BoopKit/Install/` | `ADAPTERS.md` |
-| `app/BoopKit/Harness/`, `app/BoopKit/Brains/` | `harness/HARNESS.md` |
-| `app/BoopKit/Core/Event.swift` | `harness/EVENTS.md` |
+| `app/BoopKit/Harness/`, `app/BoopKit/Brains/`, `app/BoopKit/App/Pipeline.swift` | `harness/HARNESS.md` |
+| `app/BoopKit/Core/Event.swift`, `app/BoopKit/Core/TranscriptView.swift`, what the core records | `harness/EVENTS.md` |
 | `app/BoopKit/Actions/`, `plan/steering/` | `harness/DECISIONS.md` (and the app's copy of `plan/steering/`) |
 | `app/BoopKit/Memory/`, `app/BoopKit/App/` | `ARCHITECTURE.md` §3–4 |
 | `app/BoopKit/Voice/`, `firmware/src/voice/`, `firmware/src/app/effect_track.*`, `internal/tools/voicegen/`, `internal/tools/sfxgen/` | `VOICE.md` |

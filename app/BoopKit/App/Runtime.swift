@@ -2,9 +2,10 @@ import Foundation
 import HookWire
 
 /// Everything the app runs, wired together (ARCHITECTURE.md §1): the hook
-/// socket feeds the adapters and the core; the core's events go to the
-/// harness, its moments to the device link and the rest to the memory
-/// store; the device's inputs come back to the core. The menu-bar app and `Boop --headless` both
+/// socket feeds the adapters, and every event goes down the pipeline, into
+/// the transcript, the core and the view; the view events that wake the
+/// brain go to the harness, the core's snapshots to the device link and a
+/// new day to the memory store; the device's pokes come back as events. The menu-bar app and `Boop --headless` both
 /// run one of these.
 ///
 /// All state lives on `home`, one serial queue, which is also the harness's.
@@ -30,15 +31,12 @@ public final class Runtime: @unchecked Sendable {
         public var devLines = false
         /// Moves `clock` forward, for `{"dev":"advance"}`; nil ignores it.
         public var advance: (@Sendable (Int64) -> Void)?
-        /// Milliseconds the Mac has slept since launch: `clock` counts them,
-        /// but a turn's length doesn't (ARCHITECTURE.md §3.2).
-        public var asleep: @Sendable () -> Int64 = Runtime.sleepClock()
         /// Debug mode (harness/HARNESS.md §9): logs every hook with what the
         /// adapter made of it and every line sent to the device, starts
         /// `debug.jsonl` afresh in the state directory (keeping the last
-        /// launches' copies beside it) with every transcript entry and the
-        /// dashboard's lines, and hands the entries and the core's decisions
-        /// to `debugPrint`, readably.
+        /// launches' copies beside it) with every event, view event and
+        /// pass and the dashboard's lines, and hands them and the core's
+        /// decisions to `debugPrint`, readably.
         public var debug = false
         /// Where debug mode prints (the terminal). Never the log file: it
         /// carries Jev's whole state.
@@ -97,7 +95,7 @@ public final class Runtime: @unchecked Sendable {
     /// How long an arm lasts (ADAPTERS.md §6): one the doctor never
     /// confirms is removed, so hooks aren't logged from then on.
     public static let doctorArmSeconds: TimeInterval = 10 * 60
-    /// Debug mode's log of every transcript entry, in the state directory.
+    /// Debug mode's log of every event, view event and pass, in the state directory.
     public let debugLogURL: URL
     /// The doctor's arm (`doctorArm`), in the state directory.
     let doctorArmPath: String
@@ -113,6 +111,8 @@ public final class Runtime: @unchecked Sendable {
     /// saved one, unless this run overrides it.
     public private(set) var personality: Personality
     let core: Core
+    let view: TranscriptView
+    let pipeline: Pipeline
     let harness: Harness
     let mood: MoodStore
     let moodAction: MoodAction
@@ -227,28 +227,6 @@ public final class Runtime: @unchecked Sendable {
         return { wall + Int64((ContinuousClock.now - start).ms) }
     }
 
-    /// How long the Mac has slept since this was made: the steady clock
-    /// less one that stops while the Mac sleeps.
-    public static func sleepClock() -> @Sendable () -> Int64 {
-        let continuous = ContinuousClock.now
-        let suspending = SuspendingClock.now
-        return { max(0, Int64((ContinuousClock.now - continuous).ms) - Int64((SuspendingClock.now - suspending).ms)) }
-    }
-
-    /// The sleep already told to the core, and the headless clock's jumps
-    /// that count as sleep (`{"dev":"advance","asleep":true}`).
-    var toldAsleep: Int64 = 0
-    var devAsleep: Int64 = 0
-
-    /// Tells the core how long the Mac slept since last time, before
-    /// anything the core does now. Under a second is the clocks' jitter.
-    func noteSleep() {
-        let asleep = options.asleep() + devAsleep
-        guard asleep - toldAsleep >= 1000 else { return }
-        core.slept(asleep - toldAsleep)
-        toldAsleep = asleep
-    }
-
     /// Sets up a new Boop: name and sweet-or-cheeky, asked once.
     /// It hatches `today`, by default the Mac's.
     public static func setUp(stateDir: URL, name: String, nature: LongTerm.Nature,
@@ -288,18 +266,24 @@ public final class Runtime: @unchecked Sendable {
         personality = options.personality ?? settings.personality
         let rules = options.steering.personality(personality).rules
         mood = MoodStore(stateDir: options.stateDir)
-        var config = Core.Config(volume: settings.volume, rules: rules, time: options.time, seed: longTerm.seed ^ UInt64(now))
-        config.brain = false  // until Jev's key is read
+        var config = Core.Config(volume: settings.volume, time: options.time, seed: longTerm.seed ^ UInt64(now))
         config.mood = mood.current
         config.firstAsk = Core.randomFirstAsk()
-        core = Core(config: config, lastActiveDay: memory.lastActiveDay)
+        let places = self.places
+        core = Core(config: config, lastActiveDay: memory.lastActiveDay, place: places.place)
         core.setWallClock(options.wallClock(), at: now)
+        view = TranscriptView(config: TranscriptView.Config(rules: rules, seed: longTerm.seed ^ UInt64(now)), place: places.place)
+        let transcript = Transcript(folder: options.stateDir.appendingPathComponent(Transcript.folderName),
+                                    time: options.time, log: log)
+        pipeline = Pipeline(core: core, transcript: transcript, view: view)
+        pipeline.brain = false  // until Jev's key is read
         voice = Voice(dialect: Dialect(seed: longTerm.seed))
         for over in options.steering.overBudget() { log("steering: over budget: \(over)") }
 
         // The actions (harness/DECISIONS.md), in the order they run. Their
         // closures are only ever called on `home`.
         let core = self.core
+        let view = self.view
         let link = self.link
         let clock = options.clock
         let moments = self.moments
@@ -308,7 +292,7 @@ public final class Runtime: @unchecked Sendable {
         let moodChanges = MoodAction(store: mood, clock: clock, changed: { moodSaved($0) })
         moodAction = moodChanges
         let react = ReactAction(voice: voice, queue: { moment, pending in
-            core.reacted()  // the working heartbeat waits from here (EVENTS.md §4)
+            view.reacted()  // the working heartbeat waits from here (EVENTS.md §4)
             moments.schedule.brain(moment, pending, now: clock())
             Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
         }, blocked: { core.mumbleBlock })
@@ -318,25 +302,42 @@ public final class Runtime: @unchecked Sendable {
         let time = options.time
         var personalityNow: () -> Personality = { .boop }
         let wallClock = options.wallClock
-        harness = Harness(brain: nil, actions: actions, parts: { _ in
+        harness = Harness(brain: nil, actions: actions, pipeline: pipeline, parts: { _ in
             Runtime.stateParts(steering: steering, personality: personalityNow(), mood: mood.current,
-                               core: core, moodAction: moodChanges, time: time, now: clock(),
+                               view: view, moodAction: moodChanges, time: time, now: clock(),
                                wall: wallClock())
         }, home: home, clock: clock, debugLog: options.debug ? debugLogURL : nil, log: log)
         if options.debug {
             DebugLog.start(debugLogURL)
             let printer = DebugLog.Printer()
             let print = options.debugPrint
+            let debugLog = debugLogURL
             harness.onDebugLine = { line in
                 recent.add(line)
                 printer.readable(line).map(print)
             }
+            // Every event and view event too, as it happens.
+            let write = { (line: String) in
+                recent.add(line)
+                Harness.appendLine(line, to: debugLog)
+                printer.readable(line).map(print)
+            }
+            pipeline.onRecord = { write(DebugLog.event($0)) }
+            pipeline.onView = { write(DebugLog.view($0)) }
         } else {
+            // Kept for a bug report all the same (harness/HARNESS.md §9).
             harness.onDebugLine = { recent.add($0) }
+            pipeline.onRecord = { recent.add(DebugLog.event($0)) }
+            pipeline.onView = { recent.add(DebugLog.view($0)) }
         }
+        // The view picks up where the last launch left it.
+        let loaded = transcript.load(now: now)
+        pipeline.replay(loaded, now: now)
+        if !loaded.isEmpty { log("transcript: read back \(loaded.count) events, the view has \(view.events.count)") }
         // No event's pass starts while something needs you, not even one
         // that woke the brain before and waited (harness/EVENTS.md §6).
-        harness.mayStart = { !core.needsYouShowing }
+        let pipeline = self.pipeline
+        harness.mayStart = { pipeline.mayWake($0) }
         personalityNow = { [weak self] in self?.personality ?? .boop }
         moodSaved = { [weak self] in self?.moodChanged($0) }
         // A pass can change the mood, which the menu bar shows.
@@ -346,17 +347,17 @@ public final class Runtime: @unchecked Sendable {
         }
     }
 
-    /// Everything Jev's state needs besides the transcript, for a pass
+    /// Everything Jev's state needs besides the view's events, for a pass
     /// (harness/HARNESS.md §6): the steering files, the line that
     /// closes HISTORY (`mood`'s time in the mood), the oldest working turn
-    /// at steady time `now`, and the time of day at wall-clock time `wall`.
-    /// The evals build theirs with it too.
+    /// at `now`, and the time of day at wall-clock time `wall`. The evals
+    /// build theirs with it too.
     public static func stateParts(steering: Steering, personality: Personality,
-                                  mood: String, core: Core, moodAction: MoodAction?,
+                                  mood: String, view: TranscriptView, moodAction: MoodAction?,
                                   time: LocalTime, now: Int64, wall: Int64) -> StateText.Parts {
         StateText.Parts(guide: steering.guide, personality: steering.personality(personality).text,
                         mood: steering.mood(mood), closing: moodAction?.sinceLine(at: now),
-                        workingSince: core.workingSince(at: now), clock: "\(time.clock(wall)), \(time.weekday(wall))")
+                        workingSince: view.workingSince(at: now), clock: "\(time.clock(wall)), \(time.weekday(wall))")
     }
 
     // MARK: Running
@@ -398,7 +399,7 @@ public final class Runtime: @unchecked Sendable {
         // so it starts now, after the app has set its callbacks.
         home.async { [self] in
             readJevKey()
-            run(core.tick(at: options.clock()))
+            run(pipeline.tick(at: options.clock()))
             show(core.snapshot(at: options.clock()))
             changed()
             options.log("boop: running on \(options.stateDir.path), socket \(options.socketPath), "
@@ -427,7 +428,7 @@ public final class Runtime: @unchecked Sendable {
     // MARK: Inputs (on `home`)
 
     func hook(_ line: HookLine, received: Int64) {
-        let event = Adapter.event(from: line, receivedAt: received, place: places.place)
+        let event = Adapter.event(from: line, receivedAt: received)
         // Debug mode logs every hook with what it became; the doctor skill
         // arms the plain line to see hooks arrive. Otherwise hooks aren't logged.
         if options.debug {
@@ -436,8 +437,7 @@ public final class Runtime: @unchecked Sendable {
             options.log("hook: \(line.agent) \(line.hook) \(line.session)")
         }
         guard let event else { return }
-        noteSleep()
-        run(core.handle(event))
+        run(pipeline.agent(event))
     }
 
     /// Whether the doctor armed this app within the last 10 minutes. An
@@ -473,8 +473,11 @@ public final class Runtime: @unchecked Sendable {
         case .input(let input):
             options.log("device: input \(input.rawValue)")
             // The device has already wiggled, cutting whatever played.
-            if input == .tap { moments.schedule.tapped(now: now) }
-            run(core.input(input, at: now))
+            switch input {
+            case .tap:
+                moments.schedule.tapped(now: now)
+                run(pipeline.poke(at: now))
+            }
             pump()
         case .ended(let ended):
             options.log("device: moment \(ended.id) ended \(ended.how.rawValue)" + (ended.why.map { " (\($0))" } ?? ""))
@@ -495,14 +498,12 @@ public final class Runtime: @unchecked Sendable {
         case "advance":
             guard let ms = (object["ms"] as? NSNumber)?.int64Value, ms > 0, let advance = options.advance else { return }
             advance(ms)
-            let asleep = object["asleep"] as? Bool == true
-            if asleep { devAsleep += ms }
-            options.log("dev: clock advanced \(ms) ms" + (asleep ? ", the Mac asleep" : ""))
+            options.log("dev: clock advanced \(ms) ms")
             tick()
         case "answer":
             // A forced pass: the actions keep their own rules.
             guard let choices = object["answers"] as? [String: String] else { return }
-            options.log("dev: forced pass → " + Transcript.ActionRecord.names(harness.force(choices)))
+            options.log("dev: forced pass → " + Harness.ActionRecord.names(harness.force(choices)))
             changed()
         case "mood":
             // The mood action's own change, which tells the device too
@@ -526,9 +527,8 @@ public final class Runtime: @unchecked Sendable {
 
     func tick() {
         let now = options.clock()
-        noteSleep()
         core.setWallClock(options.wallClock(), at: now)
-        run(core.tick(at: now))
+        run(pipeline.tick(at: now))
         link.tick(now: now)
         moments.overdue(now: now)
         // A reaction that has waited too long is dropped here too, before
@@ -544,31 +544,32 @@ public final class Runtime: @unchecked Sendable {
         run(core.setMood(mood, at: options.clock()))
     }
 
-    /// Carries out the core's decisions (ARCHITECTURE.md §3.2).
+    /// Carries out the core's effects from a call outside the pipeline.
     func run(_ effects: [CoreEffect]) {
-        if options.debug {
-            // The snapshot shows as the line the link sends, if it sends one,
-            // and the sessions in debug.jsonl's `status`.
-            for effect in effects {
-                if case .state = effect { continue }
-                if case .sessions = effect { continue }
-                options.debugPrint("core: " + effect.summary)
-            }
-        }
+        var step = Pipeline.Step()
+        pipeline.run(effects, &step)
+        run(step)
+    }
+
+    /// Carries out what an input did (ARCHITECTURE.md §3.2): the core's
+    /// effects (its records are in the transcript already), then a pass
+    /// for each view event that wakes the brain.
+    func run(_ step: Pipeline.Step) {
         var stateChanged = false
-        for effect in effects {
+        for effect in step.effects {
             switch effect {
             case .state(let snapshot):
                 show(snapshot)
                 stateChanged = true
             case .sessions:
                 stateChanged = true
-            case .event(let event):
-                harness.take(event)
+            case .record:
+                break
             case .newDay(let date):
                 memory.startDay(date)
             }
         }
+        harness.take(step.views)
         if stateChanged { changed() }
     }
 
@@ -680,13 +681,13 @@ public final class Runtime: @unchecked Sendable {
         }
     }
 
-    /// A new personality (BEHAVIORS.md §6): the core's rules and Jev's
+    /// A new personality (BEHAVIORS.md §6): the view's rules and Jev's
     /// state from the next event.
     public func setPersonality(_ personality: Personality) {
         home.async { [self] in
             self.personality = personality
             saveSettings { $0.personality = personality }
-            core.setRules(options.steering.personality(personality).rules)
+            view.setRules(options.steering.personality(personality).rules)
             options.log("personality \(personality.rawValue)")
             changed()
         }
@@ -706,7 +707,7 @@ public final class Runtime: @unchecked Sendable {
     func useBrain() {
         let brain = options.brain(jevKey ?? nil)
         harness.use(brain)
-        core.setBrain(brain != nil)
+        pipeline.brain = brain != nil
         options.log("brain \(brain?.id ?? "none")" + (brain == nil ? ": no Jev key, so Boop does only its rule reactions" : ""))
     }
 

@@ -30,7 +30,8 @@ def confirms(line: Line) -> Callable[[Line], bool]:
     if line["dev"] == "answer":
         return lambda o: kind(o) == "pass" and o["pass"].get("by") == "dashboard"
     if line["dev"] == "mood":
-        return lambda o: kind(o) == "action" and o["action"].get("by") == "dashboard" and o["action"]["name"] == "mood"
+        return lambda o: (kind(o) == "event" and o["event"].get("type") == "action"
+                          and o["event"].get("data", {}).get("by") == "dashboard" and o["event"].get("specific_type") == "mood")
     return lambda o: kind(o) == "sent" and o["sent"].get("anim") == line["anim"] and "say" not in o["sent"]
 
 

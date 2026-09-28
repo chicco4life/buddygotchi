@@ -1,16 +1,16 @@
 # Boop: agent adapters
 
 Updated 2026-09-28. How Boop hears from Claude Code and Codex: the hook
-client, the event every hook becomes, how a session moves between
+client, the raw event every hook becomes, how a session moves between
 working, idle and "needs you", and how the hooks are installed. Code:
 `app/HookWire/`, `app/BoopHook/`, `app/BoopKit/Adapters/`,
 `app/BoopKit/Install/`, and the session rules in `app/BoopKit/Core/Core.swift`.
 
 ## 1. The job
 
-An adapter turns one agent's hook calls into Boop's common event.
-Everything agent-specific lives here; the rest of Boop never sees a raw
-hook payload.
+An adapter turns one agent's hook calls into Boop's raw events.
+Everything agent-specific lives here; the rest of Boop never sees a hook
+payload.
 
 Hooks only report. They never answer, block or change what the agent does,
 so Boop can't approve or deny anything. Three rules follow:
@@ -20,32 +20,29 @@ so Boop can't approve or deny anything. Three rules follow:
    prompt included.
 2. **Fail open.** If the app isn't running, or its socket is missing or
    slow, the hook gives up within its budget (§2) and still exits 0.
-3. **Send little.** Prompt text, tool input and output, error text and
-   file contents never leave the hook client. From a tool's input it keeps
-   only a topic tag (§3), and from an error only its class (§2).
+3. **Send little.** Tool input and output, error text, file contents and
+   transcripts never leave the hook client. From a tool's input it keeps
+   only a topic tag (§3), and from an error only its class (§2). The only
+   words it keeps are your prompt and the agent's last message (§2).
 
-### The common event
+### The raw event
 
-Every adapter produces the same shape. This is the Claude adapter's output
-for a `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
+Every adapter produces the same shape, the transcript's
+([harness/EVENTS.md](harness/EVENTS.md) §2): the same metadata for every
+event, and `data` for what only its type has. This is the Claude
+adapter's output for a `PreToolUse` that runs tests, once the transcript
+has given it its `seq` (`AdapterTests.testEventJSONShape`):
 
 ```json
-{"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"landing","session":"a1b2","ts":1790000000123}
+{"seq":102,"ts":1790000000123,"source":"claude","type":"tool","phase":"start","specific_type":"PreToolUse","session":"a1b2","cwd":"/Users/me/src/landing","data":{"tool":"Bash","tool_use_id":"toolu_1","topic":"tests"}}
 ```
 
-| Field | Meaning |
-| --- | --- |
-| `agent` | `claude_code` or `codex` |
-| `session` | The agent's session or thread ID |
-| `subagent` | Claude only, on events from inside a subagent (which shares its parent's `session`): its `agent_id` |
-| `subagent_type` | That subagent's `agent_type`, such as `Explore` |
-| `project` | A short project name from the working directory (§3); `unknown` when the hook had no `cwd` |
-| `workspace` | The worktree or branch the session works in, cleaned to a name (§3); missing on the default branch or outside git |
-| `event` | `session_start`, `turn_start`, `activity`, `needs_you`, `turn_end`, `turn_failed`, `turn_stopped` (over without finishing), `subagent_end` (a Claude subagent finished), `session_end` |
-| `detail` | Per hook in §3: `tool`, `tool_use_id`, `topic`, `failed` (true or false, Claude only), `tool_error` (a failed call's class), `error` (a failed turn's class) and `notice` (Claude's `Notification`: its type) |
-| `ts` | When the app received it, in milliseconds on the app's steady clock ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2, "Clocks"); `boopdev replay` uses the hook line's own `ts` |
-
-Turn length isn't sent: the core times each turn itself.
+The generic `type` and `phase` are what the core and the view read;
+`specific_type` keeps the hook's own name, so the transcript can be read
+again if the mapping changes. `ts` is when the app received it, on its
+steady clock ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2, "Clocks");
+`boopdev replay` uses the hook line's own `ts`. The project and workspace
+aren't sent: the core and the view work them out from `cwd` (§3).
 
 ## 2. The hook client and the socket
 
@@ -71,6 +68,8 @@ construction.
    | `tool_error` | `error`, as a class (below) | `PostToolUseFailure` that isn't an interrupt |
    | `error` | `error`, else `error_type` | `StopFailure` |
    | `kind` | `notification_type` | `Notification` |
+   | `prompt` | `prompt`, up to 2,000 characters (`HookLine.maxMessage`) | `UserPromptSubmit` |
+   | `message` | `last_assistant_message`, up to 2,000 characters | `Stop` |
    | `ts` | when `boop-hook` started, in ms | every hook |
 
    A payload cut off at 256 KB won't parse, so the hook name, session,
@@ -103,38 +102,44 @@ taken only headless or in debug mode and dropped otherwise.
 
 ## 3. Event mapping
 
-**Claude Code** (`claude_code`):
+Each hook becomes a `type` and `phase`, with its name as
+`specific_type` (`Adapter.mapping`).
 
-| Hook | Becomes | `detail` |
+**Claude Code** (`source` `claude`):
+
+| Hook | `type` and `phase` | `data` |
 | --- | --- | --- |
-| `SessionStart` | `session_start` | |
-| `UserPromptSubmit` | `turn_start` | |
-| `PreToolUse` | `activity` | `tool`, `tool_use_id`, `topic` |
-| `PostToolUse` | `activity`, the call's result | `tool`, `tool_use_id`, `topic`, `failed: false` |
-| `PostToolUseFailure` | `activity`, the call's result | `tool`, `tool_use_id`, `topic`, `failed: true`, `tool_error` |
-| `PostToolUseFailure` with `is_interrupt` (you pressed Esc) | `turn_stopped` | `tool` |
-| `PermissionRequest` | `needs_you` | `tool` (the hook has no `tool_use_id`) |
-| `Notification`: `permission_prompt`, `elicitation_dialog` | `needs_you` | `notice`: the type |
-| `Notification`: `idle_prompt` | `turn_stopped` | `notice: idle_prompt` |
-| `Elicitation` | `needs_you` | |
-| `ElicitationResult` | `activity` | |
-| `Stop` | `turn_end` | |
-| `StopFailure` | `turn_failed` | `error` |
-| `SubagentStop` | `subagent_end`, with the subagent's `agent_id`; ignored without one, since it would pass for the main agent | |
-| `SessionEnd` | `session_end` | |
+| `SessionStart` | `session` start | |
+| `UserPromptSubmit` | `turn` start | `prompt` |
+| `PreToolUse` | `tool` start | `tool`, `tool_use_id`, `topic` |
+| `PostToolUse` | `tool` end, the call's result | `tool`, `tool_use_id`, `topic`, `failed: false` |
+| `PostToolUseFailure` | `tool` end, the call's result | `tool`, `tool_use_id`, `topic`, `failed: true`, `error` (its class) |
+| `PostToolUseFailure` with `is_interrupt` (you pressed Esc) | `turn` end | `outcome: stopped`, `tool` |
+| `PermissionRequest` | `tool` wait | `tool`, `for: permission` (the hook has no `tool_use_id`) |
+| `Notification`: `permission_prompt`, `elicitation_dialog` | `tool` wait | `notice`: the type; `for`: `permission` or `input` |
+| `Notification`: `idle_prompt` | `turn` end | `outcome: stopped`, `notice: idle_prompt` |
+| `Elicitation` | `tool` wait | `for: input` |
+| `ElicitationResult` | `tool` end, with no tool | |
+| `Stop` | `turn` end | `outcome: done`, `message` |
+| `StopFailure` | `turn` end | `outcome: failed`, `error` |
+| `SubagentStop` | `subagent` end, with the subagent's `agent_id`; ignored without one, since it would pass for the main agent | |
+| `SessionEnd` | `session` end | |
 
-**Codex** (`codex`):
+Any Claude event from inside a subagent carries its `agent_id` as
+`subagent` and its `agent_type` in `data`.
 
-| Hook | Becomes | `detail` |
+**Codex** (`source` `codex`):
+
+| Hook | `type` and `phase` | `data` |
 | --- | --- | --- |
-| `SessionStart` (startup, resume, clear) | `session_start` | |
-| `UserPromptSubmit` | `turn_start` | |
-| `PreToolUse` | `activity` | `tool`, `tool_use_id`, `topic` |
-| `PostToolUse` | `activity`, the call's result | `tool`, `tool_use_id`, `topic` |
-| `PermissionRequest` | `needs_you` | `tool` (the hook has no `tool_use_id`) |
-| `Stop` | `turn_end` | |
-| `Interrupt` (you pressed Esc) | `turn_stopped` | |
-| `SessionEnd` | `session_end` | |
+| `SessionStart` (startup, resume, clear) | `session` start | |
+| `UserPromptSubmit` | `turn` start | `prompt` |
+| `PreToolUse` | `tool` start | `tool`, `tool_use_id`, `topic` |
+| `PostToolUse` | `tool` end, the call's result | `tool`, `tool_use_id`, `topic` |
+| `PermissionRequest` | `tool` wait | `tool`, `for: permission` (the hook has no `tool_use_id`) |
+| `Stop` | `turn` end | `outcome: done`, `message` |
+| `Interrupt` (you pressed Esc) | `turn` end | `outcome: stopped` |
+| `SessionEnd` | `session` end | |
 
 Any other hook, or any other `Notification` type, is ignored; the
 installer doesn't register them (§5). A call's result finds its topic and
@@ -145,13 +150,13 @@ last call.
 `PostToolUseFailure` when it fails, including a shell command that exits
 with an error. The adapter keeps only that yes or no and the error's
 class. Codex has no failure hook, and what its `PostToolUse` reports after
-a failed command hasn't been seen, so Codex activity carries no `failed`
-and a Codex turn never fails. What makes a turn
+a failed command hasn't been seen, so a Codex tool end carries no
+`failed` and a Codex turn never fails. What makes a turn
 fail is in [BEHAVIORS.md](BEHAVIORS.md) §3.1.
 
 **Interrupted turns.** Claude sends no `Stop` for a turn you interrupt
-with Esc. The interrupted tool call becomes `turn_stopped`, and so does
-`idle_prompt`, which Claude sends once it has sat at its prompt for about
+with Esc. The interrupted tool call becomes a stopped `turn` end, and so
+does `idle_prompt`, which Claude sends once it has sat at its prompt for about
 a minute and which also covers an interrupt between tool calls.
 
 **Project and workspace.** From the hook's `cwd`, read once per folder
@@ -201,19 +206,19 @@ The core keeps one entry per agent and session. Each is **working**,
 still counts as working. Which of them the device shows is
 [BEHAVIORS.md](BEHAVIORS.md) §2–3.
 
-| Event | The session |
+| Raw event | The session |
 | --- | --- |
 | Any, from a session Boop hasn't seen | Is created idle, then the event applies |
-| Any but `session_start` or `turn_start`, from a session that ended (`session_end`) in the last 24 hours and hasn't started again | Ignored: it landed late, from before the end. A permission `Notification` as you quit at the prompt, a background subagent's result or end, the command Codex's `Interrupt` aborted, or a `Stop` would otherwise bring the session back as needing you, working or idle, keeping Boop awake. A resumed session (`session_start`) or a new prompt brings it back |
-| `session_start` | Stays as it is |
-| `turn_start`, `activity` | Works |
-| `activity` that's a call's result, once its turn has ended or stopped, for a call that started before then | Stays as it is. The result landed late: you pressed Esc as a parallel call finished, a subagent's call raced the interrupt, or Codex reported the command its `Interrupt` aborted. It still counts for the thread ([harness/EVENTS.md](harness/EVENTS.md) §4), but it doesn't start the turn again, so a stopped turn isn't recorded twice |
-| `turn_end`, `turn_failed` | Goes idle |
-| `turn_stopped` | Goes idle, with no rule reaction. If its turn is still open, even after the safety net (below) made the session idle, that turn ends as stopped and the brain hears of it ([harness/EVENTS.md](harness/EVENTS.md) §4), so a call's result after it is a late one (above). Claude's `idle_prompt` less than 30 s after the session's last `turn_start` (`Core.idleNoticeMinMs`) is ignored: it comes after a minute at the prompt, so it's from before that prompt, one typed just as the minute ran out. A turn that a call started, with no prompt (a background subagent's after the main agent stopped), has nothing for the notice to race |
-| `subagent_end` | Stays as it is: a subagent finishing isn't activity, and it doesn't count as an event for the timers below, so it can't make an idle or stale session look busy. It can answer a request (below) |
-| `session_start`, `turn_start`, `turn_end`, `turn_failed` or `session_end` from inside a subagent (with its `agent_id`) | The same as `subagent_end`: that subagent's alone, not the session's turn |
-| `needs_you` | Needs you (below) |
-| `session_end` | Is forgotten, and marked as ended (above) |
+| Any but a `session` start or `turn` start, from a session that ended (a `session` end) in the last 24 hours and hasn't started again | Ignored: it landed late, from before the end. A permission `Notification` as you quit at the prompt, a background subagent's result or end, the command Codex's `Interrupt` aborted, or a `Stop` would otherwise bring the session back as needing you, working or idle, keeping Boop awake. A resumed session (a `session` start) or a new prompt brings it back |
+| `session` start | Stays as it is |
+| `turn` start, `tool` start or end | Works |
+| A `tool` end that's a call's result, once its turn has ended or stopped, for a call that started before then | Stays as it is. The result landed late: you pressed Esc as a parallel call finished, a subagent's call raced the interrupt, or Codex reported the command its `Interrupt` aborted. It still counts for the thread ([harness/EVENTS.md](harness/EVENTS.md) §4), but it doesn't start the turn again, so a stopped turn isn't recorded twice |
+| `turn` end, done or failed | Goes idle |
+| `turn` end, stopped | Goes idle, with no rule reaction. If its turn is still open, even after the safety net (below) made the session idle, that turn ends as stopped and the brain hears of it ([harness/EVENTS.md](harness/EVENTS.md) §4), so a call's result after it is a late one (above). Claude's `idle_prompt` less than 30 s after the session's last `turn` start (`Core.idleNoticeMinMs`) is ignored: it comes after a minute at the prompt, so it's from before that prompt, one typed just as the minute ran out. A turn that a call started, with no prompt (a background subagent's after the main agent stopped), has nothing for the notice to race |
+| `subagent` end | Stays as it is: a subagent finishing isn't activity, and it doesn't count as an event for the timers below, so it can't make an idle or stale session look busy. It can answer a request (below) |
+| A `session` start or end, `turn` start, or `turn` end done or failed, from inside a subagent (with its `agent_id`) | The same as a `subagent` end: that subagent's alone, not the session's turn |
+| `tool` wait | Needs you (below) |
+| `session` end | Is forgotten, and marked as ended (above) |
 | No event for 1 hour (`staleWorkMs`) | Counts as idle if it was working |
 | No event for 24 hours (`forgetMs`) | Is forgotten, so a missed `SessionEnd` can't keep Boop busy |
 
@@ -232,29 +237,29 @@ starts a request starts it from "anyone".
 
 | While nothing waits | |
 | --- | --- |
-| `needs_you` from a hook | Starts a request from its asker. Claude's shows at once; Codex's waits 2 s first |
-| `needs_you` from a `Notification` | The same, from "anyone", unless it's the late copy of the session's last request: of the type that request sends (a `PermissionRequest`'s `permission_prompt`, an `Elicitation`'s `elicitation_dialog`), and within 5 s of that request clearing or before any tool call has started since (a new request always follows a new call). Then it's ignored |
+| `tool` wait from a hook | Starts a request from its asker. Claude's shows at once; Codex's waits 2 s first |
+| `tool` wait from a `Notification` | The same, from "anyone", unless it's the late copy of the session's last request: of the type that request sends (a `PermissionRequest`'s `permission_prompt`, an `Elicitation`'s `elicitation_dialog`), and within 5 s of that request clearing or before any tool call has started since (a new request always follows a new call). Then it's ignored |
 
 | While a request waits | |
 | --- | --- |
-| `needs_you` from a hook | Its asker joins the request (a sibling subagent asking too). If the request is a `Notification`'s from "anyone" under 5 s old, the hook is that request's own and takes it over |
-| `needs_you` from a `Notification` | Ignored: it's the same request (a `PermissionRequest` and its `Notification` count once) |
-| `activity` from an asker | Answers that asker: the tool ran (you approved) or the agent moved on (you denied). Not the result of a call for another tool, which the agent made alongside the one that asks (Claude runs read-only calls in parallel, and the main agent's `Agent` call runs on while it asks). A request has no `tool_use_id`, so only the tool's name tells them apart: a parallel call of the same tool still answers it. An `Elicitation` asks for no tool, so no call's result answers it: its `ElicitationResult` does, or the agent's next call |
-| `activity` from anyone else | Nothing, unless "anyone" is asking: then it clears the request |
-| `turn_stopped` without a tool (Claude's `idle_prompt`, Codex's `Interrupt`) | Clears the request, as any turn-level event does. `idle_prompt` means Claude has sat at its own prompt for about a minute with the turn over, which it never does while a prompt is up, a subagent's included: it arrives about a minute after you press Esc on a prompt, which sends no hook |
-| `subagent_end` | Answers that subagent only: one that has finished can't be waiting on a prompt. That's how a subagent you denied, which carries on and ends without another tool call, is answered. The main agent, other subagents and "anyone" stay asking |
+| `tool` wait from a hook | Its asker joins the request (a sibling subagent asking too). If the request is a `Notification`'s from "anyone" under 5 s old, the hook is that request's own and takes it over |
+| `tool` wait from a `Notification` | Ignored: it's the same request (a `PermissionRequest` and its `Notification` count once) |
+| `tool` start or end from an asker | Answers that asker: the tool ran (you approved) or the agent moved on (you denied). Not the result of a call for another tool, which the agent made alongside the one that asks (Claude runs read-only calls in parallel, and the main agent's `Agent` call runs on while it asks). A request has no `tool_use_id`, so only the tool's name tells them apart: a parallel call of the same tool still answers it. An `Elicitation` asks for no tool, so no call's result answers it: its `ElicitationResult` does, or the agent's next call |
+| `tool` start or end from anyone else | Nothing, unless "anyone" is asking: then it clears the request |
+| A stopped `turn` end without a tool (Claude's `idle_prompt`, Codex's `Interrupt`) | Clears the request, as any turn-level event does. `idle_prompt` means Claude has sat at its own prompt for about a minute with the turn over, which it never does while a prompt is up, a subagent's included: it arrives about a minute after you press Esc on a prompt, which sends no hook |
+| `subagent` end | Answers that subagent only: one that has finished can't be waiting on a prompt. That's how a subagent you denied, which carries on and ends without another tool call, is answered. The main agent, other subagents and "anyone" stay asking |
 | Any other event: a new prompt, the turn ending, failing or interrupted mid-tool, the session starting or ending | Clears the request too |
 
 Once no asker is left, the request clears and the session works again,
-before the event itself applies (so `turn_end` then makes it idle). After
-`subagent_end` it works again only if its turn is still going, and
+before the event itself applies (so a `turn` end then makes it idle). After
+a `subagent` end it works again only if its turn is still going, and
 otherwise goes idle.
 
 **Timers**, checked on the core's one-second tick (`Core.Config`):
 
 | Timer | Value | What happens |
 | --- | --- | --- |
-| Codex grace (`codexGraceMs`) | 2 s | A Codex request nothing has answered shows at the first tick past its grace (2–3 s after it arrived), dated 2 s after it arrived. One the reviewer handled is answered by the session's next event within the grace, and never shows, as long as that event comes within the grace: see "What it can't see" below. So is one that event answers after the grace but before a tick showed it: the core records no `needs_you` for it, since the screen never showed it |
+| Codex grace (`codexGraceMs`) | 2 s | A Codex request nothing has answered shows at the first tick past its grace (2–3 s after it arrived), dated 2 s after it arrived. One the reviewer handled is answered by the session's next event within the grace, and never shows, as long as that event comes within the grace: see "What it can't see" below. So is one that event answers after the grace but before a tick showed it: the core records no `needs_you` action for it, since the screen never showed it |
 | Safety net (`safetyNetMs`) | 10 min with no events from the session | The request clears, shown or still in its grace, and the session goes idle: by then the agent is still waiting at its prompt or gone. This covers a grace no tick saw through, as when the Mac sleeps right after Codex asks. The turn stays open, since you may have approved (which sends no hook) and the command run on: the session's next event makes it working again, and an interrupt still stops the turn |
 
 **What it can't see.**
@@ -277,8 +282,10 @@ otherwise goes idle.
   show whether Codex sends something the grace could wait for.
 
 When a Claude request starts showing, and when a Codex one does after its
-grace, the core hands the harness a `needs_you` event, which never wakes
-the brain ([harness/EVENTS.md](harness/EVENTS.md) §4). What you see and
+grace, the core records a `needs_you` action, which the view keeps as
+the request's `tool` wait, never waking the brain
+([harness/EVENTS.md](harness/EVENTS.md) §2, §4). When it clears, the core
+records the action's end. What you see and
 hear is in [BEHAVIORS.md](BEHAVIORS.md) §3.2.
 
 ## 5. Installing and repairing hooks

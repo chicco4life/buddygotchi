@@ -1,8 +1,9 @@
 """boopctl day (plan/VERIFICATION.md §2): a day's summary from debug mode's
 logs (plan/harness/HARNESS.md §9), against a simulated day recorded from a
 real headless run with a relaunch mid-day (fixtures/day, made by
-plan/evidence/2026-09-28-tonight/daylog/drive_day.py), and against small
-made-up logs for the rules. Needs no board, app or sim."""
+plan/evidence/2026-09-28-tonight/daylog/drive_day.py, then rewritten into
+today's lines by plan/evidence/2026-09-28-raw-transcript-view/
+convert_fixtures.py), and against small made-up logs for the rules. Needs no board, app or sim."""
 import contextlib
 import io
 import json
@@ -84,7 +85,7 @@ class FixtureTests(unittest.TestCase):
 
     def test_what_boop_did_by_the_hour(self):
         t = self.day.total()
-        self.assertEqual((t.cheers, t.chatter, t.reactions, t.alerts, t.moods, t.passes, t.dropped, t.missed, t.taps),
+        self.assertEqual((t.cheers, t.chatter, t.reactions, t.alerts, t.moods, t.passes, t.dropped, t.missed, t.pokes),
                          (3, 17, 15, 4, 6, 15, 0, 2, 5))
         self.assertEqual(sorted(self.day.hours), [1, 2, 3, 4, 5, 6])
         self.assertEqual([self.day.hours[h].reactions for h in range(1, 7)], [5, 5, 1, 3, 1, 0])
@@ -120,11 +121,11 @@ class FixtureTests(unittest.TestCase):
         moods = [(m.before, m.after, m.why.split(":")[0]) for m in self.day.moods]
         self.assertEqual(moods, [
             ("happy", "proud", "forced from the dashboard"),
-            ("proud", "happy", "turn_start"),
+            ("proud", "happy", "turn start"),
             ("happy", "determined", "forced from the dashboard"),
-            ("determined", "happy", "turn_end"),
+            ("determined", "happy", "turn end"),
             ("happy", "grumpy", "forced from the dashboard"),
-            ("grumpy", "happy", "turn_start"),
+            ("grumpy", "happy", "turn start"),
         ])
 
     def test_reactions_that_didnt_happen_and_why(self):
@@ -150,7 +151,7 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(lines[0], "Boop's day: Monday 2026-09-28, 01:34–06:01, 2 launches")
         head = next(i for i, x in enumerate(lines) if x.startswith("hour"))
         self.assertEqual(lines[head].split(), ["hour", "cheers", "chatter", "reacts", "alerts", "moods", "passes",
-                                               "dropped", "missed", "taps", "needs", "you", "faces"])
+                                               "dropped", "missed", "pokes", "needs", "you", "faces"])
         self.assertEqual([x.split()[0] for x in lines[head + 1:head + 8]], ["01", "02", "03", "04", "05", "06", "all"])
         self.assertIn("  01:47  codex · landing → claude · jetpack  6 min 4 s, 2 alerts", lines)
         self.assertIn("  1× cut short: you tapped Boop (forced): 01:53", lines)
@@ -159,20 +160,36 @@ class FixtureTests(unittest.TestCase):
 
 
 def event(t: int, seq: int, kind: str, wakes: bool = True) -> dict:
-    return {"event": {"kind": kind, "line": f"a {kind}.", "wakes_brain": wakes}, "seq": seq, "received_at_ms": t}
+    """A view event, `turn start` say, made by the raw event `seq`."""
+    type_, _, phase = kind.partition(" ")
+    view = {"id": seq, "type": type_, "from": [seq], "line": f"a {kind}.", "notes": [], "wakes_brain": wakes, "facts": {}}
+    if phase:
+        view["phase"] = phase
+    return {"view": view, "received_at_ms": t}
 
 
 def a_pass(t: int, seq: int, for_: int | None, **choices: str) -> dict:
     body = {"for": for_, "dropped": None, "latency_ms": 0 if for_ is None else 700,
             "answers": {k: {"choice": v, "p": {v: 1}} for k, v in choices.items()}}
     body.update({"by": "dashboard"} if for_ is None else {"brain": "jev:jev-latest"})
-    return {"pass": body, "seq": seq, "received_at_ms": t}
+    return {"pass": body, "received_at_ms": t}
+
+
+def raw_action(t: int, seq: int, name: str, phase: str | None, data: dict) -> dict:
+    e = {"seq": seq, "ts": t, "source": "boop", "type": "action", **({"phase": phase} if phase else {}),
+         "specific_type": name, "data": data}
+    return {"event": e, "received_at_ms": t}
 
 
 def action(t: int, seq: int, for_: int | None, name: str, ok: bool = True, message: str = "", pending: bool = False):
-    body = {"for": for_, "name": name, "ok": ok, "message": message, "latency_ms": 0,
-            **({"pending": True} if pending else {}), **({"by": "dashboard"} if for_ is None else {})}
-    return {"action": body, "seq": seq, "received_at_ms": t}
+    return raw_action(t, seq, name, "start" if pending else None,
+                      {"for": for_, "ok": ok, "message": message, "latency_ms": 0,
+                       "by": "dashboard" if for_ is None else "brain"})
+
+
+def settle(t: int, seq: int, for_: int, end: str, why: str | None = None) -> dict:
+    """A started action's end."""
+    return raw_action(t, seq, "react", "end", {"for": for_, "outcome": end, "by": "brain", **({"why": why} if why else {})})
 
 
 def status(t: int, connected: bool) -> dict:
@@ -189,12 +206,12 @@ class SmallDayTests(unittest.TestCase):
     def setUpClass(cls):
         first = [
             {"questions": [], "received_at_ms": at("09:00:00")}, status(at("09:00:00"), True), state(at("09:00:00")),
-            event(at("09:05:00"), 1, "turn_start"),
+            event(at("09:05:00"), 1, "turn start"),
             a_pass(at("09:05:01"), 2, 1, mood="grumpy", react="grumpy"),
             state(at("09:05:01"), mood="grumpy"),  # the mood action's state goes out before its entry
             action(at("09:05:01"), 3, 1, "mood", message="Boop's mood changed: happy → grumpy."),
             action(at("09:05:01"), 4, 1, "react", pending=True),
-            {"settle": {"for": 4, "end": "done"}, "seq": 5, "received_at_ms": at("09:05:03")},
+            settle(at("09:05:03"), 5, 4, "done"),
             state(at("09:10:00"), ("claude", "a"), mood="grumpy"),  # needs you: an alert
             state(at("09:20:00"), ("claude", "a"), mood="excited"),  # the dashboard's mood line
             action(at("09:20:00"), 6, None, "mood", message="Boop's mood changed: grumpy → excited."),
@@ -208,10 +225,10 @@ class SmallDayTests(unittest.TestCase):
             status(at("10:10:00"), True),
             state(at("10:15:00"), ("claude", "a"), mood="excited"),  # an alert again: 10:00's state had no attn
             state(at("10:20:00"), mood="excited"),
-            event(at("10:30:00"), 1, "tool_use"),
+            event(at("10:30:00"), 1, "tool end"),
             a_pass(at("10:30:01"), 2, 1, react="curious"),
             action(at("10:30:01"), 3, 1, "react", pending=True),
-            {"settle": {"for": 3, "end": "failed", "why": "waited too long"}, "seq": 4, "received_at_ms": at("10:30:07")},
+            settle(at("10:30:07"), 4, 3, "failed", "waited too long"),
             state(at("10:45:00"), mood="excited"),
         ]
         third = [{"questions": [], "received_at_ms": at("11:00:00")}, state(at("11:00:00"), mood="sad"),
@@ -236,7 +253,7 @@ class SmallDayTests(unittest.TestCase):
 
     def test_moods_by_the_brain_the_dashboard_and_between_launches(self):
         self.assertEqual([(day.clock(m.at), m.before, m.after, m.why) for m in self.day.moods], [
-            ("09:05", "happy", "grumpy", "turn_start: a turn_start."),
+            ("09:05", "happy", "grumpy", "turn start: a turn start."),
             ("09:20", "grumpy", "excited", "forced from the dashboard"),
             ("11:00", "excited", "sad", "between launches"),
         ])
@@ -306,16 +323,13 @@ class RuleTests(unittest.TestCase):
         t = at("10:00:00")
         d = day.summarise([launch(
             state(t),
-            {"event": {"kind": "turn_start", "line": "claude started turn 1.", "wakes_brain": True}, "seq": 1,
-             "received_at_ms": t},
-            {"event": {"kind": "tool_use", "line": "claude's tests failed.", "wakes_brain": True}, "seq": 2,
-             "received_at_ms": t + 10},
-            {"event": {"kind": "turn_end", "line": "claude finished.", "wakes_brain": True}, "seq": 3,
-             "received_at_ms": t + 20},
+            event(t, 1, "turn start"),
+            event(t + 10, 2, "tool end"),
+            event(t + 20, 3, "turn end"),
             {"pass": {"brain": "jev:jev-latest", "for": 1, "dropped": "timed out after 8000 ms", "answers": {},
-                      "latency_ms": 8000}, "seq": 4, "received_at_ms": t + 8000},
+                      "latency_ms": 8000}, "received_at_ms": t + 8000},
             {"pass": {"brain": "jev:jev-latest", "for": 3, "dropped": None, "latency_ms": 900,
-                      "answers": {"react": {"choice": "none", "p": {"none": 0.9}}}}, "seq": 5, "received_at_ms": t + 9000},
+                      "answers": {"react": {"choice": "none", "p": {"none": 0.9}}}}, "received_at_ms": t + 9000},
         )], "2026-09-28")
         self.assertEqual((d.total().passes, d.total().dropped, d.quiet, d.skipped), (2, 1, 1, 1))
         text = day.render(d)

@@ -46,26 +46,30 @@ public struct Replay {
         }
     }
 
-    /// Runs the steps and returns one line per event and effect, each
-    /// effect prefixed with its virtual time.
+    /// Runs the steps and returns one line per raw event, core effect and
+    /// view event, each effect and view event prefixed with its virtual
+    /// time.
     public func run(_ steps: [Step], statesOnly: Bool = false) -> [String] {
         let start = Replay.defaultStart
         var now = start
         let time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
         let core = Core(config: .init(time: time), lastActiveDay: time.day(now))
+        let pipeline = Pipeline(core: core, view: TranscriptView())
         var out: [String] = []
 
-        func emit(_ effects: [CoreEffect]) {
-            for effect in effects {
+        func emit(_ step: Pipeline.Step) {
+            let at = "+" + String(format: "%.1f", Double(now - start) / 1000) + "s "
+            for effect in step.effects {
                 if statesOnly, case .state = effect {} else if statesOnly { continue }
-                out.append("+" + String(format: "%.1f", Double(now - start) / 1000) + "s " + effect.summary)
+                out.append(at + effect.summary)
             }
+            if !statesOnly { for view in step.views { out.append(at + "view " + view.summary) } }
         }
         func advance(_ ms: Int64) {
             let end = now + ms
             while now < end {
                 now = min(end, now + 1000)
-                emit(core.tick(at: now))
+                emit(pipeline.tick(at: now))
             }
         }
 
@@ -83,8 +87,9 @@ public struct Replay {
                     if !statesOnly { out.append("# ignored hook \(line.hook)") }
                     continue
                 }
-                if !statesOnly { out.append("event " + event.jsonLine) }
-                emit(core.handle(event))
+                let step = pipeline.agent(event)
+                if !statesOnly, let recorded = step.recorded.first { out.append("event " + recorded.jsonLine) }
+                emit(step)
                 advance(gapMs)
             }
         }

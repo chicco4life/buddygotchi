@@ -19,11 +19,12 @@ let usage = """
                reads the Keychain; without it Boop does only its rule reactions. --brain scripted answers
                every pass the same way without a network: an excited mumble with "yay", for pipeline checks.
                Stops cleanly on SIGINT or SIGTERM. {"dev":"advance","ms":N} on the socket moves the clock forward.
-           --debug prints everything to this terminal as it happens: each hook and what Boop made of it,
-               the core's decisions, every line sent to the device, and every event, pass (with Jev's whole
-               state) and action. They also go to DIR/debug.jsonl, started afresh each launch, with the
-               lines sent to the device, status changes and the questions (boopdev watch and boopctl dash
-               read it). The last 10 launches' files are kept as DIR/debug.1.jsonl (the latest) to
+               Every event goes to DIR/transcript/<date>.jsonl, read back at the next launch.
+           --debug prints everything to this terminal as it happens: each hook and the raw event Boop made
+               of it, every line sent to the device, and every view event, pass (with Jev's whole state) and
+               action. The events, view events and passes also go to DIR/debug.jsonl, started afresh each
+               launch, with the lines sent to the device, status changes and the questions (boopdev watch
+               and boopctl dash read it). The last 10 launches' files are kept as DIR/debug.1.jsonl (the latest) to
                debug.10.jsonl, and boopctl day sums them all up by the hour. Jev's state never reaches boop.log.
            Headless, or with --debug, the hook socket also takes {"dev":…} lines from boopctl dash: "answer"
                (a forced pass), "mood" and "moment".

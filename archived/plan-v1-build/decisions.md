@@ -129,7 +129,9 @@ quiet mode were removed, the 10-minute mood hold went with the seven
 moods, the new day's reflection went with the if-else brain, and the 3 px
 pixel-art face gave way to the mood designs drawn on whole pixels. On
 2026-09-28 the rule cheer left, when a finished turn became the brain's
-to react to. Section references (§) are to plan/ARCHITECTURE.md.
+to react to, and later that day the privacy row, the poke streak's
+cooldown, the five waking events and turns seen only since launch went
+with the raw transcript and its view. Section references (§) are to plan/ARCHITECTURE.md.
 
 | Date | Decision | Why | Where |
 | --- | --- | --- | --- |
@@ -140,3 +142,7 @@ to react to. Section references (§) are to plan/ARCHITECTURE.md.
 | 2026-09-27 | Push-to-talk and quiet mode are removed, on the Mac and the device: no Talk button, no `listening`, no `talk_on`/`talk_off`, no empty moment and no `quiet` in `state`. Memory keeps only Boop's name and the day | Talk was inert and quiet mode had no other way in; the dead paths cost code in every layer. Both come back as a talk event and actions ([FUTURE.md](../../plan/FUTURE.md)); git keeps the code | [BEHAVIORS.md](../../plan/BEHAVIORS.md) §3.3, [PROTOCOL.md](../../plan/PROTOCOL.md), §4 |
 | 2026-09-26 | The face is pixel art after the owner's reference render: window eyes, pink cheeks and small pixel mouths on a 3 px grid | The owner asked for every animation to match the reference | [UX.md](../../plan/UX.md) §2 |
 | 2026-09-27 | Every finished turn cheers, whatever the personality | A setting nobody varies is just a rule | [BEHAVIORS.md](../../plan/BEHAVIORS.md) §3.1; replaced 2026-09-28 by brain-owned finishes |
+| 2026-09-25 | No code, prompts, file contents or agent transcripts go to the brain | Privacy | [harness/EVENTS.md](../../plan/harness/EVENTS.md) §9; replaced 2026-09-28: your prompt and the agent's last message reach the transcript and the brain |
+| 2026-09-26 | No cooldowns on the brain's mumbles, apart from the poke streak's once a minute | Fewer rules; Jev chooses silence itself | [harness/EVENTS.md](../../plan/harness/EVENTS.md) §6; replaced 2026-09-28: no cooldown at all, and every poke wakes the brain |
+| 2026-09-27 | Five events can wake the brain: turn start, turn end, a notable tool use, a poke streak and an hourly heartbeat | Tool results carry the moments worth a word, and the heartbeat lets a mood go | [harness/EVENTS.md](../../plan/harness/EVENTS.md) §4; replaced 2026-09-28 by view events: turn start and end, a notable tool end, every poke and the heartbeats |
+| 2026-09-28 | The brain hears only of turns Boop saw start: a finish with no open turn is nothing, and the end of a turn Boop joined partway (after a relaunch, or a day's forgetting) makes no event, though a done one still cheers | Boop can't know such a turn's length or tools; it reported "turn 0 … after 0 s" and cheered for second `Stop`s | [harness/EVENTS.md](../../plan/harness/EVENTS.md) §7; replaced 2026-09-28: the view reads the transcript back at launch, so a turn across a relaunch still ends |

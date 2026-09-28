@@ -8,8 +8,8 @@ time something needed you and how long it took to clear, and why reactions
 didn't happen. What the dashboard forced is counted apart from the brain.
 
 It reads only the lines, like the dashboard (dash/feed.py): what was sent
-to the device (`sent`), the transcript (`event`, `pass`, `action`,
-`settle`) and `status`. A failed action's message is its reason
+to the device (`sent`), the transcript's actions (`event`), what the
+brain heard (`view`), the passes (`pass`) and `status`. A failed action's message is its reason
 (harness/HARNESS.md §4), so that one is shown; no other message is parsed."""
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from boopctl_lib.dash.feed import kind
+from boopctl_lib.dash.feed import action, action_end, kind, view_name
 
 Line = dict[str, Any]
 LOG = "debug.jsonl"
@@ -96,7 +96,7 @@ class Hour:
     passes: int = 0
     dropped: int = 0
     missed: int = 0
-    taps: int = 0
+    pokes: int = 0
     needs_ms: int = 0
     lines: int = 0
 
@@ -220,10 +220,11 @@ def summarise(launches: list[Launch], date: str) -> Day:
                     h.cheers += 1
                 if body.get("say") and not body.get("mood"):
                     h.chatter += 1
-            elif k == "event":
+            elif k == "view":
+                seq = (body.get("from") or [0])[-1]  # the raw event that made it, which a pass is for
                 events[seq], event_at[seq] = body, t
-                if h and body.get("kind") in ("tap", "pokes"):
-                    h.taps += 1
+                if h and body.get("type") == "poke":
+                    h.pokes += 1
             elif k == "pass":
                 last_pass = body
                 passed.add(body.get("for"))
@@ -242,7 +243,8 @@ def summarise(launches: list[Launch], date: str) -> Day:
                     day.drops.append(Miss(t, body["brain"], body["dropped"]))
                 elif face(body) == "none":
                     day.quiet += 1
-            elif k == "action":
+            elif k == "event" and (act := action(body)) and act["by"] != "rule":
+                seq, body = body.get("seq"), act
                 names[seq] = body.get("name", "?")
                 forced = bool(body.get("by"))
                 if body.get("name") == "mood" and body.get("ok") and changed and changed.why is None \
@@ -259,7 +261,8 @@ def summarise(launches: list[Launch], date: str) -> Day:
                     if not body.get("ok"):
                         h.missed += not forced
                         day.misses.append(Miss(t, "react", body.get("message", "?"), forced))
-            elif k == "settle":
+            elif k == "event" and (ended := action_end(body)) and ended["by"] != "rule":
+                body = ended
                 if body.get("end") != "done" and h:
                     forced = bool(body.get("by"))
                     h.missed += not forced
@@ -299,7 +302,7 @@ def cause(action: Line, events: dict[int, Line]) -> str:
     if action.get("by"):
         return f"forced from the {action['by']}"
     event = events.get(action.get("for"))
-    return f"{event['kind']}: {event['line']}" if event else "?"
+    return f"{view_name(event)}: {event['line']}" if event else "?"
 
 
 # Text.
@@ -333,7 +336,7 @@ def faces(c: Counter) -> str:
 
 
 COLUMNS = [("cheers", "cheers"), ("chatter", "chatter"), ("reactions", "reacts"), ("alerts", "alerts"),
-           ("moods", "moods"), ("passes", "passes"), ("dropped", "dropped"), ("missed", "missed"), ("taps", "taps")]
+           ("moods", "moods"), ("passes", "passes"), ("dropped", "dropped"), ("missed", "missed"), ("pokes", "pokes")]
 
 
 def render(day: Day) -> str:

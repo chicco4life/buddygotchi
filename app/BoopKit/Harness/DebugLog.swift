@@ -1,19 +1,41 @@
 import Foundation
 
-/// Debug mode's record of the brain (harness/HARNESS.md §9): every
-/// transcript entry as one JSON line in the state directory's
-/// `debug.jsonl`, a pass's with the state and questions it sent, and the
-/// same lines readably, for the terminal (`Boop --debug`) and
-/// `boopdev watch`. Three more kinds of line, with no `seq`, are for the
-/// dashboard: `questions`, `sent` and `status`.
+/// Debug mode's record of the brain (harness/HARNESS.md §9): in the state
+/// directory's `debug.jsonl`, every event the transcript records
+/// (`event`), every view event (`view`) and every pass with the state and
+/// questions it sent (`pass`), one JSON line each, and the same lines
+/// readably, for the terminal (`Boop --debug`) and `boopdev watch`. Three
+/// more kinds of line are for the dashboard: `questions`, `sent` and
+/// `status`.
 public enum DebugLog {
     public static let fileName = "debug.jsonl"
 
-    /// `{"<kind>":<json>,"received_at_ms":N}`: a line that isn't a
-    /// transcript entry. `json` goes in as it is, so `sent` carries the
-    /// device's line verbatim.
+    /// `{"<kind>":<json>,"received_at_ms":N}`. `json` goes in as it is, so
+    /// `sent` carries the device's line verbatim.
     static func line(_ kind: String, _ json: String, at ms: Int64) -> String {
         "{\"\(kind)\":\(json),\"received_at_ms\":\(ms)}"
+    }
+
+    /// An event as the transcript recorded it, as its line there.
+    public static func event(_ e: Event) -> String { line("event", e.jsonLine, at: e.ts) }
+
+    /// A view event, gated.
+    public static func view(_ v: ViewEvent) -> String { line("view", json(v.json), at: v.ts) }
+
+    /// A pass: what was asked and answered for a view event, with `extra`
+    /// (its state, questions, brain and the last event its state saw), or
+    /// the dashboard's forced answers.
+    public static func pass(_ p: Harness.Pass, extra: [String: Any], at ms: Int64) -> String {
+        var pass: [String: Any] = ["for": p.forSeq ?? NSNull(), "latency_ms": p.latencyMs, "dropped": p.dropped ?? NSNull(),
+                                   "answers": answers(p.answers)]
+        for (k, v) in extra { pass[k] = v }
+        return line("pass", json(pass), at: ms)
+    }
+
+    static func answers(_ answers: Answers) -> [String: Any] {
+        answers.mapValues { a in
+            ["choice": a.choice, "p": a.probabilities.mapValues { ($0 * 1000).rounded() / 1000 }] as [String: Any]
+        }
     }
 
     static func json(_ value: Any) -> String {
@@ -112,29 +134,30 @@ public enum DebugLog {
 
     /// Turns debug lines into readable text. The state is printed in full
     /// for the first pass, then only its HISTORY and NOW, which are what
-    /// change.
+    /// change. Of the raw events only actions are printed: the view says
+    /// the rest.
     ///
-    ///     ▸ 12 tool_use: claude's tests failed on "fix-nav" (landing).
+    ///     ▸ 12 tool end: claude's tests failed on "fix-nav" (landing).
     ///       pass jev:jev-latest 240 ms: mood grumpy 0.69 · react grumpy 0.63 · react.loops twice 0.58 · word.feeling again 0.57 · word.about tests 0.81
     ///       ✓ mood: Boop's mood changed: happy → grumpy.
     ///       … react: Boop made a grumpy face, held twice, and mumbled "…again!"
     ///       ✓ react (15) done
     public final class Printer {
         var shownFullState = false
-        /// Each action's name by its `seq`, for its settle's line.
+        /// Each started action's name by its `seq`, for its end's line.
         var names: [Int: String] = [:]
 
         public init() {}
 
-        /// Nil for a line with no `seq`, which isn't a transcript entry: the
-        /// dashboard's.
+        /// Nil for a line it doesn't print: the dashboard's, and raw
+        /// events other than actions.
         public func readable(_ line: String) -> String? {
             guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else { return line }
-            guard let seq = o["seq"] as? Int else { return nil }
-            if let e = o["event"] as? [String: Any] {
-                var out = "▸ \(seq) \(e["kind"] as? String ?? "?")\(e["wakes_brain"] as? Bool == true ? "" : " (no pass)"): "
-                    + (e["line"] as? String ?? "")
-                if let reaction = e["reaction"] as? String { out += "\n    " + reaction }
+            if let v = o["view"] as? [String: Any] {
+                let name = [v["type"] as? String ?? "?", v["phase"] as? String].compactMap { $0 }.joined(separator: " ")
+                var out = "▸ \(v["id"] as? Int ?? 0) \(name)\(v["wakes_brain"] as? Bool == true ? "" : " (no pass)"): "
+                    + (v["line"] as? String ?? "")
+                for note in v["notes"] as? [String] ?? [] { out += "\n    " + note }
                 return out
             }
             if let p = o["pass"] as? [String: Any] {
@@ -157,17 +180,22 @@ public enum DebugLog {
                 }
                 return out
             }
-            if let a = o["action"] as? [String: Any] {
-                let name = a["name"] as? String ?? "?"
-                names[seq] = name
-                let mark = a["ok"] as? Bool != true ? "✗" : a["pending"] as? Bool == true ? "…" : "✓"
-                return "  \(mark) \(name): \(a["message"] as? String ?? "")"
+            if let raw = o["event"] as? [String: Any], let e = Event(json: raw) {
+                guard e.type == .action else { return nil }
+                let by = e["by"]?.string == "rule" ? " (rule)" : ""
+                if e.phase == .end {
+                    guard let action = e["for"]?.int.map(Int.init) else {
+                        return "  · \(e.specificType)\(by) ended" + (e["why"]?.string.map { ": \($0)" } ?? "")
+                    }
+                    let name = "\(names[action] ?? e.specificType) (\(action))"
+                    return e["outcome"]?.string == "done" ? "  ✓ \(name) done"
+                        : "  ✗ \(name) didn't happen: \(e["why"]?.string ?? "?")"
+                }
+                if e.phase == .start { names[e.seq] = e.specificType }
+                let mark = e["ok"]?.bool != true ? "✗" : e.phase == .start ? "…" : "✓"
+                return "  \(mark) \(e.specificType)\(by): \(e["message"]?.string ?? "")"
             }
-            if let s = o["settle"] as? [String: Any], let action = s["for"] as? Int {
-                let name = "\(names[action] ?? "?") (\(action))"
-                return s["end"] as? String == "done" ? "  ✓ \(name) done" : "  ✗ \(name) didn't happen: \(s["why"] as? String ?? "?")"
-            }
-            return line
+            return nil
         }
     }
 }

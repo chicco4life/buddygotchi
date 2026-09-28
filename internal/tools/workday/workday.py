@@ -98,7 +98,7 @@ class Day:
         line.update({k: v for k, v in fields.items() if v is not None})
         self._steps.append(Step(at, "hook", line, note=note))
 
-    def taps(self, at: float, count: int = 4, note: str = "a poke streak") -> None:
+    def taps(self, at: float, count: int = 4, note: str = "pokes in a row") -> None:
         self._steps.append(Step(at, "taps", taps=count, note=note))
         self.notes.append((at, note))
 
@@ -217,7 +217,7 @@ def build_day(seed: int = 1) -> Day:
     d.routine(BOOP, t + 120, 55 * m)
 
     # 10:00–11:00: tests fight back on api (3 failures, then a comeback),
-    # fix-nav starts, a poke streak, a turn that fails on a rate limit.
+    # fix-nav starts, four pokes in a row, a turn that fails on a rate limit.
     d.turn(API, 1 * h + 5 * m, 9 * m, tools=25, tests=True,
            plays=[(60, "tests", True), (3 * m, "tests", True), (5 * m, "tests", True), (7 * m, "tests", False)],
            note="tests fail three times, then pass: a comeback in a 9-minute turn")
@@ -243,14 +243,14 @@ def build_day(seed: int = 1) -> Day:
     d.notes.append((3 * h + 15 * m, "lunch: nothing happens until 13:32"))
 
     # 13:32–14:30: back after a long break; fix-nav's build fails twice,
-    # then passes; two poke streaks a minute and a half apart.
+    # then passes; two runs of pokes a minute and a half apart.
     d.routine(API, 4 * h + 32 * m, 5 * h + 28 * m)
     d.turn(NAV, 4 * h + 50 * m, 5 * m, tools=14,
            plays=[(60, "build", True), (2 * m, "build", True), (4 * m, "build", False)],
            note="build fails twice on fix-nav, then passes")
     d.routine(NAV, 4 * h + 57 * m, 5 * h + 15 * m, mix="quick")
     d.taps(5 * h + 20 * m)
-    d.taps(5 * h + 21 * m + 30, note="another poke streak, right after")
+    d.taps(5 * h + 21 * m + 30, note="more pokes, right after")
 
     # 14:30–15:30: a 14-minute turn on api ends with its tests still
     # failing; the next turn fails once more, then fixes them.
@@ -522,8 +522,9 @@ class Run:
                 e = json.loads(raw)
             except ValueError:
                 continue
-            if "event" in e and e["event"].get("wakes_brain"):
-                self.waiting_passes.add(e["seq"])
+            raw = e.get("event") or {}
+            if "view" in e and e["view"].get("wakes_brain"):
+                self.waiting_passes.add(e["view"]["from"][-1])
             elif "pass" in e:
                 self.passes += 1
                 if e["pass"].get("dropped"):
@@ -531,15 +532,15 @@ class Run:
                 else:
                     self.passes_unchecked = True
                 self.waiting_passes.discard(e["pass"].get("for"))
-            elif "action" in e and e["action"].get("pending"):
-                self.waiting_settles.add(e["seq"])
-            elif "settle" in e:
-                self.waiting_settles.discard(e["settle"].get("for"))
+            elif raw.get("type") == "action" and raw.get("phase") == "start":
+                self.waiting_settles.add(raw["seq"])
+            elif raw.get("type") == "action" and raw.get("phase") == "end":
+                self.waiting_settles.discard(raw.get("data", {}).get("for"))
             if self.verbose:
-                if "event" in e:
-                    print(f"  {e['event']['kind']}: {e['event']['line']}")
-                elif "action" in e:
-                    print(f"    {e['action']['name']}: {e['action']['message']}")
+                if "view" in e:
+                    print(f"  {name(e['view'])}: {e['view']['line']}")
+                elif raw.get("type") == "action" and raw.get("phase") != "end":
+                    print(f"    {raw['specific_type']}: {raw.get('data', {}).get('message')}")
 
     def replay(self, steps: list[Step]) -> None:
         # 09:00 tomorrow, local time, on the app's clock.
@@ -609,13 +610,18 @@ CLASSES = ["notable", "minutes", "short", "start", "quiet"]
 ROUTINE = {"start", "short", "minutes"}
 
 
+def name(view: dict[str, Any]) -> str:
+    """A view event's type and phase: `turn end`, `tool wait`, `poke`."""
+    return view.get("type", "?") + (f" {view['phase']}" if view.get("phase") else "")
+
+
 def classify(event: dict[str, Any]) -> str | None:
-    kind, f = event["kind"], event.get("facts", {})
-    if kind == "turn_start":
+    kind, f = name(event), event.get("facts", {})
+    if kind == "turn start":
         return "start"
     if kind == "heartbeat":
         return "quiet"
-    if kind == "turn_end":
+    if kind == "turn end":
         done = f.get("outcome") == "done"
         length = f.get("length_ms") or 0
         if done and length < 60_000:
@@ -623,9 +629,9 @@ def classify(event: dict[str, Any]) -> str | None:
         if done and length < BIG_TURN_MS:
             return "minutes"
         return "notable"
-    if kind in ("tool_use", "pokes"):
+    if kind in ("tool end", "poke"):
         return "notable"
-    return None  # tap, needs_you: never a pass
+    return None  # tool wait: never a pass
 
 
 def routine(event: dict[str, Any]) -> bool:
@@ -655,20 +661,21 @@ def summarize(path: Path) -> dict[str, Any]:
             e = json.loads(raw)
         except ValueError:
             continue
-        if "event" in e:
-            ev = e["event"]
+        raw = e.get("event") or {}
+        if "view" in e:
+            ev = e["view"]
             ev["at"] = e["received_at_ms"]
             ev["class"] = classify(ev)
-            events[e["seq"]] = ev
+            events[ev["from"][-1]] = ev
             hr = hours[hour(ev["at"])]
             session = (ev.get("facts", {}).get("thread") or {}).get("session")
-            if ev["kind"] == "turn_start" and session:
+            if name(ev) == "turn start" and session:
                 if not open_turns:
                     working.append([ev["at"], ev["at"]])
                 open_turns[session] = ev["at"]
-            if ev["kind"] == "turn_end" and session and open_turns.pop(session, None) is not None and not open_turns:
+            if name(ev) == "turn end" and session and open_turns.pop(session, None) is not None and not open_turns:
                 working[-1][1] = ev["at"]
-            if ev["kind"] == "turn_end":
+            if name(ev) == "turn end":
                 hr["turns"] += 1
             if ev.get("wakes_brain") and ev["class"]:
                 hr["lines"][ev["class"]] += 1
@@ -677,8 +684,8 @@ def summarize(path: Path) -> dict[str, Any]:
             hr["passes"] += 1
             if e["pass"].get("dropped"):
                 hr["dropped"] += 1
-        elif "action" in e:
-            a = e["action"]
+        elif raw.get("type") == "action" and raw.get("phase") != "end" and raw.get("data", {}).get("by") != "rule":
+            a = {**raw["data"], "name": raw["specific_type"]}
             ev = events.get(a.get("for"))
             if ev is None or not a.get("ok"):
                 continue

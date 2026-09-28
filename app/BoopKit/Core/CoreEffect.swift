@@ -1,8 +1,8 @@
 import Foundation
 
 /// What the core decided. The app hands each effect to the part that carries
-/// it out: snapshots to the device link, events to the harness, and a new
-/// day to the memory store. The core itself never builds speech, writes
+/// it out: snapshots to the device link, what it did by rule to the
+/// transcript, and a new day to the memory store. The core itself never builds speech, writes
 /// files or talks to the device, and makes no moment: every mumble and
 /// face is the brain's (BEHAVIORS.md §1).
 public enum CoreEffect: Equatable, Sendable {
@@ -12,8 +12,9 @@ public enum CoreEffect: Equatable, Sendable {
     /// idle session starts: only the popover and `debug.jsonl`'s `status`
     /// show it.
     case sessions
-    /// Something that happened, for the harness (harness/EVENTS.md).
-    case event(Event)
+    /// What the rules did, as an `action` event for the transcript
+    /// (harness/EVENTS.md §2): recorded after the event that caused it.
+    case record(Event)
     /// The first activity of a new day: short-term starts fresh.
     case newDay(date: String)
 
@@ -22,7 +23,7 @@ public enum CoreEffect: Equatable, Sendable {
         switch self {
         case .state(let s): "state " + s.jsonLine
         case .sessions: "sessions"
-        case .event(let e): "event " + e.summary
+        case .record(let e): "record " + e.summary
         case .newDay(let date): "new-day \(date)"
         }
     }

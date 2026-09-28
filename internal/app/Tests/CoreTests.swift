@@ -3,70 +3,172 @@ import Foundation
 import XCTest
 @testable import BoopKit
 
-/// Drives a core with a virtual clock. Starts 2026-10-14 14:00 UTC, a
-/// Wednesday afternoon, with today already started.
+/// The hooks the rig sends, by what they mean to the rules: each becomes
+/// the raw event its hook does (ADAPTERS.md §3).
+enum Hook: String, CaseIterable {
+    case sessionStart, turnStart, activity, needsYou, turnEnd, turnFailed, turnStopped, subagentEnd, sessionEnd
+}
+
+/// What one input did: the core's effects and the view events made. An
+/// array literal is effects alone.
+struct Fx: Equatable, ExpressibleByArrayLiteral {
+    var effects: [CoreEffect] = []
+    var views: [ViewEvent] = []
+
+    init(_ step: Pipeline.Step) {
+        effects = step.effects
+        views = step.views
+    }
+
+    init() {}
+
+    init(arrayLiteral effects: CoreEffect...) { self.effects = effects }
+
+    static func + (a: Fx, b: Fx) -> Fx {
+        var out = a
+        out.effects += b.effects
+        out.views += b.views
+        return out
+    }
+
+    static func += (a: inout Fx, b: Fx) { a = a + b }
+
+    func contains(_ effect: CoreEffect) -> Bool { effects.contains(effect) }
+    func contains(where predicate: (CoreEffect) -> Bool) -> Bool { effects.contains(where: predicate) }
+}
+
+extension ViewEvent {
+    /// What the rules did about it, as far as the view event has it when
+    /// it's made: a turn's never has any.
+    var reaction: String? { did.first { $0.by == "rule" }?.message }
+}
+
+/// Drives a pipeline (a core and a view) with a virtual clock. Starts
+/// 2026-10-14 14:00 UTC, a Wednesday afternoon, with today already started.
 final class CoreRig {
     static let start = Replay.defaultStart
     static let day: Int64 = 24 * 3600 * 1000
     let time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
     var now: Int64
-    let core: Core
+    let pipeline: Pipeline
+    var core: Core { pipeline.core }
+    var view: TranscriptView { pipeline.view }
     var log: [CoreEffect] = []
+    var views: [ViewEvent] = []
 
     init(start: Int64 = CoreRig.start, newDay: Bool = false, seed: UInt64 = 1, rules: Personality.Rules = Personality.Rules()) {
         now = start
         let today = time.day(start)
-        core = Core(config: .init(rules: rules, time: time, seed: seed), lastActiveDay: newDay ? nil : today)
+        let core = Core(config: .init(time: time, seed: seed), lastActiveDay: newDay ? nil : today)
+        pipeline = Pipeline(core: core, view: TranscriptView(config: .init(rules: rules, seed: seed)))
         if !newDay { core.tick(at: start) }  // the first snapshot has gone out
     }
 
-    @discardableResult
-    func send(_ kind: BoopEvent.Kind, _ agent: Agent = .claudeCode, session: String = "s1", subagent: String? = nil,
-              project: String = "landing", tool: String? = nil, topic: String? = nil, failed: Bool? = nil,
-              notice: Bool? = nil, kind noticeKind: String? = nil, id: String? = nil, done: Bool? = nil) -> [CoreEffect] {
-        // A result (failed or not) is a finished call: its `PostToolUse`.
-        var detail = BoopEvent.Detail(tool: tool, topic: topic, failed: failed, toolUseID: id)
-        detail.done = done ?? (kind == .activity && failed != nil)
-        // A tool-less request is Claude's `Notification` unless it says
-        // otherwise (`notice: false` is an `Elicitation`): `permission_prompt`,
-        // or `idle_prompt` for a stop, unless `kind` says which.
-        if notice ?? (kind == .needsYou && tool == nil) {
-            detail.notice = noticeKind ?? (kind == .turnStopped ? "idle_prompt" : "permission_prompt")
+    /// The raw event a hook of `kind` makes, as the adapter would.
+    func event(_ kind: Hook, _ agent: Agent = .claudeCode, session: String = "s1", subagent: String? = nil,
+               project: String = "landing", workspace: String? = nil, tool: String? = nil, topic: String? = nil,
+               failed: Bool? = nil, notice: Bool? = nil, kind noticeKind: String? = nil, id: String? = nil,
+               done: Bool? = nil, error: String? = nil, message: String? = nil, prompt: String? = nil) -> Event {
+        var data: [String: JSONValue] = [:]
+        func put(_ key: String, _ value: String?) { if let value { data[key] = .string(value) } }
+        put("tool", tool)
+        put("tool_use_id", id)
+        put("topic", topic)
+        let type: Event.Kind
+        let phase: Event.Phase
+        let specific: String
+        switch kind {
+        case .sessionStart: (type, phase, specific) = (.session, .start, "SessionStart")
+        case .sessionEnd: (type, phase, specific) = (.session, .end, "SessionEnd")
+        case .turnStart:
+            (type, phase, specific) = (.turn, .start, "UserPromptSubmit")
+            put("prompt", prompt)
+        case .turnEnd:
+            (type, phase, specific) = (.turn, .end, "Stop")
+            data["outcome"] = "done"
+            put("message", message)
+        case .turnFailed:
+            (type, phase, specific) = (.turn, .end, "StopFailure")
+            data["outcome"] = "failed"
+            put("error", error)
+        case .turnStopped:
+            // Esc on a call, or Claude's idle notice (`notice: true`).
+            (type, phase) = (.turn, .end)
+            data["outcome"] = "stopped"
+            if notice == true { data["notice"] = .string(noticeKind ?? "idle_prompt") }
+            specific = notice == true ? "Notification" : agent == .codex ? "Interrupt" : "PostToolUseFailure"
+        case .activity:
+            // A result (failed or not) is a finished call: its `PostToolUse`.
+            if done ?? (failed != nil) {
+                (type, phase) = (.tool, .end)
+                specific = failed == true ? "PostToolUseFailure" : "PostToolUse"
+                if let failed { data["failed"] = .bool(failed) }
+                if failed == true { data["error"] = .string(error ?? "exit_code") }
+            } else if tool == nil {
+                (type, phase, specific) = (.tool, .end, "ElicitationResult")
+            } else {
+                (type, phase, specific) = (.tool, .start, "PreToolUse")
+            }
+        case .needsYou:
+            // A tool-less request is Claude's `Notification` unless it says
+            // otherwise (`notice: false` is an `Elicitation`).
+            (type, phase) = (.tool, .wait)
+            let asNotice = notice ?? (tool == nil)
+            if asNotice { data["notice"] = .string(noticeKind ?? "permission_prompt") }
+            let input = asNotice ? data["notice"]?.string == "elicitation_dialog" : tool == nil
+            data["for"] = .string(input ? "input" : "permission")
+            specific = asNotice ? "Notification" : tool == nil ? "Elicitation" : "PermissionRequest"
+        case .subagentEnd: (type, phase, specific) = (.subagent, .end, "SubagentStop")
         }
-        let event = BoopEvent(agent: agent, session: session, subagent: subagent, project: project, event: kind,
-                              detail: detail, ts: now)
+        let cwd = workspace.map { "/rig/\(project)/.worktrees/\($0)" } ?? "/rig/\(project)"
+        return Event(ts: now, source: Event.source(agent), type: type, phase: phase, specificType: specific,
+                     session: session, subagent: subagent, cwd: cwd, data: data)
+    }
+
+    @discardableResult
+    func send(_ kind: Hook, _ agent: Agent = .claudeCode, session: String = "s1", subagent: String? = nil,
+              project: String = "landing", workspace: String? = nil, tool: String? = nil, topic: String? = nil,
+              failed: Bool? = nil, notice: Bool? = nil, kind noticeKind: String? = nil, id: String? = nil,
+              done: Bool? = nil, error: String? = nil, message: String? = nil, prompt: String? = nil) -> Fx {
+        send(event(kind, agent, session: session, subagent: subagent, project: project, workspace: workspace, tool: tool,
+                   topic: topic, failed: failed, notice: notice, kind: noticeKind, id: id, done: done, error: error,
+                   message: message, prompt: prompt))
+    }
+
+    @discardableResult
+    func send(_ event: Event) -> Fx {
         sent.append(event)
-        let fx = core.handle(event)
-        log += fx
-        return fx
+        return note(Fx(pipeline.agent(event)))
     }
 
     /// Every event sent, in order.
-    var sent: [BoopEvent] = []
+    var sent: [Event] = []
 
+    /// A poke from the device.
     @discardableResult
-    func input(_ input: Core.DeviceInput) -> [CoreEffect] {
-        let fx = core.input(input, at: now)
-        log += fx
-        return fx
-    }
+    func poke() -> Fx { note(Fx(pipeline.poke(at: now))) }
 
     /// Moves the clock, ticking once a second like the app does.
     @discardableResult
-    func wait(_ ms: Int64) -> [CoreEffect] {
-        var fx: [CoreEffect] = []
+    func wait(_ ms: Int64) -> Fx {
+        var fx = Fx()
         let end = now + ms
         while now < end {
             now = min(end, now + 1000)
-            fx += core.tick(at: now)
+            fx += note(Fx(pipeline.tick(at: now)))
         }
-        log += fx
+        return fx
+    }
+
+    func note(_ fx: Fx) -> Fx {
+        log += fx.effects
+        views += fx.views
         return fx
     }
 
     /// A whole turn in one session: prompt, `ms` of work, finish.
     @discardableResult
-    func turn(_ ms: Int64, session: String = "s1", agent: Agent = .claudeCode) -> [CoreEffect] {
+    func turn(_ ms: Int64, session: String = "s1", agent: Agent = .claudeCode) -> Fx {
         send(.turnStart, agent, session: session)
         wait(ms)
         return send(.turnEnd, agent, session: session)
@@ -75,18 +177,24 @@ final class CoreRig {
     var state: StateSnapshot { core.snapshot(at: now) }
     /// The popover's list, as `[agent, project, status]`.
     var sessions: [[String]] { core.sessionList(at: now).map { [$0.agent, $0.project, $0.status.rawValue] } }
-}
-
-/// The outcomes of the turn ends that woke the brain: no rule celebrates
-/// a finish, so this is how a finish reaches Boop (BEHAVIORS.md §3.1).
-func finished(_ fx: [CoreEffect]) -> [String] {
-    events(fx).filter { $0.kind == .turnEnd && $0.wakesBrain }.compactMap {
-        if case .string(let o) = $0.facts["outcome"] { o } else { nil }
+    /// The rule actions recorded, by name, in order.
+    var ruleActions: [String] {
+        pipeline.transcript.events.filter { $0.type == .action && $0["by"]?.string == "rule" }
+            .map { $0.specificType + ($0.phase.map { " " + $0.rawValue } ?? "") }
     }
 }
 
-/// The events that wake the brain, by their lines.
-func woke(_ fx: [CoreEffect]) -> [String] {
+/// The view events made, in order.
+func events(_ fx: Fx) -> [ViewEvent] { fx.views }
+
+/// The outcomes of the turn ends that woke the brain: no rule celebrates
+/// a finish, so this is how a finish reaches Boop (BEHAVIORS.md §3.1).
+func finished(_ fx: Fx) -> [String] {
+    events(fx).filter { $0.name == "turn end" && $0.wakesBrain }.compactMap(\.facts["outcome"]?.string)
+}
+
+/// The view events that wake the brain, by their lines.
+func woke(_ fx: Fx) -> [String] {
     events(fx).filter(\.wakesBrain).map(\.line)
 }
 
@@ -97,9 +205,11 @@ extension Personality.Rules {
 
 /// The working heartbeats' lines (harness/EVENTS.md §4): no rule mumbles,
 /// so this is how a quiet stretch of work reaches the brain.
-func workBeats(_ fx: [CoreEffect]) -> [String] {
-    events(fx).filter { $0.kind == .heartbeat && $0.facts["working_ms"] != nil }.map(\.line)
+func workBeats(_ fx: Fx) -> [String] {
+    events(fx).filter { $0.type == .heartbeat && $0.facts["working_ms"] != nil }.map(\.line)
 }
+
+func states(_ fx: Fx) -> [StateSnapshot] { states(fx.effects) }
 
 func states(_ fx: [CoreEffect]) -> [StateSnapshot] {
     fx.compactMap { if case .state(let s) = $0 { return s } else { return nil } }
@@ -131,7 +241,7 @@ final class CoreAgentWorkTests: XCTestCase {
         let rig = CoreRig()
         let fx = rig.turn(1_200_000)
         XCTAssertEqual(finished(fx), ["done"], "one size")
-        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": done, a very long turn."#])
+        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": done, a very long turn, no tool calls."#])
         XCTAssertNil(events(fx).first?.reaction, "no rule cheers")
         XCTAssertEqual(events(fx).first?.facts["length_ms"], .int(1_200_000))
     }
@@ -196,7 +306,7 @@ final class CoreAgentWorkTests: XCTestCase {
             XCTAssertNil(states(fx).last?.attn, asker)
             XCTAssertEqual(rig.state.base, "idle", asker)
             XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"]], asker)
-            XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": stopped, a long turn."#],
+            XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": stopped, a long turn, no tool calls."#],
                            "\(asker): the notice answered the request before the stop applied")
             XCTAssertEqual(workBeats(rig.wait(10 * 60_000)), [], "\(asker): no working heartbeat")
         }
@@ -278,7 +388,7 @@ final class CoreAgentWorkTests: XCTestCase {
         XCTAssertNil(rig.state.attn, "the safety net")
         XCTAssertEqual(rig.state.base, "idle")
         let fx = rig.send(.turnStopped, .codex, session: "c")  // Interrupt
-        XCTAssertEqual(woke(fx), [#"codex finished turn 1 on "landing": stopped, a very long turn."#])
+        XCTAssertEqual(woke(fx), [#"codex finished turn 1 on "landing": stopped, a very long turn, no tool calls."#])
         rig.now += 50
         rig.send(.activity, .codex, session: "c", tool: "shell", id: "c1", done: true)
         XCTAssertEqual(rig.state.base, "idle", "the aborted command's result is late")
@@ -307,40 +417,6 @@ final class CoreAgentWorkTests: XCTestCase {
         }
     }
 
-    /// ARCHITECTURE.md §3.2: the timers count while the Mac sleeps, but a
-    /// turn's length doesn't: an agent can't work while the Mac sleeps. A
-    /// 2-minute turn with the lid closed overnight between its minutes is a
-    /// 2-minute turn (harness/EVENTS.md §4.1), a long one, not "a very long
-    /// turn", which Jev takes for a big finish or a big failure.
-    func testTheMacAsleepIsntTurnTime() {
-        let rig = CoreRig()
-        rig.send(.turnStart)
-        rig.send(.activity, tool: "Bash", topic: "tests", id: "t")
-        rig.wait(60_000)
-        rig.now += 8 * 3_600_000
-        rig.core.slept(8 * 3_600_000)
-        rig.core.tick(at: rig.now)
-        rig.send(.activity, tool: "Bash", topic: "tests", failed: false, id: "t")
-        rig.wait(60_000)
-        let fx = rig.send(.turnEnd)
-        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": done, a long turn."#])
-        XCTAssertEqual(events(fx).first?.facts["length_ms"], .int(120_000))
-
-        rig.send(.turnStart, session: "other", project: "jetpack")
-        rig.wait(40_000)
-        rig.now += 3 * 3_600_000
-        rig.core.slept(3 * 3_600_000)
-        XCTAssertEqual(woke(rig.send(.turnStopped, session: "other", project: "jetpack", notice: true)).last,
-                       #"claude finished turn 1 on "jetpack": stopped, a short turn."#)
-
-        // Sleep before a turn starts isn't taken off it.
-        rig.now += 3_600_000
-        rig.core.slept(3_600_000)
-        rig.send(.turnStart)
-        rig.wait(20_000)
-        XCTAssertEqual(events(rig.send(.turnEnd)).first?.facts["length_ms"], .int(20_000))
-    }
-
     /// harness/EVENTS.md §7: a stop with no turn open is never an event,
     /// and a finish is the same: a `Stop` after the turn stopped, a second
     /// `Stop`, or one from a session Boop has only now seen (launched, or
@@ -364,7 +440,7 @@ final class CoreAgentWorkTests: XCTestCase {
         fx = rig.send(.turnEnd)
         XCTAssertEqual(events(fx), [], "a second Stop")
 
-        for kind in [BoopEvent.Kind.turnEnd, .turnFailed] {
+        for kind in [Hook.turnEnd, .turnFailed] {
             let fx = rig.send(kind, session: "new-\(kind.rawValue)")
             XCTAssertEqual(events(fx), [], "\(kind.rawValue) from a session never seen")
         }
@@ -400,7 +476,7 @@ final class CoreAgentWorkTests: XCTestCase {
         XCTAssertEqual(rig.state.base, "idle")
 
         rig.send(.turnStart, session: "f")
-        XCTAssertEqual(woke(rig.send(.turnEnd, session: "f")), [#"claude finished turn 1 on "landing": done, a short turn."#],
+        XCTAssertEqual(woke(rig.send(.turnEnd, session: "f")), [#"claude finished turn 1 on "landing": done, a short turn, no tool calls."#],
                        "the next turn, which Boop saw start, is reported")
     }
 
@@ -415,13 +491,13 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.wait(20_000)
         rig.send(.activity, tool: "Bash", topic: "tests", failed: false, id: "t")
         XCTAssertEqual(woke(rig.send(.turnEnd)),
-                       [#"claude finished turn 1 on "landing": done, a short turn."#])
+                       [#"claude finished turn 1 on "landing": done, a short turn, 1 tool call."#])
         rig.wait(1000)
         rig.send(.activity, tool: "Edit", id: "e")
         rig.wait(30_000)
         rig.send(.activity, tool: "Edit", failed: false, id: "e")
         let second = events(rig.send(.turnEnd))
-        XCTAssertEqual(second.map(\.line), [#"claude finished turn 1 on "landing": done, a short turn."#])
+        XCTAssertEqual(second.map(\.line), [#"claude finished turn 1 on "landing": done, a short turn, 1 tool call."#])
         XCTAssertEqual(second.first?.facts["tools"], .int(1), "its own call only")
         XCTAssertEqual(second.first?.facts["topics"], .object([:]), "none of the last turn's topics")
         XCTAssertEqual(second.first?.facts["length_ms"], .int(30_000), "from that call")
@@ -471,7 +547,7 @@ final class CoreAgentWorkTests: XCTestCase {
     /// answer its own request, as its end does, and leave the session's
     /// turn and everyone else's requests alone.
     func testASubagentsTurnLevelHooksAreItsOwn() {
-        for kind in [BoopEvent.Kind.turnFailed, .turnEnd, .sessionStart, .turnStart, .sessionEnd] {
+        for kind in [Hook.turnFailed, .turnEnd, .sessionStart, .turnStart, .sessionEnd] {
             let rig = CoreRig()
             rig.send(.turnStart)
             rig.send(.activity, tool: "Agent")
@@ -492,7 +568,7 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.wait(60_000)
         let fx = rig.send(.turnFailed)
         XCTAssertEqual(rig.state.base, "idle")
-        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": failed, a long turn."#])
+        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": failed, a long turn, no tool calls."#])
         XCTAssertNil(events(fx).first?.reaction, "the rules did nothing")
     }
 
@@ -509,7 +585,7 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.send(.activity, tool: "Bash", topic: "tests")  // no result: PreToolUse, or Codex
         rig.wait(60_000)
         let fx = rig.send(.turnEnd)
-        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": failed, a long turn."#])
+        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": failed, a long turn, 4 tool calls."#])
         XCTAssertEqual(events(fx).first?.facts["topics"], .object(["tests": "failing", "docs": "edited"]))
         XCTAssertEqual(events(fx).first?.facts["tools_failed"], .int(1))
     }
@@ -539,10 +615,9 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.send(.activity, tool: "Bash", topic: "tests")
         rig.send(.activity, tool: "Read")
         rig.wait(3000)
-        let fx = rig.core.handle(BoopEvent(agent: .claudeCode, session: "s1", project: "landing", event: .turnFailed,
-                                           detail: .init(error: "rate_limit"), ts: rig.now))
+        let fx = rig.send(.turnFailed, error: "rate_limit")
         let failed = events(fx).first
-        XCTAssertEqual(failed?.line, #"claude finished turn 1 on "landing": failed, a short turn."#)
+        XCTAssertEqual(failed?.line, #"claude finished turn 1 on "landing": failed, a short turn, no tool calls."#)
         XCTAssertEqual(failed?.facts["outcome"], "failed")
         XCTAssertEqual(failed?.facts["error"], "rate_limit")
     }
@@ -592,15 +667,15 @@ final class CoreNeedsYouTests: XCTestCase {
     /// session, which answers nothing, shows it then, dated 2 s after it
     /// arrived.
     func testACodexRequestAnsweredBeforeATickShowsItIsNeverRecorded() {
-        for answer in [BoopEvent.Kind.activity, .turnEnd, .turnStopped] {
+        for answer in [Hook.activity, .turnEnd, .turnStopped] {
             let rig = CoreRig()
             rig.send(.turnStart, .codex)
             rig.send(.needsYou, .codex, tool: "shell")
             rig.now += 2050  // past the grace, before the next tick
             let fx = rig.send(answer, .codex, tool: answer == .activity ? "shell" : nil)
-            XCTAssertEqual(events(fx).filter { $0.kind == .needsYou }.map(\.line), [], answer.rawValue)
+            XCTAssertEqual(events(fx).filter { $0.name == "tool wait" }.map(\.line), [], "\(answer)")
             XCTAssertTrue(rig.log.allSatisfy { if case .state(let s) = $0 { return s.attn == nil } else { return true } },
-                          answer.rawValue)
+                          "\(answer)")
         }
         let rig = CoreRig()
         rig.send(.turnStart, .codex, session: "a")
@@ -615,7 +690,7 @@ final class CoreNeedsYouTests: XCTestCase {
     }
 
     func testAnyLaterEventClearsIt() {
-        for clearing in [BoopEvent.Kind.activity, .turnStart, .turnEnd, .turnFailed, .sessionEnd, .sessionStart] {
+        for clearing in [Hook.activity, .turnStart, .turnEnd, .turnFailed, .sessionEnd, .sessionStart] {
             let rig = CoreRig()
             rig.send(.turnStart)
             rig.send(.needsYou, tool: "Bash")
@@ -757,7 +832,7 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertNotNil(rig.state.attn, "a2 still waits")
         rig.send(.activity, subagent: "a2", tool: "Edit")
         XCTAssertNil(rig.state.attn)
-        for turnLevel in [BoopEvent.Kind.turnEnd, .turnFailed, .sessionEnd] {
+        for turnLevel in [Hook.turnEnd, .turnFailed, .sessionEnd] {
             rig.send(.turnStart)
             rig.send(.needsYou, subagent: "a1", tool: "Bash")
             rig.send(.activity, subagent: "a2", tool: "Read")
@@ -972,7 +1047,7 @@ final class CoreNeedsYouTests: XCTestCase {
         let rig = CoreRig()
         rig.send(.turnStart, project: "alpha")
         rig.send(.needsYou, subagent: "a1", project: "alpha", tool: "Bash")
-        var fx: [CoreEffect] = []
+        var fx = Fx()
         for p in ["web", "alpha", "web"] { fx += rig.send(.activity, subagent: "a2", project: p, tool: "Bash") }
         XCTAssertEqual(states(fx), [])
         XCTAssertEqual(rig.state.attn?.project, "alpha")
@@ -1084,7 +1159,7 @@ final class CoreNeedsYouTests: XCTestCase {
         rig.send(.activity, .codex, tool: "shell", topic: "deploy")
         rig.send(.needsYou, .codex, tool: "shell")
         rig.now += Core.Config().safetyNetMs  // one tick, on waking
-        let fx = rig.core.tick(at: rig.now)
+        let fx = rig.note(Fx(rig.pipeline.tick(at: rig.now)))
         XCTAssertEqual(states(fx).last?.base, "idle")
         XCTAssertNil(rig.state.attn)
         XCTAssertEqual(events(fx), [], "it never showed")
@@ -1158,76 +1233,41 @@ final class CoreNeedsYouTests: XCTestCase {
 // MARK: - BEHAVIORS.md §3.3 You and Boop
 
 final class CoreYouAndBoopTests: XCTestCase {
-    /// harness/EVENTS.md §4: a tap is the rules' alone; the brain only
-    /// hears of it. While something needs you, the device only squashes,
-    /// and the event doesn't claim a reaction.
-    func testATapIsTheRulesAlone() {
+    /// harness/EVENTS.md §2: a poke is the rules' alone to react to: they
+    /// record the device's wiggle as an action under it, and the brain
+    /// hears of it, every time. While something needs you, the device only
+    /// squashes, so nothing is recorded, but the brain still hears of it
+    /// (EVENTS.md §6).
+    func testAPokeWigglesByRuleAndAlwaysReachesTheBrain() {
         let rig = CoreRig()
-        let fx = rig.input(.tap)
-        XCTAssertEqual(woke(fx), [])
-        XCTAssertEqual(events(fx).map(\.line), ["You tapped Boop."])
-        XCTAssertEqual(events(fx).first?.reaction, "Boop wiggled on its own.")
+        let fx = rig.poke()
+        XCTAssertEqual(woke(fx), ["You poked Boop."])
+        XCTAssertEqual(rig.ruleActions, ["wiggle"])
+        XCTAssertEqual(states(fx), [], "the rules add no moment: the device has already wiggled")
+        rig.wait(5000)
         rig.send(.turnStart)
         rig.send(.needsYou, tool: "Bash")
-        let needed = rig.input(.tap)
-        XCTAssertEqual(events(needed).map(\.line), ["You tapped Boop."])
-        XCTAssertNil(events(needed).first?.reaction)
+        let needed = rig.poke()
+        XCTAssertEqual(woke(needed), ["You poked Boop."], "a poke wakes it even so")
+        XCTAssertEqual(rig.ruleActions, ["wiggle", "needs_you start"], "no wiggle")
     }
 
-    /// BEHAVIORS.md §3.3: the fourth tap within 3 s is a poke streak, which
-    /// wakes the brain in place of a tap. The rules add no moment: the device
-    /// has already wiggled.
-    func testFourPokesWithinThreeSecondsReachTheBrain() {
+    /// BEHAVIORS.md §3.3: every poke wakes the brain, with no limit; the
+    /// line counts the ones in a row, each within 3 s of the last.
+    func testPokesInARow() {
         let rig = CoreRig()
-        for _ in 0..<3 {
-            let fx = rig.input(.tap)
-            XCTAssertEqual(woke(fx), [])
+        var lines: [String] = []
+        for _ in 0..<4 {
+            lines += woke(rig.poke())
             rig.wait(900)
         }
-        let fx = rig.input(.tap)
-        XCTAssertEqual(woke(fx), ["You poked Boop again and again."])
-        XCTAssertEqual(events(fx).first?.reaction, "Boop wiggled on its own.")
-    }
-
-    /// At most once a minute: a streak sooner doesn't wake the brain
-    /// (BEHAVIORS.md §3.3).
-    func testAPokeStreakReachesTheBrainAtMostOnceAMinute() {
-        let rig = CoreRig()
-        var pokes: [String] = []
-        func streak() -> [CoreEffect] {
-            var fx: [CoreEffect] = []
-            for _ in 0..<4 { fx += rig.input(.tap); fx += rig.wait(500) }
-            pokes += woke(fx)
-            return fx
-        }
-        _ = streak()
-        let soon = streak()
-        XCTAssertEqual(events(soon).last?.kind, .pokes)
-        rig.wait(60_000)
-        let again = streak()
-        XCTAssertEqual(pokes.count, 2)
-    }
-
-    func testSlowPokesNeverAnnoyIt() {
-        let rig = CoreRig()
-        var fx: [CoreEffect] = []
-        for _ in 0..<6 { fx += rig.input(.tap); fx += rig.wait(3000) }
-        XCTAssertEqual(woke(fx), [])
-    }
-
-    /// While something needs you a tap means "I saw it", so it isn't
-    /// counted.
-    func testPokesWhileSomethingNeedsYouDontCount() {
-        let rig = CoreRig()
-        rig.send(.turnStart)
-        rig.send(.needsYou, tool: "Bash")
-        var fx: [CoreEffect] = []
-        for _ in 0..<5 { fx += rig.input(.tap); fx += rig.wait(300) }
-        XCTAssertFalse(events(fx).contains { $0.kind == .pokes })
-        rig.send(.activity, tool: "Bash")  // answered on the Mac
-        fx = []
-        for _ in 0..<4 { fx += rig.input(.tap); fx += rig.wait(200) }
-        XCTAssertEqual(events(fx).filter { $0.kind == .pokes }.count, 1, "the taps before didn't count")
+        XCTAssertEqual(lines, ["You poked Boop.", "You poked Boop 2 times in a row.", "You poked Boop 3 times in a row.",
+                               "You poked Boop 4 times in a row."])
+        rig.wait(2100)
+        XCTAssertEqual(woke(rig.poke()), ["You poked Boop."], "3 s after the last")
+        var fx = Fx()
+        for _ in 0..<20 { fx += rig.poke() }
+        XCTAssertEqual(woke(fx).count, 20, "no limit")
     }
 
     /// The first activity of the day starts short-term memory with no
@@ -1276,7 +1316,7 @@ final class CoreYouAndBoopTests: XCTestCase {
         rig.wait(24 * 3600 * 1000)
         let fx = rig.send(.turnStart)
         XCTAssertTrue(fx.contains(.newDay(date: "2026-10-15")))
-        XCTAssertEqual(events(fx).map(\.kind), [.turnStart])
+        XCTAssertEqual(events(fx).map(\.name), ["turn start"])
     }
 }
 
@@ -1320,7 +1360,7 @@ final class CorePersonalityTests: XCTestCase {
                 rig.send(.turnStart, session: "quick")
                 n += workBeats(rig.wait(15_000)).count
                 rig.send(.turnEnd, session: "quick")
-                if reacting { rig.core.reacted() }
+                if reacting { rig.view.reacted() }
             }
             return n
         }
@@ -1333,7 +1373,7 @@ final class CorePersonalityTests: XCTestCase {
         let rig = CoreRig(rules: Personality.Rules(workBeatMs: nil))
         rig.send(.turnStart)
         XCTAssertEqual(workBeats(rig.wait(300_000)), [], "no working heartbeat")
-        rig.core.setRules(Personality.Rules(workBeatMs: 30_000...60_000))
+        rig.view.setRules(Personality.Rules(workBeatMs: 30_000...60_000))
         XCTAssertFalse(workBeats(rig.wait(61_000)).isEmpty, "a working heartbeat within 60 s")
     }
 
@@ -1406,7 +1446,7 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(workBeats(rig.wait(20_000)).count, 1, "60 s after work started, with no reaction")
         rig.wait(50_000)
         rig.send(.activity, tool: "Bash", topic: "tests", failed: true)
-        rig.core.reacted()
+        rig.view.reacted()
         XCTAssertEqual(workBeats(rig.wait(20_000)), [], "not 60 s after the last heartbeat: Boop reacted")
         XCTAssertEqual(workBeats(rig.wait(60_000)).count, 1, "60 s after the reaction")
     }
@@ -1441,7 +1481,7 @@ final class CoreRulesTests: XCTestCase {
         var seen: [String: Set<Int>] = [:]
         var last: [String: Int] = [:]
         for _ in 0..<40 {
-            for step in [BoopEvent.Kind.turnStart, .needsYou, .activity, .turnEnd] {
+            for step in [Hook.turnStart, .needsYou, .activity, .turnEnd] {
                 rig.send(step, tool: "Bash")
                 let s = rig.state
                 XCTAssertTrue((1...FaceLoops.count(state: s.visual)).contains(s.variant), "\(s.visual) \(s.variant)")
@@ -1466,9 +1506,9 @@ final class CoreRulesTests: XCTestCase {
         let rig = CoreRig()
         XCTAssertEqual(states(rig.send(.sessionStart, session: "a", project: "notes")).map(\.base), ["idle"])
         let fx = rig.send(.sessionStart, session: "b", project: "jetpack")
-        XCTAssertEqual(fx, [.sessions], "the same snapshot, and a new list")
-        XCTAssertEqual(rig.send(.sessionEnd, session: "b", project: "jetpack"), [.sessions])
-        XCTAssertEqual(rig.wait(5000), [], "nothing changed")
+        XCTAssertEqual(fx.effects, [.sessions], "the same snapshot, and a new list")
+        XCTAssertEqual(rig.send(.sessionEnd, session: "b", project: "jetpack").effects, [.sessions])
+        XCTAssertEqual(rig.wait(5000).effects, [], "nothing changed")
         XCTAssertEqual(rig.state.waiting, 0)
     }
 
@@ -1548,7 +1588,7 @@ final class CoreRulesTests: XCTestCase {
         rig.send(.sessionEnd)
         XCTAssertEqual(rig.state.base, "asleep")
         rig.now += 50
-        XCTAssertEqual(rig.send(.needsYou), [], "the late Notification")
+        XCTAssertEqual(rig.send(.needsYou).effects, [], "the late Notification")
         XCTAssertNil(rig.state.attn)
 
         rig.send(.turnStart, session: "bg")
@@ -1616,14 +1656,14 @@ final class CoreFuzzTests: XCTestCase {
         var calls = 0, shown = 0, finishes = 0
         var trail: [String] = []  // the last calls, for a failure's message
         for step in 0..<20_000 {
-            var fx: [CoreEffect] = []
+            var fx = Fx()
             let logBefore = rig.log.count
             let sentBefore = rig.sent.count
             let before = rig.core.sessions
             let roll = rng.int(in: 0...99)
             if roll < 10 {
                 rig.now += Int64(rng.int(in: 1...(roll < 2 ? 700_000 : 3000)))
-                fx = rig.core.tick(at: rig.now)
+                fx = rig.note(Fx(rig.pipeline.tick(at: rig.now)))
             } else {
                 rig.now += Int64(rng.int(in: 0...400))
                 let (agent, session, project) = sessions[rng.int(in: 0...2)]
@@ -1643,7 +1683,7 @@ final class CoreFuzzTests: XCTestCase {
                 case 8: fx = rig.send(.turnEnd, agent, session: session, project: project)
                 case 9: fx = rig.send(.turnStopped, agent, session: session, subagent: subagent, project: project,
                                       tool: rng.chance(50) ? tool : nil, notice: claude && rng.chance(50))
-                case 10: fx = claude ? rig.send(.subagentEnd, agent, session: session, subagent: subagent ?? "a1", project: project) : []
+                case 10: fx = claude ? rig.send(.subagentEnd, agent, session: session, subagent: subagent ?? "a1", project: project) : Fx()
                 case 11: fx = rig.send(.turnFailed, agent, session: session, subagent: subagent, project: project)
                 case 12: fx = rig.send(.activity, agent, session: session, subagent: subagent, project: project)
                 default: fx = rig.send(.sessionStart, agent, session: session, subagent: subagent, project: project)
@@ -1654,9 +1694,9 @@ final class CoreFuzzTests: XCTestCase {
             let why = trail.joined(separator: "\n")
             let now = rig.core.snapshot(at: rig.now)
             let showing = rig.core.needsYouShowing
-            if rig.sent.count > sentBefore, let e = rig.sent.last, let id = e.subagent,
-               e.event == .subagentEnd || Core.turnLevel.contains(e.event) {
-                let key = Core.key(e.agent, e.session)
+            if rig.sent.count > sentBefore, let e = rig.sent.last, let id = e.subagent, let step = Core.step(e),
+               step == .subagentEnd || Core.turnLevel.contains(step), let agent = e.agent, let session = e.session {
+                let key = Core.key(agent, session)
                 // Only when no timer of the session's could have acted first.
                 if let b = before[key], rig.now - b.lastEventAt < rig.core.config.safetyNetMs, let a = rig.core.sessions[key] {
                     XCTAssertEqual(a.lastEventAt, b.lastEventAt, "a subagent's end isn't activity\n\(why)")
@@ -1673,7 +1713,7 @@ final class CoreFuzzTests: XCTestCase {
                 }
             }
             for event in events(fx) {
-                if event.kind == .needsYou {
+                if event.name == "tool wait" {
                     shown += 1
                     XCTAssertNotNil(event.about.flatMap { rig.core.sessions[$0]?.needsSince }, "\(event.line) never showed\n\(why)")
                 }
@@ -1698,6 +1738,5 @@ final class CoreFuzzTests: XCTestCase {
 /// effects were logged.
 func lastSent(_ rig: CoreRig, from: Int) -> String {
     guard let e = rig.sent.last else { return "-" }
-    return "\(e.agent.short)/\(e.session)\(e.subagent.map { "(" + $0 + ")" } ?? "") \(e.summary)"
-        + (e.detail.done ? " done" : "") + (e.detail.toolUseID.map { " #" + $0 } ?? "")
+    return "\(e.subagent.map { "(" + $0 + ") " } ?? "")\(e.summary)"
 }

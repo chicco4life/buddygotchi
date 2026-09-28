@@ -62,10 +62,10 @@ final class RuntimeTests: XCTestCase {
         eventually("home answers while the key is read") { runtime.home.sync { statuses.last?.brain == "none" } }
         prompt.signal()
         eventually("the brain once it's read") { runtime.home.sync { statuses.last?.brain == "jev-test" } }
-        XCTAssertTrue(runtime.home.sync { runtime.core.config.brain })
+        XCTAssertTrue(runtime.home.sync { runtime.pipeline.brain })
         runtime.reloadBrain(jevKey: nil)
         eventually("none when Settings clears it") { runtime.home.sync { statuses.last?.brain == "none" } }
-        XCTAssertFalse(runtime.home.sync { runtime.core.config.brain }, "so no event wakes it")
+        XCTAssertFalse(runtime.home.sync { runtime.pipeline.brain }, "so no event wakes it")
         runtime.reloadBrain(jevKey: "k2")
         eventually("the brain when Settings saves one") { runtime.home.sync { statuses.last?.brain == "jev-test" } }
     }
@@ -133,7 +133,7 @@ final class RuntimeTests: XCTestCase {
         eventually("grumpy") { runtime.home.sync { runtime.mood.current == "grumpy" } }
         eventually("the device hears it") { transport.sent.contains { $0.hasPrefix(#"{"t":"state""#) && $0.contains(#""mood":"grumpy""#) } }
         try XCTAssertEqual(try String(contentsOf: dir.appendingPathComponent(MoodStore.fileName), encoding: .utf8), "grumpy\n")
-        eventually("the log line") { lines.lock.withLock { lines.log.contains { $0.hasPrefix("brain turn_start ") && $0.hasSuffix("→ mood, react") } } }
+        eventually("the log line") { lines.lock.withLock { lines.log.contains { $0.hasPrefix("brain turn start ") && $0.hasSuffix("→ mood, react") } } }
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
         let debugLog = dir.appendingPathComponent(DebugLog.fileName)
         func passes() -> [Substring] {
@@ -221,15 +221,14 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(HookSocket.send(hook("PreToolUse", tool: "Bash"), to: socketPath))
         eventually("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
-        eventually("the pass in debug.jsonl") { self.debugLines().contains { $0["action"] != nil } }
+        eventually("the pass in debug.jsonl") { self.debugLines().contains { ($0["event"] as? [String: Any])?["type"] as? String == "action" } }
         let log = lines.lock.withLock { lines.log }
         let printed = lines.lock.withLock { lines.printed }
-        XCTAssertTrue(log.contains("hook: claude SessionStart s1 → session_start jetpack"), "\(log)")
-        XCTAssertTrue(log.contains("hook: claude PreToolUse s1 → activity jetpack · tool Bash"), "\(log)")
+        XCTAssertTrue(log.contains("hook: claude SessionStart s1 → session start SessionStart claude s1"), "\(log)")
+        XCTAssertTrue(log.contains("hook: claude PreToolUse s1 → tool start PreToolUse claude s1 · tool Bash"), "\(log)")
         XCTAssertTrue(log.contains { $0.hasPrefix("link rules → ") })
         XCTAssertFalse(log.contains { $0.contains("How to read HISTORY") }, "the state stays out of boop.log")
-        XCTAssertTrue(printed.contains { $0.hasPrefix("core: event turn_start") }, "\(printed)")
-        XCTAssertTrue(printed.contains { $0.hasPrefix("▸ 1 turn_start: claude started turn 1") }, "\(printed)")
+        XCTAssertTrue(printed.contains { $0.hasPrefix("▸ 1 turn start: claude started turn 1") }, "\(printed)")
         let pass = try XCTUnwrap(printed.first { $0.hasPrefix("  pass scripted") })
         XCTAssertTrue(pass.contains("react.mood excited 1.00"), pass)
         XCTAssertTrue(pass.contains("    │ You are the mind of Boop"), "the first state in full")
@@ -265,6 +264,11 @@ final class RuntimeTests: XCTestCase {
     func debugLines() -> [[String: Any]] {
         let text = (try? String(contentsOf: dir.appendingPathComponent(DebugLog.fileName), encoding: .utf8)) ?? ""
         return text.split(separator: "\n").compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+    }
+
+    /// The actions this runtime's debug.jsonl recorded, as events.
+    func debugActions() -> [Event] {
+        debugLines().compactMap { ($0["event"] as? [String: Any]).flatMap(Event.init(json:)) }.filter { $0.type == .action }
     }
 
     var socketPath: String { dir.appendingPathComponent("boop.sock").path }
@@ -389,15 +393,12 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(pass["by"] as? String, "dashboard")
         XCTAssertEqual(pass["questions"] as? [String], ["react.mood", "word.feeling"])
         XCTAssertEqual((pass["answers"] as? [String: [String: Any]])?["react.mood"]?["p"] as? [String: Double], ["grumpy": 1])
-        let actions = lines.compactMap { $0["action"] as? [String: Any] }
-        XCTAssertEqual(actions.map { $0["message"] as? String }, [#"Boop made a grumpy face, held once, and mumbled "…again!""#,
-                                                                "Boop's mood changed: happy → grumpy.",
-                                                                "Boop's mood changed: grumpy → happy."])
-        XCTAssertEqual(actions.map { $0["name"] as? String }, ["react", "mood", "mood"])
-        for action in actions {
-            XCTAssertTrue(action["for"] is NSNull)
-            XCTAssertEqual(action["by"] as? String, "dashboard")
-        }
+        let actions = debugActions().filter { $0.phase != .end && $0["by"] == "dashboard" }
+        XCTAssertEqual(actions.map { $0["message"]?.string }, [#"Boop made a grumpy face, held once, and mumbled "…again!""#,
+                                                              "Boop's mood changed: happy → grumpy.",
+                                                              "Boop's mood changed: grumpy → happy."])
+        XCTAssertEqual(actions.map(\.specificType), ["react", "mood", "mood"])
+        for action in actions { XCTAssertEqual(action["for"], .null) }
         let moods = lines.compactMap { ($0["sent"] as? [String: Any])?["mood"] as? String }
         XCTAssertEqual(moods.reduce(into: [String]()) { if $0.last != $1 { $0.append($1) } }, ["happy", "grumpy", "happy"],
                        "the device hears each change in a state")
@@ -415,11 +416,9 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(HookSocket.send(hook("PermissionRequest", tool: "Bash"), to: socketPath))
         eventually("needs you") { transport.sent.contains { $0.contains(#""attn":"#) } }
         dev(#"{"dev":"answer","answers":{"react.mood":"happy"}}"#)
-        eventually("the refusal") {
-            self.debugLines().contains { ($0["action"] as? [String: Any])?["message"] as? String == "something needs you" }
-        }
-        let action = try XCTUnwrap(debugLines().compactMap { $0["action"] as? [String: Any] }.last)
-        XCTAssertEqual(action["ok"] as? Bool, false)
+        eventually("the refusal") { self.debugActions().contains { $0["message"] == "something needs you" } }
+        let action = try XCTUnwrap(debugActions().last { $0.specificType == "react" })
+        XCTAssertEqual(action["ok"], false)
         XCTAssertFalse(transport.sent.contains { $0.contains(#""say":"#) })
     }
 
@@ -562,7 +561,7 @@ final class RuntimeTests: XCTestCase {
         eventually("started as boop") { runtime.home.sync { statuses.last?.personality == .boop } }
         runtime.setPersonality(.chatter)
         eventually("chatter now") { runtime.home.sync { statuses.last?.personality == .chatter } }
-        XCTAssertEqual(runtime.home.sync { runtime.core.config.rules.toolUses }, .all)
+        XCTAssertEqual(runtime.home.sync { runtime.view.config.rules.toolUses }, .all)
         XCTAssertEqual(AppSettings.load(from: dir).personality, .chatter)
     }
 
@@ -712,17 +711,13 @@ final class RuntimeTests: XCTestCase {
             clock.now = max(clock.now, runtime.home.sync { runtime.moments.schedule.lineUntil })
             return try runtime.home.sync {
                 XCTAssertEqual(runtime.harness.force(["react.mood": "happy"]).map(\.name), ["react"])
-                let seq = try XCTUnwrap(runtime.harness.transcript.entries.last {
-                    if case .action = $0.body { true } else { false }
-                }?.seq)
+                let seq = try XCTUnwrap(runtime.pipeline.transcript.events.last { $0.type == .action && $0.specificType == "react" && $0.phase != .end }?.seq)
                 return (seq, try XCTUnwrap(transport.sent.last { $0.hasPrefix(#"{"t":"moment""#) }))
             }
         }
         func end(of seq: Int) -> Pending.End? {
             runtime.home.sync {
-                runtime.harness.transcript.entries.lazy.compactMap { entry -> Pending.End? in
-                    if case .settle(let settle) = entry.body, settle.forSeq == seq { settle.end } else { nil }
-                }.first
+                runtime.pipeline.transcript.events.first { $0.phase == .end && $0["for"] == .int(Int64(seq)) }.map(Self.end)
             }
         }
 
@@ -1099,7 +1094,7 @@ final class RuntimeTests: XCTestCase {
         }
         func ends() -> [Pending.End] {
             runtime.home.sync {
-                runtime.harness.transcript.entries.compactMap { if case .settle(let s) = $0.body { s.end } else { nil } }
+                runtime.pipeline.transcript.events.filter { $0.phase == .end && $0.specificType == "react" }.map(Self.end)
             }
         }
 
@@ -1316,7 +1311,7 @@ final class RuntimeTests: XCTestCase {
         let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
         func ends() -> [Pending.End] {
             runtime.home.sync {
-                runtime.harness.transcript.entries.compactMap { if case .settle(let s) = $0.body { s.end } else { nil } }
+                runtime.pipeline.transcript.events.filter { $0.phase == .end && $0.specificType == "react" }.map(Self.end)
             }
         }
         connection(true)
@@ -1374,16 +1369,18 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(moments(), 3)
     }
 
-    /// ARCHITECTURE.md §3.2: the runtime tells the core how long the Mac
-    /// slept (the steady clock less the one that stops in sleep) before a
-    /// hook or tick, so a turn's length leaves it out. Headless mode's
-    /// `{"dev":"advance","ms":N,"asleep":true}` moves the clock as a sleep.
-    func testTheCoreHearsHowLongTheMacSlept() throws {
+    /// How an action's `end` event says it went.
+    static func end(_ e: Event) -> Pending.End {
+        e["outcome"] == "done" ? .done : .failed(e["why"]?.string ?? "")
+    }
+
+    /// harness/EVENTS.md §5: a turn's length is the time between its
+    /// prompt and its end as the transcript has them, the time the Mac
+    /// slept included.
+    func testATurnsLengthCountsTheTimeTheMacSlept() throws {
         var options = try options(nil)
         let clock = VirtualClock(harnessT0)
-        let asleep = VirtualClock(0)
         options.clock = { clock.now }
-        options.asleep = { asleep.now }
         options.advance = { clock.now += $0 }
         let runtime = try Runtime(options)
         func hook(_ name: String) {
@@ -1392,32 +1389,18 @@ final class RuntimeTests: XCTestCase {
                              received: clock.now)
             }
         }
-        func lastLine() -> String? {
-            runtime.home.sync {
-                runtime.harness.transcript.entries.last { if case .event = $0.body { true } else { false } }
-                    .flatMap { if case .event(let e) = $0.body { e.line } else { nil } }
-            }
-        }
+        func lastLine() -> String? { runtime.home.sync { runtime.view.events.last?.line } }
         hook("UserPromptSubmit")
         clock.now += 60_000
-        clock.now += 8 * 3_600_000
-        asleep.now += 8 * 3_600_000  // the lid closed overnight
-        clock.now += 60_000
+        clock.now += 8 * 3_600_000  // the lid closed overnight
         hook("Stop")
-        XCTAssertEqual(lastLine(), #"claude finished turn 1 on "jetpack": done, a long turn."#)
-        asleep.now += 999
-        runtime.home.sync { runtime.noteSleep() }
-        XCTAssertEqual(runtime.home.sync { runtime.toldAsleep }, 8 * 3_600_000, "under a second is the clocks' jitter")
-        asleep.now += 1
-        runtime.home.sync { runtime.noteSleep() }
-        XCTAssertEqual(runtime.home.sync { runtime.toldAsleep }, 8 * 3_600_000 + 1000)
-
+        XCTAssertEqual(lastLine(), #"claude finished turn 1 on "jetpack": done, a very long turn, no tool calls."#)
         hook("UserPromptSubmit")
         clock.now += 30_000
-        runtime.home.sync { runtime.dev(Data(#"{"dev":"advance","ms":10800000,"asleep":true}"#.utf8)) }
+        runtime.home.sync { runtime.dev(Data(#"{"dev":"advance","ms":10800000}"#.utf8)) }
         clock.now += 10_000
         hook("Stop")
-        XCTAssertEqual(lastLine(), #"claude finished turn 2 on "jetpack": done, a short turn."#)
+        XCTAssertEqual(lastLine(), #"claude finished turn 2 on "jetpack": done, a very long turn, no tool calls."#)
     }
 
     /// harness/EVENTS.md §6: a failing test wakes the brain while the
@@ -1456,11 +1439,12 @@ final class RuntimeTests: XCTestCase {
             runtime.home.sync { runtime.harness.idle }
         }
         XCTAssertEqual(asked.all.count, 1, "\(asked.all)")
-        let dropped = runtime.home.sync {
-            runtime.harness.transcript.entries.compactMap { if case .pass(let p) = $0.body { p.dropped } else { nil } }
+        let logged = try String(contentsOf: runtime.debugLogURL, encoding: .utf8)
+        let dropped = logged.split(separator: "\n").compactMap { line -> String? in
+            let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any]
+            return (o?["pass"] as? [String: Any])?["dropped"] as? String
         }
         XCTAssertEqual(dropped, ["something needs you"])
-        let logged = try String(contentsOf: runtime.debugLogURL, encoding: .utf8)
         XCTAssertTrue(logged.contains(#""brain":"scripted","dropped":"something needs you""#),
                       "counted with the brain's dropped passes, not the dashboard's")
     }
@@ -1529,8 +1513,8 @@ final class RuntimeTests: XCTestCase {
         var config = Core.Config()
         config.firstAsk = Int(Int32.max)
         let core = Core(config: config)
-        core.handle(BoopEvent(agent: .claudeCode, session: "s", project: "landing", event: .needsYou,
-                              detail: .init(tool: "Bash"), ts: 1000))
+        core.handle(Event(ts: 1000, source: .claude, type: .tool, phase: .wait, specificType: "PermissionRequest",
+                          session: "s", cwd: "/w/landing", data: ["tool": "Bash", "for": "permission"]))
         XCTAssertEqual(core.snapshot(at: 1000).attn?.id, 1, "back to 1, never 0")
     }
 
@@ -1545,7 +1529,7 @@ final class RuntimeTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dir) }
         let moodAction = MoodAction(store: MoodStore(stateDir: dir), clock: { now })
         func closing() -> String? {
-            Runtime.stateParts(steering: Self.steering, personality: .boop, mood: "happy", core: core,
+            Runtime.stateParts(steering: Self.steering, personality: .boop, mood: "happy", view: TranscriptView(),
                                moodAction: moodAction, time: LocalTime(timeZone: TimeZone(identifier: "UTC")!), now: now, wall: now).closing
         }
         XCTAssertNil(closing(), "happy says nothing")

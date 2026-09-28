@@ -152,8 +152,8 @@ final class MemoryTests: XCTestCase {
         rig.store.startDay("2026-10-13")
         func boot(_ now: Int64) -> (Core, [CoreEffect]) {
             let core = Core(config: .init(time: time), lastActiveDay: rig.store.lastActiveDay)
-            let fx = core.handle(BoopEvent(agent: .claudeCode, session: "s1", project: "landing", event: .turnStart,
-                                           detail: .init(), ts: now))
+            let fx = core.handle(Event(ts: now, source: .claude, type: .turn, phase: .start, specificType: "UserPromptSubmit",
+                                       session: "s1", cwd: "/w/landing"))
             for case .newDay(let date) in fx { rig.store.startDay(date) }
             return (core, fx)
         }

@@ -20,21 +20,21 @@ approve on the Mac as you normally would.
     │
 ┌───┼───────────────────────── Boop Mac app ──────────────────────────┐
 │   ▼                                                                 │
-│ Hook server ─► Adapter ─► Core ◄───────────── tap ◄────────────┐    │
-│                            │  sessions, rules, 1 s tick        │    │
-│     ┌──────────────┬───────┴───────┬───────────────┐           │    │
-│     ▼              ▼               ▼               ▼           │    │
-│   state                          event          new day        │    │
-│     │                              │               │           │    │
-│     │              │               ▼               ▼           │    │
-│     │              │     Harness ◄──► Jev     Memory store     │    │
-│     │              │        │ answers                          │    │
-│     │              │        ▼                                  │    │
-│     │              │     Actions ── mood ─► mood file ─► Core  │    │
-│     │              │        │                                  │    │
-│     │              │      react ─► Voice ─► Moment schedule    │    │
-│     │              │                              │            │    │
-│     ▼              ▼                              ▼            │    │
+│ Hook server ─► Adapter ─► Pipeline ◄─────────── poke ◄─────────┐    │
+│                             │ Transcript (raw events, on disk) │    │
+│                  ┌──────────┴───────────┐                      │    │
+│                  ▼                      ▼                      │    │
+│  Core: sessions, rules, 1 s tick   View: view events           │    │
+│     │              │                    │ that wake the brain  │    │
+│     ▼              ▼                    ▼                      │    │
+│   state         new day ─► Memory    Harness ◄──► Jev          │    │
+│     │                                   │ answers              │    │
+│     │                                   ▼                      │    │
+│     │                                Actions ─ mood ─► Core    │    │
+│     │                                   │                      │    │
+│     │                                 react ─► Voice ─► Moment │    │
+│     │                                                schedule  │    │
+│     ▼                                                   ▼      │    │
 │   Device link (Bluetooth, or USB through `boopctl bridge`) ────┘    │
 └────────────────────────┬──────────────────────────▲─────────────────┘
                          │ state, moment            │ input, status, ended
@@ -46,15 +46,17 @@ approve on the Mac as you normally would.
 
 1. Codex finishes a task. Its hook runs `boop-hook codex`, which sends one
    line to the app and exits at once.
-2. The Codex **adapter** turns it into the common event: "Codex, session
-   a1b2, project landing, turn finished".
+2. The Codex **adapter** turns it into a raw event, a `turn` end from
+   `Stop` in session a1b2 with its working directory and Codex's last
+   message, and the **transcript** records it.
 3. The **core** marks the session idle, so the device drops the working
    look well under a second after the hook. No rule celebrates a finish:
    that's the brain's call.
-4. The core also hands the **harness** an event with its line: `codex
-   finished turn 3 on "landing": done, a very long turn.` The event
-   wakes the brain, so the harness asks **Jev** every action's
-   questions about it in one request, and Jev answers, say,
+4. The **view** folds the event in: it knew the turn's start and its
+   calls, so it makes a view event with its line, `codex finished turn 3
+   on "landing": done, a very long turn, 40 tool calls.`, and the last
+   message as a note. It wakes the brain, so the **harness** asks
+   **Jev** every action's questions about it in one request, and Jev answers, say,
    `react.mood: proud`, `react.animation: cheer`, `react.loops: twice` and
    `word.feeling: yay`.
 5. The **`react` action** asks **Voice** for Minion speech in proud's
@@ -89,9 +91,12 @@ talks to the device.
 | --- | --- | --- | --- |
 | Hook client | `app/BoopHook/`, `app/HookWire/` | Turns a hook's JSON into one hook line on the socket and exits 0 | Anything past the socket |
 | Hook server | `Adapters/HookServer.swift` | Accepts hook lines on `boop.sock` and hands them to the runtime; never replies | What they mean |
-| Adapter | `Adapters/Adapter.swift` | Turns a hook line into the common event: the agent's mapping, project, workspace, error class | Boop's state, the brain, the device |
-| Core | `Core/` | Keeps the session table; decides what the device shows, the rule reactions, and the events for the harness | Minion speech, models, hook formats, files |
-| Harness | `Harness/` | Keeps the transcript; for each event that wakes the brain, builds the state, asks every action's questions in one request, hands each action its answers and records what it did | Minion speech, the device, an event's facts, what an action does |
+| Adapter | `Adapters/Adapter.swift` | Turns a hook line into a raw event: the agent's mapping to a type and phase, and the error class | Boop's state, the brain, the device |
+| Transcript | `Harness/Transcript.swift` | Every raw event, in order, one file a day, read back at launch | What any of it means |
+| Pipeline | `App/Pipeline.swift` | Records each input, hands it to the core and the view, records what the core did, and gates the view events | Any rule |
+| Core | `Core/Core.swift` | Keeps the session table; decides what the device shows, and records its rule actions (the wiggle, "needs you") | Minion speech, models, hook formats, files, the brain |
+| View | `Core/TranscriptView.swift` | Folds the transcript into view events, with their lines: turns, checks, pokes, heartbeats, who needs you, what Boop did | The device, what an action does |
+| Harness | `Harness/` | For each view event that wakes the brain, builds the state, asks every action's questions in one request, hands each action its answers and records what it did | Minion speech, the device, a view event's facts, what an action does |
 | Brain | `Brains/JevBrain.swift` | Jev: answers multiple-choice questions about a plain-text state, with probabilities | Everything else |
 | Actions | `Actions/` | `mood` and `react`: carry out one call each, checking their own rules | Whether a rule or the brain called them |
 | Moment schedule | `App/MomentSchedule.swift` | Decides when each brain moment plays: after any line playing, over an animation, or not at all | What's in it |
@@ -107,8 +112,8 @@ talks to the device.
 
 ### 3.1 Adapters
 
-Each adapter turns one agent's hook calls into the common event. Hooks
-only report, so the agent carries on as normal ([ADAPTERS.md](ADAPTERS.md)).
+Each adapter turns one agent's hook calls into raw events. Hooks only
+report, so the agent carries on as normal ([ADAPTERS.md](ADAPTERS.md)).
 
 ### 3.2 Core
 
@@ -119,24 +124,25 @@ clock.
 
 | Input | From | Effects it can return |
 | --- | --- | --- |
-| `handle(event)` | A hook, through the adapter | `state` or `sessions`, events, a new day |
-| `input(tap)` | The device | `state`, a `tap` or `pokes` event, a new day |
-| `tick(at:)` | The runtime, once a second | `state` or `sessions`, a Codex request showing after its grace, a heartbeat (idle or working) |
+| `handle(event)` | A hook's raw event, once recorded | `state` or `sessions`, a `needs_you` action, a new day |
+| `input(tap, seq:)` | The device's poke, once recorded | `state`, the `wiggle` action, a new day |
+| `tick(at:)` | The runtime, once a second | `state` or `sessions`, a Codex request showing after its grace, a request the safety net clears (their `needs_you` actions) |
 | `setVolume`, `setMood` | Settings; the mood action | `state` |
-| `setRules`, `setBrain`, `setWallClock` | A new personality; Jev's key read or changed; every tick | None: they change later decisions |
+| `setWallClock` | Every tick | None: it changes later decisions |
 
 | Effect | Carried out by |
 | --- | --- |
 | `state(snapshot)`, only when something on it changed | The device link, and the menu bar's status |
 | `sessions`, when the session list changed and the snapshot didn't | The menu bar's status, and `debug.jsonl`'s `status` line |
-| `event(Event)` | The harness ([harness/EVENTS.md](harness/EVENTS.md)) |
+| `record(Event)`: what the rules did, as an `action` | The transcript, right after the event that caused it, and so the view ([harness/EVENTS.md](harness/EVENTS.md) §2) |
 | `newDay(date)`: the first hook or tap of a new local day | The memory store (§4) |
 
 **What the core keeps:** the sessions ([ADAPTERS.md](ADAPTERS.md) §4 has
-their states), the taps of a poke streak and the last streak that reached
-the brain, the heartbeat count, when the working heartbeat is next due, the visual showing and the variation each visual showed last, the last active
-day, and its config: volume, mood, the personality's rules, whether
-there's a brain, and every timing below.
+their states), the sessions "needs you" showed for when last published,
+the visual showing and the variation each visual showed last, the last
+active day, and its config: volume, mood and every timing below. What
+the brain hears (turn numbers, lengths, checks, pokes, heartbeats) is the
+view's ([harness/EVENTS.md](harness/EVENTS.md) §3–4).
 
 **Its timers**, all in `Core.Config` and run by the tick:
 
@@ -146,10 +152,15 @@ there's a brain, and every timing below.
 | Safety net: a request clears after no events | 10 min | [ADAPTERS.md](ADAPTERS.md) §4 |
 | A working session counts as idle after no events | 1 h | [ADAPTERS.md](ADAPTERS.md) §4 |
 | A session is forgotten after no events | 24 h | [ADAPTERS.md](ADAPTERS.md) §4 |
-| Poke streak: taps, within | 4, 3 s | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
-| A poke streak reaches the brain at most every | 60 s | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
+
+
+The view's, in `TranscriptView.Config`, which the tick asks it about:
+
+| Timer | Value | Spec |
+| --- | --- | --- |
+| Pokes in a row: each within | 3 s | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
 | Working heartbeat, after no reaction from Boop | The personality's range (120–240 s for `boop`) | [BEHAVIORS.md](BEHAVIORS.md) §2, §6 |
-| Heartbeat while nothing works | Every hour with no hook or tap | [harness/EVENTS.md](harness/EVENTS.md) §4 |
+| Heartbeat while nothing works | Every hour with no agent event or poke | [harness/EVENTS.md](harness/EVENTS.md) §4 |
 
 **The snapshot** is derived, never stored: `asleep` with no sessions,
 `working` while any works, `idle` otherwise; the mood; the session that
@@ -161,12 +172,11 @@ when a second idle session starts.
 **Clocks.** Timers run on a steady clock that never steps and keeps
 counting while the Mac sleeps, so setting the Mac's clock back can't
 stall one. Days and times of day follow the wall clock, which the runtime
-reports every tick. A turn's length is the time the Mac was awake, since
-no agent works while it sleeps: before each hook and tick the runtime
-tells the core how long the Mac slept since last time (the steady clock
-less one that stops in sleep, `Runtime.sleepClock`), and the core takes
-it off every open turn (`Core.slept`). A lid closed overnight between a
-turn's two minutes leaves a 2-minute turn.
+reports every tick. Every event's `ts` is the steady clock's, which
+starts at the wall clock's time, so it reads as unix milliseconds. A
+turn's length is the time between its start and its end in the
+transcript, the time the Mac slept included: a lid closed overnight
+between a turn's two minutes makes it a very long one.
 
 **Moments.** The rules' moments play at once, each replacing whatever is
 playing ([BEHAVIORS.md](BEHAVIORS.md) §3). The brain's wait in the
@@ -258,8 +268,8 @@ and their snapshots (§4), and it writes atomically.
 
 The device link sends `state` whenever the snapshot changes and again
 every 10 s, sends moments, answers each `status` with the latest `state`,
-sends it again on reconnect, and hands taps to the core and each
-moment's `ended` to the runtime ([PROTOCOL.md](PROTOCOL.md)). Its transport is Bluetooth for normal use or
+sends it again on reconnect, and hands taps to the pipeline as pokes and
+each moment's `ended` to the runtime ([PROTOCOL.md](PROTOCOL.md)). Its transport is Bluetooth for normal use or
 USB, through `boopctl bridge`'s socket, for development. Both carry
 identical lines, and nothing above the link knows which is in use. A line
 sent while disconnected is dropped; the next `state` catches the device
@@ -377,7 +387,8 @@ everyday Boop.
 | `boop.sock` | The hook socket, mode 0600 ([ADAPTERS.md](ADAPTERS.md) §2). Headless can put it elsewhere with `--socket` | Replaced at launch, removed at quit |
 | `boop.lock` | Locked while an app runs on this folder; a second copy refuses to start. The file stays, the lock goes with the process | At launch |
 | `boop.log` | The app's log, appended: startup, hook placement and repairs, the link connecting and dropping, the device's id and firmware, taps, memory recoveries, dropped brain moments, one `brain …` line per pass, and hooks only when armed or in debug mode. Never Jev's state ([harness/HARNESS.md](harness/HARNESS.md) §9) | Always |
-| `debug.jsonl` | Debug mode only: a `questions` line first, then every transcript entry, every line sent to the device and each status change, as JSON lines ([harness/HARNESS.md](harness/HARNESS.md) §9) | Emptied at each launch with `--debug`, after a copy of the last launch's goes to `debug.1.jsonl` |
+| `transcript/<date>.jsonl` | Every raw event of that day, one JSON line each ([harness/HARNESS.md](harness/HARNESS.md) §5) | Appended as events happen; a launch deletes files older than 14 days and reads the last 2 back |
+| `debug.jsonl` | Debug mode only: a `questions` line first, then every event, view event and pass, every line sent to the device and each status change, as JSON lines ([harness/HARNESS.md](harness/HARNESS.md) §9) | Emptied at each launch with `--debug`, after a copy of the last launch's goes to `debug.1.jsonl` |
 | `debug.<n>.jsonl` | Earlier launches' `debug.jsonl`, `debug.1.jsonl` the latest, as many as [harness/HARNESS.md](harness/HARNESS.md) §9 keeps | At each launch with `--debug`; the oldest is let go |
 | `bug-reports/<yyyy-MM-dd-HHmmss>/` | A bug report: this launch's debug lines, Jev's states included, the log's end, the settings, the mood and `about.json` ([harness/HARNESS.md](harness/HARNESS.md) §9) | When you press the bug button in the popover |
 | `doctor-armed` | While it's under 10 minutes old, the app logs every hook ([ADAPTERS.md](ADAPTERS.md) §6) | By the `doctor` skill; the app removes an older one |
@@ -398,11 +409,13 @@ What crosses each boundary, in the order an event travels:
 | --- | --- | --- | --- |
 | Agent → `boop-hook` | The hook's JSON on stdin | The agent's own | [ADAPTERS.md](ADAPTERS.md) §2 |
 | `boop-hook` → hook server | One JSON line of the kept fields | `HookLine` | [ADAPTERS.md](ADAPTERS.md) §2 |
-| Adapter → core | The common event | `BoopEvent` | [ADAPTERS.md](ADAPTERS.md) §1 |
-| Device link → core | A tap | `Core.DeviceInput` | [PROTOCOL.md](PROTOCOL.md) §4 |
+| Adapter → pipeline | A raw event | `Event` | [ADAPTERS.md](ADAPTERS.md) §1, [harness/EVENTS.md](harness/EVENTS.md) §2 |
+| Device link → pipeline | A tap, recorded as a poke | `Core.DeviceInput` | [PROTOCOL.md](PROTOCOL.md) §4 |
+| Pipeline → transcript → core, view | Each raw event, stamped with its `seq` | `Event` | [harness/HARNESS.md](harness/HARNESS.md) §2 |
 | Device link → runtime | How a brain moment ended, by its `id` | `MomentEnded` | [PROTOCOL.md](PROTOCOL.md) §4 |
 | Core → runtime | Effects | `CoreEffect` | §3.2 |
-| Core → harness | An event: its line, the rule reaction, whether it wakes the brain, what it's about, and facts the harness never reads | `Event` | [harness/EVENTS.md](harness/EVENTS.md) |
+| View → harness | A view event: its type and phase, line and notes, what Boop did, whether it wakes the brain, what it's about, and facts the harness never reads | `ViewEvent` | [harness/EVENTS.md](harness/EVENTS.md) §3–4 |
+| Actions, core → transcript | What Boop did, as an `action` event | `Event` | [harness/EVENTS.md](harness/EVENTS.md) §2 |
 | Harness → Jev | The state as text, and every action's questions | One HTTPS request | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | Jev → actions | Each question's choice and probabilities, only to the action that asked | `Answers` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
 | Actions → harness | `(ok, message)`; a successful message goes into HISTORY. A started one also hands over a handle, and its end comes later | `ActionResult`, `Pending` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
@@ -416,9 +429,11 @@ What crosses each boundary, in the order an event travels:
 | State | Kept by | Where | After a restart |
 | --- | --- | --- | --- |
 | Sessions and their turns ([ADAPTERS.md](ADAPTERS.md) §4) | Core | Memory | Gone: each comes back with its next hook, and Boop sleeps until then |
-| Poke streak, heartbeat count, the working heartbeat's next time | Core | Memory | Start again |
+| Turn numbers, failure runs, pokes in a row, the idle heartbeat's count | View | Folded from the transcript | Folded again from the last 2 days' files |
+| The working heartbeat's next time | View | Memory | Starts again |
 | The last active day | Core, from `short-term.md` | Disk | Kept, so a restart doesn't start the day twice |
-| Transcript, the pass running and the one waiting | Harness | Memory, and `debug.jsonl` in debug mode | Gone |
+| The transcript | Transcript | `transcript/<date>.jsonl`, and `debug.jsonl` in debug mode | Kept 14 days; the last 2 read back |
+| The pass running and the one waiting, and started actions still open | Harness | Memory | Gone: an open action is ended as failed at launch |
 | Brain moments waiting with their handles, when the device is free, and the look and mood of the last `state`, which time a moment's loops | Moment schedule | Memory | Gone |
 | Brain moments on the device, by `id`, with their handles and when to give up waiting for their `ended` | Runtime | Memory | Gone |
 | The latest snapshot, the device's status, whether it's connected | Device link | Memory | Rebuilt at start |
@@ -524,7 +539,6 @@ which also has the full log up to 2026-09-27.
 | 2026-09-25 | Boop speaks Minion gibberish with at most one real English word | A creature, not a chatbot; cheap, and needs no translation | [VOICE.md](VOICE.md) |
 | 2026-09-25 | Boop only notifies; you approve in the agent, on the Mac | A bug in Boop can never approve anything | [ADAPTERS.md](ADAPTERS.md) §1 |
 | 2026-09-25 | Memory is Markdown files on the Mac, open to hand edits, with no reset button; the steering files are read-only | Simple, inspectable, and independent of the device and the model | §4 |
-| 2026-09-25 | No code, prompts, file contents or agent transcripts go to the brain | Privacy | [harness/EVENTS.md](harness/EVENTS.md) §9 |
 | 2026-09-25 | Our own protocol, the same lines over Bluetooth and USB, with no pairing or encryption yet | Only our app talks to the device, and USB lets agents test the whole path | [PROTOCOL.md](PROTOCOL.md) |
 | 2026-09-25 | The firmware starts on Arduino + LovyanGFX and moves to ESP-IDF + LVGL once v1 works; the drawing code stays independent of the display library | Fastest to a working face, and the drawing carries over | [DEVICE.md](DEVICE.md) §4 |
 | 2026-09-26 | The renderer uses integer maths only | The board and the simulator draw the same pixels, so screenshots compare exactly | [DEVICE.md](DEVICE.md) §6 |
@@ -535,9 +549,7 @@ which also has the full log up to 2026-09-27.
 | 2026-09-26 | The brain's moments wait their turn behind the rules' and each other's, and are dropped after waiting 5 s | A brain mumble cut off the rules' cheer before it showed | §3.2 |
 | 2026-09-26 | Durations and gaps reach the brain named (short, long, very long; right after, a while, a long break) | Keep arithmetic out of the brain: Jev read "took 45 s" as quick | [harness/EVENTS.md](harness/EVENTS.md) §5 |
 | 2026-09-26 | Each feeling's and mood's meaning rules out its neighbours | Jev is literal: while "sad" also covered things going badly, a build complaint came out sad | [harness/DECISIONS.md](harness/DECISIONS.md) §3 |
-| 2026-09-26 | No cooldowns on the brain's mumbles, apart from the poke streak's once a minute | Fewer rules; Jev chooses silence itself | [harness/EVENTS.md](harness/EVENTS.md) §6 |
 | 2026-09-27 | One brain, Jev: one request asks the mood, the reaction and the word as multiple-choice questions over a plain-text state | Boop can only say its recorded words, so the word is a choice too; one request with probabilities replaces two models | [harness/HARNESS.md](harness/HARNESS.md) §1 |
-| 2026-09-27 | Five events can wake the brain: turn start, turn end, a notable tool use, a poke streak and an hourly heartbeat | Tool results carry the moments worth a word, and the heartbeat lets a mood go | [harness/EVENTS.md](harness/EVENTS.md) §4 |
 | 2026-09-27 | Jev's state is plain text: the guide, PERSONALITY and MOOD from read-only files, then HISTORY and NOW from the transcript, rebuilt every pass | Jev keeps no session; named sections let each question point at what it judges by | [harness/HARNESS.md](harness/HARNESS.md) §6 |
 | 2026-09-27 | The harness has two generic contracts: events in, actions out; an action reads its own answers and returns `(ok, message)` | New behaviour is a new action, with no harness change | [harness/HARNESS.md](harness/HARNESS.md) §3–4 |
 | 2026-09-27 | A thread is named after its workspace, cleaned to `a-z0-9-` and 40 characters | Two agents in one project need telling apart, and an agent-chosen name mustn't carry words into Jev's state | [ADAPTERS.md](ADAPTERS.md) §3 |
@@ -568,7 +580,6 @@ which also has the full log up to 2026-09-27.
 | 2026-09-28 | `react`'s `none` also covers a reaction HISTORY shows Boop still making, and isn't for an Example Boop isn't already doing. This replaces "not for anything PERSONALITY's Examples react to" | That wording beat the guide's "don't repeat what Boop is still doing": a comeback's finish got a second proud "…finally!" while the first still showed, in every eval run | [harness/DECISIONS.md](harness/DECISIONS.md) §3 |
 | 2026-09-28 | `perf --motion` passes when the board drew a frame in every second it moved and none took over 40 ms, replacing its 10 fps floor | The mood designs step a few times a second, so `fps` follows the design: 6–7 a second through the cheer, in the simulator as on the board, which drew every change in 14 ms at most and still failed the floor | [VERIFICATION.md](VERIFICATION.md) L2 |
 | 2026-09-28 | Boop's mood moves only for something lasting (a run of failures, a fix after one, a turn of 10 minutes or more ending, an hour of nothing) and never for a routine turn, and any mood but happy fades back to happy once HISTORY no longer shows the change. Reactions come to anything that stands out, with strong faces held longer for bigger moments, and small ones to routine finishes. All steering text, except two `mood` options: `excited` no longer means "several wins in a row", and `grumpy` means "poked again right after the last time", with each a `not_for` | On the owner's first evening with faces, Jev changed the mood 11 times in an hour, flipping between happy, proud and excited on routine turns, while its reactions were mostly plain. In a scripted working day the tuning took mood changes from 52–53 to 16 a day, and those on a routine line that weren't a fade from 17–18 to 1, with a reaction to every notable line. The mood files alone didn't stop a turn of a few minutes reading as "several wins in a row", nor a first poke streak turning Boop grumpy; the new `excited` option fixed the first, and the text and the new `grumpy` option together only made Jev less sure of the second (0.93 to 0.8) | [harness/DECISIONS.md](harness/DECISIONS.md) §2, [evidence](evidence/2026-09-28-tonight/tune/README.md) |
-| 2026-09-28 | The brain hears only of turns Boop saw start: a finish with no open turn is nothing, and the end of a turn Boop joined partway (after a relaunch, or a day's forgetting) makes no event, though a done one still cheers | Boop can't know such a turn's length or tools; it reported "turn 0 … after 0 s" and cheered for second `Stop`s | [harness/EVENTS.md](harness/EVENTS.md) §7 |
 | 2026-09-28 | A session that ended stays ended for a day: its later hooks are ignored until a `session_start` or a prompt | Hooks from just before the end land after it, and each brought the session back as needing you, working or idle | [ADAPTERS.md](ADAPTERS.md) §4 |
 | 2026-09-28 | A link that drops doesn't free the moment schedule's line, and a tap doesn't free a brain moment's: both wait for the device's `ended`, or the app giving up. This replaces "with no device connected nothing holds the line" | The device plays on through a link blip, and a moment may reach it just after a tap: freeing the line on a guess let the next reaction cut one still playing | §3.2 |
 | 2026-09-28 | A pass's request goes on past the deadline, off the pass, so the log says when the brain answered; the answer is still thrown away. This replaces cancelling it | A dropped pass's latency was only the deadline's timer, so the night's evidence took the timer's 1.3 s for Jev's | [harness/HARNESS.md](harness/HARNESS.md) §7 |
@@ -590,3 +601,8 @@ which also has the full log up to 2026-09-27.
 | 2026-09-28 | Two lines tell Jev what it would otherwise have to count: `mood` closes HISTORY with how long Boop has been in a mood other than happy (`Boop has been proud for 7 min.`), and the core ends a finish line with `3 clean finishes in a row.` from the second clean finish in a row, across threads (`Core.cleanRun`). The mood files' fades and the excited trigger (exactly 3) are read against them | Jev didn't do the sums: it kept Boop proud 7 minutes after the change where proud lasts 5, and went excited at the second clean finish. With the lines, `13-proud-fades` and `10-run-of-wins` pass 3 of 3, and triggering only at exactly 3 took the scripted day from 135 mood changes to 75 | [harness/DECISIONS.md](harness/DECISIONS.md) §4, [harness/EVENTS.md](harness/EVENTS.md) §8, [evidence](evidence/2026-09-28-expressive-moods/README.md) |
 | 2026-09-28 | Jev's input state keeps three modifiers: an outcome (`done`, `failed`, `stopped`, ` It failed.` on a routine tool line, and `after failing` on a pass), a turn's length band (short under 1 min, long under 5, very long from 5, the moods' own lengths), and `(in progress)` on a reaction still playing. Gone from the lines: failure streaks (`failed again …, 3 in a row`), clean runs (`3 clean finishes in a row.`, and `Core.cleanRun` with its fact), time taken, gaps, tool counts, error reasons, a finish's topics and its comeback sentence, and the working heartbeat's topic; a reaction that didn't happen is left out of HISTORY instead of marked; HISTORY's closing lines `Boop's last reaction, …` and `Working now: …` are gone, leaving `mood`'s time in its mood. The moods follow: determined at a failed check, grumpy at a failed turn or a poke streak, proud at a pass after failing, excited or sad at a very long turn done or failed. This replaces the row above's clean-run line and the streak-based moods (grumpy at 3 failures in a row, excited at a third clean finish) | The owner wanted a simpler input state: with many modifiers, what Jev read on a given line was hard to pin down, so behaviour was hard to test. Each line now means one thing and the mood rules read straight off it. The facts keep everything for logs and evals. The evals will be reworked next; `harness/EXAMPLE.md` is a recording from before and shows the old lines | [harness/EVENTS.md](harness/EVENTS.md) §4.1, §5, §8, [harness/HARNESS.md](harness/HARNESS.md) §5.3, §6, [harness/DECISIONS.md](harness/DECISIONS.md) §2, §4, §5, [BEHAVIORS.md](BEHAVIORS.md) |
 | 2026-09-28 | The working heartbeat's wait starts again when Boop reacts, not at any event that woke the brain; and `boop` gives every finish done a small face, repeats and all | In the scripted day a 22-minute turn went 16 minutes with no reaction while another thread's quick turns, each answered with nothing, kept restarting the wait. The owner wants Boop to react often and is fine with it repeating itself | [harness/EVENTS.md](harness/EVENTS.md) §4, [BEHAVIORS.md](BEHAVIORS.md) §2, [evidence](evidence/2026-09-28-liveliness/README.md) |
+| 2026-09-28 | One transcript of raw events, kept on disk, and a view over it: every agent hook, poke, heartbeat and action is recorded in one shape (top-level metadata, `data` per type), with seven generic types (`session`, `turn`, `tool`, `subagent`, `poke`, `heartbeat`, `action`), a `phase` for those with a lifetime, and the hook's own name as `specific_type`. The core keeps only the screen's rules and records what it did by rule (`wiggle`, `needs_you` start and end) as actions. The view folds the transcript into view events, a raw type and phase with derived facts and a line, kept by a rule held as data. Passes go to `debug.jsonl` only; state snapshots, device lines and `ended` aren't events. A file a day, 14 days kept, the last 2 read back at launch; no launch or quit events, so a turn open across a restart counts the downtime | The owner wanted generic, simple concepts: what the brain heard was built inside the core from state it lost at every restart, three shapes deep. Now there's one record, what the brain hears is derived from it and can be rebuilt exactly, and turn numbers carry across a relaunch | [harness/EVENTS.md](harness/EVENTS.md) §1–4, [harness/HARNESS.md](harness/HARNESS.md) §2, §5, [ADAPTERS.md](ADAPTERS.md) §1, §3 |
+| 2026-09-28 | Your prompt and the agent's last message reach the transcript and the brain, each up to 2,000 characters from `boop-hook` and cut to 300 in the state, as notes under the turn's start and end. No other words do: no commands, tool input or output, file contents, error text or transcripts. This replaces 2026-09-25's "no prompts or agent transcripts go to the brain" | The owner's call: they say what a turn was about and how it ended, which the lines alone couldn't | [harness/EVENTS.md](harness/EVENTS.md) §8–9, [ADAPTERS.md](ADAPTERS.md) §2 |
+| 2026-09-28 | A turn end's line says how many tool calls it made (`, 12 tool calls.`), but not how many failed. This undoes the three-modifier row's "no tool counts" for that one count | The owner wanted the size of a turn visible; plenty of calls fail in a turn that succeeds, so the failures stay in the facts | [harness/EVENTS.md](harness/EVENTS.md) §4.1, §8 |
+| 2026-09-28 | Every poke wakes the brain, even while something needs you, and its line counts the pokes in a row (each within 3 s): no streak rule and no once-a-minute limit. The rules still wiggle, and record it, except while something needs you | The owner wanted the steering, not a rule, to decide how Boop takes being poked; a count tells Jev a single poke from a barrage | [BEHAVIORS.md](BEHAVIORS.md) §3.3, [harness/EVENTS.md](harness/EVENTS.md) §4, §6 |
+| 2026-09-28 | A turn's length includes the time the Mac slept; the runtime no longer tells the core how long it slept | The view derives lengths from the transcript alone, which has no sleep events, and one fewer kind of input keeps it simple | §3.2 |

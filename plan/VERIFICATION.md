@@ -80,18 +80,18 @@ commands go through the bridge.
 | `bridge [--socket PATH] [--quiet]` | Owns the serial port and shares it on a Unix socket (below) |
 | `cam frame\|pattern\|clip [name]` | The webcam helpers (L3). `--seconds N` for a clip (8, at most 10), `--usb bottom\|right\|top\|left` for framing, `--camera ID` (default `$BOOP_CAMERA` or the built-in camera) |
 | `dash [--state-dir DIR] [--socket PATH]` | The live dashboard |
-| `day [--state-dir DIR] [--date YYYY-MM-DD] [file…]` | What Boop did in a day, and why, from debug mode's logs: the state directory's `debug.jsonl` and the earlier launches' kept beside it, oldest first (the everyday app's by default), or the files named, oldest launch first. A table by the hour (cheers, chatter, the brain's reactions and their faces, alerts (a new or different request shown), mood changes, passes, dropped passes, the brain's reactions that didn't happen, taps and minutes needing you), then the brain's passes and what the dashboard forced, each mood change and what made it, each time something needed you and how long it took to clear, and why reactions didn't happen ([harness/HARNESS.md](harness/HARNESS.md) §9). `--date` defaults to the newest line's day; it exits 1 when that day has no lines |
+| `day [--state-dir DIR] [--date YYYY-MM-DD] [file…]` | What Boop did in a day, and why, from debug mode's logs: the state directory's `debug.jsonl` and the earlier launches' kept beside it, oldest first (the everyday app's by default), or the files named, oldest launch first. A table by the hour (cheers, chatter, the brain's reactions and their faces, alerts (a new or different request shown), mood changes, passes, dropped passes, the brain's reactions that didn't happen, pokes and minutes needing you), then the brain's passes and what the dashboard forced, each mood change and what made it, each time something needed you and how long it took to clear, and why reactions didn't happen ([harness/HARNESS.md](harness/HARNESS.md) §9). `--date` defaults to the newest line's day; it exits 1 when that day has no lines |
 | `calibrate` | Touch calibration: a person taps crosses on the screen (L6). `--show` prints the stored map, `--show --clear` forgets it |
 
 **`.build/debug/boopdev`**, the developer CLI.
 
 | Command | What it does |
 | --- | --- |
-| `replay <hooks.jsonl> [--agent claude\|codex] [--gap-ms N] [--states]` | Runs recorded hook payloads through `boop-hook`'s field picking, the adapter and the core on a virtual clock, and prints every decision. `{"wait_ms":N}` and `{"advance_ms":N}` lines move the clock |
+| `replay <hooks.jsonl> [--agent claude\|codex] [--gap-ms N] [--states]` | Runs recorded hook payloads through `boop-hook`'s field picking, the adapter and the pipeline (the core and the view) on a virtual clock, and prints each raw event, the core's decisions and the view events. `{"wait_ms":N}` and `{"advance_ms":N}` lines move the clock |
 | `replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]` | Sends each payload through the real `boop-hook` to a running app, in real time, and times each `boop-hook` from launch to exit. `{"advance_ms":N}` moves a headless app's clock |
 | `voice <feeling\|mood> [word] [--dialect HEX] [--seed N] [--count N] [--json]` | Prints the lines `react` would build ([VOICE.md](VOICE.md) §4), in a feeling or in the one Voice gives a mood's face; dialect `7f3a` and seed 1 by default |
 | `eval [--runs N] [--only TEXT] [--always] [--timeline] [--scenarios DIR] [--steering DIR]`, `eval --list` | The eval scenarios against Jev (L5, [EVALS.md](EVALS.md)); `--list` prints each one's case with no key |
-| `watch [FILE] [--new]` | Prints a `debug.jsonl`'s events, passes and actions readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's. `--new` skips what's already there |
+| `watch [FILE] [--new]` | Prints a `debug.jsonl`'s view events, passes and actions readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's. `--new` skips what's already there |
 | `hooks status\|install\|remove [claude\|codex] --home DIR [--hook PATH]` | The hook installer, against any HOME ([ADAPTERS.md](ADAPTERS.md)) |
 
 **`.build/debug/Boop`**, the app.
@@ -99,8 +99,8 @@ commands go through the bridge.
 | Way | What it does |
 | --- | --- |
 | `Boop [--state-dir DIR] [--link ble\|usb:SOCKET\|none] [--debug]` | The menu-bar app, with Bluetooth by default. The owner's. With a state directory other than the everyday one, it never installs or repairs the hooks |
-| `Boop --headless --state-dir DIR` | The whole runtime with no UI and no Bluetooth (L4). `--link usb:SOCKET\|none` (none), `--socket PATH` (`DIR/boop.sock`), `--personality boop\|chatter` for this run, `--brain jev\|scripted` (jev, only with `BOOP_JEV_KEY`; scripted answers every pass with an excited "yay", no network), `--name NAME` and `--nature sweet\|cheeky` for a new state directory, `--debug`. On its socket `{"dev":"advance","ms":N}` moves its clock, and `{"dev":"advance","ms":N,"asleep":true}` moves it as the Mac asleep |
-| `--debug`, either way | Prints every hook, decision, device line and brain pass as it happens, and writes `DIR/debug.jsonl` for `boopdev watch` and `boopctl dash`; the socket then also takes the dashboard's dev lines ([harness/HARNESS.md](harness/HARNESS.md) §9) |
+| `Boop --headless --state-dir DIR` | The whole runtime with no UI and no Bluetooth (L4). `--link usb:SOCKET\|none` (none), `--socket PATH` (`DIR/boop.sock`), `--personality boop\|chatter` for this run, `--brain jev\|scripted` (jev, only with `BOOP_JEV_KEY`; scripted answers every pass with an excited "yay", no network), `--name NAME` and `--nature sweet\|cheeky` for a new state directory, `--debug`. On its socket `{"dev":"advance","ms":N}` moves its clock. It keeps its transcript in `DIR/transcript/` and reads it back at launch ([harness/HARNESS.md](harness/HARNESS.md) §5) |
+| `--debug`, either way | Prints every hook, view event, action, device line and brain pass as it happens, and writes `DIR/debug.jsonl` for `boopdev watch` and `boopctl dash`; the socket then also takes the dashboard's dev lines ([harness/HARNESS.md](harness/HARNESS.md) §9) |
 | `Boop --snapshots DIR` | Renders the popover's panes and the menu-bar icons to PNGs, light and dark, from fixtures, and fails on low contrast (L0). No runtime, no Bluetooth |
 
 **Other tools.**
@@ -196,9 +196,9 @@ gets at least one scenario. Their pictures are the golden images in
   run with a scripted brain and no network, and the eval runner is tested
   the same way ([EVALS.md](EVALS.md)). `CoreFuzzTests` plays 20,000 random
   hooks from three sessions (Claude with subagents, and Codex) into the
-  core, with ticks and clock jumps, and checks after each that HISTORY
-  and the screen agree (every `needs_you` event is for a session shown
-  waiting, nothing cheers or wakes the brain while something needs you,
+  pipeline, with ticks and clock jumps, and checks after each that HISTORY
+  and the screen agree (every `tool` wait view event is for a session
+  shown waiting, nothing cheers or wakes the brain while something needs you,
   and one request's number never changes its agent or project), and that
   a subagent's end, or a turn-level hook from inside one, answers only
   that subagent's request, isn't activity, and makes its session work
@@ -313,9 +313,11 @@ does all of it:
    hook), `wait_ms`, and `advance_ms` (moves the app's clock).
 4. Latency runs from launching `boop-hook` to the board's `rx.state` going
    up. A hook that changes nothing sends no `state` and is left out.
-5. Afterwards it checks the harness's events against the fixtures'
-   `expect.json`, that no `PRIVATE_` marker from the fixtures reached any
-   app file (`debug.jsonl` included), and, from `boop.log`, that every
+5. Afterwards it checks the view events' lines in `debug.jsonl` against
+   the fixtures' `expect.json`, that no `PRIVATE_` marker from the
+   fixtures reached any app file (`debug.jsonl` and the transcript
+   included) but `PRIVATE_PROMPT` and `PRIVATE_CLOSING`, which mark your
+   prompt and the agent's last message ([ADAPTERS.md](ADAPTERS.md) §2), and, from `boop.log`, that every
    brain moment came after the rules' reaction and didn't cut a rule's
    line short (it may play over an animation, [ARCHITECTURE.md](ARCHITECTURE.md) §3.2),
    and that the board said how every brain moment it was sent ended

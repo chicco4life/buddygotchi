@@ -10,8 +10,9 @@ import HookWire
 let usages: [(command: String, text: String)] = [
     ("replay", """
     boopdev replay <hooks.jsonl> [--agent claude|codex] [--gap-ms N] [--states]
-        Runs recorded hook payloads through boop-hook's field picking, the adapter and the core,
-        on a virtual clock, and prints what the core decides. {"wait_ms":N} and {"advance_ms":N} move the clock.
+        Runs recorded hook payloads through boop-hook's field picking, the adapter and the pipeline (the
+        core and the view) on a virtual clock, and prints each raw event, what the core decides and the
+        view events. {"wait_ms":N} and {"advance_ms":N} move the clock.
     boopdev replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]
         Sends each payload through the real boop-hook binary to a running app's socket, in real time, and
         prints how long each boop-hook took: {"wait_ms":N} waits, and {"advance_ms":N} jumps a headless
@@ -26,20 +27,20 @@ let usages: [(command: String, text: String)] = [
     boopdev eval [--runs N] [--only TEXT] [--always] [--timeline] [--scenarios DIR] [--steering DIR]
     boopdev eval --list [--always] [--only TEXT] [--scenarios DIR]
         Runs the harness eval scenarios (plan/EVALS.md): hook-level steps on a virtual clock through a fresh
-        core, the real harness and actions, and Jev, each pass checked against what it should come to (the
+        pipeline, the real harness and actions, and Jev, each pass checked against what it should come to (the
         reaction, the word, how long the face holds and the mood), and each run against its whole-run
         checks. Needs Jev's key in BOOP_JEV_KEY and fails without it. --runs runs each scenario N times
         (default 5 for an always scenario, 3 for the rest); it passes only if every run does. --always runs
         only the always scenarios, Boop's character. --timeline prints every pass of every run. --list
         prints each scenario's case and runs nothing. A scenario with a known gap is reported GAP when it
-        fails, and doesn't fail the eval. Every entry goes to the run's own file in
+        fails, and doesn't fail the eval. Every event, view event and pass goes to the run's own file in
         /tmp/boop-eval (boopdev watch FILE prints it). Exits 1 if any fails. The scenarios and steering
         default to the Boop repo's, found from the working directory or from boopdev's own place.
     """),
     ("watch", """
     boopdev watch [FILE] [--new]
         Follows debug mode's log (Boop --debug writes STATE-DIR/debug.jsonl; the default is the
-        everyday app's) and prints each event, pass and action readably, as Boop --debug does in its
+        everyday app's) and prints each view event, pass and action readably, as Boop --debug does in its
         own terminal, waiting for FILE if it isn't there yet. The dashboard's lines (questions, sent,
         status) are skipped. --new skips what's already in the file.
     """),
@@ -235,7 +236,7 @@ func eval(_ raw: [String]) async {
     let log = evalDebugLog()
     DebugLog.start(log)
     runner.debugLog = log
-    print("every entry goes to \(log.path)")
+    print("every event, view event and pass goes to \(log.path)")
     var results: [[Eval.Result]] = []
     var gapsFailed = 0
     var failed = false
@@ -262,7 +263,7 @@ func eval(_ raw: [String]) async {
     if !latencies.isEmpty {
         print("latency: median \(latencies[latencies.count / 2]) ms, slowest \(latencies.last!) ms (deadline \(Harness.deadlineMs) ms)")
     }
-    print("every entry: boopdev watch \(log.path)")
+    print("to read them: boopdev watch \(log.path)")
     exit(failed ? 1 : 0)
 }
 
@@ -282,7 +283,7 @@ func evalDebugLog() -> URL {
 }
 
 /// `boopdev watch [FILE]`: follows debug mode's log (harness/HARNESS.md §9)
-/// and prints each entry as it lands, as `Boop --debug` does. The app
+/// and prints each line as it lands, as `Boop --debug` does. The app
 /// empties the file when it starts, so a shorter file, or a new one at the
 /// path, starts it again.
 func watch(_ raw: [String]) {

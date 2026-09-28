@@ -1,23 +1,29 @@
 import Foundation
 import HookWire
 
-/// Turns a hook line from `boop-hook` into the common event
-/// (ADAPTERS.md §3). Everything agent-specific lives here.
+/// Turns a hook line from `boop-hook` into a raw event (ADAPTERS.md §3):
+/// its generic type and phase, the hook's own name as `specific_type`,
+/// and the type's `data`. Everything agent-specific lives here.
 public enum Adapter {
-    /// Claude Code's hooks and what each becomes.
-    static let claude: [String: BoopEvent.Kind] = [
-        "SessionStart": .sessionStart,
-        "UserPromptSubmit": .turnStart,
-        "PreToolUse": .activity,
-        "PostToolUse": .activity,
-        "PostToolUseFailure": .activity,
-        "PermissionRequest": .needsYou,
-        "Elicitation": .needsYou,
-        "ElicitationResult": .activity,
-        "Stop": .turnEnd,
-        "StopFailure": .turnFailed,
-        "SubagentStop": .subagentEnd,
-        "SessionEnd": .sessionEnd,
+    /// A hook's generic type and phase.
+    public typealias Mapping = (type: Event.Kind, phase: Event.Phase?)
+
+    /// Claude Code's hooks and what each becomes. `Notification` and an
+    /// interrupted `PostToolUseFailure` depend on what they carry
+    /// (`mapping(_:)`).
+    static let claude: [String: Mapping] = [
+        "SessionStart": (.session, .start),
+        "UserPromptSubmit": (.turn, .start),
+        "PreToolUse": (.tool, .start),
+        "PostToolUse": (.tool, .end),
+        "PostToolUseFailure": (.tool, .end),
+        "PermissionRequest": (.tool, .wait),
+        "Elicitation": (.tool, .wait),
+        "ElicitationResult": (.tool, .end),
+        "Stop": (.turn, .end),
+        "StopFailure": (.turn, .end),
+        "SubagentStop": (.subagent, .end),
+        "SessionEnd": (.session, .end),
     ]
 
     /// Claude's `Notification` types that mean a person is being asked.
@@ -32,72 +38,89 @@ public enum Adapter {
 
     /// Codex's hooks. Codex has no failure hook; `Interrupt` is you
     /// pressing Esc.
-    static let codex: [String: BoopEvent.Kind] = [
-        "SessionStart": .sessionStart,
-        "UserPromptSubmit": .turnStart,
-        "PreToolUse": .activity,
-        "PostToolUse": .activity,
-        "PermissionRequest": .needsYou,
-        "Stop": .turnEnd,
-        "Interrupt": .turnStopped,
-        "SessionEnd": .sessionEnd,
+    static let codex: [String: Mapping] = [
+        "SessionStart": (.session, .start),
+        "UserPromptSubmit": (.turn, .start),
+        "PreToolUse": (.tool, .start),
+        "PostToolUse": (.tool, .end),
+        "PermissionRequest": (.tool, .wait),
+        "Stop": (.turn, .end),
+        "Interrupt": (.turn, .end),
+        "SessionEnd": (.session, .end),
     ]
 
-    /// The common event for a hook line, or nil for hooks Boop ignores.
-    /// `place` names the line's `cwd`: its project and workspace. A line
-    /// without one is `unknown`, and the core keeps the session's.
-    public static func event(from line: HookLine, receivedAt: Int64? = nil,
-                             place: (String) -> Place = { place(cwd: $0) }) -> BoopEvent? {
+    /// What a hook line becomes, or nil for one Boop ignores.
+    public static func mapping(_ line: HookLine) -> Mapping? {
         guard let agent = Agent(hookName: line.agent) else { return nil }
-        let kind: BoopEvent.Kind?
         switch agent {
         case .claudeCode:
             if line.hook == "Notification" {
-                kind = line.kind.map(askingNotifications.contains) == true ? .needsYou
-                    : line.kind == idleNotification ? .turnStopped : nil
-            } else if line.interrupt {
-                // Esc: Claude sends no `Stop` for a turn you interrupt.
-                kind = .turnStopped
-            } else {
-                kind = claude[line.hook]
+                if line.kind.map(askingNotifications.contains) == true { return (.tool, .wait) }
+                return line.kind == idleNotification ? (.turn, .end) : nil
             }
+            // Esc: Claude sends no `Stop` for a turn you interrupt.
+            if line.interrupt { return (.turn, .end) }
+            return claude[line.hook]
         case .codex:
-            kind = codex[line.hook]
+            return codex[line.hook]
         }
-        guard let kind else { return nil }
+    }
+
+    /// The raw event for a hook line, or nil for hooks Boop ignores. `ts`
+    /// is when the app received it, or the line's own time.
+    public static func event(from line: HookLine, receivedAt: Int64? = nil) -> Event? {
+        guard let agent = Agent(hookName: line.agent), let (type, phase) = mapping(line) else { return nil }
         // A subagent's end says which subagent by its `agent_id`; one without
         // it can't answer anyone's request, and mustn't pass for the main agent.
-        if kind == .subagentEnd && line.agentID == nil { return nil }
-
-        var detail = BoopEvent.Detail()
-        detail.notice = agent == .claudeCode && line.hook == "Notification" ? line.kind : nil
-        switch kind {
-        case .activity, .needsYou:
-            detail.tool = line.tool
-            detail.toolUseID = line.toolUseID
-            detail.topic = kind == .activity ? line.topic : nil
-            detail.done = kind == .activity && (line.hook == "PostToolUse" || line.hook == "PostToolUseFailure")
-            if agent == .claudeCode && !line.interrupt {
-                switch line.hook {
-                case "PostToolUse": detail.failed = false
-                case "PostToolUseFailure":
-                    detail.failed = true
-                    detail.toolError = line.toolError ?? "other"
-                default: break
-                }
+        if type == .subagent && line.agentID == nil { return nil }
+        let claude = agent == .claudeCode
+        var data: [String: JSONValue] = [:]
+        func put(_ key: String, _ value: String?) { if let value { data[key] = .string(value) } }
+        if claude { put("agent_type", line.agentType) }
+        switch (type, phase) {
+        case (.turn, .start?):
+            put("prompt", line.prompt)
+        case (.tool, .start?):
+            put("tool", line.tool)
+            put("tool_use_id", line.toolUseID)
+            put("topic", line.topic)
+        case (.tool, .wait?):
+            put("tool", line.tool)
+            put("tool_use_id", line.toolUseID)
+            let kind = line.hook == "Notification" ? line.kind : nil
+            put("notice", kind)
+            let forInput = line.hook == "Elicitation" || kind == "elicitation_dialog"
+            data["for"] = .string(forInput ? "input" : "permission")
+        case (.tool, .end?):
+            put("tool", line.tool)
+            put("tool_use_id", line.toolUseID)
+            put("topic", line.topic)
+            if claude && line.tool != nil {
+                // Claude says whether a call failed; Codex doesn't.
+                let failed = line.hook == "PostToolUseFailure"
+                data["failed"] = .bool(failed)
+                if failed { data["error"] = .string(line.toolError ?? "other") }
             }
-        case .turnFailed:
-            detail.error = line.error.map(errorClass)
-        case .turnStopped:
-            detail.tool = line.tool  // an interrupted call; Claude's idle notice has none
+        case (.turn, .end?):
+            if line.hook == "StopFailure" {
+                data["outcome"] = "failed"
+                put("error", line.error.map(errorClass))
+            } else if line.hook == "Stop" {
+                data["outcome"] = "done"
+                put("message", line.message)
+            } else {
+                // Esc, Codex's `Interrupt` or Claude's idle notice: over
+                // without finishing.
+                data["outcome"] = "stopped"
+                put("tool", line.tool)  // an interrupted call; the idle notice has none
+                put("notice", line.hook == "Notification" ? line.kind : nil)
+            }
         default:
             break
         }
-        let where_ = line.cwd.map(place)
-        return BoopEvent(agent: agent, session: line.session, subagent: agent == .claudeCode ? line.agentID : nil,
-                         subagentType: agent == .claudeCode ? line.agentType : nil,
-                         project: where_?.project ?? "unknown", workspace: where_?.workspace, event: kind,
-                         detail: detail, ts: receivedAt ?? line.ts)
+        return Event(ts: receivedAt ?? line.ts, source: Event.source(agent), type: type, phase: phase,
+                     specificType: line.hook, session: line.session, subagent: claude ? line.agentID : nil,
+                     cwd: line.cwd, data: data)
     }
 
     /// Claude's `StopFailure` errors that don't name their class.

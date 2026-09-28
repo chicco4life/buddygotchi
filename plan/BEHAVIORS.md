@@ -12,7 +12,7 @@ MOODS  (how Boop acts; fades back to happy after the minutes shown)
   excited     a very long turn (5+ min) ended done                5 min
   proud       a check passed after failing                        5 min
   determined  a check failed while the agent works on             5 min
-  grumpy      a failed turn, or a poke streak                     2 min
+  grumpy      a failed turn, or many pokes in a row               2 min
   sad         a very long turn (5+ min) ended failed             10 min
 
 VISUALS  (what Boop is doing)
@@ -23,7 +23,7 @@ VISUALS  (what Boop is doing)
   needs you   an agent awaits your approval        │
   no app      device lost the Mac (30 s)           ┘
   cheer       big celebration (trophy, podium…)    ┐ animations:
-  wiggle      sway + heart, on a tap               ┘ play for a moment
+  wiggle      sway + heart, on a poke              ┘ play for a moment
 
   Each mood × visual has a few variations (working 5, the rest 3). The
   Mac picks one at random each time the visual changes, never the last.
@@ -34,14 +34,15 @@ AUTOMATIC  (plain rules, instant, no brain needed)
   • The agents' activity picks the state visual:
       asleep / idle / working / needs you / no app
   • Needs you wins over everything: amber light, its alert, who's asking
-  • A tap → the device plays the wiggle at once
+  • A poke (a tap on the device) → the device plays the wiggle at once
   • Needs you and no app are never Jev's to show
 
 
 JEV  (the brain; decides everything expressive)
 ═══════════════════════════════════════════════════════════════════════
-  Asked on events:  turn start/end · tests/build/deploy fail or pass ·
-                    poke streak · heartbeat (quiet work, or an idle hour)
+  Asked on view events:  turn start/end · tests/build/deploy fail or
+                         pass · every poke · heartbeat (quiet work, or
+                         an idle hour)
 
   One request, multiple choice:
 
@@ -62,32 +63,41 @@ JEV  (the brain; decides everything expressive)
 
 WHAT JEV SEES  (built fresh for every ask; Jev keeps no memory)
 ═══════════════════════════════════════════════════════════════════════
-  NOW       the event being asked about, then what Boop did by reflex
-  HISTORY   earlier events, oldest first: the last 10 min, or back to
-            the oldest turn still working, at most 40. What Boop did
-            sits indented under each. Times: just now · 5 min ago · 2 h
+  Every event is recorded raw in the transcript; the view folds them
+  into view events, each with a line (harness/EVENTS.md).
+
+  NOW       the view event being asked about, its notes, then what Boop
+            did by reflex
+  HISTORY   earlier view events, oldest first: the last 10 min, or back
+            to the oldest turn still working, at most 40. Notes and what
+            Boop did sit indented under each. Times: just now · 5 min
+            ago · 2 h
 
   One HISTORY entry, piece by piece (a 6-minute turn ending; one line
   each in the state):
 
-    just now: claude finished turn 9 on "api": done, a very long turn.
+    just now: claude finished turn 9 on "api": done, a very long turn,
+      40 tool calls.
+      Its last message: "All 212 tests pass now."
       Boop's mood changed: happy → excited.
       Boop played a cheer in an excited face, held three times, and
         mumbled "…yay!" (in progress)
 
     piece                       what it is                   added by
     just now                    when, relative to now        harness
-    claude finished turn 9      the agent, and which turn    core
-    on "api"                    the thread (here, a project) core
-    done                        outcome                      core
-    a very long turn            length                       core
+    claude finished turn 9      the agent, and which turn    view
+    on "api"                    the thread (here, a project) view
+    done                        outcome                      view
+    a very long turn            length                       view
+    40 tool calls               the turn's tool calls        view
+    Its last message: "…"       the agent's words, cut short view
     Boop's mood changed: …      what the mood action did     mood
     Boop played … "…yay!"       what the react action did    react
     (in progress)               the reaction's state         harness
 
-  Modifiers turn numbers into words, so Jev never counts or compares,
-  and there are only three, so each line means one thing and tests can
-  pin what Jev reads. A check is a tests, build or deploy command.
+  Modifiers turn numbers into words or small counts, so Jev never
+  compares, and there are few, so each line means one thing and tests
+  can pin what Jev reads. A check is a tests, build or deploy command.
 
   modifier       on                  reads
   ─────────────────────────────────────────────────────────────────────
@@ -96,11 +106,15 @@ WHAT JEV SEES  (built fresh for every ask; Jev keeps no memory)
                  checks              failed · passed … after failing
   length         turn ends, the      short (<1 min) · long (<5 min) ·
                  working heartbeat   very long (5+ min)
+  tool calls     turn ends           12 tool calls · 1 tool call · none
+  in a row       pokes               You poked Boop 4 times in a row.
   (in progress)  a reaction's line   still playing: don't repeat it
 
-  No streaks, times, counts, gaps, error reasons or topic lists; the
-  events' facts keep them for logs and evals. A reaction that didn't
-  happen isn't shown, so it may be made again.
+  Notes: a turn start's `You asked: "…"`, a turn end's `Its last
+  message: "…"`, each cut to 300 characters. No streaks, times, gaps,
+  error reasons or topic lists; the view events' facts keep them for
+  logs and evals. A reaction that didn't happen isn't shown, so it may
+  be made again.
 
   CLOSING LINE  (end of HISTORY)
   ─────────────────────────────────────────────────────────────────────
@@ -132,7 +146,7 @@ layers meet.
 
 **Attention wins.** While something needs you, no animation or mumble
 plays, one already playing is cut short, a tap only dips the face,
-and no event wakes the brain
+and no view event but a poke wakes the brain
 ([harness/EVENTS.md](harness/EVENTS.md) §6).
 
 **How it flows.** The core is a pure state machine: each input goes in
@@ -141,10 +155,10 @@ Settings are the volume, the personality's rules and whether there's a
 brain.
 
 ```
-hook events ─┐                ┌─► state ─────────► device (PROTOCOL.md §3)
-device taps ─┤                │
-1 s tick ────┼─► core rules ──┼─► event ─► harness ─► brain ─┬─► mumble ─► device
-settings ────┘                └─► new day ─► memory          └─► mood ───► core
+hook events ──┐                 ┌─► core rules ─┬─► state ─────► device (PROTOCOL.md §3)
+device pokes ─┼─► transcript ───┤               └─► new day ───► memory
+heartbeats ───┘                 └─► view ─► harness ─► brain ─┬─► mumble ─► device
+1 s tick: core timers, the view's heartbeats                  └─► mood ───► core
 ```
 
 ## 2. Base states
@@ -198,15 +212,16 @@ sad ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). Only
 the brain's mood action changes it (§4 there; the dashboard can force
 one), and a new Boop starts happy. It's meant to shift visibly during
 ordinary work, step by step rather than flailing: a failed check, a
-failed turn, a poke streak, a fix or a very long turn ending moves it,
-a long grind turns it determined, it fades back to happy after a few
-minutes, and each change comes with a reaction in the new mood's face. The next
+failed turn, many pokes in a row, a fix or a very long turn ending
+moves it, a long grind turns it determined, it fades back to happy
+after a few minutes, and each change comes with a reaction in the new
+mood's face. The next
 `state` carries it and the device blinks into the new set of faces. No
 rule depends on the mood.
 
 ### Mumbling while agents work
 
-No rule mumbles. While agents work, the core sends the brain a working
+No rule mumbles. While agents work, the view sends the brain a working
 heartbeat as often as the personality says (§6), each wait drawn at
 random from its range and started again whenever Boop reacts, so it
 comes after a stretch of work with no reaction, however busy other
@@ -241,9 +256,9 @@ newer moment, or skipped because something needed you
 | When | What Boop does |
 | --- | --- |
 | A session starts or ends | Nothing but the popover's list: the first one wakes Boop, and the last one ending puts it to sleep |
-| You send a prompt | The working look. The brain hears of it |
+| You send a prompt | The working look. The brain hears of it, with what you asked |
 | A tool call starts or finishes | Nothing on screen; the latest topic is kept for the working heartbeat. A test, build or deploy that fails, or passes after failing, reaches the brain; with `tool_uses: all` every tool use does (§6) |
-| A turn finishes | The session goes idle; no rule celebrates. The brain hears of it and decides whether the finish gets a face, and whether a cheer, for how long and with which word ([harness/DECISIONS.md](harness/DECISIONS.md) §5). With no brain, a finish shows only the change of look |
+| A turn finishes | The session goes idle; no rule celebrates. The brain hears of it, with how many tool calls it made and the agent's last message, and decides whether the finish gets a face, and whether a cheer, for how long and with which word ([harness/DECISIONS.md](harness/DECISIONS.md) §5). With no brain, a finish shows only the change of look |
 | A turn finishes, but its last test, build or deploy command failed | It counts as a failed turn, and the brain hears of that |
 | A turn fails (Claude stops on an API error) | No moment. The brain hears of it |
 | You interrupt a turn (Esc) | No moment. The brain hears it was stopped. It happens at once if a tool was running, else when Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §3) |
@@ -252,11 +267,12 @@ A Codex turn never fails, since Codex reports no failures yet
 ([ADAPTERS.md](ADAPTERS.md) §3).
 
 Only a turn that's open finishes: a second `Stop`, or one after the turn
-stopped, does nothing. The brain hears only of turns Boop saw start: one
-it joined partway (the app launched, or forgot the session, after the
-prompt) just goes idle when it finishes: Boop can't say how long it
-ran, so the brain isn't told and nothing celebrates it
-([harness/EVENTS.md](harness/EVENTS.md) §7).
+stopped, does nothing. The brain hears only of turns the view saw
+start. A launch reads the last two days of the transcript back, so a
+turn that ran across a relaunch still finishes, its length counting the
+time the app was down; one older than that just goes idle when it
+finishes, and the brain isn't told ([harness/EVENTS.md](harness/EVENTS.md)
+§4.1).
 
 ### 3.2 Something needs you
 
@@ -267,21 +283,24 @@ Boop only tells you. You approve on the Mac, in the agent's own prompt.
 | An agent needs approval | The needs-you look and its amber sign, the amber light, the strip naming agent and project, and the alert: the needs-you performance with its knocks and ding, once ([VOICE.md](VOICE.md) §10). A moment or mumble playing stops |
 | More than one needs you | The strip shows the one waiting longest, with "+N" for the rest |
 | A different request becomes the one shown | The alert again, the performance starting over behind a blink: another session's, even in the same project, or another subagent's in the same session once the first is answered |
-| You tap Boop | The press dip only; it stays amber (§3.3) |
+| You poke Boop | The press dip only; it stays amber. The brain still hears of the poke (§3.3) |
 | You answer on the Mac | The agent carries on; once nothing needs you, Boop blinks back to its base look. A long command you approved keeps "needs you" up until it finishes ([ADAPTERS.md](ADAPTERS.md) §4) |
 | You deny with Esc | Claude sends nothing, so Boop stays amber until Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §4) |
 | You deny a Claude subagent | It carries on, and Boop stays amber until its next tool call or until it ends ([ADAPTERS.md](ADAPTERS.md) §4) |
 
-The light stays steady and nothing repeats. The brain is never involved.
+The light stays steady and nothing repeats. The brain never shows or
+clears it, and nothing but a poke wakes it meanwhile. A poke's pass can
+change the mood, which the amber look then shows, but no reaction plays
+until nothing needs you.
 
 ### 3.3 You and Boop
 
 | When | What Boop does |
 | --- | --- |
 | You press BOOT or touch the screen | The face dips 2 px at once, until you let go |
-| You let go: a tap | `wiggle`, replacing whatever is playing, a mumble included. Asleep and with no app too. The Mac hears of it; the brain doesn't |
-| 4 taps within 3 s: a poke streak | A `wiggle`, as always. The brain hears of the streak and may grumble, at most once a minute (`pokeTaps`, `pokeWindowMs`, `pokedEveryMs`); a sooner streak is only recorded. A streak can make Boop grumpy for a couple of minutes ([harness/EVENTS.md](harness/EVENTS.md) §6). The count starts again after each streak |
-| A tap while something needs you | The press dip only, and the count starts again: there a tap means "I saw it" |
+| You let go: a tap | `wiggle`, replacing whatever is playing, a mumble included. Asleep and with no app too. The Mac records it as a poke, with the wiggle under it, and the brain hears of every one |
+| Pokes in a row | Each within 3 s of the last (`TranscriptView.Config.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. How Boop reacts is the steering's; many in a row can make Boop grumpy for a couple of minutes ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| A tap while something needs you | The press dip only, with no wiggle: there a tap means "I saw it". The brain still hears of the poke ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 
 ### 3.4 The link
 
@@ -294,8 +313,8 @@ whatever the next `state` says.
 
 ### 3.5 Quiet time
 
-While no agent works, an hour with no hook or tap brings the brain a
-heartbeat, and another each hour after
+While no agent works, an hour with no agent event or poke brings the
+brain a heartbeat, and another each hour after
 ([harness/EVENTS.md](harness/EVENTS.md) §4), so a mood can fade back to
 happy. Nothing shows on screen. The first activity of a new day starts
 short-term memory fresh ([ARCHITECTURE.md](ARCHITECTURE.md) §4.3).
@@ -341,7 +360,7 @@ react at all.
 ## 6. Personalities
 
 How much Boop reacts is its personality's to say, chosen in Settings and applied from the next event. A personality is a
-file in `plan/steering/personality/`: its front matter sets the core's
+file in `plan/steering/personality/`: its front matter sets the view's
 rules below, and its text steers the brain
 ([harness/DECISIONS.md](harness/DECISIONS.md) §2.2). "Needs you" and the
 tap's wiggle are the same for every personality.
@@ -349,7 +368,7 @@ tap's wiggle are the same for every personality.
 | Setting | What it sets | `boop` (the default) | `chatter` (debugging) |
 | --- | --- | --- | --- |
 | `working_heartbeat` | How often a quiet stretch of work reaches the brain: every so many seconds, as a range, or `none` | 120–240 s | 30–60 s |
-| `tool_uses` | Which tool uses reach the brain: `notable` (a failure, or a pass after failures) or `all` ([harness/EVENTS.md](harness/EVENTS.md) §4) | `notable` | `all` |
+| `tool_uses` | Which tool calls' ends the view keeps, and the brain hears of: `notable` (a failure, or a pass after failures) or `all` ([harness/EVENTS.md](harness/EVENTS.md) §3) | `notable` | `all` |
 
 A missing or unreadable setting keeps the default. Changing personality
 restarts the working heartbeat's wait at the new pace. What the brain adds on top is

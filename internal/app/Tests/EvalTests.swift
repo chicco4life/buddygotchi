@@ -89,11 +89,11 @@ final class EvalTests: XCTestCase {
     /// A brain that stays quiet fails what should mumble, and the report
     /// says what was wanted and what came.
     func testAQuietBrainFailsAndTheReportSaysWhy() async throws {
-        let scenario = try Scenario(file: Self.scenarios.appendingPathComponent("05-poke-streak.json"))
+        let scenario = try Scenario(file: Self.scenarios.appendingPathComponent("05-pokes-in-a-row.json"))
         let result = try await Eval(brain: ScriptedBrain(always: [:]), steering: RuntimeTests.steering).run(scenario)
         XCTAssertFalse(result.passed)
         let report = Eval.report([result])
-        XCTAssertEqual(report.first, "FAIL  05-poke-streak.json  A poke streak makes Boop grumpy, briefly")
+        XCTAssertEqual(report.first, "FAIL  05-pokes-in-a-row.json  Four pokes in a row make Boop grumpy, briefly")
         XCTAssertTrue(report[1].contains("wanted react grumpy, word none|nope|ugh, loops once, mood grumpy; got react none, animation none, word none, loops none, mood happy"), report[1])
         XCTAssertEqual(Eval.summary([[result]]), "0/1 passed")
     }

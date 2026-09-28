@@ -90,9 +90,9 @@ final class ReplayTests: XCTestCase {
         let lines = replay.run(try Replay.steps(fromFile: path))
         let effects = lines.filter { $0.hasPrefix("+") }.map { $0.split(separator: " ", maxSplits: 1)[1] }
         XCTAssertFalse(effects.contains { $0.hasPrefix("moment") }, "no rule moment: the brain decides")
-        XCTAssertTrue(effects.contains(#"event turn_end · claude finished turn 1 on "fixture-project": done, a long turn."#), "\(effects)")
+        XCTAssertTrue(effects.contains(#"view turn end · claude finished turn 1 on "fixture-project": done, a long turn, 10 tool calls. · Its last message: "PRIVATE_CLOSING_7182 fixed the failing tests""#), "\(effects)")
         XCTAssertEqual(effects.filter { $0.hasPrefix("state") }.count, 3)
-        XCTAssertFalse(lines.joined().contains("PRIVATE"))
+        XCTAssertFalse(lines.joined().contains("PRIVATE_OUTPUT"), "no tool output")
     }
 
     /// The J1 fixtures carry boopctl e2e checkpoints; replay skips them and
@@ -103,7 +103,7 @@ final class ReplayTests: XCTestCase {
         XCTAssertTrue(steps.contains(.advance(400_000)))
         let lines = Replay(agent: "claude").run(steps)
         XCTAssertFalse(lines.contains { $0.hasPrefix("# skipped") })
-        XCTAssertTrue(lines.contains { $0.contains("event turn_end") && $0.contains(": done, a ") })
+        XCTAssertTrue(lines.contains { $0.contains("view turn end") && $0.contains(": done, a ") })
         XCTAssertTrue(lines.contains { $0.contains(": failed, a ") })
         XCTAssertFalse(lines.contains { $0.contains("moment oops") }, "a failed turn has no moment")
     }

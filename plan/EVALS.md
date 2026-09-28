@@ -1,7 +1,8 @@
 # Boop: harness evals
 
 Updated 2026-09-28. How we check that Jev decides as Boop should: short
-scenarios of agent work, run through the real core, harness and actions,
+scenarios of agent work, run through the real pipeline (the transcript,
+the core and the view), harness and actions,
 each pass checked against what it should come to. The harness is
 [harness/HARNESS.md](harness/HARNESS.md), and the decisions checked are
 [harness/DECISIONS.md](harness/DECISIONS.md).
@@ -9,8 +10,8 @@ each pass checked against what it should come to. The harness is
 ## 1. What an eval is
 
 A scenario is a few hook-level steps on a virtual clock. Each run starts
-fresh: a new core, an empty transcript, and a `happy` mood in a
-temporary state directory. The runner (`Eval` in
+fresh: a new core and view, an empty transcript kept in memory, and a
+`happy` mood in a temporary state directory. The runner (`Eval` in
 `internal/app/BoopDevKit/Eval/Eval.swift`) wires them as the app does,
 with the real `mood` and `react` actions, except that a mumble's queue
 goes nowhere and ends the reaction's handle at once, `done` unless the
@@ -18,20 +19,22 @@ step says otherwise (`reaction`, §3), so HISTORY shows it as played
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5).
 
 For each step it moves the clock a second at a time to the step's time,
-ticking the core as the app does, so heartbeats and other timers fire on
-the way, and hands each tick's events to the harness at that tick, so a
-heartbeat is answered when it comes. Then it feeds the step to the core,
-and hands its events to the harness one at a time, straight through
-without the queue (`Harness.respond`). The clock starts at a fixed
+ticking the pipeline as the app does, so heartbeats and other timers
+fire on the way, and hands each tick's view events that wake the brain
+to the harness at that tick, so a heartbeat is answered when it comes.
+Then it feeds the step's raw events to the pipeline, one input at a
+time, and hands every view event that wakes the brain to the harness as
+it's made, straight through without the queue (`Harness.respond`). The
+clock starts at a fixed
 Wednesday 14:00 UTC and stands still while Jev answers.
 
-| Step | Fed to the core as ([ADAPTERS.md](ADAPTERS.md) §1's common events) |
+| Step | Fed to the pipeline as ([harness/EVENTS.md](harness/EVENTS.md) §2's raw events) |
 | --- | --- |
-| `turn started` | `turn_start` |
-| `command` | An `activity` starting a `Bash` call with the step's `topic`, then its result at the same moment: `failed` as given (default false), with `tool_error: exit_code` when it failed |
-| `turn finished` | `turn_end` |
-| `turn failed` | `turn_failed`, with the step's `error` (default `api_error`) |
-| `pokes` | Four taps at once from the device: a poke streak |
+| `turn started` | A `turn` start (`UserPromptSubmit`) |
+| `command` | A `tool` start of a `Bash` call with the step's `topic`, then its end at the same moment: `failed` as given (default false), with `error: exit_code` when it failed |
+| `turn finished` | A `turn` end, `done` (`Stop`) |
+| `turn failed` | A `turn` end, `failed` (`StopFailure`), with the step's `error` (default `api_error`) |
+| `pokes` | Four pokes at once from the device, each a pass: the step checks the last, `You poked Boop 4 times in a row.` |
 | `wait` | Nothing; only time passes |
 
 Every event is Claude's, in project `landing`, in session `s1` or the
@@ -103,12 +106,13 @@ whole-run check once, with what was wanted and what came. Then it gives
 how many scenarios passed in every run, and how many known gaps failed, and the median and slowest latency against the pass's
 deadline ([HARNESS.md](harness/HARNESS.md) §7). It exits 1 if any
 scenario failed that isn't a known gap.
-Every entry of every run goes to a file of its own in `/tmp/boop-eval`
-(files over a day old are cleared), which `boopdev watch FILE` prints.
+Every event, view event and pass of every run goes to a file of its own
+in `/tmp/boop-eval` (files over a day old are cleared), which
+`boopdev watch FILE` prints.
 
 `EvalTests` checks the runner without Jev: every scenario file reads and
 has a case, a scripted brain that answers as `04-tests-fight-back` wants
-passes it, one that stays quiet fails `05-poke-streak` with the report
+passes it, one that stays quiet fails `05-pokes-in-a-row` with the report
 saying why, a step's `reaction` shows in HISTORY as in progress, or not
 at all when it didn't happen, and each whole-run check catches what it
 should.
@@ -118,14 +122,14 @@ should.
 One JSON file per scenario in `internal/app/Evals/scenarios/`, run in
 file-name order:
 
-`05-poke-streak.json`:
+`05-pokes-in-a-row.json`:
 
 ```json
 {
-  "name": "A poke streak makes Boop grumpy, briefly",
-  "case": "The person pokes Boop again and again. Boop gets angry right away: a grumpy face, held briefly, with 'nope', 'ugh' or no word, and its mood turns grumpy. Three minutes later, when the agent starts a new turn, it has calmed down to happy and doesn't react to the start with anything but a happy face.",
+  "name": "Four pokes in a row make Boop grumpy, briefly",
+  "case": "The person pokes Boop four times in a row. Boop gets angry right away: a grumpy face, held briefly, with 'nope', 'ugh' or no word, and its mood turns grumpy. Three minutes later, when the agent starts a new turn, it has calmed down to happy and doesn't react to the start with anything but a happy face.",
   "always": true,
-  "why": "PERSONALITY's Examples and the react question: being poked too much is grumpy, with 'nope', held once. plan/steering/mood/happy.md: a poke streak makes Boop grumpy, and plan/steering/mood/grumpy.md: grumpy goes back to happy 2 minutes after the change",
+  "why": "PERSONALITY's Examples and the react question: being poked too much is grumpy, with 'nope', held once. plan/steering/mood/happy.md: many pokes in a row make Boop grumpy, and plan/steering/mood/grumpy.md: grumpy goes back to happy 2 minutes after the change",
   "steps": [
     {"event": "pokes", "at": "0s", "expect": {"react": "grumpy", "word": "nope|ugh|none", "loops": "once", "mood": "grumpy"}},
     {"event": "turn started", "at": "3m", "expect": {"react": "none|happy", "mood": "happy"}}
@@ -205,8 +209,8 @@ gaps) runs from 09:00 to about 17:40: about 190 turns on four threads
 approvals; tests failing three times, then passing, in a 9-minute turn;
 a turn failing on a rate limit; a 22-minute turn whose build fails once
 and comes back; a stopped turn; lunch, over an hour with nothing, for
-the heartbeat; a build failing twice, then passing; a poke streak, and
-later two a minute and a half apart; a 14-minute turn ending with its
+the heartbeat; a build failing twice, then passing; four pokes in a
+row, and later two more runs of four a minute and a half apart; a 14-minute turn ending with its
 tests still failing, and the next turn fixing them; a coffee break; an
 hour of quick wins with an API error and a passing deploy; and a
 16-minute docs turn. An hour of nothing after it brings the evening's
@@ -215,12 +219,12 @@ heartbeat.
 **The run** starts `Boop --headless --brain jev --debug` with a fresh
 state directory and a fake device on a Unix socket (`--link usb:`) that
 says each of the brain's moments played to the end, so HISTORY reads as
-it would with a board, and whose taps make the poke streaks. It moves
+it would with a board, and whose taps make the pokes. It moves
 the app's clock to 09:00 the next morning, sends each hook line straight
 to the app's socket in `boop-hook`'s wire form, moves the clock between
 them with `{"dev":"advance"}` (a minute at a time over a long gap, so the
 heartbeat comes when it would), and waits for every pass and reaction to
-end before the next line, so no event waits behind Jev. `--brain
+end before the next line, so no view event waits behind Jev. `--brain
 scripted` runs it without a key, and `--personality chatter` with the
 other text.
 
@@ -230,7 +234,7 @@ line (a turn start, or a finish done under 5 minutes) split into back
 to happy (a mood fading, as the guide says) and any other (which a
 routine line shouldn't cause); and reactions, as reacted/all for each
 kind of line that woke the brain: notable (a failure, a fix, a failed or
-stopped turn, a turn of 5 minutes or more, a poke streak), a finish
+stopped turn, a turn of 5 minutes or more, a poke), a finish
 done in 1 to 5 minutes, one under a minute, a turn start, and a
 heartbeat; and the faces used. Then the words the reactions mumbled over
 the day (`none` for a mumble with no real word), how long each mood

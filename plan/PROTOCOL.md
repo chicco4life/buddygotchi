@@ -257,9 +257,10 @@ on every live link: Bluetooth while a Mac is connected, and USB while the
 Mac has spoken there (any message that isn't `dbg.*`) in the last 30 s,
 so a tool's `moment` over USB doesn't take taps away from the app on
 Bluetooth. Input a tool injects (`dbg.press`, `dbg.touch`) goes back only
-over USB, so a test run never reaches the app on Bluetooth. The Mac hands
-a tap to the core ([BEHAVIORS.md](BEHAVIORS.md) §3.3) and ignores any other
-`k`.
+over USB, so a test run never reaches the app on Bluetooth. The Mac
+records a tap as a `poke` event, with `input` as its `specific_type`, and
+hands it to the core ([BEHAVIORS.md](BEHAVIORS.md) §3.3,
+[harness/EVENTS.md](harness/EVENTS.md) §2); it ignores any other `k`.
 
 ### `ended`: a moment the Mac waits on is over
 

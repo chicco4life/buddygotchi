@@ -1,110 +1,86 @@
 import Foundation
 
 /// Boop's record of what happened and what it did (harness/HARNESS.md §5):
-/// one append-only list of typed entries. The state's HISTORY and NOW are
-/// built from it for each pass (`StateText`); `debug.jsonl` logs every entry.
-/// Nothing in it is ever changed. Kept in memory only, touched only on the
-/// harness's queue.
+/// every raw event, in order, append-only. The view is folded from it, and
+/// the state from the view. With a folder, each event is also written as a
+/// line to `<folder>/<date>.jsonl`, one file per day, and a launch reads
+/// the last days back. Touched only on the runtime's queue.
 public final class Transcript: @unchecked Sendable {
-    public struct Entry: Equatable, Sendable {
-        public let seq: Int
-        public let receivedAtMs: Int64
-        public let body: Body
-    }
-
-    public enum Body: Equatable, Sendable {
-        case event(Event)
-        case pass(Pass)
-        case action(ActionRecord)
-        case settle(Settle)
-    }
-
-    /// What the brain was asked and answered for one event, or the answers
-    /// the dashboard forced, for no event (`forSeq` nil).
-    public struct Pass: Equatable, Sendable {
-        public var forSeq: Int?
-        public var answers: Answers
-        /// Why nothing ran: Jev failed, was late, or had no answer.
-        public var dropped: String?
-        public var latencyMs: Int
-    }
-
-    /// What one action reported. A forced one is for no event.
-    public struct ActionRecord: Equatable, Sendable {
-        public var forSeq: Int?
-        public var name: String
-        public var result: ActionResult
-        public var latencyMs: Int
-
-        /// Which actions returned a result, for the app log:
-        /// `mood, react (failed)`, or `nothing`.
-        static func names(_ records: [ActionRecord]) -> String {
-            records.isEmpty ? "nothing" : records.map { $0.name + ($0.result.ok ? "" : " (failed)") }.joined(separator: ", ")
-        }
-    }
-
-    /// How a started action ended (§5.2): `forSeq` is its `action` entry's
-    /// `seq`.
-    public struct Settle: Equatable, Sendable {
-        public var forSeq: Int
-        public var end: Pending.End
-    }
-
-    /// Who forces entries, for no event: `debug.jsonl` marks them `by` it,
-    /// and the state never shows it (harness/HARNESS.md §9).
-    public static let forcedBy = "dashboard"
-
-    /// Past this many entries the oldest are let go; nothing is summarised.
+    /// Days of files kept; older ones are deleted at launch.
+    public static let keptDays = 14
+    /// Days read back at launch, for the view to pick up from.
+    public static let replayDays = 2
+    /// Past this many events the oldest are let go from memory; the files
+    /// keep them.
     public static let limit = 1000
+    /// The folder in the state directory.
+    public static let folderName = "transcript"
 
-    public private(set) var entries: [Entry] = []
+    /// The latest events, oldest first, up to `limit`.
+    public private(set) var events: [Event] = []
     var nextSeq = 1
+    let folder: URL?
+    let time: LocalTime
+    let log: (String) -> Void
 
-    public init() {}
+    /// With no folder, it's kept in memory only.
+    public init(folder: URL? = nil, time: LocalTime = LocalTime(), log: @escaping (String) -> Void = { _ in }) {
+        self.folder = folder
+        self.time = time
+        self.log = log
+    }
 
+    /// The file for the day of `ts`.
+    public func file(for ts: Int64) -> URL? {
+        folder?.appendingPathComponent(time.day(ts) + ".jsonl")
+    }
+
+    /// Stamps the event with the next `seq`, keeps it and writes its line.
     @discardableResult
-    public func append(_ body: Body, at ms: Int64) -> Entry {
-        let entry = Entry(seq: nextSeq, receivedAtMs: ms, body: body)
+    public func append(_ event: Event) -> Event {
+        var e = event
+        e.seq = nextSeq
         nextSeq += 1
-        entries.append(entry)
-        if entries.count > Transcript.limit { entries.removeFirst(entries.count - Transcript.limit) }
-        return entry
+        events.append(e)
+        if events.count > Transcript.limit { events.removeFirst(events.count - Transcript.limit) }
+        if let url = file(for: e.ts) { Harness.appendLine(e.jsonLine, to: url) }
+        return e
     }
 
-    /// The entry as one JSON line for `debug.jsonl` (§9). `extra` goes into
-    /// a pass's or a settle's object.
-    public static func json(_ entry: Entry, extra: [String: Any] = [:]) -> String {
-        var o: [String: Any] = ["seq": entry.seq, "received_at_ms": entry.receivedAtMs]
-        switch entry.body {
-        case .event(let e):
-            o["event"] = e.json
-        case .pass(let p):
-            var pass: [String: Any] = ["for": p.forSeq ?? NSNull(), "latency_ms": p.latencyMs, "dropped": p.dropped ?? NSNull(),
-                                       "answers": Transcript.json(p.answers)]
-            if p.forSeq == nil { pass["by"] = forcedBy }
-            for (k, v) in extra { pass[k] = v }
-            o["pass"] = pass
-        case .action(let a):
-            var action: [String: Any] = ["for": a.forSeq ?? NSNull(), "name": a.name, "ok": a.result.ok,
-                                         "message": a.result.message, "latency_ms": a.latencyMs]
-            if a.forSeq == nil { action["by"] = forcedBy }
-            if a.result.pending != nil { action["pending"] = true }
-            o["action"] = action
-        case .settle(let s):
-            var settle: [String: Any] = ["for": s.forSeq]
-            switch s.end {
-            case .done: settle["end"] = "done"
-            case .failed(let why): settle["end"] = "failed"; settle["why"] = why
+    /// The events of the last `replayDays` days' files as of `now`, oldest
+    /// first, after deleting files older than `keptDays`. `seq` goes on
+    /// from the newest file's last event. A line that doesn't parse, such
+    /// as one a crash cut short, is skipped.
+    public func load(now: Int64) -> [Event] {
+        guard let folder else { return [] }
+        let fm = FileManager.default
+        try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        let names = ((try? fm.contentsOfDirectory(atPath: folder.path)) ?? [])
+            .filter { $0.hasSuffix(".jsonl") }.sorted()
+        let dayMs: Int64 = 24 * 3600 * 1000
+        let oldestKept = time.day(now - Int64(Transcript.keptDays - 1) * dayMs)
+        let oldestRead = time.day(now - Int64(Transcript.replayDays - 1) * dayMs)
+        var loaded: [Event] = []
+        for name in names {
+            let day = String(name.dropLast(".jsonl".count))
+            if day < oldestKept {
+                try? fm.removeItem(at: folder.appendingPathComponent(name))
+                log("transcript: deleted \(name), older than \(Transcript.keptDays) days")
+                continue
             }
-            for (k, v) in extra { settle[k] = v }
-            o["settle"] = settle
+            // An older file is read only if it's the newest, for `seq`.
+            guard day >= oldestRead || name == names.last,
+                  let text = try? String(contentsOf: folder.appendingPathComponent(name), encoding: .utf8) else { continue }
+            var skipped = 0
+            let parsed = text.split(separator: "\n").compactMap { line -> Event? in
+                guard let e = Event(jsonLine: line) else { skipped += 1; return nil }
+                return e
+            }
+            if skipped > 0 { log("transcript: skipped \(skipped) unreadable line(s) in \(name)") }
+            if let last = parsed.map(\.seq).max() { nextSeq = max(nextSeq, last + 1) }
+            if day >= oldestRead { loaded += parsed }
         }
-        return DebugLog.json(o)
-    }
-
-    static func json(_ answers: Answers) -> [String: Any] {
-        answers.mapValues { a in
-            ["choice": a.choice, "p": a.probabilities.mapValues { ($0 * 1000).rounded() / 1000 }] as [String: Any]
-        }
+        events = Array(loaded.suffix(Transcript.limit))
+        return loaded
     }
 }

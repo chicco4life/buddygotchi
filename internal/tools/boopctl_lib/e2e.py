@@ -206,12 +206,18 @@ def check_after(run: Run, expected: dict[str, Any]) -> None:
     brain_log = run.debug_log.read_text() if run.debug_log.exists() else ""
     for want in expected["events"]:
         (run.say if want in brain_log else run.fail)(f"the harness saw an event with {want!r}: {want in brain_log}")
-    # Nothing private may reach the app's files, debug.jsonl included.
+    # Nothing private may reach the app's files, debug.jsonl and the
+    # transcript included, but your prompt and the agent's last message
+    # (ADAPTERS.md §2): the fixtures mark them PRIVATE_PROMPT and PRIVATE_CLOSING.
     leaks = []
     for f in run.state.rglob("*"):
-        if f.is_file() and "PRIVATE_" in f.read_text(errors="replace"):
+        if f.is_file() and set(re.findall(r"PRIVATE_[A-Z]*", f.read_text(errors="replace"))) - KEPT_WORDS:
             leaks.append(str(f))
     (run.fail if leaks else run.say)(f"PRIVATE_ markers in app files or the brain log: {leaks or 'none'}")
+
+
+# The fixtures' markers for the words that do get through.
+KEPT_WORDS = {"PRIVATE_PROMPT", "PRIVATE_CLOSING"}
 
 
 def line_ms(say: dict[str, Any]) -> int:

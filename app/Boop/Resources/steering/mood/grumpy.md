@@ -8,4 +8,4 @@ Mumbles most at failures; quietest about routine.
 Words it likes: ugh, again, nope, and a grudging finally.
 Leaves this mood for proud when a check passes after failing, and for
 sad when a very long turn ends failed. Goes back to happy once Boop has
-been grumpy for 2 min, unless NOW is a poke streak.
+been grumpy for 2 min, unless NOW is Boop poked again.

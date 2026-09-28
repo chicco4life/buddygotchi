@@ -63,21 +63,44 @@ final class HookWireTests: XCTestCase {
         XCTAssertFalse(succeeded.interrupt, "only a failure can be an interrupt")
     }
 
-    func testNoPromptOrOutputFromAnyRecordedFixtureReachesTheLine() throws {
+    /// ADAPTERS.md §2: from every recorded payload, the only words that
+    /// reach the line are your prompt and the agent's last message: no
+    /// tool input or output, error text or transcript.
+    func testOnlyThePromptAndLastMessageFromAnyRecordedFixtureReachTheLine() throws {
         let files = FileManager.default.enumerator(at: HookWireTests.fixtures, includingPropertiesForKeys: nil)!
             .compactMap { $0 as? URL }.filter { ["json", "jsonl"].contains($0.pathExtension) }
         XCTAssertGreaterThan(files.count, 3)
-        var lines = 0
+        var lines = 0, words = 0
         for file in files {
             let text = try String(contentsOf: file, encoding: .utf8)
             let payloads = file.pathExtension == "json" ? [text] : text.split(separator: "\n").map(String.init)
             for raw in payloads where !raw.isEmpty {
-                guard let line = HookLine.extract(agent: "claude", payload: Data(raw.utf8), ts: 0) else { continue }
+                guard var line = HookLine.extract(agent: "claude", payload: Data(raw.utf8), ts: 0) else { continue }
                 lines += 1
+                if line.prompt != nil || line.message != nil { words += 1 }
+                line.prompt = nil
+                line.message = nil
                 XCTAssertFalse(String(decoding: line.encoded(), as: UTF8.self).contains("PRIVATE"), file.lastPathComponent)
             }
         }
         XCTAssertGreaterThan(lines, 40)
+        XCTAssertGreaterThan(words, 5, "prompts and last messages do get through")
+    }
+
+    /// ADAPTERS.md §2: `UserPromptSubmit` keeps what you asked and `Stop`
+    /// what the agent said last, each cut to 2,000 characters.
+    func testThePromptAndLastMessageAreKept() throws {
+        let prompt = try XCTUnwrap(HookLine.extract(agent: "claude", payload: payload([
+            "hook_event_name": "UserPromptSubmit", "session_id": "s", "prompt": "fix the nav",
+        ]), ts: 0))
+        XCTAssertEqual(prompt.prompt, "fix the nav")
+        XCTAssertEqual(HookLine.decode(prompt.encoded()), prompt)
+        let long = String(repeating: "y", count: 3000)
+        let stop = try XCTUnwrap(HookLine.extract(agent: "codex", payload: payload([
+            "hook_event_name": "Stop", "session_id": "s", "last_assistant_message": long,
+        ]), ts: 0))
+        XCTAssertEqual(stop.message?.count, HookLine.maxMessage)
+        XCTAssertEqual(HookLine.decode(stop.encoded()), stop)
     }
 
     /// ADAPTERS.md §2: a subagent's hooks carry the parent's session plus

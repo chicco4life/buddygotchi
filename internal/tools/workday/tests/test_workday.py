@@ -58,24 +58,39 @@ class DayTests(unittest.TestCase):
         self.assertIn("lunch", text)
 
 
-def entry(seq: int, at_min: int, **body) -> str:
+def entry(seq: int, at_min: int, view: dict | None = None, action: dict | None = None, settle: dict | None = None,
+          **body) -> str:
+    """A debug.jsonl line: a view event made by the raw event `seq`, an
+    action (a raw `action` event, its start if pending) or a started one's
+    end, or a pass as given."""
     base = 1_791_990_000_000  # any time; the report reads local hours
-    return json.dumps({"seq": seq, "received_at_ms": base + at_min * 60_000, **body})
+    at = base + at_min * 60_000
+    if view is not None:
+        body = {"view": {"id": seq, "from": [seq], "notes": [], **view}}
+    elif action is not None:
+        data = {"for": action["for"], "ok": action["ok"], "message": action["message"], "by": "brain"}
+        body = {"event": {"seq": seq, "ts": at, "source": "boop", "type": "action",
+                          **({"phase": "start"} if action.get("pending") else {}), "specific_type": action["name"],
+                          "data": data}}
+    elif settle is not None:
+        body = {"event": {"seq": seq, "ts": at, "source": "boop", "type": "action", "phase": "end", "specific_type": "react",
+                          "data": {"for": settle["for"], "outcome": settle["end"], "by": "brain"}}}
+    return json.dumps({"received_at_ms": at, **body})
 
 
 class ReportTests(unittest.TestCase):
     def test_counts_by_kind_of_line(self) -> None:
-        start = {"kind": "turn_start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True, "facts": {}}
-        short = {"kind": "turn_end", "line": "claude finished turn 1 on \"api\": done, a short turn.",
+        start = {"type": "turn", "phase": "start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True, "facts": {}}
+        short = {"type": "turn", "phase": "end", "line": "claude finished turn 1 on \"api\": done, a short turn.",
                  "wakes_brain": True, "facts": {"outcome": "done", "length_ms": 8000, "tools_failed": 0}}
-        fail = {"kind": "tool_use", "line": "claude's tests failed on \"api\".", "wakes_brain": True, "facts": {}}
+        fail = {"type": "tool", "phase": "end", "line": "claude's tests failed on \"api\".", "wakes_brain": True, "facts": {}}
         lines = [
-            entry(1, 0, event=start),
+            entry(1, 0, view=start),
             entry(2, 0, **{"pass": {"for": 1, "dropped": None}}),
             entry(3, 0, action={"for": 1, "name": "mood", "ok": True, "message": "Boop's mood changed: happy → excited."}),
-            entry(4, 1, event=short),
+            entry(4, 1, view=short),
             entry(5, 1, **{"pass": {"for": 4, "dropped": None}}),
-            entry(6, 2, event=fail),
+            entry(6, 2, view=fail),
             entry(7, 2, **{"pass": {"for": 6, "dropped": None}}),
             entry(8, 2, action={"for": 6, "name": "react", "ok": True, "pending": True,
                                 "message": "Boop made a grumpy face, held twice, and mumbled \"…oops!\""}),
@@ -103,13 +118,13 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(r["mood_minutes"], {"excited": 2, "happy": 0, "grumpy": 0})
 
     def test_the_words_count_a_mumble_with_no_word_as_none(self) -> None:
-        end = {"kind": "turn_end", "line": "claude finished turn 1 on \"api\": done, a short turn.",
+        end = {"type": "turn", "phase": "end", "line": "claude finished turn 1 on \"api\": done, a short turn.",
                "wakes_brain": True, "facts": {"outcome": "done", "length_ms": 50_000, "tools_failed": 0}}
         lines = [
-            entry(1, 0, event=end),
+            entry(1, 0, view=end),
             entry(2, 0, action={"for": 1, "name": "react", "ok": True, "pending": True,
                                 "message": "Boop made a happy face, held once, and mumbled."}),
-            entry(3, 1, event=end),
+            entry(3, 1, view=end),
             entry(4, 1, action={"for": 3, "name": "react", "ok": True, "pending": True,
                                 "message": "Boop made an excited face, held once, and mumbled \"…yay!\""}),
         ]
@@ -120,11 +135,11 @@ class ReportTests(unittest.TestCase):
             self.assertIn("Words mumbled (none: a mumble with no real word): none 1, yay 1", workday.report([path]))
 
     def test_a_mood_fading_on_a_routine_line_is_counted_apart(self) -> None:
-        start = {"kind": "turn_start", "line": "claude started turn 2 on \"api\".", "wakes_brain": True, "facts": {}}
+        start = {"type": "turn", "phase": "start", "line": "claude started turn 2 on \"api\".", "wakes_brain": True, "facts": {}}
         lines = [
-            entry(1, 0, event=start),
+            entry(1, 0, view=start),
             entry(2, 0, action={"for": 1, "name": "mood", "ok": True, "message": "Boop's mood changed: proud → happy."}),
-            entry(3, 5, event=start),
+            entry(3, 5, view=start),
             entry(4, 5, action={"for": 3, "name": "mood", "ok": True, "message": "Boop's mood changed: happy → proud."}),
         ]
         with tempfile.TemporaryDirectory() as d:
@@ -139,22 +154,22 @@ class ReportTests(unittest.TestCase):
         row; happy → grumpy → happy inside a minute is a bounce
         (EVALS.md §5)."""
         thread = {"session": "s-api"}
-        start = {"kind": "turn_start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True,
+        start = {"type": "turn", "phase": "start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True,
                  "facts": {"thread": thread}}
-        beat = {"kind": "heartbeat", "line": "claude is still working on \"api\", a long turn.", "wakes_brain": True,
+        beat = {"type": "heartbeat", "line": "claude is still working on \"api\", a long turn.", "wakes_brain": True,
                 "facts": {"thread": thread}}
-        end = {"kind": "turn_end", "line": "claude finished turn 1 on \"api\": done, a very long turn.",
+        end = {"type": "turn", "phase": "end", "line": "claude finished turn 1 on \"api\": done, a very long turn.",
                "wakes_brain": True, "facts": {"thread": thread, "outcome": "done", "length_ms": 1_200_000}}
         happy = "Boop made a happy face, held once, and mumbled."
         lines = [
-            entry(1, 0, event=start),
-            entry(2, 1, event=beat),
+            entry(1, 0, view=start),
+            entry(2, 1, view=beat),
             entry(3, 1, action={"for": 2, "name": "react", "ok": True, "pending": True, "message": happy}),
-            entry(4, 3, event=beat),
+            entry(4, 3, view=beat),
             entry(5, 3, action={"for": 4, "name": "react", "ok": True, "pending": True, "message": happy}),
             entry(6, 3, action={"for": 4, "name": "mood", "ok": True, "message": "Boop's mood changed: happy → grumpy."}),
             entry(7, 3, action={"for": 4, "name": "mood", "ok": True, "message": "Boop's mood changed: grumpy → happy."}),
-            entry(8, 20, event=end),
+            entry(8, 20, view=end),
         ]
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "debug.jsonl"
@@ -177,7 +192,7 @@ class ReportTests(unittest.TestCase):
 
     def test_classes(self) -> None:
         def end(**facts) -> dict:
-            return {"kind": "turn_end", "facts": {"outcome": "done", "tools_failed": 0, **facts}}
+            return {"type": "turn", "phase": "end", "facts": {"outcome": "done", "tools_failed": 0, **facts}}
         self.assertEqual(workday.classify(end(length_ms=59_000)), "short")
         self.assertEqual(workday.classify(end(length_ms=60_000)), "minutes")
         # plan/harness/DECISIONS.md §2.3: a turn of 5 minutes or more is a big moment.
@@ -187,9 +202,9 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(workday.classify(end(length_ms=5_000, tools_failed=1)), "short")
         self.assertEqual(workday.classify(end(length_ms=5_000, comeback="tests")), "short")
         self.assertEqual(workday.classify(end(length_ms=5_000, outcome="failed")), "notable")
-        self.assertEqual(workday.classify({"kind": "heartbeat"}), "quiet")
-        self.assertEqual(workday.classify({"kind": "pokes"}), "notable")
-        self.assertIsNone(workday.classify({"kind": "tap"}))
+        self.assertEqual(workday.classify({"type": "heartbeat"}), "quiet")
+        self.assertEqual(workday.classify({"type": "poke"}), "notable")
+        self.assertIsNone(workday.classify({"type": "tool", "phase": "wait"}))
 
 
 class SettleTests(unittest.TestCase):
@@ -198,10 +213,10 @@ class SettleTests(unittest.TestCase):
         alone would let the next clock move end a reaction as never
         played. So `settle` moves the clock 1 ms as a barrier, and waits
         for the reaction it then finds."""
-        wakes = {"kind": "tool_use", "line": "claude's tests failed on \"api\".", "wakes_brain": True, "facts": {}}
+        wakes = {"type": "tool", "phase": "end", "line": "claude's tests failed on \"api\".", "wakes_brain": True, "facts": {}}
         with tempfile.TemporaryDirectory() as d:
             run = workday.Run(Path(d), "scripted", None, False)
-            run.debug.write_text(entry(1, 0, event=wakes) + "\n" + entry(2, 0, **{"pass": {"for": 1, "dropped": None}}) + "\n")
+            run.debug.write_text(entry(1, 0, view=wakes) + "\n" + entry(2, 0, **{"pass": {"for": 1, "dropped": None}}) + "\n")
             barriers: list[int] = []
             ended = threading.Event()
 
@@ -227,10 +242,10 @@ class SettleTests(unittest.TestCase):
             self.assertEqual(barriers, [1])
 
     def test_a_dropped_pass_needs_no_barrier(self) -> None:
-        wakes = {"kind": "turn_start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True, "facts": {}}
+        wakes = {"type": "turn", "phase": "start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True, "facts": {}}
         with tempfile.TemporaryDirectory() as d:
             run = workday.Run(Path(d), "scripted", None, False)
-            run.debug.write_text(entry(1, 0, event=wakes) + "\n"
+            run.debug.write_text(entry(1, 0, view=wakes) + "\n"
                                  + entry(2, 0, **{"pass": {"for": 1, "dropped": "late"}}) + "\n")
             barriers: list[int] = []
             run.advance = barriers.append  # type: ignore[method-assign]
