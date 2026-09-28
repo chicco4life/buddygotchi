@@ -1,17 +1,17 @@
 {
-  "name": "A proud mood fades back to happy after 5 minutes",
-  "case": "The agent's tests fail twice and then pass, so Boop turns proud. It stays proud through a quick routine turn a minute later. Five minutes after it turned proud, the pride has faded: by the end of the next quick turn Boop is happy again, with a happy face at most.",
+  "name": "A proud mood fades a step, to happy, after 5 minutes",
+  "case": "Boop is rooting for the agent (determined) when its tests fail once more and then pass, so it turns proud. It stays proud through a quick routine turn a minute later. Five minutes after it turned proud, the pride has faded a step: by the end of the next quick turn Boop is happy, with a happy or calm face at most.",
   "always": true,
-  "why": "plan/steering/guide.md and plan/steering/mood/proud.md: the pass comes over a minute after the first failure, since a mood holds while it's under a minute old; proud stays through routine turns and goes back to happy 5 minutes after the mood changed to it; the change back shows, with a happy face, on whichever line brings it (the turn start or its finish)",
+  "why": "plan/steering/mood/determined.md: a check passing after failing makes Boop proud, over a minute after it turned determined, since a mood holds while it's under a minute old; plan/steering/mood/proud.md: proud stays through routine turns and fades a step toward calm, to happy, 5 minutes after the mood changed to it; the change shows, with a happy face, on whichever line brings it (the turn start or its finish)",
+  "mood": "determined",
   "steps": [
     {"event": "turn started", "at": "0s"},
     {"event": "command", "at": "20s", "topic": "tests", "failed": true},
-    {"event": "command", "at": "40s", "topic": "tests", "failed": true},
     {"event": "command", "at": "1m30s", "topic": "tests", "failed": false, "expect": {"mood": "proud"}},
     {"event": "turn finished", "at": "1m50s"},
     {"event": "turn started", "at": "2m"},
     {"event": "turn finished", "at": "2m40s", "expect": {"mood": "proud"}},
-    {"event": "turn started", "at": "6m", "expect": {"react": "none|happy", "mood": "proud|happy"}},
-    {"event": "turn finished", "at": "6m40s", "expect": {"react": "none|happy", "mood": "happy"}}
+    {"event": "turn started", "at": "6m40s", "expect": {"react": "none|happy|calm", "mood": "proud|happy"}},
+    {"event": "turn finished", "at": "7m20s", "expect": {"react": "none|happy|calm", "mood": "happy"}}
   ]
 }

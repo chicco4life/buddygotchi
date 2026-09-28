@@ -1559,7 +1559,7 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(rig.sessions, [["claude", "landing", "waiting"], ["codex", "buddygotchi", "working"],
                                       ["claude", "jetpack", "working"], ["claude", "notes", "idle"]])
         XCTAssertEqual([s.busy, s.waiting], [2, 1])
-        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":2,"vol":6,"variant":"# + "\(s.variant)}")
+        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"calm","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":2,"vol":6,"variant":"# + "\(s.variant)}")
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
     }
 
@@ -1602,11 +1602,12 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(rig.state.waiting, 0)
     }
 
-    /// PROTOCOL.md §3: every `state` carries Boop's mood, happy until the
-    /// mood action says otherwise, and a new mood goes out at once.
+    /// PROTOCOL.md §3: every `state` carries Boop's mood, calm (the
+    /// resting mood) until the mood action says otherwise, and a new mood
+    /// goes out at once.
     func testANewMoodGoesOutInTheNextState() {
         let rig = CoreRig()
-        XCTAssertEqual(rig.state.mood, "happy")
+        XCTAssertEqual(rig.state.mood, "calm")
         let fx = rig.core.setMood("determined", at: rig.now)
         guard case .state(let s)? = fx.first, fx.count == 1 else {
             XCTFail("\(fx)")

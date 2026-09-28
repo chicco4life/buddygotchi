@@ -290,7 +290,7 @@ public final class Runtime: @unchecked Sendable {
         let now = options.clock()
         personality = options.personality ?? settings.personality
         let rules = options.steering.personality(personality).rules
-        mood = MoodStore(stateDir: options.stateDir)
+        mood = MoodStore(stateDir: options.stateDir, log: log)
         var config = Core.Config(volume: settings.volume, time: options.time, seed: longTerm.seed ^ UInt64(now))
         config.mood = mood.current
         config.firstAsk = Core.randomFirstAsk()

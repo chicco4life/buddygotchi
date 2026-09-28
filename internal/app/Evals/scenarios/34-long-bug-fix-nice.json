@@ -1,9 +1,9 @@
 {
   "name": "A long bug fix says 'nice', or its topic",
-  "case": "The agent spends three minutes tracking down and fixing a bug. A long turn done is a solid win, so the exclamation comes first: Boop says 'nice', or 'bug' if it doesn't settle on the exclamation. Never 'yay': it wasn't a very long turn.",
+  "case": "The agent spends three minutes tracking down and fixing a bug. A long turn done is a solid win, a success, so the exclamation comes first: Boop says 'nice', or 'bug' if it doesn't settle on the exclamation. Never 'yay': it wasn't a very long turn.",
   "why": "harness/DECISIONS.md §5: the exclamation beats the topic word when Jev is sure of it; §3: 'nice' is a long turn done, 'yay' a very long one",
   "steps": [
     {"event": "turn started", "at": "0s", "prompt": "there's a bug where the cart total is off by a cent sometimes"},
-    {"event": "turn finished", "at": "3m", "message": "Found the bug: prices were summed as floats. They're summed in cents now, and the total is exact.", "expect": {"animation": "none", "word": "nice|bug"}}
+    {"event": "turn finished", "at": "3m", "message": "Found the bug: prices were summed as floats. They're summed in cents now, and the total is exact.", "expect": {"animation": "success", "word": "nice|bug"}}
   ]
 }

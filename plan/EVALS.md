@@ -10,8 +10,11 @@ each pass checked against what it should come to. The harness is
 ## 1. What an eval is
 
 A scenario is a few hook-level steps on a virtual clock. Each run starts
-fresh: a new core and view, an empty transcript kept in memory, and a
-`happy` mood in a temporary state directory. The runner (`Eval` in
+fresh: a new core and view, an empty transcript kept in memory, and the
+scenario's mood (`calm`, the resting mood, unless the file says) in a
+temporary state directory, set as the dashboard would set it just
+before the first step, so HISTORY can say how long Boop has been in it.
+The runner (`Eval` in
 `internal/app/BoopDevKit/Eval/Eval.swift`) wires them as the app does,
 with the real `mood` and `react` actions, except that a mumble's queue
 goes nowhere and ends the reaction's handle at once, `done` unless the
@@ -51,10 +54,11 @@ a scenario holds wherever more than one answer is right:
 | Checked | Against |
 | --- | --- |
 | `react` | Jev's pick for the `react.mood` question: `none` or a mood's face |
-| `animation` | The animation the reaction played, Jev's `react.animation` pick (`cheer`), or `none` when it played none or Boop didn't react |
+| `animation` | The finish the reaction played, Jev's `react.animation` pick (`success`, `failure` or `reply`), or `none` when it played none or Boop didn't react |
 | `word` | The word the mumble used ([DECISIONS.md](harness/DECISIONS.md) §5), or `none` when `react` didn't mumble |
 | `loops` | How long the face held, Jev's `react.loops` pick (`once` to `four times`), or `none` when `react` didn't mumble |
 | `mood` | Boop's mood after the pass |
+| `offered` | Exactly the options the pass's `mood` question offered, as a set: staying in the mood it had, and that mood's moves on the graph ([DECISIONS.md](harness/DECISIONS.md) §2.3), so a scenario can pin the graph |
 
 A step fails if its pass was dropped (late, or an error), or if any
 expectation doesn't hold. A step with `expect` that wakes no pass stops
@@ -75,6 +79,7 @@ and to be tightened once Boop meets it (`Eval.judge`):
 | `no_mood_bounce_within` | A mood changes back to the one it just left sooner than this |
 | `reactions` | The run plays a number of reactions outside this range |
 | `min_variety` | The run plays fewer different reactions (face, animation and word) than this |
+| `moves_on_graph` | A pass's `mood` answer wasn't one of the options it offered (or Jev gave none it could use), or the mood changed along something that isn't a move on the graph |
 
 **Always and gaps.** An `always` scenario is Boop's character, not a
 tuning target: it runs 5 times by default, and every steering change
@@ -116,8 +121,9 @@ in `/tmp/boop-eval` (files over a day old are cleared), which
 has a case, a scripted brain that answers as `04-tests-fight-back` wants
 passes it, one that stays quiet fails `05-pokes-glad-miffed-grumpy` with the report
 saying why, a step's `reaction` shows in HISTORY as in progress, or not
-at all when it didn't happen, and each whole-run check catches what it
-should.
+at all when it didn't happen, a scenario starts in its `mood` and a
+step's `offered` is what its pass offered, and each whole-run check
+catches what it should, `moves_on_graph` an answer that wasn't offered.
 
 ## 3. The scenario file
 
@@ -128,15 +134,15 @@ file-name order:
 
 ```json
 {
-  "name": "Pokes make Boop glad, then miffed, then grumpy",
-  "case": "The person pokes Boop once, again a second later, and a third time a second after that. The first poke gladdens Boop: a happy or excited face with a cheer, and its mood stays happy. The second, two in a row, leaves it a little miffed: a determined face with 'hmm' or no word, and its mood turns determined. The third, three in a row, makes it fed up: a grumpy face with 'nope', 'ugh' or no word, and its mood turns grumpy. Three minutes later, when the agent starts a new turn, it has calmed down to happy and doesn't react to the start with anything but a happy face.",
+  "name": "Pokes make Boop curious, then miffed, then fed up",
+  "case": "The person pokes Boop once, again a second later, and a third time a second after that. The first poke makes Boop curious or glad: a curious or happy face, and its mood turns curious or happy. The second, two in a row, leaves it a little miffed: an annoyed face with 'hmm' or no word, and its mood turns annoyed. The third, three in a row, makes it fed up: an irritated or grumpy face with 'nope', 'ugh' or no word, and its mood turns irritated or grumpy. Four minutes later, when the agent starts a new turn, it has calmed down a step, to annoyed (or irritated, from grumpy), and doesn't react to the start with anything but a calm or annoyed face.",
   "always": true,
-  "why": "PERSONALITY's Examples and the react question: one poke cheers, two in a row get a determined 'hmm', three or more a grumpy 'nope'. plan/steering/mood/happy.md: two pokes in a row make Boop determined, determined.md: three or more make it grumpy, and grumpy.md: grumpy goes back to happy 2 minutes after the change. harness/EVENTS.md §6: the first two pokes' reactions don't hold back the third",
+  "why": "PERSONALITY's Examples and the react question: one poke gets a curious face, two in a row an annoyed 'hmm', three or more an irritated or grumpy face. plan/steering/mood/: a poke moves calm to happy or curious, two in a row to annoyed, three to irritated or, a jump a barrage earns, grumpy; irritated and grumpy fade a step toward calm after their minutes. harness/EVENTS.md §6: the first two pokes' reactions don't hold back the third. Taps play the device's own animations, so no reaction plays one",
   "steps": [
-    {"event": "poke", "at": "0s", "expect": {"react": "happy|excited", "animation": "cheer", "mood": "happy"}},
-    {"event": "poke", "at": "1s", "expect": {"react": "determined", "animation": "none", "word": "hmm|none", "mood": "determined"}},
-    {"event": "poke", "at": "2s", "expect": {"react": "grumpy", "animation": "none", "word": "nope|ugh|none", "mood": "grumpy"}},
-    {"event": "turn started", "at": "3m", "expect": {"react": "none|happy", "mood": "happy"}}
+    {"event": "poke", "at": "0s", "expect": {"react": "curious|happy|excited", "animation": "none", "mood": "curious|happy"}},
+    {"event": "poke", "at": "1s", "expect": {"react": "annoyed|irritated", "animation": "none", "word": "hmm|none|nope", "mood": "annoyed"}},
+    {"event": "poke", "at": "2s", "expect": {"react": "irritated|grumpy|annoyed", "animation": "none", "word": "nope|ugh|none|hmm", "mood": "irritated|grumpy"}},
+    {"event": "turn started", "at": "4m", "expect": {"react": "none|calm|annoyed", "mood": "annoyed|irritated"}}
   ]
 }
 ```
@@ -147,8 +153,9 @@ file-name order:
 | `case` | The situation and what Boop should do in it, in plain words and no harness terms, so the steps can be rewritten to fit it when the harness changes. Required |
 | `why` | The spec or steering file that says so |
 | `always` | `true` for Boop's character (§1): 5 runs by default, and `--always` runs these |
+| `mood` | The mood the run starts in, one of the 13 ([DECISIONS.md](harness/DECISIONS.md) §2.3): `calm` by default |
 | `gap` | A known gap (§1): why Boop can't pass it today, and what would fix it. Never on an `always` scenario |
-| `checks` | Whole-run checks (§1), any of `max_quiet_working` and `no_mood_bounce_within` (times, like `6m`), `max_same_in_a_row` and `min_variety` (counts), `mood_changes` and `reactions` (ranges, like `1-3`) |
+| `checks` | Whole-run checks (§1), any of `max_quiet_working` and `no_mood_bounce_within` (times, like `6m`), `max_same_in_a_row` and `min_variety` (counts), `mood_changes` and `reactions` (ranges, like `1-3`), and `moves_on_graph` (`true`) |
 | `personality` | `boop` (the default) or `chatter` |
 | `steps[].event` | One of the steps in §1 |
 | `steps[].at` | Virtual time since the start, in `h`, `m` and `s`: `0s`, `2m30s`, `1h5m` |
@@ -159,13 +166,15 @@ file-name order:
 | `steps[].workspace` | The thread's workspace, when it has one |
 | `steps[].session` | Claude's session, `s1` unless it says: another session is another thread, working at the same time |
 | `steps[].reaction` | How a reaction this step's passes start ends: `done` (the default), `in progress` (HISTORY keeps saying so), or `failed: <why>` (HISTORY leaves it out) |
-| `steps[].expect` | Any of `react`, `animation`, `word`, `loops` and `mood`, each a `\|`-separated list |
+| `steps[].expect` | Any of `react`, `animation`, `word`, `loops`, `mood` and `offered`, each a `\|`-separated list |
 
 A file with no `case`, an unknown key, event, personality, `expect` key
-or check, a bad `at`, `reaction` or check value, a `prompt` or `message`
-on a step that can't carry it, or nothing to check (no
-`expect` and no `checks`) doesn't load, and the error names the file and
-step.
+or check, a starting `mood`, or an expected `react`, `mood` or `offered`,
+that isn't a mood (`none` is a `react` too), an `animation` that isn't
+`none`, `success`, `failure` or `reply`, a bad `at`, `reaction` or check
+value, a `prompt` or `message` on a step that can't carry it, or nothing
+to check (no `expect` and no `checks`) doesn't load, and the error names
+the file and step.
 
 ## 4. The scenarios
 
@@ -173,28 +182,40 @@ Each scenario's file says what it checks, in its `case`, so the list
 lives there: `boopdev eval --list` prints them all. They come in three
 kinds, all with the `boop` personality unless the file says otherwise:
 
-- **Always** (`02`–`06`, `08`, `09`, `13`, `16`, `17`, `23`, `28`): Boop's
-  character. A failed check makes it determined and the fix proud; a
-  failed turn grumpy, a very long one failed sad; a very long turn done
-  cheers; poking it again and again keeps it grumpy while it goes on,
-  with one face per barrage, and it calms down after; moods fade back
-  to happy; plain requests and matter-of-fact finishes leave the mood
-  alone; and no face ever
-  contradicts what happened.
+- **Always** (`02`–`06`, `08`, `09`, `13`, `16`, `17`, `23`, `28`,
+  `35`–`43`, `47`, `49`, `53`): Boop's character. A failed check puts it
+  out and the next makes it determined, the fix proud; a failed turn
+  puts it out, a very long one failed makes it sad; a very long turn
+  done is a success; poking it again and again makes it irritated or
+  grumpy and keeps it so while it goes on, with one face per barrage,
+  and it calms down a step at a time after; moods fade a step toward
+  calm; plain requests and matter-of-fact finishes leave the mood alone;
+  no face ever contradicts what happened; talked to, it always answers
+  with a face (`35`–`40`); each finish is judged by what it says, done
+  and working a success, couldn't finish or a failed turn a failure
+  however upbeat its message (`41`–`43`); and its mood only moves along
+  the graph, a step at a time (`47`, `49`, `53`).
 - **Tuning** (`01`, `07`, `10`–`12`, `14`, `15`, `18`, `19`, `21`,
-  `22`, `24`–`27`, `29`–`34`): single decisions ("nice" at a long turn
-  done, not "yay", is `29`; the topic words Jev reads from the words,
-  "bug", "merge" and "review", `30`–`32`, the agent's name as the filler
-  when the words are about none of them, `33`, and the exclamation first at a long turn, `34`),
-  and the liveliness brief: Boop reacts often
-  (every quick win, `19`; most of a busy half hour, `21`), never goes
-  over 6 minutes of work with no reaction, even while another thread's
-  quick turns keep waking the brain (`18`, `21`, `22`), and its mood
-  drifts (happy → determined → excited), never flipping back within a
-  minute; in a long grind it may ease back to happy and return (`18`).
-  Repeats are fine. And the moods the words bring (`24`–`27`): a frustrated request
-  determined, thanks excited, a long turn's hard work done proud, an
-  agent giving up sad.
+  `22`, `24`–`27`, `29`–`34`, `44`–`46`, `48`, `50`–`52`, `54`, `55`):
+  single decisions ("nice" at a long turn done, not "yay", is `29`; the
+  topic words Jev reads from the words, "bug", "merge" and "review",
+  `30`–`32`, the agent's name as the filler when the words are about
+  none of them, `33`, and the exclamation first at a long turn, `34`),
+  and the liveliness brief: Boop reacts often (every quick win, `19`;
+  most of a busy half hour, `21`), never goes over 6 minutes of work
+  with no reaction, even while another thread's quick turns keep waking
+  the brain (`18`, `21`, `22`), and its mood drifts (calm → engaged →
+  determined → excited), never flipping back within a minute; in a long
+  grind it may ease back and return (`18`, `51`). Repeats are fine. The
+  moods the words bring (`24`–`27`): a frustrated request annoyed, a
+  step toward determined, thanks excited, a long turn's hard work done
+  proud, an agent giving up sad. The finishes: a question back or an
+  answer is a reply (`44`, `45`), and a finish is judged by its words
+  whatever the mood (`46`). And the graph's moves: a small failure from
+  calm is a small step and a big one may jump (`48`), thanks bring a
+  whiny or wounded Boop back (`50`), routine work holds calm (`52`), an
+  irritated Boop answers as irritated, not grumpy (`54`), and hours of
+  nothing fade excited through happy to calm (`55`).
 - **Known gaps** (`20`): flipping tests don't flip the mood. Its `gap`
   says why the steering can't get there alone.
 

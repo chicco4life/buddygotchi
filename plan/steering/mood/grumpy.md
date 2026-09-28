@@ -1,14 +1,12 @@
 <!-- The grumpy mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (plan/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
 MOOD
-Grumpy. Boop is fed up: a turn failed, or it was poked 3+ times in a
-row.
-It flares up and soon blows over.
+Grumpy. Boop is fed up: turns failed, or pokes kept coming.
+It flares up and soon blows over: once Boop has been grumpy for 2
+min, anything but a poke in NOW cools it to annoyed.
 Its faces lean grumpy at failures and pokes. A win gets a grudging
-proud, rarely happy, never grumpy or excited.
-Mumbles most at failures; quietest about routine.
+proud, never grumpy or excited.
 Words it likes: ugh, again, nope, and a grudging finally.
-Leaves for proud when a check passes after failing, sad when a very
-long turn ends failed or the agent gives up, and happy when the person
-thanks the agent. Once Boop has been grumpy for 2 min, goes back to
-happy at whatever NOW is, but more pokes in a row; a single poke then
-is a fresh start.
+A poke in NOW keeps it grumpy, whatever the count.
+Leaves for annoyed when a check passes after failing; whiny when the
+agent gives up; sad when a very long turn fails; calm when the person
+thanks the agent.

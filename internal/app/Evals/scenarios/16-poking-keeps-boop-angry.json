@@ -1,12 +1,13 @@
 {
   "name": "Poking Boop again and again keeps it angry",
-  "case": "The person pokes Boop again and again, then again a minute later, and again a minute after that. Boop gets angry at the first round of pokes, and ends every round with a grumpy face (never a happy, excited or proud one), with a word like 'nope', 'ugh' or 'again', or none. It stays grumpy through the second round, which comes before it has calmed down, and the third round, after it has, climbs back to grumpy. A few minutes after the last poke it has calmed down: when the agent starts a turn, Boop is happy again.",
+  "case": "The person pokes Boop again and again, then again a minute later, and again a minute after that. Boop gets angry at the first round of pokes, and ends every round with an irritated or grumpy face (never a happy, excited or proud one), with a word like 'nope', 'ugh' or 'again', or none. It stays angry through the second round, which comes before it has calmed down, and the third round, after it may have started to, climbs back. A few minutes after the last poke it has calmed down a step: by the end of the agent's next turn, Boop is annoyed or irritated, no longer grumpy.",
   "always": true,
-  "why": "PERSONALITY's Examples: three or more pokes in a row get a grumpy face with 'nope'; plan/steering/mood/happy.md and grumpy.md: three or more pokes in a row make Boop grumpy, more keep it so, and grumpy goes back to happy 2 minutes after the change, a single poke then being a fresh start. Every poke wakes the brain (harness/EVENTS.md §4); each step checks its round's last, four in a row",
+  "why": "PERSONALITY's Examples: pokes in a row get an annoyed, then irritated or grumpy face; plan/steering/mood/: pokes in a row climb the mood graph to irritated and grumpy, more keep it there, and grumpy and irritated fade a step toward calm after their minutes, a single poke then being a fresh start. Every poke wakes the brain (harness/EVENTS.md §4); each step checks its round's last, four in a row",
   "steps": [
-    {"event": "pokes", "at": "0s", "expect": {"react": "grumpy", "animation": "none", "word": "nope|ugh|again|none", "mood": "grumpy"}},
-    {"event": "pokes", "at": "1m10s", "expect": {"react": "grumpy", "animation": "none", "word": "nope|ugh|again|none", "mood": "grumpy"}},
-    {"event": "pokes", "at": "2m20s", "expect": {"react": "grumpy", "animation": "none", "word": "nope|ugh|again|none", "mood": "grumpy"}},
-    {"event": "turn started", "at": "6m", "expect": {"react": "none|happy", "mood": "happy"}}
+    {"event": "pokes", "at": "0s", "expect": {"react": "grumpy|irritated", "animation": "none", "word": "nope|ugh|again|none", "mood": "grumpy|irritated"}},
+    {"event": "pokes", "at": "1m10s", "expect": {"react": "grumpy|irritated", "animation": "none", "word": "nope|ugh|again|none", "mood": "grumpy|irritated"}},
+    {"event": "pokes", "at": "2m20s", "expect": {"react": "grumpy|irritated", "animation": "none", "word": "nope|ugh|again|none", "mood": "grumpy|irritated"}},
+    {"event": "turn started", "at": "6m"},
+    {"event": "turn finished", "at": "6m40s", "expect": {"mood": "annoyed|irritated"}}
   ]
 }

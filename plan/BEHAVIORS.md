@@ -6,15 +6,23 @@ BOOP — HOW IT WORKS
 
   SCREEN  =  MOOD  ×  VISUAL        (a visual, acted out in a mood)
 
-MOODS  (how Boop acts; fades back to happy after the minutes shown)
+MOODS  (how Boop acts; a step at a time along the mood graph, fading
+        a step toward calm after the minutes shown)
 ───────────────────────────────────────────────────────────────────────
-  happy       good spirits; the default
-  excited     a very long turn (5+ min) ended done                5 min
-  proud       a check passed after failing                        5 min
-  determined  a check failed while the agent works on             5 min
-              (or miffed: 2 pokes in a row)                       1 min
-  grumpy      a failed turn, or 3+ pokes in a row                 2 min
-  sad         a very long turn (5+ min) ended failed             10 min
+  calm        settled, at rest; the default
+  happy       good spirits: things are going well                10 min
+  excited     a very long turn (5+ min) ended done, or thanks     5 min
+  proud       a check passed after failing, hard work done        5 min
+  curious     a poke, something new said to Boop                  2 min
+  engaged     in the flow of steady work                          5 min
+  determined  rooting for a retry, or a very long grind           5 min
+  annoyed     one thing failed, or 2 pokes in a row               3 min
+  irritated   failures or pokes keep coming                       3 min
+  grumpy      a failed turn on top of trouble, or 4+ pokes        2 min
+  whiny       sorry for itself: things keep going wrong           5 min
+  wounded     hurt: rude words, or a big failure                 10 min
+  sad         a very long turn ended failed, or the agent        10 min
+              gave up
 
 VISUALS  (what Boop is doing)
 ───────────────────────────────────────────────────────────────────────
@@ -23,7 +31,7 @@ VISUALS  (what Boop is doing)
   working     an agent is working                  │ reflect the truth
   needs you   an agent awaits your approval        │
   no app      device lost the Mac (30 s)           ┘
-  cheer       big celebration (trophy, podium…)    ┐ animations:
+  finish      task_complete or reply_ready (Jev)   ┐ animations:
   wiggle      sway + heart, on a poke              │ play for a moment
   listening   push-to-talk: mic on until the reply ┘
 
@@ -51,10 +59,11 @@ JEV  (the brain; decides everything expressive)
 
   One request, multiple choice:
 
-  SHIFT MOOD    mood             happy … sad        lasts; restyles all
+  SHIFT MOOD    mood             stay | a neighbour lasts; restyles all
   ─────────────────────────────────────────────────────────────────────
   REACT         react.mood       none | a mood      the face, or nothing
-  (a moment)    react.animation  none | cheer       more as art arrives
+  (a moment)    react.animation  none | success |   a turn's finish,
+                                 failure | reply    judged from its text
                 react.loops      once … 4 times     how long it holds
   ─────────────────────────────────────────────────────────────────────
   SAY           word.feeling     none | yay, oops, again, finally, …
@@ -84,8 +93,8 @@ WHAT JEV SEES  (built fresh for every ask; Jev keeps no memory)
     just now: claude finished turn 9 on "api": done, a very long turn,
       40 tool calls.
       Its last message: "All 212 tests pass now."
-      Boop's mood changed: happy → excited.
-      Boop played a cheer in an excited face, held three times, and
+      Boop's mood changed: determined → excited.
+      Boop played a success in an excited face, held three times, and
         mumbled "…yay!" (in progress)
 
     piece                       what it is                   added by
@@ -126,8 +135,9 @@ WHAT JEV SEES  (built fresh for every ask; Jev keeps no memory)
   CLOSING LINE  (end of HISTORY)
   ─────────────────────────────────────────────────────────────────────
   Boop has been grumpy for 2 min.
-      from mood, only while not happy, after a change since launch.
-      What the mood files' "back to happy after N min" is read against
+      from mood, only while not calm, after a change since launch.
+      What the mood files' "fades to … once Boop has been … for N min"
+      is read against
 
 
 GUARANTEES
@@ -228,17 +238,20 @@ another mood, blinks into the new design rather than cutting.
 
 ### Mood
 
-The mood is one of six: happy, excited, proud, determined, grumpy or
-sad ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). Only
-the brain's mood action changes it (§4 there; the dashboard can force
-one), and a new Boop starts happy. It's meant to shift visibly during
-ordinary work, step by step rather than flailing: a failed check, a
-failed turn, pokes in a row, a fix or a very long turn ending
-moves it, a long grind turns it determined, it fades back to happy
-after a few minutes, and each change comes with a reaction in the new
-mood's face. The next
-`state` carries it and the device blinks into the new set of faces. No
-rule depends on the mood.
+The mood is one of 13: happy, excited, proud, curious, determined,
+grumpy, sad, calm, engaged, annoyed, irritated, whiny or wounded
+([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). Only the brain's
+mood action changes it (§4 there; the dashboard can force any), and a
+new Boop starts calm, the resting mood. It moves one step at a time,
+only to a neighbour on the owner's mood graph (grumpy never straight to
+happy), a dramatic jump only for a fresh, big event. It's meant to
+shift visibly during ordinary work, step by step rather than flailing:
+a failed check, a failed turn, pokes in a row, a fix or a very long
+turn ending moves it, a long grind turns it engaged and then
+determined, it fades a step toward calm after a few minutes, and each
+change comes with a reaction in the new mood's face. The next `state`
+carries it and the device blinks into the new set of faces. No rule
+depends on the mood.
 
 ### Mumbling while agents work
 
@@ -279,7 +292,7 @@ newer moment, or skipped because something needed you
 | A session starts or ends | Nothing but the popover's list: the first one wakes Boop, and the last one ending puts it to sleep |
 | You send a prompt | The working look. The brain hears of it, with what you asked |
 | A tool call starts or finishes | Nothing on screen; the latest topic is kept for the working heartbeat. A test, build or deploy that fails, or passes after failing, reaches the brain; with `tool_uses: all` every tool use does (§6) |
-| A turn finishes | The session goes idle; no rule celebrates. The brain hears of it, with how many tool calls it made and the agent's last message, and decides whether the finish gets a face, and whether a cheer, for how long and with which word ([harness/DECISIONS.md](harness/DECISIONS.md) §5). With no brain, a finish shows only the change of look |
+| A turn finishes | The session goes idle; no rule plays the finish. The brain hears of it, with how many tool calls it made and the agent's last message, and decides whether the finish gets a face, judges its outcome (a success, a failure, or only a reply), and picks how long it holds and which word ([harness/DECISIONS.md](harness/DECISIONS.md) §5). With no brain, a finish shows only the change of look |
 | A turn finishes, but its last test, build or deploy command failed | It counts as a failed turn, and the brain hears of that |
 | A turn fails (Claude stops on an API error) | No moment. The brain hears of it |
 | You interrupt a turn (Esc) | No moment. The brain hears it was stopped. It happens at once if a tool was running, else when Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §3) |
@@ -321,7 +334,7 @@ until nothing needs you.
 | --- | --- |
 | You press BOOT or touch the screen | The face dips 2 px at once, until you let go |
 | You let go within 400 ms, or lift your finger: a tap | `wiggle`, replacing whatever is playing, a mumble included. Asleep and with no app too. The Mac records it as a poke, with the wiggle under it, and the brain hears of it, but not while it's answering the pokes before ([harness/EVENTS.md](harness/EVENTS.md) §6) |
-| Pokes in a row | Each within 3 s of the last (`TranscriptView.Config.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. How Boop reacts is the steering's: glad at one poke, with a cheer; a little miffed at two in a row, turning determined; fed up at three or more, grumpy for a couple of minutes ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). From the third poke on, while the brain's reaction to them is in progress, a tap-cut one included, the pokes after it don't wake the brain, unless the mood changed since, so a barrage gets one "nope" ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| Pokes in a row | Each within 3 s of the last (`TranscriptView.Config.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. How Boop reacts is the steering's: curious or glad at one poke; a little miffed at two in a row, turning annoyed; fed up at three or more, irritated and then grumpy, for a couple of minutes ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). The device plays its own tap animations, so no reaction plays one. From the third poke on, while the brain's reaction to them is in progress, a tap-cut one included, the pokes after it don't wake the brain, unless the mood changed since, so a barrage gets one "nope" ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | A tap while something needs you | The press dip only, with no wiggle: there a tap means "I saw it". The brain still hears of the poke ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | Hold BOOT 400 ms, or click Talk in the popover | Push-to-talk, below: `listening` shows at once, the device sends `talk_on` at 400 ms and `talk_off` on release, or by itself after 30 s ([DEVICE.md](DEVICE.md) §4). No tap |
 | A tap while `listening` shows | The press dip only: nothing replaces `listening`. The brain still hears of the poke |
@@ -397,22 +410,25 @@ stops a line that's playing.
 
 | Name | Used for | Look | Length |
 | --- | --- | --- | --- |
-| `cheer` | A reaction the brain cheers with (`react.animation`, [harness/DECISIONS.md](harness/DECISIONS.md) §3) | The task-complete scene of the reaction's mood: a trophy, a curtain call or a podium | The loops Jev picks, of 6.4–7.2 s each |
+| `task_complete` | A turn's finish the brain judged a success or a failure (`react.animation`, [harness/DECISIONS.md](harness/DECISIONS.md) §3), with that `outcome` | The task-complete scene of the reaction's mood, a variation made for that outcome: a trophy, a curtain call or a podium for a success | The loops Jev picks, of 5.2–7.2 s each |
+| `reply_ready` | A turn's finish the brain judged only a reply: an answer or a question back | The reaction's mood's reply-ready scene | The loops Jev picks |
+| `cheer` | Older firmware's name for task_complete's success, which the device still reads; the Mac no longer sends it | As task_complete's success | As task_complete's |
 | `wiggle` | A tap | The look's own design, swaying, with a pixel heart | 0.7 s |
 | `listening` | Push-to-talk (§3.3): BOOT held, or the Mac's mic on | The mood's listening scene from the animation pack, one of three at random (focus corners, headphones or an ear trumpet), silent ([DEVICE.md](DEVICE.md) §4) | Until the reply; 8 s after the mic goes off at most, and 30 s + 8 s in all |
 
 The device plays the wiggle and, for BOOT, `listening` on its own, at
-once; nothing replaces `listening` but the reply. Only the brain cheers:
-no rule does, so a finished turn is celebrated only when Jev reacts to
-it with `react.animation: cheer`. Which of the cheer's three variations
-plays is picked at random, never the last one, by `react` when it cheers
-([harness/DECISIONS.md](harness/DECISIONS.md) §5); the brain never sees
-them. While a cheer for a thread's turn plays, the strip says whose:
-a tick, then the agent and the thread (`codex · fix-nav`: its name as
-the agent's app shows it, else the worktree
-or branch, else the project), in white on a black band, since the
-cheer's design is colour to the edges. It goes with the cheer: when it
-ends, or a tap's wiggle or needs you cuts it.
+once; nothing replaces `listening` but the reply. The brain judges each
+finish's outcome: no rule plays a finish, so a finished turn shows its
+task_complete or reply_ready only when Jev reacts to it, with
+`react.animation` `success`, `failure` or `reply`. Which variation
+plays is picked at random among those made for its outcome, never the
+last one, by `react` ([harness/DECISIONS.md](harness/DECISIONS.md) §5);
+the brain never sees them. While a finish for a thread's turn plays,
+the strip says whose: a tick, then the agent and the thread
+(`codex · fix-nav`: its name as the agent's app shows it, else the
+worktree or branch, else the project), in white on a black band, since
+the finish's design is colour to the edges. It goes with the finish:
+when it ends, or a tap's wiggle or needs you cuts it.
 
 The brain's reaction is a mumble with a face:
 whatever look is showing is drawn in the reaction's
@@ -420,8 +436,8 @@ mood for the loops of its design that Jev picked, at least while the
 mumble plays, then Boop's own mood comes back
 ([PROTOCOL.md](PROTOCOL.md) §3). Happy and working, a failing test gets
 a loop of working × grumpy with "…ugh!", then working × happy again;
-determined when a long turn finishes, Boop cheers in proud's face while
-it mumbles "…finally!", held three times. The brain has no animations
+determined when a long turn finishes, Boop plays the finish, a success,
+in proud's face while it mumbles "…finally!", held three times. The brain has no animations
 of its own: a reaction is all it can add, and to stay quiet it doesn't
 react at all.
 

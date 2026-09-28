@@ -1,9 +1,9 @@
 {
   "name": "A quick code review says 'review'",
-  "case": "You ask the agent to look over a pull request, and it finishes within a minute with its findings. Boop gives a small face and mumbles 'review'.",
-  "why": "harness/DECISIONS.md §3: 'review' is a review of code or a pull request, as your prompt or the agent's last message says; PERSONALITY's Examples: a short turn done whose last message reviewed a diff is happy, \"review\", once",
+  "case": "You ask the agent to look over a pull request, and it finishes within a minute with its findings. Boop gives a small face, played as a success or a reply, and mumbles 'review'.",
+  "why": "harness/DECISIONS.md §3: 'review' is a review of code or a pull request, as your prompt or the agent's last message says; a review's findings are work done or an answer, so a success or a reply",
   "steps": [
     {"event": "turn started", "at": "0s", "prompt": "can you review PR 214 before I merge it"},
-    {"event": "turn finished", "at": "50s", "message": "I read through the PR. One nit: the new helper has no test. The rest looks good to merge.", "expect": {"react": "happy|excited|proud", "animation": "none", "word": "review"}}
+    {"event": "turn finished", "at": "50s", "message": "I read through the PR. One nit: the new helper has no test. The rest looks good to merge.", "expect": {"react": "happy|excited|proud|calm|curious", "animation": "success|reply", "word": "review"}}
   ]
 }

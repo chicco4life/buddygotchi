@@ -1,7 +1,7 @@
 import Foundation
 
 /// The eight feelings a mumble can have (VOICE.md §4). `react`'s
-/// expressions, the six moods, mumble in them through
+/// expressions, the 13 moods, mumble in them through
 /// `Voice.feeling(forMood:)` (harness/DECISIONS.md §3).
 public enum Feeling: String, CaseIterable, Sendable {
     case happy, excited, proud, curious, hopeful, annoyed, sad, sleepy
