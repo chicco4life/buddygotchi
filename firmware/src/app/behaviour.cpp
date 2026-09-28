@@ -118,10 +118,13 @@ void Behaviour::advance(uint32_t t, Rng& rng) {
     if (expr_) consider(exprAt_ + exprMs_);
     consider(lastState_ + kNoAppMs);
     consider(nextBlink_);
+    uint32_t turnAt = loopEnd(modelT_);
+    if (turnable(modelT_)) consider(turnAt);
     if (!found) break;
     // Everything due at `next`, in a fixed order.
     resync(next);
     if (next == nextBlink_) startBlink(next, rng);
+    if (next == turnAt) turn(next, rng);
   }
   resync(t);
 }
@@ -144,6 +147,30 @@ void Behaviour::settle(uint32_t t) {
   if (switched_ && !within(t, switchAt_, render::kBlendMs)) switched_ = false;
   if (say_.say.syllables > 0 && !within(t, say_.at, say_.ms)) say_ = Say{};
   if (blFade_ && !within(t, blAt_, render::kBlendMs)) blFade_ = false;
+}
+
+// ---- Taking turns (BEHAVIORS.md §2) ---------------------------------------
+
+// Only the base's looks loop on: needs you holds its pose, and no app has
+// its one design. A moment or its expression holds the look as it is.
+bool Behaviour::turnable(uint32_t t) const {
+  return !held(t) && !noApp(t) && !momentOn(t) && !exprOn(t) && render::variants(model_.base) > 1;
+}
+
+uint32_t Behaviour::loopEnd(uint32_t t) const {
+  uint32_t loop = render::loopMs(src_.mood, src_.look, src_.lookVariant);
+  return t - (t - lookAt_) % loop + loop;
+}
+
+// At a loop's end, once the variation has shown kTurnMinMs: another one
+// with kTurnPct chance, never the same. The blink that hides a change of
+// design hides the cut, and the new one's clock starts from 0.
+void Behaviour::turn(uint32_t t, Rng& rng) {
+  if (!turnable(t) || int32_t(t - lookAt_) < int32_t(kTurnMinMs)) return;
+  if (rng.range(1, 100) > kTurnPct) return;  // another loop of this one
+  int v = rng.range(0, render::variants(model_.base) - 2);
+  if (v >= lookVariant_) ++v;
+  change(t, [&] { lookVariant_ = uint8_t(v); });
 }
 
 // ---- Moments the Mac waits on (PROTOCOL.md §4 `ended`) ---------------------
@@ -220,7 +247,11 @@ void Behaviour::onState(const Model& m, uint32_t t) {
     bool had = model_.attn;
     bool fresh = m.attn && (!had || m.attnId != model_.attnId || std::strncmp(model_.agent, m.agent, sizeof(m.agent)) ||
                             std::strncmp(model_.project, m.project, sizeof(m.project)));
+    // Another visual, or another variation of it from the Mac, starts the
+    // looks' turns over from the Mac's; the same one again leaves them.
+    bool look = m.attn != model_.attn || m.base != model_.base || m.variant != model_.variant;
     model_ = m;
+    if (look) lookVariant_ = m.variant;
     lastState_ = t;
     stale_ = false;
     ledOverride_ = blOverride_ = false;
@@ -355,7 +386,7 @@ Behaviour::Source Behaviour::sourceAt(uint32_t t) const {
     s.lookVariant = model_.variant;
   } else {
     s.look = model_.base;
-    s.lookVariant = model_.variant;
+    s.lookVariant = lookVariant_;
   }
   if (momentOn(t)) s.anim = moment_.anim, s.at = moment_.at, s.cheerVariant = moment_.variant;
   return s;

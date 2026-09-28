@@ -81,6 +81,69 @@ void keepAlive(Rig& r, const Model& m, uint32_t to) {
 
 }  // namespace
 
+// BEHAVIORS.md §2 (Which variation): a look's variations take turns. Each
+// shows at least Behaviour::kTurnMinMs, then each end of its loop moves
+// to another (never itself) or plays another loop, and the move blinks
+// and starts the new one's clock. The Mac's same state again doesn't
+// start them over; its new variation does. Needs you and a cheer hold the
+// variation showing.
+static void test_the_looks_variations_take_turns() {
+  Rig r;
+  Model m = base("working");
+  m.variant = 2;
+  r.state(m);
+  uint8_t shown = 2;
+  uint32_t since = 0;
+  int turns = 0, stays = 0;
+  bool seen[5] = {};
+  seen[2] = true;
+  for (uint32_t t = 10; t <= 600000; t += 10) {
+    r.at(t);
+    if (t % 10000 == 0) r.state(m);  // the Mac, saying the same
+    SceneShow s = r.b.show(t);
+    TEST_ASSERT_TRUE(s.state == SceneState::kWorking);
+    if (s.variant == shown) continue;
+    uint32_t loop = loopMs(render::Mood::kHappy, SceneState::kWorking, shown);
+    TEST_ASSERT_TRUE(t - since >= Behaviour::kTurnMinMs);
+    TEST_ASSERT_EQUAL_UINT32(0, (t - since) % loop);  // at a loop's end
+    TEST_ASSERT_TRUE(s.eyesShut);
+    TEST_ASSERT_EQUAL_UINT32(0, s.t);
+    if (t - since >= Behaviour::kTurnMinMs + loop) ++stays;  // it played another loop first
+    shown = s.variant, since = t, ++turns;
+    seen[shown] = true;
+  }
+  for (bool v : seen) TEST_ASSERT_TRUE(v);
+  TEST_ASSERT_TRUE(turns >= 20 && turns <= 70);  // about one every 12 s
+  TEST_ASSERT_TRUE(stays > 0);
+
+  // The Mac's own new variation shows at once.
+  m.variant = uint8_t((shown + 1) % 5);
+  r.state(m);
+  TEST_ASSERT_EQUAL(m.variant, r.b.show(r.t).variant);
+
+  // Needs you holds its variation, and so does a cheer.
+  Model a = attn();
+  a.variant = 1;
+  r.state(a);
+  for (uint32_t t = r.t; t <= r.t + 60000; t += 1000) {
+    r.at(t);
+    if (t % 10000 == 0) r.state(a);
+    TEST_ASSERT_EQUAL(1, r.b.show(t).variant);
+  }
+  r.state(m);
+  r.at(r.t + 20000);
+  shown = r.b.lookVariant();
+  MomentIn c;
+  c.anim = Anim::kCheer, c.loops = Behaviour::kMaxLoops;
+  r.b.onMoment(c, r.t);
+  uint32_t left;
+  r.b.moment(r.t, left);
+  for (uint32_t t = r.t, end = r.t + left; t < end; t += 100) {
+    r.at(t);
+    TEST_ASSERT_EQUAL(shown, r.b.lookVariant());
+  }
+}
+
 // BEHAVIORS.md §3.2: the performance, with its knocks and ding, once when
 // a request starts, amber at half until it's answered, and nothing grows
 // or nudges while it waits.
@@ -683,13 +746,16 @@ static void test_an_expression_holds_its_loops() {
   TEST_ASSERT_TRUE(s.state == SceneState::kWorking);
   TEST_ASSERT_TRUE(s.eyesShut);  // behind a blink
 
-  // Three loops, from partway into one: to the third boundary.
+  // Three loops, from partway into one: to the third boundary of the
+  // look's clock, which a turn of its variations may have started over.
   r.at(2 * loop + 300);
   r.state(m);
   r.b.onMoment(expressive(render::Mood::kProud, 2, 3), r.t);
-  r.at(5 * loop - 1);
+  const uint32_t turned = loopMs(render::Mood::kProud, SceneState::kWorking, r.b.lookVariant());
+  const uint32_t third = r.t + turned - r.b.designMs(r.t) % turned + 2 * turned;
+  r.at(third - 1);
   TEST_ASSERT_TRUE(r.b.expression(r.t, e));
-  r.at(5 * loop);
+  r.at(third);
   TEST_ASSERT_FALSE(r.b.expression(r.t, e));
 
   // A mumble longer than its loop: the face holds as long as it plays.
@@ -1049,11 +1115,13 @@ static void test_asleep_breathes_and_never_blinks() {
     if (t % 10000 < 7) r.state(base("asleep"));
     r.at(t);
     TEST_ASSERT_FALSE(r.b.blinking(t));
+    // Breathing is the asleep design's own 8 s breath (BEHAVIORS.md §2),
+    // looked at before its loop ends and its variations may take turns.
+    if (t != 8989) continue;
+    TEST_ASSERT_TRUE(r.b.show(1000).state == SceneState::kAsleep);
+    TEST_ASSERT_TRUE(render::sceneFrame(r.b.show(1000)) != render::sceneFrame(r.b.show(3000)));
+    TEST_ASSERT_TRUE(render::sceneFrame(r.b.show(1000)) == render::sceneFrame(r.b.show(9000)));
   }
-  // Breathing is the asleep design's own 8 s breath (BEHAVIORS.md §2).
-  TEST_ASSERT_TRUE(r.b.show(1000).state == SceneState::kAsleep);
-  TEST_ASSERT_TRUE(render::sceneFrame(r.b.show(1000)) != render::sceneFrame(r.b.show(3000)));
-  TEST_ASSERT_TRUE(render::sceneFrame(r.b.show(1000)) == render::sceneFrame(r.b.show(9000)));
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
 }
 
@@ -1303,6 +1371,7 @@ int main() {
   RUN_TEST(test_asleep_breathes_and_never_blinks);
   RUN_TEST(test_a_wiggle_sways_over_the_look);
   RUN_TEST(test_each_look_shows_its_design_in_the_mood);
+  RUN_TEST(test_the_looks_variations_take_turns);
   RUN_TEST(test_no_app_at_30s_and_reconnect_blinks_back);
   RUN_TEST(test_press_shows_within_20ms);
   RUN_TEST(test_gestures_send_the_right_inputs);

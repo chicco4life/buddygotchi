@@ -1068,6 +1068,42 @@ static void test_the_face_plays_its_designs_sounds() {
   TEST_ASSERT_EQUAL(int(sent), int(r.hal.effects.size()));
 }
 
+// VOICE.md §10 and BEHAVIORS.md §2: when the look's variations take turns,
+// the sounds follow: the last one's stop, and only the new one's play,
+// from its own start. dbg.state's `look_variant` says which shows.
+static void test_the_sounds_follow_the_looks_turns() {
+  Rig r;
+  const char* state = "{\"t\":\"state\",\"base\":\"working\",\"mood\":\"happy\",\"variant\":1}";
+  r.usbLine(state);
+  for (uint32_t t = 10; t <= 300000; t += 10) {
+    if (t % 10000 == 0) r.usbLine(state);  // the Mac, saying the same
+    int stops = r.hal.effectStops;
+    r.hal.effects.clear();
+    char step[64];
+    std::snprintf(step, sizeof(step), "{\"t\":\"dbg.clock\",\"freeze\":%u}", unsigned(t));
+    r.usbLine(step);
+    r.usb.text.clear();
+    r.usbLine("{\"t\":\"dbg.state\"}");
+    if (has(r.usb.text, "\"look_variant\":1,")) continue;
+    TEST_ASSERT_TRUE(r.hal.effectStops > stops);
+    int now = 0;
+    for (int v = 2; v <= 5; ++v) {
+      char want[32];
+      std::snprintf(want, sizeof(want), "\"look_variant\":%d,", v);
+      if (has(r.usb.text, want)) now = v - 1;
+    }
+    TEST_ASSERT_TRUE(now > 0);
+    voice::Score sc = voice::score(int(render::Mood::kHappy), int(render::SceneState::kWorking), now);
+    for (const voice::Effect& e : r.hal.effects) {
+      bool ours = false;
+      for (int i = 0; i < sc.n; ++i) ours |= voice::fxEvent(sc.first + i).clip == e.clip;
+      TEST_ASSERT_TRUE(ours);
+    }
+    return;
+  }
+  TEST_FAIL_MESSAGE("no turn in 300 s");
+}
+
 // Needs you stops the last design's sounds and plays its own, ending in
 // the ding (VOICE.md §10); asleep is silent.
 static void test_needs_you_plays_its_ding_and_asleep_is_quiet() {
@@ -1103,6 +1139,7 @@ static void test_a_test_pattern_is_silent() {
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_the_face_plays_its_designs_sounds);
+  RUN_TEST(test_the_sounds_follow_the_looks_turns);
   RUN_TEST(test_needs_you_plays_its_ding_and_asleep_is_quiet);
   RUN_TEST(test_a_test_pattern_is_silent);
   RUN_TEST(test_ping_reports_version_and_link);

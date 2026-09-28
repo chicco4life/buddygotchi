@@ -485,6 +485,7 @@ void Device::sendState(Link to) {
   d["base"] = render::stateName(m.base);
   d["mood"] = render::moodName(m.mood);
   d["variant"] = m.variant + 1;
+  d["look_variant"] = b_.lookVariant() + 1;
   if (m.attn) {
     d["attn"]["agent"] = m.agent;
     d["attn"]["project"] = m.project;

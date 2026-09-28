@@ -53,8 +53,6 @@ public struct MomentSchedule {
     /// The look and mood of the last `state` sent.
     public var look = "idle"
     public var mood = MoodAction.initial
-    /// The look's variation, from 1.
-    public var lookVariant = 1
     /// The last `state` sent said something needs you, so the device plays
     /// no moment (BEHAVIORS.md §1).
     public private(set) var attn = false
@@ -84,7 +82,7 @@ public struct MomentSchedule {
     /// the app hasn't heard of yet may have ended the cheer, or the line
     /// may reach the device just after the cheer ends there.
     public func playMs(_ moment: DeviceMoment, now: Int64) -> Int64 {
-        let ms = moment.playMs(look: look, mood: mood, lookVariant: lookVariant)
+        let ms = moment.playMs(look: look, mood: mood)
         guard let cheerUntil, now < cheerUntil + Self.linkSlackMs else { return ms }
         return max(ms, moment.playMs(look: "task_complete", mood: mood))
     }
@@ -122,11 +120,10 @@ public struct MomentSchedule {
 
     /// A `state` sent: its look and mood time what plays next, and "needs
     /// you" starting stops everything playing (PROTOCOL.md §3).
-    public mutating func show(look: String, mood: String, attn: Bool, variant: Int = 1, now: Int64) {
+    public mutating func show(look: String, mood: String, attn: Bool, now: Int64) {
         if attn && !self.attn { stop(now: now) }
         self.look = look
         self.mood = mood
-        self.lookVariant = attn ? 1 : variant
         self.attn = attn
     }
 

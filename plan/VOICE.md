@@ -294,7 +294,8 @@ Each timeline has the pack's policy:
 | idle | Variation 1 silent; 2 and 3 their first loop, then at most once every 45 s | A small swish now and then |
 | asleep, no_app | Silent | |
 
-- A change of design (another look, variation, mood or cheer) stops the
+- A change of design (another look, variation, mood or cheer, or the
+  looks taking turns, [BEHAVIORS.md](BEHAVIORS.md) §2) stops the
   last one's effects with a 4 ms fade. The new timeline picks up where the
   new design's clock is, so a mood changing mid-loop doesn't replay what
   the loop already passed.

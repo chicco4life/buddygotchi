@@ -26,7 +26,8 @@ VISUALS  (what Boop is doing)
   wiggle      sway + heart, on a poke              ┘ play for a moment
 
   Each mood × visual has a few variations (working 5, the rest 3). The
-  Mac picks one at random each time the visual changes, never the last.
+  Mac picks one at random each time the visual changes, never the last;
+  then the device's looks take turns between them at loop ends.
 
 
 AUTOMATIC  (plain rules, instant, no brain needed)
@@ -189,10 +190,23 @@ then holds its pending pose.
 **Which variation.** Each time the visual changes (a look, or needs you
 starting), the core picks one of its variations at random, never the one
 that visual showed last, and every `state` carries it
-([PROTOCOL.md](PROTOCOL.md) §3). It holds while the visual does, a new
-mood included. With no app the device has no one to pick, and shows the
-first. This is a rule for now; the harness may take the choice over
-later.
+([PROTOCOL.md](PROTOCOL.md) §3). With no app the device has no one to
+pick, and shows the first. This is a rule for now; the harness may take
+the choice over later.
+
+**Taking turns.** A look that loops on (idle, working, asleep) doesn't
+play one variation for minutes: the device moves between them. The Mac's
+variation shows first. Once one has shown 8 s (`kTurnMinMs`), each end
+of its loop moves to another at random, never itself, with a 1 in 2
+chance (`kTurnPct`), and otherwise plays another loop. The move blinks,
+as any change of design does, and the new one starts from the beginning
+of its loop, with its own sounds ([VOICE.md](VOICE.md) §10). A new mood
+doesn't start the turns over; a new visual, or a new variation from the
+Mac, does. Needs you and no app don't take turns, and nor does a look
+while a moment or its expression plays over it: the turn waits for a
+later loop end. The Mac doesn't hear which variation shows, so it times
+a reaction's face by the look's longest variation
+([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 
 | Look | When | Blinks |
 | --- | --- | --- |

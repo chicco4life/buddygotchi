@@ -93,6 +93,11 @@ class Behaviour {
   static constexpr int kPressPx = 2;                // a press dips the face this far
   static constexpr uint32_t kBlinkMs = 180;
   static constexpr int kMaxLoops = 6;  // a moment's `loops` (PROTOCOL.md §3)
+  // The looks' variations take turns (BEHAVIORS.md §2): once one has shown
+  // kTurnMinMs, each end of its loop moves to another with kTurnPct chance,
+  // else it plays another loop.
+  static constexpr uint32_t kTurnMinMs = 8000;
+  static constexpr int kTurnPct = 50;
 
   void reset(uint32_t t, Rng& rng);
 
@@ -157,6 +162,9 @@ class Behaviour {
     return alerted_;
   }
   const Model& model() const { return model_; }
+  // The variation the base's look shows, from 0: the Mac's, until the
+  // variations take turns.
+  uint8_t lookVariant() const { return lookVariant_; }
 
  private:
   // Each part of a moment (the animation, the mumble, the expression)
@@ -265,6 +273,11 @@ class Behaviour {
   bool sayOn(uint32_t t) const;
   bool exprOn(uint32_t t) const;
   Source sourceAt(uint32_t t) const;
+  // Taking turns: whether the look's variations may take turns at t, the
+  // end of the loop playing after t, and the turn itself at a loop's end.
+  bool turnable(uint32_t t) const;
+  uint32_t loopEnd(uint32_t t) const;
+  void turn(uint32_t t, Rng& rng);
 
   Model model_;
   uint32_t lastState_ = 0;
@@ -292,6 +305,7 @@ class Behaviour {
   Owed owed_;
   Source src_;
   uint32_t lookAt_ = 0;  // when the look's design started
+  uint8_t lookVariant_ = 0;  // the base's variation showing
   bool switched_ = false;  // the eyes shut at switchAt_, for a change of design
   uint32_t switchAt_ = 0;
   bool blink_ = false;  // a blink began at blinkAt_, for kBlinkMs

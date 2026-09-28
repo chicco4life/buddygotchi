@@ -150,7 +150,7 @@ real line, from `boopdev replay` of the Codex approval fixture
 | `attn.id` | int 1–2147483647 | The number of the request shown. Requests are numbered as they start showing, counting up (back to 1 after 2147483647); when one of several subagents asking in a session is answered, the next one's prompt gets a new number. So a new number is a different request, even with the same agent and project (two worktrees of one repo). Each time the app starts, its numbers start at a random one, as moment ids do (§3 `moment`), so a relaunched app's first request can't share a number with the one the device still shows from the last launch. `boopdev replay` and the tests start from 1 | A change alerts again. Missing reads as 0, and then only the agent and project tell requests apart |
 | `busy` | int ≥ 0 | Sessions working | The strip's working count. Missing reads as 0 |
 | `vol` | int 0–10 | The app's volume, 6 by default; 0 is mute | Clamped to 0–10. Missing reads as 6 |
-| `variant` | int ≥ 1 | Which variation of the visual shows: needs you's while `attn` is there, else the base's. The core picks it at random each time the visual changes, never the one that visual showed last ([BEHAVIORS.md](BEHAVIORS.md) §2) | The look's variation. Missing reads as 1, and one past the look's variations is held to its last |
+| `variant` | int ≥ 1 | Which variation of the visual shows: needs you's while `attn` is there, else the base's. The core picks it at random each time the visual changes, never the one that visual showed last ([BEHAVIORS.md](BEHAVIORS.md) §2) | The look's first variation: then idle, working and asleep take turns between their variations at loop ends (BEHAVIORS.md §2, Taking turns). The same `variant` again leaves the turns alone; another starts them over from it. Missing reads as 1, and one past the look's variations is held to its last |
 
 Any `state` also restarts the device's 30 s no-app timer
 ([BEHAVIORS.md](BEHAVIORS.md) §3.4) and ends a `dbg.pattern` or
@@ -178,7 +178,7 @@ twice (a forced pass, from a dev line on the hook socket):
 | `say.ms` | int | Milliseconds per syllable, 90–180 | Clamped to 60–400. Missing reads as 120 |
 | `mood` | one of `state`'s moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5). A wiggle never carries one | The expression: while this moment plays, the look (or the cheer) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
 | `loops` | int, optional | How many loops of its design a reaction's face holds, as Jev picked ([harness/DECISIONS.md](harness/DECISIONS.md) §5). None on a wiggle | Held to 1–6. Missing reads as 1. With the cheer, how many times its design plays. With a `mood` and no animation, how many loops of the design it's drawn in the face holds (below). A wiggle ignores it |
-| `variant` | int ≥ 1, optional | With the cheer: which of its variations plays, picked at random by `react`, never the last one ([harness/DECISIONS.md](harness/DECISIONS.md) §5) | The animation's variation. Missing reads as 1, and one past its variations is held to its last. A face with no animation takes the look's variation (`state`'s `variant`) |
+| `variant` | int ≥ 1, optional | With the cheer: which of its variations plays, picked at random by `react`, never the last one ([harness/DECISIONS.md](harness/DECISIONS.md) §5) | The animation's variation. Missing reads as 1, and one past its variations is held to its last. A face with no animation takes the look's variation showing |
 | `id` | int 1–2147483647, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Each time the app starts, its ids start at a random number and count up (back to 1 after 2147483647), so a moment an earlier launch left playing can't share an id with a new one | Answered with one `ended` carrying this `id` (§4). Missing, or anything but an integer from 1 to 4,294,967,295 (a fraction too): no `ended` |
 
 The rules' moments play at once. A brain mumble waits its turn behind
@@ -354,6 +354,7 @@ instead of running.
 | --- | --- |
 | `screen` | `face`, `needs_you`, `no_app` or `pattern` ([DEVICE.md](DEVICE.md) §4) |
 | `base`, `mood`, `variant`, `attn`, `vol` | The last `state` as the device read it (§3): `base` `idle` and `mood` `happy` for a missing or unknown one, `variant` held to the look's variations, `vol` clamped, and `attn` (with its `id`, 0 when none came) null unless something needs you |
+| `look_variant` | The variation of the base's look showing, from 1: `variant` until the looks take turns ([BEHAVIORS.md](BEHAVIORS.md) §2) |
 | `moment` | `{"anim":…,"left_ms":…}` while an animation plays, otherwise null. A mumble on its own leaves it null |
 | `expr` | The mood the face borrows while a moment with `mood` plays (§3), otherwise null |
 | `life` | `blink` while Boop blinks, otherwise null |
@@ -395,7 +396,7 @@ advertise again. The next connect starts from the top.
 | Advertising check | Every second while not connected | Device |
 | USB write | At most 250 ms; a failed write, or a lost bridge, reconnects after 1 s | Mac |
 | Brain moment | Dropped once it has waited 5 s for its turn | Mac |
-| A brain moment's `ended` | Given up on once the moment's longest length (its line, or its face's loops of the design showing: the last `state`'s look) plus 3 s (`endGraceMs`) has passed since it was sent (§4). Until then the next brain moment waits for it | Mac |
+| A brain moment's `ended` | Given up on once the moment's longest length (its line, or its face's loops of the design showing: the last `state`'s look, its longest variation) plus 3 s (`endGraceMs`) has passed since it was sent (§4). Until then the next brain moment waits for it | Mac |
 | Reading lines | Up to 8 ms of lines before each frame | Device |
 | A frozen debug clock | Runs again after 60 s with no `dbg.*` | Device |
 

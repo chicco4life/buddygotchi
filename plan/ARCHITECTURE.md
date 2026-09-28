@@ -207,7 +207,9 @@ when it cheers, else the look's), and the mumble's syllables plus two
 beats for a word, at the line's pace, then 1.2 s to read the bubble,
 when that's longer. The look is the last `state`'s, drawn in the
 reaction's mood. Its loop is `FaceLoops`' number for it, the one the device has
-([PROTOCOL.md](PROTOCOL.md) §3). The device ends a face on a loop
+([PROTOCOL.md](PROTOCOL.md) §3), for the look's longest variation,
+since the device's variations take turns without telling the app
+([BEHAVIORS.md](BEHAVIORS.md) §2). The device ends a face on a loop
 boundary of its own clock, which the app doesn't know, so the face may
 end up to a loop sooner than the app reckons, never later. So a brain
 moment on the device holds the schedule's line until the device's
@@ -605,3 +607,4 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-28 | A turn end's line says how many tool calls it made (`, 12 tool calls.`), but not how many failed. This undoes the three-modifier row's "no tool counts" for that one count | The owner wanted the size of a turn visible; plenty of calls fail in a turn that succeeds, so the failures stay in the facts | [harness/EVENTS.md](harness/EVENTS.md) §4.1, §8 |
 | 2026-09-28 | Every poke wakes the brain, even while something needs you, and its line counts the pokes in a row (each within 3 s): no streak rule and no once-a-minute limit. The rules still wiggle, and record it, except while something needs you | The owner wanted the steering, not a rule, to decide how Boop takes being poked; a count tells Jev a single poke from a barrage | [BEHAVIORS.md](BEHAVIORS.md) §3.3, [harness/EVENTS.md](harness/EVENTS.md) §4, §6 |
 | 2026-09-28 | A turn's length includes the time the Mac slept; the runtime no longer tells the core how long it slept | The view derives lengths from the transcript alone, which has no sleep events, and one fewer kind of input keeps it simple | §3.2 |
+| 2026-09-28 | A look's variations take turns on the device: the Mac's shows first, and after 8 s each loop end moves to another with a 1 in 2 chance, blinking across and bringing its sounds. This replaces "it holds while the visual does". The Mac times a reaction's face by the look's longest variation | A working turn could loop one design for minutes. The device knows its loop ends to the millisecond, so it can switch where a design comes back to rest; the Mac would land mid-loop | [BEHAVIORS.md](BEHAVIORS.md) §2, [PROTOCOL.md](PROTOCOL.md) §3 |

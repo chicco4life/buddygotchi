@@ -578,8 +578,7 @@ public final class Runtime: @unchecked Sendable {
     func show(_ snapshot: StateSnapshot) {
         let now = options.clock()
         link.update(snapshot, now: now)
-        moments.schedule.show(look: snapshot.base, mood: snapshot.mood, attn: snapshot.attn != nil,
-                              variant: snapshot.variant, now: now)
+        moments.schedule.show(look: snapshot.base, mood: snapshot.mood, attn: snapshot.attn != nil, now: now)
         pump()
     }
 

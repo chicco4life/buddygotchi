@@ -46,10 +46,12 @@ public struct DeviceMoment: Equatable, Sendable {
     /// `mood`, worked out as firmware/src/app/behaviour.cpp's `onMoment`
     /// and `play` do: the cheer is its loops of its design, a wiggle
     /// 0.7 s; a face with no animation holds its loops of the look's
-    /// design, which ends on a loop boundary, so this long or less; and a
-    /// mumble lasts its syllables, plus two beats for a word, at 60–400 ms
-    /// each, then 1.2 s for the bubble, when that's longer.
-    public func playMs(look: String, mood: String, lookVariant: Int = 1) -> Int64 {
+    /// design, which ends on a loop boundary, so this long or less, timed
+    /// by the look's longest variation, since the device's variations take
+    /// turns (BEHAVIORS.md §2); and a mumble lasts its syllables, plus two
+    /// beats for a word, at 60–400 ms each, then 1.2 s for the bubble, when
+    /// that's longer.
+    public func playMs(look: String, mood: String) -> Int64 {
         let loops = Int64(Swift.max(1, Swift.min(Self.maxLoops, self.loops ?? 1)))
         var ms: Int64 = switch anim {
         case nil: 0
@@ -58,7 +60,7 @@ public struct DeviceMoment: Equatable, Sendable {
         default: 0  // the device doesn't play an animation it doesn't know
         }
         if !Self.anims.contains(anim ?? ""), let face = self.mood {
-            ms = loops * FaceLoops.ms(mood: face, state: look, variant: lookVariant)
+            ms = loops * (1...FaceLoops.count(state: look)).map { FaceLoops.ms(mood: face, state: look, variant: $0) }.max()!
         }
         return Swift.max(ms, sayMs)
     }
