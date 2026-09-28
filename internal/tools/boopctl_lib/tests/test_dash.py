@@ -219,6 +219,24 @@ class ColumnsTests(unittest.TestCase):
         self.assertEqual(reflex[-1], '  ▸ claude needs you on "jetpack".')
         self.assertEqual(rows[-2][0], "attn")
 
+    def test_a_rules_one_shot_and_the_activity(self):
+        """A rule's one-shot (PROTOCOL.md §3 `moment`) is named by the view
+        event recorded right after it, never "played from the dashboard",
+        and the working look shows its activity (`act`)."""
+        t = 1_790_550_800_000
+        state = {"t": "state", "v": 1, "base": "working", "act": "terminal", "mood": "calm", "busy": 1, "vol": 6}
+        view = {"id": 9, "type": "turn", "from": [9], "line": 'claude started turn 2 on "jetpack".', "notes": [],
+                "wakes_brain": True, "facts": {}, "phase": "start"}
+        board, rows = board_after([
+            {"sent": state, "received_at_ms": t},
+            {"sent": {"t": "moment", "anim": "starting", "ctx": "new_task"}, "received_at_ms": t + 10},
+            {"view": view, "received_at_ms": t + 20},
+        ])
+        reflex = self.texts(board.reflex_column())
+        self.assertEqual(reflex, [f"{clock(t + 10)} starting (new_task)", '  ▸ claude started turn 2 on "jetpack".'])
+        self.assertIn(("sent", "→ state working (terminal) calm · busy 1 · vol 6"), rows)
+        self.assertEqual(dict(board.facts(t + 60_000))["showing"], "its terminal look")
+
     def test_the_decided_reactions(self):
         """Each pass that could react: its event, the face, word and hold
         with their probabilities, and what became of it."""

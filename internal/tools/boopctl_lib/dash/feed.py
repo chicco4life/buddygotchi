@@ -21,6 +21,8 @@ STALE_S = 15
 TRIGGER_MS = 1000
 # A cheer, a wiggle or a mumble counts as what's showing for this long.
 SHOWING_MS = 4000
+# The one-shots the rules send, never the brain (PROTOCOL.md §3 `moment`).
+RULE_ONE_SHOTS = {"starting", "stopped", "error", "helper_return"}
 
 
 class Follower:
@@ -191,7 +193,13 @@ class Board:
             return None if unchanged else ("sent", "→ state " + state_text(msg))
         if msg.get("t") == "moment":
             if not msg.get("mood"):  # a reaction's moment has its face; a reflex's doesn't
-                if msg.get("anim"):
+                if msg.get("anim") in RULE_ONE_SHOTS:
+                    # The rules' one-shots (BEHAVIORS.md §3.1): the view event
+                    # recorded right after names what set it off.
+                    fact = msg.get("ctx") or msg.get("outcome")
+                    self.reflexes.append({"at": at, "what": msg["anim"] + (f" ({fact})" if fact else ""),
+                                          "anim": True, "rule": True, "trigger": None})
+                elif msg.get("anim"):
                     loops = f", loops {msg['loops']}" if msg.get("loops") else ""
                     self.reflexes.append({"at": at, "what": msg["anim"] + loops, "anim": True, "trigger": None})
                 elif msg.get("say"):
@@ -220,11 +228,12 @@ class Board:
 
     def _event(self, view: Line, at: int) -> None:
         """A view event of a request that waits on you names the needs-you
-        strip just sent before it."""
-        if view_name(view) != "tool wait":
-            return
+        strip just sent before it; any view event names a rule's one-shot
+        just sent before it."""
         waiting = [r for r in self.reflexes[-3:] if r["trigger"] is None and at - r["at"] <= TRIGGER_MS]
-        match = next((r for r in waiting if r.get("attn")), None)
+        match = next((r for r in waiting if r.get("rule")), None)
+        if not match and view_name(view) == "tool wait":
+            match = next((r for r in waiting if r.get("attn")), None)
         if match:
             match["trigger"] = "▸ " + view["line"]
 
@@ -317,7 +326,8 @@ class Board:
         if self._reflex and now_ms - self._reflex[0] <= SHOWING_MS:
             return self._reflex[1]
         s = self.state or {}
-        return f"its {s.get('base', '?')} look" + (" with the needs-you strip" if s.get("attn") else "")
+        look = s.get("act") if s.get("base") == "working" and s.get("act") and not s.get("attn") else s.get("base", "?")
+        return f"its {look} look" + (" with the needs-you strip" if s.get("attn") else "")
 
     def mood_column(self) -> list[tuple[str, str]]:
         """The mood now, then its changes, newest first."""
@@ -346,7 +356,7 @@ class Board:
         for r in reversed(self.reflexes):
             style = "attn" if r.get("attn") else "ok"
             out.append((style, f"{clock(r['at'])} {r['what']}"))
-            trigger = r["trigger"] or ("no event: played from the dashboard" if r.get("anim") else "")
+            trigger = r["trigger"] or ("" if r.get("rule") else "no event: played from the dashboard" if r.get("anim") else "")
             if trigger:
                 out.append(("dim", f"  {trigger}"))
         return out
@@ -457,7 +467,8 @@ def mumble(say: Line) -> str:
 def state_text(s: Line) -> str:
     attn = s.get("attn")
     more = f" +{attn['more']}" if attn and attn.get("more") else ""
-    return (f"{s.get('base')} {s.get('mood')} · busy {s.get('busy', 0)}"
+    act = f" ({s['act']})" if s.get("act") else ""
+    return (f"{s.get('base')}{act} {s.get('mood')} · busy {s.get('busy', 0)}"
             + (f" · needs you: {attn['agent']} {attn['project']}{more}" if attn else "") + f" · vol {s.get('vol')}")
 
 
