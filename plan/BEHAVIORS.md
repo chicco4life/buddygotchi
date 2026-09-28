@@ -59,15 +59,47 @@ JEV  (the brain; decides everything expressive)
        mood → proud;  react: proud × cheer, twice, "…finally!"
   e.g. a 5 s routine turn:  nothing
 
-  What Jev sees:  NOW, and HISTORY: the last 10 min (or back to the
-  oldest working turn), at most 40 events, what Boop did under each.
-  No memory between asks. Lines carry modifiers, so Jev never counts:
-    short / long / very long turn   right after · a while · a long break
-    tests failed again, 3 in a row  A comeback on tests.
-    3 clean finishes in a row.      (in progress) · (didn't happen: …)
-  HISTORY ends:  Boop's last reaction, 4 min ago: a proud face …
-                 Boop has been grumpy for 2 min.
-                 Working now: …
+
+WHAT JEV SEES  (built fresh for every ask; Jev keeps no memory)
+═══════════════════════════════════════════════════════════════════════
+  NOW       the event being asked about, then what Boop did by reflex
+  HISTORY   earlier events, oldest first: the last 10 min, or back to
+            the oldest turn still working, at most 40. What Boop did
+            sits indented under each. Times: just now · 5 min ago · 2 h
+
+  Modifiers turn numbers into words, so Jev never counts or compares.
+  A check is a tests, build or deploy command.
+
+  ON EVENT LINES  (the core, when the event happens)
+  ─────────────────────────────────────────────────────────────────────
+  modifier      added to     reads
+  length        turn ends    short (<15 s) · long (<1 min) · very long
+  gap           turn starts, right after (<2 min) · a while (<1 h) ·
+                poke streaks after a long break; none the first time
+  outcome       turn ends    done · failed (rate limit) · stopped
+  tool failures turn ends    41 tools (6 failed), when any failed
+  topics        turn ends    Tests passing, build failing.
+  in a row      a check      tests failed again …, 3 in a row
+                fails again  (from the 2nd failure of the same check)
+  comeback      a check      tests passed … after 3 failures in a row;
+                passes       its turn's end adds  A comeback on tests.
+  clean run     turn ends    3 clean finishes in a row.  From the 2nd
+                             done turn with no tool failing, across
+                             threads; any other finish starts it over
+
+  ON WHAT BOOP DID  (the harness, on each reaction's line)
+  ─────────────────────────────────────────────────────────────────────
+  (in progress)         the reaction is still playing: don't repeat it
+  (didn't happen: why)  cut short or dropped: it may be made again
+
+  CLOSING LINES  (end of HISTORY, on every ask)
+  ─────────────────────────────────────────────────────────────────────
+  Boop's last reaction, 4 min ago: a proud face and "…finally!".
+      react; once Boop has made a reaction
+  Boop has been grumpy for 2 min.
+      mood; only while not happy, after a change since launch
+  Working now: "api" (codex, landing), for 3 min.
+      the core; every thread working except NOW's, or "nothing else"
 
 
 GUARANTEES
