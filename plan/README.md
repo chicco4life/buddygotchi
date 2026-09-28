@@ -26,3 +26,7 @@ What each check found is in [evidence/](evidence/), one folder per piece
 of work. History is in git: the finished v1 build plan and its full
 decision log (`archived/plan-v1-build/`) and the previous generation's
 specs (`archived/plan-gen2/`) are at tag `archived-final`.
+
+Future design material is separate from these implemented contracts:
+[animation bank and mood graph](../internal/boop-design/README.md).
+Its handover documents intended integration, not behavior already shipped.

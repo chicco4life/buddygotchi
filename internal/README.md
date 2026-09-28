@@ -18,6 +18,7 @@ has the tests, evals, dev tools and skills that check them.
 | `firmware/test/` | The firmware's unit tests, the simulator scenarios and their golden pictures |
 | `tools/` | `boopctl` (the board over USB, the simulator, the live dashboard, and a day's summary from the debug logs), `voicegen`, `sfxgen`, `fontgen` and `facegen` (they write `firmware/assets/*.h`, which is checked in; `facegen` reads the animation pack's designs in `tools/facegen/design/`, and `sfxgen` its sounds in `tools/sfxgen/pack/`), `workday` (a scripted working day through the headless app and its brain, [plan/EVALS.md](../plan/EVALS.md) §5), and the `webcam/` recorder |
 | `skills/` | `doctor` and `webcam-verify`, linked from `.claude/skills/`, `.codex/skills/` and `.cursor/skills/` |
+| `boop-design/` | Portable SVG/procedural-SFX review sources, offline preview, and the approved mood-graph design/handover; separate from shipped facegen/sfxgen inputs ([guide](boop-design/README.md)) |
 
 ## How it's wired
 

@@ -30,6 +30,21 @@ the owner.
 
 ## 2. The tools
 
+**Animation and mood design package (not production integration).**
+`node internal/boop-design/boop-mood-spectrum-v2/validate.mjs` checks the
+approved graph topology. `node internal/boop-design/boop-sound-bank-v4/source/build.mjs`
+builds the portable runtime, offline review and manifests; `--svg` additionally
+exports all selections as SVG. Then
+`node internal/boop-design/boop-sound-bank-v4/qa/check.mjs` checks coverage,
+legacy fingerprints, selection guards, timing and generated audio.
+`node internal/boop-design/boop-sound-bank-v4/qa/browser.mjs` runs browser,
+cue/frame, loop, text-lane and review-UI checks. Browser dependencies and
+overrides are in the [package guide](../internal/boop-design/README.md).
+All scripts support `--help`; none contacts JEV, ElevenLabs or a device.
+Evidence: [mood design publication](evidence/2026-09-28-mood-design-push/README.md).
+These checks are not firmware integration, physical audio tests or owner
+approval of the new art.
+
 Every tool prints its flags with `--help` (`internal/tools/boopctl
 <command> --help`, `.build/debug/boopdev <command> --help`,
 `.build/debug/Boop --help`). `Boop` and `boopdev` stop with their usage on

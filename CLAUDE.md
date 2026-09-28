@@ -24,6 +24,7 @@ cheap ESP32 board with a screen is the body. Start with
 | `internal/tools/` | `boopctl` (device tool), `voicegen` (voice assets), `sfxgen` (the sound effects, from the animation pack), `fontgen` (the device's fonts), `facegen` (the device's faces, from the animation pack), `workday` (a scripted working day through the brain), `webcam/` (opt-in recorder) |
 | `internal/skills/` | `doctor` (hook self-check) and `webcam-verify`, symlinked for Claude, Codex and Cursor |
 | `landing/` | The Next.js landing page (Vercel project root) |
+| `internal/boop-design/` | Code-based animation/SFX review bank and mood-graph handover; not production integration ([guide](internal/boop-design/README.md)) |
 
 Code that doesn't ship goes in `internal/`: tests, evals, dev tools,
 skills and the simulator. Production targets (`HookWire`, `BoopKit`,

@@ -1,0 +1,9 @@
+{
+  "status": "pass",
+  "source": "V4 local design review bank, 2026-09-28",
+  "target": "internal/boop-design/boop-sound-bank-v4",
+  "comparedScenes": 770,
+  "svgByteIdentical": true,
+  "scoresIdentical": true,
+  "productionFilesChanged": false
+}

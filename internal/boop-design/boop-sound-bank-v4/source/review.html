@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Boop · mood performances</title>
+<style>
+:root{color-scheme:light dark;--page:light-dark(#f5f3eb,#171817);--ink:light-dark(#272b28,#eaece3);--muted:light-dark(#61675f,#b1b9ad);--panel:light-dark(#fffef9,#222621);--line:light-dark(#d6d9cd,#444c41);--accent:light-dark(#dceacb,#3b4c30)}
+*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:15px/1.5 system-ui,sans-serif}main{max-width:920px;padding:28px 22px;margin:auto}h1{font-size:28px;font-weight:600;letter-spacing:-.8px;margin:0 0 6px}p{margin:6px 0 20px;color:var(--muted)}.eyebrow{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}.controls{display:grid;grid-template-columns:1fr 1fr;gap:14px}.wide{grid-column:1/-1}label{display:block;font-size:13px;color:var(--muted)}select,button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;min-height:44px;padding:9px 12px}select{display:block;width:100%;margin-top:5px;text-overflow:ellipsis}button{cursor:pointer}button.primary{background:var(--accent)}button:hover{filter:brightness(.95)}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--ink);outline-offset:3px}.workspace{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:24px;margin:24px 0}.stage{background:#000;aspect-ratio:4/3;align-self:start}.stage svg{display:block;width:100%;height:auto;image-rendering:pixelated}.detail{font-size:14px}.detail h2{font-size:19px;line-height:1.3;margin:0 0 12px}.detail p{margin:8px 0}.tag{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}.buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.scrub{margin-top:14px}input[type=range]{width:100%;min-height:30px}.bottom{display:grid;grid-template-columns:2fr 1fr;gap:20px}.status{font-size:13px;color:var(--muted);margin:12px 0}#error{color:light-dark(#9a221c,#ffaea5)}details{margin-top:22px;border-top:1px solid var(--line);padding-top:14px}summary{cursor:pointer}.signature{font-size:13px}.footer{font-size:12px;color:var(--muted);margin-top:26px}a{color:inherit}@media(max-width:620px){main{padding:20px 14px}.workspace{grid-template-columns:1fr;gap:14px}.stage{max-width:400px;width:100%;margin:auto}.bottom{grid-template-columns:1fr}h1{font-size:25px}}@media(max-width:360px){.controls{grid-template-columns:1fr}.wide{grid-column:auto}}
+</style></head>
+<body><main id="boop-mood-review">
+<div class="eyebrow">Buddygotchi · local design review / v4</div>
+<h1>One Boop. Thirteen moods.</h1>
+<p>Six new faces and their performances. The original seven remain intact.</p>
+<div class="controls">
+ <label>Mood<select id="mood"></select></label>
+ <label>State<select id="state"></select></label>
+ <label class="wide">Performance<select id="variation"></select></label>
+</div>
+<div class="workspace">
+ <div class="stage" id="stage" aria-label="Selected Boop animation"></div>
+ <div class="detail"><div class="tag" id="kind"></div><h2 id="name"></h2><p id="description"></p><p class="signature" id="character"></p><p id="mix"></p><div class="buttons"><button class="primary" id="play" type="button">Play with sound</button><button id="twice" type="button">Play twice</button><button id="stop" type="button">Stop</button></div><div class="buttons"><button id="previous" type="button">Previous variation</button><button id="next" type="button">Next variation</button></div></div>
+</div>
+<div class="bottom"><label>Inspect frame · <span id="time">0 s</span><input id="seek" type="range" min="0" max="10" step="0.01" value="0"></label><label>Volume · <span id="volume-label">40%</span><input id="volume" type="range" min="0" max="80" step="1" value="40"></label></div>
+<div class="status" id="status" aria-live="polite">Ready · audio starts only when you press Play.</div><div id="error" role="alert" hidden></div>
+<details><summary>Coverage and review boundaries</summary><p>770 selectable performances: 308 unchanged V3 performances plus 462 for the six new moods. Each new mood has 77 selections across 22 states: three actions per state, five working actions, nine start selections (three per context), and six task results (three per outcome). Sleep and disconnected routines are shared and silent. Some retained moods still have only one base action in newer states.</p><p>This page contains procedural SVG and sound code, not voice recordings. The bottom 20% of new animations stays black for host text. Needs-you ding and task-result sounds are protected; routine sound has gaps and varies on replay. Graph enforcement and ElevenLabs voice integration are separate work.</p></details>
+<div class="footer">Offline review · no network or API keys · no automatic approval or task-result inference.</div>
+<script>
+/*__BUNDLE__*/
+(()=>{
+ const $=id=>document.getElementById(id),root=$('boop-mood-review'),mood=$('mood'),state=$('state'),variation=$('variation'),stage=$('stage'),seek=$('seek'),error=$('error');
+ const title=s=>s.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
+ mood.innerHTML=[...Boop.newMoods,...Boop.moods.filter(m=>!Boop.newMoods.includes(m))].map(m=>`<option value="${m}">${title(m)}${Boop.newMoods.includes(m)?' · new':''}</option>`).join('');
+ state.innerHTML=Boop.stateOrder.map(s=>`<option value="${s}">${title(s)}</option>`).join('');
+ let scene;
+ const player=Boop.createBoopPlayer({mount:stage,volume:.4,onStatus:({phase,message})=>{$('status').textContent=({preparing:'Preparing sound…',playing:'Playing · sound follows the animation',stopped:'Stopped',finished:'Finished · returned to the home pose',error:'Playback error'})[phase]||phase;if(message){error.hidden=false;error.textContent=message;}},onProgress:({elapsed,duration})=>{const local=elapsed>=duration?0:elapsed%scene.asset.seconds;seek.value=local;$('time').textContent=local.toFixed(1)+' / '+scene.asset.seconds.toFixed(1)+' s';}});
+ function show(){player.stop({notify:false});error.hidden=true;scene=player.show(variation.value);const a=scene.asset;seek.max=a.seconds;seek.value=0;$('time').textContent='0.0 / '+a.seconds.toFixed(1)+' s';$('name').textContent=a.name;$('description').textContent=a.caption;$('kind').textContent=a.renderer==='mood-v4'?'New mood · review candidate':'Preserved V3 performance';$('character').textContent=Boop.moodProfiles[a.mood]?.character||scene.score.character||'';$('mix').textContent=scene.score.policy==='silent'?'Intentionally silent':scene.score.mix?'Sparse, irregular material accents · room for future mumbles':'Attention sound · first cycle only';$('status').textContent=a.id;try{localStorage.setItem('boop-v4-selection',a.id);}catch{}}
+ function choose(id){const list=Boop.catalog.filter(a=>a.mood===mood.value&&a.state===state.value);variation.innerHTML=list.map(a=>`<option value="${a.id}">${String(a.variation).padStart(2,'0')} · ${a.name}${a.startContext?' · '+title(a.startContext):''}${a.outcome?' · '+a.outcome:''}</option>`).join('');if(list.some(a=>a.id===id))variation.value=id;show();}
+ function select(id){const a=Boop.catalog.find(a=>a.id===id);if(!a)return;mood.value=a.mood;state.value=a.state;choose(id);}
+ async function play(cycles){try{await player.playVariation(variation.value,{cycles});}catch(e){error.hidden=false;error.textContent=e.message;}}
+ mood.onchange=()=>choose(mood.value+'.'+state.value+'.'+String(scene.asset.variation).padStart(2,'0'));state.onchange=()=>choose();variation.onchange=show;
+ $('play').onclick=()=>play(1);$('twice').onclick=()=>play(2);$('stop').onclick=()=>{player.stop();seek.value=0;$('time').textContent='0.0 / '+scene.asset.seconds.toFixed(1)+' s';};
+ function next(d){variation.selectedIndex=(variation.selectedIndex+d+variation.options.length)%variation.options.length;show();} $('next').onclick=()=>next(1);$('previous').onclick=()=>next(-1);
+ seek.oninput=()=>{player.stop({notify:false});stage.querySelector('svg').setCurrentTime(Number(seek.value));$('time').textContent=Number(seek.value).toFixed(1)+' / '+scene.asset.seconds.toFixed(1)+' s';$('status').textContent='Frame inspection · silent';};
+ $('volume').oninput=()=>{player.setVolume(Number($('volume').value)/100);$('volume-label').textContent=$('volume').value+'%';};
+ root.__review={Boop,player,select};let saved;try{saved=localStorage.getItem('boop-v4-selection');}catch{}select(Boop.catalog.some(a=>a.id===saved)?saved:'calm.working.01');
+})();
+</script></main></body></html>

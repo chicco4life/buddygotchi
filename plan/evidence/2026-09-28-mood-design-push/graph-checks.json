@@ -1,0 +1,7 @@
+{
+  "pass": true,
+  "moods": 13,
+  "directedEdges": 98,
+  "ordinaryStrongConnectivity": true,
+  "maxOfferedOptionsIncludingHold": 9
+}

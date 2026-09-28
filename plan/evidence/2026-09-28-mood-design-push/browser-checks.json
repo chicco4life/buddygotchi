@@ -1,0 +1,21 @@
+{
+  "status": "pass",
+  "xmlRendered": 462,
+  "visibleCueChecks": 821,
+  "domLoopEndpoints": 462,
+  "rasterSeams": 103,
+  "clearTextLanes": 103,
+  "layouts": [
+    320,
+    390,
+    920
+  ],
+  "playback": [
+    "engaged.terminal.01",
+    "irritated.needs_you.02",
+    "whiny.task_complete.01",
+    "wounded.task_complete.04",
+    "calm.idle.01"
+  ],
+  "reducedMotion": true
+}

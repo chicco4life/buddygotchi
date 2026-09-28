@@ -1,0 +1,14 @@
+{
+  "status": "pass",
+  "moods": 13,
+  "states": 22,
+  "performances": 770,
+  "newPerformances": 462,
+  "preservedByteExact": 308,
+  "newPlansChecked": 462,
+  "soundContactsChecked": 2773,
+  "synthRecipesChecked": 92,
+  "newWorkingCueReduction": 0.765886287625418,
+  "newWorkingRawCues": 299,
+  "newWorkingRetainedCues": 70
+}
