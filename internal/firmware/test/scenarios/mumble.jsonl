@@ -36,7 +36,7 @@
 {"t":"moment","anim":"cheer"}
 {"clock":40300}
 {"t":"moment","say":{"syl":"ba-na po","word":"yay","at":3,"tune":"up","ms":120}}
-{"expect":{"moment":{"anim":"cheer","left_ms":2100},"audio":{"playing":true,"syllables":3}}}
+{"expect":{"moment":{"anim":"cheer","left_ms":6100},"audio":{"playing":true,"syllables":3}}}
 {"clock":40500}
 {"shot":"over-cheer"}
 // The word is what matters: squiggles make room for it before it's cut.

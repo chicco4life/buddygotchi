@@ -548,7 +548,7 @@ final class RuntimeTests: XCTestCase {
         eventually("the brain's cheer", timeout: 4) { moments().count >= before + 1 }
         let cheer = moments()[before]
         XCTAssertTrue(cheer.hasPrefix(#"{"t":"moment","anim":"cheer","say":"#), "one moment: \(cheer)")
-        XCTAssertTrue(cheer.contains(#""mood":"excited","loops":1,"id":"#), "in its face, held once, waited on: \(cheer)")
+        XCTAssertTrue(cheer.contains(#""mood":"excited","loops":1,"variant":"#) && cheer.contains(#""id":"#), "in its face, held once, a variation, waited on: \(cheer)")
         XCTAssertEqual(moments().count, before + 1, "no rule cheer besides")
     }
 
@@ -755,9 +755,13 @@ final class RuntimeTests: XCTestCase {
         let slow = VoiceLine(groups: [Array(repeating: "zzz", count: 8)], word: "finally", at: 8, tune: .bounce, ms: 400)
         let held = ReactAction.holds.count
         let longest = MoodAction.moods.map(\.name).flatMap { mood in
-            FaceLoops.states.map { DeviceMoment(say: slow, mood: mood, loops: held).playMs(look: $0, mood: mood) }
+            FaceLoops.states.flatMap { look in
+                (1...FaceLoops.count(state: look)).map {
+                    DeviceMoment(say: slow, mood: mood, loops: held).playMs(look: look, mood: mood, lookVariant: $0)
+                }
+            }
         }.max() ?? 0
-        XCTAssertGreaterThanOrEqual(longest, Int64(held) * FaceLoops.ms.values.flatMap { $0 }.max()!)
+        XCTAssertGreaterThanOrEqual(longest, Int64(held) * FaceLoops.longest)
         XCTAssertLessThan(MomentSchedule.maxWaitMs + MomentSchedule.lateMs + longest + Runtime.Moments.endGraceMs,
                           Harness.pendingMaxMs)
     }
@@ -815,31 +819,36 @@ final class RuntimeTests: XCTestCase {
     /// rules' or a tap's, ends the cheer, the line and the face.
     func testTheScheduleTimesAMomentByTheDesignShowing() {
         let line = VoiceLine(groups: [["bi"]], word: nil, at: 1, tune: .up, ms: 100)
-        let proud = DeviceMoment(say: line, mood: "proud", loops: 2)  // working's loop is longer than the cheer's
-        let excited = DeviceMoment(say: line, mood: "excited", loops: 2)  // the cheer's is longer
-        let loop = { (mood: String, state: String) in 2 * FaceLoops.ms(mood: mood, state: state) }
-        XCTAssertGreaterThan(loop("proud", "working"), loop("proud", "task_complete"))
-        XCTAssertLessThan(loop("excited", "working"), loop("excited", "task_complete"))
+        let proud = DeviceMoment(say: line, mood: "proud", loops: 2)
+        let excited = DeviceMoment(say: line, mood: "excited", loops: 2)
+        let loop = { (mood: String, state: String, variant: Int) in 2 * FaceLoops.ms(mood: mood, state: state, variant: variant) }
+        // Idle's second variation loops longer than the cheer, its first shorter.
+        XCTAssertGreaterThan(loop("proud", "idle", 2), loop("proud", "task_complete", 1))
+        XCTAssertLessThan(loop("excited", "idle", 1), loop("excited", "task_complete", 1))
         var schedule = MomentSchedule()
-        schedule.look = "working"
+        schedule.look = "idle"
+        schedule.lookVariant = 2
+        var short = MomentSchedule()
+        short.look = "idle"
         XCTAssertNil(schedule.cheerUntil)
-        XCTAssertEqual(schedule.playMs(proud, now: 0), loop("proud", "working"))
-        XCTAssertEqual(schedule.playMs(excited, now: 0), loop("excited", "working"))
+        XCTAssertEqual(schedule.playMs(proud, now: 0), loop("proud", "idle", 2))
+        XCTAssertEqual(short.playMs(excited, now: 0), loop("excited", "idle", 1))
         schedule.rule(DeviceMoment(anim: "cheer", loops: 1), now: 0)
+        short.rule(DeviceMoment(anim: "cheer", loops: 1), now: 0)
         let cheer = FaceLoops.ms(mood: "happy", state: "task_complete")
         XCTAssertEqual(schedule.cheerUntil, cheer)
         XCTAssertEqual(MomentSchedule.linkSlackMs, 500)
         for now in [100, cheer + MomentSchedule.linkSlackMs - 1] {
-            XCTAssertEqual(schedule.playMs(proud, now: now), loop("proud", "working"), "the longer: the look's")
-            XCTAssertEqual(schedule.playMs(excited, now: now), loop("excited", "task_complete"), "the longer: the cheer's")
+            XCTAssertEqual(schedule.playMs(proud, now: now), loop("proud", "idle", 2), "the longer: the look's")
+            XCTAssertEqual(short.playMs(excited, now: now), loop("excited", "task_complete", 1), "the longer: the cheer's")
         }
-        XCTAssertEqual(schedule.playMs(excited, now: cheer + MomentSchedule.linkSlackMs), loop("excited", "working"),
+        XCTAssertEqual(short.playMs(excited, now: cheer + MomentSchedule.linkSlackMs), loop("excited", "idle", 1),
                        "the cheer is over on the device too")
         schedule.brain(proud, now: 100)
         schedule.brain(proud, now: 100)
         let due = schedule.due(now: 100)
         XCTAssertEqual(due.play, proud, "it plays over the cheer")
-        XCTAssertEqual(schedule.lineUntil, 100 + loop("proud", "working"), "the next waits for its face")
+        XCTAssertEqual(schedule.lineUntil, 100 + loop("proud", "idle", 2), "the next waits for its face")
         XCTAssertEqual(due.next, 100 + MomentSchedule.maxWaitMs + 1, "or until the next has waited too long")
         schedule.rule(DeviceMoment(anim: "wiggle"), now: 200)
         XCTAssertEqual(schedule.cheerUntil, 200, "a wiggle ends the cheer")
@@ -854,7 +863,7 @@ final class RuntimeTests: XCTestCase {
         tapped.tapped(now: 300)
         XCTAssertEqual(tapped.cheerUntil, 300)
         XCTAssertEqual(tapped.lineUntil, 300)
-        XCTAssertEqual(tapped.playMs(excited, now: 300 + MomentSchedule.linkSlackMs), loop("excited", "idle"),
+        XCTAssertEqual(tapped.playMs(excited, now: 300 + MomentSchedule.linkSlackMs), loop("excited", "idle", 1),
                        "timed by the look's design once the tap is heard")
     }
 
@@ -945,6 +954,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(MomentSchedule.linkSlackMs, 500)
         XCTAssertEqual(held.sayMs, 1920)
         let moments = Runtime.Moments()
+        moments.schedule.lookVariant = 2  // idle's second variation, a long loop
         var ends: [String: Pending.End] = [:]
         let first = Pending(), second = Pending()
         first.bind { ends["first"] = $0 }
@@ -954,7 +964,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(play.play, held, "the first plays at once")
         guard var sent = play.play else { return }
         moments.send(&sent, first, now: 0)
-        let faceEnds = 4 * FaceLoops.ms(mood: "proud", state: "idle")
+        let faceEnds = 4 * FaceLoops.ms(mood: "proud", state: "idle", variant: 2)
         XCTAssertGreaterThanOrEqual(faceEnds, 16_000, "a face held four times over the idle look")
         XCTAssertEqual(moments.schedule.lineFree, faceEnds + Runtime.Moments.endGraceMs)
 
@@ -1000,9 +1010,10 @@ final class RuntimeTests: XCTestCase {
         let pending = Pending()
         pending.bind { ends.append($0) }
         var stuck = MomentSchedule()
+        stuck.lookVariant = 2  // idle's second variation, a long loop
         stuck.brain(DeviceMoment(say: line, mood: "proud", loops: 4), now: 0)
         XCTAssertNotNil(stuck.due(now: 0).play)
-        XCTAssertEqual(stuck.lineUntil, 4 * FaceLoops.ms(mood: "proud", state: "idle"), "a long face")
+        XCTAssertEqual(stuck.lineUntil, 4 * FaceLoops.ms(mood: "proud", state: "idle", variant: 2), "a long face")
         stuck.brain(face, pending, now: 1000)
         XCTAssertEqual(stuck.next, 1000 + MomentSchedule.maxWaitMs + 1, "asked back when it's too old")
         XCTAssertNil(stuck.due(now: 6000).play)
@@ -1127,6 +1138,7 @@ final class RuntimeTests: XCTestCase {
         let pending = Pending()
         pending.bind { ends.append($0) }
         var schedule = MomentSchedule()
+        schedule.lookVariant = 2  // idle's second variation, a long loop
         schedule.brain(long, now: 0)
         XCTAssertEqual(schedule.due(now: 0).play, long)
         XCTAssertGreaterThan(schedule.lineUntil, 30_000, "four loops of the idle design")

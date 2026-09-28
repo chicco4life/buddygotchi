@@ -147,6 +147,10 @@ public final class Core {
     /// The session list as last published, which can change while the
     /// snapshot doesn't: a second idle session, say.
     var lastSessions: [SessionSummary] = []
+    /// The visual the device shows and its variation, from 1, and the last
+    /// variation each visual showed, which the next one there avoids.
+    var shown: (visual: String, variant: Int) = ("", 1)
+    var lastVariant: [String: Int] = [:]
     /// When the working heartbeat is next due; nil until work starts, and
     /// again after any event that woke the brain (harness/EVENTS.md §4).
     var nextWorkBeatAt: Int64?
@@ -560,7 +564,18 @@ public final class Core {
                 agent: $0.agent.short, project: StateSnapshot.clip($0.project, marked: true), more: waiting.count - 1,
                 id: $0.ask)
         }
-        return StateSnapshot(base: base, mood: config.mood, attn: attn, busy: working.count, vol: config.volume)
+        let visual = attn != nil ? "needs_you" : base
+        return StateSnapshot(base: base, mood: config.mood, attn: attn, busy: working.count, vol: config.volume,
+                             variant: shown.visual == visual ? shown.variant : 1)
+    }
+
+    /// A variation of `state`'s design at random, from 1, never `last` when
+    /// there's another (BEHAVIORS.md §1): the rules pick it for now, and the
+    /// harness may later.
+    public static func pickVariant(state: String, avoiding last: Int?, _ rng: inout SplitMix64) -> Int {
+        let choices = Array(1...FaceLoops.count(state: state)).filter { $0 != last }
+        guard !choices.isEmpty else { return 1 }
+        return choices[rng.int(in: 0...(choices.count - 1))]
     }
 
     /// Every session, for the popover's list. The device doesn't
@@ -877,7 +892,13 @@ public final class Core {
     }
 
     func publish(_ now: Int64, _ fx: inout [CoreEffect]) {
-        let snapshot = snapshot(at: now)
+        var snapshot = snapshot(at: now)
+        if snapshot.visual != shown.visual {
+            // A new visual: a variation of it at random.
+            shown = (snapshot.visual, Core.pickVariant(state: snapshot.visual, avoiding: lastVariant[snapshot.visual], &rng))
+            lastVariant[snapshot.visual] = shown.variant
+            snapshot.variant = shown.variant
+        }
         let sessions = sessionList(at: now)
         defer { lastSessions = sessions }
         if snapshot != lastPublished {

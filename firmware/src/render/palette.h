@@ -1,8 +1,8 @@
 // The canvas palette: index → RGB565 (plan/DEVICE.md §6). Every colour on
 // the screen comes from this one table: "Warm Terminal", black glass with
-// grey text and one amber accent, plus the bring-up colours. The face is
-// the mood designs' warm white with coral cheeks and sky tears, and a
-// stronger coral heart for a tap.
+// grey text and one amber accent, plus the bring-up colours; then the
+// animation pack's colours, flat, which faces.h lists; and a stronger
+// coral heart for a tap.
 //
 // Anti-aliased edges (text, the bubble and the strip) use ramps: 8 steps
 // from black up to an ink colour. The face is pixel art, so it uses only
@@ -10,6 +10,8 @@
 // compile time, so the board and the simulator agree.
 #pragma once
 #include <cstdint>
+
+#include "faces.h"
 
 namespace render {
 
@@ -69,7 +71,8 @@ enum Ink : uint8_t {
 constexpr int kLevels = 8;          // coverage 1..8 of 8; 0 is the background
 constexpr int kInkBase = 16;        // ink i, level k at kInkBase + i * 8 + k - 1
 constexpr int kPaletteUsed = kInkBase + kInkCount * kLevels;
-static_assert(kPaletteUsed <= 256, "palette overflow");
+static_assert(kPaletteUsed == faces::kSceneBase, "the scene colours start after the ramps");
+static_assert(faces::kSceneBase + faces::kColorCount - 1 <= 256, "palette overflow");
 
 // The index for ink `ink` at coverage `level` (0..8) over black.
 constexpr uint8_t inkAt(int ink, int level) {
@@ -109,6 +112,11 @@ constexpr PaletteTable makePalette() {
   for (int i = 0; i < kFixedCount; ++i) p.c[i] = rgb565(fixed[i]);
   for (int ink = 0; ink < kInkCount; ++ink) {
     for (int k = 1; k <= kLevels; ++k) p.c[inkAt(ink, k)] = rgb565(mix(kGlass, inkRgb(ink), k, kLevels));
+  }
+  // The animation pack's colours, flat (render/scene.cpp), after the ramps.
+  for (int i = 1; i < faces::kColorCount; ++i) {
+    const faces::Color& c = faces::kColors[i];
+    p.c[faces::kSceneBase + i - 1] = rgb565(c.r, c.g, c.b);
   }
   return p;
 }

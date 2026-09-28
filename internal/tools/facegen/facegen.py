@@ -1,26 +1,31 @@
-"""Builds the device's faces from the mood designs as C tables.
+"""Builds the device's faces from the animation pack as C tables.
 
-The designs are animated SVGs, one per mood and state, in design/svg/ (the
-designer's package, with the source that drew them). This reads each one
-as rectangles and step-wise timings and writes firmware/assets/faces.h,
-plus the frames the firmware test checks the device's player against
-(internal/firmware/test/test_scene/frames.h), the faces the Mac's
-popover shows (app/Boop/Views/FaceDesigns.swift), and each design's loop
-length for the Mac (app/BoopKit/Core/FaceLoops.swift), which faces.h has
-too, so both sides time a moment's loops alike. Nothing is rounded or
-smoothed: every shape sits on whole pixels and every move is a whole-pixel
-step, so the device draws each design exactly. Rerun it when the designs
-change:
+The designs are the animation pack's animated SVGs, a few variations for
+each mood and state, in design/svg/<mood>/<state>/ (listed in
+design/manifest.json). This reads each one as rectangles and step-wise
+timings and writes firmware/assets/faces.h, plus the frames the firmware
+test checks the device's player against
+(internal/firmware/test/test_scene/frames.h), the faces the Mac's popover
+shows (app/Boop/Views/FaceDesigns.swift), and each design's loop length
+for the Mac (app/BoopKit/Core/FaceLoops.swift), which faces.h has too, so
+both sides time a moment's loops alike.
+
+Every shape ends up on whole pixels and every change is a step, so the
+device draws each design as Chrome does: a scaled, rotated or fractional
+shape is filled where a pixel's centre is inside it, a translucent group
+is blended over black, and a colour that fades is a step each time its
+RGB565 value changes. Rerun it when the designs change:
 
     internal/tools/.venv/bin/python internal/tools/facegen/facegen.py [--check]
 
 --check also renders every design in Chrome at the same moments and
-compares it with this file's own renderer, pixel for pixel.
+compares it with this file's own renderer, pixel for pixel in RGB565.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
 import subprocess
 import sys
@@ -32,7 +37,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
-SVG_DIR = HERE / "design" / "svg"
+DESIGN = HERE / "design"
 OUT = REPO / "firmware" / "assets" / "faces.h"
 FRAMES = REPO / "internal" / "firmware" / "test" / "test_scene" / "frames.h"
 SWIFT = REPO / "app" / "Boop" / "Views" / "FaceDesigns.swift"
@@ -41,23 +46,27 @@ CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 NS = "{http://www.w3.org/2000/svg}"
 W, H = 320, 240
 
-# The order of render::Mood and render::SceneState.
+# The order of render::Mood and render::SceneState. The pack's listening
+# state has no use without a mic, so it isn't read.
 MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad"]
 STATES = ["idle", "working", "needs_you", "task_complete", "asleep", "no_app"]
-# The faces the popover's tile shows, as mood and look. Asleep is
-# one design for every mood, and the tile reads happy's
-# (app/Boop/Views/BoopFace.swift).
+# The faces the popover's tile shows, as mood and look, from each one's
+# first variation. Asleep is one design for every mood, and the tile reads
+# happy's (app/Boop/Views/BoopFace.swift).
 TILES = [(mood, state) for mood in MOODS
          for state in ["idle", "working", "needs_you"] + (["asleep"] if mood == "happy" else [])]
-# The designs' colours, by what they're for; index 0 is the black field.
-COLORS = {"#000000": "black", "#F8F7EF": "ink", "#F1787D": "cheek", "#7BB4EF": "blue",
-          "#F4BC50": "amber", "#68685E": "dim", "#A9A99B": "prop"}
-COLOR_NAMES = list(COLORS.values())
+# The palette index the scene colours start at (render/palette.h
+# kPaletteUsed): scene colour 0 is the black field, the canvas's 0, and
+# colour i the palette's SCENE_BASE + i - 1.
+SCENE_BASE = 96
 # What the device does with a group (render::faces::Role).
 ROLES = ["none", "face", "mouth", "prop", "eyes_open", "eyes_closed"]
-PROPS = {"keyboard", "request-cue", "result-cue", "disconnected-cue"}
+# Groups the bubble hides while it shows (render/scene.h hideProp): the
+# props named so, and any other loose group drawn only in the props' band.
+PROP_PARTS = re.compile(r"(^|-)(prop|activity|cue|keyboard)$")
 PROP_TOP = 144  # the band the props share with the bubble (render/screens.h kBubbleTop)
-BLINK_KEYS = [0.0, 0.76, 0.79, 1.0]
+# A blink's closed eyes show for at most this long in a loop.
+BLINK_MAX_MS = 400
 # Moments the check and the frames sample, in ms; each scene skips those
 # within 4 ms of a step, where Chrome and the device could disagree by a
 # rounding.
@@ -65,20 +74,128 @@ SAMPLES = [0, 150, 420, 700, 1100, 1650, 2300, 3100, 4200, 5500, 7300, 9900]
 # A design with nothing moving but the blink, or nothing at all, still
 # loops, in this time.
 STILL_LOOP_MS = 1000
+INHERIT = 255  # a rectangle's colour: its group's fill track decides
+# A rectangle's colour from BLEND on is a translucent one, pair
+# colour - BLEND of `BLENDS`, blended over what's beneath it.
+BLEND = 128
+
+
+class Blends:
+    """The translucent colours: an RGB colour and how opaque it is, which
+    the device blends over the pixel beneath through a table."""
+
+    def __init__(self) -> None:
+        self.pairs: list[tuple[tuple[int, int, int], int]] = []  # premultiplied colour, alpha: 8 bits each
+        self.index: dict[tuple[tuple[int, int, int], int], int] = {}
+
+    def of(self, pm: tuple[int, int, int], a: int) -> int:
+        k = (pm, a)
+        if k not in self.index:
+            self.index[k] = len(self.pairs)
+            self.pairs.append(k)
+        assert len(self.pairs) + BLEND < INHERIT, "the translucent colours fit"
+        return BLEND + self.index[k]
+
+    def over(self, pair: int, dst: int) -> int:
+        """The scene colour of `pair` blended over scene colour `dst`, as
+        Chrome composites a group."""
+        pm, a = self.pairs[pair]
+        return COLORS.of(blend(pm, a, COLORS.rgb[dst]))
+
+
+def a8(a: float) -> int:
+    """An opacity as Chrome keeps it: 8 bits."""
+    return int(a * 255 + 0.5)
+
+
+def mul255(a: int, b: int) -> int:
+    """a × b / 255, rounded as Skia does."""
+    p = a * b + 128
+    return (p + (p >> 8)) >> 8
+
+
+def blend(pm: tuple[int, int, int], a: int, d: tuple[int, int, int]) -> tuple[int, int, int]:
+    """A premultiplied colour of alpha `a` over the opaque `d`."""
+    return tuple(min(255, pv + mul255(dv, 255 - a)) for pv, dv in zip(pm, d))
+
+
+BLENDS = Blends()
+
+
+class BlendTable:
+    """Each translucent colour over each scene colour: what the device looks
+    up for a pixel it blends over. While open, a blend facegen meets is
+    worked out exactly, and its colour joins the scene colours; once frozen,
+    one it never met takes the nearest colour there is."""
+
+    def __init__(self) -> None:
+        self.cache: dict[tuple[int, int], int] = {}
+        self.frozen = False
+
+    def get(self, pair: int, dst: int) -> int:
+        k = (pair, dst)
+        if k not in self.cache:
+            if not self.frozen:
+                self.cache[k] = BLENDS.over(pair, dst)
+            else:
+                pm, a = BLENDS.pairs[pair]
+                want = blend(pm, a, COLORS.rgb[dst])
+                self.cache[k] = min(range(len(COLORS.rgb)), key=lambda i: sum((p - q) ** 2 for p, q in zip(COLORS.rgb[i], want)))
+        return self.cache[k]
+
+    def freeze(self, scenes: "list[Scene]") -> None:
+        """Meets every blend the scenes make, in every state they pass
+        through, the eyes open and shut, then freezes."""
+        for sc in scenes:
+            if not any(c >= BLEND and c != INHERIT for g in sc.groups for *_, c in g.rects):
+                continue
+            longest = max([tr.dur for tr in sc.tracks()] or [STILL_LOOP_MS])
+            times = sorted(t for t in sc.boundaries(longest) if t < longest) or [0]
+            for t in times:
+                for shut in (False, True):
+                    render(sc, t, shut=shut)
+                render(sc, t, svg_blink=True)
+        self.frozen = True
+
+
+BLEND_TABLE = BlendTable()
+
+
+def rgb565(c: tuple[int, int, int]) -> int:
+    return ((c[0] >> 3) << 11) | ((c[1] >> 2) << 5) | (c[2] >> 3)
+
+
+def hex_rgb(s: str) -> tuple[int, int, int]:
+    s = s.strip()
+    assert re.fullmatch(r"#[0-9A-Fa-f]{6}", s), s
+    return int(s[1:3], 16), int(s[3:5], 16), int(s[5:7], 16)
+
+
+class Colors:
+    """The scene colours, in the order they're met; 0 is the black field."""
+
+    def __init__(self) -> None:
+        self.rgb: list[tuple[int, int, int]] = [(0, 0, 0)]
+        self.index: dict[tuple[int, int, int], int] = {(0, 0, 0): 0}
+
+    def of(self, c: tuple[int, int, int]) -> int:
+        if c not in self.index:
+            self.index[c] = len(self.rgb)
+            self.rgb.append(c)
+        return self.index[c]
+
+
+COLORS = Colors()
 
 
 @dataclass
 class Track:
-    kind: str  # "move" or "show"
+    kind: str  # "move", "show" or "fill"
     dur: int  # ms
-    once: bool  # plays once and holds its last value
     keys: list[int]  # ms, the first 0
-    values: list[tuple[int, int]]  # (dx, dy) to move; (1 or 0, 0) to show
-    raw_keys: list[float] = field(default_factory=list)
+    values: list[tuple[int, int]]  # (dx, dy) to move; (1 or 0, 0) to show; (colour, 0) to fill
 
     def index(self, t: int) -> int:
-        if self.once and t >= self.dur:
-            return len(self.keys) - 1
         lt = t % self.dur
         return max(i for i, k in enumerate(self.keys) if k <= lt)
 
@@ -91,32 +208,25 @@ class Group:
     visible: bool = True
     move: Track | None = None
     show: Track | None = None
+    fill: Track | None = None
     role: str = "none"
-
-
-@dataclass
-class Rect:
-    group: int
-    x: int
-    y: int
-    w: int
-    h: int
-    color: int
+    part: str = ""
+    baking: bool = False  # a scaled or turned group, whose descendants are drawn into it
+    rects: list[tuple[int, int, int, int, int]] = field(default_factory=list)  # x, y, w, h, colour
 
 
 @dataclass
 class Scene:
     groups: list[Group]
-    rects: list[Rect]
+    clip: tuple[int, int, int, int]  # x, y, w, h
 
     def tracks(self) -> list[Track]:
-        return [t for g in self.groups for t in (g.move, g.show) if t]
+        return [t for g in self.groups for t in (g.move, g.show, g.fill) if t]
 
     def boundaries(self, until: int) -> set[int]:
         out: set[int] = set()
         for tr in self.tracks():
-            reps = 1 if tr.once else until // tr.dur + 1
-            for r in range(reps):
+            for r in range(until // tr.dur + 1):
                 out.update(r * tr.dur + k for k in tr.keys)
                 out.add(r * tr.dur + tr.dur)
         return out
@@ -126,15 +236,14 @@ class Scene:
         return [t for t in SAMPLES if t == 0 or all(abs(t - b) > 4 for b in bounds)]
 
     def key(self) -> str:
-        return hashlib.sha1(repr((self.groups, self.rects)).encode()).hexdigest()
+        return hashlib.sha1(repr((self.groups, self.clip)).encode()).hexdigest()
 
     def loop_ms(self) -> int:
-        """How long the design takes to play once through:
-        its longest animation, played once or on repeat, leaving out the
-        blink, which the device times on its own. A moment's `loops` count
-        these. It doesn't check that the design ends as it starts."""
+        """How long the design takes to play once through: its longest
+        animation, leaving out the blink, which the device times on its
+        own. A moment's `loops` count these."""
         timed = [tr.dur for g in self.groups if g.role not in ("eyes_open", "eyes_closed")
-                 for tr in (g.move, g.show) if tr]
+                 for tr in (g.move, g.show, g.fill) if tr]
         return max(timed or [STILL_LOOP_MS])
 
 
@@ -147,89 +256,163 @@ def seconds_ms(s: str) -> int:
 
 
 def parse_track(el: ET.Element) -> Track:
-    assert el.get("calcMode") == "discrete", "only step-wise animation"
+    assert el.get("repeatCount") == "indefinite" and el.get("begin", "0s") == "0s"
     dur = seconds_ms(el.get("dur"))
     raw = [float(k) for k in el.get("keyTimes").split(";")]
-    keys = [round(k * dur) for k in raw]
     values = el.get("values").split(";")
-    assert len(values) == len(keys) and raw[0] == 0, "one value per key time, from 0"
-    once = el.get("repeatCount") == "1"
-    assert once or el.get("repeatCount") == "indefinite"
+    assert len(values) == len(raw) and raw[0] == 0, "one value per key time, from 0"
+    keys = [round(k * dur) for k in raw]
     if el.tag == NS + "animateTransform":
-        assert el.get("type") == "translate"
-        vals = []
-        for v in values:
-            x, y = (int(n) for n in v.split())
-            vals.append((x, y))
-        return Track("move", dur, once, keys, vals, raw)
-    assert el.get("attributeName") == "opacity"
-    vals = [(int(float(v)), 0) for v in values]
-    assert all(v in ((0, 0), (1, 0)) for v in vals), "opacity is 0 or 1"
-    return Track("show", dur, once, keys, vals, raw)
+        assert el.get("type") == "translate" and el.get("calcMode") == "discrete"
+        vals = [tuple(int(n) for n in v.split()) for v in values]
+        return Track("move", dur, keys, vals)
+    name = el.get("attributeName")
+    if name == "opacity":
+        assert el.get("calcMode") == "discrete"
+        vals = [(int(float(v)), 0) for v in values]
+        assert all(v in ((0, 0), (1, 0)) for v in vals), "opacity is 0 or 1"
+        return Track("show", dur, keys, vals)
+    assert name == "fill" and el.get("calcMode") == "linear", f"only a linear fill fades: {name}"
+    return fade(dur, raw, [hex_rgb(v) for v in values])
 
 
-def path_rects(d: str) -> list[tuple[int, int, int, int]]:
-    """An outline of straight lines between whole pixels, filled nonzero, as
-    rectangles. A pixel is filled when its centre is inside; a centre exactly
-    on an edge belongs to the shape on the edge's left, as Chrome draws it."""
-    assert re.fullmatch(r"(?:\s*(?:[MmHhVvLlZz]|-?\d+(?:\.\d+)?))*\s*", d), f"only M, H, V, L and Z: {d}"
-    tokens = re.findall(r"[MmHhVvLlZz]|-?\d+(?:\.\d+)?", d)
-    edges: list[tuple[int, int, int, int]] = []
-    x = y = sx = sy = 0
+def fade(dur: int, raw: list[float], cols: list[tuple[int, int, int]]) -> Track:
+    """A linear fill as steps: a new one each millisecond its RGB565 value
+    changes, holding the colour it has there, as Chrome interpolates each
+    channel."""
+    keys: list[int] = []
+    vals: list[tuple[int, int]] = []
+    last = None
+    for t in range(dur):
+        p = t / dur
+        i = max(j for j in range(len(raw)) if raw[j] <= p)
+        if i + 1 < len(raw) and raw[i + 1] > raw[i]:
+            f = (p - raw[i]) / (raw[i + 1] - raw[i])
+            c = tuple(round(a + (b - a) * f) for a, b in zip(cols[i], cols[i + 1]))
+        else:
+            c = cols[i]
+        if rgb565(c) != last:
+            keys.append(t)
+            vals.append((COLORS.of(c), 0))
+            last = rgb565(c)
+    return Track("fill", dur, keys, vals)
+
+
+Matrix = tuple[float, float, float, float, float, float]  # a b c d e f, as SVG's matrix()
+IDENTITY: Matrix = (1, 0, 0, 1, 0, 0)
+
+
+def mul(m: Matrix, n: Matrix) -> Matrix:
+    a, b, c, d, e, f = m
+    a2, b2, c2, d2, e2, f2 = n
+    return (a * a2 + c * b2, b * a2 + d * b2, a * c2 + c * d2, b * c2 + d * d2, a * e2 + c * f2 + e, b * e2 + d * f2 + f)
+
+
+def parse_transform(s: str | None) -> Matrix:
+    m = IDENTITY
+    for name, args in re.findall(r"(\w+)\(([^)]*)\)", s or ""):
+        v = [float(x) for x in re.split(r"[\s,]+", args.strip())]
+        if name == "translate":
+            n = (1, 0, 0, 1, v[0], v[1] if len(v) > 1 else 0)
+        elif name == "scale":
+            n = (v[0], 0, 0, v[1] if len(v) > 1 else v[0], 0, 0)
+        elif name == "rotate":
+            assert len(v) == 1 and v[0] % 90 == 0, f"only quarter turns: {s}"
+            q = int(v[0]) // 90 % 4
+            n = [(1, 0, 0, 1, 0, 0), (0, 1, -1, 0, 0, 0), (-1, 0, 0, -1, 0, 0), (0, -1, 1, 0, 0, 0)][q]
+        else:
+            raise AssertionError(f"transform {name}")
+        m = mul(m, n)
+    return m
+
+
+def is_translate(m: Matrix) -> bool:
+    return m[:4] == (1, 0, 0, 1) and m[4] == int(m[4]) and m[5] == int(m[5])
+
+
+def path_polys(d: str) -> list[list[tuple[float, float]]]:
+    """An outline of straight lines, as closed polygons."""
+    assert re.fullmatch(r"(?:\s*(?:[MmHhVvLlZz]|-?\d*\.?\d+(?:e-?\d+)?)[\s,]*)*", d), f"only M, H, V, L and Z: {d}"
+    tokens = re.findall(r"[MmHhVvLlZz]|-?\d*\.?\d+(?:e-?\d+)?", d)
+    polys: list[list[tuple[float, float]]] = []
+    cur: list[tuple[float, float]] = []
+    x = y = 0.0
     i = 0
+    cmd = ""
 
-    def num() -> int:
+    def num() -> float:
         nonlocal i
         v = float(tokens[i])
-        assert v == int(v), "whole pixels only"
         i += 1
-        return int(v)
+        return v
 
     while i < len(tokens):
-        c = tokens[i]
-        i += 1
-        if c in "Mm":
+        if re.fullmatch(r"[A-Za-z]", tokens[i]):
+            cmd = tokens[i]
+            i += 1
+        if cmd in "Mm":
             nx, ny = num(), num()
-            x, y = (nx, ny) if c == "M" else (x + nx, y + ny)
-            sx, sy = x, y
+            x, y = (nx, ny) if cmd == "M" else (x + nx, y + ny)
+            if cur:
+                polys.append(cur)
+            cur = [(x, y)]
+            cmd = "L" if cmd == "M" else "l"
             continue
-        if c in "Hh":
+        if cmd in "Zz":
+            if cur:
+                polys.append(cur)
+                x, y = cur[0]
+            cur = []
+            continue
+        if cmd in "Hh":
             nx = num()
-            nx, ny = (nx if c == "H" else x + nx), y
-        elif c in "Vv":
+            x = nx if cmd == "H" else x + nx
+        elif cmd in "Vv":
             ny = num()
-            nx, ny = x, (ny if c == "V" else y + ny)
-        elif c in "Ll":
+            y = ny if cmd == "V" else y + ny
+        else:
             nx, ny = num(), num()
-            nx, ny = (nx, ny) if c == "L" else (x + nx, y + ny)
-        else:  # Z
-            nx, ny = sx, sy
-        if (nx, ny) != (x, y):
-            edges.append((x, y, nx, ny))
-        x, y = nx, ny
-    xs = [e[0] for e in edges] + [e[2] for e in edges]
-    ys = [e[1] for e in edges] + [e[3] for e in edges]
+            x, y = (nx, ny) if cmd == "L" else (x + nx, y + ny)
+        cur.append((x, y))
+    if cur:
+        polys.append(cur)
+    return polys
+
+
+def fill_polys(polys: list[list[tuple[float, float]]]) -> list[tuple[int, int, int, int]]:
+    """Polygons filled nonzero, as rectangles: a pixel is filled when its
+    centre is inside; a centre exactly on an edge belongs to the shape on the
+    edge's left, as Chrome draws it."""
+    edges = []
+    for p in polys:
+        for k in range(len(p)):
+            (x0, y0), (x1, y1) = p[k], p[(k + 1) % len(p)]
+            if y0 != y1:
+                edges.append((x0, y0, x1, y1))
+    if not edges:
+        return []
+    ys = [v for e in edges for v in (e[1], e[3])]
+    xs = [v for p in polys for v, _ in p]
     rows: list[list[tuple[int, int]]] = []
-    for py in range(min(ys), max(ys)):
+    top = int(min(ys) // 1)
+    for py in range(top, int(-(-max(ys) // 1))):
         cy = py + 0.5
+        cross = []
+        for x0, y0, x1, y1 in edges:
+            if min(y0, y1) <= cy < max(y0, y1):
+                cross.append((x0 + (cy - y0) * (x1 - x0) / (y1 - y0), 1 if y1 > y0 else -1))
         run: list[tuple[int, int]] = []
         start = None
-        for px in range(min(xs), max(xs) + 1):
+        for px in range(int(min(xs) // 1), int(-(-max(xs) // 1)) + 1):
             cx = px + 0.5
-            wind = 0
-            for x0, y0, x1, y1 in edges:
-                if y0 == y1 or not (min(y0, y1) <= cy < max(y0, y1)):
-                    continue
-                if x0 + (cy - y0) * (x1 - x0) / (y1 - y0) < cx:
-                    continue
-                wind += 1 if y1 > y0 else -1
+            wind = sum(w for x, w in cross if x >= cx)
             if wind and start is None:
                 start = px
             if not wind and start is not None:
                 run.append((start, px))
                 start = None
         rows.append(run)
-    return merge_runs(rows, min(ys))
+    return merge_runs(rows, top)
 
 
 def merge_runs(rows: list[list[tuple[int, int]]], y0: int) -> list[tuple[int, int, int, int]]:
@@ -247,85 +430,248 @@ def merge_runs(rows: list[list[tuple[int, int]]], y0: int) -> list[tuple[int, in
     return sorted(out, key=lambda q: (q[1], q[0]))
 
 
-def translate(s: str | None) -> tuple[int, int]:
-    if not s:
-        return 0, 0
-    m = re.fullmatch(r"translate\((-?\d+) (-?\d+)\)", s)
-    assert m, s
-    return int(m[1]), int(m[2])
+def apply(m: Matrix, p: tuple[float, float]) -> tuple[float, float]:
+    a, b, c, d, e, f = m
+    return a * p[0] + c * p[1] + e, b * p[0] + d * p[1] + f
+
+
+def shape_rects(el: ET.Element, m: Matrix) -> list[tuple[int, int, int, int]]:
+    """A rect or path under `m`, as whole-pixel rectangles."""
+    tag = el.tag[len(NS):]
+    if tag == "rect":
+        x, y, w, h = (float(el.get(a, "0")) for a in ("x", "y", "width", "height"))
+        if is_translate(m) and all(v == int(v) for v in (x, y, w, h)):
+            return [(int(x + m[4]), int(y + m[5]), int(w), int(h))] if w > 0 and h > 0 else []
+        polys = [[(x, y), (x + w, y), (x + w, y + h), (x, y + h)]]
+    else:
+        polys = path_polys(el.get("d"))
+    return fill_polys([[apply(m, p) for p in poly] for poly in polys])
 
 
 def read_scene(path: Path) -> Scene:
     root = ET.parse(path).getroot()
-    motion = next(g for g in root if g.tag == NS + "g" and g.get("class") == "boop-motion")
-    scene = Scene([], [])
+    motion = next(el for el in root.iter() if el.get("class") in ("boop-motion", "alert-motion"))
+    clip = (0, 0, W, H)
+    clipped = next((el for el in root.iter() if el.get("clip-path")), None)
+    if clipped is not None:
+        ref = re.fullmatch(r"url\(#([\w-]+)\)", clipped.get("clip-path"))[1]
+        box = next(el for el in root.iter() if el.get("id") == ref).find(NS + "rect")
+        clip = tuple(int(float(box.get(a, "0"))) for a in ("x", "y", "width", "height"))
+    scene = Scene([], clip)
 
-    def walk(el: ET.Element, parent: int, fill: str | None) -> None:
-        g = Group(parent)
-        g.tx, g.ty = translate(el.get("transform"))
-        g.visible = el.get("opacity", "1") != "0"
-        part = el.get("data-part")
-        g.role = "face" if part == "face" else "mouth" if part == "mouth" else "prop" if part in PROPS else "none"
-        fill = el.get("fill", fill)
-        me = len(scene.groups)
-        scene.groups.append(g)
+    def walk(el: ET.Element, parent: int, fill: tuple[int, int, int] | int | None, alpha: float,
+             bake: Matrix | None) -> None:
+        """A group and what's in it. `bake` is the transform a scaled or
+        turned ancestor started, whose shapes and groups are drawn into it."""
+        m = parse_transform(el.get("transform"))
+        tracks = [parse_track(c) for c in el if c.tag in (NS + "animate", NS + "animateTransform")]
+        opacity = float(el.get("opacity", "1"))
+        if bake is None and not is_translate(m):
+            bake = IDENTITY  # this group bakes its shapes from here down
+        if bake is not None:
+            assert not tracks, f"{path.name}: an animation inside a scaled group"
+            assert opacity in (0, 1) or opacity > 0, path.name
+            bake = mul(bake, m)
+        if bake is not None and parent >= 0 and scene.groups[parent].baking:
+            me = parent  # flattened into the baking group
+            if opacity == 0:
+                return
+        else:
+            g = Group(parent)
+            if bake is None:
+                g.tx, g.ty = int(m[4]), int(m[5])
+            else:
+                g.baking = True
+            g.visible = opacity != 0
+            g.part = el.get("data-part") or ""
+            for tr in tracks:
+                assert getattr(g, tr.kind) is None, f"{path.name}: one animation of each kind a group"
+                setattr(g, tr.kind, tr)
+            me = len(scene.groups)
+            scene.groups.append(g)
+        if 0 < opacity < 1 and bake is None:
+            # A translucent group: its shapes, flattened as Chrome draws the
+            # group into a layer of its own, then that layer at its opacity.
+            scene.groups[me].visible = True
+            layer(el, fill, opacity, scene.groups[me])
+            return
+        if 0 < opacity < 1:
+            alpha *= opacity
+        if el.get("fill"):
+            fill = hex_rgb(el.get("fill"))
+        if scene.groups[me].fill and me == len(scene.groups) - 1 and not scene.groups[me].baking:
+            fill = INHERIT  # its rectangles take the fill track's colour
+        # Shapes draw in document order: those after a child group go in a
+        # group of their own, after that child's.
+        sink = me
         for child in el:
             tag = child.tag[len(NS):]
             if tag in ("animate", "animateTransform"):
-                tr = parse_track(child)
-                assert getattr(g, tr.kind) is None, "one animation of each kind a group"
-                setattr(g, tr.kind, tr)
-            elif tag == "g":
-                walk(child, me, fill)
+                continue
+            if tag == "g":
+                walk(child, me, fill, alpha, bake)
+                if not scene.groups[me].baking:
+                    sink = -1
+            elif tag in ("rect", "path") and any(c.tag in (NS + "animate", NS + "animateTransform") for c in child):
+                # An animated shape is a group of its own around a plain one.
+                wrap = ET.Element(NS + "g", {k: v for k, v in child.attrib.items() if k in ("fill", "opacity")})
+                for c in child:
+                    wrap.append(c)
+                plain = ET.Element(child.tag, {k: v for k, v in child.attrib.items() if k not in ("fill", "opacity")})
+                wrap.append(plain)
+                walk(wrap, me, fill, alpha, bake)
+                if not scene.groups[me].baking:
+                    sink = -1
             elif tag in ("rect", "path"):
-                color = COLOR_NAMES.index(COLORS[child.get("fill", fill)])
-                if tag == "rect":
-                    q = [int(child.get(a, "0")) for a in ("x", "y", "width", "height")]
-                    scene.rects.append(Rect(me, *q, color))
+                c = hex_rgb(child.get("fill")) if child.get("fill") else fill
+                assert c is not None, f"{path.name}: a shape with no fill"
+                if c == INHERIT:
+                    assert alpha == 1, f"{path.name}: a translucent fade"
+                    color = INHERIT
                 else:
-                    scene.rects.extend(Rect(me, *q, color) for q in path_rects(child.get("d")))
+                    color = COLORS.of(tuple(round(v * alpha) for v in c))  # over black
+                if sink < 0:
+                    sink = len(scene.groups)
+                    scene.groups.append(Group(me))
+                for q in shape_rects(child, bake or IDENTITY):
+                    scene.groups[sink].rects.append((*q, color))
             else:
                 raise AssertionError(f"{path.name}: unexpected <{tag}>")
-        if g.show and g.show.raw_keys == BLINK_KEYS:
-            if [v[0] for v in g.show.values] == [1, 0, 1, 1]:
-                g.role = "eyes_open"
-            elif [v[0] for v in g.show.values] == [0, 1, 0, 0]:
-                g.role = "eyes_closed"
 
-    walk(motion, -1, None)
-    # A loose group drawn only in the props' band, such as the sparkles by
-    # the result card, gives way to the bubble with the props.
-    for i, g in enumerate(scene.groups):
-        if g.parent != 0 or g.role != "none":
+    walk(motion, -1, None, 1.0, None)
+    for g in scene.groups:
+        g.baking = False  # only for reading: two scenes that draw alike are one
+    assign_roles(scene, path.name)
+    return scene
+
+
+def layer(el: ET.Element, fill, opacity: float, g: Group) -> None:
+    """A translucent group's layer, as rectangles of one translucent colour
+    each in the group's own space: its shapes painted in order into a layer
+    of its own, a nested translucent group into one of its own composited in
+    turn, then all of it at `opacity`, as Chrome (Skia) draws groups: in
+    premultiplied 8-bit colour."""
+    Layer = dict[tuple[int, int], tuple[int, int, int, int]]  # premultiplied r, g, b and alpha
+
+    def over(dst: Layer, xy: tuple[int, int], src: tuple[int, int, int, int]) -> None:
+        d = dst.get(xy, (0, 0, 0, 0))
+        dst[xy] = tuple(min(255, sv + mul255(dv, 255 - src[3])) for sv, dv in zip(src, d))
+
+    def build(e: ET.Element, m: Matrix, fill) -> Layer:
+        out: Layer = {}
+        for child in e:
+            tag = child.tag[len(NS):]
+            assert tag not in ("animate", "animateTransform"), "nothing moves inside a translucent group"
+            if tag == "g":
+                o = float(child.get("opacity", "1"))
+                if o == 0:
+                    continue
+                cm = mul(m, parse_transform(child.get("transform")))
+                cf = hex_rgb(child.get("fill")) if child.get("fill") else fill
+                sub = build(child, cm, cf)
+                k = a8(o)
+                for xy, p in sub.items():
+                    over(out, xy, tuple(mul255(v, k) for v in p))
+            elif tag in ("rect", "path"):
+                c = hex_rgb(child.get("fill")) if child.get("fill") else fill
+                assert c not in (None, INHERIT)
+                k = a8(float(child.get("opacity", "1")))
+                src = tuple(mul255(v, k) for v in c) + (k,)
+                for x, y, w, h in shape_rects(child, m):
+                    for yy in range(y, y + h):
+                        for xx in range(x, x + w):
+                            over(out, (xx, yy), src)
+        return out
+
+    px = build(el, IDENTITY, hex_rgb(el.get("fill")) if el.get("fill") else fill)
+    if not px:
+        return
+    k = a8(opacity)
+    ys = [y for _, y in px]
+    y0 = min(ys)
+    by_row: dict[int, dict[int, list[int]]] = {}
+    for (x, y), p in px.items():
+        r, gg, b, a = (mul255(v, k) for v in p)
+        pair = BLENDS.of((r, gg, b), a)
+        by_row.setdefault(pair, {}).setdefault(y, []).append(x)
+    for pair, rows_of in by_row.items():
+        rows = []
+        for y in range(y0, max(ys) + 1):
+            xs = sorted(rows_of.get(y, []))
+            run, start, last = [], None, None
+            for x in xs:
+                if start is None:
+                    start = last = x
+                elif x == last + 1:
+                    last = x
+                else:
+                    run.append((start, last + 1))
+                    start = last = x
+            if start is not None:
+                run.append((start, last + 1))
+            rows.append(run)
+        g.rects += [(x, y, w, h, pair) for x, y, w, h in merge_runs(rows, y0)]
+
+
+def assign_roles(scene: Scene, name: str) -> None:
+    groups = scene.groups
+    for g in groups:
+        if g.part == "face":
+            g.role = "face"
+        elif g.part == "mouth":
+            g.role = "mouth"
+    # A blink: two sibling groups, one showing but for a short window in its
+    # loop and the other only in that window. The device blinks on its own
+    # clock (plan/BEHAVIORS.md §2), so it shows the open eyes, or the closed
+    # ones while it blinks.
+    for i, a in enumerate(groups):
+        if not a.show or a.role != "none":
+            continue
+        for j in range(i + 1, len(groups)):
+            b = groups[j]
+            if b.parent != a.parent or not b.show or b.role != "none" or b.show.dur != a.show.dur:
+                continue
+            if b.show.keys != a.show.keys or any(x[0] == y[0] for x, y in zip(a.show.values, b.show.values)):
+                continue
+            shut = sum(a.show.keys[k + 1] - a.show.keys[k] if k + 1 < len(a.show.keys) else a.show.dur - a.show.keys[k]
+                       for k, v in enumerate(a.show.values) if v[0] == 0)
+            if 0 < shut <= BLINK_MAX_MS and a.visible and not b.visible:
+                a.role, b.role = "eyes_open", "eyes_closed"
+                break
+    # The props: named so, or a loose group drawn only in the props' band.
+    face = next((i for i, g in enumerate(groups) if g.role == "face"), -1)
+    for i, g in enumerate(groups):
+        if g.role != "none" or i == face:
+            continue
+        top_level = g.parent < 0 or groups[g.parent].parent < 0 or (
+            groups[g.parent].parent >= 0 and groups[groups[g.parent].parent].parent < 0 and not groups[g.parent].part)
+        if not top_level:
             continue
         mine = {i}
-        for j in range(i + 1, len(scene.groups)):
-            if scene.groups[j].parent in mine:
+        for j in range(i + 1, len(groups)):
+            if groups[j].parent in mine:
                 mine.add(j)
-        ys = [r.y + g.ty for r in scene.rects if r.group in mine]
-        if ys and min(ys) >= PROP_TOP:
+        if face in mine:
+            continue
+        ys = [r[1] for j in mine for r in groups[j].rects]
+        if PROP_PARTS.search(g.part) or (ys and min(ys) >= PROP_TOP):
             g.role = "prop"
-    roles = [g.role for g in scene.groups]
-    assert roles.count("eyes_open") == roles.count("eyes_closed") <= 1, f"{path.name}: one blink"
-    assert roles.count("face") == 1 and roles.count("mouth") == 1, f"{path.name}: one face, one mouth"
-    return scene
+    roles = [g.role for g in groups]
+    assert roles.count("face") == 1, f"{name}: one face"
+    assert roles.count("mouth") >= 1, f"{name}: a mouth"
 
 
 # ---- Drawing, as the device does and as the SVG does -------------------------
 
 
-def render(scene: Scene, t: int, svg_blink: bool = False, face_only: bool = False, shut: bool = False) -> bytes:
-    """The colour index of every pixel at t ms. The device blinks on its own
-    clock, so it shows the open eyes, or the closed ones when `shut`; with
-    `svg_blink` the eyes blink on the design's clock, as Chrome draws it.
-    `face_only` leaves out everything outside the face's group."""
-    px = bytearray(W * H)
-    in_face: list[bool] = []
+def place(scene: Scene, t: int, svg_blink: bool, shut: bool) -> tuple[list[tuple[int, int]], list[bool], list[int]]:
     offset: list[tuple[int, int]] = []
     shown: list[bool] = []
+    fills: list[int] = []
     for g in scene.groups:
         ox, oy = offset[g.parent] if g.parent >= 0 else (0, 0)
         on = shown[g.parent] if g.parent >= 0 else True
+        fl = fills[g.parent] if g.parent >= 0 else 0
         ox, oy = ox + g.tx, oy + g.ty
         if g.move:
             dx, dy = g.move.values[g.move.index(t)]
@@ -337,72 +683,121 @@ def render(scene: Scene, t: int, svg_blink: bool = False, face_only: bool = Fals
             vis = not shut
         elif g.role == "eyes_closed":
             vis = shut
+        if g.fill:
+            fl = g.fill.values[g.fill.index(t)][0]
         offset.append((ox, oy))
         shown.append(on and vis)
+        fills.append(fl)
+    return offset, shown, fills
+
+
+def render(scene: Scene, t: int, svg_blink: bool = False, face_only: bool = False, shut: bool = False,
+           blended: set[int] | None = None) -> bytes:
+    """The scene colour of every pixel at t ms. The device blinks on its own
+    clock, so it shows the open eyes, or the closed ones when `shut`; with
+    `svg_blink` the eyes blink on the design's clock, as Chrome draws it.
+    `face_only` leaves out everything outside the face's group."""
+    px = bytearray(W * H)
+    offset, shown, fills = place(scene, t, svg_blink, shut)
+    in_face: list[bool] = []
+    for g in scene.groups:
         in_face.append(g.role == "face" or (g.parent >= 0 and in_face[g.parent]))
-    for r in scene.rects:
-        if not shown[r.group] or (face_only and not in_face[r.group]):
+    cx0, cy0, cw, ch = scene.clip
+    for i, g in enumerate(scene.groups):
+        if not shown[i] or (face_only and not in_face[i]):
             continue
-        ox, oy = offset[r.group]
-        x0, y0 = max(0, r.x + ox), max(0, r.y + oy)
-        x1, y1 = min(W, r.x + ox + r.w), min(H, r.y + oy + r.h)
-        for y in range(y0, y1):
-            px[y * W + x0:y * W + x1] = bytes([r.color]) * max(0, x1 - x0)
+        ox, oy = offset[i]
+        for x, y, w, h, c in g.rects:
+            color = fills[i] if c == INHERIT else c
+            x0, y0 = max(cx0, x + ox), max(cy0, y + oy)
+            x1, y1 = min(cx0 + cw, x + ox + w), min(cy0 + ch, y + oy + h)
+            if color >= BLEND:
+                for yy in range(y0, y1):
+                    for xx in range(x0, x1):
+                        px[yy * W + xx] = BLEND_TABLE.get(color - BLEND, px[yy * W + xx])
+                        if blended is not None:
+                            blended.add(yy * W + xx)
+                continue
+            if blended is not None:
+                for yy in range(y0, y1):
+                    blended.difference_update(range(yy * W + x0, yy * W + x1))
+            for yy in range(y0, y1):
+                px[yy * W + x0:yy * W + x1] = bytes([color]) * max(0, x1 - x0)
     return bytes(px)
+
+
+def canvas_index(color: int) -> int:
+    """The device palette's index for a scene colour."""
+    return 0 if color == 0 else SCENE_BASE + color - 1
 
 
 # ---- Writing -----------------------------------------------------------------
 
 
-def emit(scenes: list[Scene], index: dict[tuple[int, int], int], sources: dict[int, str]) -> str:
-    tracks: list[Track] = []
+def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], sources: dict[int, str],
+         variants: list[int]) -> str:
+    tracks: list[str] = []
     keys: list[int] = []
+    key_lists: dict[tuple[int, ...], int] = {}  # a track's key times, stored once
     vals: list[int] = []
     groups: list[str] = []
     rects: list[str] = []
+    lists: dict[tuple, tuple[int, int]] = {}  # a group's rectangles, stored once
     scene_rows: list[str] = []
-    track_rows: list[str] = []
-    max_groups = max_tracks = 0
+    max_groups = 0
     for n, s in enumerate(scenes):
-        g0, r0, t0 = len(groups), len(rects), len(tracks)
+        g0, t0 = len(groups), len(tracks)
         for g in s.groups:
             ids = []
-            for tr in (g.move, g.show):
+            for tr in (g.move, g.show, g.fill):
                 # The device blinks on its own clock (plan/BEHAVIORS.md §2), so
                 # the design's blink timing isn't kept.
                 if tr is None or g.role in ("eyes_open", "eyes_closed"):
-                    ids.append(-1)
+                    ids.append(0xFFFF)
                     continue
                 ids.append(len(tracks) - t0)
-                track_rows.append(f"{{{tr.dur}, {int(tr.once)}, {len(tr.keys)}, {len(keys)}}}")
-                tracks.append(tr)
-                keys.extend(tr.keys)
+                kt = tuple(tr.keys)
+                if kt not in key_lists:
+                    key_lists[kt] = len(keys)
+                    keys.extend(kt)
+                tracks.append(f"{{{tr.dur}, {len(tr.keys)}, {key_lists[kt]}, {len(vals)}}}")
                 for v in tr.values:
-                    vals.extend(v)
-            groups.append(f"{{{g.tx}, {g.ty}, {g.parent}, {ROLES.index(g.role)}, {int(g.visible)}, {ids[0]}, {ids[1]}}}")
-        for r in s.rects:
-            assert 0 < r.w < 256 and 0 < r.h < 256 and r.group < 256
-            rects.append(f"{{{r.x}, {r.y}, {r.w}, {r.h}, {r.group}, {r.color}}}")
-        assert len(s.groups) < 128 and len(tracks) - t0 < 128, "groups and tracks fit an int8_t"
+                    vals.extend(v if tr.kind == "move" else v[:1])
+            key = tuple(g.rects)
+            if key not in lists:
+                lists[key] = (len(rects), len(g.rects))
+                for x, y, w, h, c in g.rects:
+                    assert 0 < w < 65536 and 0 < h < 256 and -32768 <= x < 32768
+                    rects.append(f"{{{x}, {y}, {w}, {h}, {c}}}")
+            r0, rn = lists[key]
+            parent = 0xFFFF if g.parent < 0 else g.parent
+            groups.append(f"{{{g.tx}, {g.ty}, {parent}, {ROLES.index(g.role)}, {int(g.visible)}, "
+                          f"{ids[0]}, {ids[1]}, {ids[2]}, {r0}, {rn}}}")
         max_groups = max(max_groups, len(s.groups))
-        max_tracks = max(max_tracks, len(tracks) - t0)
         assert 0 < s.loop_ms() < 65536, "a loop fits a uint16_t"
-        scene_rows.append(f"{{{g0}, {len(s.groups)}, {r0}, {len(s.rects)}, {t0}, {len(tracks) - t0}, {s.loop_ms()}}},"
+        cx, cy, cw, ch = s.clip
+        scene_rows.append(f"{{{g0}, {len(s.groups)}, {t0}, {len(tracks) - t0}, {s.loop_ms()}, {cx}, {cy}, {cw}, {ch}}},"
                           f"  // {n}: {sources[n]}")
     assert all(-128 <= v <= 127 for v in vals) and all(k < 65536 for k in keys)
-    size = len(rects) * 8 + len(groups) * 10 + len(tracks) * 6 + len(keys) * 2 + len(vals) + len(scenes) * 14
+    assert len(COLORS.rgb) + SCENE_BASE - 1 <= 256, "the scene colours fit the palette"
+    size = (len(rects) * 8 + len(groups) * 20 + len(tracks) * 12 + len(keys) * 2 + len(vals)
+            + len(scenes) * 20 + len(BLENDS.pairs) * len(COLORS.rgb))
+    maxv = max(variants)
 
     def block(name: str, ctype: str, rows: list[str], per_line: int = 1) -> list[str]:
-        out = [f"static const {ctype} {name}[{len(rows)}] = {{"]
+        # The colours are constexpr: the palette is worked out at compile time.
+        kind = "constexpr" if name == "kColors" else "static const"
+        out = [f"{kind} {ctype} {name}[{len(rows)}] = {{"]
         for i in range(0, len(rows), per_line):
             out.append("  " + ", ".join(rows[i:i + per_line]) + ",")
         out.append("};")
         return out
 
     lines = [
-        "// Generated by internal/tools/facegen/facegen.py from the mood designs in",
-        "// internal/tools/facegen/design/svg/. Do not edit.",
-        f"// {len(scenes)} scenes, {len(groups)} groups, {len(rects)} rectangles, {len(tracks)} tracks: about {size // 1024 + 1} KB.",
+        "// Generated by internal/tools/facegen/facegen.py from the animation pack in",
+        "// internal/tools/facegen/design/. Do not edit.",
+        f"// {len(scenes)} scenes, {len(groups)} groups, {len(rects)} rectangles, {len(tracks)} tracks, "
+        f"{len(COLORS.rgb)} colours: about {size // 1024 + 1} KB.",
         "#pragma once",
         "#include <cstdint>",
         "",
@@ -411,76 +806,106 @@ def emit(scenes: list[Scene], index: dict[tuple[int, int], int], sources: dict[i
         "",
         "// What the device does with a group besides drawing it (render/scene.cpp).",
         "enum Role : uint8_t { kRoleNone, kRoleFace, kRoleMouth, kRoleProp, kRoleEyesOpen, kRoleEyesClosed };",
-        "// The designs' colours, by what they're for; 0 is the black field.",
-        "enum Color : uint8_t { kBlackField, kInk, kCheek, kBlue, kAmber, kDim, kPropGrey, kColorCount };",
+        "",
+        "// The designs' colours: 0 is the black field, the canvas's 0, and colour i",
+        "// is the palette's kSceneBase + i - 1 (render/palette.h).",
+        f"constexpr int kSceneBase = {SCENE_BASE};",
+        f"constexpr int kColorCount = {len(COLORS.rgb)};",
+        "struct Color { uint8_t r, g, b; };",
+    ]
+    lines += block("kColors", "Color", [f"{{{r}, {g}, {b}}}" for r, g, b in COLORS.rgb], 6)
+    blend_rows = []
+    for k in range(len(BLENDS.pairs)):
+        blend_rows.append("{" + ", ".join(str(BLEND_TABLE.get(k, d)) for d in range(len(COLORS.rgb))) + "}")
+    lines += [
+        f"constexpr uint8_t kInherit = {INHERIT};  // a rectangle's colour: its group's fill",
+        f"// A rectangle's colour from kBlend on is translucent: each pixel it covers",
+        f"// becomes kBlendOver[colour - kBlend][the colour beneath].",
+        f"constexpr uint8_t kBlend = {BLEND};",
+        f"constexpr int kBlendCount = {len(BLENDS.pairs)};",
+        f"static const uint8_t kBlendOver[{max(1, len(BLENDS.pairs))}][{len(COLORS.rgb)}] = {{",
+    ] + ["  " + r + "," for r in blend_rows] + ["};",
         "",
         "// A group moves and shows its rectangles and its child groups. Its",
         "// offset is its parent's plus (tx, ty) plus its move track's step; it",
-        "// shows while its parent does and, with a show track, while that says so.",
+        "// shows while its parent does and, with a show track, while that says so;",
+        "// and it fills its kInherit rectangles with its fill track's colour, or",
+        "// its parent's.",
         "struct Group {",
         "  int16_t tx, ty;",
-        "  int8_t parent;  // within the scene; -1 for the top",
+        "  uint16_t parent;  // within the scene; 0xFFFF for the top",
         "  uint8_t role;",
         "  uint8_t visible;  // before any show track",
-        "  int8_t move, show;  // tracks within the scene; -1 for none",
+        "  uint16_t move, show, fill;  // tracks within the scene; 0xFFFF for none",
+        "  uint16_t rect0, rects;  // into kRects: a list many groups can share",
         "};",
         "struct Rect {",
-        "  int16_t x, y;",
-        "  uint8_t w, h;",
-        "  uint8_t group;  // within the scene",
+        "  int16_t x, y;  // from the group's offset",
+        "  uint16_t w;",
+        "  uint8_t h;",
         "  uint8_t color;",
         "};",
-        "// A step-wise animation: key k holds from keys[k] ms into each run of",
-        "// `dur` ms, and `once` holds the last value after the first run.",
+        "// A step-wise animation: key k holds from kKeys[key0 + k] ms into each",
+        "// run of `dur` ms. Its values, from kValues[val0], are two a key (dx and",
+        "// dy) to move, and one a key to show (1 or 0) or to fill (a colour).",
+        "// Tracks with the same key times share them.",
         "struct Track {",
-        "  uint16_t dur;",
-        "  uint8_t once, n;",
-        "  uint16_t key0;  // into kKeys and, two a key, kValues",
+        "  uint16_t dur, n;",
+        "  uint32_t key0, val0;",
         "};",
         "// A scene's `loopMs` is how long it takes to play once through: its",
         "// longest track but the blink, which the device times itself. A",
-        "// moment's loops count these (plan/PROTOCOL.md §3).",
+        "// moment's loops count these (plan/PROTOCOL.md §3). Nothing is drawn",
+        "// outside its clip.",
         "struct Scene {",
-        "  uint16_t group0, groups, rect0, rects, track0, tracks;",
+        "  uint32_t group0;",
+        "  uint16_t groups;",
+        "  uint32_t track0;",
+        "  uint16_t tracks;",
         "  uint16_t loopMs;",
+        "  int16_t clipX, clipY, clipW, clipH;",
         "};",
         "",
         f"constexpr int kMaxGroups = {max_groups};",
-        f"constexpr int kMaxTracks = {max_tracks};",
         f"constexpr int kSceneCount = {len(scenes)};",
+        f"constexpr int kMaxVariants = {maxv};",
         "",
     ]
     lines += block("kScenes", "Scene", scene_rows)
-    table = []
+    lines += [f"// How many variations each state has ({', '.join(STATES)}).",
+              f"static const uint8_t kVariants[{len(STATES)}] = {{{', '.join(map(str, variants))}}};"]
+    rows = []
     for m in range(len(MOODS)):
-        table.append("{" + ", ".join(str(index[(m, s)]) for s in range(len(STATES))) + "},  // " + MOODS[m])
-    lines += [f"// The scene for each mood and state ({', '.join(STATES)}).",
-              f"static const uint8_t kSceneOf[{len(MOODS)}][{len(STATES)}] = {{"] + ["  " + r for r in table] + ["};"]
-    lines += block("kGroups", "Group", groups, 4)
+        per = ", ".join("{" + ", ".join(str(table.get((m, s, v), 0)) for v in range(maxv)) + "}"
+                        for s in range(len(STATES)))
+        rows.append("{" + per + "},  // " + MOODS[m])
+    lines += [f"// The scene for each mood, state and variation.",
+              f"static const uint16_t kSceneOf[{len(MOODS)}][{len(STATES)}][{maxv}] = {{"] + ["  " + r for r in rows] + ["};"]
+    lines += block("kGroups", "Group", groups, 2)
     lines += block("kRects", "Rect", rects, 5)
-    lines += block("kTracks", "Track", track_rows, 6)
+    lines += block("kTracks", "Track", tracks, 6)
     lines += block("kKeys", "uint16_t", [str(k) for k in keys], 16)
-    lines += block("kValues", "int8_t", [str(v) for v in vals], 24)
+    lines += block("kValues", "int8_t", [str(v) for v in vals], 32)
     lines += ["", "}  // namespace faces", "}  // namespace render", ""]
     return "\n".join(lines)
 
 
-def emit_swift(scenes: list[Scene], index: dict[tuple[int, int], int]) -> str:
-    """Each tile look's face at rest (the moment its design starts), open
-    and shut, as rectangles of one colour each."""
+def emit_swift(scenes: list[Scene], table: dict[tuple[int, int, int], int]) -> str:
+    """Each tile look's face at rest (the moment its first variation starts),
+    open and shut, as rectangles of one colour each."""
     import base64
 
     faces: dict[str, tuple[str, str]] = {}
     boxes = []
     rects_of: dict[tuple[int, bool], list[tuple[int, int, int, int, int]]] = {}
     for mood, state in TILES:
-        n = index[(MOODS.index(mood), STATES.index(state))]
+        n = table[(MOODS.index(mood), STATES.index(state), 0)]
         for shut in (False, True):
             if (n, shut) in rects_of:
                 continue
             px = render(scenes[n], 0, face_only=True, shut=shut)
             out = []
-            for color in range(1, len(COLOR_NAMES)):
+            for color in sorted(set(px) - {0}):
                 rows = []
                 for y in range(H):
                     run, start = [], None
@@ -500,28 +925,32 @@ def emit_swift(scenes: list[Scene], index: dict[tuple[int, int], int]) -> str:
     x1 = max(r[0] + r[2] for r in boxes)
     y1 = max(r[1] + r[3] for r in boxes)
     assert x1 - x0 < 256 and y1 - y0 < 256
+    used = sorted({r[4] for r in boxes})
     for mood, state in TILES:
-        n = index[(MOODS.index(mood), STATES.index(state))]
+        n = table[(MOODS.index(mood), STATES.index(state), 0)]
         enc = []
         for shut in (False, True):
-            data = bytes(v for x, y, w, h, c in rects_of[(n, shut)] for v in (x - x0, y - y0, w, h, c))
+            data = bytes(v for x, y, w, h, c in rects_of[(n, shut)] for v in (x - x0, y - y0, w, h, used.index(c)))
             enc.append(base64.b64encode(data).decode())
         faces[f"{mood}/{state}"] = (enc[0], enc[1])
     lines = [
-        "// Generated by internal/tools/facegen/facegen.py from the mood designs in",
-        "// internal/tools/facegen/design/svg/. Do not edit.",
+        "// Generated by internal/tools/facegen/facegen.py from the animation pack in",
+        "// internal/tools/facegen/design/. Do not edit.",
         "import CoreGraphics",
         "",
-        "/// Each mood design's face as its look starts, open-eyed and blinking,",
-        "/// for the popover's tile: the device's own shapes, without",
+        "/// Each look's face as its first variation starts, open-eyed and",
+        "/// blinking, for the popover's tile: the device's own shapes, without",
         "/// the props.",
         "enum FaceDesigns {",
         "    /// Where the faces sit in the designs' 320×240 screen.",
         f"    static let box = CGRect(x: {x0}, y: {y0}, width: {x1 - x0}, height: {y1 - y0})",
         "",
+        "    /// The faces' colours, as 0xRRGGBB, by the colour byte of a rectangle.",
+        "    static let colors: [UInt32] = [" + ", ".join(
+            f"0x{r:02X}{g:02X}{b:02X}" for r, g, b in (COLORS.rgb[c] for c in used)) + "]",
+        "",
         "    /// By \"mood/look\": base64 of five bytes a rectangle, x and y from the",
-        "    /// box's corner, width, height and colour (1 the eyes and mouth,",
-        "    /// 2 the cheeks, 3 the tears).",
+        "    /// box's corner, width, height and colour (into `colors`).",
         "    static let faces: [String: (open: String, shut: String)] = [",
     ]
     for k, (o, sh) in faces.items():
@@ -531,58 +960,74 @@ def emit_swift(scenes: list[Scene], index: dict[tuple[int, int], int]) -> str:
     return "\n".join(lines)
 
 
-def emit_loops(scenes: list[Scene], index: dict[tuple[int, int], int]) -> str:
-    """Each mood and state's loop length, for the Mac: the numbers faces.h
-    gives the device."""
+def emit_loops(scenes: list[Scene], table: dict[tuple[int, int, int], int], variants: list[int]) -> str:
+    """Each mood, state and variation's loop length, and how many variations
+    each state has, for the Mac: the numbers faces.h gives the device."""
     lines = [
-        "// Generated by internal/tools/facegen/facegen.py from the mood designs in",
-        "// internal/tools/facegen/design/svg/. Do not edit.",
+        "// Generated by internal/tools/facegen/facegen.py from the animation pack in",
+        "// internal/tools/facegen/design/. Do not edit.",
         "",
-        "/// How long each mood design takes to play once through, in ms: its",
-        "/// longest animation, leaving out the blink, which the device times on",
-        "/// its own. A moment's `loops` count these, and the device's",
-        "/// firmware/assets/faces.h has the same numbers (PROTOCOL.md §3).",
+        "/// How long each design takes to play once through, in ms: its longest",
+        "/// animation, leaving out the blink, which the device times on its own.",
+        "/// A moment's `loops` count these, and the device's firmware/assets/faces.h",
+        "/// has the same numbers (PROTOCOL.md §3).",
         "public enum FaceLoops {",
         "    /// The designs' states, in `ms`'s order.",
         "    public static let states = [" + ", ".join(f'"{st}"' for st in STATES) + "]",
         "",
-        "    /// By mood, each state's loop length, in `states`' order.",
-        "    public static let ms: [String: [Int64]] = [",
+        "    /// How many variations each state has, in `states`' order: a state's",
+        "    /// variations are numbered from 1.",
+        "    public static let variants = [" + ", ".join(map(str, variants)) + "]",
+        "",
+        "    /// By mood, each state's loop lengths, one a variation, in `states`' order.",
+        "    public static let ms: [String: [[Int64]]] = [",
     ]
     for m, mood in enumerate(MOODS):
-        lines.append(f'        "{mood}": [' + ", ".join(str(scenes[index[(m, s)]].loop_ms()) for s in range(len(STATES))) + "],")
+        per = ", ".join("[" + ", ".join(str(scenes[table[(m, s, v)]].loop_ms()) for v in range(variants[s])) + "]"
+                        for s in range(len(STATES)))
+        lines.append(f'        "{mood}": [{per}],')
     lines += [
         "    ]",
         "",
-        "    /// A design's loop length: `mood`'s design for `state`, happy's for a",
-        "    /// mood it doesn't know and idle's for a state it doesn't, as the",
-        "    /// device reads them.",
-        "    public static func ms(mood: String, state: String) -> Int64 {",
-        "        let row = ms[mood] ?? ms[\"happy\"]!",
-        "        return row[states.firstIndex(of: state) ?? 0]",
+        "    /// How many variations `state` has: 1 for a state it doesn't know.",
+        "    public static func count(state: String) -> Int {",
+        "        states.firstIndex(of: state).map { variants[$0] } ?? 1",
         "    }",
+        "",
+        "    /// A design's loop length: `mood`'s design for `state`, variation",
+        "    /// `variant` (from 1), as the device reads them: happy's for a mood it",
+        "    /// doesn't know, idle's for a state it doesn't, and the first",
+        "    /// variation for one out of range.",
+        "    public static func ms(mood: String, state: String, variant: Int = 1) -> Int64 {",
+        "        let row = ms[mood] ?? ms[\"happy\"]!",
+        "        let loops = row[states.firstIndex(of: state) ?? 0]",
+        "        return loops[(1...loops.count).contains(variant) ? variant - 1 : 0]",
+        "    }",
+        "",
+        "    /// The longest loop of any design.",
+        "    public static var longest: Int64 { ms.values.flatMap { $0.flatMap { $0 } }.max()! }",
         "}",
         "",
     ]
     return "\n".join(lines)
 
 
-def emit_frames(frames: list[tuple[int, int, int, int]]) -> str:
+def emit_frames(frames: list[tuple[int, int, int, int, int]]) -> str:
     lines = [
         "// Generated by internal/tools/facegen/facegen.py. Do not edit.",
         "// Each design at moments away from its steps, as facegen draws it for",
-        "// the device: CRC-32 of the colour index of every pixel (faces::Color).",
+        "// the device: CRC-32 of the palette index of every pixel.",
         "#pragma once",
         "#include <cstdint>",
         "",
         "struct FacegenFrame {",
-        "  uint8_t mood, state;",
+        "  uint8_t mood, state, variant;",
         "  uint32_t t, crc;",
         "};",
         f"static const FacegenFrame kFacegenFrames[{len(frames)}] = {{",
     ]
-    for m, s, t, crc in frames:
-        lines.append(f"  {{{m}, {s}, {t}, 0x{crc:08x}u}},  // {MOODS[m]} {STATES[s]}")
+    for m, s, v, t, crc in frames:
+        lines.append(f"  {{{m}, {s}, {v}, {t}, 0x{crc:08x}u}},  // {MOODS[m]} {STATES[s]} {v + 1}")
     lines += ["};", ""]
     return "\n".join(lines)
 
@@ -590,11 +1035,11 @@ def emit_frames(frames: list[tuple[int, int, int, int]]) -> str:
 # ---- Checking against Chrome ---------------------------------------------------
 
 
-def chrome_frames(files: list[Path], t_ms: int, tmp: Path) -> list[bytes]:
-    """Each file drawn by Chrome at t ms, as colour indexes."""
+def chrome_frames(files: list[Path], t_ms: int, tmp: Path) -> list[list[int]]:
+    """Each file drawn by Chrome at t ms, as RGB565."""
     from PIL import Image
 
-    cols = 7
+    cols = 8
     rows = (len(files) + cols - 1) // cols
     cells = []
     for i, f in enumerate(files):
@@ -613,79 +1058,100 @@ def chrome_frames(files: list[Path], t_ms: int, tmp: Path) -> list[bytes]:
     # hangs headless Chrome on macOS. It still hangs now and then.
     for attempt in (1, 2, 3):
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
             break
         except subprocess.TimeoutExpired:
             if attempt == 3:
                 raise
     img = Image.open(shot).convert("RGB")
-    rgb = {tuple(int(h[i:i + 2], 16) for i in (1, 3, 5)): COLOR_NAMES.index(n) for h, n in COLORS.items()}
     out = []
     for i in range(len(files)):
         crop = img.crop((i % cols * W, i // cols * H, i % cols * W + W, i // cols * H + H))
-        data = bytearray(W * H)
-        for n, p in enumerate(crop.get_flattened_data()):
-            if p not in rgb:
-                raise SystemExit(f"{files[i].name} at {t_ms} ms: Chrome drew {p}, not one of the designs' colours")
-            data[n] = rgb[p]
-        out.append(bytes(data))
+        out.append([rgb565(p) for p in crop.get_flattened_data()])
     return out
 
 
+def near565(a: int, b: int) -> bool:
+    """At most one RGB565 step apart in each channel: how close a blended
+    pixel must come to Chrome's, whose rounding inside nested groups isn't
+    reproduced exactly."""
+    return (abs((a >> 11) - (b >> 11)) <= 1 and abs(((a >> 5) & 63) - ((b >> 5) & 63)) <= 1
+            and abs((a & 31) - (b & 31)) <= 1)
+
+
 def check(scenes: list[Scene], files: dict[int, Path]) -> None:
-    order = sorted(files)
     by_time: dict[int, list[int]] = {}
-    for n in order:
+    for n in sorted(files):
         for t in scenes[n].samples():
             by_time.setdefault(t, []).append(n)
     compared = 0
+    pal = [rgb565(c) for c in COLORS.rgb]
+    bad_scenes: list[str] = []
     with tempfile.TemporaryDirectory() as tmp:
         for t, ns in sorted(by_time.items()):
-            got = chrome_frames([files[n] for n in ns], t, Path(tmp))
-            for n, chrome in zip(ns, got):
-                mine = render(scenes[n], t, svg_blink=True)
-                if mine != chrome:
-                    bad = sum(a != b for a, b in zip(mine, chrome))
-                    first = next(i for i, (a, b) in enumerate(zip(mine, chrome)) if a != b)
-                    raise SystemExit(f"{files[n].name} at {t} ms: {bad} pixels differ from Chrome, "
-                                     f"first at ({first % W}, {first // W})")
-                compared += 1
-    print(f"check: {compared} frames of {len(scenes)} scenes match Chrome pixel for pixel")
+            for k in range(0, len(ns), 48):
+                chunk = ns[k:k + 48]
+                got = chrome_frames([files[n] for n in chunk], t, Path(tmp))
+                for n, chrome in zip(chunk, got):
+                    blended: set[int] = set()
+                    mine = [pal[c] for c in render(scenes[n], t, svg_blink=True, blended=blended)]
+                    wrong = [i for i, (a, b) in enumerate(zip(mine, chrome)) if a != b
+                             and not (i in blended and near565(a, b))]
+                    if wrong:
+                        bad = len(wrong)
+                        first = wrong[0]
+                        bad_scenes.append(f"{files[n].name} at {t} ms: {bad} pixels differ from Chrome, "
+                                          f"first at ({first % W}, {first // W})")
+                    compared += 1
+    if bad_scenes:
+        raise SystemExit("\n".join(bad_scenes[:40]) + f"\n{len(bad_scenes)} of {compared} frames differ")
+    print(f"check: {compared} frames of {len(scenes)} scenes match Chrome pixel for pixel "
+          f"(blended pixels within one RGB565 step)")
+
+
+def load() -> tuple[list[Scene], dict[tuple[int, int, int], int], dict[int, str], dict[int, Path], list[int]]:
+    manifest = json.loads((DESIGN / "manifest.json").read_text())
+    scenes: list[Scene] = []
+    seen: dict[str, int] = {}
+    table: dict[tuple[int, int, int], int] = {}
+    sources: dict[int, str] = {}
+    files: dict[int, Path] = {}
+    variants = [0] * len(STATES)
+    for a in sorted(manifest["assets"], key=lambda a: (MOODS.index(a["mood"]), STATES.index(a["state"]), a["variation"])):
+        m, s, v = MOODS.index(a["mood"]), STATES.index(a["state"]), a["variation"] - 1
+        path = DESIGN / a["svgPath"]
+        scene = read_scene(path)
+        k = scene.key()
+        if k not in seen:
+            seen[k] = len(scenes)
+            scenes.append(scene)
+            sources[seen[k]] = path.name
+            files[seen[k]] = path
+        table[(m, s, v)] = seen[k]
+        variants[s] = max(variants[s], v + 1)
+    for m in range(len(MOODS)):
+        for s in range(len(STATES)):
+            assert all((m, s, v) in table for v in range(variants[s])), f"{MOODS[m]} {STATES[s]}: every variation"
+    BLEND_TABLE.freeze(scenes)
+    return scenes, table, sources, files, variants
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--check", action="store_true", help="compare every scene with Chrome's rendering first")
     args = parser.parse_args()
-    scenes: list[Scene] = []
-    seen: dict[str, int] = {}
-    index: dict[tuple[int, int], int] = {}
-    sources: dict[int, str] = {}
-    files: dict[int, Path] = {}
-    for m, mood in enumerate(MOODS):
-        for s, state in enumerate(STATES):
-            path = SVG_DIR / f"{mood}--{state}.svg"
-            scene = read_scene(path)
-            k = scene.key()
-            if k not in seen:
-                seen[k] = len(scenes)
-                scenes.append(scene)
-                sources[seen[k]] = path.name
-                files[seen[k]] = path
-            index[(m, s)] = seen[k]
+    scenes, table, sources, files, variants = load()
     if args.check:
         check(scenes, files)
     frames = []
-    for m in range(len(MOODS)):
-        for s in range(len(STATES)):
-            n = index[(m, s)]
-            if sources[n] != f"{MOODS[m]}--{STATES[s]}.svg":
-                continue  # a shared design, checked once
-            for t in scenes[n].samples():
-                frames.append((m, s, t, zlib.crc32(render(scenes[n], t))))
-    OUT.write_text(emit(scenes, index, sources))
-    SWIFT.write_text(emit_swift(scenes, index))
-    LOOPS.write_text(emit_loops(scenes, index))
+    for (m, s, v), n in sorted(table.items()):
+        if sources[n] != f"{MOODS[m]}.{STATES[s]}.{v + 1:02d}.svg":
+            continue  # a shared design, checked once
+        for t in scenes[n].samples():
+            frames.append((m, s, v, t, zlib.crc32(bytes(canvas_index(c) for c in render(scenes[n], t)))))
+    OUT.write_text(emit(scenes, table, sources, variants))
+    SWIFT.write_text(emit_swift(scenes, table))
+    LOOPS.write_text(emit_loops(scenes, table, variants))
     FRAMES.parent.mkdir(parents=True, exist_ok=True)
     FRAMES.write_text(emit_frames(frames))
     print(f"wrote {OUT.relative_to(REPO)} ({len(scenes)} scenes), {FRAMES.relative_to(REPO)} ({len(frames)} frames)"

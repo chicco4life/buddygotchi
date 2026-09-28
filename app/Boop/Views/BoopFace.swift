@@ -71,7 +71,9 @@ struct BoopFace: View {
                 let s = 0.8 * canvas.width / box.width
                 let x0 = (canvas.width - box.width * s) / 2, y0 = (canvas.height - box.height * s) / 2
                 for r in rects {
-                    let colour = r.colour == 2 ? Theme.blush : r.colour == 3 ? Theme.tear : Theme.eye
+                    let rgb = FaceDesigns.colors[Int(r.colour) < FaceDesigns.colors.count ? Int(r.colour) : 0]
+                    let colour = Color(red: Double(rgb >> 16 & 0xFF) / 255, green: Double(rgb >> 8 & 0xFF) / 255,
+                                       blue: Double(rgb & 0xFF) / 255)
                     context.fill(Path(CGRect(x: x0 + r.x * s, y: y0 + r.y * s, width: r.w * s, height: r.h * s)),
                                  with: .color(mood == .asleep ? colour.opacity(0.7) : colour))
                 }

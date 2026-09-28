@@ -21,6 +21,9 @@ public final class ReactAction: Action {
     let clock: () -> Int64
     /// Each line gets the next seed, so a logged line can be replayed.
     var seed: UInt64 = 0
+    /// Picks each cheer's variation, never the last one (BEHAVIORS.md §5).
+    var variants = SplitMix64(seed: 0xB00B)
+    var lastCheer: Int?
     /// The last few reactions it started, newest last: each one's face,
     /// animation, word, when, and its handle (DECISIONS.md §5).
     var made: [(face: String, anim: String?, word: String?, at: Int64, pending: Pending)] = []
@@ -158,9 +161,14 @@ public final class ReactAction: Action {
         let line = voice.line(Voice.feeling(forMood: choice), word: word, seed: seed)
         let loops = Self.loops(answers)
         let anim = Self.animation(answers)
+        var variant: Int?
+        if anim == "cheer" {
+            variant = Core.pickVariant(state: "task_complete", avoiding: lastCheer, &variants)
+            lastCheer = variant
+        }
         let pending = Pending()
         made = made.suffix(4) + [(choice, anim, word, clock(), pending)]
-        queue(DeviceMoment(anim: anim, say: line, mood: choice, loops: loops), pending)
+        queue(DeviceMoment(anim: anim, say: line, mood: choice, loops: loops, variant: variant), pending)
         // 5. What it started, as its line in HISTORY: in progress until
         // the device says how the moment ended.
         let did = anim.map { "Boop played \(Self.article($0)) \($0) in \(Self.article(choice)) \(choice) face" }

@@ -28,6 +28,9 @@ inline void copyStr(char* dst, size_t n, const char* src) { std::snprintf(dst, n
 struct Model {
   render::SceneState base = render::SceneState::kIdle;  // idle, working or asleep
   render::Mood mood = render::Mood::kHappy;
+  // The variation of the look the Mac shows (needs you's while something
+  // does, else the base's), from 0: the wire's `variant` less one.
+  uint8_t variant = 0;
   bool attn = false;
   char agent[12] = "";
   char project[24] = "";
@@ -68,6 +71,8 @@ struct MomentIn {
   // plays. Only a known mood sets it.
   bool expr = false;
   render::Mood mood = render::Mood::kHappy;
+  // The animation's variation (the cheer's), from 0.
+  uint8_t variant = 0;
   // 1–Behaviour::kMaxLoops (PROTOCOL.md §3): with the cheer, how many
   // times its design plays; with an expression and no animation, how
   // many loops of the design it's drawn in the face holds. A wiggle
@@ -153,6 +158,7 @@ class Behaviour {
   // carries its moment's id, 0 when the Mac doesn't wait on it.
   struct Moment {
     render::Anim anim = render::Anim::kNone;
+    uint8_t variant = 0;  // the cheer's
     uint32_t at = 0, ms = 0;
     uint32_t id = 0;
   };
@@ -190,19 +196,23 @@ class Behaviour {
     render::Anim anim = render::Anim::kNone;
     uint32_t at = 0;
     render::SceneState look = render::SceneState::kIdle;  // never kTaskComplete
+    uint8_t lookVariant = 0, cheerVariant = 0;
     render::Mood mood = render::Mood::kHappy;
     bool operator==(const Source& o) const {
-      return anim == o.anim && at == o.at && look == o.look && mood == o.mood;
+      return anim == o.anim && at == o.at && look == o.look && lookVariant == o.lookVariant &&
+             cheerVariant == o.cheerVariant && mood == o.mood;
     }
-    // The design it shows: the cheer's, or the look's.
+    // The design it shows: the cheer's, or the look's, and its variation.
     render::SceneState state() const {
       return anim == render::Anim::kCheer ? render::SceneState::kTaskComplete : look;
     }
-    int scene() const { return render::sceneOf(mood, state()); }
+    uint8_t variant() const { return anim == render::Anim::kCheer ? cheerVariant : lookVariant; }
+    int scene() const { return render::sceneOf(mood, state(), variant()); }
   };
 
   // The cheer plays `loops` times in `mood`'s design; a wiggle ignores both.
-  void play(render::Anim a, uint32_t t, CutBy by, int loops = 1, render::Mood mood = render::Mood::kHappy);
+  void play(render::Anim a, uint32_t t, CutBy by, int loops = 1, render::Mood mood = render::Mood::kHappy,
+            uint8_t variant = 0);
   // How long a borrowed face in `mood` holds from t: `loops` loops of the
   // design it's drawn in, ending on a loop boundary of that design's clock.
   uint32_t holdMs(render::Mood mood, int loops, uint32_t t) const;
@@ -222,7 +232,7 @@ class Behaviour {
       // Another design, or the cheer's design starting over for a new cheer.
       bool restart = next.anim == render::Anim::kCheer && next.at != src_.at;
       if (next.scene() != src_.scene() || restart) switched_ = true, switchAt_ = t;
-      if (next.look != src_.look) lookAt_ = t;
+      if (next.look != src_.look || next.lookVariant != src_.lookVariant) lookAt_ = t;
       src_ = next;
     }
     uint8_t level = blTarget(t);

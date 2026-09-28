@@ -136,6 +136,8 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     }
     m.busy = doc["busy"] | 0;
     m.vol = heldTo(doc["vol"], 0, 10, 6);
+    // The look's variation, from 1: missing reads as 1, and one out of range is held to it.
+    m.variant = uint8_t(heldTo(doc["variant"], 1, render::variants(m.attn ? render::SceneState::kNeedsYou : m.base), 1) - 1);
     b_.onState(m, at);
     if (m.attn || m.vol == 0) hush();  // VOICE.md §9
     pattern_ = false;
@@ -146,6 +148,8 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     mo.anim = render::animFromName(doc["anim"]);  // none, or unknown: only the mumble
     mo.expr = render::parseMood(doc["mood"], mo.mood);  // unknown or missing: the state's mood
     mo.loops = heldTo(doc["loops"], 1, Behaviour::kMaxLoops, 1);
+    // The cheer's variation, from 1: missing reads as 1, and one out of range is held to it.
+    mo.variant = uint8_t(heldTo(doc["variant"], 1, render::variants(render::SceneState::kTaskComplete), 1) - 1);
     voice::Line line;
     JsonObjectConst say = doc["say"];
     if (say) {
@@ -464,6 +468,7 @@ void Device::sendState(Link to) {
   d["screen"] = screenName(screenAt(t));
   d["base"] = render::stateName(m.base);
   d["mood"] = render::moodName(m.mood);
+  d["variant"] = m.variant + 1;
   if (m.attn) {
     d["attn"]["agent"] = m.agent;
     d["attn"]["project"] = m.project;

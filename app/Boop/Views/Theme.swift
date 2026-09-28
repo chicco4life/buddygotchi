@@ -27,12 +27,12 @@ enum Palette {
     static let sage = "#6E9B5E", sageInkLight = "#466638", sageInkDark = "#A3CC90"
     static let clayInkLight = "#9C3B2E", clayInkDark = "#F09384"
 
-    /// The device's black glass, the oat of its text, and the mood designs'
-    /// warm-white eyes, coral cheeks and blue tears. Glass with an oat label
-    /// is the filled button on light paper; on dark paper it's the other way
-    /// round.
+    /// The device's black glass, the oat of its text, and the designs' coral
+    /// cheeks (the popover's tile takes the rest of the face's colours from
+    /// FaceDesigns). Glass with an oat label is the filled button on light
+    /// paper; on dark paper it's the other way round.
     static let glass = "#000000", glassPressed = "#2A2620", oat = "#E8DCC4", oatPressed = "#CFC2A8"
-    static let eye = "#F8F7EF", blush = "#F1787D", tear = "#7BB4EF"
+    static let blush = "#F1787D"
 }
 
 enum Theme {
@@ -67,9 +67,7 @@ enum Theme {
     static let fillLabel = adaptive(Palette.oat, Palette.glass)
     /// The tints under a status chip and a toned card, over a raised card.
     static let chipTint = 0.12, cardTint = 0.08
-    static let eye = Color(hex: Palette.eye)
     static let blush = Color(hex: Palette.blush)
-    static let tear = Color(hex: Palette.tear)
 
     // One spacing scale, so margins can't drift a point or two per view.
     static let gutter: CGFloat = 18

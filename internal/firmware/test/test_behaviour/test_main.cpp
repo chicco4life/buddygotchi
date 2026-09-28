@@ -91,11 +91,12 @@ static void test_needs_you_chirps_once_and_stays_amber() {
   TEST_ASSERT_EQUAL_STRING("chirp@1000", r.sfx().c_str());
   TEST_ASSERT_EQUAL_HEX32(0x805800, r.b.led(r.t));
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t));
-  r.at(3000);  // the design's lean toward you has played out (1.6 s)
+  // The performance plays once, then holds its pending pose.
+  r.at(1000 + render::loopMs(render::Mood::kHappy, SceneState::kNeedsYou) + 500);
   SceneShow first = r.b.show(r.t);
   TEST_ASSERT_TRUE(first.state == SceneState::kNeedsYou);
   first.eyesShut = false;
-  for (uint32_t t = 10000; t <= 300000; t += 10000) {
+  for (uint32_t t = 20000; t <= 300000; t += 10000) {
     r.at(t);
     r.state(attn());  // the same request: no second chirp
     TEST_ASSERT_EQUAL_STRING("chirp@1000", r.sfx().c_str());
@@ -436,8 +437,9 @@ static void test_no_app_holds_for_weeks() {
     now = to;
     r.at(uint32_t(now));
   };
-  // The no-app design repeats every 8 s, its breath.
-  walk(start + 8000ull * 268436);  // 2^31 ms and a little after the switch to no app
+  // The no-app design repeats every loop.
+  const uint64_t loop = render::loopMs(render::Mood::kHappy, SceneState::kNoApp);
+  walk(start + loop * ((1ull << 31) / loop + 1));  // past 2^31 ms, on a whole loop after the switch to no app
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
   TEST_ASSERT_TRUE(render::sceneFrame(noApp) == render::sceneFrame(r.b.show(r.t)));
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
@@ -650,15 +652,15 @@ static void test_an_expression_holds_its_loops() {
   Rig r;
   Model m = base("working");  // happy, the working design's clock from 0
   r.state(m);
-  const uint32_t loop = loopMs(render::Mood::kGrumpy, SceneState::kWorking);
+  const uint32_t loop = loopMs(render::Mood::kProud, SceneState::kWorking);
   r.at(1000);
-  TEST_ASSERT_TRUE(r.b.onMoment(expressive(render::Mood::kGrumpy), r.t));
+  TEST_ASSERT_TRUE(r.b.onMoment(expressive(render::Mood::kProud), r.t));
   render::Mood e;
   TEST_ASSERT_TRUE(r.b.expression(r.t, e));
-  TEST_ASSERT_TRUE(e == render::Mood::kGrumpy);
+  TEST_ASSERT_TRUE(e == render::Mood::kProud);
   SceneShow s = r.b.show(r.t);
   TEST_ASSERT_TRUE(s.state == SceneState::kWorking);
-  TEST_ASSERT_TRUE(s.mood == render::Mood::kGrumpy);
+  TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
   TEST_ASSERT_TRUE(s.eyesShut);  // it blinks into the expression
   TEST_ASSERT_EQUAL_UINT32(1000, s.t);  // the look's clock goes on
   // 4 syllables × 100 ms, then the bubble's 1.2 s: the mumble is over
@@ -667,7 +669,7 @@ static void test_an_expression_holds_its_loops() {
   TEST_ASSERT_TRUE(said < loop);
   r.at(said);
   TEST_ASSERT_NULL(r.b.mumble(r.t));
-  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kGrumpy);
+  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kProud);
   r.at(loop - 1);
   TEST_ASSERT_TRUE(r.b.expression(r.t, e));
   r.at(loop);
@@ -680,7 +682,7 @@ static void test_an_expression_holds_its_loops() {
   // Three loops, from partway into one: to the third boundary.
   r.at(2 * loop + 300);
   r.state(m);
-  r.b.onMoment(expressive(render::Mood::kGrumpy, 2, 3), r.t);
+  r.b.onMoment(expressive(render::Mood::kProud, 2, 3), r.t);
   r.at(5 * loop - 1);
   TEST_ASSERT_TRUE(r.b.expression(r.t, e));
   r.at(5 * loop);
@@ -723,16 +725,14 @@ static void test_an_expression_over_the_cheer_and_across_a_look_change() {
   TEST_ASSERT_EQUAL_UINT32(cheer - 200, left);  // a mumble doesn't cut the cheer
   // The face holds one loop of the cheer's design in proud, on the
   // cheer's clock: to 1000 + proud's loop, after the mumble (1200 + 300 +
-  // 1200) and the cheer have ended, so the idle look shows in proud until
-  // then.
+  // 1200). A cheer's variation loops alike in every mood, so the cheer
+  // ends then too.
   TEST_ASSERT_TRUE(1200 + 300 + Behaviour::kBubbleReadMs < 1000 + proud);
-  TEST_ASSERT_TRUE(cheer < proud);
-  r.at(1000 + cheer);
-  s = r.b.show(r.t);
-  TEST_ASSERT_TRUE(s.state == SceneState::kIdle);
-  TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
+  TEST_ASSERT_EQUAL_UINT32(cheer, proud);
   r.at(1000 + proud - 1);
-  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kProud);
+  s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kTaskComplete);
+  TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
   r.at(1000 + proud);
   s = r.b.show(r.t);
   TEST_ASSERT_TRUE(s.state == SceneState::kIdle);
@@ -743,15 +743,15 @@ static void test_an_expression_over_the_cheer_and_across_a_look_change() {
   Rig l;
   l.state(base("working"));
   l.at(1000);
-  l.b.onMoment(expressive(render::Mood::kGrumpy), l.t);
+  l.b.onMoment(expressive(render::Mood::kProud), l.t);
   l.at(1500);
   l.state(base("idle"));
   s = l.b.show(l.t);
   TEST_ASSERT_TRUE(s.state == SceneState::kIdle);
-  TEST_ASSERT_TRUE(s.mood == render::Mood::kGrumpy);
-  const uint32_t working = loopMs(render::Mood::kGrumpy, SceneState::kWorking);
+  TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
+  const uint32_t working = loopMs(render::Mood::kProud, SceneState::kWorking);
   l.at(working - 1);
-  TEST_ASSERT_TRUE(l.b.show(l.t).mood == render::Mood::kGrumpy);
+  TEST_ASSERT_TRUE(l.b.show(l.t).mood == render::Mood::kProud);
   l.at(working);
   TEST_ASSERT_TRUE(l.b.show(l.t).mood == render::Mood::kHappy);
 
@@ -853,9 +853,11 @@ static void test_a_waited_moment_says_how_it_ended() {
   r.at(1000);
   TEST_ASSERT_TRUE(r.b.onMoment(waited(7), r.t));
   // Its mumble is over at 1000 + 400 + 1.2 s, and its face at the idle
-  // design's next boundary.
-  const uint32_t end = loopMs(render::Mood::kProud, SceneState::kIdle);
-  r.at(1000 + 400 + Behaviour::kBubbleReadMs);
+  // design's next boundary, or with the mumble if that's later.
+  const uint32_t look = loopMs(render::Mood::kProud, SceneState::kIdle);
+  uint32_t end = (1000 / look + 1) * look;
+  if (end < 1000 + 400 + Behaviour::kBubbleReadMs) end = 1000 + 400 + Behaviour::kBubbleReadMs;
+  r.at(1000 + 400 + Behaviour::kBubbleReadMs - 1);
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
   r.at(end - 1);
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
@@ -920,8 +922,10 @@ static void test_a_waited_moment_says_how_it_ended() {
   // newer moment or "needs you" then ends it at once, but doesn't cut the
   // moment: it was seen and heard, so it's done.
   Rig h;
-  h.state(base("idle"));  // the idle design's clock from 0
-  const uint32_t idle = loopMs(render::Mood::kProud, SceneState::kIdle);
+  Model hm = base("idle");
+  hm.variant = 1;  // the idle design's second variation, a long loop, its clock from 0
+  h.state(hm);
+  const uint32_t idle = loopMs(render::Mood::kProud, SceneState::kIdle, 1);
   render::Mood face;
   h.at(1000);
   h.b.onMoment(waited(17), h.t);
@@ -934,7 +938,7 @@ static void test_a_waited_moment_says_how_it_ended() {
   TEST_ASSERT_FALSE(h.b.expression(h.t, face));
   TEST_ASSERT_EQUAL_STRING("17 done", ended(h).c_str());
   h.at(2 * idle + 1000);
-  h.state(base("idle"));
+  h.state(hm);
   h.b.onMoment(waited(18), h.t);
   h.at(2 * idle + 1000 + 400 + Behaviour::kBubbleReadMs + 100);
   TEST_ASSERT_NULL(h.b.mumble(h.t));
@@ -942,20 +946,20 @@ static void test_a_waited_moment_says_how_it_ended() {
   h.state(attn());
   TEST_ASSERT_EQUAL_STRING("18 done", ended(h).c_str());
   h.at(4 * idle + 1000);
-  h.state(base("idle"));
+  h.state(hm);
   h.b.onMoment(waited(19), h.t);
   h.at(4 * idle + 1000 + 400 + Behaviour::kBubbleReadMs + 100);
   h.moment(Anim::kCheer);
   TEST_ASSERT_EQUAL_STRING("19 done", ended(h).c_str());
   h.at(6 * idle + 1000);
-  h.state(base("idle"));
+  h.state(hm);
   h.b.onMoment(waited(20), h.t);
   h.at(6 * idle + 1000 + 400 + Behaviour::kBubbleReadMs + 100);
   h.say(2);  // a newer line
   TEST_ASSERT_EQUAL_STRING("20 done", ended(h).c_str());
   // During its bubble, after the last syllable, it's still its mumble.
   h.at(8 * idle + 1000);
-  h.state(base("idle"));
+  h.state(hm);
   h.b.onMoment(waited(21), h.t);
   h.at(8 * idle + 1000 + 400 + Behaviour::kBubbleReadMs - 1);
   TEST_ASSERT_NOT_NULL(h.b.mumble(h.t));
@@ -965,7 +969,7 @@ static void test_a_waited_moment_says_how_it_ended() {
   // (ARCHITECTURE.md §3.2): it replaces the face held for its loops, and
   // this one is done.
   h.at(10 * idle + 1000);
-  h.state(base("idle"));
+  h.state(hm);
   MomentIn held = expressive(render::Mood::kProud, 4, 4);  // held four times
   held.id = 22;
   h.b.onMoment(held, h.t);
@@ -1010,9 +1014,11 @@ static void test_a_new_launchs_moment_is_its_own() {
   r.b.onMoment(old, r.t);
   r.at(4000);
   TEST_ASSERT_TRUE(r.b.onMoment(waited(1), r.t));  // the new launch's first
+  // Its face holds to the idle design's next boundary, or while its mumble
+  // plays, whichever is later.
   const uint32_t idle = loopMs(render::Mood::kProud, SceneState::kIdle);
-  uint32_t end = idle;
-  while (end <= 4000 + 400 + Behaviour::kBubbleReadMs) end += idle;
+  uint32_t end = (4000 / idle + 1) * idle;
+  if (end < 4000 + 400 + Behaviour::kBubbleReadMs) end = 4000 + 400 + Behaviour::kBubbleReadMs;
   r.at(end - 1);
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
   r.at(end);
@@ -1090,7 +1096,7 @@ static void test_each_look_shows_its_design_in_the_mood() {
   TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
   TEST_ASSERT_EQUAL_UINT32(500, s.t);
   TEST_ASSERT_TRUE(s.eyesShut);
-  r.at(3000);  // the cheer is over: back to working, still proud
+  r.at(1000 + loopMs(render::Mood::kProud, SceneState::kTaskComplete));  // the cheer is over: back to working, still proud
   s = r.b.show(r.t);
   TEST_ASSERT_TRUE(s.state == SceneState::kWorking);
   TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);

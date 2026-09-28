@@ -17,9 +17,11 @@ from boopctl_lib.device import DeviceError, Sim
 from boopctl_lib.image import rgb888
 
 SCALE = 3
-# (x0, y0, x1, y1), end exclusive: the band the face takes in every golden
-# frame, 83×44 blocks, so 83×22 cells. WHOLE is the screen, 107×40 cells.
-CROP = (45, 12, 294, 144)
+# (x0, y0, x1, y1), end exclusive: the band above the bubble, which the
+# animation pack's designs fill edge to edge (a cheer's backdrop, needs
+# you's panel), 107×48 blocks, so 107×24 cells. WHOLE is the screen,
+# 107×40 cells.
+CROP = (0, 0, 320, 144)
 WHOLE = (0, 0, 320, 240)
 FPS = 12
 

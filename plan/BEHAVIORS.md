@@ -25,7 +25,8 @@ VISUALS  (what Boop is doing)
   cheer       big celebration (trophy, podium…)    ┐ animations:
   wiggle      sway + heart, on a tap               ┘ play for a moment
 
-  Each mood × visual has a few variations; the device rotates them.
+  Each mood × visual has a few variations (working 5, the rest 3). The
+  Mac picks one at random each time the visual changes, never the last.
 
 
 AUTOMATIC  (plain rules, instant, no brain needed)
@@ -117,12 +118,23 @@ The core keeps one entry per agent session, each **working**, **idle** or
 
 The device takes the first look that applies, draws it in the mood's
 design, and adds blinks of its own (180 ms,
-`kBlinkMs`):
+`kBlinkMs`). The designs are the animation pack's (the facegen designs,
+[DEVICE.md](DEVICE.md) §6): each look has three variations, and working
+five, which loop, except that needs you's plays its performance once and
+then holds its pending pose.
+
+**Which variation.** Each time the visual changes (a look, or needs you
+starting), the core picks one of its variations at random, never the one
+that visual showed last, and every `state` carries it
+([PROTOCOL.md](PROTOCOL.md) §3). It holds while the visual does, a new
+mood included. With no app the device has no one to pick, and shows the
+first. This is a rule for now; the harness may take the choice over
+later.
 
 | Look | When | Blinks |
 | --- | --- | --- |
 | No app | 30 s with no `state` (§3.4) | None |
-| Needs you | The `state` has `attn` (§3.2) | At the base's pace |
+| Needs you | The `state` has `attn` (§3.2): its performance once, then its pending pose | At the base's pace |
 | Working | `base` is `working` | Every 2–5 s |
 | Idle | `base` is `idle` | Every 2–6 s |
 | Asleep | `base` is `asleep` | None |
@@ -251,14 +263,15 @@ stops a line that's playing.
 
 | Name | Used for | Look | Length |
 | --- | --- | --- | --- |
-| `cheer` | A reaction the brain cheers with (`react.animation`, [harness/DECISIONS.md](harness/DECISIONS.md) §3) | The task-complete scene of the reaction's mood: a trophy, a curtain call or a podium | The loops Jev picks |
+| `cheer` | A reaction the brain cheers with (`react.animation`, [harness/DECISIONS.md](harness/DECISIONS.md) §3) | The task-complete scene of the reaction's mood: a trophy, a curtain call or a podium | The loops Jev picks, of 6.4–7.2 s each |
 | `wiggle` | A tap | The look's own design, swaying, with a pixel heart | 0.7 s |
 
 The device plays the wiggle on its own, at once. Only the brain cheers:
 no rule does, so a finished turn is celebrated only when Jev reacts to
-it with `react.animation: cheer`. Each mood and state has a few variations of its
-scene, and the device picks one, never the one it played last; the brain
-never sees them.
+it with `react.animation: cheer`. Which of the cheer's three variations
+plays is picked at random, never the last one, by `react` when it cheers
+([harness/DECISIONS.md](harness/DECISIONS.md) §5); the brain never sees
+them.
 
 The brain's reaction is a mumble with a face:
 whatever look is showing is drawn in the reaction's

@@ -307,7 +307,7 @@ class FaceTests(unittest.TestCase):
         self.assertEqual(SCALE, 3)
         shot = golden_shot(GOLDEN / "base" / "idle.png")
         crop = render(shot).plain.split("\n")
-        self.assertEqual((len(crop[0]), len(crop)), (83, 22), "83×44 blocks, two per cell")
+        self.assertEqual((len(crop[0]), len(crop)), (107, 24), "107×48 blocks, two per cell")
         whole = render(shot, whole=True).plain.split("\n")
         self.assertEqual((len(whole[0]), len(whole)), (107, 40))
 

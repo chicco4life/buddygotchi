@@ -51,14 +51,23 @@ public struct StateSnapshot: Equatable, Sendable {
     public var attn: Attention?
     public var busy: Int
     public var vol: Int
+    /// Which variation of the visual shows, from 1: needs you's while
+    /// something needs you, else the base's (BEHAVIORS.md §1). The core
+    /// picks it at random when the visual changes.
+    public var variant: Int
 
-    public init(base: String, mood: String, attn: Attention?, busy: Int, vol: Int) {
+    public init(base: String, mood: String, attn: Attention?, busy: Int, vol: Int, variant: Int = 1) {
         self.base = base
         self.mood = mood
         self.attn = attn
         self.busy = busy
         self.vol = vol
+        self.variant = variant
     }
+
+    /// The visual the device shows for it: needs you's while something
+    /// does, else the base.
+    public var visual: String { attn != nil ? "needs_you" : base }
 
     /// How many sessions need you: `attn`'s and its `more`. The popover's
     /// headline; the line doesn't carry it.
@@ -73,7 +82,7 @@ public struct StateSnapshot: Equatable, Sendable {
             let id = attn.id > 0 ? ",\"id\":\(attn.id)" : ""
             parts.append("\"attn\":{\"agent\":\(json(attn.agent)),\"project\":\(json(attn.project)),\"more\":\(attn.more)\(id)}")
         }
-        parts += ["\"busy\":\(busy)", "\"vol\":\(vol)"]
+        parts += ["\"busy\":\(busy)", "\"vol\":\(vol)", "\"variant\":\(variant)"]
         return "{" + parts.joined(separator: ",") + "}"
     }
 

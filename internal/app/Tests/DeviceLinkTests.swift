@@ -223,10 +223,10 @@ final class DeviceLinkTests: XCTestCase {
     func testEveryStateLineFitsTheProtocol() {
         let widest = String(repeating: "\u{1}", count: 23)
         let s = StateSnapshot(base: "working", mood: "determined", attn: .init(agent: "claude", project: widest, more: 999, id: Int(Int32.max)),
-                              busy: 999, vol: 10)
+                              busy: 999, vol: 10, variant: 5)
         XCTAssertLessThanOrEqual(s.jsonLine.utf8.count, StateSnapshot.maxLine)
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
-        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"determined","attn":{"agent":"claude","project":"\#(esc)","more":999,"id":2147483647},"busy":999,"vol":10}"#)
+        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"determined","attn":{"agent":"claude","project":"\#(esc)","more":999,"id":2147483647},"busy":999,"vol":10,"variant":5}"#)
     }
 
     /// PROTOCOL.md §2, "Reconnecting": 1 s, doubling to 5 s, reset once a

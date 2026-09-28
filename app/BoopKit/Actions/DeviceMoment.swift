@@ -15,13 +15,18 @@ public struct DeviceMoment: Equatable, Sendable {
     /// no animation, how many loops of the design it's drawn in the face
     /// holds. Nil sends none, which the device reads as 1.
     public var loops: Int?
+    /// The animation's variation (the cheer's), from 1; nil sends none,
+    /// which the device reads as 1.
+    public var variant: Int?
     public var id: Int?
 
-    public init(anim: String? = nil, say: VoiceLine? = nil, mood: String? = nil, loops: Int? = nil, id: Int? = nil) {
+    public init(anim: String? = nil, say: VoiceLine? = nil, mood: String? = nil, loops: Int? = nil,
+                variant: Int? = nil, id: Int? = nil) {
         self.anim = anim
         self.say = say
         self.mood = mood
         self.loops = loops
+        self.variant = variant
         self.id = id
     }
 
@@ -44,16 +49,16 @@ public struct DeviceMoment: Equatable, Sendable {
     /// design, which ends on a loop boundary, so this long or less; and a
     /// mumble lasts its syllables, plus two beats for a word, at 60–400 ms
     /// each, then 1.2 s for the bubble, when that's longer.
-    public func playMs(look: String, mood: String) -> Int64 {
+    public func playMs(look: String, mood: String, lookVariant: Int = 1) -> Int64 {
         let loops = Int64(Swift.max(1, Swift.min(Self.maxLoops, self.loops ?? 1)))
         var ms: Int64 = switch anim {
         case nil: 0
-        case "cheer": loops * FaceLoops.ms(mood: self.mood ?? mood, state: "task_complete")
+        case "cheer": loops * FaceLoops.ms(mood: self.mood ?? mood, state: "task_complete", variant: variant ?? 1)
         case "wiggle": Self.wiggleMs
         default: 0  // the device doesn't play an animation it doesn't know
         }
         if !Self.anims.contains(anim ?? ""), let face = self.mood {
-            ms = loops * FaceLoops.ms(mood: face, state: look)
+            ms = loops * FaceLoops.ms(mood: face, state: look, variant: lookVariant)
         }
         return Swift.max(ms, sayMs)
     }
@@ -72,6 +77,7 @@ public struct DeviceMoment: Equatable, Sendable {
         if let say { parts.append("\"say\":" + say.json) }
         if let mood { parts.append("\"mood\":\"\(mood)\"") }
         if let loops { parts.append("\"loops\":\(loops)") }
+        if let variant { parts.append("\"variant\":\(variant)") }
         if let id { parts.append("\"id\":\(id)") }
         return "{" + parts.joined(separator: ",") + "}"
     }

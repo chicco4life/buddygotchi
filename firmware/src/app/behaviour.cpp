@@ -259,7 +259,10 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
     return false;
   }
   change(t, [&] {
-    if (anim) play(in.anim, t, CutBy::kMoment, in.loops, in.expr ? in.mood : model_.mood), moment_.id = in.id;
+    if (anim) {
+      play(in.anim, t, CutBy::kMoment, in.loops, in.expr ? in.mood : model_.mood, in.variant);
+      moment_.id = in.id;
+    }
     if (mumble) startSay(in, t), say_.id = in.id;
     if (in.expr) {
       expr_ = true;
@@ -275,16 +278,18 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
 }
 
 // Whatever of the moment playing still plays is cut short, by `by`.
-void Behaviour::play(render::Anim a, uint32_t t, CutBy by, int loops, render::Mood mood) {
+void Behaviour::play(render::Anim a, uint32_t t, CutBy by, int loops, render::Mood mood, uint8_t variant) {
   if (momentOn(t)) cut(moment_.id, by);
   if (sayOn(t)) cut(say_.id, by);
   moment_ = Moment{};
   ++momentSeq_;
   moment_.anim = a;
+  moment_.variant = variant;
   moment_.at = t;
   moment_.ms = a == render::Anim::kWiggle ? render::kWiggleMs
-               : a == render::Anim::kCheer   ? uint32_t(loops) * render::loopMs(mood, render::SceneState::kTaskComplete)
-                                             : 0;
+               : a == render::Anim::kCheer
+                   ? uint32_t(loops) * render::loopMs(mood, render::SceneState::kTaskComplete, variant)
+                   : 0;
   say_ = Say{};  // a new moment replaces the line, and its expression
   expr_ = false;
   blink_ = false;
@@ -296,7 +301,9 @@ void Behaviour::play(render::Anim a, uint32_t t, CutBy by, int loops, render::Mo
 // doesn't move the end.
 uint32_t Behaviour::holdMs(render::Mood mood, int loops, uint32_t t) const {
   bool cheer = momentOn(t) && moment_.anim == render::Anim::kCheer;
-  uint32_t loop = render::loopMs(mood, cheer ? render::SceneState::kTaskComplete : sourceAt(t).look);
+  Source src = sourceAt(t);
+  uint32_t loop = cheer ? render::loopMs(mood, render::SceneState::kTaskComplete, moment_.variant)
+                        : render::loopMs(mood, src.look, src.lookVariant);
   uint32_t into = (t - (cheer ? moment_.at : lookAt_)) % loop;
   return loop - into + uint32_t(loops - 1) * loop;
 }
@@ -345,13 +352,15 @@ Behaviour::Source Behaviour::sourceAt(uint32_t t) const {
   Source s;
   s.mood = exprOn(t) ? exprMood_ : model_.mood;  // the moment's expression, or the mood
   if (noApp(t)) {
-    s.look = render::SceneState::kNoApp;
+    s.look = render::SceneState::kNoApp;  // no Mac to pick one: the first
   } else if (model_.attn) {
     s.look = render::SceneState::kNeedsYou;
+    s.lookVariant = model_.variant;
   } else {
     s.look = model_.base;
+    s.lookVariant = model_.variant;
   }
-  if (momentOn(t)) s.anim = moment_.anim, s.at = moment_.at;
+  if (momentOn(t)) s.anim = moment_.anim, s.at = moment_.at, s.cheerVariant = moment_.variant;
   return s;
 }
 
@@ -364,7 +373,11 @@ render::SceneShow Behaviour::show(uint32_t t) const {
   render::SceneShow s;
   s.mood = src_.mood;
   s.state = src_.state();
-  s.t = src_.anim == render::Anim::kCheer ? (t - src_.at) % render::loopMs(s.mood, s.state) : t - lookAt_;
+  s.variant = src_.variant();
+  s.t = src_.anim == render::Anim::kCheer ? (t - src_.at) % render::loopMs(s.mood, s.state, s.variant) : t - lookAt_;
+  // Needs you's performance plays once, then holds its pending pose, the
+  // frame it starts and ends on (the animation pack's contract).
+  if (s.state == render::SceneState::kNeedsYou && s.t >= render::loopMs(s.mood, s.state, s.variant)) s.t = 0;
   if (src_.anim == render::Anim::kWiggle) {
     // Two slow sways, not a shiver: at 175 ms and 7 px it read as trembling.
     uint32_t lt = t - src_.at;

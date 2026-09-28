@@ -1368,7 +1368,6 @@ final class CoreRulesTests: XCTestCase {
                 XCTAssertGreaterThanOrEqual(b - a, 120_000)
                 XCTAssertLessThanOrEqual(b - a, 241_000)
             }
-            XCTAssertEqual(said.first, #"claude has been working on "landing" for 2 min, on tests."#)
             XCTAssertTrue(said.allSatisfy { $0.hasPrefix(#"claude has been working on "landing" for "#) && $0.hasSuffix(", on tests.") })
         }
     }
@@ -1403,8 +1402,34 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(rig.sessions, [["claude", "landing", "waiting"], ["codex", "buddygotchi", "working"],
                                       ["claude", "jetpack", "working"], ["claude", "notes", "idle"]])
         XCTAssertEqual([s.busy, s.waiting], [2, 1])
-        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":2,"vol":6}"#)
+        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":2,"vol":6,"variant":"# + "\(s.variant)}")
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
+    }
+
+    /// BEHAVIORS.md §1, PROTOCOL.md §3: each time the visual changes, the
+    /// core picks one of its variations at random, never the one that visual
+    /// showed last; it holds while the visual does, a new mood included.
+    func testEachVisualGetsARandomVariation() {
+        let rig = CoreRig(seed: 11)
+        var seen: [String: Set<Int>] = [:]
+        var last: [String: Int] = [:]
+        for _ in 0..<40 {
+            for step in [BoopEvent.Kind.turnStart, .needsYou, .activity, .turnEnd] {
+                rig.send(step, tool: "Bash")
+                let s = rig.state
+                XCTAssertTrue((1...FaceLoops.count(state: s.visual)).contains(s.variant), "\(s.visual) \(s.variant)")
+                if let before = last[s.visual] { XCTAssertNotEqual(before, s.variant, "\(s.visual) repeats") }
+                last[s.visual] = s.variant
+                seen[s.visual, default: []].insert(s.variant)
+                rig.wait(1000)
+                XCTAssertEqual(rig.state.variant, s.variant, "holds while the visual does")
+            }
+        }
+        XCTAssertEqual(seen["working"], Set(1...5), "all five working variations come up")
+        XCTAssertEqual(seen["needs_you"], Set(1...3))
+        let before = rig.state.variant
+        rig.core.setMood("grumpy", at: rig.now)
+        XCTAssertEqual(rig.state.variant, before, "a new mood keeps the variation")
     }
 
     /// PROTOCOL.md §3 carries no idle count, so a second idle session

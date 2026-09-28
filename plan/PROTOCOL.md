@@ -135,7 +135,7 @@ real line, from `boopdev replay` of the Codex approval fixture
 (`codex/synthetic/approval-asked.jsonl`):
 
 ```json
-{"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"codex","project":"landing","more":0,"id":1},"busy":0,"vol":6}
+{"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"codex","project":"landing","more":0,"id":1},"busy":0,"vol":6,"variant":1}
 ```
 
 | Field | Type | The Mac sends | The device reads it as |
@@ -150,6 +150,7 @@ real line, from `boopdev replay` of the Codex approval fixture
 | `attn.id` | int 1–2147483647 | The number of the request shown. Requests are numbered as they start showing, counting up (back to 1 after 2147483647); when one of several subagents asking in a session is answered, the next one's prompt gets a new number. So a new number is a different request, even with the same agent and project (two worktrees of one repo). Each time the app starts, its numbers start at a random one, as moment ids do (§3 `moment`), so a relaunched app's first request can't share a number with the one the device still shows from the last launch. `boopdev replay` and the tests start from 1 | A change chirps. Missing reads as 0, and then only the agent and project tell requests apart |
 | `busy` | int ≥ 0 | Sessions working | The strip's working count. Missing reads as 0 |
 | `vol` | int 0–10 | The app's volume, 6 by default; 0 is mute | Clamped to 0–10. Missing reads as 6 |
+| `variant` | int ≥ 1 | Which variation of the visual shows: needs you's while `attn` is there, else the base's. The core picks it at random each time the visual changes, never the one that visual showed last ([BEHAVIORS.md](BEHAVIORS.md) §2) | The look's variation. Missing reads as 1, and one past the look's variations is held to its last |
 
 Any `state` also restarts the device's 30 s no-app timer
 ([BEHAVIORS.md](BEHAVIORS.md) §3.4) and ends a `dbg.pattern` or
@@ -177,6 +178,7 @@ twice (a forced pass, from a dev line on the hook socket):
 | `say.ms` | int | Milliseconds per syllable, 90–180 | Clamped to 60–400. Missing reads as 120 |
 | `mood` | one of `state`'s moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5). A wiggle never carries one | The expression: while this moment plays, the look (or the cheer) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
 | `loops` | int, optional | How many loops of its design a reaction's face holds, as Jev picked ([harness/DECISIONS.md](harness/DECISIONS.md) §5). None on a wiggle | Held to 1–6. Missing reads as 1. With the cheer, how many times its design plays. With a `mood` and no animation, how many loops of the design it's drawn in the face holds (below). A wiggle ignores it |
+| `variant` | int ≥ 1, optional | With the cheer: which of its variations plays, picked at random by `react`, never the last one ([harness/DECISIONS.md](harness/DECISIONS.md) §5) | The animation's variation. Missing reads as 1, and one past its variations is held to its last. A face with no animation takes the look's variation (`state`'s `variant`) |
 | `id` | int 1–2147483647, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Each time the app starts, its ids start at a random number and count up (back to 1 after 2147483647), so a moment an earlier launch left playing can't share an id with a new one | Answered with one `ended` carrying this `id` (§4). Missing, or anything but an integer from 1 to 4,294,967,295 (a fraction too): no `ended` |
 
 The rules' moments play at once. A brain mumble waits its turn behind
@@ -214,6 +216,8 @@ in `FaceLoops`.
   played, without waiting for the face ([ARCHITECTURE.md](ARCHITECTURE.md)
   §3.2), so a face held for its loops is usually ended that way.
 - While `attn` is set, neither plays ([BEHAVIORS.md](BEHAVIORS.md) §1).
+  Needs you's own design plays its performance once, then holds its
+  pending pose, the frame it starts and ends on.
 - At volume 0 the mouth and bubble still play, silently.
 - A moment with neither a known `anim` nor any syllables is ignored.
 - A moment with an `id` is answered with `ended` once none of it plays
@@ -347,7 +351,7 @@ instead of running.
 | Field | Meaning |
 | --- | --- |
 | `screen` | `face`, `needs_you`, `no_app` or `pattern` ([DEVICE.md](DEVICE.md) §4) |
-| `base`, `mood`, `attn`, `vol` | The last `state` as the device read it (§3): `base` `idle` and `mood` `happy` for a missing or unknown one, `vol` clamped, and `attn` (with its `id`, 0 when none came) null unless something needs you |
+| `base`, `mood`, `variant`, `attn`, `vol` | The last `state` as the device read it (§3): `base` `idle` and `mood` `happy` for a missing or unknown one, `variant` held to the look's variations, `vol` clamped, and `attn` (with its `id`, 0 when none came) null unless something needs you |
 | `moment` | `{"anim":…,"left_ms":…}` while an animation plays, otherwise null. A mumble on its own leaves it null |
 | `expr` | The mood the face borrows while a moment with `mood` plays (§3), otherwise null |
 | `life` | `blink` while Boop blinks, otherwise null |

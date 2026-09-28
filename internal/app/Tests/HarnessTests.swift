@@ -758,9 +758,20 @@ final class HarnessTests: XCTestCase {
                #"Boop played a cheer in a proud face, held twice, and mumbled "…finally!""#)
         XCTAssertEqual(queued.last?.moment.anim, "cheer")
         XCTAssertTrue(queued.last!.moment.jsonLine.hasPrefix(#"{"t":"moment","anim":"cheer","say":"#), queued.last!.moment.jsonLine)
-        XCTAssertTrue(queued.last!.moment.jsonLine.hasSuffix(#","mood":"proud","loops":2}"#), queued.last!.moment.jsonLine)
+        let first = try! XCTUnwrap(queued.last?.moment.variant)
+        XCTAssertTrue(queued.last!.moment.jsonLine.hasSuffix(#","mood":"proud","loops":2,"variant":"# + "\(first)}"),
+                      queued.last!.moment.jsonLine)
         XCTAssertEqual(react.lastLine(at: 0), #"Boop's last reaction, just now: a cheer in a proud face and "…finally!"."#)
         queued.removeLast()
+        // BEHAVIORS.md §5: each cheer is one of the cheer's variations at
+        // random, never the last one again.
+        var cheers = [first]
+        for _ in 0..<30 {
+            _ = react.run(["react.mood": a("proud"), "react.animation": a("cheer")])
+            cheers.append(queued.removeLast().moment.variant!)
+        }
+        XCTAssertEqual(Set(cheers), Set(1...FaceLoops.count(state: "task_complete")))
+        XCTAssertTrue(zip(cheers, cheers.dropFirst()).allSatisfy { $0 != $1 }, "\(cheers)")
         for pick in ["none", "wiggle", "confetti"] {
             starts(["react.mood": a("happy"), "react.animation": a(pick)], "Boop made a happy face, held once, and mumbled.")
             XCTAssertNil(queued.last?.moment.anim, pick)

@@ -1,5 +1,5 @@
 // Every animation (BEHAVIORS.md §5), at a characteristic frame. The cheer
-// plays its `loops` of happy's task-complete design (2.4 s), one when the
+// plays its `loops` of happy's task-complete design (6.4 s), one when the
 // moment doesn't say.
 {"clock":0}
 {"t":"state","v":1,"base":"idle"}
@@ -8,9 +8,9 @@
 {"clock":10190}
 {"expect":{"moment":{"anim":"cheer"}}}
 {"shot":"cheer"}
-{"clock":12399}
+{"clock":16399}
 {"expect":{"moment":{"anim":"cheer","left_ms":1}}}
-{"clock":12400}
+{"clock":16400}
 {"expect":{"moment":null}}
 {"t":"state","v":1,"base":"idle"}
 {"clock":30000}
@@ -25,7 +25,7 @@
 {"t":"moment","anim":"cheer"}
 {"clock":50500}
 {"t":"moment"}
-{"expect":{"moment":{"anim":"cheer","left_ms":1900}}}
+{"expect":{"moment":{"anim":"cheer","left_ms":5900}}}
 {"t":"state","v":1,"base":"idle"}
 // An unknown animation with no mumble is ignored, the removed ones too.
 {"clock":70000}
@@ -40,11 +40,11 @@
 {"t":"state","v":1,"base":"idle"}
 {"clock":90000}
 {"t":"moment","anim":"cheer","loops":2}
-{"expect":{"moment":{"anim":"cheer","left_ms":4800}}}
-{"clock":92590}
-{"expect":{"moment":{"anim":"cheer","left_ms":2210}}}
+{"expect":{"moment":{"anim":"cheer","left_ms":12800}}}
+{"clock":96590}
+{"expect":{"moment":{"anim":"cheer","left_ms":6210}}}
 {"shot":"cheer-second-loop"}
-{"clock":94799}
+{"clock":102799}
 {"expect":{"moment":{"anim":"cheer","left_ms":1}}}
-{"clock":94800}
+{"clock":102800}
 {"expect":{"moment":null}}

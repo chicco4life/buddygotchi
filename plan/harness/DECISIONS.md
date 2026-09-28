@@ -268,7 +268,9 @@ gate, which says when something needs you.
    mood (`Voice.feeling(forMood:)`), with the word, each line with the
    next seed. It's queued as a `moment` with `say`, the face as `mood`
    and `react.loops`' pick as `loops` (1–4, `ReactAction.loops`), with
-   `react.animation`'s pick as `anim` when it isn't `none`, and otherwise no animation,
+   `react.animation`'s pick as `anim` when it isn't `none`, with one of
+   the cheer's variations as `variant`, at random and never the last one,
+   and otherwise no animation,
    so it plays over whatever is showing (a wiggle included). Either way
    it waits until any line or face playing has finished. A face the last reaction
    holds on for its loops after its mumble is the exception: this one

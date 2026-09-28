@@ -678,7 +678,7 @@ static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
     r.usbLine("{\"t\":\"dbg.state\"}");
     TEST_ASSERT_TRUE_MESSAGE(has(r.usb.text, left(c.times * loop).c_str()), c.loops);
   }
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":5000}");
+  r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(loop) + "}").c_str());  // the last, one loop, is over
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
@@ -881,12 +881,13 @@ static void test_only_needs_you_chirps() {
 // skipped. Muting doesn't stop it. A moment with no `id` gets none.
 static void test_a_moment_with_an_id_is_answered_when_it_ends() {
   Rig r;
-  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  // Idle's second variation, a long loop (PROTOCOL.md §3 `variant`).
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"variant\":2}");
   r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"proud\",\"id\":5}");
-  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}");  // hushed, but it plays on
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"variant\":2,\"vol\":0}");  // hushed, but it plays on
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1400}");  // the mumble is over: 2 × 100 ms + 1.2 s
   // The face holds a loop of the idle design in proud.
-  const uint32_t loop = render::loopMs(render::Mood::kProud, render::SceneState::kIdle);
+  const uint32_t loop = render::loopMs(render::Mood::kProud, render::SceneState::kIdle, 1);
   r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(loop - 1) + "}").c_str());
   TEST_ASSERT_FALSE(has(r.usb.text, "\"ended\""));
   r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(loop) + "}").c_str());
