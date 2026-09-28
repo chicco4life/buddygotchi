@@ -1,6 +1,6 @@
 # Boop: vision
 
-Updated 2026-09-28. Why Boop exists, who it's for, what v1 does, and the
+Updated 2026-09-29. Why Boop exists, who it's for, what v1 does, and the
 promises it keeps. How it all works is in the other specs
 ([README.md](README.md)).
 
@@ -96,8 +96,12 @@ harness evals check the brain's part ([EVALS.md](EVALS.md)).
 - **Tells you when you're needed.** An amber light, an amber sign, one
   knock-and-ding, and the agent and thread in the strip. You answer on the Mac,
   in the agent's own prompt ([BEHAVIORS.md](BEHAVIORS.md) §3.2).
-- **Reacts like a creature.** Four states (asleep, idle, working, needs
-  you) and a wiggle for every tap; with Jev, mumbles while agents work
+- **Reacts like a creature.** Its look follows what its agents do:
+  asleep, idle, working and at what (running tests or a command,
+  reading, searching, sending off helpers, waiting, planning), needs
+  you, and a short scene when a task starts, stops, fails a command or
+  a helper comes back; its own animation for every tap, a bigger one
+  for a barrage; with Jev, mumbles while agents work
   ([BEHAVIORS.md](BEHAVIORS.md)).
 - **Has a personality and moods.** Two personalities: `boop`, its
   everyday self, and `chatter`, an over-the-top one for debugging. 13
