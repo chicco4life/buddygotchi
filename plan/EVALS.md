@@ -186,8 +186,9 @@ kinds, all with the `boop` personality unless the file says otherwise:
   (every quick win, `19`; most of a busy half hour, `21`), never goes
   over 6 minutes of work with no reaction, even while another thread's
   quick turns keep waking the brain (`18`, `21`, `22`), and its mood
-  drifts (happy → determined → excited) without bouncing. Repeats are
-  fine. And the moods the words bring (`24`–`27`): a frustrated request
+  drifts (happy → determined → excited), never flipping back within a
+  minute; in a long grind it may ease back to happy and return (`18`).
+  Repeats are fine. And the moods the words bring (`24`–`27`): a frustrated request
   determined, thanks excited, a long turn's hard work done proud, an
   agent giving up sad.
 - **Known gaps** (`20`): flipping tests don't flip the mood. Its `gap`
