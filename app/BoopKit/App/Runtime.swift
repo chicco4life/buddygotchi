@@ -138,7 +138,7 @@ public final class Runtime: @unchecked Sendable {
     var jevKey: String??
     var readingJevKey = false
     /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): the
-    /// tap's wiggle plays at once, and the brain's moments wait their turn
+    /// tap's poke plays at once, and the brain's moments wait their turn
     /// in `schedule` behind the brain's earlier ones. Each of the
     /// brain's goes to the device with an id, holds the schedule's line
     /// until the device says how it ended, and ends its handle then, or
@@ -507,12 +507,13 @@ public final class Runtime: @unchecked Sendable {
         switch link.receive(line, now: now) {
         case .input(let input):
             options.log("device: input \(input.rawValue)")
-            // The device has already wiggled, cutting whatever played.
+            // The device has already poked, cutting whatever played.
             switch input {
             case .tap:
                 // While `listening` shows, the device only squashes: no
-                // wiggle cuts anything (BEHAVIORS.md §3.3).
-                if !core.showsListening(at: now) { moments.schedule.tapped(now: now) }
+                // poke cuts anything, though the tap counts in the run
+                // (BEHAVIORS.md §3.3).
+                moments.schedule.tapped(now: now, listening: core.showsListening(at: now))
                 run(pipeline.poke(at: now))
             case .talkOn, .talkOff:
                 run(core.input(input, at: now))
