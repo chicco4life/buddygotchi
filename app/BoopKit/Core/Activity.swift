@@ -50,18 +50,13 @@ extension Core {
         var sawHelper = false
     }
 
-    /// A session's activity as it shows, and when its evidence was last
-    /// in force: a higher one replaces it at once, a lower one or none
-    /// only `actHoldMs` after that (BEHAVIORS.md §2).
-    struct Held: Equatable {
+    /// An activity and its time: for a session's, when its evidence was
+    /// last in force; for the working look's, since when it has shown. A
+    /// higher one replaces it at once, a lower one or none only
+    /// `actHoldMs` after that time (BEHAVIORS.md §2).
+    struct Timed: Equatable {
         var act: Act
-        var seen: Int64
-    }
-
-    /// The activity the working look shows, and since when.
-    struct Shown: Equatable {
-        var act: Act
-        var since: Int64
+        var at: Int64
     }
 
     /// An activity shows at least this long: after its last evidence in a
@@ -86,24 +81,17 @@ extension Core {
         return acts.min { $0.beats($1) }
     }
 
-    /// The session's activity held: a higher or the same one at once, a
-    /// lower one or none once `actHoldMs` have passed since the one held
-    /// was last in force.
-    static func hold(_ held: Held?, _ raw: Act?, now: Int64) -> Held? {
-        if let raw, held == nil || raw == held!.act || raw.beats(held!.act) { return Held(act: raw, seen: now) }
-        if let held, now - held.seen < actHoldMs { return held }
-        return raw.map { Held(act: $0, seen: now) }
-    }
-
-    /// The activity shown next, from the one showing and the one the
-    /// sessions put forward: a higher one at once, a lower one or none once
-    /// the one showing has shown `actHoldMs`.
-    static func show(_ shown: Shown?, _ next: Act?, now: Int64) -> Shown? {
-        guard let shown else { return next.map { Shown(act: $0, since: now) } }
-        if next == shown.act { return shown }
-        if let next, next.beats(shown.act) { return Shown(act: next, since: now) }
-        if now - shown.since < actHoldMs { return shown }
-        return next.map { Shown(act: $0, since: now) }
+    /// The activity after `held`, with `next` put forward: a higher one at
+    /// once, a lower one or none once `actHoldMs` have passed since
+    /// `held`'s time. The same one stays, its time moved to `now` when
+    /// `refresh` (a session's evidence in force again) and kept when not
+    /// (the look's, which has shown since then).
+    static func settle(_ held: Timed?, _ next: Act?, now: Int64, refresh: Bool) -> Timed? {
+        guard let held else { return next.map { Timed(act: $0, at: now) } }
+        if next == held.act { return refresh ? Timed(act: held.act, at: now) : held }
+        if let next, next.beats(held.act) { return Timed(act: next, at: now) }
+        if now - held.at < actHoldMs { return held }
+        return next.map { Timed(act: $0, at: now) }
     }
 
     /// Every working session's activity held at `now`, then the one the
@@ -116,7 +104,7 @@ extension Core {
         var working: [Session] = []
         for (key, s) in sessions {
             let shows = s.needsSince == nil && isWorking(s, now)
-            sessions[key]!.held = shows ? Core.hold(s.held, Core.activity(s, now), now: now) : nil
+            sessions[key]!.held = shows ? Core.settle(s.held, Core.activity(s, now), now: now, refresh: true) : nil
             if shows { working.append(sessions[key]!) }
         }
         guard !working.isEmpty else {
@@ -124,7 +112,7 @@ extension Core {
             return
         }
         let latest = working.filter { $0.held != nil }.max { ($0.lastEventAt, $0.order) < ($1.lastEventAt, $1.order) }
-        shownAct = Core.show(shownAct, latest?.held?.act, now: now)
+        shownAct = Core.settle(shownAct, latest?.held?.act, now: now, refresh: false)
     }
 
     /// A call starting: what it shows, from the main agent or a subagent.
@@ -150,7 +138,7 @@ extension Core {
             key = (same.isEmpty ? unnamed : same).max { $0.value.order < $1.value.order }?.key
         }
         guard let key, let call = s.calls.removeValue(forKey: key) else { return nil }
-        if s.held?.act == call.act { s.held?.seen = now }
+        if s.held?.act == call.act { s.held?.at = now }
         return call
     }
 

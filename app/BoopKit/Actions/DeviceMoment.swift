@@ -56,22 +56,12 @@ public struct DeviceMoment: Equatable, Sendable {
         self.ctx = ctx
     }
 
-    /// The animations the device plays (BEHAVIORS.md §5), besides
-    /// `listening`, which only push-to-talk plays (§3.3). `cheer` is the
-    /// old name of task_complete's success, and `wiggle` of a tap's
-    /// `poked`, which the device still reads.
-    public static let anims = ["cheer", "wiggle", "task_complete", "reply_ready", "starting", "helper_return",
+    /// The animations the device plays (BEHAVIORS.md §5), each its design
+    /// state's name, besides `listening`, which only push-to-talk plays
+    /// (§3.3). The device also reads older names the app no longer sends
+    /// (PROTOCOL.md §3).
+    public static let anims = ["task_complete", "reply_ready", "starting", "helper_return",
                                "error", "stopped", "poked", "tap_spam"]
-
-    /// The design state an animation plays: its own name, the cheer's
-    /// task_complete, and the wiggle's poked.
-    public static func designState(_ anim: String) -> String? {
-        switch anim {
-        case "cheer": "task_complete"
-        case "wiggle": "poked"
-        default: anims.contains(anim) ? anim : nil
-        }
-    }
     /// Push-to-talk's face, from the mic turning on until the reply.
     public static let listening = "listening"
 
@@ -81,15 +71,18 @@ public struct DeviceMoment: Equatable, Sendable {
     /// Bubble time after the last syllable (firmware `kBubbleReadMs`).
     static let bubbleReadMs: Int64 = 1200
 
-    /// The variations (from 1) the device may play of the design `state`
-    /// in `mood`: `variant` when it's one of those for the moment's facts
-    /// (task_complete's outcome, the cheer's success; starting's context),
-    /// else any of those, since the device then picks one (PROTOCOL.md §3).
-    func variants(mood: String, state: String) -> [Int] {
-        let fit = FaceLoops.variants(mood: mood, state: state,
-                                     outcome: state == "task_complete" ? (anim == "cheer" ? "success" : outcome) : nil,
+    /// Its animation's design, in the mood it's drawn in, and the
+    /// variations (from 1) the device may play of it: `variant` when it's
+    /// one of those for the moment's facts (task_complete's outcome,
+    /// starting's context), else any of those, since the device then picks
+    /// one (PROTOCOL.md §3). Nil for no animation, or one the device
+    /// doesn't play.
+    func design(mood: String) -> (mood: String, state: String, variants: [Int])? {
+        guard let state = anim, Self.anims.contains(state) else { return nil }
+        let face = self.mood ?? mood
+        let fit = FaceLoops.variants(mood: face, state: state, outcome: state == "task_complete" ? outcome : nil,
                                      ctx: state == "starting" ? ctx : nil)
-        return variant.map { fit.contains($0) ? [$0] : fit } ?? fit
+        return (face, state, variant.map { fit.contains($0) ? [$0] : fit } ?? fit)
     }
 
     /// How long the device plays it at most while it shows `look` (a
@@ -107,12 +100,10 @@ public struct DeviceMoment: Equatable, Sendable {
     public func playMs(look: String, mood: String) -> Int64 {
         let loops = Int64(Swift.max(1, Swift.min(Self.maxLoops, self.loops ?? 1)))
         var ms: Int64 = 0
-        if let anim, let state = Self.designState(anim) {
-            let face = self.mood ?? mood
-            ms = loops * variants(mood: face, state: state).map { FaceLoops.ms(mood: face, state: state, variant: $0) }.max()!
-        }
-        // (the device doesn't play an animation it doesn't know)
-        if !Self.anims.contains(anim ?? ""), let face = self.mood {
+        if let d = design(mood: mood) {
+            ms = loops * d.variants.map { FaceLoops.ms(mood: d.mood, state: d.state, variant: $0) }.max()!
+        } else if let face = self.mood {
+            // A face on the look (the device plays no animation it doesn't know).
             ms = loops * (1...FaceLoops.count(mood: face, state: look)).map { FaceLoops.ms(mood: face, state: look, variant: $0) }.max()!
         }
         return Swift.max(ms, sayMs == 0 ? 0 : lineStartMs(mood: mood) + sayMs)
@@ -122,9 +113,8 @@ public struct DeviceMoment: Equatable, Sendable {
     /// animation, at its design's voice window (VOICE.md §10), the latest of
     /// the variations it may play, in its own mood; with none, at once.
     public func lineStartMs(mood: String) -> Int64 {
-        guard let anim, let state = Self.designState(anim) else { return 0 }
-        let face = self.mood ?? mood
-        return variants(mood: face, state: state).map { FaceLoops.voiceMs(mood: face, state: state, variant: $0) }.max()!
+        guard let d = design(mood: mood) else { return 0 }
+        return d.variants.map { FaceLoops.voiceMs(mood: d.mood, state: d.state, variant: $0) }.max()!
     }
 
     /// How long the device plays a tap (BEHAVIORS.md §3.3): `mood`'s poked
@@ -132,8 +122,7 @@ public struct DeviceMoment: Equatable, Sendable {
     /// of a run (`run`, from 1) on, the longest of its variations, since
     /// the device picks one.
     public static func tapMs(mood: String, run: Int) -> Int64 {
-        let state = run >= MomentSchedule.tapSpamFrom ? "tap_spam" : "poked"
-        return (1...FaceLoops.count(mood: mood, state: state)).map { FaceLoops.ms(mood: mood, state: state, variant: $0) }.max()!
+        DeviceMoment(anim: run >= MomentSchedule.tapSpamFrom ? "tap_spam" : "poked").playMs(look: "idle", mood: mood)
     }
 
     /// How long its mumble plays: its syllables, plus two beats for a word,

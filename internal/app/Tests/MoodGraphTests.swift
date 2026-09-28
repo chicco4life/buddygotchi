@@ -20,7 +20,6 @@ final class MoodGraphTests: XCTestCase {
             XCTAssertEqual(MoodGraph.moves[mood], MoodGraph.Moves(ordinary: moves["ordinary"]!, dramatic: moves["dramatic"]!), mood)
         }
         XCTAssertEqual(Set(MoodGraph.moves.keys), Set(MoodGraph.moods))
-        XCTAssertEqual(MoodGraph.moods, FaceLoops.moods, "the device's order")
         XCTAssertEqual(Set((json["retainedArtMoods"] as? [String] ?? []) + (json["newArtMoods"] as? [String] ?? [])),
                        Set(MoodGraph.moods))
         XCTAssertEqual(MoodGraph.moves.values.map(\.all.count).reduce(0, +), 98)
@@ -38,8 +37,8 @@ final class MoodGraphTests: XCTestCase {
             XCTAssertEqual(seen, Set(MoodGraph.moods), "every mood from \(from) by ordinary moves")
         }
         XCTAssertTrue(MoodGraph.isMove(from: "grumpy", to: "sad"))
-        XCTAssertTrue(MoodGraph.isDramatic(from: "grumpy", to: "sad"))
-        XCTAssertFalse(MoodGraph.isDramatic(from: "grumpy", to: "irritated"))
+        XCTAssertTrue(MoodGraph.moves["grumpy"]!.dramatic.contains("sad"))
+        XCTAssertFalse(MoodGraph.moves["grumpy"]!.dramatic.contains("irritated"))
         XCTAssertFalse(MoodGraph.isMove(from: "excited", to: "calm"), "excited goes through happy")
         XCTAssertFalse(MoodGraph.isMove(from: "grumpy", to: "grumpy"))
         XCTAssertFalse(MoodGraph.isMove(from: "sulky", to: "calm"))

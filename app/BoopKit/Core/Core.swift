@@ -105,8 +105,8 @@ public final class Core {
         var helpers: Set<String> = []
         /// Claude's plan mode, as the last event that said had it.
         var planMode = false
-        /// Its activity as it shows, held (`Core.hold`).
-        var held: Held?
+        /// Its activity as it shows, held (`Core.settle`).
+        var held: Timed?
 
         var key: String { Core.key(agent, id) }
     }
@@ -134,7 +134,7 @@ public final class Core {
     var shown: (visual: String, variant: Int) = ("", 1)
     var lastVariant: [String: Int] = [:]
     /// The activity the working look shows (`updateActs`).
-    var shownAct: Shown?
+    var shownAct: Timed?
     /// Calls started, counted, so a result that names no call ends the
     /// last one.
     var callOrder = 0
@@ -224,13 +224,6 @@ public final class Core {
     /// either way round (ADAPTERS.md §4).
     static let noticeLagMs: Int64 = 5000
 
-    /// A one-shot the rules play (BEHAVIORS.md §3.1): its design, and for
-    /// `starting` what started.
-    struct Shot: Equatable {
-        var anim: String
-        var ctx: String? = nil
-    }
-
     /// The rules' one-shots (PROTOCOL.md §3 `moment`).
     public static let starting = "starting", stopped = "stopped", error = "error", helperReturn = "helper_return"
     /// The failed calls that play the error one-shot: a command that
@@ -267,7 +260,7 @@ public final class Core {
     /// The event's changes to its session, before the snapshot goes out,
     /// and the one-shot it plays, if any (BEHAVIORS.md §3.1).
     private func apply(_ event: Event, _ step: Step, _ agent: Agent, _ session: String, _ key: String, _ now: Int64,
-                       _ fx: inout [CoreEffect]) -> Shot? {
+                       _ fx: inout [CoreEffect]) -> DeviceMoment? {
         let tool = event["tool"]?.string
         let notice = event["notice"]?.string
         // A finished call: a result with a tool (an `ElicitationResult` has none).
@@ -372,7 +365,7 @@ public final class Core {
             // A helper Boop saw start returns, while its turn goes on.
             let returned = step == .subagentEnd && event.subagent.map { s.helpers.remove($0) != nil } == true
             sessions[key] = s
-            return returned && s.turnStartedAt != nil ? Shot(anim: Core.helperReturn) : nil
+            return returned && s.turnStartedAt != nil ? DeviceMoment(anim: Core.helperReturn) : nil
         }
 
         // The asker's next event means it moved on, and so does any
@@ -409,20 +402,20 @@ public final class Core {
         // its event wakes the brain sees what it answered (EVENTS.md §6).
         sessions[key] = s
 
-        var shot: Shot?
+        var shot: DeviceMoment?
         switch step {
         case .sessionStart:
             // Resumed or compacted, the work goes on; started or cleared,
             // it's a fresh session (BEHAVIORS.md §3.1).
             let source = event["source"]?.string
-            shot = Shot(anim: Core.starting, ctx: source == "resume" || source == "compact" ? "continuation" : "session")
+            shot = DeviceMoment(anim: Core.starting, ctx: source == "resume" || source == "compact" ? "continuation" : "session")
             sessions[key] = s
         case .turnStart:
             s.working = true
             s.turnStartedAt = now
             s.promptedAt = now
             clearWork(&s)
-            shot = Shot(anim: Core.starting, ctx: "new_task")
+            shot = DeviceMoment(anim: Core.starting, ctx: "new_task")
             sessions[key] = s
         case .activity:
             var late = false
@@ -438,11 +431,11 @@ public final class Core {
                 if !late, failed, event["error"]?.string.map(Core.errorClasses.contains) == true {
                     // A command that failed or timed out, not a request
                     // you denied (BEHAVIORS.md §3.1).
-                    shot = Shot(anim: Core.error)
+                    shot = DeviceMoment(anim: Core.error)
                 } else if !late, !failed, let call, call.act == .delegating, !call.sawHelper {
                     // A helper's call returned, from hooks that don't say
                     // when helpers start: its `SubagentStop` can't.
-                    shot = Shot(anim: Core.helperReturn)
+                    shot = DeviceMoment(anim: Core.helperReturn)
                 }
             } else if let tool {
                 if let id = event["tool_use_id"]?.string { s.toolStarts[id] = now }
@@ -466,7 +459,7 @@ public final class Core {
             // notice after a turn that finished doesn't.
             s.working = false
             if s.turnStartedAt != nil {
-                if step == .turnStopped { shot = Shot(anim: Core.stopped) }
+                if step == .turnStopped { shot = DeviceMoment(anim: Core.stopped) }
                 s.turnStartedAt = nil
                 s.lastTurnEndedAt = now
             }
@@ -486,16 +479,17 @@ public final class Core {
     /// something needs you or `listening` holds the screen, and the error
     /// one-shot at most once every `errorEveryMs`. The runtime also holds
     /// it back while a brain moment's line plays.
-    func play(_ shot: Shot, _ now: Int64, _ fx: inout [CoreEffect]) {
-        guard !needsYouShowing, !showsListening(at: now) else { return }
-        if shot.anim == Core.error {
+    func play(_ shot: DeviceMoment, _ now: Int64, _ fx: inout [CoreEffect]) {
+        guard let anim = shot.anim, !needsYouShowing, !showsListening(at: now) else { return }
+        if anim == Core.error {
             if let last = lastErrorAt, now - last < Core.errorEveryMs { return }
             lastErrorAt = now
         }
-        let variant = Core.pickVariant(mood: config.mood, state: shot.anim, ctx: shot.ctx,
-                                       avoiding: lastVariant[shot.anim], &rng)
-        lastVariant[shot.anim] = variant
-        fx.append(.moment(DeviceMoment(anim: shot.anim, variant: variant, ctx: shot.ctx)))
+        var moment = shot
+        moment.variant = Core.pickVariant(mood: config.mood, state: anim, ctx: shot.ctx,
+                                          avoiding: lastVariant[anim], &rng)
+        lastVariant[anim] = moment.variant
+        fx.append(.moment(moment))
     }
 
     /// An `input` message's `k` (PROTOCOL.md §4).
@@ -616,9 +610,10 @@ public final class Core {
         // What the agents are doing shows only in the working look, and
         // not while something needs you (BEHAVIORS.md §2).
         let act = base == "working" && attn == nil ? shownAct?.act.rawValue : nil
-        let visual = attn != nil ? "needs_you" : act ?? base
-        return StateSnapshot(base: base, act: act, mood: config.mood, attn: attn, busy: working.count,
-                             vol: config.volume, variant: shown.visual == visual ? shown.variant : 1)
+        var snapshot = StateSnapshot(base: base, act: act, mood: config.mood, attn: attn, busy: working.count,
+                                     vol: config.volume, variant: 1)
+        if shown.visual == snapshot.visual { snapshot.variant = shown.variant }
+        return snapshot
     }
 
     /// A variation of `mood`'s design for `state` at random, from 1, among

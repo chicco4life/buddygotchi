@@ -53,7 +53,7 @@ public struct StateSnapshot: Equatable, Sendable {
     /// is `working` and nothing needs you: the look shows it in working's
     /// place. Nil sends none (PROTOCOL.md §3).
     public var act: String?
-    /// Boop's mood, one of the six (harness/DECISIONS.md §2.3), which
+    /// Boop's mood, one of the 13 (harness/DECISIONS.md §2.3), which
     /// picks the set of faces the device draws everything in.
     public var mood: String
     public var attn: Attention?

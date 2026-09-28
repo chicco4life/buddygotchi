@@ -44,22 +44,16 @@ public enum DebugLog {
     }
 
     /// The file's first line at every launch: every action's questions,
-    /// which the dashboard builds its pickers from. The harness writes one
-    /// again whenever they change (`Harness.logQuestions`).
+    /// which the dashboard builds its pickers from. A pass line names the
+    /// options it asked where they differ (`Harness.changedOptions`).
     public static func questions(_ actions: [any Action], at ms: Int64) -> String {
-        line("questions", questionsJSON(actions.map { ($0.name, $0.questions()) }), at: ms)
-    }
-
-    /// A `questions` line's JSON: each action's questions, by its name, in
-    /// order.
-    static func questionsJSON(_ asked: [(String, [Question])]) -> String {
-        json(asked.flatMap { (action, questions) in
-            questions.map { q in
-                ["action": action, "key": q.key, "text": q.text,
+        line("questions", json(actions.flatMap { action in
+            action.questions().map { q in
+                ["action": action.name, "key": q.key, "text": q.text,
                  "options": q.options.map { ["name": $0.name, "what": $0.what, "not_for": $0.notFor ?? NSNull()] as [String: Any] }]
                     as [String: Any]
             }
-        })
+        }), at: ms)
     }
 
     /// What the device lines don't carry: the personality, the brain, the

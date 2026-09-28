@@ -912,7 +912,7 @@ final class HarnessTests: XCTestCase {
             for o in options.dropFirst() {
                 let meaning = MoodAction.moods.first { $0.name == o.name }!
                 XCTAssertEqual(o.what, meaning.what, "\(m) → \(o.name) carries its meaning")
-                let jump = MoodGraph.isDramatic(from: m, to: o.name)
+                let jump = MoodGraph.moves[m]!.dramatic.contains(o.name)
                 XCTAssertEqual(o.notFor?.hasSuffix(MoodAction.jump) ?? false, jump, "\(m) → \(o.name): only a jump says so")
                 if jump { XCTAssertEqual(o.notFor, [meaning.notFor, MoodAction.jump].compactMap { $0 }.joined(separator: " ")) }
                 else { XCTAssertEqual(o.notFor, meaning.notFor) }

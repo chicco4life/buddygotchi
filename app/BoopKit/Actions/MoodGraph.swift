@@ -9,10 +9,9 @@ import Foundation
 /// a jump that needs a fresh, big event. A move's reverse may be of the
 /// other kind, or not exist. No timer paces the moves: the steering does.
 public enum MoodGraph {
-    /// Every mood, in the device's order (`render::Mood`, `FaceLoops.moods`):
-    /// the seven older ones keep their numbers.
-    public static let moods = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad",
-                               "calm", "engaged", "annoyed", "irritated", "whiny", "wounded"]
+    /// Every mood, in the device's order (`render::Mood`), as facegen
+    /// writes it: the seven older ones keep their numbers.
+    public static let moods = FaceLoops.moods
 
     /// Where a mood can move, in the graph file's order.
     public struct Moves: Equatable, Sendable {
@@ -45,7 +44,4 @@ public enum MoodGraph {
 
     /// Whether `from` can move to `to` in one step. Staying isn't a move.
     public static func isMove(from: String, to: String) -> Bool { neighbours(of: from).contains(to) }
-
-    /// Whether moving from `from` to `to` is one of its dramatic moves.
-    public static func isDramatic(from: String, to: String) -> Bool { moves[from]?.dramatic.contains(to) ?? false }
 }

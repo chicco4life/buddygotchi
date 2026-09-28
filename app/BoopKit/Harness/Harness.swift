@@ -97,10 +97,10 @@ public final class Harness: @unchecked Sendable {
     /// The actions the dashboard made act while the running pass ran: the
     /// pass's state is from before, so they sit its answers out (§2).
     var changedDuringPass: Set<String> = []
-    /// The questions the last `questions` line in `debug.jsonl` gave (§9),
-    /// as its JSON: the launch's, which the runtime writes, until an
-    /// action's questions change.
-    var loggedQuestions: String
+    /// Each question's option names as the launch's `questions` line in
+    /// `debug.jsonl` gives them (§9): a pass line names the options it
+    /// asked only where they differ, such as the mood's once it has moved.
+    let launchOptions: [String: [String]]
 
     /// A started action, still in progress: its name, when its result was
     /// recorded, and who it was by.
@@ -126,7 +126,7 @@ public final class Harness: @unchecked Sendable {
         self.log = log
         let keys = actions.flatMap { $0.questions().map(\.key) }
         precondition(Set(keys).count == keys.count, "question keys must be unique across actions: \(keys)")
-        loggedQuestions = DebugLog.questionsJSON(actions.map { ($0.name, $0.questions()) })
+        launchOptions = Dictionary(uniqueKeysWithValues: actions.flatMap { $0.questions() }.map { ($0.key, $0.options.map(\.name)) })
     }
 
     /// A new brain, from the next pass on; nil for none. Call on `home`.
@@ -201,13 +201,10 @@ public final class Harness: @unchecked Sendable {
         }
     }
 
-    /// Step 3, on `home`: the state and every action's questions, which
-    /// `debug.jsonl` gets again first if they changed.
+    /// Step 3, on `home`: the state and every action's questions.
     func prepare(_ now: ViewEvent, brain: any Brain) -> Job {
-        let asked = actions.map { ($0.name, $0.questions()) }
-        logQuestions(asked)
         let state = StateText.build(pipeline.view.events, now: now, at: clock(), parts(now))
-        return Job(brain: brain, state: state, questions: asked.flatMap(\.1),
+        return Job(brain: brain, state: state, questions: actions.flatMap { $0.questions() },
                    seen: pipeline.transcript.events.last?.seq ?? now.seq)
     }
 
@@ -235,6 +232,7 @@ public final class Harness: @unchecked Sendable {
         var extra: [String: Any] = ["now": nowJSON]
         if let job {
             extra.merge(["state": job.state, "questions": job.questions.map(\.key), "brain": job.brain.id, "seen": job.seen]) { $1 }
+            if let options = changedOptions(job.questions) { extra["options"] = options }
         } else {
             extra["brain"] = brainID ?? brain?.id ?? "none"
         }
@@ -243,7 +241,6 @@ public final class Harness: @unchecked Sendable {
         defer { acting = nil }
         let ran = pass.dropped == nil
             ? runActions(pass.answers, forSeq: now.seq, by: "brain", skipping: changedDuringPass) : []
-        if !ran.isEmpty { logQuestions() }
         let record = Record(now: now, pass: pass, actions: ran)
         if let dropped = pass.dropped { log("harness: \(now.name) dropped: \(dropped)") }
         onRecord?(record)
@@ -325,11 +322,11 @@ public final class Harness: @unchecked Sendable {
             choices[q.key].map { (q.key, Answer(choice: $0, probabilities: [$0: 1])) }
         })
         if answers.count < choices.count { log("harness: forced answers left out: \(Set(choices.keys).subtracting(answers.keys).sorted())") }
-        logPass(Pass(forSeq: nil, answers: answers, dropped: nil, latencyMs: 0),
-                extra: ["questions": asked.map(\.key), "by": Harness.forcedBy])
+        var extra: [String: Any] = ["questions": asked.map(\.key), "by": Harness.forcedBy]
+        if let options = changedOptions(asked) { extra["options"] = options }
+        logPass(Pass(forSeq: nil, answers: answers, dropped: nil, latencyMs: 0), extra: extra)
         let ran = runActions(answers, forSeq: nil, by: Harness.forcedBy)
         for a in ran where a.result.ok { changedOutsidePass(a.name) }
-        if !ran.isEmpty { logQuestions() }
         return ran
     }
 
@@ -347,26 +344,16 @@ public final class Harness: @unchecked Sendable {
         let started = ContinuousClock.now
         guard let result = body() else { return nil }
         _ = record(action.name, result, forSeq: nil, by: Harness.forcedBy, latencyMs: (ContinuousClock.now - started).ms)
-        if result.ok {
-            changedOutsidePass(action.name)
-            logQuestions()
-        }
+        if result.ok { changedOutsidePass(action.name) }
         return result
     }
 
-    /// A `questions` line in `debug.jsonl` (§9) when the actions' questions
-    /// (`asked`, or asked now) differ from the last one's, so each pass's
-    /// options are the last `questions` line's before it, and the
-    /// dashboard's pickers follow, such as the mood's neighbours after it
-    /// moves.
-    func logQuestions(_ asked: [(String, [Question])]? = nil) {
-        let json = DebugLog.questionsJSON(asked ?? actions.map { ($0.name, $0.questions()) })
-        guard json != loggedQuestions else { return }
-        loggedQuestions = json
-        guard debugLog != nil || onDebugLine != nil else { return }
-        let line = DebugLog.line("questions", json, at: clock())
-        if let debugLog { Harness.appendLine(line, to: debugLog) }
-        onDebugLine?(line)
+    /// The option names of `asked` that differ from the launch's `questions`
+    /// line (§9), by key, such as the mood's moves once it has moved; nil
+    /// when none do. A pass line carries them, so it says what it offered.
+    func changedOptions(_ asked: [Question]) -> [String: [String]]? {
+        let changed = asked.filter { launchOptions[$0.key] != $0.options.map(\.name) }
+        return changed.isEmpty ? nil : Dictionary(uniqueKeysWithValues: changed.map { ($0.key, $0.options.map(\.name)) })
     }
 
     /// A pass's `debug.jsonl` line (§9).

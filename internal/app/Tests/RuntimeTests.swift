@@ -386,6 +386,8 @@ final class RuntimeTests: XCTestCase {
         eventually("grumpy") { runtime.home.sync { runtime.mood.current == "grumpy" } }
         dev(#"{"dev":"mood","mood":"happy"}"#)
         eventually("happy, off the graph") { runtime.home.sync { runtime.mood.current == "happy" } }
+        dev(#"{"dev":"answer","answers":{"mood":"excited"}}"#)
+        eventually("excited, a move from happy") { runtime.home.sync { runtime.mood.current == "excited" } }
 
         let lines = debugLines()
         let pass = try XCTUnwrap(lines.compactMap { $0["pass"] as? [String: Any] }.first)
@@ -396,18 +398,21 @@ final class RuntimeTests: XCTestCase {
         let actions = debugActions().filter { $0.phase != .end && $0["by"] == "dashboard" }
         XCTAssertEqual(actions.map { $0["message"]?.string }, [#"Boop made a grumpy face, held once, and mumbled "…again!""#,
                                                               "Boop's mood changed: calm → grumpy.",
-                                                              "Boop's mood changed: grumpy → happy."])
-        XCTAssertEqual(actions.map(\.specificType), ["react", "mood", "mood"])
+                                                              "Boop's mood changed: grumpy → happy.",
+                                                              "Boop's mood changed: happy → excited."])
+        XCTAssertEqual(actions.map(\.specificType), ["react", "mood", "mood", "mood"])
         for action in actions { XCTAssertEqual(action["for"], .null) }
         let moods = lines.compactMap { ($0["sent"] as? [String: Any])?["mood"] as? String }
-        XCTAssertEqual(moods.reduce(into: [String]()) { if $0.last != $1 { $0.append($1) } }, ["calm", "grumpy", "happy"],
+        XCTAssertEqual(moods.reduce(into: [String]()) { if $0.last != $1 { $0.append($1) } }, ["calm", "grumpy", "happy", "excited"],
                        "the device hears each change in a state")
-        // The dashboard's pickers follow the mood: a `questions` line again
-        // each time its options change (harness/HARNESS.md §9).
-        let offered = lines.compactMap { ($0["questions"] as? [[String: Any]])?.first { $0["key"] as? String == "mood" } }
-            .map { ($0["options"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String } }
-        XCTAssertEqual(offered.map(\.first), ["calm", "grumpy", "happy"], "the launch's, then one for each change")
-        XCTAssertEqual(offered.last, ["happy"] + MoodGraph.neighbours(of: "happy"))
+        // One `questions` line, the launch's; a pass whose options differ
+        // from it names the ones it asked, such as the mood's moves once it
+        // has moved (harness/HARNESS.md §9).
+        XCTAssertEqual(lines.filter { $0["questions"] is [[String: Any]] }.count, 1, "once a launch")
+        let passes = lines.compactMap { $0["pass"] as? [String: Any] }
+        XCTAssertNil(passes[0]["options"], "the launch's options, calm's")
+        let moved = try XCTUnwrap(passes.last?["options"] as? [String: [String]])
+        XCTAssertEqual(moved, ["mood": ["happy"] + MoodGraph.neighbours(of: "happy")])
     }
 
     /// BEHAVIORS.md §3.3: BOOT held and let go turns the mic on and off; with
@@ -702,7 +707,7 @@ final class RuntimeTests: XCTestCase {
     func testADroppedMomentDidntHappen() {
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
         let mumble = DeviceMoment(say: line, mood: "proud")
-        let cheer = DeviceMoment(anim: "cheer", say: line, mood: "proud")
+        let cheer = DeviceMoment(anim: "task_complete", say: line, mood: "proud", outcome: "success")
         var ends: [String: Pending.End] = [:]
         func handle(_ name: String) -> Pending {
             let pending = Pending()
@@ -912,23 +917,23 @@ final class RuntimeTests: XCTestCase {
     func testMomentLengthsFollowTheFirmware() {
         let cheer = FaceLoops.ms(mood: "happy", state: "task_complete")
         let idle = { (m: DeviceMoment) in m.playMs(look: "idle", mood: "happy") }
-        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", variant: 1)), cheer, "once when it doesn't say")
-        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", loops: 3, variant: 1)), 3 * cheer)
-        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", loops: 9, variant: 1)), 6 * cheer, "at most 6")
-        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", loops: 0, variant: 1)), cheer, "at least 1")
-        XCTAssertEqual(DeviceMoment(anim: "cheer", variant: 1).playMs(look: "idle", mood: "proud"),
+        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", variant: 1, outcome: "success")), cheer, "once when it doesn't say")
+        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", loops: 3, variant: 1, outcome: "success")), 3 * cheer)
+        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", loops: 9, variant: 1, outcome: "success")), 6 * cheer, "at most 6")
+        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", loops: 0, variant: 1, outcome: "success")), cheer, "at least 1")
+        XCTAssertEqual(DeviceMoment(anim: "task_complete", variant: 1, outcome: "success").playMs(look: "idle", mood: "proud"),
                        FaceLoops.ms(mood: "proud", state: "task_complete"), "in the mood's design")
         // With no variation, or one that isn't for its facts, the device
         // picks one of those that are: the longest of them.
         let wins = FaceLoops.variants(mood: "happy", state: "task_complete", outcome: "success")
         XCTAssertEqual(wins, [1, 2, 3, 4])
-        XCTAssertEqual(idle(DeviceMoment(anim: "cheer")), 7200)
-        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", variant: 5)), 7200, "happy's fifth is a failure")
+        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", outcome: "success")), 7200)
+        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", variant: 5, outcome: "success")), 7200, "happy's fifth is a failure")
         XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", variant: 1, outcome: "failure")), 5200)
         XCTAssertEqual(idle(DeviceMoment(anim: "starting", ctx: "session")),
                        FaceLoops.ms(mood: "happy", state: "starting", variant: 2))
-        // The dashboard's wiggle is the poke: its loops of poked's design.
-        XCTAssertEqual(idle(DeviceMoment(anim: "wiggle", loops: 3)), 3 * FaceLoops.ms(mood: "happy", state: "poked"))
+        // A poke: its loops of poked's design.
+        XCTAssertEqual(idle(DeviceMoment(anim: "poked", loops: 3)), 3 * FaceLoops.ms(mood: "happy", state: "poked"))
 
         // A mumble lasts its syllables plus two beats for a word, at 60–400
         // ms a beat, then 1.2 s of bubble, when that's longer than the face.
@@ -945,7 +950,7 @@ final class RuntimeTests: XCTestCase {
         var quick = line
         quick.ms = 20
         XCTAssertEqual(working(DeviceMoment(say: quick)), 1560, "6 × 60 + 1200")
-        XCTAssertEqual(working(DeviceMoment(anim: "cheer", say: quick, variant: 1)), cheer, "the cheer is longer")
+        XCTAssertEqual(working(DeviceMoment(anim: "task_complete", say: quick, variant: 1, outcome: "success")), cheer, "the finish is longer")
 
         // With an animation the line starts at the design's voice window,
         // and the animation holds on until the line and its bubble end.
@@ -958,7 +963,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(DeviceMoment(anim: "reply_ready", say: line).lineStartMs(mood: "happy"), 450)
         let lateWin = FaceLoops.variants(mood: "happy", state: "task_complete", outcome: "success")
             .map { FaceLoops.voiceMs(mood: "happy", state: "task_complete", variant: $0) }.max()!
-        XCTAssertEqual(DeviceMoment(anim: "cheer", say: line).lineStartMs(mood: "happy"), lateWin,
+        XCTAssertEqual(DeviceMoment(anim: "task_complete", say: line, outcome: "success").lineStartMs(mood: "happy"), lateWin,
                        "with no variation named, the latest window of those it may play")
 
         // A face holds its loops of the design showing, in its own mood,
@@ -1211,7 +1216,7 @@ final class RuntimeTests: XCTestCase {
     func testAWaitIsCountedToItsTurn() {
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
         let face = DeviceMoment(say: line, mood: "proud")
-        let cheer = DeviceMoment(anim: "cheer", say: line, mood: "proud")
+        let cheer = DeviceMoment(anim: "task_complete", say: line, mood: "proud", outcome: "success")
         XCTAssertEqual(MomentSchedule.lateMs, 1000)
         func schedule() -> MomentSchedule {
             var s = MomentSchedule()
