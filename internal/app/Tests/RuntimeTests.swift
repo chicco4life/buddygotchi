@@ -822,7 +822,10 @@ final class RuntimeTests: XCTestCase {
                 DeviceMoment(say: slow, mood: mood, loops: held).playMs(look: look, mood: mood)
             }
         }.max() ?? 0
-        XCTAssertGreaterThanOrEqual(longest, Int64(held) * FaceLoops.longest)
+        let longestLoop = MoodAction.moods.map(\.name).flatMap { mood in
+            FaceLoops.states.flatMap { state in (1...FaceLoops.count(mood: mood, state: state)).map { FaceLoops.ms(mood: mood, state: state, variant: $0) } }
+        }.max() ?? 0
+        XCTAssertGreaterThanOrEqual(longest, Int64(held) * longestLoop)
         XCTAssertLessThan(MomentSchedule.maxWaitMs + MomentSchedule.lateMs + longest + Runtime.Moments.endGraceMs,
                           Harness.pendingMaxMs)
     }
@@ -885,7 +888,7 @@ final class RuntimeTests: XCTestCase {
         let proud = DeviceMoment(say: line, mood: "proud", loops: 2)
         // Two loops of a design's longest variation.
         let loop = { (mood: String, state: String) in
-            2 * (1...FaceLoops.count(state: state)).map { FaceLoops.ms(mood: mood, state: state, variant: $0) }.max()!
+            2 * (1...FaceLoops.count(mood: mood, state: state)).map { FaceLoops.ms(mood: mood, state: state, variant: $0) }.max()!
         }
         XCTAssertNotEqual(loop("proud", "idle"), loop("proud", "working"))
         var schedule = MomentSchedule()

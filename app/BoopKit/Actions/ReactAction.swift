@@ -159,7 +159,7 @@ public final class ReactAction: Action {
         var variant: Int?
         var who: DeviceMoment.Who?
         if anim == "cheer" {
-            variant = Core.pickVariant(state: "task_complete", avoiding: lastCheer, &variants)
+            variant = Core.pickVariant(mood: choice, state: "task_complete", outcome: "success", avoiding: lastCheer, &variants)
             lastCheer = variant
             who = self.who()
         }

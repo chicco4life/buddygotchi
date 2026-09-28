@@ -523,12 +523,15 @@ public final class Core {
                              variant: shown.visual == visual ? shown.variant : 1)
     }
 
-    /// A variation of `state`'s design at random, from 1, never `last` when
-    /// there's another (BEHAVIORS.md §1): the rules pick it for now, and the
-    /// harness may later.
-    public static func pickVariant(state: String, avoiding last: Int?, _ rng: inout SplitMix64) -> Int {
-        let choices = Array(1...FaceLoops.count(state: state)).filter { $0 != last }
-        guard !choices.isEmpty else { return 1 }
+    /// A variation of `mood`'s design for `state` at random, from 1, among
+    /// those for `outcome` and `ctx` (FaceLoops.variants), never `last`
+    /// when there's another (BEHAVIORS.md §1): the rules pick it for now,
+    /// and the harness may later.
+    public static func pickVariant(mood: String, state: String, outcome: String? = nil, ctx: String? = nil,
+                                   avoiding last: Int?, _ rng: inout SplitMix64) -> Int {
+        let fit = FaceLoops.variants(mood: mood, state: state, outcome: outcome, ctx: ctx)
+        let choices = fit.filter { $0 != last }
+        guard !choices.isEmpty else { return fit.first ?? 1 }
         return choices[rng.int(in: 0...(choices.count - 1))]
     }
 
@@ -717,7 +720,8 @@ public final class Core {
         var snapshot = snapshot(at: now)
         if snapshot.visual != shown.visual {
             // A new visual: a variation of it at random.
-            shown = (snapshot.visual, Core.pickVariant(state: snapshot.visual, avoiding: lastVariant[snapshot.visual], &rng))
+            shown = (snapshot.visual, Core.pickVariant(mood: config.mood, state: snapshot.visual,
+                                                         avoiding: lastVariant[snapshot.visual], &rng))
             lastVariant[snapshot.visual] = shown.variant
             snapshot.variant = shown.variant
         }

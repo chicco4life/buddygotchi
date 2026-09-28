@@ -6,39 +6,72 @@
 /// A moment's `loops` count these, and the device's firmware/assets/faces.h
 /// has the same numbers (PROTOCOL.md §3).
 public enum FaceLoops {
-    /// The designs' states, in `ms`'s order.
-    public static let states = ["idle", "working", "needs_you", "task_complete", "asleep", "no_app", "listening"]
+    /// The moods, in the device's order (`render::Mood`).
+    public static let moods = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad", "calm", "engaged", "annoyed", "irritated", "whiny", "wounded"]
 
-    /// How many variations each state has, in `states`' order: a state's
-    /// variations are numbered from 1.
-    public static let variants = [3, 5, 3, 3, 3, 3, 3]
+    /// The designs' states, in the device's order (`render::SceneState`).
+    public static let states = ["idle", "working", "needs_you", "task_complete", "asleep", "no_app", "listening", "starting", "planning", "terminal", "tool_use", "searching", "analyzing", "testing", "delegating", "helper_return", "waiting", "reply_ready", "error", "stopped", "poked", "tap_spam"]
 
-    /// By mood, each state's loop lengths, one a variation, in `states`' order.
-    public static let ms: [String: [[Int64]]] = [
-        "happy": [[1000, 10000, 9000], [5000, 4000, 5000, 5000, 4000], [6000, 7200, 6400], [6400, 7200, 6400], [9000, 10000, 12000], [9000, 10000, 12000], [6400, 7200, 6800]],
-        "excited": [[1000, 10000, 9000], [1600, 3000, 4000, 3600, 3000], [6000, 7200, 6400], [6400, 7200, 6400], [9000, 10000, 12000], [9000, 10000, 12000], [6400, 7200, 6800]],
-        "proud": [[1000, 10000, 9000], [5000, 4000, 5000, 4500, 4000], [6000, 7200, 6400], [6400, 7200, 6400], [9000, 10000, 12000], [9000, 10000, 12000], [6400, 7200, 6800]],
-        "curious": [[8000, 10000, 9000], [5000, 5000, 5000, 5000, 5000], [6000, 7200, 6400], [6400, 7200, 6400], [9000, 10000, 12000], [9000, 10000, 12000], [6400, 7200, 6800]],
-        "determined": [[1000, 10000, 9000], [2400, 5000, 5000, 5000, 4000], [6000, 7200, 6400], [6400, 7200, 6400], [9000, 10000, 12000], [9000, 10000, 12000], [6400, 7200, 6800]],
-        "grumpy": [[8000, 10000, 9000], [1800, 3200, 4400, 2700, 2400], [6000, 7200, 6400], [6400, 7200, 6400], [9000, 10000, 12000], [9000, 10000, 12000], [6400, 7200, 6800]],
-        "sad": [[8000, 10000, 9000], [6400, 5000, 5000, 5000, 5000], [6000, 7200, 6400], [6400, 7200, 6400], [9000, 10000, 12000], [9000, 10000, 12000], [6400, 7200, 6800]],
+    /// One design: its loop length, and the host fact it's for, if any:
+    /// task_complete's `outcome` (success or failure), starting's `ctx`
+    /// (new_task, session or continuation).
+    public struct Design: Equatable, Sendable {
+        public let ms: Int64
+        public let outcome: String?
+        public let ctx: String?
+    }
+
+    static func D(_ ms: Int64, outcome: String? = nil, ctx: String? = nil) -> Design {
+        Design(ms: ms, outcome: outcome, ctx: ctx)
+    }
+
+    /// By mood, each state's designs in `states`' order, one a variation:
+    /// a mood and state's variations are numbered from 1.
+    public static let designs: [String: [[Design]]] = [
+        "happy": [[D(1000), D(10000), D(9000)], [D(5000), D(4000), D(5000), D(5000), D(4000)], [D(6000), D(7200), D(6400)], [D(6400, outcome: "success"), D(7200, outcome: "success"), D(6400, outcome: "success"), D(5800, outcome: "success"), D(5200, outcome: "failure")], [D(9000), D(10000), D(12000)], [D(9000), D(10000), D(12000)], [D(6400), D(7200), D(6800)], [D(3800, ctx: "new_task"), D(3800, ctx: "session"), D(3800, ctx: "continuation")], [D(4800)], [D(3800)], [D(4400)], [D(4800)], [D(4800)], [D(4400)], [D(4400), D(4800)], [D(4200), D(4800)], [D(6200)], [D(4200)], [D(3800)], [D(4200)], [D(2800)], [D(3800)]],
+        "excited": [[D(1000), D(10000), D(9000)], [D(1600), D(3000), D(4000), D(3600), D(3000)], [D(6000), D(7200), D(6400)], [D(6400, outcome: "success"), D(7200, outcome: "success"), D(6400, outcome: "success"), D(5800, outcome: "success"), D(5200, outcome: "failure")], [D(9000), D(10000), D(12000)], [D(9000), D(10000), D(12000)], [D(6400), D(7200), D(6800)], [D(2964, ctx: "new_task"), D(2964, ctx: "session"), D(2964, ctx: "continuation")], [D(3744)], [D(2964)], [D(3432)], [D(3744)], [D(3744)], [D(3432)], [D(3432), D(3744)], [D(3276), D(3744)], [D(4836)], [D(3276)], [D(2964)], [D(3276)], [D(2184)], [D(2964)]],
+        "proud": [[D(1000), D(10000), D(9000)], [D(5000), D(4000), D(5000), D(4500), D(4000)], [D(6000), D(7200), D(6400)], [D(6400, outcome: "success"), D(7200, outcome: "success"), D(6400, outcome: "success"), D(5800, outcome: "success"), D(5200, outcome: "failure")], [D(9000), D(10000), D(12000)], [D(9000), D(10000), D(12000)], [D(6400), D(7200), D(6800)], [D(4256, ctx: "new_task"), D(4256, ctx: "session"), D(4256, ctx: "continuation")], [D(5376)], [D(4256)], [D(4928)], [D(5376)], [D(5376)], [D(4928)], [D(4928), D(5376)], [D(4704), D(5376)], [D(6944)], [D(4704)], [D(4256)], [D(4704)], [D(3136)], [D(4256)]],
+        "curious": [[D(8000), D(10000), D(9000)], [D(5000), D(5000), D(5000), D(5000), D(5000)], [D(6000), D(7200), D(6400)], [D(6400, outcome: "success"), D(7200, outcome: "success"), D(6400, outcome: "success"), D(5800, outcome: "success"), D(5200, outcome: "failure")], [D(9000), D(10000), D(12000)], [D(9000), D(10000), D(12000)], [D(6400), D(7200), D(6800)], [D(4104, ctx: "new_task"), D(4104, ctx: "session"), D(4104, ctx: "continuation")], [D(5184)], [D(4104)], [D(4752)], [D(5184)], [D(5184)], [D(4752)], [D(4752), D(5184)], [D(4536), D(5184)], [D(6696)], [D(4536)], [D(4104)], [D(4536)], [D(3024)], [D(4104)]],
+        "determined": [[D(1000), D(10000), D(9000)], [D(2400), D(5000), D(5000), D(5000), D(4000)], [D(6000), D(7200), D(6400)], [D(6400, outcome: "success"), D(7200, outcome: "success"), D(6400, outcome: "success"), D(5800, outcome: "success"), D(5200, outcome: "failure")], [D(9000), D(10000), D(12000)], [D(9000), D(10000), D(12000)], [D(6400), D(7200), D(6800)], [D(3496, ctx: "new_task"), D(3496, ctx: "session"), D(3496, ctx: "continuation")], [D(4416)], [D(3496)], [D(4048)], [D(4416)], [D(4416)], [D(4048)], [D(4048), D(4416)], [D(3864), D(4416)], [D(5704)], [D(3864)], [D(3496)], [D(3864)], [D(2576)], [D(3496)]],
+        "grumpy": [[D(8000), D(10000), D(9000)], [D(1800), D(3200), D(4400), D(2700), D(2400)], [D(6000), D(7200), D(6400)], [D(6400, outcome: "success"), D(7200, outcome: "success"), D(6400, outcome: "success"), D(5800, outcome: "success"), D(5200, outcome: "failure")], [D(9000), D(10000), D(12000)], [D(9000), D(10000), D(12000)], [D(6400), D(7200), D(6800)], [D(2888, ctx: "new_task"), D(2888, ctx: "session"), D(2888, ctx: "continuation")], [D(3648)], [D(2888)], [D(3344)], [D(3648)], [D(3648)], [D(3344)], [D(3344), D(3648)], [D(3192), D(3648)], [D(4712)], [D(3192)], [D(2888)], [D(3192)], [D(2128)], [D(2888)]],
+        "sad": [[D(8000), D(10000), D(9000)], [D(6400), D(5000), D(5000), D(5000), D(5000)], [D(6000), D(7200), D(6400)], [D(6400, outcome: "success"), D(7200, outcome: "success"), D(6400, outcome: "success"), D(5800, outcome: "success"), D(5200, outcome: "failure")], [D(9000), D(10000), D(12000)], [D(9000), D(10000), D(12000)], [D(6400), D(7200), D(6800)], [D(4864, ctx: "new_task"), D(4864, ctx: "session"), D(4864, ctx: "continuation")], [D(6144)], [D(4864)], [D(5632)], [D(6144)], [D(6144)], [D(5632)], [D(5632), D(6144)], [D(5376), D(6144)], [D(7936)], [D(5376)], [D(4864)], [D(5376)], [D(3584)], [D(4864)]],
+        "calm": [[D(9760), D(12200), D(10980)], [D(6588), D(7564), D(7076), D(6988), D(7964)], [D(6832), D(7564), D(8174)], [D(6400, outcome: "success"), D(6800, outcome: "success"), D(7200, outcome: "success"), D(6400, outcome: "failure"), D(6800, outcome: "failure"), D(7200, outcome: "failure")], [D(9000), D(10000), D(12000)], [D(9000), D(10000), D(12000)], [D(6466), D(7442), D(6954)], [D(6588, ctx: "new_task"), D(7564, ctx: "new_task"), D(7076, ctx: "new_task"), D(6588, ctx: "session"), D(7564, ctx: "session"), D(7076, ctx: "session"), D(6588, ctx: "continuation"), D(7564, ctx: "continuation"), D(7076, ctx: "continuation")], [D(6466), D(7442), D(6954)], [D(6588), D(7564), D(8052)], [D(6466), D(7442), D(6954)], [D(6466), D(7442), D(6954)], [D(6466), D(7442), D(6954)], [D(6466), D(7442), D(6954)], [D(6466), D(7442), D(6954)], [D(6466), D(7442), D(6954)], [D(8540), D(9760), D(10980)], [D(6466), D(7442), D(6954)], [D(6466), D(7442), D(6954)], [D(6466), D(7442), D(6954)], [D(6466), D(7442), D(6954)], [D(6466), D(7442), D(6954)]],
+        "engaged": [[D(7520), D(9400), D(8460)], [D(5076), D(5828), D(5452), D(5476), D(6228)], [D(5264), D(5828), D(6298)], [D(6400, outcome: "success"), D(6800, outcome: "success"), D(7200, outcome: "success"), D(6400, outcome: "failure"), D(6800, outcome: "failure"), D(7200, outcome: "failure")], [D(9000), D(10000), D(12000)], [D(9000), D(10000), D(12000)], [D(4982), D(5734), D(5358)], [D(5076, ctx: "new_task"), D(5828, ctx: "new_task"), D(5452, ctx: "new_task"), D(5076, ctx: "session"), D(5828, ctx: "session"), D(5452, ctx: "session"), D(5076, ctx: "continuation"), D(5828, ctx: "continuation"), D(5452, ctx: "continuation")], [D(4982), D(5734), D(5358)], [D(5076), D(5828), D(6204)], [D(4982), D(5734), D(5358)], [D(4982), D(5734), D(5358)], [D(4982), D(5734), D(5358)], [D(4982), D(5734), D(5358)], [D(4982), D(5734), D(5358)], [D(4982), D(5734), D(5358)], [D(6580), D(7520), D(8460)], [D(4982), D(5734), D(5358)], [D(4982), D(5734), D(5358)], [D(4982), D(5734), D(5358)], [D(4982), D(5734), D(5358)], [D(4982), D(5734), D(5358)]],
+        "annoyed": [[D(8800), D(11000), D(9900)], [D(5940), D(6820), D(6380), D(6340), D(7220)], [D(6160), D(6820), D(7370)], [D(6400, outcome: "success"), D(6800, outcome: "success"), D(7200, outcome: "success"), D(6400, outcome: "failure"), D(6800, outcome: "failure"), D(7200, outcome: "failure")], [D(9000), D(10000), D(12000)], [D(9000), D(10000), D(12000)], [D(5830), D(6710), D(6270)], [D(5940, ctx: "new_task"), D(6820, ctx: "new_task"), D(6380, ctx: "new_task"), D(5940, ctx: "session"), D(6820, ctx: "session"), D(6380, ctx: "session"), D(5940, ctx: "continuation"), D(6820, ctx: "continuation"), D(6380, ctx: "continuation")], [D(5830), D(6710), D(6270)], [D(5940), D(6820), D(7260)], [D(5830), D(6710), D(6270)], [D(5830), D(6710), D(6270)], [D(5830), D(6710), D(6270)], [D(5830), D(6710), D(6270)], [D(5830), D(6710), D(6270)], [D(5830), D(6710), D(6270)], [D(7700), D(8800), D(9900)], [D(5830), D(6710), D(6270)], [D(5830), D(6710), D(6270)], [D(5830), D(6710), D(6270)], [D(5830), D(6710), D(6270)], [D(5830), D(6710), D(6270)]],
+        "irritated": [[D(6640), D(8300), D(7470)], [D(4482), D(5146), D(4814), D(4882), D(5546)], [D(4648), D(5146), D(5561)], [D(6400, outcome: "success"), D(6800, outcome: "success"), D(7200, outcome: "success"), D(6400, outcome: "failure"), D(6800, outcome: "failure"), D(7200, outcome: "failure")], [D(9000), D(10000), D(12000)], [D(9000), D(10000), D(12000)], [D(4399), D(5063), D(4731)], [D(4482, ctx: "new_task"), D(5146, ctx: "new_task"), D(4814, ctx: "new_task"), D(4482, ctx: "session"), D(5146, ctx: "session"), D(4814, ctx: "session"), D(4482, ctx: "continuation"), D(5146, ctx: "continuation"), D(4814, ctx: "continuation")], [D(4399), D(5063), D(4731)], [D(4482), D(5146), D(5478)], [D(4399), D(5063), D(4731)], [D(4399), D(5063), D(4731)], [D(4399), D(5063), D(4731)], [D(4399), D(5063), D(4731)], [D(4399), D(5063), D(4731)], [D(4399), D(5063), D(4731)], [D(5810), D(6640), D(7470)], [D(4399), D(5063), D(4731)], [D(4399), D(5063), D(4731)], [D(4399), D(5063), D(4731)], [D(4399), D(5063), D(4731)], [D(4399), D(5063), D(4731)]],
+        "whiny": [[D(9280), D(11600), D(10440)], [D(6264), D(7192), D(6728), D(6664), D(7592)], [D(6496), D(7192), D(7772)], [D(6400, outcome: "success"), D(6800, outcome: "success"), D(7200, outcome: "success"), D(6400, outcome: "failure"), D(6800, outcome: "failure"), D(7200, outcome: "failure")], [D(9000), D(10000), D(12000)], [D(9000), D(10000), D(12000)], [D(6148), D(7076), D(6612)], [D(6264, ctx: "new_task"), D(7192, ctx: "new_task"), D(6728, ctx: "new_task"), D(6264, ctx: "session"), D(7192, ctx: "session"), D(6728, ctx: "session"), D(6264, ctx: "continuation"), D(7192, ctx: "continuation"), D(6728, ctx: "continuation")], [D(6148), D(7076), D(6612)], [D(6264), D(7192), D(7656)], [D(6148), D(7076), D(6612)], [D(6148), D(7076), D(6612)], [D(6148), D(7076), D(6612)], [D(6148), D(7076), D(6612)], [D(6148), D(7076), D(6612)], [D(6148), D(7076), D(6612)], [D(8120), D(9280), D(10440)], [D(6148), D(7076), D(6612)], [D(6148), D(7076), D(6612)], [D(6148), D(7076), D(6612)], [D(6148), D(7076), D(6612)], [D(6148), D(7076), D(6612)]],
+        "wounded": [[D(10400), D(13000), D(11700)], [D(7020), D(8060), D(7540), D(7420), D(8460)], [D(7280), D(8060), D(8710)], [D(6400, outcome: "success"), D(6800, outcome: "success"), D(7200, outcome: "success"), D(6400, outcome: "failure"), D(6800, outcome: "failure"), D(7200, outcome: "failure")], [D(9000), D(10000), D(12000)], [D(9000), D(10000), D(12000)], [D(6890), D(7930), D(7410)], [D(7020, ctx: "new_task"), D(8060, ctx: "new_task"), D(7540, ctx: "new_task"), D(7020, ctx: "session"), D(8060, ctx: "session"), D(7540, ctx: "session"), D(7020, ctx: "continuation"), D(8060, ctx: "continuation"), D(7540, ctx: "continuation")], [D(6890), D(7930), D(7410)], [D(7020), D(8060), D(8580)], [D(6890), D(7930), D(7410)], [D(6890), D(7930), D(7410)], [D(6890), D(7930), D(7410)], [D(6890), D(7930), D(7410)], [D(6890), D(7930), D(7410)], [D(6890), D(7930), D(7410)], [D(9100), D(10400), D(11700)], [D(6890), D(7930), D(7410)], [D(6890), D(7930), D(7410)], [D(6890), D(7930), D(7410)], [D(6890), D(7930), D(7410)], [D(6890), D(7930), D(7410)]],
     ]
 
-    /// How many variations `state` has: 1 for a state it doesn't know.
-    public static func count(state: String) -> Int {
-        states.firstIndex(of: state).map { variants[$0] } ?? 1
+    /// `mood`'s designs for `state`, as the device reads them: happy's for
+    /// a mood it doesn't know, idle's for a state it doesn't.
+    static func row(mood: String, state: String) -> [Design] {
+        let row = designs[mood] ?? designs["happy"]!
+        return row[states.firstIndex(of: state) ?? 0]
+    }
+
+    /// How many variations `mood` has for `state`.
+    public static func count(mood: String, state: String) -> Int {
+        row(mood: mood, state: state).count
+    }
+
+    /// The variations (from 1) of `mood`'s `state` for an outcome and a
+    /// context, nil matching any; all of them when none match.
+    public static func variants(mood: String, state: String, outcome: String? = nil, ctx: String? = nil) -> [Int] {
+        let row = row(mood: mood, state: state)
+        let fit = row.indices.filter { i in
+            (outcome == nil || row[i].outcome == outcome) && (ctx == nil || row[i].ctx == ctx)
+        }.map { $0 + 1 }
+        return fit.isEmpty ? Array(1...row.count) : fit
     }
 
     /// A design's loop length: `mood`'s design for `state`, variation
-    /// `variant` (from 1), as the device reads them: happy's for a mood it
-    /// doesn't know, idle's for a state it doesn't, and the first
-    /// variation for one out of range.
+    /// `variant` (from 1), the first variation for one out of range.
     public static func ms(mood: String, state: String, variant: Int = 1) -> Int64 {
-        let row = ms[mood] ?? ms["happy"]!
-        let loops = row[states.firstIndex(of: state) ?? 0]
-        return loops[(1...loops.count).contains(variant) ? variant - 1 : 0]
+        let row = row(mood: mood, state: state)
+        return row[(1...row.count).contains(variant) ? variant - 1 : 0].ms
     }
 
     /// The longest loop of any design.
-    public static var longest: Int64 { ms.values.flatMap { $0.flatMap { $0 } }.max()! }
+    public static var longest: Int64 { designs.values.flatMap { $0.flatMap { $0.map(\.ms) } }.max()! }
 }

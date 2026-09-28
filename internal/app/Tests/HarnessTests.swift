@@ -808,7 +808,7 @@ final class HarnessTests: XCTestCase {
             _ = react.run(["react.mood": a("proud"), "react.animation": a("cheer")])
             cheers.append(queued.removeLast().moment.variant!)
         }
-        XCTAssertEqual(Set(cheers), Set(1...FaceLoops.count(state: "task_complete")))
+        XCTAssertEqual(Set(cheers), Set(FaceLoops.variants(mood: "proud", state: "task_complete", outcome: "success")))
         XCTAssertTrue(zip(cheers, cheers.dropFirst()).allSatisfy { $0 != $1 }, "\(cheers)")
         for pick in ["none", "wiggle", "confetti"] {
             starts(["react.mood": a("happy"), "react.animation": a(pick)], "Boop made a happy face, held once, and mumbled.")

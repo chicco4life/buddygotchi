@@ -1574,7 +1574,7 @@ final class CoreRulesTests: XCTestCase {
             for step in [Hook.turnStart, .needsYou, .activity, .turnEnd] {
                 rig.send(step, tool: "Bash")
                 let s = rig.state
-                XCTAssertTrue((1...FaceLoops.count(state: s.visual)).contains(s.variant), "\(s.visual) \(s.variant)")
+                XCTAssertTrue((1...FaceLoops.count(mood: s.mood, state: s.visual)).contains(s.variant), "\(s.visual) \(s.variant)")
                 if let before = last[s.visual] { XCTAssertNotEqual(before, s.variant, "\(s.visual) repeats") }
                 last[s.visual] = s.variant
                 seen[s.visual, default: []].insert(s.variant)

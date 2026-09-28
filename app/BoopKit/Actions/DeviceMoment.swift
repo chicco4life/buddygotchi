@@ -36,9 +36,15 @@ public struct DeviceMoment: Equatable, Sendable {
     /// With the cheer, whose turn it cheers; nil sends none.
     public var who: Who?
     public var id: Int?
+    /// With task_complete, the turn's outcome: `success` or `failure`;
+    /// the device plays a variation for it. Nil sends none.
+    public var outcome: String?
+    /// With starting, what started: `new_task`, `session` or
+    /// `continuation`. Nil sends none.
+    public var ctx: String?
 
     public init(anim: String? = nil, say: VoiceLine? = nil, mood: String? = nil, loops: Int? = nil,
-                variant: Int? = nil, who: Who? = nil, id: Int? = nil) {
+                variant: Int? = nil, who: Who? = nil, id: Int? = nil, outcome: String? = nil, ctx: String? = nil) {
         self.anim = anim
         self.say = say
         self.mood = mood
@@ -46,11 +52,25 @@ public struct DeviceMoment: Equatable, Sendable {
         self.variant = variant
         self.who = who
         self.id = id
+        self.outcome = outcome
+        self.ctx = ctx
     }
 
     /// The animations the device plays (BEHAVIORS.md §5), besides
-    /// `listening`, which only push-to-talk plays (§3.3).
-    public static let anims = ["cheer", "wiggle"]
+    /// `listening`, which only push-to-talk plays (§3.3). `cheer` is the
+    /// old name of task_complete's success, which the device still reads.
+    public static let anims = ["cheer", "wiggle", "task_complete", "reply_ready", "starting", "helper_return",
+                               "error", "stopped", "poked", "tap_spam"]
+
+    /// The design state an animation plays: its own name, the cheer's
+    /// task_complete, and none for the wiggle.
+    public static func designState(_ anim: String) -> String? {
+        switch anim {
+        case "cheer": "task_complete"
+        case "wiggle": nil
+        default: anims.contains(anim) ? anim : nil
+        }
+    }
     /// Push-to-talk's face, from the mic turning on until the reply.
     public static let listening = "listening"
 
@@ -74,14 +94,15 @@ public struct DeviceMoment: Equatable, Sendable {
     /// that's longer.
     public func playMs(look: String, mood: String) -> Int64 {
         let loops = Int64(Swift.max(1, Swift.min(Self.maxLoops, self.loops ?? 1)))
-        var ms: Int64 = switch anim {
-        case nil: 0
-        case "cheer": loops * FaceLoops.ms(mood: self.mood ?? mood, state: "task_complete", variant: variant ?? 1)
-        case "wiggle": Self.wiggleMs
-        default: 0  // the device doesn't play an animation it doesn't know
+        var ms: Int64 = 0
+        if anim == "wiggle" {
+            ms = Self.wiggleMs
+        } else if let anim, let state = Self.designState(anim) {
+            ms = loops * FaceLoops.ms(mood: self.mood ?? mood, state: state, variant: variant ?? 1)
         }
+        // (the device doesn't play an animation it doesn't know)
         if !Self.anims.contains(anim ?? ""), let face = self.mood {
-            ms = loops * (1...FaceLoops.count(state: look)).map { FaceLoops.ms(mood: face, state: look, variant: $0) }.max()!
+            ms = loops * (1...FaceLoops.count(mood: face, state: look)).map { FaceLoops.ms(mood: face, state: look, variant: $0) }.max()!
         }
         return Swift.max(ms, sayMs)
     }
@@ -104,6 +125,8 @@ public struct DeviceMoment: Equatable, Sendable {
         if let who {
             parts.append("\"who\":{\"agent\":\(Event.quote(who.agent)),\"thread\":\(Event.quote(who.thread))}")
         }
+        if let outcome { parts.append("\"outcome\":\(Event.quote(outcome))") }
+        if let ctx { parts.append("\"ctx\":\(Event.quote(ctx))") }
         if let id { parts.append("\"id\":\(id)") }
         return "{" + parts.joined(separator: ",") + "}"
     }
