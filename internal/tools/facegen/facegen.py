@@ -80,7 +80,7 @@ TILES = [(mood, state) for mood in MOODS
 # The palette index the scene colours start at (render/palette.h
 # kPaletteUsed): scene colour 0 is the black field, the canvas's 0, and
 # colour i the palette's SCENE_BASE + i - 1.
-SCENE_BASE = 96
+SCENE_BASE = 48
 # What the device does with a group (render::faces::Role): the face it
 # moves and the mouth it opens to talk; the first pack's eyes, open and
 # shut, which it blinks on its own clock; and a flip-book's steps, each a

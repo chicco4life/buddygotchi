@@ -85,7 +85,6 @@ static void test_fill_shape_antialiases_only_the_edges() {
 
 static void test_palette_ramps_run_from_black_to_the_ink() {
   TEST_ASSERT_EQUAL_HEX16(rgb565(kEyeRgb), paletteAt(inkAt(kInkEye, kLevels)));
-  TEST_ASSERT_EQUAL_HEX16(rgb565(kRoseRgb), paletteAt(inkAt(kInkRose, kLevels)));
   TEST_ASSERT_EQUAL_HEX16(rgb565(kAmberRgb), paletteAt(inkAt(kInkAmber, kLevels)));
   TEST_ASSERT_EQUAL_INT(kBlack, inkAt(kInkEye, 0));
   TEST_ASSERT_TRUE(kPaletteUsed <= 256);

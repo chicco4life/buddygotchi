@@ -12,7 +12,7 @@ enum Role : uint8_t { kRoleNone, kRoleFace, kRoleMouth, kRoleEyesOpen, kRoleEyes
 
 // The designs' colours: 0 is the black field, the canvas's 0, and colour i
 // is the palette's kSceneBase + i - 1 (render/palette.h).
-constexpr int kSceneBase = 96;
+constexpr int kSceneBase = 48;
 constexpr int kColorCount = 89;
 struct Color { uint8_t r, g, b; };
 constexpr Color kColors[89] = {

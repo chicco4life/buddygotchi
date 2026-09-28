@@ -1,13 +1,11 @@
 // The canvas palette: index → RGB565 (plan/DEVICE.md §6). Every colour on
 // the screen comes from this one table: "Warm Terminal", black glass with
 // grey text and one amber accent, plus the bring-up colours; then the
-// animation bank's colours, flat, which faces.h lists; and a stronger
-// coral heart for a tap.
+// animation bank's colours, flat, which faces.h lists.
 //
 // Anti-aliased edges (text, the bubble and the strip) use ramps: 8 steps
-// from black up to an ink colour. The face is pixel art, so it uses only
-// each ink's full-strength step. The table is computed with integer maths at
-// compile time, so the board and the simulator agree.
+// from black up to an ink colour. The table is computed with integer maths
+// at compile time, so the board and the simulator agree.
 #pragma once
 #include <cstdint>
 
@@ -25,21 +23,10 @@ struct Rgb {
 
 // The Warm Terminal colours.
 constexpr Rgb kGlass = {0, 0, 0};          // the backlit black
-// The face's inks are the mood designs' colours as near as RGB565 gets:
-// the eyes' #F8F7EF shows as (247, 247, 239), the cheeks' #F1787D as
-// (239, 121, 123), the tears' #7BB4EF as (123, 178, 239).
-constexpr Rgb kEyeRgb = {246, 244, 238};   // the eyes and mouth: warm white
+constexpr Rgb kEyeRgb = {246, 244, 238};   // warm white: whose turn it was, the finish's mark
 constexpr Rgb kAmberRgb = {255, 176, 0};   // the one accent: needs you, the word
-constexpr Rgb kGreyRgb = {140, 132, 121};  // secondary text
-constexpr Rgb kDimRgb = {74, 68, 62};      // faint text, dividers, rings
-constexpr Rgb kRoseRgb = {255, 92, 110};   // the heart: a stronger cheek coral
-constexpr Rgb kSkyRgb = {120, 176, 235};   // the tears: a soft sky
-constexpr Rgb kBlushRgb = {236, 120, 124};  // the cheeks
-// The mood designs' props (render/scene.h): the "needs you" sign's softer
-// amber, and the keyboard's and the cards' two greys.
-constexpr Rgb kSignRgb = {244, 188, 80};
-constexpr Rgb kPropDimRgb = {104, 104, 94};
-constexpr Rgb kPropRgb = {169, 169, 155};
+constexpr Rgb kGreyRgb = {140, 132, 121};  // secondary text, the squiggles
+constexpr Rgb kDimRgb = {74, 68, 62};      // faint text, dividers, rings, the bubble's box
 
 // Fixed entries: the bring-up pattern's colours.
 enum Color : uint8_t {
@@ -55,16 +42,10 @@ enum Color : uint8_t {
 
 // Inks: colours drawn over black with an anti-aliased ramp.
 enum Ink : uint8_t {
-  kInkEye = 0,  // the eyes and mouth
+  kInkEye = 0,
   kInkAmber,
   kInkGrey,
   kInkDim,
-  kInkRose,  // the heart
-  kInkSky,   // the designs' tears
-  kInkBlush, // the cheeks
-  kInkSign,     // the mood designs' props: the sign,
-  kInkPropDim,  // the keyboard's frame and keys,
-  kInkProp,     // and the lighter grey of the cards
   kInkCount,
 };
 
@@ -90,12 +71,6 @@ constexpr Rgb inkRgb(int ink) {
   if (ink == kInkEye) return kEyeRgb;
   if (ink == kInkAmber) return kAmberRgb;
   if (ink == kInkGrey) return kGreyRgb;
-  if (ink == kInkRose) return kRoseRgb;
-  if (ink == kInkSky) return kSkyRgb;
-  if (ink == kInkBlush) return kBlushRgb;
-  if (ink == kInkSign) return kSignRgb;
-  if (ink == kInkPropDim) return kPropDimRgb;
-  if (ink == kInkProp) return kPropRgb;
   return kDimRgb;
 }
 
