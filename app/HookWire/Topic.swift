@@ -35,14 +35,19 @@ public enum Topic {
     ]
 
     /// Any tool that isn't an edit and has a command (Claude's `Bash`,
-    /// Codex's `shell` or `exec_command`) is tagged by what it runs.
+    /// Codex's `shell` or `exec_command`) is tagged by what it runs: its
+    /// check, else `inspect` when it only looks (`inspects`).
     public static func tag(tool: String?, input: Any?) -> String? {
         guard let tool else { return nil }
         if editTools.contains(tool) {
             return paths(in: input).contains(where: isDoc) ? "docs" : nil
         }
-        return commands(in: input).flatMap(tag)
+        return commands(in: input).flatMap { tag($0) ?? (inspects($0) ? inspect : nil) }
     }
+
+    /// The tag of a command that only looks at files (ADAPTERS.md §3), so
+    /// the look shows it as analyzing rather than a terminal (BEHAVIORS.md §2).
+    public static let inspect = "inspect"
 
     /// The topic of what a shell command runs: its program and the words
     /// after it, in each of its commands (`cd app && swift test` is two),
@@ -56,6 +61,68 @@ public enum Topic {
 
     static func tag(_ commands: [[String]]) -> String? {
         commands.compactMap(rule).min().map { rules[$0].topic }
+    }
+
+    // MARK: Looking
+
+    /// Programs that only read and print (`rg -n foo`, `sed -n '1,80p' x`,
+    /// `nl -ba x | head`): a command line of these is `inspect`.
+    static let readers: Set<String> = [
+        "rg", "grep", "egrep", "fgrep", "cat", "head", "tail", "wc", "ls", "find", "sed", "nl", "sort", "uniq", "cut",
+    ]
+    /// Commands that neither read nor change anything, which may come
+    /// along: `cd src && rg foo`, `cat a; echo ---; cat b`.
+    static let bystanders: Set<String> = ["cd", "pushd", "popd", "echo", "printf", "pwd", "true"]
+    /// `find`'s actions that change or run things.
+    static let findActions: Set<String> = ["-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls"]
+
+    enum Look { case reads, bystander, other }
+
+    /// Whether a shell command only looks at files: each of its commands
+    /// is a reader or a bystander, at least one a reader, and none writes a
+    /// file with `>` (`cat > x <<EOF` writes). `sed` counts only with `-n`
+    /// and without `-i`, and `find` without an action. Check topics come
+    /// first: `make test | tail` is tests.
+    public static func inspects(command: String) -> Bool { inspects(commands(command)) }
+
+    static func inspects(_ commands: [[String]]) -> Bool {
+        let looks = commands.map(look)
+        return looks.contains(.reads) && !looks.contains(.other)
+    }
+
+    static func look(_ words: [String]) -> Look {
+        guard let (program, args) = unwrap(words) else { return .bystander }
+        if shells.contains(program), let at = args.firstIndex(where: isDashC), at + 1 < args.count {
+            let inside = commands(args[at + 1]).map(look)
+            return inside.contains(.other) ? .other : inside.contains(.reads) ? .reads : .bystander
+        }
+        if writes(args) { return .other }
+        if bystanders.contains(program) { return .bystander }
+        guard readers.contains(program) else { return .other }
+        switch program {
+        case "sed":
+            let flags = args.filter { $0.hasPrefix("-") && !$0.hasPrefix("--") }
+            let quiet = flags.contains { $0.contains("n") } || args.contains("--quiet") || args.contains("--silent")
+            let inPlace = flags.contains { $0.contains("i") } || args.contains { $0.hasPrefix("--in-place") }
+            return quiet && !inPlace ? .reads : .other
+        case "find":
+            return args.contains(where: findActions.contains) ? .other : .reads
+        default:
+            return .reads
+        }
+    }
+
+    /// Whether a command's words send its output to a file: `> out`,
+    /// `>>log`, `&>x`, but not `2>&1` or `>/dev/null`.
+    static func writes(_ args: [String]) -> Bool {
+        for (i, word) in args.enumerated() {
+            guard let arrow = word.lastIndex(of: ">") else { continue }
+            var target = String(word[word.index(after: arrow)...])
+            if target.isEmpty { target = i + 1 < args.count ? args[i + 1] : "" }
+            if target.hasPrefix("&") || target == "/dev/null" { continue }
+            return true
+        }
+        return false
     }
 
     /// The first rule one simple command matches: the pattern's first word

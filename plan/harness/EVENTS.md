@@ -48,10 +48,10 @@ Claude `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 
 | `type` | `source` | `phase` | `data` |
 | --- | --- | --- | --- |
-| `session` | agent | start / end | — |
+| `session` | agent | start / end | start: `source` (`startup`, `resume`, `clear` or `compact`), when the hook says |
 | `turn` | agent | start / end | start: `prompt`, what you asked. end: `outcome` (`done`, `failed` or `stopped`); `error` for a failed one (its class, [ADAPTERS.md](../ADAPTERS.md) §2); `message`, the agent's last message, on `Stop`; `notice` and `tool` for how a stopped one stopped |
 | `tool` | agent | start / wait / end | `tool`, `tool_use_id`. start: `topic` ([ADAPTERS.md](../ADAPTERS.md) §3). wait: `for` (`permission` or `input`), `notice` for a `Notification`. end: `failed` and `error` (its class), Claude only |
-| `subagent` | claude | end | — |
+| `subagent` | claude | start / end | — (the subagent is the event's `subagent`) |
 | `poke` | device | — | — |
 | `talk` | mic | — | `words`: what the Mac's mic heard, as macOS transcribed it, up to 2,000 characters (`HookLine.maxMessage`). Only when it heard something |
 | `heartbeat` | clock | — | — (the view says what it's about, §4) |
@@ -65,8 +65,11 @@ What you said after the popover's Talk button (a headless run with
 ```
 
 Any Claude event from inside a subagent also carries the subagent's
-`agent_type` in `data`. Which hook becomes which type and phase is
-[ADAPTERS.md](../ADAPTERS.md) §3.
+`agent_type` in `data`, and any Claude event whose hook reports it
+carries its permission mode as `mode` (`plan` shows as planning,
+[BEHAVIORS.md](../BEHAVIORS.md) §2). Only the core reads `source` and
+`mode`; the view leaves them out. Which hook becomes which type and
+phase is [ADAPTERS.md](../ADAPTERS.md) §3.
 
 **Actions.** One that finishes at once is a single event with no phase.
 One that starts something that takes time (a reaction playing on the
@@ -169,7 +172,7 @@ asked for you (the core's safety net, [ADAPTERS.md](../ADAPTERS.md) §4).
 | `tool` end | `thread` | §3.1 | Yes |
 | | `tool` | The tool's category (below) | Only in a routine line |
 | | `tool_name`, `tool_use_id` | As the agent reports them | No |
-| | `topic` | `tests`, `build`, `deploy`, `docs`, or null | In a notable line |
+| | `topic` | `tests`, `build`, `deploy`, `docs`, `inspect` (a command that only looks, [ADAPTERS.md](../ADAPTERS.md) §3), or null | In a notable line |
 | | `result` | `ok`, `failed`, or `unknown` when the agent doesn't say | Only `failed` |
 | | `error` | A failed call's class: `exit_code`, `timeout`, `denied` or `other`; else null | No |
 | | `failed_before` | Failures in a row of this topic in this thread just before this call, across turns; a pass sets it back to 0 | Only whether it's above 0, in a pass: `after failing` |

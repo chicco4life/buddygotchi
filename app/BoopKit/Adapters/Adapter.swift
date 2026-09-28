@@ -22,6 +22,7 @@ public enum Adapter {
         "ElicitationResult": (.tool, .end),
         "Stop": (.turn, .end),
         "StopFailure": (.turn, .end),
+        "SubagentStart": (.subagent, .start),
         "SubagentStop": (.subagent, .end),
         "SessionEnd": (.session, .end),
     ]
@@ -70,14 +71,20 @@ public enum Adapter {
     /// is when the app received it, or the line's own time.
     public static func event(from line: HookLine, receivedAt: Int64? = nil) -> Event? {
         guard let agent = Agent(hookName: line.agent), let (type, phase) = mapping(line) else { return nil }
-        // A subagent's end says which subagent by its `agent_id`; one without
-        // it can't answer anyone's request, and mustn't pass for the main agent.
+        // A subagent's start or end says which subagent by its `agent_id`;
+        // one without it can't answer anyone's request or end a helper, and
+        // mustn't pass for the main agent.
         if type == .subagent && line.agentID == nil { return nil }
         let claude = agent == .claudeCode
         var data: [String: JSONValue] = [:]
         func put(_ key: String, _ value: String?) { if let value { data[key] = .string(value) } }
-        if claude { put("agent_type", line.agentType) }
+        if claude {
+            put("agent_type", line.agentType)
+            put("mode", line.mode)  // plan mode shows as planning (BEHAVIORS.md §2)
+        }
         switch (type, phase) {
+        case (.session, .start?):
+            put("source", line.source)
         case (.turn, .start?):
             put("prompt", line.prompt)
         case (.tool, .start?):

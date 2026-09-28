@@ -74,7 +74,7 @@ final class InstallerTests: XCTestCase {
         let ours = "\"\(hook)\" claude"
         for event in ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
                       "PermissionRequest", "Notification", "Elicitation", "ElicitationResult", "Stop", "StopFailure",
-                      "SubagentStop", "SessionEnd"] {
+                      "SubagentStart", "SubagentStop", "SessionEnd"] {
             XCTAssertEqual(commands(.claude, event).filter(HookInstaller.isBoopCommand), [ours], event)
         }
         XCTAssertEqual(commands(.claude, "PreToolUse"), ["/usr/local/bin/audit.sh", ours])
@@ -109,16 +109,17 @@ final class InstallerTests: XCTestCase {
         XCTAssertEqual(notification.map { $0["matcher"] as? String }, [matcher])
     }
 
-    /// ADAPTERS.md §5: Claude gets 13 hooks. An install from before
+    /// ADAPTERS.md §5: Claude gets 14 hooks. An install from before
     /// `SubagentStop` was hooked is outdated, so the app's launch repair
     /// adds it, beside a `SubagentStop` hook of the person's own, and
     /// changes nothing else.
     func testAnInstallWithoutSubagentStopIsRepaired() throws {
-        XCTAssertEqual(HookInstaller.events[.claude]!.count, 13)
+        XCTAssertEqual(HookInstaller.events[.claude]!.count, 14)
         let entry: [String: Any] = ["type": "command", "command": installer.command(.claude), "timeout": 5]
         var hooks: [String: Any] = [:]
         for event in ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
-                      "PermissionRequest", "Elicitation", "ElicitationResult", "Stop", "StopFailure", "SessionEnd"] {
+                      "PermissionRequest", "Elicitation", "ElicitationResult", "Stop", "StopFailure", "SubagentStart",
+                      "SessionEnd"] {
             hooks[event] = [["hooks": [entry]]]
         }
         hooks["Notification"] = [["matcher": "permission_prompt|elicitation_dialog|idle_prompt", "hooks": [entry]]]
@@ -133,6 +134,26 @@ final class InstallerTests: XCTestCase {
         XCTAssertEqual(read(.claude)["model"] as? String, "opus")
         XCTAssertEqual(installer.repair(), [])
         XCTAssertTrue(installer.preview(.claude).contains("\nSubagentStop → \(installer.command(.claude))\n"))
+    }
+
+    /// ADAPTERS.md §5: an install from before `SubagentStart` was hooked
+    /// (13 hooks) is outdated, so the launch repair adds it and changes
+    /// nothing else: the core needs it to see helpers start (BEHAVIORS.md §2).
+    func testAnInstallWithoutSubagentStartIsRepaired() throws {
+        try installer.install(.claude)
+        var root = read(.claude)
+        var hooks = root["hooks"] as! [String: Any]
+        hooks["SubagentStart"] = nil
+        root["hooks"] = hooks
+        write(.claude, root)
+        XCTAssertEqual(installer.health(.claude), .outdated)
+        XCTAssertEqual(installer.repair(), [.claude])
+        XCTAssertEqual(installer.health(.claude), .installed)
+        XCTAssertEqual(commands(.claude, "SubagentStart"), [installer.command(.claude)])
+        let groups = (read(.claude)["hooks"] as! [String: Any])["SubagentStart"] as! [[String: Any]]
+        XCTAssertEqual(groups.map { $0["matcher"] as? String }, [nil], "every subagent")
+        XCTAssertTrue(installer.preview(.claude).contains("\nSubagentStart → \(installer.command(.claude))\n"))
+        XCTAssertFalse(HookInstaller.events[.codex]!.contains { $0.event == "SubagentStart" }, "Codex has none")
     }
 
     func testInstallIsIdempotent() throws {
