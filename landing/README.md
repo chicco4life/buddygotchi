@@ -38,7 +38,7 @@ works and email sending is skipped.
 | `npm test` | Copy brand-law unit test (`tests/`) |
 | `npm run test:e2e` | Playwright waitlist flow (`e2e/`) |
 | `npm run db:push` | Apply `db/schema.sql` to `DATABASE_URL` |
-| `npm run emails:build` | Embed canonical templates from `../archived/emails/` |
+| `npm run emails:build` | Embed canonical templates from `emails/` |
 | `npm run email:test -- you@example.com` | Send a rendered sample through Resend |
 
 ## Assets

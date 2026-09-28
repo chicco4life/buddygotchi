@@ -24,7 +24,6 @@ cheap ESP32 board with a screen is the body. Start with
 | `internal/tools/` | `boopctl` (device tool), `voicegen` (voice assets), `sfxgen` (the sound effects, from the animation pack), `fontgen` (the device's fonts), `facegen` (the device's faces, from the animation pack), `workday` (a scripted working day through the brain), `webcam/` (opt-in recorder) |
 | `internal/skills/` | `doctor` (hook self-check) and `webcam-verify`, symlinked for Claude, Codex and Cursor |
 | `landing/` | The Next.js landing page (Vercel project root) |
-| `archived/` | History only: research, docs, the gen-2 specs (`plan-gen2/`) and case model, and the finished v1 build plan with its full decision log (`plan-v1-build/`). Earlier code is at git tag `gen2-final` (`git show gen2-final:<path>`). Don't extend it |
 
 Code that doesn't ship goes in `internal/`: tests, evals, dev tools,
 skills and the simulator. Production targets (`HookWire`, `BoopKit`,
@@ -33,7 +32,11 @@ if one imports them. The one overlap is `Boop --headless` and
 `Boop --snapshots`, flags of the shipped app whose sources are in
 `internal/app/Boop/`.
 
-Delete code that nothing uses; git keeps it.
+Delete code that nothing uses; git keeps it. The old research, docs,
+gen-2 specs and the finished v1 build plan with its full decision log
+lived in `archived/`, now at git tag `archived-final`
+(`git show archived-final:archived/<path>`); gen-2 code is at tag
+`gen2-final`.
 
 ## Commands
 
@@ -185,8 +188,7 @@ unpushed local `main`.
 - **Pin rules in tests.** When you implement or change a rule with a number
   in it (a timing, cap, threshold or priority), add or update a test that
   checks it and names the spec section.
-- **Removed code takes its docs with it.** Delete, or move to `archived/`,
-  any doc, skill, checklist or code comment that describes code that's
+- **Removed code takes its docs with it.** Delete any doc, skill, checklist or code comment that describes code that's
   gone.
 - **Dates move with the work.** Bump the "Updated" date on every spec
   you touched. Tell the owner about drift you find but don't fix.

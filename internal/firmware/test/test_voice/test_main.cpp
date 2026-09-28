@@ -1,5 +1,5 @@
 // The voice player: the asset tables, the line's timeline, and resampling
-// for pitch, tempo and volume (archived/plan-v1-build/PLAN.md F5, L0).
+// for pitch, tempo and volume (the v1 build plan's F5, L0).
 #include <unity.h>
 
 #include <cstdlib>

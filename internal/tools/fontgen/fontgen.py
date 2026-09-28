@@ -1,4 +1,4 @@
-"""Builds the device's two fonts (archived/plan-v1-build/PLAN.md F2) as C arrays.
+"""Builds the device's two fonts (the v1 build plan's F2) as C arrays.
 
 Renders Geist Mono (SIL Open Font License 1.1, copyright Vercel) with
 Pillow into 4-bit coverage cells: printable ASCII plus a middle dot. The

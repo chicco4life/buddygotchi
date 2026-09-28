@@ -14,7 +14,7 @@ export function Footer() {
 
           <nav className="flex items-center gap-6 text-sm text-charcoal-soft">
             {/* escape valve for visitors not ready to hand over an email — renders
-                once the build-in-public account exists (archived/research/TODOs.md) */}
+                once the build-in-public account exists (TODOs.md at git tag archived-final) */}
             {copy.footer.followBuild.url && (
               <a
                 href={copy.footer.followBuild.url}

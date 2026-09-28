@@ -1,5 +1,5 @@
 // The renderer: integer maths, the rasterizer, the names of the
-// animations and moods, the strip and the bubble, fonts and the palette ramps (archived/plan-v1-build/PLAN.md F2, L0).
+// animations and moods, the strip and the bubble, fonts and the palette ramps (the v1 build plan's F2, L0).
 #include <unity.h>
 
 #include <cstring>

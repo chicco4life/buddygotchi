@@ -2,9 +2,9 @@
 
 Status: implemented; media strategy amended — see Amendment A (§14); section/copy revisions — see Amendment B (§15)
 Last updated: 2026-07-03
-Source documents: `../archived/research/product/MARKETING.md` (Part 2 is the marketing-side page spec; Part 3 is the demand test this page powers), `../archived/research/product/PRODUCT.md` (§9 form factor, §11 positioning, §12 agent-era value prop)
+Source documents: `MARKETING.md` (Part 2 is the marketing-side page spec; Part 3 is the demand test this page powers), `PRODUCT.md` (§9 form factor, §11 positioning, §12 agent-era value prop), both in `archived/research/product/` at git tag `archived-final`
 
-This document is self-contained: an implementing agent should be able to build the entire site from this file alone. Where this spec and `../archived/research/product/MARKETING.md` conflict, `../archived/research/product/MARKETING.md` wins on copy and brand; this spec wins on technology.
+This document is self-contained: an implementing agent should be able to build the entire site from this file alone. Where this spec and `MARKETING.md` conflict, `MARKETING.md` wins on copy and brand; this spec wins on technology.
 
 ---
 
@@ -83,7 +83,7 @@ No CMS, no i18n, no dark mode toggle (the page's palette *is* the product's pale
 
 ## 4. Design system
 
-The governing idea from `../archived/research/product/MARKETING.md` §1.3: premium is restraint. Processing fluency = perceived quality. When in doubt, remove.
+The governing idea from `MARKETING.md` §1.3: premium is restraint. Processing fluency = perceived quality. When in doubt, remove.
 
 ### 4.1 Color tokens
 
@@ -119,7 +119,7 @@ Rules: no gradients on text; no pure white (`#FFF`) or pure black anywhere; the 
 
 - Content max-width: **1100px**, centered, `px-6` on mobile.
 - Vertical rhythm: **minimum 120px** between sections (`py-16 md:py-24` at minimum; more is fine). Sections are separated by space alone — no cards, borders, rules, or background-color alternation (the single `--night` passage is the one exception).
-- The poster test (from `../archived/research/product/MARKETING.md` §2.3): a screenshot of any full viewport at any scroll position should look like a poster, not a website. Practically: one idea per viewport; if two sections are visible at once on desktop, add space.
+- The poster test (from `MARKETING.md` §2.3): a screenshot of any full viewport at any scroll position should look like a poster, not a website. Practically: one idea per viewport; if two sections are visible at once on desktop, add space.
 - Fully responsive; design mobile-first — the ad traffic (Reddit/X/IG) is majority mobile. The three-across still/loop rows (S2, S3) stack vertically on mobile with generous spacing.
 
 ### 4.4 Motion
@@ -140,7 +140,7 @@ Pill-shaped, `--amber` background, `--charcoal` text, weight 600, generous paddi
 
 ## 5. Page structure: sections S1–S8
 
-One page, **no header, no nav** — nothing to do but scroll and one thing to click. Copy below is final-draft quality from `../archived/research/product/MARKETING.md` §2.2; implement it verbatim (register: lowercase-hearted, dry, specific). Each section is its own component in `src/components/`.
+One page, **no header, no nav** — nothing to do but scroll and one thing to click. Copy below is final-draft quality from `MARKETING.md` §2.2; implement it verbatim (register: lowercase-hearted, dry, specific). Each section is its own component in `src/components/`.
 
 ### S1 — Hero (100vh)
 
@@ -254,7 +254,7 @@ Same design system, one viewport:
 - Heading: **You're in line.** Subline: *Buddy #{position} will be yours when the Founding Litter hatches.*
 - A small hatching-egg vignette: a simple SVG egg with a slow CSS crack-and-peek animation (10–15 lines of SVG; keep it damped and slow, in-register with §4.4).
 - Share hook: *Want to skip ahead? Every friend who joins moves you up 10 places.* Below: a read-only input with `https://<domain>/?ref={code}` and a **Copy link** button (clipboard API, button text flips to `Copied` for 2s — no exclamation mark).
-- Nothing else. No deposit ask in v1 (`../archived/research/product/MARKETING.md` §2.4's $5 deposit is a deliberate later variant).
+- Nothing else. No deposit ask in v1 (`MARKETING.md` §2.4's $5 deposit is a deliberate later variant).
 
 Direct visits to `/welcome` without params render a graceful generic version ("You're in line. Watch your inbox.").
 
@@ -286,13 +286,13 @@ Ship the DDL as `landing/db/schema.sql` plus an npm script `db:push` that applie
 
 A tiny `attribution.ts` module runs once on first load: read `utm_*`, `p` (price cohort), and `ref` from `location.search` plus `document.referrer`, and persist to a single first-party cookie (`bg_attr`, JSON, 30-day expiry, `SameSite=Lax`) — **only setting values on first touch** so later organic revisits don't overwrite the paid-channel attribution. The API route reads this cookie server-side.
 
-Price cohort: `?p=99` or `?p=129` (the test skips $119 per `../archived/research/product/MARKETING.md` §3.3). The displayed CTA price renders from the cohort — `Adopt one — $99/119/129` — via a client component that reads the cookie; default $119 when absent. The page stays static; only the price span hydrates.
+Price cohort: `?p=99` or `?p=129` (the test skips $119 per `MARKETING.md` §3.3). The displayed CTA price renders from the cohort — `Adopt one — $99/119/129` — via a client component that reads the cookie; default $119 when absent. The page stays static; only the price span hydrates.
 
 ### 7.3 Analytics and events
 
 - **Vercel Analytics** for page views and Web Vitals (cookieless — no consent banner needed).
 - Custom events via `track()`: `cta_click` (hero|footer), `modal_open`, `signup` (with source + cohort), `copy_referral`, `price_expectation`.
-- **Scroll depth**: fire `scroll_depth` events at each section boundary (S1…S8) using the existing `IntersectionObserver` hook — this is how the test finds where interest dies (`../archived/research/product/MARKETING.md` §3.3).
+- **Scroll depth**: fire `scroll_depth` events at each section boundary (S1…S8) using the existing `IntersectionObserver` hook — this is how the test finds where interest dies (`MARKETING.md` §3.3).
 - **Ad pixels** — _deferred (removed 2026-07-05), rebuild when a paid ad campaign is actually planned._ The design: env-gated pixels loaded only when the corresponding ID is set (`NEXT_PUBLIC_REDDIT_PIXEL_ID`, `NEXT_PUBLIC_TWITTER_PIXEL_ID`, `NEXT_PUBLIC_META_PIXEL_ID`), each firing its standard PageView on load and a Lead/SignUp conversion on the `signup` event, loaded via `next/script` `strategy="afterInteractive"` and wrapped in one `Pixels.tsx` component (with the conversion call in `lib/pixels.ts`, fired from `lib/submit.ts`). The original code did exactly this — recover it from git history rather than rewriting.
 
 ---
@@ -303,7 +303,7 @@ Price cohort: `?p=99` or `?p=129` (the test skips $119 per `../archived/research
 
 ### 8.1 Placeholder system
 
-Build a `Media` component: `<Media src="/media/hero-loop.mp4" poster="/media/hero-poster.jpg" ratio={16/9} alt="..." shotNote="Blob on desk, amber glow, hand pets it" />`. It renders the real file if present at build/runtime; the committed placeholder files are **art-directed stand-ins generated in code and exported to `public/media/`**: warm cream-to-amber radial gradients with a soft blob silhouette (simple SVG-rendered shapes matching §9.1 of `../archived/research/product/PRODUCT.md`: squashed sphere, wider than tall, screen-face slightly above midline, two blush dots) and the shot note in tiny caption type in a corner. They should look intentional — a person landing on the deployed placeholder site should read "tasteful pre-launch," not "broken images." For video slots, the placeholder is the poster image with a slow CSS glow-breathing overlay (4s period).
+Build a `Media` component: `<Media src="/media/hero-loop.mp4" poster="/media/hero-poster.jpg" ratio={16/9} alt="..." shotNote="Blob on desk, amber glow, hand pets it" />`. It renders the real file if present at build/runtime; the committed placeholder files are **art-directed stand-ins generated in code and exported to `public/media/`**: warm cream-to-amber radial gradients with a soft blob silhouette (simple SVG-rendered shapes matching §9.1 of `PRODUCT.md`: squashed sphere, wider than tall, screen-face slightly above midline, two blush dots) and the shot note in tiny caption type in a corner. They should look intentional — a person landing on the deployed placeholder site should read "tasteful pre-launch," not "broken images." For video slots, the placeholder is the poster image with a slow CSS glow-breathing overlay (4s period).
 
 ### 8.2 Asset manifest (final files, exact names)
 
@@ -329,7 +329,7 @@ Do **not** ship third-party logo image files without checking each vendor's bran
 
 - `<title>`: `Boop — a desk companion for AI agents`
 - Meta description: `Boop is a desk companion for AI agents that watches your AI coding agents — glows when one needs you, celebrates when work lands, and lets you approve with a pet. Founding Litter of 100.`
-- The phrase **"desk companion for AI agents"** must appear in the title/description and once in body copy — we're naming the category (`../archived/research/product/PRODUCT.md` §11.7).
+- The phrase **"desk companion for AI agents"** must appear in the title/description and once in body copy — we're naming the category (`PRODUCT.md` §11.7).
 - OpenGraph + Twitter card (`summary_large_image`) with `og.jpg`; canonical URL; `robots: index, follow`; favicon: a tiny blob silhouette SVG (cream on charcoal).
 
 ### 9.2 Accessibility
@@ -347,7 +347,7 @@ Semantic landmarks (`main`, `section` with `aria-label`, one `h1`); the modal fu
 
 ## 10. Copy and brand constraints (hard rules)
 
-These are enforced brand law from `../archived/research/product/MARKETING.md` §1.3 — treat violations as bugs:
+These are enforced brand law from `MARKETING.md` §1.3 — treat violations as bugs:
 
 1. **Banned words:** revolutionary, supercharge, AI-powered, productivity, game-changer, premium. **Banned punctuation:** `!` anywhere in UI copy.
 2. Concrete nouns and exact numbers over adjectives: "162 grams," "batch of 100," "under one second" — never "high quality," "blazing fast."
@@ -431,7 +431,7 @@ The product does not exist yet, so the photo/video slots specified in §5/§8 ca
 
 **Everything else is drawn, not photographed**, extending the built visual language S4 already used:
 
-- A shared illustrated buddy (`src/components/BuddyBlob.tsx`, server component, zero client JS) with the product's real proportions (`../archived/research/product/PRODUCT.md` §9.1) and expressions: content, alert, squint, sleep (with the one-eye peek), celebrate.
+- A shared illustrated buddy (`src/components/BuddyBlob.tsx`, server component, zero client JS) with the product's real proportions (`PRODUCT.md` §9.1) and expressions: content, alert, squint, sleep (with the one-eye peek), celebrate.
 - **S2** — three drawn beats (amber-alert blob + terminal chip → petted squinting blob → contented blob) with the original captions.
 - **S3** — three animated vignettes: the damped CSS wobble (`buddy-wobble`, 2–3 rocks then long stillness), the sleep peek (`buddy-peek-*`), and the confetti celebration (`buddy-twinkle`). All motion stays within §4.4's damped-physics rules and freezes under `prefers-reduced-motion`.
 - **S6** — a hairline-labeled exploded diagram (crown / shell / screen / steel heart / base ring) in place of the render.
@@ -443,12 +443,12 @@ The product does not exist yet, so the photo/video slots specified in §5/§8 ca
 
 ## 15. Amendment B (2026-07-03): section and copy revisions
 
-Business-review revisions. Where this conflicts with §5/§8 or `../archived/research/product/MARKETING.md` §2.2, this amendment wins.
+Business-review revisions. Where this conflicts with §5/§8 or `MARKETING.md` §2.2, this amendment wins.
 
 1. **S6 is now The adoption, not The craft.** The exploded-view/component section is removed on purpose — the internals stay ambiguous while the hardware is still being finalized. The adoption section (MARKETING.md §2.2 S7) is restored in its place, **without the care card** (dropped from the box contents). It shows a drawn open box (swap target: `public/media/box.jpg`), the numbered-ID line, and the Founding Litter scarcity line. The adoption counter remains hidden until real.
 2. **Mid-page CTA.** The adoption section carries a second `WaitlistCTA` (source `adoption`, tracked separately end-to-end: analytics event, pixel, DB row). The one-button-style rule now covers three instances: hero, adoption, footer submit.
 3. **Shipping timeline stays unpromised, but addressed.** New FAQ entry ("When do they hatch?") answers the question honestly with no date — a season promise we might miss costs more trust than no date. Revisit when a manufacturing schedule exists.
 4. **Category phrase in body copy.** "desk companion for AI agents" now leads the "What does it actually do?" FAQ answer, satisfying §9.1's body-copy requirement.
-5. **Follow-the-build link.** The footer renders a `follow the build` link only when `copy.footer.followBuild.url` is non-empty; it ships empty until the account exists (`../archived/research/TODOs.md`).
+5. **Follow-the-build link.** The footer renders a `follow the build` link only when `copy.footer.followBuild.url` is non-empty; it ships empty until the account exists (`TODOs.md` at git tag `archived-final`).
 6. **Placeholder polish.** The visible `placeholder · <note>` caption is removed from media stand-ins. The default drawn stand-in is now a desk-scale scene (blob small on a desk plane with contact shadow) instead of a full-frame portrait, so the hero reads as a physical object.
 7. **Less blob repetition.** The S4 light strip is faceless — shell silhouettes lit from within, "Needs you" rendered largest/brightest with an amber label. Faces appear only in S2/S3, and the S2 pet beat now shows an actual drawn hand (`petting` on `BuddyBlob`).

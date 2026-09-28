@@ -23,7 +23,6 @@ with the vision.
 | [EVALS.md](EVALS.md) | The harness eval scenarios: how they run and what each checks |
 
 What each check found is in [evidence/](evidence/), one folder per piece
-of work. History lives in `archived/`: the finished v1 build plan and its
-full decision log in [archived/plan-v1-build/](../archived/plan-v1-build/),
-and the previous generation's specs in
-[archived/plan-gen2/](../archived/plan-gen2/).
+of work. History is in git: the finished v1 build plan and its full
+decision log (`archived/plan-v1-build/`) and the previous generation's
+specs (`archived/plan-gen2/`) are at tag `archived-final`.

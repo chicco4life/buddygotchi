@@ -69,7 +69,7 @@ cd landing && npm run email:test -- you@example.com
   sending is silently skipped; a missing key must never break a signup
   (fail-open, like everything else in this project).
 - Replies go to `hello@adoptaboop.com` — inbound forwarding for that address
-  must work before any send (archived/research/TODOs.md).
+  must work before any send (TODOs.md at git tag archived-final).
 - Add a DMARC record once sends begin (`p=none` to start) if not already set.
 - The waitlist confirmation is transactional (no unsubscribe link needed; the
   body offers "reply to leave" in plain language, which is better anyway).

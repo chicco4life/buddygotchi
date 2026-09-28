@@ -528,10 +528,9 @@ out ([harness/HARNESS.md](harness/HARNESS.md) §3–4), and the protocol
 
 When a change departs from the spec, change the spec first and add a row
 here saying why. This table keeps only the decisions still in force, one
-line each, oldest first. When a decision is replaced, its row moves to the
-"Superseded later" section of
-[archived/plan-v1-build/decisions.md](../archived/plan-v1-build/decisions.md),
-which also has the full log up to 2026-09-27.
+line each, oldest first. When a decision is replaced, delete its row; git
+keeps it. The full log up to 2026-09-27 is
+`archived/plan-v1-build/decisions.md` at git tag `archived-final`.
 
 | Date | Decision | Why | Where |
 | --- | --- | --- | --- |

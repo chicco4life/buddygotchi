@@ -108,7 +108,7 @@ final class VoiceTests: XCTestCase {
         XCTAssertFalse(check.words.contains { $0.count < 3 })
     }
 
-    /// VOICE.md §7 and archived/plan-v1-build/PLAN.md A2: 10,000 lines, zero hits in the word list
+    /// VOICE.md §7 and the v1 build plan's A2: 10,000 lines, zero hits in the word list
     /// or the rude and Minion lists, checked independently of Voice's own check.
     func testTenThousandLinesSayNothing() throws {
         let words = Set(((try? String(contentsOfFile: Unintelligible.dictionaryPath, encoding: .utf8)) ?? "")
