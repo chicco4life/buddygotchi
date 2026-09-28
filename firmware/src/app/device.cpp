@@ -25,6 +25,8 @@ constexpr uint32_t kFrameMs = 16;
 // dbg.* message, so a tool that dies mid-run can't leave the board
 // stopped (PROTOCOL.md §5).
 constexpr uint32_t kThawMs = 60000;
+// BOOT's cap on talking is where listening stops listening (DEVICE.md §4).
+static_assert(ButtonGesture::kTalkCapMs == Behaviour::kListenMs, "the talk cap is listening's");
 
 const char* linkName(Link l) {
   switch (l) {
@@ -151,8 +153,17 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     mo.anim = render::animFromName(doc["anim"]);  // none, or unknown: only the mumble
     mo.expr = render::parseMood(doc["mood"], mo.mood);  // unknown or missing: the state's mood
     mo.loops = heldTo(doc["loops"], 1, Behaviour::kMaxLoops, 1);
-    // The cheer's variation, from 1: missing reads as 1, and one out of range is held to it.
-    mo.variant = uint8_t(heldTo(doc["variant"], 1, render::variants(render::SceneState::kTaskComplete), 1) - 1);
+    // The animation's variation, from 1: one out of range is held to it.
+    // Missing reads as 1 for the cheer; for listening the device picks one.
+    if (mo.anim == render::Anim::kListening && doc["variant"].isNull()) {
+      mo.variant = b_.pickListen(rng_);
+    } else {
+      render::SceneState design =
+          mo.anim == render::Anim::kListening ? render::SceneState::kListening : render::SceneState::kTaskComplete;
+      mo.variant = uint8_t(heldTo(doc["variant"], 1, render::variants(design), 1) - 1);
+    }
+    mo.said = !doc["say"].isNull();
+    mo.empty = doc["anim"].isNull() && !mo.said;  // the empty moment ends listening
     JsonObjectConst who = doc["who"];  // copied by onMoment, while doc lives
     if (who) mo.whoAgent = who["agent"] | "", mo.whoThread = who["thread"] | "";
     voice::Line line;
@@ -290,8 +301,8 @@ void Device::tapped(uint32_t t, bool injected) {
   emit("tap", injected);
 }
 
-// BOOT and touch, turned into gestures. Every press and touch
-// shows on screen at once, before the Mac hears about it.
+// BOOT and touch, turned into gestures (DEVICE.md §4). Every press and
+// touch shows on screen at once, before the Mac hears about it.
 void Device::readInputs(uint32_t t) {
   if (injPress_ && int32_t(t - injPressUntil_) >= 0) injPress_ = false;
   switch (boot_.update(hal_.bootDown() || injPress_, t)) {
@@ -303,6 +314,17 @@ void Device::readInputs(uint32_t t) {
     case ButtonGesture::kTap:
       b_.pressUp();
       tapped(t, bootInjected_);
+      break;
+    case ButtonGesture::kHoldStart:  // push-to-talk: listening at once, before the Mac hears
+      b_.pressUp();
+      b_.talkOn(t, rng_);
+      input("talk_on", t);
+      emit("talk_on", bootInjected_);
+      break;
+    case ButtonGesture::kHoldEnd:  // let go, or the 30 s cap
+      b_.talkOff(t);
+      input("talk_off", t);
+      emit("talk_off", bootInjected_);
       break;
     default:
       break;

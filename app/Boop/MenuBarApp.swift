@@ -106,6 +106,22 @@ final class AppModel: ObservableObject {
 
     // The switches show the change at once; the runtime's next status confirms it.
 
+    var listening: Bool { status?.listening == true }
+
+    /// The mic button: click to talk, click again to send (BEHAVIORS.md §3.3).
+    func toggleTalk() {
+        let on = !listening
+        if on { status?.micTrouble = nil }
+        status?.listening = on
+        runtime?.setListening(on)
+    }
+
+    /// Hides the "can't hear you" notice until the next try.
+    func dismissMicTrouble() {
+        status?.micTrouble = nil
+        runtime?.dismissMicTrouble()
+    }
+
     func reconnectDevice() {
         runtime?.reconnectDevice()
     }
@@ -271,6 +287,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
+    var listener: SpeechListener?
+
     func startRuntime() {
         let transport: DeviceTransport? = switch model.link {
         case .bluetooth: BLETransport(log: { [log] in log.write($0) })
@@ -288,6 +306,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         do {
             let runtime = try Runtime(options)
             runtime.onChange = { [weak self] status in Task { @MainActor in self?.show(status) } }
+            // Push-to-talk (BEHAVIORS.md §3.3): the core says when the mic
+            // is on; what it heard goes back to the runtime.
+            let listener = SpeechListener(log: { log.write($0) })
+            runtime.onListen = { (on: Bool) in
+                if on {
+                    listener.start { why in runtime.micFailed(why) }
+                } else {
+                    listener.stop { words in
+                        if let words { runtime.said(words) } else { runtime.heardNothing() }
+                    }
+                }
+            }
+            self.listener = listener
             try runtime.start()
             model.runtime = runtime
             model.startError = nil

@@ -1,4 +1,5 @@
 import Foundation
+import HookWire
 
 /// The way every event goes (harness/HARNESS.md §2), with no queue: it's
 /// recorded in the transcript and folded into the view; an agent's event or
@@ -54,6 +55,18 @@ public final class Pipeline {
         return gated(step)
     }
 
+    /// What you said to Boop on push-to-talk, heard by the Mac's mic
+    /// after `by`'s button (`device` or `app`), cut to 2,000 characters as
+    /// a prompt is on the wire (harness/EVENTS.md §2). It wakes the brain
+    /// even while something needs you (§6).
+    @discardableResult
+    public func said(_ words: String, by: Core.Talker, at now: Int64) -> Step {
+        var step = Step()
+        let cut = words.count > HookLine.maxMessage ? String(words.prefix(HookLine.maxMessage)) : words
+        record(Event(ts: now, source: .mic, type: .talk, specificType: by.rawValue, data: ["words": .string(cut)]), &step)
+        return gated(step)
+    }
+
     /// The core's timers, then a heartbeat if one is due.
     @discardableResult
     public func tick(at now: Int64) -> Step {
@@ -100,8 +113,8 @@ public final class Pipeline {
     }
 
     /// Why a view event may not wake the brain now, or nil if it may: it
-    /// needs a brain; nothing but a poke wakes it while something needs
-    /// you; and a poke doesn't while the brain's reaction to its run is in
+    /// needs a brain; nothing but a poke or what you said wakes it while
+    /// something needs you; and a poke doesn't while the brain's reaction to its run is in
     /// progress, with the mood unchanged (harness/EVENTS.md §6).
     public func whyNotWake(_ v: ViewEvent) -> String? {
         if !brain { return "no brain" }

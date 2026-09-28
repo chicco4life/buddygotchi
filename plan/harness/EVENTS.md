@@ -12,12 +12,14 @@ event's line, never its facts ([DECISIONS.md](DECISIONS.md)).
 or something Boop did that a person could notice. Everything else is a
 log line (`debug.jsonl`).**
 
-- **In:** agent hooks that map to a type (§2), pokes, heartbeats, and
+- **In:** agent hooks that map to a type (§2), pokes, what you say to
+  Boop on push-to-talk, heartbeats, and
   actions: the brain's and the dashboard's (`react`, `mood`) and the
   rules' (`wiggle`, and `needs_you` starting and ending).
 - **Out:** hooks Boop ignores, passes (`debug.jsonl` only), state
   snapshots and every other line sent to the device, `status`, the
-  device's `ended` (it arrives only as an action's end), and changes of
+  device's `ended` (it arrives only as an action's end), the mic going
+  on and off, hearing nothing or failing (the app log), and changes of
   settings, brain or connection (the app log).
 
 For a new case, ask: would deleting it change any prompt, or what we can
@@ -37,10 +39,10 @@ Claude `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | --- | --- |
 | `seq` | Its place in the transcript. It counts on across days and launches |
 | `ts` | When it happened, in unix milliseconds (the app's steady clock, which starts at the wall clock's time: [ARCHITECTURE.md](../ARCHITECTURE.md) §3.2) |
-| `source` | `claude`, `codex`, `device`, `clock` or `boop` |
-| `type` | One of the seven generic types below |
+| `source` | `claude`, `codex`, `device`, `clock`, `boop` or `mic` |
+| `type` | One of the eight generic types below |
 | `phase` | `start`, `wait` or `end` for a type with a lifetime; left out for one that just happens |
-| `specific_type` | The source's own name for it: the hook (`UserPromptSubmit`, `Interrupt`), the device's message (`input`), the clock's reason (`idle`, `working`) or the action's name (`react`, `wiggle`) |
+| `specific_type` | The source's own name for it: the hook (`UserPromptSubmit`, `Interrupt`), the device's message (`input`), the clock's reason (`idle`, `working`), the button that turned the mic on (`device` or `app`) or the action's name (`react`, `wiggle`) |
 | `session`, `subagent`, `cwd` | An agent's session, the Claude subagent's `agent_id`, and the working directory; an action about a session names it too. Left out when there's none |
 | `data` | The type's own fields, below |
 
@@ -51,8 +53,16 @@ Claude `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | `tool` | agent | start / wait / end | `tool`, `tool_use_id`. start: `topic` ([ADAPTERS.md](../ADAPTERS.md) §3). wait: `for` (`permission` or `input`), `notice` for a `Notification`, `name`, the thread's name, when the hook found one (the strip's; the view leaves it out). end: `failed` and `error` (its class), Claude only |
 | `subagent` | claude | end | — |
 | `poke` | device | — | — |
+| `talk` | mic | — | `words`: what the Mac's mic heard, as macOS transcribed it, up to 2,000 characters (`HookLine.maxMessage`). Only when it heard something |
 | `heartbeat` | clock | — | — (the view says what it's about, §4) |
 | `action` | boop | start / end, or none | `for` (the `seq` of the event it's about, or null), `by` (`brain`, `dashboard` or `rule`), `ok`, `message`. end: `for` (its start's `seq`), `outcome` (`done` or `failed`), `why` |
+
+What you said after the popover's Talk button (a headless run with
+`{"dev":"said",…}`, [VERIFICATION.md](../VERIFICATION.md) §2):
+
+```json
+{"seq":1,"ts":1790580772176,"source":"mic","type":"talk","specific_type":"app","data":{"words":"hey Boop, are the tests passing?"}}
+```
 
 Any Claude event from inside a subagent also carries the subagent's
 `agent_type` in `data`. Which hook becomes which type and phase is
@@ -101,7 +111,7 @@ and dropped.
 | `tool` wait | All |
 | `tool` end | Notable ones (§4.1); all with the personality's `tool_uses: all` ([BEHAVIORS.md](../BEHAVIORS.md) §6) |
 | `tool` start | None |
-| `poke`, `heartbeat` | All |
+| `poke`, `talk`, `heartbeat` | All |
 | `session`, `subagent` | None: they only tell the view when a session ends or a subagent's hook isn't the session's turn |
 | `action` | Not as view events: as the `did` lines of the view event it's `for` (§7). A `needs_you` start is kept as the `tool` wait it shows |
 
@@ -133,6 +143,7 @@ thread's key, `<agent>/<session>`, such as `claude_code/s1`.
 | `tool` end | A tool call finishes and is notable, or any with `tool_uses: all` | Its result, whether it passed after failing, its time's band and its category | Yes |
 | `tool` start | A tool call starts (not kept by default) | Its topic and the thread | No |
 | `poke` | Every poke | How many pokes in a row: each within 3 s of the one before (`TranscriptView.Config.inARowMs`) | Yes, even while something needs you, but not while Boop is answering its run (§6) |
+| `talk` | You said something to Boop on push-to-talk ([BEHAVIORS.md](../BEHAVIORS.md) §3.3) | Your words | Always, even while something needs you (§6) |
 | `heartbeat` | While no thread works, each whole hour since the last agent event or poke (`TranscriptView.Config.heartbeatMs`). While any thread works, once the personality's `working_heartbeat` wait has passed since Boop last reacted (`TranscriptView.reacted`, which the runtime calls as a reaction starts), however many view events woke the brain in it ([BEHAVIORS.md](../BEHAVIORS.md) §2) | The idle hours, or the thread working longest | Yes |
 
 A thread **works** while its turn is open, nothing waits on you, and it
@@ -166,6 +177,7 @@ asked for you (the core's safety net, [ADAPTERS.md](../ADAPTERS.md) §4).
 | | `subagent` | The Claude subagent's type (`Explore`), only for a call made inside one | No |
 | `tool` wait | `thread` | §3.1 | Yes |
 | `poke` | `in_a_row`, `seconds` | Pokes in a row, this one included, and the whole seconds they took | The count, past one |
+| `talk` | `words`, `by` | What you said, whole; the button, `device` or `app` | The words, cut to 300 characters |
 | `heartbeat` | `idle_hours`, or `thread`, `working_ms` and `topic` | Whole hours since the last agent event or poke; or the thread working longest, how long its turn has run, and its latest topic | The hours; or the thread and its turn's band (§5), not the topic |
 
 **A turn's outcome** is `failed` when the agent reports an API error, or
@@ -217,8 +229,8 @@ only when its kind says so (§4), and never:
 - while there's no brain: before Jev's key is read, or without one
   ([HARNESS.md](HARNESS.md) §7);
 - while something needs you ([BEHAVIORS.md](../BEHAVIORS.md) §3.2), a
-  poke aside: you poking Boop is the one thing that may reach it then
-  (`TranscriptView.wakesWhileNeeded`);
+  poke or what you say aside: you poking or talking to Boop are the only
+  things that may reach it then (`TranscriptView.wakesWhileNeeded`);
 - for a poke, while Boop is answering its run: the brain's reaction to
   the run's pokes in a row is in progress, a tap-cut one included (§7),
   and the mood hasn't changed since it started
@@ -270,6 +282,7 @@ marked "in the line" in §4.1 (`EventLine` in
 | `tool` start | `claude started running tests on "…".`, `a build`, `a deploy`, `editing docs`, or by category: `a command`, `editing a file`, … |
 | `tool` wait | `claude needs you on "fix-nav" (landing).` |
 | `poke` | `You poked Boop.`, or `You poked Boop 4 times in a row.` |
+| `talk` | `You said to Boop: "are the tests passing yet?"`, on one line and cut to 300 characters like a note (`EventLine.said`) |
 | `heartbeat` | `Nothing has happened for 1 hour.`, `… for 3 hours.` While working: `claude is still working on "fix-nav" (landing), a long turn.`, the band of its turn so far |
 
 A thread reads `"fix-nav" (landing)`, or just `"landing"` when its name is
@@ -303,13 +316,18 @@ other:
   means it ended with an error.
 - Turns are short (under a minute), long (under 5 minutes) or very
   long (5 minutes or more).
+- "You said to Boop" quotes the person talking to Boop. It can't talk
+  back: it answers with a face and a mumble.
 ```
 
 ## 9. Privacy
 
-Two pieces of anyone's words reach the transcript and the brain: your
-prompt (`UserPromptSubmit`) and the agent's last message (`Stop`), each
-up to 2,000 characters on the wire and 300 in the state. No commands,
+Three pieces of anyone's words reach the transcript and the brain: your
+prompt (`UserPromptSubmit`), the agent's last message (`Stop`) and what
+you say to Boop on push-to-talk (`talk`), each up to 2,000 characters in
+the transcript and 300 in the state. Push-to-talk's audio never leaves
+the Mac and is never kept: macOS recognizes it on the Mac
+(`requiresOnDeviceRecognition`) and only the words go on. No commands,
 tool input or output, file contents, error text or transcripts do. The
 other names in an event are the project's, the workspace's, the agent's,
 and in its data alone, the tool's and a subagent's type.

@@ -37,7 +37,8 @@ are gated ([EVENTS.md](EVENTS.md) §6).
 
 ```
  agent hooks ─► adapters ─┐
- device pokes ────────────┼─► Transcript.append ─► transcript/<day>.jsonl, debug.jsonl
+ device pokes ────────────┤
+ what you say (the mic) ──┼─► Transcript.append ─► transcript/<day>.jsonl, debug.jsonl
  heartbeats (the view) ───┘        │
                                    ├─► Core ─► state ─► device link
                                    │     └─► rule actions (wiggle, needs_you) ─► Transcript.append
@@ -75,7 +76,7 @@ What the picture leaves out:
   (`onRecord`) and writes its app log line (§9). Then the waiting view
   event's pass starts, unless it may no longer wake the brain
   (`Harness.whyNotStart`, the pipeline's `whyNotWake`): while something
-  needs you only a poke may, and a poke may not while Boop is answering
+  needs you only a poke or what you say may, and a poke may not while Boop is answering
   its run ([EVENTS.md](EVENTS.md) §6). It's logged as a pass dropped
   with that reason (`something needs you`, `Boop is answering these
   pokes`), and the brain isn't asked.
@@ -203,6 +204,7 @@ the state from the view, for each pass; neither is ever kept.
 | --- | --- |
 | An agent's hook, as its adapter maps it | The runtime, as it arrives, before the core has it |
 | A poke | The runtime, before the core has it |
+| What you said on push-to-talk | The runtime, once the mic is off and macOS has turned it into words |
 | A heartbeat | The runtime, when the view says one is due (on the 1 s tick) |
 | A rule's action (`wiggle`, `needs_you`) | The core, as an effect of the event that caused it, recorded right after that event |
 | An action's result, and a started one's end | The harness, right after the action runs, and when the end reaches it or it's left open too long (below) |
@@ -223,8 +225,9 @@ the state from the view, for each pass; neither is ever kept.
   quit can't end now, since its handle went with that launch, so the
   launch records its end as failed, `Boop restarted`.
 - **Debug mode** also writes each event to `debug.jsonl` (§9).
-- **Privacy.** Your prompt and the agent's last message are the only
-  words in it ([EVENTS.md](EVENTS.md) §9).
+- **Privacy.** Your prompt, the agent's last message and what you say
+  to Boop on push-to-talk are the only words in it
+  ([EVENTS.md](EVENTS.md) §9).
 - **Started actions stay open** until their end is recorded. The harness
   keeps the open ones by their `action` event's `seq`, and records only
   the first end of each. One still open **60 s**
@@ -331,13 +334,13 @@ How to read HISTORY and NOW:
 ### 6.2 Sizes
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
-bytes ÷ 4, which overestimates English: the guide 300 (now 296), a
-personality 600 (`boop` 592, `chatter` 319) and a mood 175 (136–169), raised from 150 when the moods took four reasons from the notes ([DECISIONS.md](DECISIONS.md) §2.3): Jev reads only the current mood's file, so it costs at most 25 tokens a request.
+bytes ÷ 4, which overestimates English: the guide 300 (now 295), a
+personality 700 (`boop` 649, `chatter` 337), raised from 600 when `boop` took what you say to it and its Examples ([BEHAVIORS.md](../BEHAVIORS.md) §3.3), and a mood 175 (136–169), raised from 150 when the moods took four reasons from the notes ([DECISIONS.md](DECISIONS.md) §2.3): Jev reads only the current mood's file, so it costs at most 25 tokens a request.
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
 about 200 tokens and HISTORY's 40 view events about 1,200, and each
-prompt or last message quoted under one adds up to about 80 more (300
-characters). With the questions a request is about 3,400 tokens with
+prompt, last message or thing you said quoted in one adds up to about
+80 more (300 characters). With the questions a request is about 3,400 tokens with
 nothing quoted, and could reach about 6,500 in the worst case, every one
 of the 40 quoting 300 characters. The evals' states came to 1,000–1,550,
 and a busy working day's ([EVALS.md](../EVALS.md) §5) to 1,250–2,100,
@@ -495,6 +498,8 @@ line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 | `{"dev":"advance","ms":N}` | Headless only: moves the app's clock forward N ms, then ticks |
 | `{"dev":"answer","answers":{"react.mood":"grumpy","word.feeling":"again"}}` | A **forced pass**: each choice at probability 1, handed to the actions exactly as Jev's answers would be. It runs at once on `home`, needs no brain or key, and leaves a running or waiting pass alone. A choice that isn't one of its question's options is left out. The actions keep their own rules. Logged as a `pass` line, and its actions recorded `by` `dashboard`, for no event; no `brain` line in `boop.log` |
 | `{"dev":"mood","mood":"grumpy"}` | Sets the mood at once through the mood action, device included ([DECISIONS.md](DECISIONS.md) §4). Recorded as an `action` named `mood`, for no event, `by` `dashboard`, refusals included |
+| `{"dev":"listen","on":true}` | The popover's Talk button: the mic on (`true`) or off, as clicking it does ([BEHAVIORS.md](../BEHAVIORS.md) §3.3). With no mic (headless) turning it off hears nothing |
+| `{"dev":"said","words":"are the tests passing?","by":"device"}` | What push-to-talk heard, with no mic: recorded as a `talk` event after `by`'s button (`app` unless it says), whose pass replies or ends `listening` ([EVENTS.md](EVENTS.md) §2) |
 | `{"dev":"report"}` | Saves a bug report, as the button does (below) |
 
 A forced pass that cheers, its action and the action's end, from a

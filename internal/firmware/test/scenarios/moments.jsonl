@@ -26,13 +26,27 @@
 {"expect":{"moment":{"anim":"wiggle"}}}
 {"shot":"wiggle"}
 {"t":"state","v":1,"base":"idle"}
-// A moment with neither `anim` nor `say` is ignored (PROTOCOL.md §3): the
-// cheer carries on.
+// The empty moment, with neither `anim` nor `say`, never ends a cheer
+// (PROTOCOL.md §3).
 {"clock":50000}
 {"t":"moment","anim":"cheer"}
 {"clock":50500}
 {"t":"moment"}
 {"expect":{"moment":{"anim":"cheer","left_ms":5900}}}
+{"t":"state","v":1,"base":"idle"}
+// The Mac's own listening (DEVICE.md §4) holds until the reply; the empty
+// moment ends it and does nothing else: the face blends back.
+{"clock":60000}
+{"t":"moment","anim":"listening","variant":2}
+{"clock":60400}
+{"expect":{"moment":{"anim":"listening","left_ms":37600}}}
+{"shot":"listening"}
+{"t":"state","v":1,"base":"idle"}
+{"clock":65000}
+{"t":"moment"}
+{"expect":{"moment":null,"audio":{"playing":false}}}
+{"clock":65075}
+{"shot":"listening-stopped-75ms"}
 {"t":"state","v":1,"base":"idle"}
 // An unknown animation with no mumble is ignored, the removed ones too.
 {"clock":70000}

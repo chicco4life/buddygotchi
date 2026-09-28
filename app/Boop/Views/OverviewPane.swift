@@ -2,7 +2,8 @@ import BoopKit
 import SwiftUI
 
 /// Overview, top to bottom: Boop and how things are, who needs you, and
-/// every session by agent. Controls live in Settings.
+/// every session by agent. Controls live in Settings; the one exception is
+/// the mic button.
 struct OverviewPane: View {
     @ObservedObject var model: AppModel
     var maxHeight: CGFloat
@@ -18,6 +19,11 @@ struct OverviewPane: View {
                     if let trouble = model.status?.brainTrouble {
                         notice("exclamationmark.triangle.fill", Theme.clayInk, "Jev isn't answering",
                                Self.brainProblem(trouble))
+                    }
+                    if let why = model.status?.micTrouble {
+                        notice("mic.slash.fill", Theme.clayInk, "\(model.name) can't hear you", why) {
+                            model.dismissMicTrouble()
+                        }
                     }
                     if model.restartAgents {
                         notice("arrow.clockwise", Theme.inkSoft, "Restart your agent sessions",
@@ -63,7 +69,10 @@ struct OverviewPane: View {
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 0)
                 if model.status != nil {
-                    DeviceLine(model: model)
+                    VStack(alignment: .trailing, spacing: 6) {
+                        DeviceLine(model: model)
+                        TalkButton(model: model)
+                    }
                 }
             }
             // Under the name, the full width of the popover, so the chips
@@ -123,7 +132,8 @@ struct OverviewPane: View {
     }
 
     private var tone: Color {
-        switch FaceMood(model.status) {
+        if model.listening { return Theme.recording }
+        return switch FaceMood(model.status) {
         case .needsYou: Theme.amber
         case .working: Theme.inkSoft
         case .idle, .happy, .asleep, .cheeky: Theme.inkFaint
@@ -132,13 +142,14 @@ struct OverviewPane: View {
 
     private var live: Bool {
         let mood = FaceMood(model.status)
-        return mood == .working || mood == .needsYou
+        return model.listening || mood == .working || mood == .needsYou
     }
 
     private var headline: String {
         guard let s = model.status?.snapshot else {
             return model.startError == nil ? "Waking up…" : "Not running"
         }
+        if model.listening { return "Listening…" }
         if s.waiting > 0 { return s.waiting == 1 ? "Needs you" : "\(s.waiting) sessions need you" }
         switch s.base {
         case "working": return s.busy == 1 ? "Working on 1 session" : "Working on \(s.busy) sessions"
@@ -355,6 +366,29 @@ struct SessionRow: View {
         }
         .overlay(RoundedRectangle(cornerRadius: Theme.wellRadius).strokeBorder(Theme.hairline, lineWidth: 1))
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Push-to-talk from the Mac (BEHAVIORS.md §3.3): click to talk, click again to
+/// send. The device's BOOT button does the same while held.
+struct TalkButton: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        let on = model.listening
+        Button(action: model.toggleTalk) {
+            // One width for both words, so the button doesn't jump.
+            Label(on ? "Send" : "Talk", systemImage: on ? "arrow.up" : "mic.fill")
+                .labelStyle(.titleAndIcon)
+                .lineLimit(1)
+                .frame(width: 50)
+        }
+        .buttonStyle(RowButtonStyle(filled: on))
+        .fixedSize()
+        .help(on ? "Stop listening and send what \(model.name) heard"
+                 : "Talk to \(model.name) with the Mac's microphone. It stops by itself after 30 seconds")
+        .accessibilityLabel(on ? "Stop listening and send" : "Talk to \(model.name)")
+        .animation(.boopSettle, value: on)
     }
 }
 

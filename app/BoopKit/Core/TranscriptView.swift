@@ -30,8 +30,8 @@ public struct ViewEvent: Equatable, Sendable {
     public var notes: [String] = []
     /// Whether it wakes the brain: its kind's rule, then the gates (§6).
     public var wakesBrain: Bool
-    /// The thread it's about, as the view keys threads; nil for pokes and
-    /// idle heartbeats.
+    /// The thread it's about, as the view keys threads; nil for pokes,
+    /// what you said and idle heartbeats.
     public var about: String?
     /// For logs, evals and tests; the harness never reads them.
     public var facts: [String: JSONValue] = [:]
@@ -77,11 +77,11 @@ public struct Keep: Equatable, Sendable {
     public init(_ rules: [Key: Rule]) { self.rules = rules }
 
     /// Turns' starts and ends, tool calls that wait on you and notable
-    /// ones' ends, pokes and heartbeats.
+    /// ones' ends, pokes, what you said and heartbeats.
     public static let standard = Keep([
         Key(.turn, .start): .all, Key(.turn, .end): .all,
         Key(.tool, .wait): .all, Key(.tool, .end): .notable,
-        Key(.poke): .all, Key(.heartbeat): .all,
+        Key(.poke): .all, Key(.talk): .all, Key(.heartbeat): .all,
     ])
 
     /// The personality's: every tool call's end with `tool_uses: all`
@@ -223,9 +223,9 @@ public final class TranscriptView {
         rng = SplitMix64(seed: config.seed)
     }
 
-    /// Pokes wake the brain even while something needs you; nothing else
-    /// does (EVENTS.md §6).
-    public static let wakesWhileNeeded: Set<Event.Kind> = [.poke]
+    /// Pokes and what you say to Boop wake the brain even while something
+    /// needs you; nothing else does (EVENTS.md §6).
+    public static let wakesWhileNeeded: Set<Event.Kind> = [.poke, .talk]
 
     static func key(_ agent: Agent, _ id: String) -> String { agent.rawValue + "/" + id }
 
@@ -252,6 +252,7 @@ public final class TranscriptView {
         switch e.type {
         case .session, .turn, .tool, .subagent: agentEvent(e)
         case .poke: poke(e)
+        case .talk: talk(e)
         case .heartbeat: heartbeat(e)
         case .action: action(e)
         }
@@ -540,6 +541,17 @@ public final class TranscriptView {
             facts: ["in_a_row": .int(Int64(count)), "seconds": .int(Int64(seconds))])
     }
 
+    // MARK: Talk
+
+    /// What you said to Boop on push-to-talk (BEHAVIORS.md §3.3), which
+    /// always wakes the brain. Words that are only whitespace make no view
+    /// event.
+    func talk(_ e: Event) {
+        guard let words = e["words"]?.string, let line = EventLine.said(words) else { return }
+        noteActivity(e.ts)
+        add(e, line: line, wakes: true, facts: ["words": .string(words), "by": .string(e.specificType)])
+    }
+
     // MARK: Heartbeats
 
     /// Whether a thread is working at `now`: a turn open, nothing asked of
@@ -730,7 +742,8 @@ public enum EventLine {
         n == 0 ? "no tool calls" : n == 1 ? "1 tool call" : "\(n) tool calls"
     }
 
-    /// The longest prompt or last message the state quotes, in characters.
+    /// The longest prompt, last message or thing you said that the state
+    /// quotes, in characters.
     public static let messageMax = 300
 
     /// `Its last message: "…"`: the agent's last message, quoted.
@@ -766,6 +779,10 @@ public enum EventLine {
         }
         return "\(agent) \(what) on \(thread)." + (failed == true ? " It failed." : "")
     }
+
+    /// `You said to Boop: "…"`: what you said on push-to-talk, quoted and
+    /// cut to `messageMax`, like your prompt. Nil for no words.
+    public static func said(_ words: String) -> String? { quote("You said to Boop", words) }
 
     /// `You poked Boop.`, or `You poked Boop 4 times in a row.`
     public static func poke(inARow count: Int) -> String {
@@ -814,6 +831,8 @@ public enum EventLine {
           means it ended with an error.
         - Turns are short (under a minute), long (under 5 minutes) or very
           long (5 minutes or more).
+        - "You said to Boop" quotes the person talking to Boop. It can't talk
+          back: it answers with a face and a mumble.
         """
 
     public static func needsYou(agent: String, thread: String) -> String {

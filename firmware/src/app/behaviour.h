@@ -63,6 +63,11 @@ struct Ended {
 // anim, only the mumble.
 struct MomentIn {
   render::Anim anim = render::Anim::kNone;
+  // It had a `say` field: the reply `listening` waits for, even with no
+  // syllables. With neither `anim` nor `say` it's the empty moment, which
+  // ends `listening` and does nothing else.
+  bool said = false;
+  bool empty = false;
   int syllables = 0;  // 0: no mumble
   const char* word = nullptr;
   int at = 0;         // the word's place among the syllables, 0..syllables
@@ -71,7 +76,7 @@ struct MomentIn {
   // plays. Only a known mood sets it.
   bool expr = false;
   render::Mood mood = render::Mood::kHappy;
-  // The animation's variation (the cheer's), from 0.
+  // The animation's variation (the cheer's or listening's), from 0.
   uint8_t variant = 0;
   // 1–Behaviour::kMaxLoops (PROTOCOL.md §3): with the cheer, how many
   // times its design plays; with an expression and no animation, how
@@ -103,6 +108,11 @@ class Behaviour {
   // else it plays another loop.
   static constexpr uint32_t kTurnMinMs = 5000;
   static constexpr int kTurnPct = 67;
+  // Push-to-talk (DEVICE.md §4): `listening` shows for at most kListenMs
+  // of talking, then waits at most kReplyWaitMs for the reply; the
+  // release shortens the wait to kReplyWaitMs from then.
+  static constexpr uint32_t kListenMs = 30000;
+  static constexpr uint32_t kReplyWaitMs = 8000;
 
   void reset(uint32_t t, Rng& rng);
 
@@ -116,6 +126,12 @@ class Behaviour {
   void pressDown(uint32_t t);  // visible feedback at once
   void pressUp();
   void tap(uint32_t t);  // BOOT, or a touch anywhere
+  // Push-to-talk: BOOT held (talk_on) and let go, or capped (talk_off).
+  void talkOn(uint32_t t, Rng& rng);
+  void talkOff(uint32_t t);
+  // A variation of listening to show, at random and never the last one
+  // (BEHAVIORS.md §2), for a `listening` moment that doesn't name one.
+  uint8_t pickListen(Rng& rng) const;
   // dbg.light: holds the LED and backlight until the next state.
   void overrideLed(uint32_t rgb) { ledOverride_ = true, ledSet_ = rgb; }
   void overrideBacklight(uint8_t level) { blOverride_ = true, blSet_ = level; }
@@ -132,7 +148,7 @@ class Behaviour {
   // How long the face's design has been playing at t, counting on past its
   // loops: show()'s clock before it wraps a cheer or holds needs you's pose.
   // It starts over only with a new look or a new cheer.
-  uint32_t designMs(uint32_t t) const { return src_.anim == render::Anim::kCheer ? t - src_.at : t - lookAt_; }
+  uint32_t designMs(uint32_t t) const { return src_.animDesign() ? t - src_.at : t - lookAt_; }
   // A press has just come in: feedback the redraw cap mustn't hold back
   // (DEVICE.md §6).
   bool pressEasing(uint32_t t) const;
@@ -157,7 +173,7 @@ class Behaviour {
   bool takeEnded(Ended& e);
   // A blink, Boop's idle life (BEHAVIORS.md §2), is showing.
   bool blinking(uint32_t t) const;
-  // What the face is following at t: the animation ("cheer"), or the look
+  // What the face is following at t: the animation ("cheer", "listening"), or the look
   // ("idle", "working", "asleep", "needs_you", "no_app").
   const char* faceName(uint32_t t) const;
   // When needs you's performance, with its knocks and ding, last started
@@ -176,7 +192,7 @@ class Behaviour {
   // carries its moment's id, 0 when the Mac doesn't wait on it.
   struct Moment {
     render::Anim anim = render::Anim::kNone;
-    uint8_t variant = 0;  // the cheer's
+    uint8_t variant = 0;  // the cheer's or listening's
     uint32_t at = 0, ms = 0;
     uint32_t id = 0;
     char agent[12] = "";  // the cheer's `who`; empty for none
@@ -215,18 +231,23 @@ class Behaviour {
   struct Source {
     render::Anim anim = render::Anim::kNone;
     uint32_t at = 0;
-    render::SceneState look = render::SceneState::kIdle;  // never kTaskComplete
-    uint8_t lookVariant = 0, cheerVariant = 0;
+    render::SceneState look = render::SceneState::kIdle;  // never kTaskComplete or kListening
+    uint8_t lookVariant = 0, animVariant = 0;
     render::Mood mood = render::Mood::kHappy;
     bool operator==(const Source& o) const {
       return anim == o.anim && at == o.at && look == o.look && lookVariant == o.lookVariant &&
-             cheerVariant == o.cheerVariant && mood == o.mood;
+             animVariant == o.animVariant && mood == o.mood;
     }
-    // The design it shows: the cheer's, or the look's, and its variation.
+    // The cheer and listening have designs of their own, on their own
+    // clock; the wiggle sways the look's.
+    bool animDesign() const { return anim == render::Anim::kCheer || anim == render::Anim::kListening; }
+    // The design it shows: the cheer's, listening's, or the look's, and its variation.
     render::SceneState state() const {
-      return anim == render::Anim::kCheer ? render::SceneState::kTaskComplete : look;
+      return anim == render::Anim::kCheer       ? render::SceneState::kTaskComplete
+             : anim == render::Anim::kListening ? render::SceneState::kListening
+                                                : look;
     }
-    uint8_t variant() const { return anim == render::Anim::kCheer ? cheerVariant : lookVariant; }
+    uint8_t variant() const { return animDesign() ? animVariant : lookVariant; }
     int scene() const { return render::sceneOf(mood, state(), variant()); }
   };
 
@@ -273,8 +294,10 @@ class Behaviour {
   void startBlink(uint32_t t, Rng& rng);
   uint32_t blinkGap(Rng& rng) const;
   bool momentOn(uint32_t t) const;
-  // Something needs you (BEHAVIORS.md §1): a tap or an animation doesn't
-  // take the face over.
+  bool listening(uint32_t t) const;  // `listening` is playing
+  // Something needs you (BEHAVIORS.md §1), or `listening` waits for the
+  // reply (DEVICE.md §4): a tap or another animation doesn't take the face
+  // over.
   bool held(uint32_t t) const;
   uint8_t blTarget(uint32_t t) const;  // the level the state asks for at t
   bool sayOn(uint32_t t) const;
@@ -318,6 +341,7 @@ class Behaviour {
   bool blink_ = false;  // a blink began at blinkAt_, for kBlinkMs
   uint32_t blinkAt_ = 0;
   uint32_t nextBlink_ = 0;
+  uint8_t lastListen_ = 0xFF;  // the variation of listening last shown, or none
   bool pressed_ = false;
   uint32_t pressAt_ = 0;
   bool alerted_ = false;

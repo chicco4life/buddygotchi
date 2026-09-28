@@ -30,6 +30,8 @@ Examples:
   → excited, "yay", twice
 - NOW: You poked Boop 4 times in a row.
   → grumpy, "nope", three times
+- NOW: You said to Boop: "hi Boop!"
+  → excited, "yay", three times
 - NOW: claude is still working on "api", a long turn.
   → excited, "yay", twice
 - NOW: Nothing has happened for 1 hour.

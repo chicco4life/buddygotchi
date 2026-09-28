@@ -126,6 +126,15 @@ public struct MomentSchedule {
         lineUntil = now
     }
 
+    /// Drops every brain moment waiting, ending each handle as failed: the
+    /// mic went on, and a mumble would end `listening` (BEHAVIORS.md §3.3).
+    public mutating func dropWaiting() -> [DeviceMoment] {
+        let dropped = waiting
+        waiting = []
+        for (_, pending, _) in dropped { pending?.finish(.failed("the mic went on")) }
+        return dropped.map(\.moment)
+    }
+
     /// Nothing is playing and no brain moment is waiting its turn.
     public func idle(now: Int64) -> Bool {
         now >= busyUntil && waiting.isEmpty

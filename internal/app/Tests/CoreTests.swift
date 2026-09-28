@@ -148,6 +148,18 @@ final class CoreRig {
     @discardableResult
     func poke() -> Fx { note(Fx(pipeline.poke(at: now))) }
 
+    /// What push-to-talk heard, after `by`'s button.
+    @discardableResult
+    func said(_ words: String, by: Core.Talker = .device) -> Fx { note(Fx(pipeline.said(words, by: by, at: now))) }
+
+    /// An `input` from the device other than a tap: push-to-talk.
+    @discardableResult
+    func input(_ input: Core.DeviceInput) -> Fx {
+        var step = Pipeline.Step()
+        pipeline.run(core.input(input, at: now), &step)
+        return note(Fx(step))
+    }
+
     /// Moves the clock, ticking once a second like the app does.
     @discardableResult
     func wait(_ ms: Int64) -> Fx {
@@ -1272,6 +1284,44 @@ final class CoreYouAndBoopTests: XCTestCase {
         let needed = rig.poke()
         XCTAssertEqual(woke(needed), ["You poked Boop."], "a poke wakes it even so")
         XCTAssertEqual(rig.ruleActions, ["wiggle", "needs_you start"], "no wiggle")
+    }
+
+    /// BEHAVIORS.md §3.3: holding BOOT turns the Mac's mic on, and letting
+    /// go turns it off; it's never on longer than 30 s. Once it's off, the
+    /// device holds `listening` for the reply, 8 s at most. While the mic
+    /// is on no mumble plays, and while `listening` shows a poke doesn't
+    /// wiggle. The app's button works the same, but a dropped link stops
+    /// only the device's.
+    func testPushToTalk() {
+        let rig = CoreRig()
+        XCTAssertEqual(Core.listenLimitMs, 30_000)
+        XCTAssertEqual(Core.replyWaitMs, 8000)
+        XCTAssertTrue(rig.input(.talkOn).contains(.listen(true, by: .device)))
+        XCTAssertEqual(rig.core.mumbleBlock, "the mic is on")
+        XCTAssertEqual(rig.input(.talkOn), Fx(), "already on")
+        rig.poke()
+        XCTAssertEqual(rig.ruleActions, [], "no wiggle while listening")
+        XCTAssertFalse(rig.wait(29_000).contains(where: { if case .listen = $0 { true } else { false } }))
+        XCTAssertTrue(rig.wait(1000).contains(.listen(false, by: .device)), "off at 30 s")
+        XCTAssertNil(rig.core.mumbleBlock)
+        XCTAssertTrue(rig.core.showsListening(at: rig.now), "held for the reply")
+        XCTAssertEqual(rig.input(.talkOff), Fx(), "the release after the limit does nothing")
+        rig.wait(8000)
+        XCTAssertFalse(rig.core.showsListening(at: rig.now), "8 s at most")
+        rig.poke()
+        XCTAssertEqual(rig.ruleActions, ["wiggle"])
+
+        rig.input(.talkOn)
+        rig.wait(2000)
+        XCTAssertTrue(rig.input(.talkOff).contains(.listen(false, by: .device)))
+        rig.core.listeningEnded()
+        XCTAssertFalse(rig.core.showsListening(at: rig.now), "the reply went out")
+
+        XCTAssertEqual(rig.core.listen(true, at: rig.now), [.listen(true, by: .app)])
+        XCTAssertEqual(rig.core.linkDown(at: rig.now), [], "the app's button carries on")
+        XCTAssertEqual(rig.core.listen(false, at: rig.now), [.listen(false, by: .app)])
+        rig.input(.talkOn)
+        XCTAssertEqual(rig.core.linkDown(at: rig.now), [.listen(false, by: .device)], "its release can't arrive")
     }
 
     /// BEHAVIORS.md §3.3: every poke wakes the brain, with no limit; the

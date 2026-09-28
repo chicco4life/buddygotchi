@@ -33,11 +33,13 @@ public struct Event: Equatable, Sendable {
     /// Where it came from.
     public enum Source: String, Sendable {
         case claude, codex, device, clock, boop
+        /// The Mac's microphone: what you said to Boop.
+        case mic
     }
 
     /// What it is, whatever agent it came from (EVENTS.md §2).
     public enum Kind: String, Sendable, CaseIterable {
-        case session, turn, tool, subagent, poke, heartbeat, action
+        case session, turn, tool, subagent, poke, talk, heartbeat, action
     }
 
     /// Where in its life a thing with a start and an end is: a tool call

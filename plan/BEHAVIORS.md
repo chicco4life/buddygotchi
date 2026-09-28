@@ -23,7 +23,8 @@ VISUALS  (what Boop is doing)
   needs you   an agent awaits your approval        │
   no app      device lost the Mac (30 s)           ┘
   cheer       big celebration (trophy, podium…)    ┐ animations:
-  wiggle      sway + heart, on a poke              ┘ play for a moment
+  wiggle      sway + heart, on a poke              │ play for a moment
+  listening   push-to-talk: mic on until the reply ┘
 
   Each mood × visual has a few variations (working 5, the rest 3). The
   Mac picks one at random each time the visual changes, never the last;
@@ -36,14 +37,16 @@ AUTOMATIC  (plain rules, instant, no brain needed)
       asleep / idle / working / needs you / no app
   • Needs you wins over everything: amber light, its alert, who's asking
   • A poke (a tap on the device) → the device plays the wiggle at once
+  • Hold BOOT (or click Talk) → the Mac's mic listens, Boop shows
+    listening until the reply
   • Needs you and no app are never Jev's to show
 
 
 JEV  (the brain; decides everything expressive)
 ═══════════════════════════════════════════════════════════════════════
   Asked on view events:  turn start/end · tests/build/deploy fail or
-                         pass · a poke · heartbeat (quiet work, or
-                         an idle hour)
+                         pass · a poke · what you say to Boop ·
+                         heartbeat (quiet work, or an idle hour)
 
   One request, multiple choice:
 
@@ -112,7 +115,8 @@ WHAT JEV SEES  (built fresh for every ask; Jev keeps no memory)
   (in progress)  a reaction's line   still playing: don't repeat it
 
   Notes: a turn start's `You asked: "…"`, a turn end's `Its last
-  message: "…"`, each cut to 300 characters. No streaks, times, gaps,
+  message: "…"`, each cut to 300 characters, as is the line
+  `You said to Boop: "…"`. No streaks, times, gaps,
   error reasons or topic lists; the view events' facts keep them for
   logs and evals. A reaction that didn't happen isn't shown, so it may
   be made again; one your tap cut short did happen, and stays, in
@@ -147,9 +151,9 @@ The summary above is the model. The rest of this section is how the
 layers meet.
 
 **Attention wins.** While something needs you, no animation or mumble
-plays, one already playing is cut short, a tap only dips the face,
-and no view event but a poke wakes the brain
-([harness/EVENTS.md](harness/EVENTS.md) §6).
+plays but `listening`, so push-to-talk still works; one already playing
+is cut short (`listening` plays on), a tap only dips the face, and no view event but a poke or what you say wakes the
+brain ([harness/EVENTS.md](harness/EVENTS.md) §6).
 
 **How it flows.** The core is a pure state machine: each input goes in
 with the time, effects come out, and the app hands each to its owner.
@@ -158,7 +162,8 @@ brain.
 
 ```
 hook events ──┐                 ┌─► core rules ─┬─► state ─────► device (PROTOCOL.md §3)
-device pokes ─┼─► transcript ───┤               └─► new day ───► memory
+device pokes ─┤                 │               └─► new day ───► memory
+what you say ─┼─► transcript ───┤
 heartbeats ───┘                 └─► view ─► harness ─► brain ─┬─► mumble ─► device
 1 s tick: core timers, the view's heartbeats                  └─► mood ───► core
 ```
@@ -304,7 +309,8 @@ Boop only tells you. You approve on the Mac, in the agent's own prompt.
 | You deny a Claude subagent | It carries on, and Boop stays amber until its next tool call or until it ends ([ADAPTERS.md](ADAPTERS.md) §4) |
 
 The light stays steady and nothing repeats. The brain never shows or
-clears it, and nothing but a poke wakes it meanwhile. A poke's pass can
+clears it, and nothing but a poke or what you say wakes it meanwhile
+(push-to-talk still works, §3.3). A poke's pass can
 change the mood, which the amber look then shows, but no reaction plays
 until nothing needs you.
 
@@ -313,9 +319,48 @@ until nothing needs you.
 | When | What Boop does |
 | --- | --- |
 | You press BOOT or touch the screen | The face dips 2 px at once, until you let go |
-| You let go: a tap | `wiggle`, replacing whatever is playing, a mumble included. Asleep and with no app too. The Mac records it as a poke, with the wiggle under it, and the brain hears of it, but not while it's answering the pokes before ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| You let go within 400 ms, or lift your finger: a tap | `wiggle`, replacing whatever is playing, a mumble included. Asleep and with no app too. The Mac records it as a poke, with the wiggle under it, and the brain hears of it, but not while it's answering the pokes before ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | Pokes in a row | Each within 3 s of the last (`TranscriptView.Config.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. How Boop reacts is the steering's; many in a row can make Boop grumpy for a couple of minutes. While the brain's reaction to them is in progress, a tap-cut one included, the pokes after it don't wake the brain, unless the mood changed since, so a barrage gets one "nope" ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | A tap while something needs you | The press dip only, with no wiggle: there a tap means "I saw it". The brain still hears of the poke ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| Hold BOOT 400 ms, or click Talk in the popover | Push-to-talk, below: `listening` shows at once, the device sends `talk_on` at 400 ms and `talk_off` on release, or by itself after 30 s ([DEVICE.md](DEVICE.md) §4). No tap |
+| A tap while `listening` shows | The press dip only: nothing replaces `listening`. The brain still hears of the poke |
+
+**Push-to-talk.** Hold BOOT and speak, or click Talk in the popover,
+speak and click Send. The Mac's mic records and macOS turns it into text
+on the Mac; the device has no mic.
+
+1. `listening` shows as soon as the mic turns on: at once on the
+   device for BOOT, and on the Mac's word (a `moment` with
+   `"anim":"listening"`) for Talk.
+2. The mic goes off when you let go or click Send, after 30 s
+   (`Core.listenLimitMs`; the device's own button stops at the same
+   limit), or if the link drops while BOOT is held.
+3. What it heard is recorded as what you said
+   ([harness/EVENTS.md](harness/EVENTS.md) §2), and always wakes the
+   brain, even while something needs you. A mumble is the reply, and
+   ends `listening` as it plays. If the brain's pass on it (or on
+   anything newer) makes no reaction, if there's no brain, if the mic
+   heard nothing or couldn't start, the Mac ends `listening` at once with
+   the empty `moment` ([PROTOCOL.md](PROTOCOL.md) §3). The device gives
+   up waiting 8 s after the mic went off (`Core.replyWaitMs`).
+
+While the mic is on nothing else speaks: the brain's reactions are
+refused (`Core.mumbleBlock`) and any waiting their turn are dropped,
+since a mumble would end `listening` before you've finished. How Boop
+answers is the personality's: it can't talk back, only react, and
+`boop` always answers with a face ([harness/DECISIONS.md](harness/DECISIONS.md) §2.2).
+
+**You can always tell the mic is on.** The device shows `listening`; the
+popover's status line says "Listening…" by a pulsing red dot, and Talk
+becomes a filled Send; and macOS shows its own microphone indicator.
+
+**Permissions.** The first time, macOS asks for Speech Recognition, then
+the Microphone. If either is refused, on-device recognition isn't
+available, or the Mac has no usable microphone, `listening` ends and the
+popover says "*name* can't hear you" and why (for a refusal, where to
+allow it in System Settings) until you dismiss it or talk again. The
+audio goes only to the recognizer and is never kept; what reaches the
+brain is in [harness/EVENTS.md](harness/EVENTS.md) §9.
 
 ### 3.4 The link
 
@@ -338,7 +383,7 @@ short-term memory fresh ([ARCHITECTURE.md](ARCHITECTURE.md) §4.3).
 
 | Output | Used for | Never |
 | --- | --- | --- |
-| Mumbles | The brain's reactions | While something needs you |
+| Mumbles | The brain's reactions | While something needs you; while the mic is on (§3.3) |
 | Sound effects | The face's design: working's clicks every loop, the cheer's fanfare, needs you's knocks and ding (the alert, once per request shown, §3.2), idle's swish at most every 45 s ([VOICE.md](VOICE.md) §10) | Asleep, no app, or a test pattern. Under a mumble they're half as loud, except needs you's |
 | Amber light | Something needs you: amber at half (`#805800`) | Any other time, or with no app |
 | Backlight | Full (255) awake; 60/255 asleep and with no app; eases with each switch of design | Dimmed while something needs you |
@@ -353,8 +398,10 @@ stops a line that's playing.
 | --- | --- | --- | --- |
 | `cheer` | A reaction the brain cheers with (`react.animation`, [harness/DECISIONS.md](harness/DECISIONS.md) §3) | The task-complete scene of the reaction's mood: a trophy, a curtain call or a podium | The loops Jev picks, of 6.4–7.2 s each |
 | `wiggle` | A tap | The look's own design, swaying, with a pixel heart | 0.7 s |
+| `listening` | Push-to-talk (§3.3): BOOT held, or the Mac's mic on | The mood's listening scene from the animation pack, one of three at random (focus corners, headphones or an ear trumpet), silent ([DEVICE.md](DEVICE.md) §4) | Until the reply; 8 s after the mic goes off at most, and 30 s + 8 s in all |
 
-The device plays the wiggle on its own, at once. Only the brain cheers:
+The device plays the wiggle and, for BOOT, `listening` on its own, at
+once; nothing replaces `listening` but the reply. Only the brain cheers:
 no rule does, so a finished turn is celebrated only when Jev reacts to
 it with `react.animation: cheer`. Which of the cheer's three variations
 plays is picked at random, never the last one, by `react` when it cheers

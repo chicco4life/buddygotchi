@@ -196,6 +196,18 @@ void test_entry_designs_sound_once() {
   }
 }
 
+// DEVICE.md §4: listening is silent, so nothing competes with your voice.
+void test_listening_is_silent() {
+  for (int m = 0; m < int(Mood::kCount); ++m) {
+    for (int v = 0; v < render::variants(SceneState::kListening); ++v) {
+      app::EffectTrack track;
+      TEST_ASSERT_TRUE(voice::score(m, int(SceneState::kListening), v).policy == voice::Policy::kSilent);
+      Heard h = follow(track, Mood(m), SceneState::kListening, uint8_t(v), 0, 20000);
+      TEST_ASSERT_EQUAL(0, int(h.ev.size()));
+    }
+  }
+}
+
 // Idle's sparse designs sound at most once every 45 s.
 void test_idle_sounds_at_most_every_45_s() {
   app::EffectTrack track;
@@ -268,6 +280,7 @@ int main() {
   RUN_TEST(test_voices_and_stopping);
   RUN_TEST(test_a_working_design_sounds_every_loop);
   RUN_TEST(test_entry_designs_sound_once);
+  RUN_TEST(test_listening_is_silent);
   RUN_TEST(test_idle_sounds_at_most_every_45_s);
   RUN_TEST(test_a_change_of_design_starts_where_its_clock_is);
   RUN_TEST(test_a_stall_drops_late_events);

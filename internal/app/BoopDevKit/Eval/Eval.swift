@@ -10,7 +10,7 @@ public struct Scenario: Sendable {
     /// One step: what happens, and what the pass it wakes should lead to.
     public struct Step: Sendable {
         /// `turn started`, `command`, `turn finished`, `turn failed`,
-        /// `pokes` or `wait`.
+        /// `pokes`, `said` or `wait`.
         public var event: String
         /// Virtual time since the scenario started, in ms.
         public var atMs: Int64
@@ -28,6 +28,8 @@ public struct Scenario: Sendable {
         /// on a finish: the two notes Jev reads.
         public var prompt: String?
         public var message: String?
+        /// What you said to Boop, for `said`.
+        public var words: String?
         /// How a reaction this step's passes start ends: `done` (the
         /// default), `in progress` (it never ends), or `failed: <why>`.
         public var reaction: String?
@@ -106,7 +108,7 @@ public struct Scenario: Sendable {
     public var steps: [Step]
     public var file: String
 
-    public static let events = ["turn started", "command", "turn finished", "turn failed", "pokes", "wait"]
+    public static let events = ["turn started", "command", "turn finished", "turn failed", "pokes", "said", "wait"]
 
     /// How a reaction ends, from a step's `reaction`: nil for a value it
     /// doesn't take.
@@ -181,6 +183,8 @@ public struct Scenario: Sendable {
             step.message = s["message"] as? String
             if step.prompt != nil, event != "turn started" { throw badStep("prompt is only for turn started") }
             if step.message != nil, event != "turn finished" { throw badStep("message is only for turn finished") }
+            step.words = s["words"] as? String
+            if event == "said", step.words?.isEmpty != false { throw badStep("said needs words") }
             if let reaction = s["reaction"] {
                 guard let text = reaction as? String, Scenario.end(text) != nil else {
                     throw badStep("reaction is done, in progress or failed: <why>")
@@ -531,6 +535,7 @@ public struct Eval {
             return [hook(.tool, .start, "PreToolUse", start),
                     hook(.tool, .end, step.failed == true ? "PostToolUseFailure" : "PostToolUse", end)]
         case "pokes": return (0..<4).map { _ in { $0.poke(at: now) } }
+        case "said": return [{ $0.said(step.words ?? "", by: .device, at: now) }]
         default: return []  // wait
         }
     }

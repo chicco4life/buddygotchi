@@ -71,7 +71,9 @@ bool Behaviour::momentOn(uint32_t t) const {
   return moment_.anim != render::Anim::kNone && within(t, moment_.at, moment_.ms);
 }
 
-bool Behaviour::held(uint32_t t) const { return model_.attn && !noApp(t); }
+bool Behaviour::listening(uint32_t t) const { return momentOn(t) && moment_.anim == render::Anim::kListening; }
+
+bool Behaviour::held(uint32_t t) const { return (model_.attn && !noApp(t)) || listening(t); }
 
 bool Behaviour::sayOn(uint32_t t) const { return say_.say.syllables > 0 && within(t, say_.at, say_.ms); }
 
@@ -261,7 +263,9 @@ void Behaviour::onState(const Model& m, uint32_t t) {
       alerted_ = true, alertAt_ = t;
       lookAt_ = t;
       if (had) switched_ = true, switchAt_ = t;  // starting over mid-performance: the eyes hide the jump
-      if (momentOn(t)) cut(moment_.id, CutBy::kNeedsYou), moment_.anim = render::Anim::kNone;
+      // Listening is the one moment that plays on (BEHAVIORS.md §1), so
+      // push-to-talk still works.
+      if (momentOn(t) && !listening(t)) cut(moment_.id, CutBy::kNeedsYou), moment_.anim = render::Anim::kNone;
       if (sayOn(t)) cut(say_.id, CutBy::kNeedsYou);
       say_ = Say{};  // no mumbles while something needs you
       expr_ = false;
@@ -280,16 +284,28 @@ void Behaviour::onState(const Model& m, uint32_t t) {
 // §1): while something needs you, no animation takes the face over and no
 // mumble plays. A moment the Mac waits on that plays nothing ends at once,
 // skipped.
+//
+// Listening (DEVICE.md §4) plays even then, and holds until the reply: any
+// moment with a `say` is the reply, and ends it before playing as it would
+// have; so does the empty moment, which does nothing else. Until then no
+// other animation plays. A listening moment while listening carries on
+// with the same design, its time starting over.
 bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
   if (in.id) forget(in.id);
-  bool anim = in.anim != render::Anim::kNone && !held(t);
+  const bool listen = in.anim == render::Anim::kListening;
+  if (listening(t) && !listen && (in.said || in.empty)) change(t, [&] { moment_.anim = render::Anim::kNone; });
+  bool anim = in.anim != render::Anim::kNone && (listen || !held(t));
   bool mumble = in.syllables > 0 && !model_.attn;
   if (!anim && !mumble) {
     if (in.id) report(Ended{in.id, MomentEnd::kSkipped, CutBy::kNone, in.from});
     return false;
   }
   change(t, [&] {
-    if (anim) {
+    if (anim && listen && listening(t)) {
+      if (moment_.id && moment_.id != in.id) cut(moment_.id, CutBy::kMoment);
+      moment_.ms = (t - moment_.at) + kListenMs + kReplyWaitMs;
+      moment_.id = in.id;
+    } else if (anim) {
       play(in.anim, t, CutBy::kMoment, in.loops, in.expr ? in.mood : model_.mood, in.variant);
       moment_.id = in.id;
       if (in.anim == render::Anim::kCheer && in.whoAgent && in.whoAgent[0]) {
@@ -323,7 +339,9 @@ void Behaviour::play(render::Anim a, uint32_t t, CutBy by, int loops, render::Mo
   moment_.ms = a == render::Anim::kWiggle ? render::kWiggleMs
                : a == render::Anim::kCheer
                    ? uint32_t(loops) * render::loopMs(mood, render::SceneState::kTaskComplete, variant)
-                   : 0;
+               : a == render::Anim::kListening ? kListenMs + kReplyWaitMs
+                                               : 0;
+  if (a == render::Anim::kListening) lastListen_ = variant;
   say_ = Say{};  // a new moment replaces the line, and its expression
   expr_ = false;
   blink_ = false;
@@ -375,6 +393,33 @@ void Behaviour::tap(uint32_t t) {
   change(t, [&] { play(render::Anim::kWiggle, t, CutBy::kTap); });
 }
 
+uint8_t Behaviour::pickListen(Rng& rng) const {
+  int n = render::variants(render::SceneState::kListening);
+  if (n <= 1) return 0;
+  if (lastListen_ >= n) return uint8_t(rng.range(0, n - 1));
+  int v = rng.range(0, n - 2);
+  return uint8_t(v >= lastListen_ ? v + 1 : v);
+}
+
+// BOOT held: listening at once, even while something needs you, cutting
+// whatever else plays as a tap would. Already listening (the Mac's own
+// mic), it carries on with the same design.
+void Behaviour::talkOn(uint32_t t, Rng& rng) {
+  change(t, [&] {
+    if (listening(t)) moment_.ms = (t - moment_.at) + kListenMs + kReplyWaitMs;
+    else play(render::Anim::kListening, t, CutBy::kTap, 1, model_.mood, pickListen(rng));
+  });
+}
+
+// Let go, or capped: listening carries on, with no new blend, and waits
+// at most kReplyWaitMs for the reply. If it isn't playing any more (the
+// Mac ended it), there's nothing to wait on.
+void Behaviour::talkOff(uint32_t t) {
+  change(t, [&] {
+    if (listening(t) && moment_.ms > (t - moment_.at) + kReplyWaitMs) moment_.ms = (t - moment_.at) + kReplyWaitMs;
+  });
+}
+
 // ---- What shows ------------------------------------------------------------
 
 Screen Behaviour::screen(uint32_t t) const {
@@ -394,7 +439,7 @@ Behaviour::Source Behaviour::sourceAt(uint32_t t) const {
     s.look = model_.base;
     s.lookVariant = lookVariant_;
   }
-  if (momentOn(t)) s.anim = moment_.anim, s.at = moment_.at, s.cheerVariant = moment_.variant;
+  if (momentOn(t)) s.anim = moment_.anim, s.at = moment_.at, s.animVariant = moment_.variant;
   return s;
 }
 
@@ -409,7 +454,7 @@ render::SceneShow Behaviour::show(uint32_t t) const {
   s.state = src_.state();
   s.variant = src_.variant();
   s.t = designMs(t);
-  if (src_.anim == render::Anim::kCheer) s.t %= render::loopMs(s.mood, s.state, s.variant);
+  if (src_.animDesign()) s.t %= render::loopMs(s.mood, s.state, s.variant);
   // Needs you's performance plays once, then holds its pending pose, the
   // frame it starts and ends on (the animation pack's contract).
   if (s.state == render::SceneState::kNeedsYou && s.t >= render::loopMs(s.mood, s.state, s.variant)) s.t = 0;

@@ -12,9 +12,9 @@ namespace {
 using namespace faces;
 
 static_assert(kMaxGroups <= SceneFrame::kMaxGroups, "a scene's groups fit its frame");
-static_assert(int(Mood::kCount) == 7 && int(SceneState::kCount) == 6, "faces.h's moods and states");
+static_assert(int(Mood::kCount) == 7 && int(SceneState::kCount) == 7, "faces.h's moods and states");
 
-const char* const kStates[] = {"idle", "working", "needs_you", "task_complete", "asleep", "no_app"};
+const char* const kStates[] = {"idle", "working", "needs_you", "task_complete", "asleep", "no_app", "listening"};
 static_assert(sizeof(kStates) / sizeof(kStates[0]) == size_t(SceneState::kCount), "one name per state");
 constexpr uint16_t kNone = 0xFFFF;
 

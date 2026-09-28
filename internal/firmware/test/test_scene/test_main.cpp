@@ -80,7 +80,7 @@ static void test_every_scene_matches_facegen() {
 // Each state has its variations, each a design of its own; one out of range
 // draws the first. Asleep and with no app, Boop looks the same in every mood.
 static void test_variations_and_shared_designs() {
-  const int want[] = {3, 5, 3, 3, 3, 3};  // idle, working, needs you, the cheer, asleep, no app
+  const int want[] = {3, 5, 3, 3, 3, 3, 3};  // idle, working, needs you, the cheer, asleep, no app, listening
   for (int s = 0; s < int(SceneState::kCount); ++s) {
     TEST_ASSERT_EQUAL_INT(want[s], variants(SceneState(s)));
     for (int v = 1; v < variants(SceneState(s)); ++v) {

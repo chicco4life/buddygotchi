@@ -95,7 +95,7 @@ talks to the device.
 | Transcript | `Harness/Transcript.swift` | Every raw event, in order, one file a day, read back at launch | What any of it means |
 | Pipeline | `App/Pipeline.swift` | Records each input, hands it to the core and the view, records what the core did, and gates the view events | Any rule |
 | Core | `Core/Core.swift` | Keeps the session table; decides what the device shows, and records its rule actions (the wiggle, "needs you") | Minion speech, models, hook formats, files, the brain |
-| View | `Core/TranscriptView.swift` | Folds the transcript into view events, with their lines: turns, checks, pokes, heartbeats, who needs you, what Boop did | The device, what an action does |
+| View | `Core/TranscriptView.swift` | Folds the transcript into view events, with their lines: turns, checks, pokes, what you said, heartbeats, who needs you, what Boop did | The device, what an action does |
 | Harness | `Harness/` | For each view event that wakes the brain, builds the state, asks every action's questions in one request, hands each action its answers and records what it did | Minion speech, the device, a view event's facts, what an action does |
 | Brain | `Brains/JevBrain.swift` | Jev: answers multiple-choice questions about a plain-text state, with probabilities | Everything else |
 | Actions | `Actions/` | `mood` and `react`: carry out one call each, checking their own rules | Whether a rule or the brain called them |
@@ -126,7 +126,8 @@ clock.
 | --- | --- | --- |
 | `handle(event)` | A hook's raw event, once recorded | `state` or `sessions`, a `needs_you` action, a new day |
 | `input(tap, seq:)` | The device's poke, once recorded | `state`, the `wiggle` action, a new day |
-| `tick(at:)` | The runtime, once a second | `state` or `sessions`, a Codex request showing after its grace, a request the safety net clears (their `needs_you` actions) |
+| `input(talkOn)`, `input(talkOff)`, `listen(on)`, `linkDown` | BOOT held and let go, the popover's Talk button, the link dropping | `listen` (the mic on or off, and whose button); the runtime turns the mic on, tells the device to show `listening` for Talk, and ends it when no reply is coming ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
+| `tick(at:)` | The runtime, once a second | `state` or `sessions`, a Codex request showing after its grace, a request the safety net clears (their `needs_you` actions), the mic off at 30 s |
 | `setVolume`, `setMood` | Settings; the mood action | `state` |
 | `setWallClock` | Every tick | None: it changes later decisions |
 
@@ -152,6 +153,8 @@ view's ([harness/EVENTS.md](harness/EVENTS.md) §3–4).
 | Safety net: a request clears after no events | 10 min | [ADAPTERS.md](ADAPTERS.md) §4 |
 | A working session counts as idle after no events | 1 h | [ADAPTERS.md](ADAPTERS.md) §4 |
 | A session is forgotten after no events | 24 h | [ADAPTERS.md](ADAPTERS.md) §4 |
+| Push-to-talk: the mic is on at most | 30 s (`Core.listenLimitMs`) | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
+| `listening` waits for the reply after the mic is off | 8 s (`Core.replyWaitMs`, the device's own too) | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
 
 
 The view's, in `TranscriptView.Config`, which the tick asks it about:
@@ -295,7 +298,8 @@ hops onto it.
 | `boop.ble` queue or `boop.usb-link` thread | The transport; lines and connection changes go to `home` |
 | A Swift task | Jev's request; the answers go back to `home` |
 | A global queue | Reading Jev's key, since the Keychain may stop to ask; the brain is set on `home` |
-| Main thread | The menu bar and popover; the runtime pushes a status (name, snapshot, sessions, link, personality, brain) after every change |
+| `boop.talk` queue | Push-to-talk's mic and speech recognition, in the app (`app/Boop/Talk.swift`); what it heard, or why it couldn't, goes to `home` ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
+| Main thread | The menu bar and popover; the runtime pushes a status (name, snapshot, sessions, link, personality, brain, the mic) after every change |
 
 | Timer | On | Does |
 | --- | --- | --- |
@@ -416,7 +420,8 @@ What crosses each boundary, in the order an event travels:
 | Agent → `boop-hook` | The hook's JSON on stdin | The agent's own | [ADAPTERS.md](ADAPTERS.md) §2 |
 | `boop-hook` → hook server | One JSON line of the kept fields | `HookLine` | [ADAPTERS.md](ADAPTERS.md) §2 |
 | Adapter → pipeline | A raw event | `Event` | [ADAPTERS.md](ADAPTERS.md) §1, [harness/EVENTS.md](harness/EVENTS.md) §2 |
-| Device link → pipeline | A tap, recorded as a poke | `Core.DeviceInput` | [PROTOCOL.md](PROTOCOL.md) §4 |
+| Device link → pipeline | A tap, recorded as a poke; BOOT held and let go, to the core | `Core.DeviceInput` | [PROTOCOL.md](PROTOCOL.md) §4 |
+| App's mic → pipeline | What push-to-talk heard, recorded as a `talk` | `String` (`Runtime.said`) | [harness/EVENTS.md](harness/EVENTS.md) §2 |
 | Pipeline → transcript → core, view | Each raw event, stamped with its `seq` | `Event` | [harness/HARNESS.md](harness/HARNESS.md) §2 |
 | Device link → runtime | How a brain moment ended, by its `id` | `MomentEnded` | [PROTOCOL.md](PROTOCOL.md) §4 |
 | Core → runtime | Effects | `CoreEffect` | §3.2 |
@@ -618,3 +623,4 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-28 | The topic words gain "bug", "merge" and "review", already recorded, which Jev reads from your prompt and the agent's last message rather than a hook's tag. PERSONALITY names them in one line, with no Examples | The notes made these topics visible without new detection. Three Examples put `boop` at 729 tokens, over its 600 budget, and the option meanings alone got 10 of 10 in each new scenario | [harness/DECISIONS.md](harness/DECISIONS.md) §3, [VOICE.md](VOICE.md) §6, [evidence](evidence/2026-09-28-topic-words/README.md) |
 | 2026-09-28 | In a long grind Boop's mood may ease back to happy between check-ins and return to determined; `18-long-grind` drops its limit of 3 mood changes and keeps the one against flipping back within a minute | The owner's call: with check-ins every 1.5–3 minutes, happy → determined → happy → determined → excited over twenty minutes is expected, and the limit failed on main in 10 of 15 runs | [EVALS.md](EVALS.md) §4 |
 | 2026-09-28 | A cheer for a thread's turn names it: `moment.who` (agent and thread) goes with the cheer, and the strip shows it on a black band while the cheer plays. The popover's rows show each session's thread beside its project. Needs a reflash | A cheer said something finished but not which of several agents in one repo, and the popover listed six rows all named `buddygotchi` | [PROTOCOL.md](PROTOCOL.md) §3, [BEHAVIORS.md](BEHAVIORS.md) §5 |
+| 2026-09-28 | Push-to-talk comes back, and this time what you say reaches the brain: hold BOOT 400 ms (or click Talk) and the Mac's mic listens, up to 30 s, with on-device recognition; the words are a `talk` event from the new source `mic` (2,000 characters in the transcript, 300 in the state as `You said to Boop: "…"`) that always wakes the brain, even while something needs you. The device shows `listening` from the pack until the reply, a mumble, or the empty moment when no reaction comes, or 8 s. It's the third kind of words that reach the brain, after your prompt and the agent's last message (an earlier 2026-09-28 row). Quiet mode and the yell meter stay out. A personality's token budget goes from 600 to 700, since `boop` was at 592 before its talk rule and two Examples | The owner wanted to talk to Boop again. The earlier version (removed at `ef142e7f`) listened but its words went nowhere | [BEHAVIORS.md](BEHAVIORS.md) §3.3, [harness/EVENTS.md](harness/EVENTS.md) §2, §4, §6, §8–9, [PROTOCOL.md](PROTOCOL.md) §3–4 |

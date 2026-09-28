@@ -57,6 +57,8 @@ enum Theme {
     static let sage = Color(hex: Palette.sage)
     static let sageInk = adaptive(Palette.sageInkLight, Palette.sageInkDark)
     static let clayInk = adaptive(Palette.clayInkLight, Palette.clayInkDark)
+    /// The mic is on: macOS's own recording red, for the status dot.
+    static let recording = Color(hex: "#FF3B30")
 
     static let glass = Color(hex: Palette.glass)
     /// The filled button: black glass with an oat label on light paper. On

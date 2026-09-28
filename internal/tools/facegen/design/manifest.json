@@ -170,6 +170,39 @@
    "svgPath": "svg/happy/task_complete/happy.task_complete.03.svg"
   },
   {
+   "id": "happy.listening.01",
+   "mood": "happy",
+   "state": "listening",
+   "variation": 1,
+   "name": "Focused attention",
+   "action": null,
+   "caption": "Four large focus corners frame the face",
+   "seconds": 6.4,
+   "svgPath": "svg/happy/listening/happy.listening.01.svg"
+  },
+  {
+   "id": "happy.listening.02",
+   "mood": "happy",
+   "state": "listening",
+   "variation": 2,
+   "name": "Headphones on",
+   "action": null,
+   "caption": "A pixel headset settles around the face",
+   "seconds": 7.2,
+   "svgPath": "svg/happy/listening/happy.listening.02.svg"
+  },
+  {
+   "id": "happy.listening.03",
+   "mood": "happy",
+   "state": "listening",
+   "variation": 3,
+   "name": "The listening trumpet",
+   "action": null,
+   "caption": "Lean toward a comically large ear trumpet",
+   "seconds": 6.8,
+   "svgPath": "svg/happy/listening/happy.listening.03.svg"
+  },
+  {
    "id": "happy.idle.01",
    "mood": "happy",
    "state": "idle",
@@ -388,6 +421,39 @@
    "caption": "A stepped podium rises under the cup",
    "seconds": 6.4,
    "svgPath": "svg/excited/task_complete/excited.task_complete.03.svg"
+  },
+  {
+   "id": "excited.listening.01",
+   "mood": "excited",
+   "state": "listening",
+   "variation": 1,
+   "name": "Focused attention",
+   "action": null,
+   "caption": "Four large focus corners frame the face",
+   "seconds": 6.4,
+   "svgPath": "svg/excited/listening/excited.listening.01.svg"
+  },
+  {
+   "id": "excited.listening.02",
+   "mood": "excited",
+   "state": "listening",
+   "variation": 2,
+   "name": "Headphones on",
+   "action": null,
+   "caption": "A pixel headset settles around the face",
+   "seconds": 7.2,
+   "svgPath": "svg/excited/listening/excited.listening.02.svg"
+  },
+  {
+   "id": "excited.listening.03",
+   "mood": "excited",
+   "state": "listening",
+   "variation": 3,
+   "name": "The listening trumpet",
+   "action": null,
+   "caption": "Lean toward a comically large ear trumpet",
+   "seconds": 6.8,
+   "svgPath": "svg/excited/listening/excited.listening.03.svg"
   },
   {
    "id": "excited.idle.01",
@@ -610,6 +676,39 @@
    "svgPath": "svg/proud/task_complete/proud.task_complete.03.svg"
   },
   {
+   "id": "proud.listening.01",
+   "mood": "proud",
+   "state": "listening",
+   "variation": 1,
+   "name": "Focused attention",
+   "action": null,
+   "caption": "Four large focus corners frame the face",
+   "seconds": 6.4,
+   "svgPath": "svg/proud/listening/proud.listening.01.svg"
+  },
+  {
+   "id": "proud.listening.02",
+   "mood": "proud",
+   "state": "listening",
+   "variation": 2,
+   "name": "Headphones on",
+   "action": null,
+   "caption": "A pixel headset settles around the face",
+   "seconds": 7.2,
+   "svgPath": "svg/proud/listening/proud.listening.02.svg"
+  },
+  {
+   "id": "proud.listening.03",
+   "mood": "proud",
+   "state": "listening",
+   "variation": 3,
+   "name": "The listening trumpet",
+   "action": null,
+   "caption": "Lean toward a comically large ear trumpet",
+   "seconds": 6.8,
+   "svgPath": "svg/proud/listening/proud.listening.03.svg"
+  },
+  {
    "id": "proud.idle.01",
    "mood": "proud",
    "state": "idle",
@@ -828,6 +927,39 @@
    "caption": "A stepped podium rises under the cup",
    "seconds": 6.4,
    "svgPath": "svg/curious/task_complete/curious.task_complete.03.svg"
+  },
+  {
+   "id": "curious.listening.01",
+   "mood": "curious",
+   "state": "listening",
+   "variation": 1,
+   "name": "Focused attention",
+   "action": null,
+   "caption": "Four large focus corners frame the face",
+   "seconds": 6.4,
+   "svgPath": "svg/curious/listening/curious.listening.01.svg"
+  },
+  {
+   "id": "curious.listening.02",
+   "mood": "curious",
+   "state": "listening",
+   "variation": 2,
+   "name": "Headphones on",
+   "action": null,
+   "caption": "A pixel headset settles around the face",
+   "seconds": 7.2,
+   "svgPath": "svg/curious/listening/curious.listening.02.svg"
+  },
+  {
+   "id": "curious.listening.03",
+   "mood": "curious",
+   "state": "listening",
+   "variation": 3,
+   "name": "The listening trumpet",
+   "action": null,
+   "caption": "Lean toward a comically large ear trumpet",
+   "seconds": 6.8,
+   "svgPath": "svg/curious/listening/curious.listening.03.svg"
   },
   {
    "id": "curious.idle.01",
@@ -1050,6 +1182,39 @@
    "svgPath": "svg/determined/task_complete/determined.task_complete.03.svg"
   },
   {
+   "id": "determined.listening.01",
+   "mood": "determined",
+   "state": "listening",
+   "variation": 1,
+   "name": "Focused attention",
+   "action": null,
+   "caption": "Four large focus corners frame the face",
+   "seconds": 6.4,
+   "svgPath": "svg/determined/listening/determined.listening.01.svg"
+  },
+  {
+   "id": "determined.listening.02",
+   "mood": "determined",
+   "state": "listening",
+   "variation": 2,
+   "name": "Headphones on",
+   "action": null,
+   "caption": "A pixel headset settles around the face",
+   "seconds": 7.2,
+   "svgPath": "svg/determined/listening/determined.listening.02.svg"
+  },
+  {
+   "id": "determined.listening.03",
+   "mood": "determined",
+   "state": "listening",
+   "variation": 3,
+   "name": "The listening trumpet",
+   "action": null,
+   "caption": "Lean toward a comically large ear trumpet",
+   "seconds": 6.8,
+   "svgPath": "svg/determined/listening/determined.listening.03.svg"
+  },
+  {
    "id": "determined.idle.01",
    "mood": "determined",
    "state": "idle",
@@ -1270,6 +1435,39 @@
    "svgPath": "svg/grumpy/task_complete/grumpy.task_complete.03.svg"
   },
   {
+   "id": "grumpy.listening.01",
+   "mood": "grumpy",
+   "state": "listening",
+   "variation": 1,
+   "name": "Focused attention",
+   "action": null,
+   "caption": "Four large focus corners frame the face",
+   "seconds": 6.4,
+   "svgPath": "svg/grumpy/listening/grumpy.listening.01.svg"
+  },
+  {
+   "id": "grumpy.listening.02",
+   "mood": "grumpy",
+   "state": "listening",
+   "variation": 2,
+   "name": "Headphones on",
+   "action": null,
+   "caption": "A pixel headset settles around the face",
+   "seconds": 7.2,
+   "svgPath": "svg/grumpy/listening/grumpy.listening.02.svg"
+  },
+  {
+   "id": "grumpy.listening.03",
+   "mood": "grumpy",
+   "state": "listening",
+   "variation": 3,
+   "name": "The listening trumpet",
+   "action": null,
+   "caption": "Lean toward a comically large ear trumpet",
+   "seconds": 6.8,
+   "svgPath": "svg/grumpy/listening/grumpy.listening.03.svg"
+  },
+  {
    "id": "grumpy.idle.01",
    "mood": "grumpy",
    "state": "idle",
@@ -1488,6 +1686,39 @@
    "caption": "A stepped podium rises under the cup",
    "seconds": 6.4,
    "svgPath": "svg/sad/task_complete/sad.task_complete.03.svg"
+  },
+  {
+   "id": "sad.listening.01",
+   "mood": "sad",
+   "state": "listening",
+   "variation": 1,
+   "name": "Focused attention",
+   "action": null,
+   "caption": "Four large focus corners frame the face",
+   "seconds": 6.4,
+   "svgPath": "svg/sad/listening/sad.listening.01.svg"
+  },
+  {
+   "id": "sad.listening.02",
+   "mood": "sad",
+   "state": "listening",
+   "variation": 2,
+   "name": "Headphones on",
+   "action": null,
+   "caption": "A pixel headset settles around the face",
+   "seconds": 7.2,
+   "svgPath": "svg/sad/listening/sad.listening.02.svg"
+  },
+  {
+   "id": "sad.listening.03",
+   "mood": "sad",
+   "state": "listening",
+   "variation": 3,
+   "name": "The listening trumpet",
+   "action": null,
+   "caption": "Lean toward a comically large ear trumpet",
+   "seconds": 6.8,
+   "svgPath": "svg/sad/listening/sad.listening.03.svg"
   },
   {
    "id": "sad.idle.01",

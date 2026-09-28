@@ -48,8 +48,11 @@ public struct DeviceMoment: Equatable, Sendable {
         self.id = id
     }
 
-    /// The animations the device plays (BEHAVIORS.md §5).
+    /// The animations the device plays (BEHAVIORS.md §5), besides
+    /// `listening`, which only push-to-talk plays (§3.3).
     public static let anims = ["cheer", "wiggle"]
+    /// Push-to-talk's face, from the mic turning on until the reply.
+    public static let listening = "listening"
 
     /// The most `loops` the device plays (firmware `Behaviour::kMaxLoops`).
     public static let maxLoops = 6

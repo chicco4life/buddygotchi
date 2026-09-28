@@ -13,10 +13,11 @@
 namespace render {
 
 // The designs' states, in faces.h's order. The task_complete design shows
-// the cheer; the others are the looks, what the face shows when no moment
-// plays.
-enum class SceneState : uint8_t { kIdle, kWorking, kNeedsYou, kTaskComplete, kAsleep, kNoApp, kCount };
-// "idle", "working", "needs_you", "task_complete", "asleep", "no_app".
+// the cheer and the listening design push-to-talk's listening; the others
+// are the looks, what the face shows when no moment plays.
+enum class SceneState : uint8_t { kIdle, kWorking, kNeedsYou, kTaskComplete, kAsleep, kNoApp, kListening, kCount };
+// "idle", "working", "needs_you", "task_complete", "asleep", "no_app",
+// "listening".
 const char* stateName(SceneState s);
 SceneState stateFromName(const char* name);  // kIdle if missing or unknown
 // How many variations a state's design has; a state's variation is

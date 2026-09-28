@@ -129,6 +129,21 @@ public final class Core {
     var shownNeeds: [String: (agent: Agent, id: String)] = [:]
     var clearedWhy: [String: String] = [:]
 
+    // Push-to-talk (BEHAVIORS.md §3.3).
+    /// Who turned the Mac's mic on: the device's BOOT button or the app's
+    /// mic button.
+    public enum Talker: String, Sendable { case device, app }
+    /// The mic is never on longer than this, whatever happens to the release.
+    public static let listenLimitMs: Int64 = 30_000
+    /// After the mic goes off, the device holds `listening` this long at
+    /// most for the reply (firmware `kListenHoldMs`).
+    public static let replyWaitMs: Int64 = 8000
+    /// While the Mac's mic is on: who turned it on, and when.
+    public private(set) var listening: (by: Talker, since: Int64)?
+    /// Once the mic is off, until when the device still shows `listening`
+    /// waiting for the reply; nil once it's over.
+    var replyUntil: Int64?
+
     /// `lastActiveDay` is today's date from `short-term.md`, if there is one,
     /// so a restart doesn't start the day again. `place` names a working
     /// directory's project (ADAPTERS.md §3).
@@ -390,7 +405,7 @@ public final class Core {
 
     /// An `input` message's `k` (PROTOCOL.md §4).
     public enum DeviceInput: String, Sendable {
-        case tap
+        case tap, talkOn = "talk_on", talkOff = "talk_off"
     }
 
     /// An `input` message from the device, recorded as the event `seq`.
@@ -403,9 +418,49 @@ public final class Core {
         switch input {
         case .tap:
             poked(now, seq: seq, &fx)
+        case .talkOn:
+            // The device already shows `listening`.
+            startListening(by: .device, now, &fx)
+        case .talkOff:
+            stopListening(now, &fx)
         }
         publish(now, &fx)
         return fx
+    }
+
+    /// The app's mic button: start or stop listening. The runtime has the
+    /// device show `listening` for it.
+    @discardableResult
+    public func listen(_ on: Bool, at now: Int64) -> [CoreEffect] {
+        var fx: [CoreEffect] = []
+        advance(to: now, &fx)
+        startDayIfNew(now, &fx)
+        if on { startListening(by: .app, now, &fx) } else { stopListening(now, &fx) }
+        publish(now, &fx)
+        return fx
+    }
+
+    /// The link to the device dropped, so its button's release can't
+    /// arrive: stop listening now. The app's mic button carries on.
+    @discardableResult
+    public func linkDown(at now: Int64) -> [CoreEffect] {
+        var fx: [CoreEffect] = []
+        if listening?.by == .device { stopListening(now, &fx) }
+        return fx
+    }
+
+    /// The device stopped showing `listening`: the reply went out, or the
+    /// runtime ended it with the empty moment because none is coming, or
+    /// the mic couldn't start.
+    public func listeningEnded() {
+        listening = nil
+        replyUntil = nil
+    }
+
+    /// Whether the device shows `listening` at `now`: the mic is on, or it
+    /// went off and the reply hasn't come yet.
+    public func showsListening(at now: Int64) -> Bool {
+        listening != nil || replyUntil.map { now < $0 } == true
     }
 
     @discardableResult
@@ -430,11 +485,16 @@ public final class Core {
         wallOffsetMs = wallMs - now
     }
 
-    /// Timers: the Codex grace period and the safety net.
+    /// Timers: the Codex grace period, the safety net and the mic's 30 s
+    /// limit.
     @discardableResult
     public func tick(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
+        if let l = listening, now - l.since >= Self.listenLimitMs {
+            // The device's own button hits the same limit.
+            stopListening(now, &fx)
+        }
         publish(now, &fx)
         return fx
     }
@@ -481,9 +541,12 @@ public final class Core {
     }
 
     /// Why a mumble can't play now, or nil: something needs you
-    /// (BEHAVIORS.md §1).
+    /// (BEHAVIORS.md §1), or the mic is on, since a mumble would end
+    /// `listening` before you've finished (§3.3).
     public var mumbleBlock: String? {
-        needsYouShowing ? "something needs you" : nil
+        if needsYouShowing { return "something needs you" }
+        if listening != nil { return "the mic is on" }
+        return nil
     }
 
     // MARK: - Rules
@@ -566,12 +629,30 @@ public final class Core {
     /// view, which counts the pokes in a row (BEHAVIORS.md §3.3). The rules
     /// add no animation of their own,
     /// but record the wiggle. While something needs you a poke means "I
-    /// saw it": the device doesn't wiggle, so nothing is recorded.
+    /// saw it", and while `listening` shows nothing replaces it: the device
+    /// doesn't wiggle, so nothing is recorded.
     func poked(_ now: Int64, seq: Int?, _ fx: inout [CoreEffect]) {
-        guard !needsYouShowing else { return }
+        guard !needsYouShowing, !showsListening(at: now) else { return }
         fx.append(.record(Event(ts: now, source: .boop, type: .action, specificType: Core.wiggle,
                                 data: ["for": seq.map { .int(Int64($0)) } ?? .null, "by": "rule", "ok": true,
                                        "message": .string(Core.wiggled)])))
+    }
+
+    func startListening(by talker: Talker, _ now: Int64, _ fx: inout [CoreEffect]) {
+        guard listening == nil else { return }
+        listening = (talker, now)
+        replyUntil = nil
+        fx.append(.listen(true, by: talker))
+    }
+
+    /// Turns the mic off, if it's on. The device holds `listening` for the
+    /// reply until the runtime says it's over (`listeningEnded`), or
+    /// `replyWaitMs` at most.
+    func stopListening(_ now: Int64, _ fx: inout [CoreEffect]) {
+        guard let l = listening else { return }
+        listening = nil
+        replyUntil = now + Self.replyWaitMs
+        fx.append(.listen(false, by: l.by))
     }
 
     /// The rule actions' names and messages (harness/EVENTS.md §2).

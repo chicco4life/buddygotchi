@@ -11,13 +11,30 @@
 {"expect":{"moment":{"anim":"wiggle"},"last_input":{"k":"tap","at":600}}}
 {"clock":850}
 {"shot":"tap-wiggle"}
-// A BOOT press held however long is a tap, sent on release.
+// Holding BOOT 400 ms is push-to-talk (DEVICE.md §4): listening shows at once.
 {"clock":2000}
-{"input":{"press":"tap","ms":1500}}
-{"clock":3499}
+{"input":{"press":"hold","ms":1500}}
+{"clock":2399}
 {"expect":{"moment":null,"boot":true,"last_input":{"k":"tap","at":600}}}
+{"clock":2400}
+{"expect":{"moment":{"anim":"listening"},"last_input":{"k":"talk_on","at":2400}}}
+{"clock":2700}
+{"shot":"listening"}
+// Released: the same listening face waits at most 8 s for the reply, then
+// blends back with nothing else.
 {"clock":3500}
-{"expect":{"moment":{"anim":"wiggle"},"boot":false,"last_input":{"k":"tap","at":3500}}}
+{"expect":{"moment":{"anim":"listening","left_ms":8000},"boot":false,"last_input":{"k":"talk_off","at":3500}}}
+{"t":"state","v":1,"base":"idle","busy":0}
+// A cheer meanwhile doesn't replace it.
+{"clock":4000}
+{"t":"moment","anim":"cheer"}
+{"expect":{"moment":{"anim":"listening","left_ms":7500}}}
+{"clock":11499}
+{"expect":{"moment":{"anim":"listening","left_ms":1}}}
+{"clock":11500}
+{"expect":{"moment":null}}
+{"clock":11575}
+{"shot":"no-reply-75ms"}
 {"t":"state","v":1,"base":"idle","busy":0}
 // A touch held however long is a tap, sent on release.
 {"clock":14000}
@@ -44,7 +61,15 @@
 {"shot":"strip-press"}
 {"clock":29100}
 {"expect":{"screen":"needs_you","moment":null,"last_input":{"k":"tap","at":29100}}}
-// A mumble can't show while something needs you.
+// Push-to-talk still works while something needs you.
+{"clock":29200}
+{"input":{"press":"hold","ms":600}}
+{"clock":29600}
+{"expect":{"screen":"needs_you","moment":{"anim":"listening"},"last_input":{"k":"talk_on","at":29600}}}
+{"clock":29760}
+{"shot":"needs-you-listening"}
+// A mumble can't show while something needs you, but as the reply it
+// ends listening.
 {"clock":29900}
 {"t":"moment","say":{"syl":"ba po","ms":120}}
 {"expect":{"screen":"needs_you","moment":null,"audio":{"syllables":0}}}

@@ -92,11 +92,11 @@ static void test_palette_ramps_run_from_black_to_the_ink() {
   TEST_ASSERT_EQUAL_HEX16(rgb565(255, 0, 0), paletteAt(kRed));  // the bring-up pattern's colours stay
 }
 
-// BEHAVIORS.md §5: two animations, and nothing else. The wiggle is 0.7 s;
-// the cheer lasts its loops of its design, and every design has a loop
-// (PROTOCOL.md §3).
+// BEHAVIORS.md §5: three animations, and nothing else. The wiggle is
+// 0.7 s; the cheer lasts its loops of its design, and every design has a
+// loop (PROTOCOL.md §3); listening lasts until the reply (DEVICE.md §4).
 static void test_every_anim_has_a_name_and_ends() {
-  TEST_ASSERT_EQUAL_INT(3, int(Anim::kCount));  // with kNone
+  TEST_ASSERT_EQUAL_INT(4, int(Anim::kCount));  // with kNone
   for (int i = 1; i < int(Anim::kCount); ++i) {
     Anim a = Anim(i);
     TEST_ASSERT_TRUE(animFromName(animName(a)) == a);
@@ -104,12 +104,12 @@ static void test_every_anim_has_a_name_and_ends() {
   for (int m = 0; m < int(Mood::kCount); ++m) {
     for (int s = 0; s < int(SceneState::kCount); ++s) TEST_ASSERT_TRUE(loopMs(Mood(m), SceneState(s)) > 0);
   }
-  for (const char* name : {"cheer", "wiggle"}) {
+  for (const char* name : {"cheer", "wiggle", "listening"}) {
     TEST_ASSERT_TRUE_MESSAGE(animFromName(name) != Anim::kNone, name);
   }
   for (const char* gone : {"dance", "oops", "side_eye", "stretch", "yawn", "zip", "gobble", "rumble", "levelup",
                            "happy", "proud", "smug", "curious", "sleepy", "worried", "sulky", "love", "nod",
-                           "thinking", "shrug", "listening"}) {
+                           "thinking", "shrug"}) {
     TEST_ASSERT_TRUE_MESSAGE(animFromName(gone) == Anim::kNone, gone);
   }
   TEST_ASSERT_EQUAL_UINT32(700, kWiggleMs);

@@ -8,7 +8,7 @@ struct FacegenFrame {
   uint8_t mood, state, variant;
   uint32_t t, crc;
 };
-static const FacegenFrame kFacegenFrames[1107] = {
+static const FacegenFrame kFacegenFrames[1358] = {
   {0, 0, 0, 0, 0x8bba8fb6u},  // happy idle 1
   {0, 0, 0, 150, 0x8bba8fb6u},  // happy idle 1
   {0, 0, 0, 420, 0x8bba8fb6u},  // happy idle 1
@@ -238,6 +238,42 @@ static const FacegenFrame kFacegenFrames[1107] = {
   {0, 5, 2, 5500, 0x1688f305u},  // happy no_app 3
   {0, 5, 2, 7300, 0x1688f305u},  // happy no_app 3
   {0, 5, 2, 9900, 0x09f23385u},  // happy no_app 3
+  {0, 6, 0, 0, 0xbf69ad74u},  // happy listening 1
+  {0, 6, 0, 150, 0xbf69ad74u},  // happy listening 1
+  {0, 6, 0, 420, 0xbf69ad74u},  // happy listening 1
+  {0, 6, 0, 700, 0xbf69ad74u},  // happy listening 1
+  {0, 6, 0, 1100, 0xa21b6b63u},  // happy listening 1
+  {0, 6, 0, 1650, 0xa21b6b63u},  // happy listening 1
+  {0, 6, 0, 2300, 0xa21b6b63u},  // happy listening 1
+  {0, 6, 0, 3100, 0xbf69ad74u},  // happy listening 1
+  {0, 6, 0, 4200, 0xbf69ad74u},  // happy listening 1
+  {0, 6, 0, 5500, 0xbf69ad74u},  // happy listening 1
+  {0, 6, 0, 7300, 0xa21b6b63u},  // happy listening 1
+  {0, 6, 0, 9900, 0xbf69ad74u},  // happy listening 1
+  {0, 6, 1, 0, 0x01105dc3u},  // happy listening 2
+  {0, 6, 1, 150, 0x01105dc3u},  // happy listening 2
+  {0, 6, 1, 420, 0x01105dc3u},  // happy listening 2
+  {0, 6, 1, 700, 0x01105dc3u},  // happy listening 2
+  {0, 6, 1, 1100, 0x662364eau},  // happy listening 2
+  {0, 6, 1, 1650, 0xa55c04a4u},  // happy listening 2
+  {0, 6, 1, 2300, 0xa55c04a4u},  // happy listening 2
+  {0, 6, 1, 3100, 0x08d53af2u},  // happy listening 2
+  {0, 6, 1, 4200, 0x08d53af2u},  // happy listening 2
+  {0, 6, 1, 5500, 0x08d53af2u},  // happy listening 2
+  {0, 6, 1, 7300, 0x01105dc3u},  // happy listening 2
+  {0, 6, 1, 9900, 0x08d53af2u},  // happy listening 2
+  {0, 6, 2, 0, 0x44b79b80u},  // happy listening 3
+  {0, 6, 2, 150, 0x44b79b80u},  // happy listening 3
+  {0, 6, 2, 420, 0x44b79b80u},  // happy listening 3
+  {0, 6, 2, 700, 0x44b79b80u},  // happy listening 3
+  {0, 6, 2, 1100, 0x44b79b80u},  // happy listening 3
+  {0, 6, 2, 1650, 0x62465f84u},  // happy listening 3
+  {0, 6, 2, 2300, 0x62465f84u},  // happy listening 3
+  {0, 6, 2, 3100, 0x62465f84u},  // happy listening 3
+  {0, 6, 2, 4200, 0x62465f84u},  // happy listening 3
+  {0, 6, 2, 5500, 0x62465f84u},  // happy listening 3
+  {0, 6, 2, 7300, 0x44b79b80u},  // happy listening 3
+  {0, 6, 2, 9900, 0x62465f84u},  // happy listening 3
   {1, 0, 0, 0, 0x353cd004u},  // excited idle 1
   {1, 0, 0, 150, 0x353cd004u},  // excited idle 1
   {1, 0, 0, 420, 0x353cd004u},  // excited idle 1
@@ -384,6 +420,42 @@ static const FacegenFrame kFacegenFrames[1107] = {
   {1, 3, 2, 5500, 0x11f3197eu},  // excited task_complete 3
   {1, 3, 2, 7300, 0xb2ed9b12u},  // excited task_complete 3
   {1, 3, 2, 9900, 0xb981ca06u},  // excited task_complete 3
+  {1, 6, 0, 0, 0x01eff2c6u},  // excited listening 1
+  {1, 6, 0, 150, 0x01eff2c6u},  // excited listening 1
+  {1, 6, 0, 420, 0x01eff2c6u},  // excited listening 1
+  {1, 6, 0, 700, 0x01eff2c6u},  // excited listening 1
+  {1, 6, 0, 1100, 0x574cb6edu},  // excited listening 1
+  {1, 6, 0, 1650, 0xb028ea64u},  // excited listening 1
+  {1, 6, 0, 2300, 0xb028ea64u},  // excited listening 1
+  {1, 6, 0, 3100, 0x01eff2c6u},  // excited listening 1
+  {1, 6, 0, 4200, 0x01eff2c6u},  // excited listening 1
+  {1, 6, 0, 5500, 0x01eff2c6u},  // excited listening 1
+  {1, 6, 0, 7300, 0x574cb6edu},  // excited listening 1
+  {1, 6, 0, 9900, 0x01eff2c6u},  // excited listening 1
+  {1, 6, 1, 0, 0x09d745ddu},  // excited listening 2
+  {1, 6, 1, 150, 0x09d745ddu},  // excited listening 2
+  {1, 6, 1, 420, 0x09d745ddu},  // excited listening 2
+  {1, 6, 1, 700, 0x09d745ddu},  // excited listening 2
+  {1, 6, 1, 1100, 0x09d745ddu},  // excited listening 2
+  {1, 6, 1, 1650, 0x384b569eu},  // excited listening 2
+  {1, 6, 1, 2300, 0x384b569eu},  // excited listening 2
+  {1, 6, 1, 3100, 0xb6536540u},  // excited listening 2
+  {1, 6, 1, 4200, 0xb6536540u},  // excited listening 2
+  {1, 6, 1, 5500, 0xb6536540u},  // excited listening 2
+  {1, 6, 1, 7300, 0x09d745ddu},  // excited listening 2
+  {1, 6, 1, 9900, 0xb6536540u},  // excited listening 2
+  {1, 6, 2, 0, 0x0a7f4dc1u},  // excited listening 3
+  {1, 6, 2, 150, 0x0a7f4dc1u},  // excited listening 3
+  {1, 6, 2, 420, 0x0a7f4dc1u},  // excited listening 3
+  {1, 6, 2, 700, 0x0a7f4dc1u},  // excited listening 3
+  {1, 6, 2, 1100, 0x76b1e0a5u},  // excited listening 3
+  {1, 6, 2, 1650, 0xa307fc25u},  // excited listening 3
+  {1, 6, 2, 2300, 0xa307fc25u},  // excited listening 3
+  {1, 6, 2, 3100, 0xdcc00036u},  // excited listening 3
+  {1, 6, 2, 4200, 0xdcc00036u},  // excited listening 3
+  {1, 6, 2, 5500, 0xdcc00036u},  // excited listening 3
+  {1, 6, 2, 7300, 0x0a7f4dc1u},  // excited listening 3
+  {1, 6, 2, 9900, 0xdcc00036u},  // excited listening 3
   {2, 0, 0, 0, 0xc7ad1074u},  // proud idle 1
   {2, 0, 0, 150, 0xc7ad1074u},  // proud idle 1
   {2, 0, 0, 420, 0xc7ad1074u},  // proud idle 1
@@ -545,6 +617,42 @@ static const FacegenFrame kFacegenFrames[1107] = {
   {2, 3, 2, 5500, 0xa99e2e64u},  // proud task_complete 3
   {2, 3, 2, 7300, 0x6bdcfb84u},  // proud task_complete 3
   {2, 3, 2, 9900, 0xf1e35f9au},  // proud task_complete 3
+  {2, 6, 0, 0, 0x9c17fb98u},  // proud listening 1
+  {2, 6, 0, 150, 0x9c17fb98u},  // proud listening 1
+  {2, 6, 0, 420, 0x9c17fb98u},  // proud listening 1
+  {2, 6, 0, 700, 0x9c17fb98u},  // proud listening 1
+  {2, 6, 0, 1100, 0x9c17fb98u},  // proud listening 1
+  {2, 6, 0, 1650, 0xde9d3609u},  // proud listening 1
+  {2, 6, 0, 2300, 0xde9d3609u},  // proud listening 1
+  {2, 6, 0, 3100, 0xf37e32b6u},  // proud listening 1
+  {2, 6, 0, 4200, 0xf37e32b6u},  // proud listening 1
+  {2, 6, 0, 5500, 0xf37e32b6u},  // proud listening 1
+  {2, 6, 0, 7300, 0x9c17fb98u},  // proud listening 1
+  {2, 6, 0, 9900, 0xf37e32b6u},  // proud listening 1
+  {2, 6, 1, 0, 0xc9223af8u},  // proud listening 2
+  {2, 6, 1, 150, 0xc9223af8u},  // proud listening 2
+  {2, 6, 1, 420, 0xc9223af8u},  // proud listening 2
+  {2, 6, 1, 700, 0xc9223af8u},  // proud listening 2
+  {2, 6, 1, 1100, 0xc9223af8u},  // proud listening 2
+  {2, 6, 1, 1650, 0xb932e955u},  // proud listening 2
+  {2, 6, 1, 2300, 0xb932e955u},  // proud listening 2
+  {2, 6, 1, 3100, 0x44c2a530u},  // proud listening 2
+  {2, 6, 1, 4200, 0x44c2a530u},  // proud listening 2
+  {2, 6, 1, 5500, 0x44c2a530u},  // proud listening 2
+  {2, 6, 1, 7300, 0xc9223af8u},  // proud listening 2
+  {2, 6, 1, 9900, 0x44c2a530u},  // proud listening 2
+  {2, 6, 2, 0, 0x297b2f21u},  // proud listening 3
+  {2, 6, 2, 150, 0x297b2f21u},  // proud listening 3
+  {2, 6, 2, 420, 0x297b2f21u},  // proud listening 3
+  {2, 6, 2, 700, 0x297b2f21u},  // proud listening 3
+  {2, 6, 2, 1100, 0x297b2f21u},  // proud listening 3
+  {2, 6, 2, 1650, 0xe25841a3u},  // proud listening 3
+  {2, 6, 2, 2300, 0xe25841a3u},  // proud listening 3
+  {2, 6, 2, 3100, 0x2e51c046u},  // proud listening 3
+  {2, 6, 2, 4200, 0x2e51c046u},  // proud listening 3
+  {2, 6, 2, 5500, 0x2e51c046u},  // proud listening 3
+  {2, 6, 2, 7300, 0x297b2f21u},  // proud listening 3
+  {2, 6, 2, 9900, 0x2e51c046u},  // proud listening 3
   {3, 0, 0, 0, 0xc33f622bu},  // curious idle 1
   {3, 0, 0, 150, 0xc33f622bu},  // curious idle 1
   {3, 0, 0, 420, 0xc33f622bu},  // curious idle 1
@@ -702,6 +810,41 @@ static const FacegenFrame kFacegenFrames[1107] = {
   {3, 3, 2, 5500, 0xfa59fb72u},  // curious task_complete 3
   {3, 3, 2, 7300, 0x0129739fu},  // curious task_complete 3
   {3, 3, 2, 9900, 0x3f055756u},  // curious task_complete 3
+  {3, 6, 0, 0, 0x25ad5e2du},  // curious listening 1
+  {3, 6, 0, 150, 0x25ad5e2du},  // curious listening 1
+  {3, 6, 0, 420, 0x25ad5e2du},  // curious listening 1
+  {3, 6, 0, 700, 0x25ad5e2du},  // curious listening 1
+  {3, 6, 0, 1100, 0xcf0f6263u},  // curious listening 1
+  {3, 6, 0, 1650, 0xf2b545ceu},  // curious listening 1
+  {3, 6, 0, 2300, 0xf2b545ceu},  // curious listening 1
+  {3, 6, 0, 3100, 0xa4a39fe2u},  // curious listening 1
+  {3, 6, 0, 4200, 0x539f5cc3u},  // curious listening 1
+  {3, 6, 0, 5500, 0x1369c973u},  // curious listening 1
+  {3, 6, 0, 7300, 0xcf0f6263u},  // curious listening 1
+  {3, 6, 0, 9900, 0xf7ec40e9u},  // curious listening 1
+  {3, 6, 1, 0, 0xabfaba51u},  // curious listening 2
+  {3, 6, 1, 150, 0xabfaba51u},  // curious listening 2
+  {3, 6, 1, 420, 0xabfaba51u},  // curious listening 2
+  {3, 6, 1, 700, 0xd2bfa691u},  // curious listening 2
+  {3, 6, 1, 1100, 0xd2bfa691u},  // curious listening 2
+  {3, 6, 1, 1650, 0xd397fa5cu},  // curious listening 2
+  {3, 6, 1, 2300, 0xde0d125du},  // curious listening 2
+  {3, 6, 1, 3100, 0xe423cb45u},  // curious listening 2
+  {3, 6, 1, 5500, 0xe423cb45u},  // curious listening 2
+  {3, 6, 1, 7300, 0xabfaba51u},  // curious listening 2
+  {3, 6, 1, 9900, 0x4050d76fu},  // curious listening 2
+  {3, 6, 2, 0, 0x67dbd6a6u},  // curious listening 3
+  {3, 6, 2, 150, 0x67dbd6a6u},  // curious listening 3
+  {3, 6, 2, 420, 0x67dbd6a6u},  // curious listening 3
+  {3, 6, 2, 700, 0x67dbd6a6u},  // curious listening 3
+  {3, 6, 2, 1100, 0x93edc9b2u},  // curious listening 3
+  {3, 6, 2, 1650, 0x8eb0ae33u},  // curious listening 3
+  {3, 6, 2, 2300, 0xce463b83u},  // curious listening 3
+  {3, 6, 2, 3100, 0x798c6d12u},  // curious listening 3
+  {3, 6, 2, 4200, 0x2ac3b219u},  // curious listening 3
+  {3, 6, 2, 5500, 0xce463b83u},  // curious listening 3
+  {3, 6, 2, 7300, 0x67dbd6a6u},  // curious listening 3
+  {3, 6, 2, 9900, 0x798c6d12u},  // curious listening 3
   {4, 0, 0, 0, 0xaf28b605u},  // determined idle 1
   {4, 0, 0, 150, 0xaf28b605u},  // determined idle 1
   {4, 0, 0, 420, 0xaf28b605u},  // determined idle 1
@@ -856,6 +999,42 @@ static const FacegenFrame kFacegenFrames[1107] = {
   {4, 3, 2, 5500, 0xfcdd44beu},  // determined task_complete 3
   {4, 3, 2, 7300, 0xcd72670bu},  // determined task_complete 3
   {4, 3, 2, 9900, 0x86c6df8bu},  // determined task_complete 3
+  {4, 6, 0, 0, 0x8c6dfeb4u},  // determined listening 1
+  {4, 6, 0, 150, 0x8c6dfeb4u},  // determined listening 1
+  {4, 6, 0, 420, 0x8c6dfeb4u},  // determined listening 1
+  {4, 6, 0, 700, 0x8c6dfeb4u},  // determined listening 1
+  {4, 6, 0, 1100, 0x9bfb94c7u},  // determined listening 1
+  {4, 6, 0, 1650, 0x9bfb94c7u},  // determined listening 1
+  {4, 6, 0, 2300, 0x9bfb94c7u},  // determined listening 1
+  {4, 6, 0, 3100, 0x9bfb94c7u},  // determined listening 1
+  {4, 6, 0, 4200, 0x9bfb94c7u},  // determined listening 1
+  {4, 6, 0, 5500, 0x9bfb94c7u},  // determined listening 1
+  {4, 6, 0, 7300, 0x9bfb94c7u},  // determined listening 1
+  {4, 6, 0, 9900, 0x9bfb94c7u},  // determined listening 1
+  {4, 6, 1, 0, 0x749a8102u},  // determined listening 2
+  {4, 6, 1, 150, 0x749a8102u},  // determined listening 2
+  {4, 6, 1, 420, 0x749a8102u},  // determined listening 2
+  {4, 6, 1, 700, 0x749a8102u},  // determined listening 2
+  {4, 6, 1, 1100, 0x6a512c78u},  // determined listening 2
+  {4, 6, 1, 1650, 0xba1ff756u},  // determined listening 2
+  {4, 6, 1, 2300, 0xba1ff756u},  // determined listening 2
+  {4, 6, 1, 3100, 0x2c470341u},  // determined listening 2
+  {4, 6, 1, 4200, 0x2c470341u},  // determined listening 2
+  {4, 6, 1, 5500, 0x2c470341u},  // determined listening 2
+  {4, 6, 1, 7300, 0x749a8102u},  // determined listening 2
+  {4, 6, 1, 9900, 0x2c470341u},  // determined listening 2
+  {4, 6, 2, 0, 0x69438506u},  // determined listening 3
+  {4, 6, 2, 150, 0x69438506u},  // determined listening 3
+  {4, 6, 2, 420, 0x69438506u},  // determined listening 3
+  {4, 6, 2, 700, 0x69438506u},  // determined listening 3
+  {4, 6, 2, 1100, 0x69438506u},  // determined listening 3
+  {4, 6, 2, 1650, 0x20ec5154u},  // determined listening 3
+  {4, 6, 2, 2300, 0x20ec5154u},  // determined listening 3
+  {4, 6, 2, 3100, 0x46d46637u},  // determined listening 3
+  {4, 6, 2, 4200, 0x46d46637u},  // determined listening 3
+  {4, 6, 2, 5500, 0x46d46637u},  // determined listening 3
+  {4, 6, 2, 7300, 0x69438506u},  // determined listening 3
+  {4, 6, 2, 9900, 0x46d46637u},  // determined listening 3
   {5, 0, 0, 0, 0x0d062f5cu},  // grumpy idle 1
   {5, 0, 0, 150, 0x0d062f5cu},  // grumpy idle 1
   {5, 0, 0, 420, 0x0d062f5cu},  // grumpy idle 1
@@ -1001,6 +1180,42 @@ static const FacegenFrame kFacegenFrames[1107] = {
   {5, 3, 2, 5500, 0xfbd588aau},  // grumpy task_complete 3
   {5, 3, 2, 7300, 0x1f0c5eb9u},  // grumpy task_complete 3
   {5, 3, 2, 9900, 0x91dc807cu},  // grumpy task_complete 3
+  {5, 6, 0, 0, 0x7ea0832bu},  // grumpy listening 1
+  {5, 6, 0, 150, 0x7ea0832bu},  // grumpy listening 1
+  {5, 6, 0, 420, 0x7ea0832bu},  // grumpy listening 1
+  {5, 6, 0, 700, 0x62c6c2ddu},  // grumpy listening 1
+  {5, 6, 0, 1100, 0x56bb59bfu},  // grumpy listening 1
+  {5, 6, 0, 1650, 0x39d50d9eu},  // grumpy listening 1
+  {5, 6, 0, 2300, 0x39d50d9eu},  // grumpy listening 1
+  {5, 6, 0, 3100, 0xe6c82651u},  // grumpy listening 1
+  {5, 6, 0, 4200, 0x39d50d9eu},  // grumpy listening 1
+  {5, 6, 0, 5500, 0x39d50d9eu},  // grumpy listening 1
+  {5, 6, 0, 7300, 0x56bb59bfu},  // grumpy listening 1
+  {5, 6, 0, 9900, 0x39d50d9eu},  // grumpy listening 1
+  {5, 6, 1, 0, 0xb33499ccu},  // grumpy listening 2
+  {5, 6, 1, 150, 0xb33499ccu},  // grumpy listening 2
+  {5, 6, 1, 420, 0xb33499ccu},  // grumpy listening 2
+  {5, 6, 1, 700, 0x66ce5299u},  // grumpy listening 2
+  {5, 6, 1, 1100, 0x40537889u},  // grumpy listening 2
+  {5, 6, 1, 1650, 0x7a362feau},  // grumpy listening 2
+  {5, 6, 1, 2300, 0x7a362feau},  // grumpy listening 2
+  {5, 6, 1, 3100, 0x2e35a185u},  // grumpy listening 2
+  {5, 6, 1, 4200, 0xfc3b614eu},  // grumpy listening 2
+  {5, 6, 1, 5500, 0x2e35a185u},  // grumpy listening 2
+  {5, 6, 1, 7300, 0xb33499ccu},  // grumpy listening 2
+  {5, 6, 1, 9900, 0xfc3b614eu},  // grumpy listening 2
+  {5, 6, 2, 0, 0x9d157ea3u},  // grumpy listening 3
+  {5, 6, 2, 150, 0x9d157ea3u},  // grumpy listening 3
+  {5, 6, 2, 420, 0x9d157ea3u},  // grumpy listening 3
+  {5, 6, 2, 700, 0xf922c567u},  // grumpy listening 3
+  {5, 6, 2, 1100, 0x54b62a2eu},  // grumpy listening 3
+  {5, 6, 2, 1650, 0xd6cc8243u},  // grumpy listening 3
+  {5, 6, 2, 2300, 0xd6cc8243u},  // grumpy listening 3
+  {5, 6, 2, 3100, 0x92e5dadcu},  // grumpy listening 3
+  {5, 6, 2, 4200, 0xe4faff6eu},  // grumpy listening 3
+  {5, 6, 2, 5500, 0x9df52854u},  // grumpy listening 3
+  {5, 6, 2, 7300, 0x9d157ea3u},  // grumpy listening 3
+  {5, 6, 2, 9900, 0x92e5dadcu},  // grumpy listening 3
   {6, 0, 0, 0, 0xc970700bu},  // sad idle 1
   {6, 0, 0, 150, 0xc970700bu},  // sad idle 1
   {6, 0, 0, 420, 0xb4abfbc8u},  // sad idle 1
@@ -1116,4 +1331,40 @@ static const FacegenFrame kFacegenFrames[1107] = {
   {6, 3, 2, 5500, 0x627bd09cu},  // sad task_complete 3
   {6, 3, 2, 7300, 0x29faead0u},  // sad task_complete 3
   {6, 3, 2, 9900, 0xbc843447u},  // sad task_complete 3
+  {6, 6, 0, 0, 0x60d151beu},  // sad listening 1
+  {6, 6, 0, 150, 0x60d151beu},  // sad listening 1
+  {6, 6, 0, 420, 0x60d151beu},  // sad listening 1
+  {6, 6, 0, 700, 0x60d151beu},  // sad listening 1
+  {6, 6, 0, 1100, 0xb570b68au},  // sad listening 1
+  {6, 6, 0, 1650, 0x2df59475u},  // sad listening 1
+  {6, 6, 0, 2300, 0x2df59475u},  // sad listening 1
+  {6, 6, 0, 3100, 0x2df59475u},  // sad listening 1
+  {6, 6, 0, 4200, 0x2df59475u},  // sad listening 1
+  {6, 6, 0, 5500, 0x2df59475u},  // sad listening 1
+  {6, 6, 0, 7300, 0xb570b68au},  // sad listening 1
+  {6, 6, 0, 9900, 0x2df59475u},  // sad listening 1
+  {6, 6, 1, 0, 0x07b7961bu},  // sad listening 2
+  {6, 6, 1, 150, 0x07b7961bu},  // sad listening 2
+  {6, 6, 1, 420, 0x07b7961bu},  // sad listening 2
+  {6, 6, 1, 700, 0x07b7961bu},  // sad listening 2
+  {6, 6, 1, 1100, 0x07b7961bu},  // sad listening 2
+  {6, 6, 1, 1650, 0x2aab1bb6u},  // sad listening 2
+  {6, 6, 1, 2300, 0x2aab1bb6u},  // sad listening 2
+  {6, 6, 1, 3100, 0x9a4903f3u},  // sad listening 2
+  {6, 6, 1, 4200, 0x9a4903f3u},  // sad listening 2
+  {6, 6, 1, 5500, 0x9a4903f3u},  // sad listening 2
+  {6, 6, 1, 7300, 0x07b7961bu},  // sad listening 2
+  {6, 6, 1, 9900, 0x9a4903f3u},  // sad listening 2
+  {6, 6, 2, 0, 0xe57ffd1bu},  // sad listening 3
+  {6, 6, 2, 150, 0xe57ffd1bu},  // sad listening 3
+  {6, 6, 2, 420, 0xe57ffd1bu},  // sad listening 3
+  {6, 6, 2, 700, 0xa0aeb984u},  // sad listening 3
+  {6, 6, 2, 1100, 0x3a30ed0fu},  // sad listening 3
+  {6, 6, 2, 1650, 0x0382060bu},  // sad listening 3
+  {6, 6, 2, 2300, 0x0c269ce0u},  // sad listening 3
+  {6, 6, 2, 3100, 0xf0da6685u},  // sad listening 3
+  {6, 6, 2, 4200, 0x8a9cc59au},  // sad listening 3
+  {6, 6, 2, 5500, 0x59c87e2du},  // sad listening 3
+  {6, 6, 2, 7300, 0xe57ffd1bu},  // sad listening 3
+  {6, 6, 2, 9900, 0xf0da6685u},  // sad listening 3
 };

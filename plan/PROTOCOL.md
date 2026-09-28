@@ -19,8 +19,8 @@ messages over USB (§5).
   and nothing is retried. The Mac waits only on the brain's reactions,
   which carry an `id`: the device says when each one ended, and how
   (`ended`, §4), so HISTORY can say whether it was seen.
-- **Nothing important flows back.** The device reports taps and how a
-  reaction ended. Boop never approves anything, so nothing the device
+- **Nothing important flows back.** The device reports taps,
+  push-to-talk and how a reaction ended. Boop never approves anything, so nothing the device
   sends can affect an agent.
 
 Every message is a JSON object with a type, `t`. Receivers ignore unknown
@@ -170,7 +170,7 @@ twice (a forced pass, from a dev line on the hook socket):
 
 | Field | Type | The Mac sends | The device reads it as |
 | --- | --- | --- | --- |
-| `anim` | `cheer` or `wiggle`, optional | `cheer` with a brain reaction that cheers ([harness/DECISIONS.md](harness/DECISIONS.md) §5); `cheer` or `wiggle` when the dashboard asks. A tap's wiggle is the device's own ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | The animation ([BEHAVIORS.md](BEHAVIORS.md) §5). An unknown one is ignored |
+| `anim` | `cheer`, `wiggle` or `listening`, optional | `cheer` with a brain reaction that cheers ([harness/DECISIONS.md](harness/DECISIONS.md) §5); `cheer` or `wiggle` when the dashboard asks; `listening` when the Mac's own mic turns on. A tap's wiggle and BOOT's listening are the device's own ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | The animation ([BEHAVIORS.md](BEHAVIORS.md) §5); `listening` holds until the reply ([DEVICE.md](DEVICE.md) §4). An unknown one is ignored |
 | `say` | object, optional | A mumble as Voice built it ([VOICE.md](VOICE.md) §4), from the brain's `react` | A line to speak, with the mouth and bubble in time |
 | `say.syl` | string | 2–8 gibberish syllables: words separated by spaces, syllables by `-` | Every syllable times the mouth; the sound plays at most 12. A syllable it has no clip for keeps its beat, silent |
 | `say.word` | string, optional | One word from the vocabulary ([VOICE.md](VOICE.md) §6) | Shown in the bubble, and spoken if it has the clip |
@@ -179,7 +179,7 @@ twice (a forced pass, from a dev line on the hook socket):
 | `say.ms` | int | Milliseconds per syllable, 90–180 | Clamped to 60–400. Missing reads as 120 |
 | `mood` | one of `state`'s moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5). A wiggle never carries one | The expression: while this moment plays, the look (or the cheer) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
 | `loops` | int, optional | How many loops of its design a reaction's face holds, as Jev picked ([harness/DECISIONS.md](harness/DECISIONS.md) §5). None on a wiggle | Held to 1–6. Missing reads as 1. With the cheer, how many times its design plays. With a `mood` and no animation, how many loops of the design it's drawn in the face holds (below). A wiggle ignores it |
-| `variant` | int ≥ 1, optional | With the cheer: which of its variations plays, picked at random by `react`, never the last one ([harness/DECISIONS.md](harness/DECISIONS.md) §5) | The animation's variation. Missing reads as 1, and one past its variations is held to its last. A face with no animation takes the look's variation showing |
+| `variant` | int ≥ 1, optional | With the cheer: which of its variations plays, picked at random by `react`, never the last one ([harness/DECISIONS.md](harness/DECISIONS.md) §5) | The animation's variation, and one past its variations is held to its last. Missing reads as 1 for the cheer; for `listening` the device picks one at random, never the last. A face with no animation takes the look's variation showing |
 | `who` | object, optional | With a brain reaction that cheers for a thread's turn: whose it is. None for a cheer about no thread (a poke, an idle heartbeat) | While the cheer plays, the strip names them ([BEHAVIORS.md](BEHAVIORS.md) §5). Ignored without the cheer |
 | `who.agent` | `claude` or `codex` | The thread's agent | Kept in 11 bytes |
 | `who.thread` | string, at most 23 bytes of UTF-8 | The thread's name: as its agent's app shows it once a request brought one (`attn.name`'s), else its workspace (a linked worktree's folder, else the branch), else its project, cut as `attn.project` is | Kept in 23 bytes |
@@ -189,8 +189,13 @@ A tap's wiggle plays at once. A brain mumble waits its turn behind
 any line or reaction's face playing (not a wiggle, which it plays
 over) until the device's `ended` for the last one, and the Mac drops it
 rather than send it more than 5 s late
-([ARCHITECTURE.md](ARCHITECTURE.md) §3.2 has the whole rule). The Mac
-never sends a moment with neither `anim` nor `say`.
+([ARCHITECTURE.md](ARCHITECTURE.md) §3.2 has the whole rule).
+
+**The empty moment,** `{"t":"moment"}`, with neither `anim` nor `say`,
+ends `listening` and does nothing else: it never ends a cheer, a wiggle
+or a mumble. The Mac sends it when push-to-talk ends without a reply. A
+moment with a `say` ends `listening` too, since it's the reply
+([DEVICE.md](DEVICE.md) §4).
 
 On the device, a moment plays as it arrives. A design's loop is how long
 it takes to play once through: `loopMs` in
@@ -220,11 +225,17 @@ in `FaceLoops`.
   moment. The Mac sends its next brain moment once this one's mumble has
   played, without waiting for the face ([ARCHITECTURE.md](ARCHITECTURE.md)
   §3.2), so a face held for its loops is usually ended that way.
-- While `attn` is set, neither plays ([BEHAVIORS.md](BEHAVIORS.md) §1).
-  Needs you's own design plays its performance once, then holds its
-  pending pose, the frame it starts and ends on.
+- While `attn` is set, neither plays, except `listening`
+  ([BEHAVIORS.md](BEHAVIORS.md) §1). Needs you's own design plays its
+  performance once, then holds its pending pose, the frame it starts and
+  ends on.
+- While `listening` plays, a moment with a `say`, or the empty moment,
+  ends it first, then plays as it would have. Any other animation is
+  skipped, and another `listening` keeps the same face, its time topped
+  up ([DEVICE.md](DEVICE.md) §4).
 - At volume 0 the mouth and bubble still play, silently.
-- A moment with neither a known `anim` nor any syllables is ignored.
+- A moment with neither a known `anim` nor any syllables plays nothing
+  (beyond ending `listening`).
 - A moment with an `id` is answered with `ended` once none of it plays
   any more (§4).
 
@@ -255,17 +266,23 @@ the last, on the link the Mac last spoke on. The Mac answers every
 
 | `k` | Meaning |
 | --- | --- |
-| `tap` | BOOT pressed, or the screen touched anywhere, however long; sent on release |
+| `tap` | BOOT pressed for less than 400 ms, or the screen touched anywhere, however long; sent on release |
+| `talk_on` | BOOT held for 400 ms: push-to-talk starts, sent at 400 ms |
+| `talk_off` | BOOT let go after `talk_on`, or held 30 s past it (the device's cap) |
 
-The device has already reacted on screen before it sends this. It sends it
+The device has already reacted on screen before it sends this: the
+wiggle, or `listening` from `talk_on` until the reply
+([DEVICE.md](DEVICE.md) §4). It sends it
 on every live link: Bluetooth while a Mac is connected, and USB while the
 Mac has spoken there (any message that isn't `dbg.*`) in the last 30 s,
-so a tool's `moment` over USB doesn't take taps away from the app on
-Bluetooth. Input a tool injects (`dbg.press`, `dbg.touch`) goes back only
-over USB, so a test run never reaches the app on Bluetooth. The Mac
-records a tap as a `poke` event, with `input` as its `specific_type`, and
-hands it to the core ([BEHAVIORS.md](BEHAVIORS.md) §3.3,
-[harness/EVENTS.md](harness/EVENTS.md) §2); it ignores any other `k`.
+so a tool's `moment` over USB doesn't take taps and push-to-talk away
+from the app on Bluetooth. Input a tool injects (`dbg.press`, `dbg.touch`)
+goes back only over USB, so a test run never reaches the app on
+Bluetooth, or turns on its mic. The Mac records a tap as a `poke` event,
+with `input` as its `specific_type`, and hands it to the core
+([BEHAVIORS.md](BEHAVIORS.md) §3.3,
+[harness/EVENTS.md](harness/EVENTS.md) §2); `talk_on` and `talk_off`
+turn its mic on and off. It ignores any other `k`.
 
 ### `ended`: a moment the Mac waits on is over
 
@@ -282,8 +299,8 @@ while something needed you:
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | int | The moment's `id` (§3) |
-| `how` | `done`, `cut` or `skipped` | `done`: its animation and its line with its bubble played to the end. The face it holds after them counts too, but ending that early (below) leaves it `done`: the reaction was seen and heard. `cut`: something stopped its animation or its line early. `skipped`: none of it played: something needed you when it arrived (or it had nothing the device can play, which the Mac never sends) |
-| `why` | `tap`, `moment`, `needs_you` or `reset`, only with `cut` | What stopped it first: a tap's wiggle, a newer moment (an animation, or any line, which replaces the line playing), "needs you" starting, or `dbg.reset` |
+| `how` | `done`, `cut` or `skipped` | `done`: its animation and its line with its bubble played to the end. The face it holds after them counts too, but ending that early (below) leaves it `done`: the reaction was seen and heard. `cut`: something stopped its animation or its line early. `skipped`: none of it played: something needed you or `listening` held the face when it arrived (or it had nothing the device can play, which the Mac never sends) |
+| `why` | `tap`, `moment`, `needs_you` or `reset`, only with `cut` | What stopped it first: a tap's wiggle or push-to-talk's `listening`, a newer moment (an animation, or any line, which replaces the line playing), "needs you" starting, or `dbg.reset` |
 
 The device sends one for every moment with an `id`, exactly once, on the
 link the moment came in on, when none of it plays any more: the
@@ -324,7 +341,7 @@ the same `t`; an unknown `dbg.*` gets none.
 | `{"t":"dbg.clock","freeze":T}` | Freezes the device clock at T ms and seeds its randomness from T | `{"t":"dbg.clock","now":T,"frozen":true}` |
 | `{"t":"dbg.clock","step":MS}` | Moves the clock on MS ms and leaves it frozen (a running clock freezes first) | The same, with the new `now` |
 | `{"t":"dbg.clock","run":true}` | Lets the clock run on from where it is | The same, `frozen` false |
-| `{"t":"dbg.press","ms":N}` | Holds BOOT for N ms of device time (100 by default), through the same code as a real press | `{"t":"dbg.press"}` |
+| `{"t":"dbg.press","ms":N}` | Holds BOOT for N ms of device time (100 by default), through the same code as a real press: 400 ms or more is push-to-talk | `{"t":"dbg.press"}` |
 | `{"t":"dbg.touch","x":X,"y":Y,"ms":N}` | Touches the screen at (X, Y) for N ms (100 by default) | `{"t":"dbg.touch"}` |
 | `{"t":"dbg.pattern"}` | Shows the test pattern ([DEVICE.md](DEVICE.md) §7) until the next `state`. With `"fill":N`, a solid screen of palette index N instead; with `"target":[x,y]`, an amber cross at (x, y) on black. Touches don't tap while it shows | `{"t":"dbg.pattern"}` |
 | `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Holds the backlight, the LED or both until the next `state` | `{"t":"dbg.light"}` |
@@ -366,7 +383,7 @@ instead of running.
 | `led`, `bl` | The LED's colour as `#RRGGBB`, and the backlight level, 0–255 |
 | `audio` | `playing` while the mouth follows a line, and its `syllables`. `out` is what the sound output did: `ready` (the DAC started), `playing` (the amp is on: something sounds, or did in the last second), `lines` finished since boot, and for the last line `syl`, `word` (whether it had one), `plan_ms` (beats × `ms`), `out_ms` (samples rendered), `wall_ms` (the DAC's measured time), `cut` (hushed or replaced) and `errors` (DAC writes that timed out). `fx` is the face's sound effects ([VOICE.md](VOICE.md) §10): `sent` to the sound output since boot, and the `last` one's clip, such as `{"sent":42,"last":"keyB"}`, or null before any |
 | `alert` | When needs you's performance last started for a new request shown, in device ms, such as `27000`, or null before any ([BEHAVIORS.md](BEHAVIORS.md) §3.2) |
-| `last_input` | The last input: `k` (`tap`, or `touch` when a touch starts), `at`, and `x` and `y` for a touch; null before any |
+| `last_input` | The last input: `k` (`tap`, `talk_on`, `talk_off`, or `touch` when a touch starts), `at`, and `x` and `y` for a touch; null before any |
 | `rx` | The `state` and `moment` messages received since boot. The pipeline check times hooks by `rx.state` |
 | `clock` | `now` and `frozen` |
 | `boot`, `touch`, `amp` | Bring-up readings: whether BOOT is down, the touch panel's `down`, `irq` and `raw` `[x, y, z]`, and whether the amp is on |
@@ -384,7 +401,7 @@ a `status`, which the Mac answers with another `state`. Over Bluetooth the
 device's connect-time `status` can go out before the Mac has subscribed
 to TX, so the Mac doesn't wait for it. From then on the Mac sends `state`
 on every change and every 10 s, and `moment` when something happens; the
-device sends `input` on a tap, `ended` when a moment the Mac waits on is
+device sends `input` on a tap and for push-to-talk, `ended` when a moment the Mac waits on is
 over, and `status` every 60 s. When the Mac goes
 quiet the device shows the no-app look, and drops a Bluetooth link to
 advertise again. The next connect starts from the top.
@@ -393,6 +410,8 @@ advertise again. The next connect starts from the top.
 | --- | --- | --- |
 | `state` keepalive | The latest again once 10 s have passed since the last, checked every second | Mac |
 | No app | 30 s without a `state` ([BEHAVIORS.md](BEHAVIORS.md) §3.4) | Device |
+| Push-to-talk | BOOT held 400 ms; `talk_off` by itself 30 s after `talk_on` ([DEVICE.md](DEVICE.md) §4) | Device |
+| `listening` | At most 30 s, then 8 s for the reply; `talk_off` cuts that to 8 s from then ([DEVICE.md](DEVICE.md) §4) | Device |
 | A quiet Bluetooth link | Dropped after 30 s with no bytes from the Mac, and again 30 s later if that didn't take | Device |
 | USB counts as live | For 30 s after the Mac last spoke there | Device |
 | `status` | On connect, then every 60 s | Device |

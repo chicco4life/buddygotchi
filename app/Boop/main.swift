@@ -27,7 +27,8 @@ let usage = """
                and boopctl dash read it). The last 10 launches' files are kept as DIR/debug.1.jsonl (the latest) to
                debug.10.jsonl, and boopctl day sums them all up by the hour. Jev's state never reaches boop.log.
            Headless, or with --debug, the hook socket also takes {"dev":…} lines from boopctl dash: "answer"
-               (a forced pass), "mood" and "moment".
+               (a forced pass), "mood" and "moment"; and for push-to-talk with no mic, "listen" (the app's
+               button, {"dev":"listen","on":true}) and "said" (what the mic heard, {"dev":"said","words":"…"}).
            Boop --snapshots DIR
                Renders the popover's panes and the menu-bar icons to PNGs from fixtures, then exits.
                No runtime, no Bluetooth.

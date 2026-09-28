@@ -78,8 +78,8 @@ harness evals check the brain's part ([EVALS.md](EVALS.md)).
    "…finally!" for a comeback.
 2. **A turn fails, and it's grumpy for you.** Maybe a grumpy
    face and a mumble that names what broke, *"…tests."*
-3. **Yell at it, and it's sad.** This one waits for talking to Boop to
-   come back; v1 has no mic.
+3. **Yell at it, and it's sad.** This one waits for Boop to hear how
+   you say things: v1's push-to-talk hears only the words.
 4. **Poke it too much, and it grumbles.** One poke gets a happy wiggle and
    a heart. Keep poking and it may grumble (*"…nope!"*), then forget all
    about it.
@@ -105,11 +105,15 @@ harness evals check the brain's part ([EVALS.md](EVALS.md)).
   finished turn's included; without one, Boop shows what its agents do
   and when you're needed, but doesn't react
   ([harness/HARNESS.md](harness/HARNESS.md)).
+- **Hears you.** Hold its button, or click Talk, and speak: the Mac's
+  mic turns it into words on the Mac, and with Jev, Boop answers with a
+  face and a mumble. It can't talk back ([BEHAVIORS.md](BEHAVIORS.md)
+  §3.3).
 
 Its name, its sweet or cheeky nature and its voice are set when it
 hatches. Nothing else about its character grows in v1. A character that
-grows with you, talking to Boop, gentler nudges, a private record and
-more are parked, to come back one at a time.
+grows with you, hearing how you say things, gentler nudges, a private
+record and more are parked, to come back one at a time.
 
 ## Look
 
@@ -143,13 +147,14 @@ changes.
    or the model, and it belongs to you. In v1 it keeps its name, nature,
    voice seed, mood and which day it last saw
    ([ARCHITECTURE.md](ARCHITECTURE.md) §4).
-7. **Private by construction.** There is no camera, no mic and no wake
-   word. Boop's memory lives on your Mac, and without a Jev key everything
+7. **Private by construction.** There is no camera and no wake word, and
+   the Mac's mic listens only while you hold Boop's button or after you
+   click Talk, never longer than 30 s; the audio never leaves the Mac. Boop's memory lives on your Mac, and without a Jev key everything
    runs there. With one, each decision goes to TypeSafe with Boop's
    steering (its guide, personality and mood) and short lines about what
    just happened: which agent, which project or worktree, how a turn or a
-   test run went, with what you asked and the agent's last message, cut
-   short. Your code, commands, tool output and agents' transcripts never
+   test run went, with what you asked, the agent's last message and
+   what you said to Boop, cut short. Your code, commands, tool output and agents' transcripts never
    leave the Mac ([harness/EVENTS.md](harness/EVENTS.md) §9).
 8. **Never nags, never guilts.** One alert per request, and the Mac app
    never sends notifications.

@@ -396,6 +396,49 @@ final class RuntimeTests: XCTestCase {
                        "the device hears each change in a state")
     }
 
+    /// BEHAVIORS.md §3.3: BOOT held and let go turns the mic on and off; with
+    /// no mic (headless) it hears nothing, so `listening` ends at once with
+    /// the empty moment. What the mic heard is recorded and wakes the brain:
+    /// a mumble is the reply, and a pass that reacts with none ends
+    /// `listening` too. The app's button tells the device to show it.
+    func testWhatYouSayGetsAReplyOrEndsListening() throws {
+        for (brain, replies) in [(ScriptedBrain.pipelineCheck, true), (ScriptedBrain(always: [:]), false)] {
+            try? FileManager.default.removeItem(at: dir)
+            let transport = FakeTransport()
+            var options = try options(transport, brain: brain)
+            options.debug = true
+            let runtime = try Runtime(options)
+            try runtime.start()
+            transport.onConnection?(true)
+            eventually("the brain") { runtime.home.sync { runtime.pipeline.brain } }
+            let empty = #"{"t":"moment"}"#
+            transport.onLine?(#"{"t":"input","k":"talk_on"}"#)
+            eventually("listening") { runtime.home.sync { runtime.core.listening?.by == .device } }
+            transport.onLine?(#"{"t":"input","k":"talk_off"}"#)
+            eventually("heard nothing") { transport.sent.contains(empty) }
+            XCTAssertEqual(runtime.home.sync { runtime.pipeline.transcript.events.filter { $0.type == .talk }.count }, 0)
+
+            let before = transport.sent.count
+            dev(#"{"dev":"said","words":"are the tests passing?","by":"device"}"#)
+            eventually("the pass") { self.debugLines().contains { ($0["pass"] as? [String: Any]) != nil } }
+            runtime.home.sync {}
+            let after = Array(transport.sent.dropFirst(before)).filter { $0.hasPrefix(#"{"t":"moment""#) }
+            if replies {
+                XCTAssertEqual(after.count, 1, "\(after)")
+                XCTAssertTrue(after.first?.contains(#""say":"#) == true, "the mumble is the reply")
+            } else {
+                XCTAssertEqual(after, [empty], "no reply: listening ends")
+            }
+            let talk = try XCTUnwrap(runtime.home.sync { runtime.pipeline.transcript.events.last { $0.type == .talk } })
+            XCTAssertEqual(talk["words"], "are the tests passing?")
+
+            dev(#"{"dev":"listen","on":true}"#)
+            eventually("the app's button") { transport.sent.contains(#"{"t":"moment","anim":"listening"}"#) }
+            XCTAssertTrue(runtime.home.sync { runtime.core.listening?.by == .app })
+            runtime.stop()
+        }
+    }
+
     /// A forced react keeps its own rules, so it's refused
     /// while something needs you, and the refusal is recorded.
     func testAForcedReactStillRefusesWhileSomethingNeedsYou() throws {
@@ -1135,7 +1178,9 @@ final class RuntimeTests: XCTestCase {
     /// (a clock jump, or the Mac asleep).
     func testTheScheduleFollowsTapsAndTicks() throws {
         let transport = FakeTransport()
-        var options = try options(transport)
+        // A brain that never reacts: the tap's pass would otherwise queue
+        // a reaction of its own whenever it happened to finish.
+        var options = try options(transport, brain: ScriptedBrain(always: [:]))
         let clock = VirtualClock(harnessT0)
         options.clock = { clock.now }
         let runtime = try Runtime(options)

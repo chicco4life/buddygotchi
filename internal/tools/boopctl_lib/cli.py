@@ -274,8 +274,9 @@ def soak_reaction(rng: random.Random, moment_id: int) -> dict:
 
 
 def soak_input(rng: random.Random) -> dict:
-    """BOOT presses and touches anywhere (each a tap on release), short and
-    long, the status strip included."""
+    """BOOT presses and touches anywhere, short and long, the status strip
+    included: each a tap on release, except a BOOT press held 400 ms or
+    more, which is push-to-talk (DEVICE.md §4)."""
     kind = rng.choice(["tap", "long_press", "touch", "long_touch"])
     if kind == "tap":
         return {"t": "dbg.press", "ms": 100}
@@ -365,8 +366,9 @@ def cmd_soak(args: argparse.Namespace) -> int:
                 next_ping = elapsed + 5
             time.sleep(rng.uniform(0.2, 1.5))
         # Stuck? Calm snapshots must bring back the plain face once the
-        # last press (held ≤ 3 s) and moment are over: a reaction's face
-        # can hold 6 loops of a 9 s design.
+        # last press (held ≤ 3 s, then listening waits ≤ 8 s for a reply)
+        # and moment are over: a reaction's face can hold 6 loops of a 9 s
+        # design.
         calm = {"t": "state", "v": 1, "base": "idle", "busy": 0, "vol": args.vol}
         settle_by = time.monotonic() + 75
         while True:

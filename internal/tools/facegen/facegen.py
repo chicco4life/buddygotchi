@@ -46,10 +46,10 @@ CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 NS = "{http://www.w3.org/2000/svg}"
 W, H = 320, 240
 
-# The order of render::Mood and render::SceneState. The pack's listening
-# state has no use without a mic, so it isn't read.
+# The order of render::Mood and render::SceneState. Listening, push-to-talk's
+# face, comes last, so the other states keep the numbers they had before it.
 MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad"]
-STATES = ["idle", "working", "needs_you", "task_complete", "asleep", "no_app"]
+STATES = ["idle", "working", "needs_you", "task_complete", "asleep", "no_app", "listening"]
 # The faces the popover's tile shows, as mood and look, from each one's
 # first variation. Asleep is one design for every mood, and the tile reads
 # happy's (app/Boop/Views/BoopFace.swift).

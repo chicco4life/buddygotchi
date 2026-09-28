@@ -63,8 +63,9 @@ var packageTargets: [Target] = [
     // The menu-bar app. `Boop --headless` runs it without UI or Bluetooth
     // and `Boop --snapshots` draws its panes; both ship in the binary, but
     // their sources are in internal/app/Boop.
-    // Info.plist is linked into the binary so macOS finds the Bluetooth
-    // usage description without an app bundle.
+    // Push-to-talk's mic lives in the app, in app/Boop/Talk.swift.
+    // Info.plist is linked into the binary so macOS finds the Bluetooth,
+    // microphone and speech usage descriptions without an app bundle.
     .executableTarget(
         name: "Boop",
         dependencies: ["BoopKit"],

@@ -45,6 +45,19 @@
 {"t":"moment","say":{"syl":"ba po ti ka mo na","word":"refactoring","at":3,"tune":"flat","ms":120}}
 {"clock":55400}
 {"shot":"long-word-many-syllables"}
+// The reply to push-to-talk ends listening's wait, and plays.
+{"t":"state","v":1,"base":"idle"}
+{"clock":57000}
+{"input":{"press":"hold","ms":600}}
+{"clock":57400}
+{"expect":{"moment":{"anim":"listening"}}}
+{"clock":57600}
+{"expect":{"moment":{"anim":"listening","left_ms":8000}}}
+{"clock":58000}
+{"t":"moment","say":{"syl":"mi-ne po","word":"hello","at":3,"tune":"lift","ms":120}}
+{"expect":{"moment":null,"audio":{"playing":true,"syllables":3}}}
+{"clock":58400}
+{"shot":"reply-after-talk"}
 // Needs you: nothing plays.
 {"t":"state","v":1,"base":"idle","attn":{"agent":"claude","project":"x","more":0}}
 {"clock":60000}

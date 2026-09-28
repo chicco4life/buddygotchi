@@ -35,6 +35,7 @@ Wednesday 14:00 UTC and stands still while Jev answers.
 | `turn finished` | A `turn` end, `done` (`Stop`) |
 | `turn failed` | A `turn` end, `failed` (`StopFailure`), with the step's `error` (default `api_error`) |
 | `pokes` | Four pokes at once from the device, each a pass: the step checks the last, `You poked Boop 4 times in a row.` |
+| `said` | What you said on push-to-talk, the step's `words`, after the device's button: a `talk` event, `You said to Boop: "…"` |
 | `wait` | Nothing; only time passes |
 
 Every event is Claude's, in project `landing`, in session `s1` or the

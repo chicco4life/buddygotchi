@@ -69,9 +69,14 @@ public final class Runtime: @unchecked Sendable {
         public var brain: String
         /// The brain failing, for the popover's notice (harness/HARNESS.md §7).
         public var brainTrouble: BrainTrouble?
+        /// The Mac's mic is on for push-to-talk (BEHAVIORS.md §3.3).
+        public var listening: Bool
+        /// Why push-to-talk couldn't hear you, until the next try.
+        public var micTrouble: String?
 
         public init(name: String, snapshot: StateSnapshot, sessions: [SessionSummary], connected: Bool,
-                    device: DeviceStatus?, personality: Personality, brain: String, brainTrouble: BrainTrouble? = nil) {
+                    device: DeviceStatus?, personality: Personality, brain: String, brainTrouble: BrainTrouble? = nil,
+                    listening: Bool = false, micTrouble: String? = nil) {
             self.name = name
             self.snapshot = snapshot
             self.sessions = sessions
@@ -80,6 +85,8 @@ public final class Runtime: @unchecked Sendable {
             self.personality = personality
             self.brain = brain
             self.brainTrouble = brainTrouble
+            self.listening = listening
+            self.micTrouble = micTrouble
         }
     }
 
@@ -222,6 +229,19 @@ public final class Runtime: @unchecked Sendable {
     /// After every change the menu bar might show. Called on `home`.
     public var onChange: ((Status) -> Void)?
 
+    // Push-to-talk (BEHAVIORS.md §3.3). All on `home`.
+    /// Turns the Mac's mic on (true) or off. Once it's off, the app hands
+    /// what it heard to `said`, or calls `heardNothing`; with none set
+    /// (headless), turning it off hears nothing.
+    public var onListen: ((Bool) -> Void)?
+    /// Whose button turned the mic on last: what it hears is theirs.
+    var talker: Core.Talker = .app
+    /// The `seq` of what you said, while its reply may still come: the
+    /// first pass on it or anything newer ends `listening` on the device
+    /// unless it queued a reaction, which is the reply.
+    var replyFor: Int?
+    var micTrouble: String?
+
     /// A clock that never steps and keeps counting while the Mac sleeps,
     /// starting at the wall clock's time: the keepalive and moments'
     /// turns are measured on it, so setting the Mac's clock back can't stall them
@@ -299,6 +319,7 @@ public final class Runtime: @unchecked Sendable {
         moodAction = moodChanges
         let react = ReactAction(voice: voice, queue: { moment, pending in
             view.reacted()  // the working heartbeat waits from here (EVENTS.md §4)
+            core.listeningEnded()  // a mumble ends `listening`: it's the reply (BEHAVIORS.md §3.3)
             moments.schedule.brain(moment, pending, now: clock())
             Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
         }, blocked: { core.mumbleBlock }, who: {
@@ -355,6 +376,7 @@ public final class Runtime: @unchecked Sendable {
         // A pass can change the mood, which the menu bar shows.
         harness.onRecord = { [weak self] record in
             log(record.logLine)
+            self?.replied(record)
             self?.changed()
         }
     }
@@ -475,6 +497,7 @@ public final class Runtime: @unchecked Sendable {
         if !up {
             moments.failAll("the device disconnected")
             pump()
+            run(core.linkDown(at: now))
         }
         changed()
     }
@@ -487,8 +510,12 @@ public final class Runtime: @unchecked Sendable {
             // The device has already wiggled, cutting whatever played.
             switch input {
             case .tap:
-                moments.schedule.tapped(now: now)
+                // While `listening` shows, the device only squashes: no
+                // wiggle cuts anything (BEHAVIORS.md §3.3).
+                if !core.showsListening(at: now) { moments.schedule.tapped(now: now) }
                 run(pipeline.poke(at: now))
+            case .talkOn, .talkOff:
+                run(core.input(input, at: now))
             }
             pump()
         case .ended(let ended):
@@ -524,6 +551,17 @@ public final class Runtime: @unchecked Sendable {
             let result = harness.force(moodAction) { moodAction.change(to: to) }
             options.log("dev: mood \(to)" + (result.map { $0.ok ? "" : ": \($0.message)" } ?? ""))
             changed()
+        case "said":
+            // What push-to-talk heard, without a mic (VERIFICATION.md §2).
+            guard let words = object["words"] as? String else { return }
+            talker = (object["by"] as? String).flatMap(Core.Talker.init(rawValue:)) ?? .app
+            heard(words)
+            options.log("dev: said \(words.count) characters")
+        case "listen":
+            // The app's mic button.
+            guard let on = object["on"] as? Bool else { return }
+            run(core.listen(on, at: options.clock()))
+            options.log("dev: listen \(on)")
         case "report":
             saveReport { _ in }
         default:
@@ -573,10 +611,63 @@ public final class Runtime: @unchecked Sendable {
                 break
             case .newDay(let date):
                 memory.startDay(date)
+            case .listen(let on, let by):
+                listen(on, by: by)
+                stateChanged = true
             }
         }
         harness.take(step.views)
         if stateChanged { changed() }
+    }
+
+    /// The core turned the mic on or off (BEHAVIORS.md §3.3). On: the
+    /// brain's moments waiting are dropped, since one would end
+    /// `listening`, and after the app's button the device is told to show
+    /// it (the device's own button already does). Off: what the mic heard
+    /// comes back to `said` or `heardNothing`.
+    func listen(_ on: Bool, by: Core.Talker) {
+        options.log("talk: mic \(on ? "on" : "off") (\(by.rawValue))")
+        guard on else {
+            if onListen != nil { onListen?(false) } else { heardNothing() }
+            return
+        }
+        talker = by
+        micTrouble = nil
+        replyFor = nil
+        for moment in moments.schedule.dropWaiting() {
+            options.log("react: dropped a brain moment waiting when the mic went on: \(moment.jsonLine)")
+        }
+        if by == .app { link.play(DeviceMoment(anim: DeviceMoment.listening)) }
+        onListen?(true)
+    }
+
+    /// What the mic heard: an event that wakes the brain, whose pass
+    /// replies or ends `listening` (`replied`). With no brain to wake, no
+    /// reply is coming, so `listening` ends at once.
+    func heard(_ words: String) {
+        let step = pipeline.said(words, by: talker, at: options.clock())
+        run(step)
+        if let v = step.waking.first {
+            replyFor = v.seq
+        } else {
+            endListening()
+        }
+    }
+
+    /// The first pass on what you said, or on anything newer, is over: if
+    /// it queued no reaction, none is coming, so `listening` ends now
+    /// (BEHAVIORS.md §3.3).
+    func replied(_ record: Harness.Record) {
+        guard let seq = replyFor, record.now.seq >= seq else { return }
+        replyFor = nil
+        if !record.actions.contains(where: { $0.name == "react" && $0.result.ok }) { endListening() }
+    }
+
+    /// Ends `listening` on the device with the empty moment, which ends
+    /// nothing else (PROTOCOL.md §3).
+    func endListening() {
+        core.listeningEnded()
+        link.play(DeviceMoment())
     }
 
     /// A snapshot for the device, whose look and mood time the moments
@@ -645,7 +736,8 @@ public final class Runtime: @unchecked Sendable {
         let now = options.clock()
         let status = Status(name: name, snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
                             connected: link.connected, device: link.status, personality: personality,
-                            brain: harness.brain?.id ?? "none", brainTrouble: harness.trouble)
+                            brain: harness.brain?.id ?? "none", brainTrouble: harness.trouble,
+                            listening: core.listening != nil, micTrouble: micTrouble)
         if let line = DebugLog.status(status, at: now, last: &lastStatus) {
             recent.add(line)
             if options.debug { Harness.appendLine(line, to: debugLogURL) }
@@ -664,6 +756,43 @@ public final class Runtime: @unchecked Sendable {
     }
 
     // MARK: From the menu bar (any thread)
+
+    /// The app's mic button: start or stop listening (BEHAVIORS.md §3.3).
+    public func setListening(_ on: Bool) {
+        home.async { [self] in run(core.listen(on, at: options.clock())) }
+    }
+
+    /// What push-to-talk heard, once the mic is off.
+    public func said(_ words: String) {
+        home.async { [self] in heard(words) }
+    }
+
+    /// The mic went off and heard nothing: no reply is coming.
+    public func heardNothing() {
+        home.async { [self] in
+            options.log("talk: heard nothing")
+            endListening()
+        }
+    }
+
+    /// The mic or speech recognition couldn't start, and why, for the
+    /// popover: `listening` ends at once, after either button.
+    public func micFailed(_ why: String) {
+        home.async { [self] in
+            options.log("talk: \(why)")
+            micTrouble = why
+            endListening()
+            changed()
+        }
+    }
+
+    /// The popover's "can't hear you" notice was dismissed.
+    public func dismissMicTrouble() {
+        home.async { [self] in
+            micTrouble = nil
+            changed()
+        }
+    }
 
     /// Drops the device link and looks for the device again now.
     public func reconnectDevice() {

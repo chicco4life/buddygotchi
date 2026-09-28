@@ -22,5 +22,9 @@
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Boop talks to its body on your desk over Bluetooth.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>While you hold Boop's button or use the mic button, Boop listens so it can react to what you say. Audio is never kept.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Boop turns what you say to it into text on this Mac. Only the words, never the audio, go to Boop's brain.</string>
 </dict>
 </plist>

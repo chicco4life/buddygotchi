@@ -145,9 +145,9 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.3.1","bat":3910,"usb":1}"#),
                        .status(DeviceStatus(id: "b00p-7f3a", fw: "0.3.1")))
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"tap"}"#), .input(.tap))
-        // Focus, touch-and-hold and push-to-talk were removed; an older
-        // board's are ignored.
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_on"}"#), .other(#"{"t":"input","k":"talk_on"}"#))
+        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_on"}"#), .input(.talkOn))
+        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_off"}"#), .input(.talkOff))
+        // Focus and touch-and-hold were removed; an older board's are ignored.
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"focus"}"#), .other(#"{"t":"input","k":"focus"}"#))
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"feel"}"#), .other(#"{"t":"input","k":"feel"}"#))
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"dance"}"#), .other(#"{"t":"input","k":"dance"}"#))

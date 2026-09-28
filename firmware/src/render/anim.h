@@ -10,13 +10,15 @@ enum class Anim : uint8_t {
   kNone,
   kCheer,
   kWiggle,
+  kListening,  // push-to-talk: the listening design, until the reply
   kCount,
 };
 
 Anim animFromName(const char* name);  // kNone if unknown
 const char* animName(Anim a);
 // A tap's wiggle is always this long. The cheer lasts its loops of its
-// design (render/scene.h loopMs, plan/BEHAVIORS.md §5).
+// design (render/scene.h loopMs, plan/BEHAVIORS.md §5), and listening until
+// the reply (app/behaviour.h).
 constexpr uint32_t kWiggleMs = 700;
 
 // Boop's mood, which picks the set of designs every look and animation is

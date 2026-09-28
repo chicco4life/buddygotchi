@@ -189,6 +189,36 @@ final class ViewTests: XCTestCase {
         XCTAssertEqual(rig.view.event(seen[0].id)?.did, [])
     }
 
+    /// What you say to Boop (EVENTS.md §4, §8): one line, quoted and cut to
+    /// 300 characters like your prompt, that always wakes the brain, even
+    /// while something needs you. The raw event keeps 2,000 characters, and
+    /// words that are only space make no view event.
+    func testWhatYouSay() throws {
+        let said = events(rig.said("are the tests\npassing yet?"))
+        XCTAssertEqual(said.map(\.line), [#"You said to Boop: "are the tests passing yet?""#])
+        XCTAssertEqual(said.map(\.name), ["talk"])
+        XCTAssertTrue(said[0].wakesBrain)
+        XCTAssertNil(said[0].about)
+        XCTAssertEqual(said[0].facts["words"], "are the tests\npassing yet?")
+        XCTAssertEqual(said[0].facts["by"], "device")
+        let raw = try XCTUnwrap(rig.pipeline.transcript.events.last)
+        XCTAssertEqual(raw.source, .mic)
+        XCTAssertEqual(raw.type, .talk)
+        XCTAssertEqual(raw.specificType, "device")
+
+        let long = try XCTUnwrap(events(rig.said(String(repeating: "a", count: 2500), by: .app)).first)
+        XCTAssertEqual(long.line.count, #"You said to Boop: """#.count + EventLine.messageMax)
+        XCTAssertTrue(long.line.hasSuffix(#"…""#))
+        XCTAssertEqual(rig.pipeline.transcript.events.last?["words"]?.string?.count, 2000)
+        XCTAssertEqual(long.facts["by"], "app")
+
+        XCTAssertEqual(events(rig.said(" \n ")), [])
+
+        hook(.turnStart)
+        hook(.needsYou, tool: "Bash")
+        XCTAssertEqual(events(rig.said("ok")).map(\.wakesBrain), [true], "even while something needs you")
+    }
+
     /// EVENTS.md §7: a reaction a tap cut short stays in progress while
     /// the pokes go on (3 s apart at most), so the barrage gets it once;
     /// it reads as done once they stop, or once anything else happens.

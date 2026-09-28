@@ -55,7 +55,7 @@ launch the menu-bar app or run the whole eval.
 | `make -C internal fw-test` | The firmware's unit tests on the Mac (`pio test -e native`) |
 | `make -C internal sim` | Every scenario in the simulator, against the goldens (L1) |
 | `make -C internal e2e` | Builds, then runs the pipeline check (L4) |
-| `make -C internal faces` | Regenerates the faces (`firmware/assets/faces.h`, the popover's `app/Boop/Views/FaceDesigns.swift`, the designs' loops for the Mac in `app/BoopKit/Core/FaceLoops.swift`, and the frames `fw-test` checks) from the animation pack in `internal/tools/facegen/design/` (its `manifest.json` lists the designs). It first draws each design at a dozen moments in Google Chrome and fails unless facegen's own drawing matches pixel for pixel in RGB565, a blended pixel within one step (1,107 frames of 104 scenes) |
+| `make -C internal faces` | Regenerates the faces (`firmware/assets/faces.h`, the popover's `app/Boop/Views/FaceDesigns.swift`, the designs' loops for the Mac in `app/BoopKit/Core/FaceLoops.swift`, and the frames `fw-test` checks) from the animation pack in `internal/tools/facegen/design/` (its `manifest.json` lists the designs). It first draws each design at a dozen moments in Google Chrome and fails unless facegen's own drawing matches pixel for pixel in RGB565, a blended pixel within one step (1,358 frames of 125 scenes) |
 | `make -C internal tools` | Makes or refreshes `internal/tools/.venv` (pyserial, Pillow, Textual). `internal/tools/boopctl` makes it on first run |
 | `make -C internal tools-test` | The tools' own tests, with no board or camera: `boopctl`'s commands and link, the dashboard (`test_dash.py`), the day's summary (`test_day.py`), the working day's script (`test_workday.py`) and the webcam recorder on synthetic video |
 
@@ -99,7 +99,7 @@ commands go through the bridge.
 | Way | What it does |
 | --- | --- |
 | `Boop [--state-dir DIR] [--link ble\|usb:SOCKET\|none] [--debug]` | The menu-bar app, with Bluetooth by default. The owner's. With a state directory other than the everyday one, it never installs or repairs the hooks |
-| `Boop --headless --state-dir DIR` | The whole runtime with no UI and no Bluetooth (L4). `--link usb:SOCKET\|none` (none), `--socket PATH` (`DIR/boop.sock`), `--personality boop\|chatter` for this run, `--brain jev\|scripted` (jev, only with `BOOP_JEV_KEY`; scripted answers every pass with an excited "yay", no network), `--name NAME` and `--nature sweet\|cheeky` for a new state directory, `--debug`. On its socket `{"dev":"advance","ms":N}` moves its clock. It keeps its transcript in `DIR/transcript/` and reads it back at launch ([harness/HARNESS.md](harness/HARNESS.md) §5) |
+| `Boop --headless --state-dir DIR` | The whole runtime with no UI and no Bluetooth (L4). `--link usb:SOCKET\|none` (none), `--socket PATH` (`DIR/boop.sock`), `--personality boop\|chatter` for this run, `--brain jev\|scripted` (jev, only with `BOOP_JEV_KEY`; scripted answers every pass with an excited "yay", no network), `--name NAME` and `--nature sweet\|cheeky` for a new state directory, `--debug`. On its socket `{"dev":"advance","ms":N}` moves its clock, and `{"dev":"listen","on":true}` and `{"dev":"said","words":"…"}` stand in for push-to-talk's button and mic ([harness/HARNESS.md](harness/HARNESS.md) §9). It keeps its transcript in `DIR/transcript/` and reads it back at launch ([harness/HARNESS.md](harness/HARNESS.md) §5) |
 | `--debug`, either way | Prints every hook, view event, action, device line and brain pass as it happens, and writes `DIR/debug.jsonl` for `boopdev watch` and `boopctl dash`; the socket then also takes the dashboard's dev lines ([harness/HARNESS.md](harness/HARNESS.md) §9) |
 | `Boop --snapshots DIR` | Renders the popover's panes and the menu-bar icons to PNGs, light and dark, from fixtures, and fails on low contrast (L0). No runtime, no Bluetooth |
 
@@ -172,7 +172,7 @@ of `behaviour.jsonl`:
 | `{"clock": ms}` | Freezes the clock at this time since the scenario started |
 | A protocol message | Sent as if it came from the Mac |
 | A `dbg.` message | Sent as a debug request, such as `{"t":"dbg.pattern"}` |
-| `{"input": {"press":"tap"}}` | Presses BOOT for 100 ms, or `"ms"` |
+| `{"input": {"press":"tap"}}` | Presses BOOT for 100 ms, or `"ms"`; 400 ms or more is push-to-talk (the scenarios write `"press":"hold"`) |
 | `{"input": {"touch":[x,y]}}` | Touches the screen at (x, y) for 100 ms, or `"ms"` |
 | `{"shot": "name"}` | Saves a screenshot as `name.png` |
 | `{"expect": {…}}` | Reads `dbg.state` once and fails on a mismatch. Only the keys given are compared, recursively |

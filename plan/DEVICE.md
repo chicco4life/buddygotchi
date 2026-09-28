@@ -92,7 +92,7 @@ replace the code that knows the hardware.
 | `src/main.cpp` | Start-up and the main loop (below) | Board |
 | `src/app/device.*` | The device core: parses each line, answers `dbg.*`, turns BOOT and touch into gestures, decides when to draw, and sends `status`, `input` and `ended` | Board and Mac |
 | `src/app/behaviour.*` | What Boop does ([BEHAVIORS.md](BEHAVIORS.md)): the last `state`, the moment and line playing and how each the Mac waits on ended, blinks, no app, and the light, backlight and sound cues they imply | Board and Mac |
-| `src/app/` (the rest) | The device clock and random numbers (`clock.h`), button debouncing (`gesture.*`), touch calibration (`touch_cal.h`), line reassembly and Bluetooth packets (`line_reader.h`, `packets.h`), dropping a quiet link (`link_silence.h`), and the screenshot's CRC and base64 (`codec.*`) | Board and Mac |
+| `src/app/` (the rest) | The device clock and random numbers (`clock.h`), BOOT's taps and holds (`gesture.*`), touch calibration (`touch_cal.h`), line reassembly and Bluetooth packets (`line_reader.h`, `packets.h`), dropping a quiet link (`link_silence.h`), and the screenshot's CRC and base64 (`codec.*`) | Board and Mac |
 | `src/render/` | The 8-bit canvas, palette, anti-aliased shapes, fonts, the animation pack's player (`scene.*`), the face screen with bubble and strip (`screens.*`), the animation and mood names (`anim.*`) and the test pattern | Board and Mac |
 | `src/voice/player.*` | Turns a line or cue into samples ([VOICE.md](VOICE.md) §8) | Board and Mac |
 | `src/voice/effects.*`, `src/app/effect_track.*` | The sound effects' clips and timelines, the mixer that adds them to the voice, and when each event plays with the face ([VOICE.md](VOICE.md) §10) | Board and Mac |
@@ -124,7 +124,7 @@ loop()
  │                                                               └► replies; lines to the voice task
  ├─ Device::tick ─► status every 60 s, the debug clock's thaw
  │               ─► Behaviour::advance: moment and line ends, blinks, no app
- │               ─► BOOT and touch ─► press, tap ─► Behaviour, and `input` to the Mac
+ │               ─► BOOT and touch ─► press, tap, push-to-talk ─► Behaviour, and `input` to the Mac
  │               ─► sound cues, LED and backlight, through the Hal
  │               ─► draw into the canvas, if the picture changed
  └─ displayPush ─► only the changed bands, to the panel over SPI DMA
@@ -151,11 +151,11 @@ knows nothing until the next `state`. Only the touch calibration survives
 | State | Set by | Cleared by |
 | --- | --- | --- |
 | The model: `base`, `mood`, `attn` (agent, project, more), `busy` and `vol` from the last `state` ([PROTOCOL.md](PROTOCOL.md) §3) | Each `state` | The next `state` |
-| The moment: `cheer` or `wiggle`, with its start and length | A `moment`'s `anim`, or a tap (`wiggle`) | Its end, a new moment, or a new "needs you" |
+| The moment: `cheer`, `wiggle` or `listening`, with its start and length | A `moment`'s `anim`, a tap (`wiggle`), or BOOT held (`listening`) | Its end, a new moment, or a new "needs you". `listening` only by its end, the reply or the empty moment (below) |
 | The line: syllables, word, the word's place and the beat, for the mouth and bubble | A `moment`'s `say` | Its end, a new moment, or a new "needs you". A `state` with `attn` or volume 0 also stops its sound |
 | A blink | The device's own timer ([BEHAVIORS.md](BEHAVIORS.md) §2) | Its end, or an animation |
 | A design switch: the eyes shut and the backlight eases | Any change to another design | Its end |
-| The press dip | BOOT or a touch going down | Its release |
+| The press dip | BOOT or a touch going down | Its release, or push-to-talk starting |
 | The alert: needs you's performance starting over | A new request shown | Nothing; `dbg.state` reports when (`alert`) |
 | No app, latched | 30 s without a `state` | The next `state` |
 | A test pattern or light held by `dbg.pattern` or `dbg.light` | The debug message | The next `state` |
@@ -168,12 +168,52 @@ knows nothing until the next `state`. Only the touch calibration survives
 | --- | --- | --- |
 | `pattern` | After `dbg.pattern`, until the next `state` | The test pattern (§7), a solid colour, or a calibration cross |
 | `no_app` | 30 s without a `state`, until the next | The no-app design and the unplugged icon ([BEHAVIORS.md](BEHAVIORS.md) §3.4) |
-| `needs_you` | The last `state` had `attn` | The mood's needs-you design, and who in the strip ([BEHAVIORS.md](BEHAVIORS.md) §3.2) |
-| `face` | Otherwise | The mood's design for `base`, or the cheer's while one plays, with whose turn it cheers in the strip ([BEHAVIORS.md](BEHAVIORS.md) §5) |
+| `needs_you` | The last `state` had `attn` | The mood's needs-you design, or listening's while it plays, and who in the strip ([BEHAVIORS.md](BEHAVIORS.md) §3.2) |
+| `face` | Otherwise | The mood's design for `base`, or the cheer's or listening's while one plays, with whose turn it cheers in the strip while the cheer does ([BEHAVIORS.md](BEHAVIORS.md) §5) |
 
 On the three face screens the device draws the design, what it adds of
 its own (blinks, the wiggle's sway and heart, the press dip, the bubble
 and talking mouth) and the status strip.
+
+### Taps and push-to-talk
+
+BOOT pressed for less than 400 ms (`ButtonGesture::kHoldMs`) is a tap,
+sent on release. Held 400 ms, it's push-to-talk: at that moment the
+device sends `talk_on` and shows `listening` at once, without waiting for
+the Mac; on release it sends `talk_off`, and no tap. After 30 s of
+talking (`kTalkCapMs`, from `talk_on`) the device sends `talk_off` itself,
+and the release after that sends nothing. A touch is a tap however long
+it's held. Presses are debounced for 15 ms. The Mac records and
+transcribes; the device has no mic ([PROTOCOL.md](PROTOCOL.md) §4).
+
+`listening` also plays when the Mac sends a moment with
+`"anim":"listening"` (its own mic), in the mood's listening design, a
+variation picked at random and never the last, unless the moment names
+one. It holds until the reply:
+
+- **The reply ends it.** Any moment with a `say` ends `listening`, then
+  plays as it would have, its animation, face and `ended` included. So
+  does the empty moment, `{"t":"moment"}`, which does nothing else: it
+  never ends a cheer, a wiggle or a mumble ([PROTOCOL.md](PROTOCOL.md)
+  §3).
+- **Or its time runs out.** It lasts at most 30 s of listening
+  (`Behaviour::kListenMs`) and then 8 s for the reply (`kReplyWaitMs`):
+  38 s from the Mac's moment. `talk_off`, the release or the cap, cuts
+  the wait to 8 s from then, with the same design going on, no blend.
+  With no reply, the face blends back with nothing else.
+- **Nothing else replaces it.** Another animation from the Mac is
+  skipped (answered `ended` `skipped` if the Mac waits on it), and a tap
+  only dips the face. It's the one moment that plays while something
+  needs you, and a new request doesn't cut it
+  ([BEHAVIORS.md](BEHAVIORS.md) §1). Push-to-talk cuts whatever was
+  playing, as a tap does (`ended` `why` `tap`), and stops the line.
+- **Silent.** The pack's listening designs have sound effects, which the
+  device leaves out, so nothing competes with your voice.
+
+BOOT held while the Mac's `listening` plays keeps the same face and
+tops its time up again. Input a tool injects with `dbg.press` behaves the
+same, and its `talk_on` and `talk_off` go back only over USB
+([PROTOCOL.md](PROTOCOL.md) §4).
 
 ### Panel settings
 
@@ -222,8 +262,8 @@ Nothing else is stored: the device ID comes from the Bluetooth MAC, and no
 
 Fonts, faces, voice clips and sound effects are compiled in as arrays:
 the voice is 226 KB ([VOICE.md](VOICE.md) §8), the sound effects 146 KB
-(§10 there), the faces about 278 KB and the fonts about 27 KB. The whole
-firmware is 1.51 MB, about 77% of app0.
+(§10 there), the faces about 286 KB and the fonts about 27 KB. The whole
+firmware is 1.52 MB, about 77% of app0.
 
 ## 6. Memory, drawing and speed
 
@@ -250,9 +290,9 @@ simulator agree to the pixel. Every colour comes from one 256-entry
 palette (`render/palette.h`). Text, the bubble and the strip are
 anti-aliased: each pixel row samples 4 sub-scanlines of 1/16 px, and the
 coverage picks one of 8 steps from black up to the ink. The face is the
-animation pack's designs (`internal/tools/facegen/design/`: 7 moods × 6
-states, three variations each and working five, 104 scenes once the
-shared ones are counted once), drawn as Chrome draws the SVGs: rectangles
+animation pack's designs (`internal/tools/facegen/design/`: 7 moods × 7
+states, listening included, three variations each and working five, 125
+scenes once the shared ones are counted once), drawn as Chrome draws the SVGs: rectangles
 on whole pixels with step-wise timings, from `assets/faces.h`, which
 `internal/tools/facegen/facegen.py` generates. facegen bakes what the
 device can't do on its own into that form:
@@ -291,7 +331,7 @@ frames stay exact) and a press draws at once for its first 60 ms. A screenshot a
 
 | Measure | Value | Source |
 | --- | --- | --- |
-| Firmware size | 1.51 MB | The board build with the animation pack and its sound effects, 2026-09-28 |
+| Firmware size | 1.52 MB (1,521,655 bytes) | The board build with the animation pack, listening included, and its sound effects, 2026-09-28 |
 | Minimum free heap, through a 35-minute soak with brain reactions | 73.7 KB, 24 B below where it stood after the first minute | The bench board, firmware `c6ccb03`, [2026-09-28](evidence/2026-09-28-tonight/firmware/README.md) |
 | Frames a second through `perf --motion`'s cheers and wiggles | 15.5 on average, 6 at the least: 6–7 in a second of the cheer and 20–24 in a wiggle's, as in the simulator (14.4 on average) | The bench board, firmware `3284d55`, 60 s, the same |
 | Drawing and pushing one changed frame (`draw_us`, `push_us`), through the soak | 1.0 ms and 8.8 ms typically; 2.1 ms and 22.5 ms at the most | The same, firmware `c6ccb03` |

@@ -17,6 +17,9 @@ public enum CoreEffect: Equatable, Sendable {
     case record(Event)
     /// The first activity of a new day: short-term starts fresh.
     case newDay(date: String)
+    /// Push-to-talk: turn the Mac's mic on or off, after `by`'s button
+    /// (BEHAVIORS.md §3.3).
+    case listen(Bool, by: Core.Talker)
 
     /// The effect on one line, for `boopdev replay` and debug mode.
     public var summary: String {
@@ -25,6 +28,7 @@ public enum CoreEffect: Equatable, Sendable {
         case .sessions: "sessions"
         case .record(let e): "record " + e.summary
         case .newDay(let date): "new-day \(date)"
+        case .listen(let on, let by): "listen \(on ? "on" : "off") (\(by.rawValue))"
         }
     }
 }

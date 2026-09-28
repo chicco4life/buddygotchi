@@ -271,29 +271,34 @@ static void test_input_reaches_every_live_link() {
     step(every);
   };
   const char* tap = "{\"t\":\"input\",\"k\":\"tap\"}";
+  const char* talkOn = "{\"t\":\"input\",\"k\":\"talk_on\"}";
+  const char* talkOff = "{\"t\":\"input\",\"k\":\"talk_off\"}";
   r.dev.connected();
   r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);
   r.hal.real = 1000;
   r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
   press(100, 100);  // a tap
-  press(800, 500);  // a long press: a tap too
+  press(800, 500);  // a hold: push-to-talk, and no tap
   for (const std::string* out : {&r.ble.text, &r.usb.text}) {
-    TEST_ASSERT_EQUAL_INT(2, count(*out, tap));
+    TEST_ASSERT_EQUAL_INT(1, count(*out, tap));
+    TEST_ASSERT_EQUAL_INT(1, count(*out, talkOn));
+    TEST_ASSERT_EQUAL_INT(1, count(*out, talkOff));
   }
   // 30 s after the tool's last word, only Bluetooth hears.
   r.hal.real = 31000;
   press(100, 100);
-  TEST_ASSERT_EQUAL_INT(3, count(r.ble.text, tap));
-  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, tap));
+  TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, tap));
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, tap));
   // Disconnected, Bluetooth hears nothing more.
   r.dev.disconnected();
   press(100, 100);
-  TEST_ASSERT_EQUAL_INT(3, count(r.ble.text, tap));
+  TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, tap));
 }
 
 // PROTOCOL.md §4: input a tool injects (dbg.press, dbg.touch) goes back
 // only over USB, where the tool is, even while the everyday app is on
-// Bluetooth, so a test run never reaches the everyday app.
+// Bluetooth, so a test run never reaches the everyday app, or its mic: a
+// held dbg.press is push-to-talk on USB alone.
 static void test_injected_input_stays_on_usb() {
   Rig r;
   r.dev.connected();
@@ -302,15 +307,18 @@ static void test_injected_input_stays_on_usb() {
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.usbLine("{\"t\":\"dbg.press\",\"ms\":800}");
   for (int ms = 0; ms <= 900; ms += 10) r.usbLine("{\"t\":\"dbg.clock\",\"step\":10}");
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_on\"}"));
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_off\"}"));
+  r.usbLine("{\"t\":\"moment\"}");  // the empty moment: the tool's reply
   r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":100}");
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":200}");
-  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
   TEST_ASSERT_FALSE(has(r.ble.text, "\"input\""));
   // With only dbg.* traffic from the tool, too.
   r.hal.real = 60000;
   r.usbLine("{\"t\":\"dbg.press\",\"ms\":100}");
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":200}");
-  TEST_ASSERT_EQUAL_INT(3, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
   TEST_ASSERT_FALSE(has(r.ble.text, "\"input\""));
 }
 
@@ -426,21 +434,60 @@ static void test_a_touch_ends_while_the_clock_is_frozen() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"touch\":{\"down\":false"));
 }
 
-// A long BOOT press is a tap, sent on release.
-static void test_a_physical_long_press_is_a_tap() {
+// DEVICE.md §4: BOOT held is push-to-talk: talk_on once it has been down
+// 400 ms, with listening on screen at once, and talk_off on release, with
+// no tap. Listening then waits for the reply.
+static void test_a_physical_hold_is_push_to_talk() {
   Rig r;
   r.usbLine("{\"t\":\"state\"}");
   r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
   r.hal.boot = true;
   r.dev.tick();
-  r.hal.real = 2000;
+  r.hal.real = 399;
   r.dev.tick();
   TEST_ASSERT_FALSE(has(r.usb.text, "\"t\":\"input\""));
+  r.hal.real = 400;
+  r.dev.tick();
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "\"t\":\"input\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_on\"}"));
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"listening\""));
+  r.hal.real = 2000;
+  r.dev.tick();
   r.hal.boot = false;
   r.hal.real = 2100;
   r.dev.tick();
-  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "\"t\":\"input\""));
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "\"t\":\"input\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_off\"}"));
+  TEST_ASSERT_FALSE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"listening\",\"left_ms\":8000}"));
+  // The reply, a mumble, ends it and plays.
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"proud\"}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"syllables\":2"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":\"proud\""));
+}
+
+// PROTOCOL.md §3: the Mac's own `listening` shows the design it names, or
+// one the device picks, never the last one; the empty moment ends it.
+static void test_the_macs_listening_and_the_empty_moment() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"listening\",\"variant\":9}");
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"listening\",\"left_ms\":38000}"));
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\"}");  // refused while listening
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"anim\":\"listening\""));
+  r.usbLine("{\"t\":\"moment\"}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
 }
 
 // PROTOCOL.md §5: a clock a tool froze runs again after 60 s with no
@@ -1161,7 +1208,8 @@ int main() {
   RUN_TEST(test_injected_input_stays_on_usb);
   RUN_TEST(test_pattern_until_next_state);
   RUN_TEST(test_injected_tap_reaches_the_mac);
-  RUN_TEST(test_a_physical_long_press_is_a_tap);
+  RUN_TEST(test_a_physical_hold_is_push_to_talk);
+  RUN_TEST(test_the_macs_listening_and_the_empty_moment);
   RUN_TEST(test_a_flickering_touch_is_one_tap);
   RUN_TEST(test_a_moment_carries_its_expression);
   RUN_TEST(test_a_touch_ends_while_the_clock_is_frozen);

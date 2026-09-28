@@ -84,7 +84,8 @@ enum Snapshots {
     static func status(base: String = "working", sessions rows: [[String]] = [], vol: Int = 6,
                        connected: Bool = true, personality: Personality = .boop,
                        name: String = "Mochi", brain: String = "jev:jev-latest",
-                       mood: String = MoodAction.initial, brainTrouble: BrainTrouble? = nil) -> Runtime.Status {
+                       mood: String = MoodAction.initial, brainTrouble: BrainTrouble? = nil,
+                       listening: Bool = false, micTrouble: String? = nil) -> Runtime.Status {
         let statuses: [String: SessionSummary.Status] = ["wait": .waiting, "work": .working, "idle": .idle]
         let sessions = rows.map {
             SessionSummary(agent: $0[0], project: $0[1], name: $0.count > 3 && !$0[3].isEmpty ? $0[3] : nil,
@@ -101,7 +102,8 @@ enum Snapshots {
             busy: sessions.filter { $0.status == .working }.count, vol: vol)
         return Runtime.Status(name: name, snapshot: snapshot, sessions: sessions, connected: connected,
                               device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0") : nil,
-                              personality: personality, brain: brain, brainTrouble: brainTrouble)
+                              personality: personality, brain: brain, brainTrouble: brainTrouble,
+                              listening: listening, micTrouble: micTrouble)
     }
 
     static func overviews(_ installer: HookInstaller) -> [(String, AppModel)] {
@@ -132,6 +134,9 @@ enum Snapshots {
             ("brain-trouble", model(installer, status: status(sessions: [["claude", "jetpack", "work"]],
                                                               brainTrouble: BrainTrouble(kind: .credit, why: "jev: HTTP 402",
                                                                                          inARow: 1)))),
+            ("listening", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], listening: true))),
+            ("cant-hear", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]],
+                                                          micTrouble: "Allow Boop in System Settings → Privacy & Security → Microphone."))),
             ("no-device", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]],
                                                           connected: false), link: .none)),
             // Every chip at once (Chatter and Muted), under the longest kind of name.
