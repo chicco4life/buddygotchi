@@ -1,6 +1,6 @@
 # Boop: architecture
 
-Updated 2026-09-28. The parts of Boop, how they connect, what each one
+Updated 2026-09-29. The parts of Boop, how they connect, what each one
 keeps and where, the budgets, and the decisions still in force. The other
 specs go deeper on each part; [README.md](README.md) lists them.
 
@@ -66,7 +66,7 @@ approve on the Mac as you normally would.
    (`ended`), and HISTORY stops showing the reaction as in progress.
 
 Rules keep the screen true at once: the look (working, idle, asleep),
-"needs you" and the tap's wiggle never wait for the brain. Everything
+"needs you" and the tap's poke never wait for the brain. Everything
 expressive is the brain's, a second or so later: the mood, and every
 reaction, a finished turn's included. If the brain is slow, offline or
 missing, Boop still shows what its agents are doing and when you're
@@ -192,21 +192,21 @@ turn's length is the time between its start and its end in the
 transcript, the time the Mac slept included: a lid closed overnight
 between a turn's two minutes makes it a very long one.
 
-**Moments.** A tap's wiggle, which the device plays on its own, plays at
+**Moments.** A tap's poke, which the device plays on its own, plays at
 once, replacing whatever is playing ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
 So does a rule's one-shot, which the runtime sends right after the
 `state` of the same input, except while a brain moment's line plays,
 which it would cut: then it's dropped (`MomentSchedule.rulePlays`), since
 a late one-shot is worse than none. A face held on after its line may be
 replaced, which the device counts as done. A brain moment plays over a
-rule's one-shot as over a wiggle, without waiting for it.
+rule's one-shot as over a poke, without waiting for it.
 The brain's moments wait in the
 moment schedule, one at a time, until no line or reaction's face plays,
 except that a reaction's face held on for its loops after its mumble
 holds up the brain's next only until that mumble has played (with the
 link's 0.5 s, below): the next goes then and replaces the face, which the
 device counts as done ([PROTOCOL.md](PROTOCOL.md) §4). One with no
-animation plays over a wiggle without cutting it, and a wiggle
+animation plays over a poke without cutting it, and a poke
 stops any line on the device, so a tap lets one waiting behind a line
 play at once, over it. One that has waited longer
 than 5 s for its turn is dropped, since a late reaction is worse than
@@ -223,10 +223,15 @@ handle from that, or when the moment can't have played
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5).
 
 The app reckons how long each moment plays at most, as the device times
-it: a wiggle's 0.7 s, or a reaction's loops of its design (the cheer's
-when it cheers, else the look's), and the mumble's syllables plus two
-beats for a word, at the line's pace, then 1.2 s to read the bubble,
-when that's longer. The look is the last `state`'s, drawn in the
+it: a tap's poke, the mood's poked design or, from the third tap in a
+row, tap_spam's (`MomentSchedule` counts taps as the device does,
+[BEHAVIORS.md](BEHAVIORS.md) §3.3), its longest variation; or a
+reaction's loops of its design (the animation's when it has one, the
+longest of the variations the device may play for its facts, else the
+look's), and the mumble's syllables plus two beats for a word, at the
+line's pace, then 1.2 s to read the bubble, when that's longer; a line
+that comes with an animation counts from the design's voice window
+(`FaceLoops.voiceMs`, [VOICE.md](VOICE.md) §9). The look is the last `state`'s, drawn in the
 reaction's mood; while an agent works it's what the agents are doing
 (`act`), else the base. Its loop is `FaceLoops`' number for it, the one the device has
 ([PROTOCOL.md](PROTOCOL.md) §3), for the look's longest variation,
@@ -239,8 +244,9 @@ moment on the device holds the schedule's line until the device's
 it (its reckoning plus `endGraceMs`). The
 brain's next moment waits only until its mumble has played
 (`MomentSchedule.brainFree`), or its `ended` if that comes first. The schedule also hears what the device does on its own: a tap's
-wiggle stops whatever plays, "needs you" starting stops everything, and
-while something needs you the device plays no moment. A tap leaves a brain moment's line to its `ended`,
+poke stops whatever plays, "needs you" starting stops everything, and
+while something needs you, or `listening` shows, a tap plays nothing
+but still counts in the run. A tap leaves a brain moment's line to its `ended`,
 though: the app hears the tap after sending the moment, which may have
 reached the device after the tap and play on, and the device sends
 `ended` at once for one its tap cut. A reaction whose turn comes with no
@@ -259,7 +265,7 @@ its answers. One pass runs at a time, and a newer event that wakes the
 brain replaces one waiting. An action that started something is shown in
 progress until it reports how it ended, or the harness gives up waiting.
 Without Jev's key no pass runs: Boop shows its looks, "needs you",
-and wiggles, and nothing reacts or mumbles
+its one-shots and pokes, and nothing reacts or mumbles
 ([harness/HARNESS.md](harness/HARNESS.md)).
 
 ### 3.4 Actions

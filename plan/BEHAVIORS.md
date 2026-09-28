@@ -31,7 +31,8 @@ VISUALS  (what Boop is doing)
   error       a command failed                     │ at once
   helper      a helper came back                   ┘
   cheer       big celebration (trophy, podium…)    ┐ animations:
-  wiggle      sway + heart, on a poke              │ play for a moment
+  poked       a tap; from the 3rd in a row,        │ play for a moment
+              tap_spam                             │
   listening   push-to-talk: mic on until the reply ┘
 
   Each mood × visual has a few variations, as its designs have. The
@@ -48,7 +49,7 @@ AUTOMATIC  (plain rules, instant, no brain needed)
   • Starts, interrupts, failed commands and returning helpers play
     their one-shot at once (§3.1)
   • Needs you wins over everything: amber light, its alert, who's asking
-  • A poke (a tap on the device) → the device plays the wiggle at once
+  • A poke (a tap on the device) → the device plays its poke at once
   • Hold BOOT (or click Talk) → the Mac's mic listens, Boop shows
     listening until the reply
   • Needs you and no app are never Jev's to show
@@ -149,7 +150,7 @@ GUARANTEES
   • Boop only watches and tells. It never approves or blocks anything.
 ```
 
-Updated 2026-09-28. What Boop does when things happen. Plain rules keep
+Updated 2026-09-29. What Boop does when things happen. Plain rules keep
 the screen true at once: the Mac's core (`app/BoopKit/Core/`) keeps the
 sessions and says which visual to show, and the device
 (`firmware/src/app/behaviour.*`) shows it, adds its own life and answers
@@ -167,6 +168,12 @@ plays but `listening`, so push-to-talk still works; one already playing
 is cut short (`listening` plays on), a tap only dips the face, the rules
 send no one-shot, and no view event but a poke or what you say wakes the
 brain ([harness/EVENTS.md](harness/EVENTS.md) §6).
+
+**What shows first,** on the device: no app (§3.4), then `listening`,
+then needs you, then a tap's poke and the moments (the brain's, and the
+rules' one-shots), then the look (what the agents are doing, working,
+idle or asleep). Whatever outranks the moments holds the face: a tap
+there only dips it, and a moment's animation is skipped.
 
 **How it flows.** The core is a pure state machine: each input goes in
 with the time, effects come out, and the app hands each to its owner.
@@ -220,8 +227,9 @@ it picks one of the new mood's the same way. With no app the device has
 no one to pick, and shows the first. This is a rule for now; the harness
 may take the choice over later.
 
-**Taking turns.** A look that loops on (idle, working, asleep) doesn't
-play one variation for minutes: the device moves between them. The Mac's
+**Taking turns.** A look that loops on (idle, working, what the agents
+are doing, asleep) doesn't play one variation for minutes: the device
+moves between them. The Mac's
 variation shows first. Once one has shown 5 s (`kTurnMinMs`), each end
 of its loop moves to another at random, never itself, with a 2 in 3
 chance (`kTurnPct`), and otherwise plays another loop. The move blinks,
@@ -243,8 +251,11 @@ a reaction's face by the look's longest variation
 | Idle | `base` is `idle` | Every 2–6 s |
 | Asleep | `base` is `asleep` | None |
 
-No blink shows during a wiggle. A change to another look, or
-another mood, blinks into the new design rather than cutting.
+No blink of the device's shows during an animation, or on a new mood's
+flip-book, which blinks on its own clock. A change to another look, an
+animation, or another mood, blinks into the new design rather than
+cutting: the first pack's designs shut their eyes, and a flip-book
+shows its own blink step, for 150 ms (`render::kBlendMs`).
 
 ### What the agents are doing
 
@@ -321,13 +332,14 @@ moment later, if it answers within its deadline
 ([harness/HARNESS.md](harness/HARNESS.md) §7). Which events wake it is in
 [harness/EVENTS.md](harness/EVENTS.md) §4.
 
-**Moments take turns.** A tap's wiggle plays at once on the device and
+**Moments take turns.** A tap's poke plays at once on the device and
 replaces whatever is playing, mumble included. So does a rule's
 one-shot (§3.1), except that none is sent while a brain reaction's line
 plays, which it would cut, and it's dropped then rather than sent late.
 A brain reaction waits
-until no line or reaction's face is playing (it plays over a wiggle or
-a rule's one-shot, which it doesn't cut), which the device's word that
+until no line or reaction's face is playing (it plays over a poke or
+a rule's one-shot, which it doesn't cut: the one-shot's design, drawn in
+the reaction's mood), which the device's word that
 the last one ended settles. A reaction's face held on
 for its loops after its mumble doesn't hold up the next reaction, which
 replaces it once the mumble has played. One is dropped once it
@@ -361,9 +373,11 @@ A Codex turn never fails, since Codex reports no failures yet
 after the `state` of the same hook ([PROTOCOL.md](PROTOCOL.md) §3). Each
 plays once, at once, in Boop's mood, with one of its variations at
 random (for `starting`, one for what started), never the one it played
-last; then the look comes back. None is sent while something needs you
-or `listening` shows, from any session. The brain doesn't pick them and
-isn't told of them: it hears of the events behind them. A finished
+last; the device plays the one named when it fits, and otherwise picks
+one that does the same way. Then the look comes back. None is sent
+while something needs you or `listening` shows, from any session. The
+brain doesn't pick them and isn't told of them: it hears of the events
+behind them. A finished
 turn's `task_complete` or `reply_ready` is the brain's
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5).
 
@@ -400,9 +414,9 @@ until nothing needs you.
 | When | What Boop does |
 | --- | --- |
 | You press BOOT or touch the screen | The face dips 2 px at once, until you let go |
-| You let go within 400 ms, or lift your finger: a tap | `wiggle`, replacing whatever is playing, a mumble included. Asleep and with no app too. The Mac records it as a poke, with the wiggle under it, and the brain hears of it, but not while it's answering the pokes before ([harness/EVENTS.md](harness/EVENTS.md) §6) |
-| Pokes in a row | Each within 3 s of the last (`TranscriptView.Config.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. How Boop reacts is the steering's: glad at one poke, with a cheer; a little miffed at two in a row, turning determined; fed up at three or more, grumpy for a couple of minutes ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). From the third poke on, while the brain's reaction to them is in progress, a tap-cut one included, the pokes after it don't wake the brain, unless the mood changed since, so a barrage gets one "nope" ([harness/EVENTS.md](harness/EVENTS.md) §6) |
-| A tap while something needs you | The press dip only, with no wiggle: there a tap means "I saw it". The brain still hears of the poke ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| You let go within 400 ms, or lift your finger: a tap | The mood's `poked` design, once, from its start, replacing whatever is playing, a mumble included; asleep too. From the third tap in a row on, `tap_spam` instead (below). The Mac records it as a poke, with the rule's `wiggle` action under it, and the brain hears of it, but not while it's answering the pokes before ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| Pokes in a row | Each within 3 s of the last (`TranscriptView.Config.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. The device counts them too, every tap, those that only dip the face included: from the third in a row (`answersRunFrom`), it plays the mood's `tap_spam` design instead of `poked` (`Behaviour::kTapRunMs` 3000 and `kTapSpamFrom` 3, the same numbers). How Boop reacts is the steering's: glad at one poke, with a cheer; a little miffed at two in a row, turning determined; fed up at three or more, grumpy for a couple of minutes ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). From the third poke on, while the brain's reaction to them is in progress, a tap-cut one included, the pokes after it don't wake the brain, unless the mood changed since, so a barrage gets one "nope" ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| A tap while something needs you | The press dip only, with no poke: there a tap means "I saw it". The brain still hears of the poke ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | Hold BOOT 400 ms, or click Talk in the popover | Push-to-talk, below: `listening` shows at once, the device sends `talk_on` at 400 ms and `talk_off` on release, or by itself after 30 s ([DEVICE.md](DEVICE.md) §4). No tap |
 | A tap while `listening` shows | The press dip only: nothing replaces `listening`. The brain still hears of the poke |
 
@@ -449,8 +463,9 @@ With no `state` from the Mac for 30 s (`kNoAppMs`; the Mac's keepalive is
 in [PROTOCOL.md](PROTOCOL.md) §3), the device shows the no-app look, with
 only the unplugged icon in the strip, for as long as the silence lasts.
 The session counts and the amber light go, since it can no longer know
-them. A tap still wiggles. When the Mac comes back, Boop blinks into
-whatever the next `state` says.
+them. No app shows over everything: a tap only dips the face, and
+nothing the Mac might still send plays. When the Mac comes back, Boop
+blinks into whatever the next `state` says.
 
 ### 3.5 Quiet time
 
@@ -465,7 +480,7 @@ short-term memory fresh ([ARCHITECTURE.md](ARCHITECTURE.md) §4.3).
 | Output | Used for | Never |
 | --- | --- | --- |
 | Mumbles | The brain's reactions | While something needs you; while the mic is on (§3.3) |
-| Sound effects | The face's design: a few of working's clicks each loop, the cheer's fanfare, needs you's knocks and ding (the alert, once per request shown, §3.2) ([VOICE.md](VOICE.md) §10) | Idle, asleep, no app, listening, or a test pattern. Under a mumble they're a quarter as loud, except needs you's and the cheer's |
+| Sound effects | The face's design: a few of working's clicks (and what the agents are doing's) each loop, the finish's fanfare or sputter, a one-shot's and a poke's contacts once, needs you's knocks and ding (the alert, once per request shown, §3.2) ([VOICE.md](VOICE.md) §10) | Idle, asleep, no app, listening, waiting, or a test pattern. Under a mumble they're a quarter as loud, except needs you's, the finish's and an error's |
 | Amber light | Something needs you: amber at half (`#805800`) | Any other time, or with no app |
 | Backlight | Full (255) awake; 60/255 asleep and with no app; eases with each switch of design | Dimmed while something needs you |
 
@@ -477,26 +492,32 @@ stops a line that's playing.
 
 | Name | Used for | Look | Length |
 | --- | --- | --- | --- |
-| `cheer` | A reaction the brain cheers with (`react.animation`, [harness/DECISIONS.md](harness/DECISIONS.md) §3) | The task-complete scene of the reaction's mood: a trophy, a curtain call or a podium | The loops Jev picks, of 6.4–7.2 s each |
-| `wiggle` | A tap | The look's own design, swaying, with a pixel heart | 0.7 s |
+| `cheer` | A reaction the brain cheers with (`react.animation`, [harness/DECISIONS.md](harness/DECISIONS.md) §3). The device reads it as `task_complete` for a success | The task-complete scene of the reaction's mood: a trophy, a curtain call or a podium | The loops Jev picks, of 6.4–7.2 s each |
+| `task_complete` | A finished turn the brain reacts to ([harness/DECISIONS.md](harness/DECISIONS.md) §5), with its `outcome` | The mood's task-complete design for that result: a success's trophy, curtain call or podium, or a failure's | Its loops, of 5.2–7.2 s each, and at least until its line and bubble end |
+| `reply_ready` | A turn that ends with an answer or a question back ([harness/DECISIONS.md](harness/DECISIONS.md) §5) | The mood's reply-ready design: an answer handed over | Likewise, of 3.2–7.9 s |
+| `poked` | A tap; the dashboard's `wiggle` | The mood's poked design | Once, 2.1–7.9 s |
+| `tap_spam` | The third tap in a row and each after it (§3.3) | The mood's tap-spam design | Once, 2.9–7.9 s |
 | `starting` | A session starting, or a prompt (§3.1) | The mood's starting design for what started: a new task, a fresh session, or carrying on | Once |
 | `stopped` | An interrupt that ends a turn (§3.1) | The mood's stopped design: the tools put down | Once |
 | `error` | A command that failed or timed out, at most every 30 s (§3.1) | The mood's error design | Once |
 | `helper_return` | A helper coming back (§3.1) | The mood's helper-return design: a report delivered | Once |
 | `listening` | Push-to-talk (§3.3): BOOT held, or the Mac's mic on | The mood's listening scene from the animation bank, one of three at random (focus corners, headphones or an ear trumpet), silent ([DEVICE.md](DEVICE.md) §4) | Until the reply; 8 s after the mic goes off at most, and 30 s + 8 s in all |
 
-The device plays the wiggle and, for BOOT, `listening` on its own, at
+The device plays a tap's poke and, for BOOT, `listening` on its own, at
 once; nothing replaces `listening` but the reply. Only the brain cheers:
 no rule does, so a finished turn is celebrated only when Jev reacts to
 it with `react.animation: cheer`. Which of the cheer's three variations
 plays is picked at random, never the last one, by `react` when it cheers
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5); the brain never sees
-them. While a cheer for a thread's turn plays, the strip says whose:
-a tick, then the agent and the thread (`codex · fix-nav`: its name as
+them. While the finish for a thread's turn plays (`task_complete` or
+`reply_ready` with `who`), the strip says whose: a mark for the result,
+a tick for a success, a cross for a failure or three dots for a reply,
+then the agent and the thread (`codex · fix-nav`: its name as
 the agent's app shows it, else the worktree
 or branch, else the project), in white on a black band, since the
-cheer's design is colour to the edges. It goes with the cheer: when it
-ends, or a tap's wiggle or needs you cuts it.
+cheer's design is colour to the edges. It goes with the finish: when it
+ends, or a tap's poke or needs you cuts it. While its line's bubble
+shows, the bubble has the lane ([DEVICE.md](DEVICE.md) §4).
 
 The brain's reaction is a mumble with a face:
 whatever look is showing is drawn in the reaction's
@@ -515,7 +536,7 @@ How much Boop reacts is its personality's to say, chosen in Settings and applied
 file in `plan/steering/personality/`: its front matter sets the view's
 rules below, and its text steers the brain
 ([harness/DECISIONS.md](harness/DECISIONS.md) §2.2). "Needs you" and the
-tap's wiggle are the same for every personality.
+tap's poke are the same for every personality.
 
 | Setting | What it sets | `boop` (the default) | `chatter` (debugging) |
 | --- | --- | --- | --- |

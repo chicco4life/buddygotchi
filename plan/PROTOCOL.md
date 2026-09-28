@@ -1,6 +1,6 @@
 # Boop: protocol
 
-Updated 2026-09-28. Every message between the Boop Mac app and the device,
+Updated 2026-09-29. Every message between the Boop Mac app and the device,
 over Bluetooth or USB, and the debug messages tools send over USB. The
 code is the source: `app/BoopKit/DeviceLink/`, `StateSnapshot.swift` and
 `DeviceMoment.swift` on the Mac, `firmware/src/app/device.cpp` and
@@ -149,7 +149,7 @@ And one while Claude runs a command, from the replay of
 | --- | --- | --- | --- |
 | `v` | int | Always 1 | Not checked |
 | `base` | `asleep`, `idle` or `working` | `working` while any session works, `asleep` with no sessions, otherwise `idle` ([BEHAVIORS.md](BEHAVIORS.md) §2) | The look. Missing or unknown reads as `idle` |
-| `act` | `testing`, `delegating`, `terminal`, `searching`, `analyzing`, `tool_use`, `waiting` or `planning`, or absent | Only while `base` is `working` and there's no `attn`: what the agents are doing, by the core's rules, held at least 1.5 s ([BEHAVIORS.md](BEHAVIORS.md) §2) | The look while `base` is `working`: that state's design, in the mood, in working's place. Missing or unknown reads as none: working's. Ignored with `attn`, or when `base` isn't `working` |
+| `act` | `testing`, `delegating`, `terminal`, `searching`, `analyzing`, `tool_use`, `waiting` or `planning`, or absent | Only while `base` is `working` and there's no `attn`: what the agents are doing, by the core's rules, held at least 1.5 s ([BEHAVIORS.md](BEHAVIORS.md) §2) | The look while `base` is `working`: that state's design, in the mood, in working's place, its variations taking turns as working's do. Missing or unknown reads as none: working's. Ignored with `attn`, or when `base` isn't `working` |
 | `mood` | `happy`, `excited`, `proud`, `determined`, `grumpy` or `sad` | Boop's mood ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3) | The set of faces every look and animation is drawn in. It draws all 13 moods of the mood graph (`render::Mood`: `happy`, `excited`, `proud`, `curious`, `determined`, `grumpy`, `sad`, `calm`, `engaged`, `annoyed`, `irritated`, `whiny`, `wounded`), whichever the Mac sends (`boopctl play --mood` any of them). Missing or unknown reads as `happy` |
 | `attn` | object, or absent | Only while something needs you: the oldest waiting session | Its presence alone means "needs you" ([BEHAVIORS.md](BEHAVIORS.md) §3.2). A new one, or one with a different `id`, agent or project, plays needs you's performance from its start, the alert with its ding, once, and stops any moment and line |
 | `attn.agent` | `claude` or `codex` | The session's agent | Kept in 11 bytes |
@@ -159,7 +159,7 @@ And one while Claude runs a command, from the replay of
 | `attn.id` | int 1–2147483647 | The number of the request shown. Requests are numbered as they start showing, counting up (back to 1 after 2147483647); when one of several subagents asking in a session is answered, the next one's prompt gets a new number. So a new number is a different request, even with the same agent and project (two worktrees of one repo). Each time the app starts, its numbers start at a random one, as moment ids do (§3 `moment`), so a relaunched app's first request can't share a number with the one the device still shows from the last launch. `boopdev replay` and the tests start from 1 | A change alerts again. Missing reads as 0, and then only the agent and project tell requests apart |
 | `busy` | int ≥ 0 | Sessions working | The strip's working count. Missing reads as 0 |
 | `vol` | int 0–10 | The app's volume, 6 by default; 0 is mute | Clamped to 0–10. Missing reads as 6 |
-| `variant` | int ≥ 1 | Which variation of the visual shows: needs you's while `attn` is there, else the look's (`act`'s, else the base's). The core picks it at random each time the visual changes, never the one that visual showed last, and again when a new mood has fewer of the visual than the one showing ([BEHAVIORS.md](BEHAVIORS.md) §2) | The look's first variation: then idle, working and asleep take turns between their variations at loop ends (BEHAVIORS.md §2, Taking turns). The same `variant` again leaves the turns alone; another starts them over from it. Missing reads as 1, and one past the look's variations in `mood` (each mood has its own, [DEVICE.md](DEVICE.md) §6) is held to its last |
+| `variant` | int ≥ 1 | Which variation of the visual shows: needs you's while `attn` is there, else the look's (`act`'s, else the base's). The core picks it at random each time the visual changes, never the one that visual showed last, and again when a new mood has fewer of the visual than the one showing ([BEHAVIORS.md](BEHAVIORS.md) §2) | The look's first variation (the act's, while there's one): then idle, working, what the agents are doing and asleep take turns between their variations at loop ends (BEHAVIORS.md §2, Taking turns). The same `variant` again leaves the turns alone; another starts them over from it. Missing reads as 1, and one past the look's variations in `mood` (each mood has its own, [DEVICE.md](DEVICE.md) §6) is held to its last |
 
 Any `state` also restarts the device's 30 s no-app timer
 ([BEHAVIORS.md](BEHAVIORS.md) §3.4) and ends a `dbg.pattern` or
@@ -185,51 +185,55 @@ And a rule's one-shot, from the replay of
 
 | Field | Type | The Mac sends | The device reads it as |
 | --- | --- | --- | --- |
-| `anim` | `cheer`, `wiggle`, `listening`, `starting`, `stopped`, `error` or `helper_return`, optional | `cheer` with a brain reaction that cheers ([harness/DECISIONS.md](harness/DECISIONS.md) §5); `cheer` or `wiggle` when the dashboard asks; `listening` when the Mac's own mic turns on; `starting`, `stopped`, `error` and `helper_return` as the rules' one-shots, with no `id`, `mood`, `loops` or `say` ([BEHAVIORS.md](BEHAVIORS.md) §3.1). A tap's wiggle and BOOT's listening are the device's own ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | The animation ([BEHAVIORS.md](BEHAVIORS.md) §5); `listening` holds until the reply ([DEVICE.md](DEVICE.md) §4). A one-shot plays its state's design once (below). An unknown one is ignored |
+| `anim` | `task_complete`, `reply_ready`, `starting`, `stopped`, `error`, `helper_return`, `poked`, `tap_spam` or `listening`, and the older `cheer` and `wiggle`, optional | `cheer` with a brain reaction that cheers ([harness/DECISIONS.md](harness/DECISIONS.md) §5); `cheer` or `wiggle` when the dashboard asks; `listening` when the Mac's own mic turns on; `starting`, `stopped`, `error` and `helper_return` as the rules' one-shots, with no `id`, `mood`, `loops` or `say` ([BEHAVIORS.md](BEHAVIORS.md) §3.1). A tap's poke and BOOT's listening are the device's own ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | The animation ([BEHAVIORS.md](BEHAVIORS.md) §5): the design of the state of the same name, in the mood it's drawn in. `cheer` reads as `task_complete` with `outcome` `success`, and `wiggle` as `poked`. `listening` holds until the reply ([DEVICE.md](DEVICE.md) §4); the others play their `loops` of their design once through (below). An unknown one is ignored |
 | `say` | object, optional | A mumble as Voice built it ([VOICE.md](VOICE.md) §4), from the brain's `react` | A line to speak, with the mouth and bubble in time |
 | `say.syl` | string | 2–8 gibberish syllables: words separated by spaces, syllables by `-` | Every syllable times the mouth; the sound plays at most 12. A syllable it has no clip for keeps its beat, silent |
 | `say.word` | string, optional | One word from the vocabulary ([VOICE.md](VOICE.md) §6) | Shown in the bubble, and spoken if it has the clip |
 | `say.at` | int, only with `word` | Where the word goes among the syllables: 0 before the first, the syllable count after the last | Clamped to that range. Missing reads as the end |
 | `say.tune` | `up`, `down`, `bounce`, `flat` or `lift` | The feeling's tune ([VOICE.md](VOICE.md) §5) | Missing or unknown reads as `flat` |
 | `say.ms` | int | Milliseconds per syllable, 90–180 | Clamped to 60–400. Missing reads as 120 |
-| `mood` | one of `state`'s moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5). A wiggle never carries one | The expression: while this moment plays, the look (or the cheer) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
-| `loops` | int, optional | How many loops of its design a reaction's face holds, as Jev picked ([harness/DECISIONS.md](harness/DECISIONS.md) §5). None on a wiggle | Held to 1–6. Missing reads as 1. With the cheer, how many times its design plays. With a `mood` and no animation, how many loops of the design it's drawn in the face holds (below). A wiggle ignores it |
-| `variant` | int ≥ 1, optional | With the cheer: which of its variations plays, picked at random by `react`, never the last one ([harness/DECISIONS.md](harness/DECISIONS.md) §5). With a rule's one-shot: the core's pick, at random among the mood's variations of it (for `starting`, those for its `ctx`), never the one it played last | The animation's variation, and one past its variations, in the mood it's drawn in, is held to its last. Missing reads as 1 for the cheer and the one-shots; for `listening` the device picks one at random, never the last. A face with no animation takes the look's variation showing |
-| `ctx` | `new_task`, `session` or `continuation`, only with `starting` | What started: a prompt, a session started or cleared, or one resumed or compacted ([BEHAVIORS.md](BEHAVIORS.md) §3.1) | Which of starting's variations fit, when `variant` is missing or out of range: one for that context. Missing or unknown: any |
-| `who` | object, optional | With a brain reaction that cheers for a thread's turn: whose it is. None for a cheer about no thread (a poke, an idle heartbeat) | While the cheer plays, the strip names them ([BEHAVIORS.md](BEHAVIORS.md) §5). Ignored without the cheer |
+| `mood` | one of `state`'s moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5). The rules' moments never carry one | The expression: while this moment plays, the look (or the animation playing) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
+| `loops` | int, optional | How many loops of its design a reaction's face holds, as Jev picked ([harness/DECISIONS.md](harness/DECISIONS.md) §5). None on the rules' moments | Held to 1–6. Missing reads as 1. With an animation (but `listening`), how many times its design plays. With a `mood` and no animation, how many loops of the design it's drawn in the face holds (below) |
+| `variant` | int ≥ 1, optional | With the cheer: which of its variations plays, picked at random by `react`, never the last one ([harness/DECISIONS.md](harness/DECISIONS.md) §5). With a rule's one-shot: the core's pick, at random among the mood's variations of it (for `starting`, those for its `ctx`), never the one it played last | The animation's variation, in the mood it's drawn in, when it's one of those for the moment's facts (`outcome`, `ctx`; `render::fitting`). Missing, out of range, or for another outcome or context: the device picks one of those at random, never the one of that design it showed last. A face with no animation takes the look's variation showing |
+| `outcome` | `success` or `failure`, only with `task_complete` | The finished turn's result ([harness/DECISIONS.md](harness/DECISIONS.md) §5) | Which of task_complete's variations fit: those for that result. Missing or unknown: any |
+| `ctx` | `new_task`, `session` or `continuation`, only with `starting` | What started: a prompt, a session started or cleared, or one resumed or compacted ([BEHAVIORS.md](BEHAVIORS.md) §3.1) | Which of starting's variations fit: those for that context. Missing or unknown: any |
+| `who` | object, optional | With a brain reaction that cheers for a thread's turn: whose it is. None for a cheer about no thread (a poke, an idle heartbeat) | While the finish (`task_complete` or `reply_ready`) plays, the strip names them after a mark for its result: a tick for a success, a cross for a failure, three dots for a reply ([BEHAVIORS.md](BEHAVIORS.md) §5). Ignored with any other animation |
 | `who.agent` | `claude` or `codex` | The thread's agent | Kept in 11 bytes |
 | `who.thread` | string, at most 23 bytes of UTF-8 | The thread's name: as its agent's app shows it once an event brought one (`attn.name`'s), else its workspace (a linked worktree's folder, else the branch), else its project, cut as `attn.project` is | Kept in 23 bytes |
 | `id` | int 1–2147483647, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Each time the app starts, its ids start at a random number and count up (back to 1 after 2147483647), so a moment an earlier launch left playing can't share an id with a new one | Answered with one `ended` carrying this `id` (§4). Missing, or anything but an integer from 1 to 4,294,967,295 (a fraction too): no `ended` |
 
-A tap's wiggle plays at once, and so does a rule's one-shot, except
+A tap's poke plays at once, and so does a rule's one-shot, except
 that the Mac sends none while a brain moment's line plays, which it
 would cut (a face held on after the line may be replaced). A brain
 mumble waits its turn behind any line or reaction's face playing (not a
-wiggle or a rule's one-shot, which it plays over) until the device's
+poke or a rule's one-shot, which it plays over) until the device's
 `ended` for the last one, and the Mac drops it rather than send it more
 than 5 s late ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2 has the whole
 rule).
 
-**The empty moment,** `{"t":"moment"}`, with neither `anim` nor `say`,
-ends `listening` and does nothing else: it never ends a cheer, a wiggle
+**The empty moment,** `{"t":"moment"}`, with no `anim`, `say` or `mood`,
+ends `listening` and does nothing else: it never ends another animation
 or a mumble. The Mac sends it when push-to-talk ends without a reply. A
 moment with a `say` ends `listening` too, since it's the reply
-([DEVICE.md](DEVICE.md) §4).
+([DEVICE.md](DEVICE.md) §4). Nothing else does: not a one-shot, a
+finish or a face without a `say`, nor an animation the device doesn't
+know.
 
 On the device, a moment plays as it arrives. A design's loop is how long
 it takes to play once through: `loopMs` in
 `faces.h` ([DEVICE.md](DEVICE.md) §6), and the same numbers on the Mac
 in `FaceLoops`.
 
-- An animation replaces the moment playing, and stops any line. The
-  cheer plays its `loops` of its design, which starts over each time,
-  timed by the design of the mood it's drawn in when it starts; a wiggle
-  lasts 0.7 s. A cheer with `who` names them in the strip for as long
-  as it plays.
+- An animation replaces the moment playing, and stops any line. It
+  plays its `loops` of its design, which starts over each time, timed by
+  the design of the mood it's drawn in when it starts, then the look
+  comes back; a tap's poke plays once. A finish with `who` names them in
+  the strip for as long as it plays.
 - A mumble with no animation plays over whatever face is showing and
-  replaces any line playing. With an animation in the same moment, as a
-  reaction that cheers sends, its bubble stays up at least as long as
-  the animation.
+  replaces any line playing, at once. With an animation in the same
+  moment, as the brain's finish sends, its line starts at the design's
+  voice window ([VOICE.md](VOICE.md) §9), and the animation holds on,
+  resting on its last frame, until the line and its bubble end.
 - A `mood` with an animation holds for as long as the animation plays.
   With none, as the brain sends it, it holds for its `loops` of the
   design it's drawn in (the look's), ending on a loop boundary of that design's clock:
@@ -241,20 +245,24 @@ in `FaceLoops`.
   meanwhile (a `state` moves from working to idle), the
   new look is drawn in the moment's mood until the end worked out when
   it started. A newer moment, a tap or "needs you" ends it with the
-  moment. The Mac sends its next brain moment once this one's mumble has
-  played, without waiting for the face ([ARCHITECTURE.md](ARCHITECTURE.md)
-  §3.2), so a face held for its loops is usually ended that way.
+  moment. Over a rule's one-shot or a poke, it draws that design in its
+  mood, on the design's clock, without cutting it. The Mac sends its
+  next brain moment once this one's mumble has played, without waiting
+  for the face ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2), so a face held
+  for its loops is usually ended that way.
 - While `attn` is set, neither plays, except `listening`
   ([BEHAVIORS.md](BEHAVIORS.md) §1). Needs you's own design plays its
   performance once, then holds its pending pose, the frame it starts and
   ends on.
 - While `listening` plays, a moment with a `say`, or the empty moment,
-  ends it first, then plays as it would have. Any other animation is
-  skipped, and another `listening` keeps the same face, its time topped
-  up ([DEVICE.md](DEVICE.md) §4).
+  ends it first, then plays as it would have. Any other animation, or a
+  face without a `say`, is skipped, and another `listening` keeps the
+  same face, its time topped up ([DEVICE.md](DEVICE.md) §4).
+- With no app ([BEHAVIORS.md](BEHAVIORS.md) §3.4), neither plays: no
+  app shows over everything.
 - At volume 0 the mouth and bubble still play, silently.
 - A moment with neither a known `anim` nor any syllables plays nothing
-  (beyond ending `listening`).
+  (beyond ending `listening`, when it's the empty moment or has a `say`).
 - A moment with an `id` is answered with `ended` once none of it plays
   any more (§4).
 - A rule's one-shot (`starting`, `stopped`, `error`, `helper_return`)
@@ -265,6 +273,8 @@ in `FaceLoops`.
   `listening` holds the screen it's skipped, and it never ends
   `listening` (the Mac sends none then either). Firmware that doesn't
   know one plays nothing for it.
+- What shows, first first: no app, `listening`, needs you, a tap's poke
+  and the moments, then the look ([BEHAVIORS.md](BEHAVIORS.md) §1).
 
 ## 4. Device → Mac
 
@@ -298,8 +308,8 @@ the last, on the link the Mac last spoke on. The Mac answers every
 | `talk_off` | BOOT let go after `talk_on`, or held 30 s past it (the device's cap) |
 
 The device has already reacted on screen before it sends this: the
-wiggle, or `listening` from `talk_on` until the reply
-([DEVICE.md](DEVICE.md) §4). It sends it
+poke (or the press dip, while the face is held), or `listening` from
+`talk_on` until the reply ([DEVICE.md](DEVICE.md) §4). It sends it
 on every live link: Bluetooth while a Mac is connected, and USB while the
 Mac has spoken there (any message that isn't `dbg.*`) in the last 30 s,
 so a tool's `moment` over USB doesn't take taps and push-to-talk away
@@ -326,8 +336,8 @@ while something needed you:
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | int | The moment's `id` (§3) |
-| `how` | `done`, `cut` or `skipped` | `done`: its animation and its line with its bubble played to the end. The face it holds after them counts too, but ending that early (below) leaves it `done`: the reaction was seen and heard. `cut`: something stopped its animation or its line early. `skipped`: none of it played: something needed you or `listening` held the face when it arrived (or it had nothing the device can play, which the Mac never sends) |
-| `why` | `tap`, `moment`, `needs_you` or `reset`, only with `cut` | What stopped it first: a tap's wiggle or push-to-talk's `listening`, a newer moment (an animation, or any line, which replaces the line playing), "needs you" starting, or `dbg.reset` |
+| `how` | `done`, `cut` or `skipped` | `done`: its animation and its line with its bubble played to the end. The face it holds after them counts too, but ending that early (below) leaves it `done`: the reaction was seen and heard. `cut`: something stopped its animation or its line early. `skipped`: none of it played: something needed you, `listening` held the face or the device showed no app when it arrived (or it had nothing the device can play, which the Mac never sends) |
+| `why` | `tap`, `moment`, `needs_you` or `reset`, only with `cut` | What stopped it first: a tap's poke or push-to-talk's `listening`, a newer moment (an animation, or any line, which replaces the line playing), "needs you" starting, or `dbg.reset` |
 
 The device sends one for every moment with an `id`, exactly once, on the
 link the moment came in on, when none of it plays any more: the
@@ -402,9 +412,9 @@ instead of running.
 | Field | Meaning |
 | --- | --- |
 | `screen` | `face`, `needs_you`, `no_app` or `pattern` ([DEVICE.md](DEVICE.md) §4) |
-| `base`, `mood`, `variant`, `attn`, `vol` | The last `state` as the device read it (§3): `base` `idle` and `mood` `happy` for a missing or unknown one, `variant` held to the look's variations, `vol` clamped, and `attn` (with its `name`, `""` when none came, and its `id`, 0 when none came) null unless something needs you |
-| `look_variant` | The variation of the base's look showing, from 1: `variant` until the looks take turns ([BEHAVIORS.md](BEHAVIORS.md) §2) |
-| `moment` | `{"anim":…,"left_ms":…}` while an animation plays, otherwise null. A mumble on its own leaves it null |
+| `base`, `act`, `mood`, `variant`, `attn`, `vol` | The last `state` as the device read it (§3): `base` `idle` and `mood` `happy` for a missing or unknown one, `act` null for none or one it doesn't know, `variant` held to the look's variations, `vol` clamped, and `attn` (with its `name`, `""` when none came, and its `id`, 0 when none came) null unless something needs you |
+| `look_variant` | The variation of the look showing (the act's, else the base's), from 1: `variant` until the looks take turns ([BEHAVIORS.md](BEHAVIORS.md) §2) |
+| `moment` | `{"anim":…,"left_ms":…,"variant":…}` while an animation plays, by its design's name (`task_complete` for the cheer, `poked` for a wiggle) and its variation from 1; otherwise null. A mumble on its own leaves it null |
 | `expr` | The mood the face borrows while a moment with `mood` plays (§3), otherwise null |
 | `life` | `blink` while Boop blinks, otherwise null |
 | `led`, `bl` | The LED's colour as `#RRGGBB`, and the backlight level, 0–255 |
@@ -447,7 +457,7 @@ advertise again. The next connect starts from the top.
 | Advertising check | Every second while not connected | Device |
 | USB write | At most 250 ms; a failed write, or a lost bridge, reconnects after 1 s | Mac |
 | Brain moment | Dropped once it has waited 5 s for its turn | Mac |
-| A brain moment's `ended` | Given up on once the moment's longest length (its line, or its face's loops of the design showing: the last `state`'s look, its longest variation) plus 3 s (`endGraceMs`) has passed since it was sent (§4). Until then the next brain moment waits for it | Mac |
+| A brain moment's `ended` | Given up on once the moment's longest length (its line, from its animation's voice window when it has one; its animation's loops; or its face's loops of the design showing: the last `state`'s look, its longest variation) plus 3 s (`endGraceMs`) has passed since it was sent (§4). Until then the next brain moment waits for it | Mac |
 | Reading lines | Up to 8 ms of lines before each frame | Device |
 | A frozen debug clock | Runs again after 60 s with no `dbg.*` | Device |
 
