@@ -15,6 +15,7 @@ for the night ([PLAN.md](../PLAN.md) §3).
 | `boopctl soak --minutes 10 --vol 1` ([soak-10min.json](soak-10min.json)) | `067c7d80` | ok: no reset, no heap drift (71,472 B from first to last sample), no lost or torn lines, no audio errors, 56 brain reactions all ended: `skipped` 33 (something needed you), `done` 9, `cut (tap)` 7, `cut (moment)` 5, `cut (needs_you)` 2 |
 | L4, `boopctl e2e --brain scripted`: hooks → headless app → bridge → board ([e2e-runs.txt](e2e-runs.txt)) | `067c7d80` | PASS twice after the fixture fixes below: hook to state on the device in 61–65 ms typically, 95–103 ms at the 95th percentile; 8–9 brain moments, none early, every one ended |
 | Each new scene by hand (`boopctl send` a state or moment, then `boopctl shot`) | `067c7d80` | Pictures below |
+| After `/simplify` (frames drawn from the one compared, one tap count, one duck per design): flash, L2, L4, `perf --motion` 30 s | `95fea90b`, 2,498,591 bytes | L2 14 scenarios, 0 pictures different; L4 PASS (95th percentile 96 ms); free heap at least 71,428 B, the slowest frame 21.9 ms |
 
 ## Pictures (the device's own canvas, `boopctl shot`)
 

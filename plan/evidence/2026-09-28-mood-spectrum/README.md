@@ -33,6 +33,7 @@ sweep, and the board ([board/](board/README.md)).
 | `make -C internal fw-test` | 163 of 163 |
 | `make -C internal sim` | 14 scenarios, 0 expect failures, 0 changed pictures |
 | `make -C internal tools-test` | 63, 12 and 3 tests OK |
+| `/simplify` (four reviews: reuse, simplification, efficiency, altitude), then its fixes | All of the above again after them, generated files byte-identical but `sfx.h`'s version string; the deeper refactors it named are listed below |
 | `facegen --check` (in the art and device lanes) | 7,970 frames of 704 scenes match Chrome |
 | The bank's `qa/check.mjs` and `validate.mjs` (art lane) | pass |
 | Jev evals, committed steering (moods lane) | 53 of 55 scenarios in each of two clean full runs, every `always` one 5 of 5; `20-no-flail` is the known gap. The final steering's last run was cut off by HTTP 402 after scenario 12 |
@@ -49,6 +50,31 @@ sweep, and the board ([board/](board/README.md)).
   integrated as delivered (D9); nothing here is visual or listening
   approval. Nothing merges to `main` without the owner.
 - **Bluetooth** is the owner's (`make run`).
+
+## `/simplify`
+
+Applied: one derivation of the visual; one activity-hold rule; one-shots
+as `DeviceMoment`s from the start; animation timing through one design
+lookup, with the aliases the app never sends gone; `MoodGraph.moods`
+from `FaceLoops`; `debug.jsonl`'s `questions` line once a launch again,
+with each pass naming the options it asked where they differ (which also
+fixed `boopctl day` reading each mood change as a relaunch); the evals
+reading what a pass offered from its record; on the device, one tap
+count, one duck flag per design, frames drawn from the one compared
+(one layout a frame, not two), the animation names from the states';
+in the tools, one voice-window rule shared with the bank, sfxgen's
+sparse count from the bank's, facegen's per-pixel conversion as a table
+(26.6 s from 50.2 s without the Chrome check), and the animation groups
+in `common.py`.
+
+Skipped, as deeper changes for the owner to weigh: generating every
+name table (moods, states, animations) from facegen for C++, Swift and
+Python; the device reporting its tap run instead of the Mac counting
+it; one Mac-side gate for the rules' one-shots; the voice window as a
+design field in `faces.h` rather than `sfx.h`; one table of running
+calls for late results and the look; `by` on `debug.jsonl`'s `sent`
+lines; `inspect` as its own hook field; and per-clock step tables in
+`faces.h` to cut the renderer's key scans.
 
 ## For the owner
 
