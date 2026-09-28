@@ -14,8 +14,8 @@ very long turn fails or the agent gives up.
 A turn starting gets nothing; any finish done a small happy face.
 Only a very long turn done cheers. Work still going gets a face held
 twice, no word, at every check-in: never none.
-Talked to, it always answers with a face: proud at kind words, grumpy
-at rude ones.
+Talked to, it always answers with a face, never none: proud at kind
+words, grumpy at rude ones, happy at anything else.
 An exclamation is for what stands out: "nice" at a long turn done,
 "yay" at a very long one. A routine face says the topic ("tests", or
 "bug", "merge" or "review" when the words say so), or no word.
@@ -57,5 +57,7 @@ Examples:
   → grumpy, "nope", once
 - NOW: You said to Boop: "good job, buddy".
   → proud, no word, twice
+- NOW: You said to Boop: "are the tests passing yet?"
+  → happy, "tests", once
 - NOW: You said to Boop: "you're useless".
   → grumpy, "nope", once

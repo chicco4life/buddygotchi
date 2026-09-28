@@ -18,7 +18,8 @@ brain, which answers with a face and a mumble
 | `make -C internal sim` | 11 scenarios, 0 expect failures, 0 new or changed pictures (after the 6 new goldens) |
 | `make -C internal tools-test` | 58, 11 and 3 tests, OK |
 | `facegen.py --check` | 1,358 frames of 125 scenes match Chrome |
-| `boopdev eval --list --only talk` | `35-talk-gets-an-answer.json` reads. Not run: it needs `BOOP_JEV_KEY` |
+| `boopdev eval --only talk` (Jev) | `35-talk-gets-an-answer.json`: 0 of 5 runs with only the kind and rude Examples (the question got no face), 1 of 5 with "happy at anything else" added to the rule, 5 of 5 with the question's Example back |
+| `boopdev eval` (Jev, every scenario) | 33 of 35 pass every run ([eval.txt](eval.txt)). `11-comeback-still-showing` passed 2 of 3, as it did before this change (the liveliness run); `20-no-flail` is a known gap |
 | `Boop --headless --brain scripted --debug`, with `{"dev":"listen"}` and `{"dev":"said"}` | Below |
 
 **Headless.** Talk on, then off with no mic, then words:
@@ -57,4 +58,3 @@ The device's `listening` scene, alone and while something needs you
   `make run` (Bluetooth), and macOS asks them for Microphone and Speech
   Recognition the first time.
 - The board: it needs a reflash (`make flash`), and nothing ran on it.
-- Jev's answers to what you say: `make eval` with the owner's key.
