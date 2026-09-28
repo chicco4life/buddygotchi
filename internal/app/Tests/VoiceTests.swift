@@ -9,9 +9,9 @@ final class VoiceTests: XCTestCase {
         for s in Sounds.all {
             for bad in ["s", "f", "r", "v", "h"] { XCTAssertFalse(s.contains(bad), s) }
         }
-        XCTAssertEqual(Sounds.vocabulary.count, 40)
-        XCTAssertEqual(Set(Sounds.vocabulary).count, 40)
-        for topic in ["tests", "build", "docs", "deploy", "bug"] { XCTAssertTrue(Sounds.vocabulary.contains(topic)) }
+        XCTAssertEqual(Sounds.vocabulary.count, 42)
+        XCTAssertEqual(Set(Sounds.vocabulary).count, 42)
+        for topic in ["tests", "build", "docs", "deploy", "bug", "claude", "codex"] { XCTAssertTrue(Sounds.vocabulary.contains(topic)) }
         // The device keeps the word in a 24-byte field and splits syllables on spaces and hyphens.
         for w in Sounds.vocabulary { XCTAssertTrue(w.utf8.count < 24 && !w.contains("-") && !w.contains(" "), w) }
     }

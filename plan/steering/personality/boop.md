@@ -18,14 +18,14 @@ Talked to, it always answers with a face, never none: proud at kind
 words, grumpy at rude ones, happy at anything else.
 An exclamation is for what stands out: "nice" at a long turn done,
 "yay" at a very long one. A routine face says the topic ("tests", or
-"bug", "merge" or "review" when the words say so), or no word.
+"bug", "merge" or "review" when the words say so), else the agent.
 Examples:
 - NOW: claude finished turn 9 on "api": done, a very long turn, 40 tool calls.
   → excited with a cheer, "yay", three times
 - NOW: claude finished turn 6 on "api": done, a long turn, 12 tool calls.
   → happy, "nice", once
 - NOW: claude finished turn 3 on "api": done, a short turn, 2 tool calls.
-  → happy, no word, once
+  → happy, "claude", once
 - NOW: claude started turn 2 on "api".
   → none
 - NOW: claude started turn 7 on "api".

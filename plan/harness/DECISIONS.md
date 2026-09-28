@@ -182,7 +182,7 @@ meaning is its criterion.
 | `react.animation` | `react` | If Boop reacts, does it play an animation? | the NOW section | as `react.mood` | `none` and each reaction animation: today only `cheer` |
 | `react.loops` | `react` | If Boop reacts, how long does it hold the face? | the NOW section | as `react.mood` | Four lengths, once to four times |
 | `word.feeling` | `react` | If Boop mumbles, which exclamation fits NOW? | the NOW section | as `react.mood` | `none` and eight exclamations |
-| `word.about` | `react` | If Boop mumbles, which topic word is NOW about? | the NOW section | the PERSONALITY section's Examples | `none` and seven topics |
+| `word.about` | `react` | If Boop mumbles, which topic word is NOW about? | the NOW section | the PERSONALITY section's Examples | `none` and nine topics |
 
 **`react.mood` picks a face.** Its options are `none` and the six moods,
 and a reaction is that mood's face for a moment: the device draws
@@ -240,7 +240,7 @@ long.
 
 **The words** are two questions over two short lists, so the two picks
 are never near-synonyms: an exclamation, and what NOW is about. They're
-the fifteen of Voice's real words ([VOICE.md](../VOICE.md) §6) that
+the seventeen of Voice's real words ([VOICE.md](../VOICE.md) §6) that
 something in the state can ground, and a test checks each is one of
 Voice's.
 
@@ -263,6 +263,8 @@ Voice's.
 | | `bug` | NOW is about a bug: your prompt or the agent's last message says one was hunted or fixed. Not for a failed check or turn with no word of a bug |
 | | `merge` | NOW is git work: a commit, merge, push or pull request, as your prompt or the agent's last message says |
 | | `review` | NOW is a review of code or a pull request, as your prompt or the agent's last message says |
+| | `claude` | NOW is a claude turn ending (done, stopped or failed) that isn't about any other topic word: its name, only as a filler. Not for claude still working (a check-in), codex's work, a poke, or words about a bug, git work, a review or any other topic: that topic's word wins |
+| | `codex` | NOW is a codex turn ending (done, stopped or failed) that isn't about any other topic word: its name, only as a filler. Not for codex still working (a check-in), claude's work, a poke, or words about a bug, git work, a review or any other topic: that topic's word wins |
 
 ## 4. The `mood` action
 

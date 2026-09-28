@@ -261,9 +261,9 @@ Nothing else is stored: the device ID comes from the Bluetooth MAC, and no
 `state` is kept.
 
 Fonts, faces, voice clips and sound effects are compiled in as arrays:
-the voice is 226 KB ([VOICE.md](VOICE.md) §8), the sound effects 146 KB
+the voice is 235 KB ([VOICE.md](VOICE.md) §8), the sound effects 146 KB
 (§10 there), the faces about 286 KB and the fonts about 27 KB. The whole
-firmware is 1.52 MB, about 77% of app0.
+firmware is 1.53 MB, about 78% of app0.
 
 ## 6. Memory, drawing and speed
 

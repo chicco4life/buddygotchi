@@ -44,6 +44,7 @@ public enum Sounds {
     /// interjections.
     public static let vocabulary: [String] = [
         "tests", "build", "docs", "deploy", "bug", "fix", "ship", "code", "merge", "review",
+        "claude", "codex",
         "yay", "oops", "hmm", "finally", "done", "food", "sleepy", "hi", "bye", "love",
         "wow", "yes", "no", "nope", "okay", "again", "nice", "ugh", "boo", "whee",
         "hooray", "thanks", "hello", "more", "snack", "nap", "play", "good", "oh", "what",

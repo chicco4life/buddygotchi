@@ -184,8 +184,8 @@ kinds, all with the `boop` personality unless the file says otherwise:
 - **Tuning** (`01`, `07`, `10`–`12`, `14`, `15`, `18`, `19`, `21`,
   `22`, `24`–`27`, `29`–`34`): single decisions ("nice" at a long turn
   done, not "yay", is `29`; the topic words Jev reads from the words,
-  "bug", "merge" and "review", `30`–`32`, none when the words are about
-  none of them, `33`, and the exclamation first at a long turn, `34`),
+  "bug", "merge" and "review", `30`–`32`, the agent's name as the filler
+  when the words are about none of them, `33`, and the exclamation first at a long turn, `34`),
   and the liveliness brief: Boop reacts often
   (every quick win, `19`; most of a busy half hour, `21`), never goes
   over 6 minutes of work with no reaction, even while another thread's

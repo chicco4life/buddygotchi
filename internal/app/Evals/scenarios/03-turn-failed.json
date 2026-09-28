@@ -5,6 +5,6 @@
   "why": "plan/steering/mood/happy.md: happy leaves for grumpy when a turn fails; plan/steering/guide.md: a mood change shows, with the new mood's face. A turn of two minutes failing is no reason to be sad, and determined is for a turn still working",
   "steps": [
     {"event": "turn started", "at": "0s"},
-    {"event": "turn failed", "at": "2m", "error": "rate_limit", "expect": {"react": "grumpy", "word": "none|oops|ugh|again", "mood": "grumpy"}}
+    {"event": "turn failed", "at": "2m", "error": "rate_limit", "expect": {"react": "grumpy", "word": "none|oops|ugh|again|claude", "mood": "grumpy"}}
   ]
 }

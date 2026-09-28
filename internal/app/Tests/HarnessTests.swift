@@ -828,7 +828,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(react.questions()[1].options.map(\.name), ["none", "cheer"])
         XCTAssertEqual(react.questions()[2].options.map(\.name), ["once", "twice", "three times", "four times"])
         XCTAssertEqual(react.questions()[3].options.map(\.name), ["none", "finally", "yay", "nice", "oops", "again", "ugh", "nope", "hmm"])
-        XCTAssertEqual(react.questions()[4].options.map(\.name), ["none", "tests", "build", "deploy", "docs", "bug", "merge", "review"])
+        XCTAssertEqual(react.questions()[4].options.map(\.name), ["none", "tests", "build", "deploy", "docs", "bug", "merge", "review", "claude", "codex"])
         XCTAssertEqual(ReactAction.holds.indices.map { ReactAction.loops(["react.loops": a(ReactAction.holds[$0].name)]) },
                        [1, 2, 3, 4])
         XCTAssertEqual(ReactAction.loops([:]), 1)

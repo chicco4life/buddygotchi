@@ -158,17 +158,19 @@ silent.
 ## 6. The real word
 
 The device can't synthesise speech, so the real word always comes from a
-fixed vocabulary of 40 English words (`Sounds.vocabulary`):
+fixed vocabulary of 42 English words (`Sounds.vocabulary`):
 
 - **Topic words:** `tests build docs deploy` (the topic tags from
-  [ADAPTERS.md](ADAPTERS.md) §3), and `bug fix ship code merge review`.
+  [ADAPTERS.md](ADAPTERS.md) §3), `bug fix ship code merge review`, and
+  the agents' names, `claude codex`.
 - **Interjections:** `yay oops hmm finally done food sleepy hi bye love
   wow yes no nope okay again nice ugh boo whee hooray thanks hello more
   snack nap play good oh what`.
 
-The brain's word questions offer fifteen of them, eight exclamations and
-seven topic words: the four tags, and `bug`, `merge` and `review`, which
-Jev reads from your prompt and the agent's last message
+The brain's word questions offer seventeen of them, eight exclamations
+and nine topic words: the four tags; `bug`, `merge` and `review`, which
+Jev reads from your prompt and the agent's last message; and the agent's
+name, the filler when no other topic fits
 ([harness/DECISIONS.md](harness/DECISIONS.md) §3), so
 it can't ask for a word Boop can't say. The vocabulary is English
 everywhere: the gibberish needs no translation, and a stray English word
@@ -222,7 +224,7 @@ that `dbg.ping` reports ([PROTOCOL.md](PROTOCOL.md) §5):
 - `say` can't hum `mm` or `nn`, so the hums are synthesised as a nasal
   tone.
 
-The pack is 226 KB: 64 syllables of 84–163 ms and 40 words of 125–481 ms.
+The pack is 235 KB: 64 syllables of 84–163 ms and 42 words of 125–481 ms.
 
 **Playback.** The device looks each clip up by name and resamples it as it
 plays, so pitch and tempo change without new assets (the trick Animal

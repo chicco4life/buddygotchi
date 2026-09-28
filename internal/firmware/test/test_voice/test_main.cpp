@@ -47,13 +47,15 @@ const char* const kFour[] = {"bi", "do", "ba", "na"};
 
 void test_assets_match_sounds_swift() {
   TEST_ASSERT_EQUAL(64, voice::syllableCount());
-  TEST_ASSERT_EQUAL(40, voice::wordCount());
+  TEST_ASSERT_EQUAL(42, voice::wordCount());
   TEST_ASSERT_EQUAL(0, voice::syllableIndex("ba", 2));
   TEST_ASSERT_TRUE(voice::syllableIndex("mm", 2) >= 0);
   TEST_ASSERT_TRUE(voice::syllableIndex("pum", 3) >= 0);
   TEST_ASSERT_EQUAL(-1, voice::syllableIndex("sha", 3));
   TEST_ASSERT_EQUAL(0, voice::wordIndex("tests"));
   TEST_ASSERT_TRUE(voice::wordIndex("done") >= 0);
+  TEST_ASSERT_TRUE(voice::wordIndex("claude") >= 0);
+  TEST_ASSERT_TRUE(voice::wordIndex("codex") >= 0);
   TEST_ASSERT_EQUAL(-1, voice::wordIndex("banana"));
   // About 360 KB was budgeted (VOICE.md §8).
   TEST_ASSERT_TRUE(voice::assetsBytes() < 360u * 1024);

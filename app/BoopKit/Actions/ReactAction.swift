@@ -71,6 +71,10 @@ public final class ReactAction: Action {
                notFor: "A failed check or turn with no word of a bug."),
         Option("merge", "NOW is git work: a commit, merge, push or pull request, as your prompt or the agent's last message says."),
         Option("review", "NOW is a review of code or a pull request, as your prompt or the agent's last message says."),
+        Option("claude", "NOW is a claude turn ending (done, stopped or failed) that isn't about any other topic word: its name, only as a filler.",
+               notFor: "claude still working (a check-in), codex's work, a poke, or words about a bug, git work, a review or any other topic: that topic's word wins."),
+        Option("codex", "NOW is a codex turn ending (done, stopped or failed) that isn't about any other topic word: its name, only as a filler.",
+               notFor: "codex still working (a check-in), claude's work, a poke, or words about a bug, git work, a review or any other topic: that topic's word wins."),
     ]
 
     /// The animations a reaction can play in its face (DECISIONS.md §3):
