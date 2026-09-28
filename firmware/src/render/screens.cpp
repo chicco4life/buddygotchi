@@ -72,8 +72,7 @@ void drawBox(Canvas& c, int w) {
   c.fillRect(kWidth / 2 - L, top - 2 * L, 2 * L, L, uint8_t(ink));
 }
 
-}  // namespace
-
+// The mumble in its bubble, which takes the whole lane.
 void drawBubble(Canvas& c, const Mumble& m) {
   c.fillRect(0, kLaneTop, kWidth, kHeight - kLaneTop, kBlack);  // the lane is the bubble's
   const int gap = 8, sq = 22, room = kWidth - 2 * kMargin - 2 * (kBubblePad + kBubbleLine);
@@ -99,8 +98,6 @@ void drawBubble(Canvas& c, const Mumble& m) {
   if (hasWord) x = drawStringFit(c, kLarge, x, cy - kLarge.baseline + 8, m.word, kInkAmber, maxWord) + gap;
   for (int i = 0; i < after; ++i) x = squiggle(c, x, cy, kInkGrey) + gap;
 }
-
-namespace {
 
 // Status-strip icons, 16 px boxes with (x, y) at the top left.
 void iconNoApp(Canvas& c, int x, int y) {  // a plug on its cord, pointing at nothing
@@ -129,8 +126,8 @@ void iconDots(Canvas& c, int x, int y, uint8_t ink) {  // three dots: something 
 void drawStrip(Canvas& c, const Strip& s) {
   // An empty strip is bare glass: no divider under the face.
   if (!s.agent && !s.doneAgent && s.busy <= 0 && !s.noApp) return;
-  // The cheer's design fills the screen with colour: its names get a
-  // black band to be read on.
+  // The first pack's success designs for the finish fill the screen with
+  // colour: the finish's names get a black band to be read on.
   if (s.doneAgent) c.fillRect(0, kStripTop, kWidth, kHeight - kStripTop, kBlack);
   c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 1, inkAt(kInkDim, kLevels));
   const int cy = kStripCy, ty = cy - 10;
@@ -168,7 +165,7 @@ void drawStrip(Canvas& c, const Strip& s) {
   if (s.noApp) iconNoApp(c, kWidth - kMargin - 16, cy - 8);
 }
 
-void drawFaceScreen(Canvas& c, const SceneShow& face, const Mumble* mumble, const Strip& s) {
+void drawFaceScreen(Canvas& c, const SceneFrame& face, const Mumble* mumble, const Strip& s) {
   c.fill(kBlack);
   drawScene(c, face);
   if (mumble) drawBubble(c, *mumble);

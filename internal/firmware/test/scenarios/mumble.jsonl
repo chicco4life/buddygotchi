@@ -31,7 +31,7 @@
 {"clock":34000}
 {"shot":"bubble-gone"}
 // Over an animation, a mumble leaves it playing, and plays at once; the
-// bubble blanks the lane, which the first pack's cheer fills with gold.
+// bubble blanks the lane, which the first pack's success fills with gold.
 {"t":"state","v":1,"base":"idle"}
 {"clock":40000}
 {"t":"moment","anim":"cheer","variant":1}

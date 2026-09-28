@@ -35,24 +35,22 @@ int EffectTrack::follow(const render::SceneShow* s, voice::FxEvent* out, bool& c
     uint32_t end = start + loopMs_ < until ? start + loopMs_ : until;
     if (cycle != cycle_) {
       cycle_ = cycle;
+      bool sounds = false;
       switch (score_.policy) {
-        case voice::Policy::kLoop: cycleOn_ = true; break;
-        case voice::Policy::kEntry: cycleOn_ = cycle == 0; break;
-        case voice::Policy::kSparse: cycleOn_ = score_.every <= 1 || cycle % score_.every == 0; break;
-        case voice::Policy::kSilent: cycleOn_ = false; break;
+        case voice::Policy::kLoop: sounds = true; break;
+        case voice::Policy::kEntry: sounds = cycle == 0; break;
+        case voice::Policy::kSparse: sounds = score_.every <= 1 || cycle % score_.every == 0; break;
+        case voice::Policy::kSilent: break;
       }
       // A routine design's loops each sound a few of its contacts, the
       // bank's picks for loop cycle % kLoops, each on its own frame.
-      list_ = voice::events(score_, uint32_t(cycle));
+      list_ = sounds ? voice::events(score_, uint32_t(cycle)) : voice::Events{};
     }
-    if (cycleOn_) {
-      for (int i = 0; i < list_.n; ++i) {
-        voice::FxEvent e = voice::fxEvent(list_.first + i);
-        uint32_t at = start + e.atMs;
-        if (at < covered_ || at >= end) continue;
-        e.duck = score_.duck;
-        if (n < kMaxOut) out[n++] = e;  // more at once than that would only be noise
-      }
+    for (int i = 0; i < list_.n; ++i) {
+      voice::FxEvent e = voice::fxEvent(list_.first + i);
+      uint32_t at = start + e.atMs;
+      if (at < covered_ || at >= end) continue;
+      if (n < kMaxOut) out[n++] = e;  // more at once than that would only be noise
     }
     covered_ = end;
   }

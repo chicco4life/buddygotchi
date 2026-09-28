@@ -1,8 +1,8 @@
 // The older names for the animations (BEHAVIORS.md §5), at a
-// characteristic frame. The cheer is the finish's success: its `loops` of
+// characteristic frame. `cheer` is the finish's success: its `loops` of
 // happy's first task-complete design (6.4 s), one when the moment doesn't
-// say. With `who`, the strip names whose turn it cheers, after a tick. The
-// dashboard's wiggle is a tap's poke.
+// say. With `who`, the strip names whose turn it was, after a tick. The
+// dashboard's `wiggle` is a tap's poke.
 {"clock":0}
 {"t":"state","v":1,"base":"idle"}
 {"clock":10000}

@@ -25,7 +25,7 @@
 {"clock":3500}
 {"expect":{"moment":{"anim":"listening","left_ms":8000},"boot":false,"last_input":{"k":"talk_off","at":3500}}}
 {"t":"state","v":1,"base":"idle","busy":0}
-// A cheer meanwhile doesn't replace it.
+// A finish (`cheer`) meanwhile doesn't replace it.
 {"clock":4000}
 {"t":"moment","anim":"cheer"}
 {"expect":{"moment":{"anim":"listening","left_ms":7500}}}

@@ -37,6 +37,8 @@ constexpr int kTalkW = 14, kTalkH = 12;
 // Where the first pack's "o" sat, from its mouth's place: the "o" for a
 // mouth with nothing drawn to measure.
 constexpr int kTalkX = 153, kTalkY = 128;
+// So a frame's talkInk, a scene colour, is black only while the mouth doesn't talk.
+static_assert(kSceneBase > kBlack, "a scene colour is never black");
 
 const Scene& scene(const SceneShow& s) { return kScenes[sceneOf(s.mood, s.state, s.variant)]; }
 
@@ -222,9 +224,6 @@ StartCtx ctxFromName(const char* name) {
   return StartCtx::kNone;
 }
 
-const char* outcomeName(Outcome o) { return kOutcomes[int(o) <= int(Outcome::kFailure) ? int(o) : 0]; }
-const char* ctxName(StartCtx c) { return kCtxs[int(c) <= int(StartCtx::kContinuation) ? int(c) : 0]; }
-
 Outcome variantOutcome(Mood m, SceneState s, int variant) { return Outcome(design(m, s, variant).outcome); }
 StartCtx variantCtx(Mood m, SceneState s, int variant) { return StartCtx(design(m, s, variant).ctx); }
 
@@ -287,27 +286,23 @@ SceneFrame sceneFrame(const SceneShow& s) {
   return f;
 }
 
-void drawScene(Canvas& c, const SceneShow& s) {
-  const Scene& sc = scene(s);
-  Placed p;
-  place(sc, s, p);
+void drawScene(Canvas& c, const SceneFrame& f) {
+  const Scene& sc = kScenes[f.scene];
   for (int i = 0; i < sc.groups; ++i) {
-    if (!p.on(i)) continue;
+    if (!f.on[i]) continue;
     const Group& g = kGroups[sc.group0 + i];
     for (int k = 0; k < g.rects; ++k) {
       const Rect& r = kRects[g.rect0 + k];
-      int color = r.color == kInherit ? p.fill[i] : r.color;
+      int color = r.color == kInherit ? f.fill[i] : r.color;
       if (color >= kBlend) {
-        blendRect(c, r.x + p.x[i], r.y + p.y[i], r.w, r.h, color - kBlend, sc);
+        blendRect(c, r.x + f.x[i], r.y + f.y[i], r.w, r.h, color - kBlend, sc);
       } else {
-        clipRect(c, r.x + p.x[i], r.y + p.y[i], r.w, r.h, toCanvas(color), sc);
+        clipRect(c, r.x + f.x[i], r.y + f.y[i], r.w, r.h, toCanvas(color), sc);
       }
     }
   }
-  int16_t tx, ty;
-  uint8_t ink;
-  if (s.mouthOpen && talk(sc, p, tx, ty, ink)) {
-    for (const Box& b : kTalk) c.fillRect(tx + b.x, ty + b.y, b.w, b.h, ink);
+  if (f.talkInk != kBlack) {
+    for (const Box& b : kTalk) c.fillRect(f.talkX + b.x, f.talkY + b.y, b.w, b.h, f.talkInk);
   }
 }
 

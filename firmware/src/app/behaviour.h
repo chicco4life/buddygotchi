@@ -372,9 +372,8 @@ class Behaviour {
   // The variation of each animation's design shown last, plus one; 0 for
   // none yet.
   uint8_t last_[int(render::SceneState::kCount)] = {};
-  // The taps in the run, the last at lastTap_ (none yet while !tapped_).
+  // The taps in the run, the last at lastTap_; 0 before the first.
   int taps_ = 0;
-  bool tapped_ = false;
   uint32_t lastTap_ = 0;
   bool pressed_ = false;
   uint32_t pressAt_ = 0;

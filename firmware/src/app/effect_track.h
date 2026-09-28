@@ -29,6 +29,9 @@ class EffectTrack {
   // and returns how many. `changed` is true when the design changed or
   // started over: the last one's sounds stop before these play.
   int follow(const render::SceneShow* s, voice::FxEvent* out, bool& changed);
+  // Whether a mumble turns down the events follow hands over: their
+  // design's rule (voice::Score::duck).
+  bool duck() const { return score_.duck; }
 
  private:
   bool on_ = false;  // following a design
@@ -39,8 +42,7 @@ class EffectTrack {
   uint32_t loopMs_ = 1;
   uint32_t lastT_ = 0;    // the design's clock last time
   uint32_t covered_ = 0;  // events before this, on the design's clock, are handled
-  int64_t cycle_ = -1;    // the loop covered_ is in, whether it sounds, and its events
-  bool cycleOn_ = false;
+  int64_t cycle_ = -1;    // the loop covered_ is in, and its events: none when it doesn't sound
   voice::Events list_;
 };
 

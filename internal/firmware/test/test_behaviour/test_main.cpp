@@ -93,7 +93,7 @@ void keepAlive(Rig& r, const Model& m, uint32_t to) {
 // shows at least Behaviour::kTurnMinMs, then each end of its loop moves
 // to another (never itself) or plays another loop, and the move blinks
 // and starts the new one's clock. The Mac's same state again doesn't
-// start them over; its new variation does. Needs you and a cheer hold the
+// start them over; its new variation does. Needs you and a finish hold the
 // variation showing.
 static void test_the_looks_variations_take_turns() {
   Rig r;
@@ -129,7 +129,7 @@ static void test_the_looks_variations_take_turns() {
   r.state(m);
   TEST_ASSERT_EQUAL(m.variant, r.b.show(r.t).variant);
 
-  // Needs you holds its variation, and so does a cheer.
+  // Needs you holds its variation, and so does a finish.
   Model a = attn();
   a.variant = 1;
   r.state(a);
@@ -261,7 +261,7 @@ static void test_attention_wins_over_moments() {
   r.moment(Anim::kTaskComplete);
   TEST_ASSERT_EQUAL(Anim::kTaskComplete, r.anim());
   r.at(100);
-  r.state(attn());  // attention cuts the cheer
+  r.state(attn());  // attention cuts the finish
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
   r.moment(Anim::kTaskComplete);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
@@ -283,8 +283,8 @@ static void test_attention_wins_over_moments() {
   TEST_ASSERT_NULL(m.b.mumble(m.t));
 }
 
-// Nothing cuts hard. Attention arriving under a cheer (which it
-// ends) or a wiggle shows the needs-you design behind a blink of
+// Nothing cuts hard. Attention arriving under a finish (which it
+// ends) or a poke shows the needs-you design behind a blink of
 // kBlendMs, and the design's clock starts at the change.
 static void test_changes_mid_motion_blink_into_the_new_design() {
   const Anim anims[] = {Anim::kTaskComplete, Anim::kPoked};
@@ -492,7 +492,7 @@ static void test_nothing_cuts_hard_as_it_plays_out() {
         case kAcrossLook:
           r.b.onMoment(reaction(Mood::kSad, 3), r.t);
           break;
-        case kCheerEnds:  // a reaction late in the cheer holds past its end
+        case kCheerEnds:  // a reaction late in the finish holds past its end
           r.b.onMoment(cheer, r.t);
           r.at(r.t + 1900);
           r.b.onMoment(reaction(Mood::kHappy, 2), r.t);
@@ -630,9 +630,9 @@ static void test_push_to_talk_listens_then_waits() {
 }
 
 // DEVICE.md §4: listening holds until the reply. Another animation (a
-// cheer, a wiggle) doesn't replace it, and a tap shows only the press dip.
+// finish, a poke) doesn't replace it, and a tap shows only the press dip.
 // Any moment with a `say` is the reply: it ends listening, then plays as
-// it would have, its cheer and its face included.
+// it would have, its finish and its face included.
 static void test_listening_holds_until_the_reply() {
   Rig r;
   r.state(base("idle"));
@@ -715,7 +715,7 @@ static void test_listening_plays_while_something_needs_you() {
 }
 
 // PROTOCOL.md §3: the empty moment ends listening and does nothing else.
-// It never ends a cheer, a wiggle or a mumble.
+// It never ends a finish, a poke or a mumble.
 static void test_the_empty_moment_ends_only_listening() {
   Rig r;
   r.state(base("idle"));
@@ -739,7 +739,7 @@ static void test_the_empty_moment_ends_only_listening() {
   r.stop();
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
   TEST_ASSERT_EQUAL(seq, r.b.momentSeq());
-  // A cheer, a wiggle and a mumble carry on.
+  // A finish, a poke and a mumble carry on.
   r.moment(Anim::kTaskComplete);
   r.at(r.t + 100);
   r.stop();
@@ -751,7 +751,7 @@ static void test_the_empty_moment_ends_only_listening() {
   TEST_ASSERT_TRUE(r.say(4));
   r.stop();
   TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
-  TEST_ASSERT_EQUAL(seq + 3, r.b.momentSeq());  // cheer, wiggle, mumble; the stops add none
+  TEST_ASSERT_EQUAL(seq + 3, r.b.momentSeq());  // finish, poke, mumble; the stops add none
 }
 
 // DEVICE.md §4: listening lasts at most kListenMs (30 s) of talking and
@@ -881,7 +881,7 @@ static void test_a_cheer_plays_its_loops() {
   TEST_ASSERT_EQUAL(Anim::kTaskComplete, r.anim());
   r.at(1000 + 3 * loop);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
-  // Drawn in a reaction's mood, the cheer's loops are that mood's design's.
+  // Drawn in a reaction's mood, the finish's loops are that mood's design's.
   r.at(20000);
   r.state(m);
   in.loops = 1, in.expr = true, in.mood = render::Mood::kSad;
@@ -932,7 +932,7 @@ static void test_a_mumble_alone_plays_over_the_face() {
   r.at(1000 + 400 + Behaviour::kBubbleReadMs);
   TEST_ASSERT_NULL(r.b.mumble(r.t));
 
-  // Over a cheer, the cheer keeps its own timing.
+  // Over a finish, the finish keeps its own timing.
   r.at(10000);
   r.moment(Anim::kTaskComplete);
   r.at(10500);
@@ -1064,7 +1064,7 @@ static void test_an_expression_over_the_cheer_and_across_a_look_change() {
   m.mood = render::Mood::kCurious;
   r.state(m);
   r.at(1000);
-  r.moment(Anim::kTaskComplete);  // a cheer with no face, in curious
+  r.moment(Anim::kTaskComplete);  // a finish with no face, in curious
   const uint32_t cheer = loopMs(render::Mood::kCurious, SceneState::kTaskComplete);
   const uint32_t proud = loopMs(render::Mood::kProud, SceneState::kTaskComplete);
   TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kCurious);
@@ -1075,13 +1075,13 @@ static void test_an_expression_over_the_cheer_and_across_a_look_change() {
   SceneShow s = r.b.show(r.t);
   TEST_ASSERT_TRUE(s.state == SceneState::kTaskComplete);
   TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
-  TEST_ASSERT_EQUAL_UINT32(200, s.t);  // the cheer keeps its clock
+  TEST_ASSERT_EQUAL_UINT32(200, s.t);  // the finish keeps its clock
   uint32_t left;
   TEST_ASSERT_EQUAL(Anim::kTaskComplete, r.b.moment(r.t, left));
-  TEST_ASSERT_EQUAL_UINT32(cheer - 200, left);  // a mumble doesn't cut the cheer
-  // The face holds one loop of the cheer's design in proud, on the
-  // cheer's clock: to 1000 + proud's loop, after the mumble (1200 + 300 +
-  // 1200). A cheer's variation loops alike in every mood, so the cheer
+  TEST_ASSERT_EQUAL_UINT32(cheer - 200, left);  // a mumble doesn't cut the finish
+  // The face holds one loop of the finish's design in proud, on the
+  // finish's clock: to 1000 + proud's loop, after the mumble (1200 + 300 +
+  // 1200). A finish's variation loops alike in every mood, so the finish
   // ends then too.
   TEST_ASSERT_TRUE(1200 + 300 + Behaviour::kBubbleReadMs < 1000 + proud);
   TEST_ASSERT_EQUAL_UINT32(cheer, proud);
@@ -1112,7 +1112,7 @@ static void test_an_expression_over_the_cheer_and_across_a_look_change() {
   TEST_ASSERT_TRUE(l.b.show(l.t).mood == render::Mood::kHappy);
 
   // With an animation in the same moment, it lasts the longer of the two:
-  // here the cheer, a loop of excited's design.
+  // here the finish, a loop of excited's design.
   Rig a;
   a.state(base("idle"));
   a.at(1000);
@@ -1185,7 +1185,7 @@ static void test_an_expression_ends_with_its_moment() {
 // once, when no part of it plays any more (the mumble and its bubble, an
 // animation, the borrowed face): done when it played out, or when only the
 // face it holds after its mumble was ended early; cut, and by what, when a
-// tap's wiggle, a newer moment, "needs you" or dbg.reset stopped its
+// tap's poke, a newer moment, "needs you" or dbg.reset stopped its
 // animation or its mumble; skipped when none of it played.
 static std::string ended(Rig& r) {
   std::string out;
@@ -1223,8 +1223,8 @@ static void test_a_waited_moment_says_how_it_ended() {
   r.at(10000);
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());  // once
 
-  // Over a cheer that isn't part of it: its face holds a loop
-  // of the cheer's design in proud, on the cheer's clock, and the cheer
+  // Over a finish that isn't part of it: its face holds a loop
+  // of the finish's design in proud, on the finish's clock, and the finish
   // plays on as it would have.
   r.moment(Anim::kTaskComplete);
   r.at(10500);
@@ -1234,8 +1234,8 @@ static void test_a_waited_moment_says_how_it_ended() {
   TEST_ASSERT_EQUAL(Anim::kTaskComplete, r.anim());
   r.at(10000 + loopMs(render::Mood::kProud, SceneState::kTaskComplete));
   TEST_ASSERT_EQUAL_STRING("8 done", ended(r).c_str());
-  // A cheer the Mac waits on plays on under a newer mumble, which doesn't
-  // stop it: done when the cheer is.
+  // A finish the Mac waits on plays on under a newer mumble, which doesn't
+  // stop it: done when the finish is.
   r.at(20000);
   MomentIn cheer;
   cheer.anim = Anim::kTaskComplete, cheer.id = 9;
@@ -1414,8 +1414,8 @@ static void test_asleep_breathes_and_never_blinks() {
 }
 
 // BEHAVIORS.md §2: each look shows its design in the mood the Mac
-// sent. A cheer shows the task_complete design on its own clock; the mood
-// changing mid-cheer blinks to the new mood's design and keeps that clock.
+// sent. A finish shows the task_complete design on its own clock; the mood
+// changing mid-finish blinks to the new mood's design and keeps that clock.
 static void test_each_look_shows_its_design_in_the_mood() {
   struct Case {
     const char* base;
@@ -1456,7 +1456,7 @@ static void test_each_look_shows_its_design_in_the_mood() {
   TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
   TEST_ASSERT_EQUAL_UINT32(500, s.t);
   TEST_ASSERT_TRUE(s.eyesShut);
-  r.at(1000 + loopMs(render::Mood::kProud, SceneState::kTaskComplete));  // the cheer is over: back to working, still proud
+  r.at(1000 + loopMs(render::Mood::kProud, SceneState::kTaskComplete));  // the finish is over: back to working, still proud
   s = r.b.show(r.t);
   TEST_ASSERT_TRUE(s.state == SceneState::kWorking);
   TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
@@ -1649,7 +1649,7 @@ static void test_a_cheer_names_whose_turn_in_the_strip() {
   r.at(r.t + left - 1);
   TEST_ASSERT_EQUAL_STRING("codex", r.b.strip(r.t).doneAgent);
   r.at(r.t + 1);
-  TEST_ASSERT_NULL(r.b.strip(r.t).doneAgent);  // gone with the cheer
+  TEST_ASSERT_NULL(r.b.strip(r.t).doneAgent);  // gone with the finish
   r.b.onMoment(in, r.t);
   r.b.tap(r.t, r.rng);  // a tap's poke replaces it
   TEST_ASSERT_NULL(r.b.strip(r.t).doneAgent);

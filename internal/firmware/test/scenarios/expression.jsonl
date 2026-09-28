@@ -22,8 +22,8 @@
 {"expect":{"expr":null,"mood":"happy"}}
 {"clock":4750}
 {"shot":"working-happy-again"}
-// Curious: a cheer with no face (the dashboard's), in curious, then a proud
-// mumble over it borrows proud's cheer.
+// Curious: a finish with no face (the dashboard's `cheer`), in curious, then
+// a proud mumble over it borrows proud's finish.
 {"clock":10000}
 {"t":"state","v":1,"base":"idle","mood":"curious"}
 {"t":"moment","anim":"cheer","variant":1}
@@ -36,9 +36,9 @@
 {"clock":10800}
 {"shot":"cheer-proud"}
 // The bubble goes at 10200 + (4 + 2) × 135 + 1200 = 12210, and the face
-// holds a loop of proud's cheer design (6.4 s) on the cheer's clock, to
-// 16400, when the cheer ends too: a cheer's variation loops alike in every
-// mood.
+// holds a loop of proud's finish design (6.4 s) on the finish's clock, to
+// 16400, when the finish ends too: a finish's variation loops alike in
+// every mood.
 {"clock":12210}
 {"expect":{"moment":{"anim":"task_complete"},"expr":"proud","audio":{"syllables":0}}}
 {"clock":16399}

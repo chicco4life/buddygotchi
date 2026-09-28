@@ -124,7 +124,7 @@ static void test_variations_for_a_result_or_a_context() {
       TEST_ASSERT_TRUE(variantCtx(mood, SceneState::kTaskComplete, v) == StartCtx::kNone);
       (o == Outcome::kSuccess ? wins : fails)++;
     }
-    TEST_ASSERT_EQUAL_INT(m < int(Mood::kCalm) ? 4 : 3, wins);  // the first pack's three cheers, and the newer ones
+    TEST_ASSERT_EQUAL_INT(m < int(Mood::kCalm) ? 4 : 3, wins);  // the first pack's three successes, and the newer ones
     TEST_ASSERT_EQUAL_INT(m < int(Mood::kCalm) ? 1 : 3, fails);
     for (Outcome o : {Outcome::kSuccess, Outcome::kFailure}) {
       int n = fitting(mood, SceneState::kTaskComplete, o, StartCtx::kNone, out);
@@ -158,9 +158,6 @@ static void test_variations_for_a_result_or_a_context() {
   TEST_ASSERT_TRUE(outcomeFromName(nullptr) == Outcome::kNone);
   TEST_ASSERT_TRUE(ctxFromName("continuation") == StartCtx::kContinuation);
   TEST_ASSERT_TRUE(ctxFromName("resume") == StartCtx::kNone);
-  TEST_ASSERT_EQUAL_STRING("success", outcomeName(Outcome::kSuccess));
-  TEST_ASSERT_EQUAL_STRING("new_task", ctxName(StartCtx::kNewTask));
-  TEST_ASSERT_EQUAL_STRING("", ctxName(StartCtx::kNone));
 }
 
 // Shut eyes, a blink's or the one that hides a change of design, show the
@@ -171,7 +168,7 @@ static void test_variations_for_a_result_or_a_context() {
 static void test_a_blink_shows_the_closed_eyes() {
   for (int m = 0; m < int(Mood::kCount); ++m) {
     for (SceneState st : {SceneState::kIdle, SceneState::kWorking, SceneState::kPoked, SceneState::kTaskComplete}) {
-      if (st == SceneState::kTaskComplete && m < int(Mood::kCalm)) continue;  // the first pack's cheers, colour to the edges
+      if (st == SceneState::kTaskComplete && m < int(Mood::kCalm)) continue;  // the first pack's successes, colour to the edges
       Buf open, shut;
       open.draw(show(Mood(m), st, 300));
       SceneShow s = show(Mood(m), st, 300);
@@ -201,7 +198,7 @@ static void test_the_mouth_opens_to_talk() {
   TEST_ASSERT_EQUAL(sceneInk(1), talking.at(154, 129));  // the o's ring, at (153, 128)
   TEST_ASSERT_EQUAL(sceneInk(1), talking.at(153, 128));
   TEST_ASSERT_EQUAL(kBlack, talking.at(160, 134));       // its hole
-  // The first pack's cheer draws its face dark on gold: the o is dark too.
+  // The first pack's success draws its face dark on gold: the o is dark too.
   Buf cheer;
   SceneShow c = show(Mood::kHappy, SceneState::kTaskComplete, 300);
   c.mouthOpen = true;
@@ -329,7 +326,8 @@ static void test_frames_change_only_when_the_picture_can() {
   TEST_ASSERT_TRUE(sceneFrame(a) != sceneFrame(b));
 }
 
-// A cheer's gold fades show in the frame: the colour steps count as changes.
+// The gold fades of the first pack's successes show in the frame: the
+// colour steps count as changes.
 static void test_a_fade_changes_the_frame() {
   bool changed = false;
   SceneShow a = show(Mood::kHappy, SceneState::kTaskComplete, 0);

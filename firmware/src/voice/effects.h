@@ -13,13 +13,13 @@ namespace voice {
 // counts them.
 enum class Policy : uint8_t { kSilent, kLoop, kEntry, kSparse };
 
-// One event of a timeline: a clip at a time into the design's loop.
+// One event of a timeline: a clip at a time into the design's loop. Whether
+// a mumble turns it down is its design's (Score::duck).
 struct FxEvent {
   uint16_t atMs = 0;
   uint8_t clip = 0;
   uint8_t gain = 255;     // 255 plays the clip as loud as a syllable
   uint16_t pitch = 1000;  // permille: 1000 plays the clip as made
-  bool duck = true;       // its design's: a mumble turns it down (Score::duck)
 };
 
 // A design's timeline. `mood`, `state` and `variant` (from 0) number the

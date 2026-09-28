@@ -18,6 +18,14 @@ COMMANDS = ["ping", "state", "shot", "send", "play", "mumble", "sim", "run", "pe
             "cam", "dash", "day", "calibrate"]
 
 
+def firmware_names(path: str, start: str, item: str = r'"(\w+)"', end: str = "};") -> list:
+    """What `item` matches in firmware/src/`path`, from `start` to the next
+    `end`: by default, the names in a C table."""
+    src = (cli.REPO / "firmware" / "src" / path).read_text()
+    body = src[src.index(start):]
+    return re.findall(item, body[:body.index(end)])
+
+
 class CLITests(unittest.TestCase):
     def subcommands(self) -> list[str]:
         parser = cli.build_parser()
@@ -26,7 +34,7 @@ class CLITests(unittest.TestCase):
 
     def test_the_commands_are_the_documented_ones(self):
         self.assertEqual(self.subcommands(), COMMANDS)
-        table = (Path(__file__).resolve().parents[4] / "plan" / "VERIFICATION.md").read_text()
+        table = (cli.REPO / "plan" / "VERIFICATION.md").read_text()
         for command in COMMANDS:
             self.assertTrue(f"| `{command}" in table, f"VERIFICATION.md §2 doesn't list boopctl {command}")
 
@@ -52,9 +60,9 @@ class CLITests(unittest.TestCase):
 
 class PlayTests(unittest.TestCase):
     def play(self, what: str, *more: str) -> tuple[int, list]:
-        # The board reports the animation by its design's name: the cheer's
-        # is task_complete, the wiggle's poked.
-        playing = {"cheer": "task_complete", "wiggle": "poked"}.get(what, what)
+        # The board reports the animation by its design's name, also for
+        # the older names.
+        playing = cli.OLD_ANIMS.get(what, what)
         board = FakeBoard.by_type({"dbg.ping": {"ble": "adv"}, "dbg.clock": {},
                                    "dbg.state": {"moment": {"anim": playing, "left_ms": 900, "variant": 1}}})
         self.board = board
@@ -75,9 +83,7 @@ class PlayTests(unittest.TestCase):
     def test_the_moods_are_the_devices(self):
         """PROTOCOL.md §3: the moods boopctl sends are the device's thirteen,
         in its order (firmware/src/render/anim.cpp)."""
-        src = (Path(__file__).resolve().parents[4] / "firmware" / "src" / "render" / "anim.cpp").read_text()
-        table = src[src.index("kMoods[] = {"):]
-        self.assertEqual(cli.MOODS, re.findall(r'"(\w+)"', table[:table.index("};")]))
+        self.assertEqual(cli.MOODS, firmware_names("render/anim.cpp", "kMoods[] = {"))
         self.assertEqual(len(cli.MOODS), 13)
 
     def test_play_sends_just_the_animation(self):
@@ -96,13 +102,16 @@ class PlayTests(unittest.TestCase):
             cli.build_parser().parse_args(["play", "task_complete", "--outcome", "win"])
 
     def test_the_animations_are_the_devices(self):
-        """BEHAVIORS.md §5: the names boopctl plays are the device's own
-        (firmware/src/render/anim.cpp), and the older two it still reads."""
-        src = (Path(__file__).resolve().parents[4] / "firmware" / "src" / "render" / "anim.cpp").read_text()
-        table = src[src.index("kNames[] = {"):]
-        self.assertEqual(["none"] + cli.ANIMS + ["listening"], re.findall(r'"(\w+)"', table[:table.index("};")]))
-        for old, new in cli.OLD_ANIMS.items():
-            self.assertIn(f'!std::strcmp(name, "{old}")) return Anim::k', src)
+        """BEHAVIORS.md §5: the names boopctl plays are the device's own, the
+        names of the states whose designs they play (firmware/src/render/
+        scene.cpp animState), and the older two it still reads (anim.cpp)."""
+        states = dict(zip(firmware_names("render/scene.h", "enum class SceneState", r"\bk\w+"),
+                          firmware_names("render/scene.cpp", "kStates[] = {")))
+        plays = firmware_names("render/scene.cpp", "SceneState animState(Anim a) {",
+                               r"case Anim::k\w+: return SceneState::(k\w+);", end="\n}\n")
+        self.assertEqual(cli.ANIMS + ["listening"], [states[s] for s in plays])
+        older = firmware_names("render/anim.cpp", "kOlder[][2] = {", r'\{"(\w+)", "(\w+)"\}')
+        self.assertEqual(cli.OLD_ANIMS, dict(older))
 
     def test_play_sends_its_loops(self):  # PROTOCOL.md §3: 1-6, none reads as 1
         self.play("cheer", "--loops", "3")

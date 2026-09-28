@@ -17,7 +17,7 @@
 {"clock":1300}
 {"shot":"interrupted-75ms"}
 {"expect":{"moment":{"anim":"poked","left_ms":2725}}}
-// The dashboard's wiggle is the poke, happy's 2.8 s design: it ends at
+// The dashboard's `wiggle` is the poke, happy's 2.8 s design: it ends at
 // 4025, and working comes back behind a blink.
 {"clock":4024}
 {"expect":{"moment":{"anim":"poked","left_ms":1}}}

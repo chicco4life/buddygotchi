@@ -45,8 +45,6 @@ enum class Outcome : uint8_t { kNone, kSuccess, kFailure };
 enum class StartCtx : uint8_t { kNone, kNewTask, kSession, kContinuation };
 Outcome outcomeFromName(const char* name);  // "success" or "failure"; kNone otherwise
 StartCtx ctxFromName(const char* name);     // "new_task", "session" or "continuation"; kNone otherwise
-const char* outcomeName(Outcome o);         // "" for kNone
-const char* ctxName(StartCtx c);            // "" for kNone
 Outcome variantOutcome(Mood m, SceneState s, int variant);  // the first's for one out of range
 StartCtx variantCtx(Mood m, SceneState s, int variant);
 // The variations (from 0) of m's design for s that fit an outcome and a
@@ -83,7 +81,9 @@ bool eyesClosed(const SceneShow& s);
 struct SceneFrame {
   static constexpr int kMaxGroups = 288;  // groups in a scene; faces.h checks it
   uint16_t scene = 0xFFFF;
-  int16_t talkX = -1, talkY = -1;  // the talking "o", or -1 while the mouth doesn't talk
+  // The talking "o": where it goes, and its colour, which is never black;
+  // -1, -1 and black while the mouth doesn't talk.
+  int16_t talkX = -1, talkY = -1;
   uint8_t talkInk = 0;
   int16_t x[kMaxGroups] = {}, y[kMaxGroups] = {};  // 0 while the group doesn't show
   uint8_t on[kMaxGroups] = {};
@@ -99,8 +99,11 @@ int sceneOf(Mood m, SceneState s, int variant = 0);
 // loopMs): what a moment's loops count (plan/PROTOCOL.md §3).
 uint32_t loopMs(Mood m, SceneState s, int variant = 0);
 SceneFrame sceneFrame(const SceneShow& s);
-// Draws the scene over what's on the canvas; the screen clears it first.
-void drawScene(Canvas& c, const SceneShow& s);
+// Draws a frame sceneFrame made over what's on the canvas; the screen
+// clears it first. The device draws the frame it compared, so it lays each
+// frame out once. The show's overload, for the tests, lays one out.
+void drawScene(Canvas& c, const SceneFrame& f);
+inline void drawScene(Canvas& c, const SceneShow& s) { drawScene(c, sceneFrame(s)); }
 // The palette entry for a design colour (faces::kColors), for the tests.
 uint8_t sceneInk(int color);
 
