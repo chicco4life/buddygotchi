@@ -232,10 +232,12 @@ only when its kind says so (§4), and never:
   poke or what you say aside: you poking or talking to Boop are the only
   things that may reach it then (`TranscriptView.wakesWhileNeeded`);
 - for a poke, while Boop is answering its run: the brain's reaction to
-  the run's pokes in a row is in progress, a tap-cut one included (§7),
-  and the mood hasn't changed since it started
-  (`TranscriptView.pokesAnswered`). A reaction to the run's first,
-  single poke doesn't count: the barrage after it is new to the brain.
+  the run's third poke in a row or a later one
+  (`TranscriptView.Config.answersRunFrom`) is in progress, a tap-cut one
+  included (§7), and the mood hasn't changed since it started
+  (`TranscriptView.pokesAnswered`). Reactions to the run's first two
+  pokes don't count, so each poke can take Boop a step further: glad,
+  then miffed, then grumpy.
 
 The pipeline checks these once the core has had the event
 (`Pipeline.whyNotWake`), so an event that answers a request wakes it: tests
@@ -248,8 +250,9 @@ every time whether Boop mumbles, and a view event that wakes it starts
 the working heartbeat's wait again.
 
 **Pokes can make Boop grumpy.** A poke's pass asks every question, the
-mood's included, as any pass does. The mood files say many pokes in a
-row are a reason for grumpy, and grumpy blows over after 2 minutes
+mood's included, as any pass does. The mood files say two pokes in a
+row are a reason for determined (miffed) and three or more for grumpy,
+and grumpy blows over after 2 minutes
 ([DECISIONS.md](DECISIONS.md) §2.3); the personality's Examples say how
 Boop reacts to one poke and to a barrage.
 

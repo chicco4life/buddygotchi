@@ -12,7 +12,8 @@ MOODS  (how Boop acts; fades back to happy after the minutes shown)
   excited     a very long turn (5+ min) ended done                5 min
   proud       a check passed after failing                        5 min
   determined  a check failed while the agent works on             5 min
-  grumpy      a failed turn, or many pokes in a row               2 min
+              (or miffed: 2 pokes in a row)                       1 min
+  grumpy      a failed turn, or 3+ pokes in a row                 2 min
   sad         a very long turn (5+ min) ended failed             10 min
 
 VISUALS  (what Boop is doing)
@@ -232,7 +233,7 @@ sad ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). Only
 the brain's mood action changes it (§4 there; the dashboard can force
 one), and a new Boop starts happy. It's meant to shift visibly during
 ordinary work, step by step rather than flailing: a failed check, a
-failed turn, many pokes in a row, a fix or a very long turn ending
+failed turn, pokes in a row, a fix or a very long turn ending
 moves it, a long grind turns it determined, it fades back to happy
 after a few minutes, and each change comes with a reaction in the new
 mood's face. The next
@@ -320,7 +321,7 @@ until nothing needs you.
 | --- | --- |
 | You press BOOT or touch the screen | The face dips 2 px at once, until you let go |
 | You let go within 400 ms, or lift your finger: a tap | `wiggle`, replacing whatever is playing, a mumble included. Asleep and with no app too. The Mac records it as a poke, with the wiggle under it, and the brain hears of it, but not while it's answering the pokes before ([harness/EVENTS.md](harness/EVENTS.md) §6) |
-| Pokes in a row | Each within 3 s of the last (`TranscriptView.Config.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. How Boop reacts is the steering's; many in a row can make Boop grumpy for a couple of minutes. While the brain's reaction to them is in progress, a tap-cut one included, the pokes after it don't wake the brain, unless the mood changed since, so a barrage gets one "nope" ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| Pokes in a row | Each within 3 s of the last (`TranscriptView.Config.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. How Boop reacts is the steering's: glad at one poke, with a cheer; a little miffed at two in a row, turning determined; fed up at three or more, grumpy for a couple of minutes ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). From the third poke on, while the brain's reaction to them is in progress, a tap-cut one included, the pokes after it don't wake the brain, unless the mood changed since, so a barrage gets one "nope" ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | A tap while something needs you | The press dip only, with no wiggle: there a tap means "I saw it". The brain still hears of the poke ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | Hold BOOT 400 ms, or click Talk in the popover | Push-to-talk, below: `listening` shows at once, the device sends `talk_on` at 400 ms and `talk_off` on release, or by itself after 30 s ([DEVICE.md](DEVICE.md) §4). No tap |
 | A tap while `listening` shows | The press dip only: nothing replaces `listening`. The brain still hears of the poke |

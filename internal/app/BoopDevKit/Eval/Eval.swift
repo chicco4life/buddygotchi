@@ -10,7 +10,7 @@ public struct Scenario: Sendable {
     /// One step: what happens, and what the pass it wakes should lead to.
     public struct Step: Sendable {
         /// `turn started`, `command`, `turn finished`, `turn failed`,
-        /// `pokes`, `said` or `wait`.
+        /// `poke`, `pokes`, `said` or `wait`.
         public var event: String
         /// Virtual time since the scenario started, in ms.
         public var atMs: Int64
@@ -108,7 +108,7 @@ public struct Scenario: Sendable {
     public var steps: [Step]
     public var file: String
 
-    public static let events = ["turn started", "command", "turn finished", "turn failed", "pokes", "said", "wait"]
+    public static let events = ["turn started", "command", "turn finished", "turn failed", "poke", "pokes", "said", "wait"]
 
     /// How a reaction ends, from a step's `reaction`: nil for a value it
     /// doesn't take.
@@ -534,6 +534,7 @@ public struct Eval {
             if let topic = step.topic { start["topic"] = .string(topic) }
             return [hook(.tool, .start, "PreToolUse", start),
                     hook(.tool, .end, step.failed == true ? "PostToolUseFailure" : "PostToolUse", end)]
+        case "poke": return [{ $0.poke(at: now) }]
         case "pokes": return (0..<4).map { _ in { $0.poke(at: now) } }
         case "said": return [{ $0.said(step.words ?? "", by: .device, at: now) }]
         default: return []  // wait

@@ -9,5 +9,6 @@ Leaves for excited when a very long turn finishes done or the person
 thanks the agent; proud when a check passes after failing or a long
 turn's last message says hard work is done and working; determined
 when a check fails, a very long turn works on or the person sounds
-frustrated; grumpy when a turn fails or at many pokes in a row; sad
-when a very long turn ends failed or the agent gives up, stuck.
+frustrated or at 2 pokes in a row; grumpy when a turn fails or at 3+
+pokes in a row; sad when a very long turn ends failed or the agent
+gives up, stuck.

@@ -259,9 +259,10 @@ final class ViewTests: XCTestCase {
     }
 
     /// EVENTS.md §6: a poke doesn't wake the brain while the brain's
-    /// reaction to its run's pokes in a row is in progress, a tap-cut one
-    /// included, unless the mood changed since it started. A single
-    /// poke's reaction doesn't count, and a new run (3 s apart) wakes it.
+    /// reaction to its run's pokes in a row, from the third
+    /// (`answersRunFrom`), is in progress, a tap-cut one included, unless
+    /// the mood changed since it started. The first two pokes' reactions
+    /// don't count, and a new run (3 s apart) wakes it.
     func testAPokeWaitsWhileItsRunIsBeingAnswered() {
         func react(to poke: ViewEvent, _ name: String = "react", started: Bool = true) -> Int {
             rig.pipeline.record(Event(ts: rig.now, source: .boop, type: .action, phase: started ? .start : nil,
@@ -278,12 +279,17 @@ final class ViewTests: XCTestCase {
         XCTAssertTrue(single.wakesBrain)
         end(react(to: single), TranscriptView.cutByTap)
         rig.wait(500)
-        let first = events(rig.poke())[0]
-        XCTAssertTrue(first.wakesBrain, "a single poke's reaction doesn't answer the barrage")
-        let happy = react(to: first)
+        let second = events(rig.poke())[0]
+        XCTAssertTrue(second.wakesBrain, "a single poke's reaction doesn't answer the run")
+        end(react(to: second), TranscriptView.cutByTap)
+        rig.wait(500)
+        let third = events(rig.poke())[0]
+        XCTAssertEqual(third.facts["in_a_row"], .int(3))
+        XCTAssertTrue(third.wakesBrain, "nor does two pokes' reaction")
+        let happy = react(to: third)
         rig.wait(500)
         var next = events(rig.poke())[0]
-        XCTAssertFalse(next.wakesBrain, "its reaction is playing")
+        XCTAssertFalse(next.wakesBrain, "three pokes' reaction is playing")
         XCTAssertEqual(rig.pipeline.whyNotWake(next), answering)
         end(happy, TranscriptView.cutByTap)
         rig.wait(500)

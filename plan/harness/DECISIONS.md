@@ -89,7 +89,7 @@ event. It has two parts:
 
 | Personality | For | Its text |
 | --- | --- | --- |
-| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted, a little smug and lively: it never sits still for long, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a failed check is determined with "oops", held once; a check passing after failing proud with "finally", twice; a very long turn done excited with a cheer and "yay", three times, and failed sad, three times, as is an agent giving up, once; a failed turn grumpy with "ugh", four pokes in a row grumpy with "nope", and a stopped turn and a single poke happy, "hmm" and no word, once. Any turn done gets a small happy face, the same one each time: a long one says "nice", and the rest no word. Only a very long turn done cheers, and the exclamation is kept for what stands out. A turn start gets nothing, unless the person sounds frustrated (determined, "again") or thanks the agent (excited, "yay"). Work still going gets a small face with no word at every working heartbeat, never none: happy in a long turn, determined in a very long one Talked to, it always answers with a face, never none: proud at kind words, grumpy with "nope" at rude ones, and happy at anything else, with the topic at a question. |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted, a little smug and lively: it never sits still for long, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a failed check is determined with "oops", held once; a check passing after failing proud with "finally", twice; a very long turn done excited with a cheer and "yay", three times, and failed sad, three times, as is an agent giving up, once; a failed turn grumpy with "ugh", and a stopped turn happy with "hmm", once. Poked, it's glad, then miffed: a single poke gets a happy face with a cheer and no word, two in a row a determined "hmm", once; three or more are the grumpy mood's, with "nope". Any turn done gets a small happy face, the same one each time: a long one says "nice", and the rest no word. Of finishes, only a very long turn done cheers, and the exclamation is kept for what stands out. A turn start gets nothing, unless the person sounds frustrated (determined, "again") or thanks the agent (excited, "yay"). Work still going gets a small face with no word at every working heartbeat, never none: happy in a long turn, determined in a very long one Talked to, it always answers with a face, never none: proud at kind words, grumpy with "nope" at rude ones, and happy at anything else, with the topic at a question. |
 | [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses, heartbeats and what you say included, always picks a word if one fits, and holds its faces long: twice for routine lines, up to four times for a fix or a very long turn done |
 
 "Never stays quiet" is still Jev's call: `none` stays an option, and the
@@ -113,7 +113,8 @@ steering's to say. The rules read only what the lines say
 - a failed check while the agent works on: determined;
 - the agent still working on a very long turn (its working heartbeat):
   happy drifts to determined, rooting for it;
-- a failed turn, or many pokes in a row: grumpy;
+- two pokes in a row: determined, a little miffed; three or more:
+  grumpy, as is a failed turn;
 - a check passing after failing: proud;
 - a very long turn (5 minutes or more) ending done: excited; ending
   failed: sad.
@@ -138,20 +139,21 @@ nothing (`28-plain-words-leave-mood`), nor does a short or long finish
 alone, a turn starting or a stopped turn. Every mood but happy goes
 back to happy after its minutes,
 read against HISTORY's closing `Boop has been X for N min.`: 2 for
-grumpy, which flares up and blows over, 10 for sad, and 5 for the rest
-(§2.1). Two things hold a mood past them: pokes coming again and again keep Boop
-grumpy while it goes on, and a very long turn still working keeps it
+grumpy, which flares up and blows over, 10 for sad, and 5 for the rest,
+or 1 for a determined Boop only miffed from two pokes (§2.1). Two things hold a mood past them: pokes coming again and again keep Boop
+grumpy while it goes on (a single poke once its minutes are up is a
+fresh start), and a very long turn still working keeps it
 determined. Proud rides out a failed check, with a determined face, so
 tests flipping back and forth don't flip the mood (`20-no-flail`, a
 known gap still: [EVALS.md](../EVALS.md) §4).
 
 | Mood | Its meaning (the `mood` option) | Leaves for (its file) |
 | --- | --- | --- |
-| `happy` | Good spirits: things are going fine | `excited` when a very long turn finishes done or the person thanks the agent; `proud` when a check passes after failing or a long turn's last message says hard work is done and working; `determined` when a check fails, a very long turn works on or the person sounds frustrated; `grumpy` when a turn fails or at many pokes in a row; `sad` when a very long turn ends failed or the agent gives up, stuck. Stays happy through plain finishes under 5 minutes and a stopped turn |
-| `excited` | Thrilled: a very long turn finished done, or the person thanked the agent. Not for a shorter turn finishing, or work still going | `determined` at a failed check or when the person sounds frustrated; `grumpy` when a turn fails or at many pokes in a row; `sad` when a very long turn ends failed or the agent gives up; `happy` after 5 minutes. Stays through more wins and thanks |
-| `proud` | Something hard-won worked: a check passed after failing, or a long turn's last message says hard work is done and working. Not for a short turn finishing | `excited` when a very long turn finishes done or the person thanks the agent; `determined` when the person sounds frustrated; `grumpy` when a turn fails or at many pokes in a row; `sad` when a very long turn ends failed or the agent gives up; `happy` after 5 minutes. Stays through routine turns and a failed check |
-| `determined` | Rooting for a retry: a check failed and the agent is working on, or the person sounds frustrated. Not for a turn that has ended | `proud` when a check passes after failing or the agent says a long turn's hard work is done; `excited` when a very long turn finishes done or the person thanks the agent; `grumpy` when a turn fails or at many pokes in a row; `sad` when a very long turn ends failed or the agent gives up; `happy` after 5 minutes, unless the agent is still working on a very long turn. Stays through more failed checks, long work, routine finishes and frustration |
-| `grumpy` | Fed up, briefly: a turn failed, or Boop was poked again and again. Not for a check failing while the agent works on, the person's frustration, or an agent giving up | `proud` when a check passes after failing; `sad` when a very long turn ends failed or the agent gives up; `happy` when the person thanks the agent, or after 2 minutes, but never while Boop is being poked |
+| `happy` | Good spirits: things are going fine | `excited` when a very long turn finishes done or the person thanks the agent; `proud` when a check passes after failing or a long turn's last message says hard work is done and working; `determined` when a check fails, a very long turn works on, the person sounds frustrated or at two pokes in a row; `grumpy` when a turn fails or at three or more pokes in a row; `sad` when a very long turn ends failed or the agent gives up, stuck. Stays happy through plain finishes under 5 minutes and a stopped turn |
+| `excited` | Thrilled: a very long turn finished done, or the person thanked the agent. Not for a shorter turn finishing, or work still going | `determined` at a failed check, when the person sounds frustrated or at two pokes in a row; `grumpy` when a turn fails or at three or more pokes in a row; `sad` when a very long turn ends failed or the agent gives up; `happy` after 5 minutes. Stays through more wins and thanks |
+| `proud` | Something hard-won worked: a check passed after failing, or a long turn's last message says hard work is done and working. Not for a short turn finishing | `excited` when a very long turn finishes done or the person thanks the agent; `determined` when the person sounds frustrated or at two pokes in a row; `grumpy` when a turn fails or at three or more pokes in a row; `sad` when a very long turn ends failed or the agent gives up; `happy` after 5 minutes. Stays through routine turns and a failed check |
+| `determined` | Rooting for a retry: a check failed and the agent is working on, or the person sounds frustrated. Or a little miffed: poked twice in a row. Not for a turn that has ended | `proud` when a check passes after failing or the agent says a long turn's hard work is done; `excited` when a very long turn finishes done or the person thanks the agent; `grumpy` when a turn fails or at three or more pokes in a row; `sad` when a very long turn ends failed or the agent gives up; `happy` after 5 minutes, unless the agent is still working on a very long turn, or after 1 minute when it's miffed from pokes. Stays through more failed checks, long work, routine finishes and frustration |
+| `grumpy` | Fed up, briefly: a turn failed, or Boop was poked three or more times in a row. Not for a check failing while the agent works on, the person's frustration, or an agent giving up | `proud` when a check passes after failing; `sad` when a very long turn ends failed or the agent gives up; `happy` when the person thanks the agent, or after 2 minutes, but never while pokes in a row go on; a single poke after that is a fresh start |
 | `sad` | Deflated: a very long turn finished failed, or the agent gave up, stuck. Not for a shorter turn failing with an error | `proud` when a check passes after failing or the agent says a long turn's hard work is done, staying sad through more failures and frustration before it; `happy` when the person thanks the agent, or after 10 minutes |
 
 Each "after N minutes" counts from Boop's mood changing to it, or ends
@@ -202,16 +204,16 @@ disagree (a "no" with a confident "proud"); one choice can't.
 | `happy` | A happy face: pleased, a turn went fine or a small win |
 | `excited` | An excited face: something big just went right |
 | `proud` | A proud face: something long or hard just finished, or finally worked |
-| `determined` | A determined face: a check failed and the agent is trying again. Not for a turn that has ended |
-| `grumpy` | A grumpy face: a turn failed, or Boop is poked again and again. Not for an agent giving up |
+| `determined` | A determined face: a check failed and the agent is trying again, or Boop is poked twice in a row, a little miffed. Not for a turn that has ended |
+| `grumpy` | A grumpy face: a turn failed, or Boop is poked three or more times in a row. Not for an agent giving up |
 | `sad` | A sad face: a very long turn ended failed, or the agent gave up, stuck. Not for a shorter turn failing with an error, or a check failing |
 
 **`react.animation` picks an animation to play in the face,** instead
 of drawing the face over the look. A reaction is a mood and an
 animation, as the screen is a mood and a state. Today the only one is
 the cheer, the mood's task-complete scene (a trophy, a curtain call or
-a podium; the device picks). No rule cheers, so this is the only way a
-finish is celebrated. It's asked on every pass and only read when
+a podium; the device picks), for a finish that stands out or a single
+poke. No rule cheers, so this is the only way a finish is celebrated. It's asked on every pass and only read when
 `react.mood` picks a face; a missing or unknown answer is `none`. A new
 reaction animation is a new option here with its own meaning, once its
 art exists; candidates are an `oops` for a first failure, a `slump`
@@ -221,7 +223,7 @@ stopped turn.
 | `react.animation` | Meaning |
 | --- | --- |
 | `none` | Just the face, over whatever look is showing: the usual |
-| `cheer` | Something just finished or finally worked, and it stands out. Not for a routine finish, a failure, or anything still going |
+| `cheer` | Something just finished or finally worked, and it stands out; or a single poke: Boop's glad of the attention. Not for a routine finish, a failure, anything still going, more than one poke in a row, or a poke while Boop is grumpy |
 
 **`react.loops` picks how long the face holds,** in loops of the design
 it's drawn in. It's asked on every pass and only
@@ -251,8 +253,8 @@ Voice's.
 | | `oops` | Something just failed, once. Not for a failure that keeps repeating |
 | | `again` | The same thing failed again. Not for a first failure |
 | | `ugh` | Frustration: things keep going badly |
-| | `nope` | Poked too much, or refusing |
-| | `hmm` | Unsure, or something new |
+| | `nope` | Poked three or more times in a row, or refusing |
+| | `hmm` | Unsure, something new, or a little miffed |
 | `word.about` | `none` | No topic word fits NOW |
 | | `tests` | NOW is about tests. Not for a build or a deploy |
 | | `build` | NOW is about a build. Not for tests |

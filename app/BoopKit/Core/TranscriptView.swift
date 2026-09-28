@@ -117,6 +117,10 @@ public final class TranscriptView {
         /// A poke within this of the one before is another in a row, which
         /// its line counts (BEHAVIORS.md §3.3).
         public var inARowMs: Int64 = 3000
+        /// The brain's reaction to this many pokes in a row or more
+        /// answers the run; to fewer, the pokes after it still wake the
+        /// brain, so Boop can go from glad to miffed to grumpy (EVENTS.md §6).
+        public var answersRunFrom = 3
         /// While no thread works, a heartbeat after this long with no
         /// event, and again every time as long again passes (EVENTS.md §4).
         public var heartbeatMs: Int64 = 60 * 60 * 1000
@@ -641,10 +645,10 @@ public final class TranscriptView {
             events[target].did.append(ViewEvent.Did(message: message, by: e["by"]?.string ?? "brain",
                                                     state: started ? .inProgress : .done, seq: e.seq))
             if started { self.started[e.seq] = (target, events[target].did.count - 1, e.specificType) }
-            // A single poke's reaction doesn't answer the run: the pokes
-            // after it are a barrage, which the brain hears.
+            // A reaction to the run's first pokes doesn't answer it: the
+            // pokes after them are new to the brain.
             if started, events[target].type == .poke, let first = pokes.first, events[target].ts >= first,
-               (events[target].facts["in_a_row"]?.int ?? 1) > 1 {
+               (events[target].facts["in_a_row"]?.int ?? 1) >= config.answersRunFrom {
                 runReaction = (e.seq, false)
             } else if e.specificType == MoodAction.actionName {
                 runReaction?.moodChanged = true
@@ -703,10 +707,11 @@ public final class TranscriptView {
         }
     }
 
-    /// Whether the brain's reaction to this run's pokes in a row (not to
-    /// its first, single poke) is still in progress, a tap-cut one
-    /// included, and the mood hasn't changed since it started: then
-    /// another poke of the run doesn't wake the brain (EVENTS.md §6).
+    /// Whether the brain's reaction to this run's pokes in a row (to
+    /// `answersRunFrom` or more, not to its first ones) is still in
+    /// progress, a tap-cut one included, and the mood hasn't changed since
+    /// it started: then another poke of the run doesn't wake the brain
+    /// (EVENTS.md §6).
     public var pokesAnswered: Bool {
         guard let r = runReaction, !r.moodChanged else { return false }
         return started[r.seq] != nil || heldByPokes.contains(r.seq)

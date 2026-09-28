@@ -34,6 +34,7 @@ Wednesday 14:00 UTC and stands still while Jev answers.
 | `command` | A `tool` start of a `Bash` call with the step's `topic`, then its end at the same moment: `failed` as given (default false), with `error: exit_code` when it failed |
 | `turn finished` | A `turn` end, `done` (`Stop`) |
 | `turn failed` | A `turn` end, `failed` (`StopFailure`), with the step's `error` (default `api_error`) |
+| `poke` | One poke from the device, a pass: steps a second apart make pokes in a row ([harness/EVENTS.md](harness/EVENTS.md) §4) |
 | `pokes` | Four pokes at once from the device, each a pass: the step checks the last, `You poked Boop 4 times in a row.` |
 | `said` | What you said on push-to-talk, the step's `words`, after the device's button: a `talk` event, `You said to Boop: "…"` |
 | `wait` | Nothing; only time passes |
@@ -113,7 +114,7 @@ in `/tmp/boop-eval` (files over a day old are cleared), which
 
 `EvalTests` checks the runner without Jev: every scenario file reads and
 has a case, a scripted brain that answers as `04-tests-fight-back` wants
-passes it, one that stays quiet fails `05-pokes-in-a-row` with the report
+passes it, one that stays quiet fails `05-pokes-glad-miffed-grumpy` with the report
 saying why, a step's `reaction` shows in HISTORY as in progress, or not
 at all when it didn't happen, and each whole-run check catches what it
 should.
@@ -123,16 +124,18 @@ should.
 One JSON file per scenario in `internal/app/Evals/scenarios/`, run in
 file-name order:
 
-`05-pokes-in-a-row.json`:
+`05-pokes-glad-miffed-grumpy.json`:
 
 ```json
 {
-  "name": "Four pokes in a row make Boop grumpy, briefly",
-  "case": "The person pokes Boop four times in a row. Boop gets angry right away: a grumpy face, held briefly, with 'nope', 'ugh' or no word, and its mood turns grumpy. Three minutes later, when the agent starts a new turn, it has calmed down to happy and doesn't react to the start with anything but a happy face.",
+  "name": "Pokes make Boop glad, then miffed, then grumpy",
+  "case": "The person pokes Boop once, again a second later, and a third time a second after that. The first poke gladdens Boop: a happy or excited face with a cheer, and its mood stays happy. The second, two in a row, leaves it a little miffed: a determined face with 'hmm' or no word, and its mood turns determined. The third, three in a row, makes it fed up: a grumpy face with 'nope', 'ugh' or no word, and its mood turns grumpy. Three minutes later, when the agent starts a new turn, it has calmed down to happy and doesn't react to the start with anything but a happy face.",
   "always": true,
-  "why": "PERSONALITY's Examples and the react question: being poked too much is grumpy, with 'nope', held once. plan/steering/mood/happy.md: many pokes in a row make Boop grumpy, and plan/steering/mood/grumpy.md: grumpy goes back to happy 2 minutes after the change",
+  "why": "PERSONALITY's Examples and the react question: one poke cheers, two in a row get a determined 'hmm', three or more a grumpy 'nope'. plan/steering/mood/happy.md: two pokes in a row make Boop determined, determined.md: three or more make it grumpy, and grumpy.md: grumpy goes back to happy 2 minutes after the change. harness/EVENTS.md §6: the first two pokes' reactions don't hold back the third",
   "steps": [
-    {"event": "pokes", "at": "0s", "expect": {"react": "grumpy", "word": "nope|ugh|none", "loops": "once", "mood": "grumpy"}},
+    {"event": "poke", "at": "0s", "expect": {"react": "happy|excited", "animation": "cheer", "mood": "happy"}},
+    {"event": "poke", "at": "1s", "expect": {"react": "determined", "animation": "none", "word": "hmm|none", "mood": "determined"}},
+    {"event": "poke", "at": "2s", "expect": {"react": "grumpy", "animation": "none", "word": "nope|ugh|none", "mood": "grumpy"}},
     {"event": "turn started", "at": "3m", "expect": {"react": "none|happy", "mood": "happy"}}
   ]
 }

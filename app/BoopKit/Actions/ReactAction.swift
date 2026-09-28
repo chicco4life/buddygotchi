@@ -43,9 +43,9 @@ public final class ReactAction: Action {
         Option("happy", "A happy face: pleased, a turn went fine or a small win."),
         Option("excited", "An excited face: something big just went right."),
         Option("proud", "A proud face: something long or hard just finished, or finally worked."),
-        Option("determined", "A determined face: a check failed and the agent is trying again.",
+        Option("determined", "A determined face: a check failed and the agent is trying again, or Boop is poked twice in a row, a little miffed.",
                notFor: "A turn that has ended."),
-        Option("grumpy", "A grumpy face: a turn failed, or Boop is poked again and again.",
+        Option("grumpy", "A grumpy face: a turn failed, or Boop is poked three or more times in a row.",
                notFor: "An agent giving up."),
         Option("sad", "A sad face: a very long turn ended failed, or the agent gave up, stuck.",
                notFor: "A shorter turn failing with an error, or a check failing."),
@@ -58,8 +58,8 @@ public final class ReactAction: Action {
         Option("oops", "Something just failed, once.", notFor: "A failure that keeps repeating."),
         Option("again", "The same thing failed again.", notFor: "A first failure."),
         Option("ugh", "Frustration: things keep going badly."),
-        Option("nope", "Poked too much, or refusing."),
-        Option("hmm", "Unsure, or something new."),
+        Option("nope", "Poked three or more times in a row, or refusing."),
+        Option("hmm", "Unsure, something new, or a little miffed."),
     ]
 
     public static let topics = [
@@ -77,8 +77,8 @@ public final class ReactAction: Action {
     /// today only the cheer, the mood's task-complete scene. No rule
     /// cheers, so this is the only way a finish is celebrated.
     public static let animations = [
-        Option("cheer", "Something just finished or finally worked, and it stands out.",
-               notFor: "A routine finish, a failure, or anything still going."),
+        Option("cheer", "Something just finished or finally worked, and it stands out; or a single poke: Boop's glad of the attention.",
+               notFor: "A routine finish, a failure, anything still going, more than one poke in a row, or a poke while Boop is grumpy."),
     ]
 
     /// The animation `react.animation` picked, or nil for none, a missing

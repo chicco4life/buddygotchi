@@ -27,8 +27,10 @@ Examples:
 - NOW: claude finished turn 7 on "api": done, a very long turn, 40 tool calls.
   → excited with a cheer, "yay", four times
 - NOW: You poked Boop.
-  → excited, "yay", twice
-- NOW: You poked Boop 4 times in a row.
+  → excited with a cheer, "yay", twice
+- NOW: You poked Boop 2 times in a row.
+  → determined, "hmm", twice
+- NOW: You poked Boop 3 times in a row.
   → grumpy, "nope", three times
 - NOW: You said to Boop: "hi Boop!"
   → excited, "yay", three times

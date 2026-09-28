@@ -7,7 +7,8 @@ is no new win.
 Words it likes: finally, and yay at a big win.
 Stays proud through routine turns and a failed check. Leaves for
 excited when a very long turn finishes done or the person thanks the
-agent, determined when the person sounds frustrated, grumpy when a
-turn fails or at many pokes in a row, sad when a very long turn ends
-failed or the agent gives up. Goes back to happy once Boop has been
-proud for 5 min, or once HISTORY no longer shows the change.
+agent, determined when the person sounds frustrated or at 2 pokes in
+a row, grumpy when a turn fails or at 3+ pokes in a row, sad when a
+very long turn ends failed or the agent gives up. Goes back to happy
+once Boop has been proud for 5 min, or once HISTORY no longer shows
+the change.
