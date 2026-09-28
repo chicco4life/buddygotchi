@@ -172,7 +172,7 @@ kinds, all with the `boop` personality unless the file says otherwise:
   half hour (`21`): no more than 6 minutes of work with no reaction, a
   mood that drifts (happy → determined → excited) without bouncing,
   and, over the half hour, no 4 reactions in a row the same.
-- **Known gaps** (`19`, `20`): the same quick win five times gets five
+- **Known gaps** (`19`, `20`): the same win five times gets five
   different-enough reactions, and flipping tests don't flip the mood.
   Their `gap` says why the steering can't get there alone.
 

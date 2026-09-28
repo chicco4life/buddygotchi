@@ -119,17 +119,13 @@ the face you made last". None changed its answers, and the last made
 it answer `none` to heartbeats. It also answers the same line the same
 way, whatever the prompt says about variety.
 
-## The last change, not yet checked
+## The last change
 
-The steering in this commit is the one the final eval ran. The next
-commit takes the "avoid the face it made last" sentence out of
+The steering in the first commit is the one the final eval ran. The
+second commit takes the "avoid the face it made last" sentence out of
 `boop.md`, and makes a heartbeat's face "never none", to fix
-`18-long-grind`'s quiet stretches. Jev returned HTTP 402 from then on,
-so that change hasn't been through the evals. Before keeping it, run:
-
-```sh
-BOOP_JEV_KEY=… make eval
-```
+`18-long-grind`'s quiet stretches. It was checked once the key was
+topped up (the follow-up below): 19 of 21, `18` included.
 
 ## Proposals (code, for the owner)
 
@@ -156,3 +152,33 @@ BOOP_JEV_KEY=… make eval
    [DECISIONS.md](../../harness/DECISIONS.md) §3 (`oops`, `slump`,
    `huff`, `ponder`) would give the same face new ways to show,
    which is variety without new moods.
+
+## Follow-up: telling Jev to look at HISTORY (later the same day)
+
+With a new key, the full eval on the second commit (the heartbeat
+tweak) passed 19 of 21, every scenario but the two gaps in every run,
+`18-long-grind` included ([eval-heartbeat-tweak.txt](eval-heartbeat-tweak.txt)).
+
+`19-same-win-again`'s quick wins were short finishes, which boop now
+answers with nothing, so there was nothing to repeat. Its steps are
+now five turns of two minutes each; its case is the same. On them, Boop
+made five happy faces in a row in every run.
+
+Two question changes were tried against it, one at a time, and taken
+back out:
+
+1. **Naming the guide in `judgeBy`** for `react.mood` and `mood`, with
+   a line in the guide: "For a routine line, don't make the face Boop
+   made last: pick another that fits." The full eval was unchanged
+   (19 of 21), and so were `19` and `20`.
+2. **`react.mood`'s `about`** made "the NOW section, and the face Boop
+   made last in HISTORY". `19` was unchanged.
+
+Jev does read HISTORY: at each of the five finishes happy got 0.97,
+0.87, 0.80, 0.88 and 0.84, with `none` taking the rest. But `none` is
+the only other answer it moves to. The Example gives a long finish
+"happy, no word", and the other faces' meanings (excited is "something
+big just went right") rule them out, so for a routine win no other
+face fits. `20-no-flail` didn't move either: the determined option's
+"a check failed" matches NOW word for word, whatever it's told to
+weigh.
