@@ -207,6 +207,60 @@ final class HookWireTests: XCTestCase {
         XCTAssertEqual(salvaged.agentID, "a1")
     }
 
+    /// ADAPTERS.md §2: `SessionStart` keeps its `source`, and every hook
+    /// its `permission_mode`, even from a payload cut off at the cap.
+    func testSessionStartsSourceAndThePermissionModeAreKept() throws {
+        for agent in ["claude-code", "codex"] {
+            let raw = try Data(contentsOf: Self.fixtures.appendingPathComponent("\(agent)/2026-09-08/SessionStart-1.json"))
+            let line = try XCTUnwrap(HookLine.extract(agent: agent == "codex" ? "codex" : "claude", payload: raw, ts: 1))
+            XCTAssertEqual(line.source, "startup", agent)
+            XCTAssertEqual(HookLine.decode(line.encoded()), line)
+        }
+        let raw = payload(["hook_event_name": "PreToolUse", "session_id": "s1", "permission_mode": "plan", "tool_name": "Read",
+                           "tool_input": ["file_path": "/w/x.swift"], "source": "not a start"])
+        let line = try XCTUnwrap(HookLine.extract(agent: "claude", payload: raw, ts: 1))
+        XCTAssertEqual(line.mode, "plan")
+        XCTAssertNil(line.source, "only a start has a source")
+        XCTAssertTrue(String(decoding: line.encoded(), as: UTF8.self).contains(#""mode":"plan""#))
+        XCTAssertEqual(HookLine.decode(line.encoded()), line)
+        let big = String(repeating: "x", count: 300_000)
+        let cut = Data(#"{"session_id": "s1", "permission_mode": "plan", "hook_event_name": "PostToolUse", "tool_name": "Read", "tool_response": "\#(big)"}"#.utf8).prefix(256 * 1024)
+        XCTAssertEqual(HookLine.extract(agent: "claude", payload: Data(cut), ts: 0)?.mode, "plan")
+    }
+
+    /// ADAPTERS.md §3: a shell command that only looks at files is
+    /// `inspect`, so the look shows it as analyzing: every command in it
+    /// reads (`rg`, `grep`, `cat`, `sed -n`, `find`, `ls`, `head`, `tail`,
+    /// `wc`, `nl`, `sort`, `uniq`, `cut`) or neither reads nor changes
+    /// anything (`cd`, `echo`), and none writes a file. A check comes first.
+    func testShellReadsAreInspect() {
+        let reads = [
+            "rg -n 'func tick' app/", "grep -rn TODO .", "cat Package.swift", "sed -n '1,80p' app/Core.swift",
+            "find . -name '*.swift'", "ls -la", "head -50 README.md", "tail -n 20 log.txt", "wc -l *.swift",
+            "nl -ba app/Core.swift | sed -n '120,200p'", "cd app && rg -l Core", "cat a.md; echo ---; cat b.md",
+            "rg foo 2>/dev/null | sort | uniq -c", "grep -n 'make test' Makefile", "ls node_modules/.bin/jest",
+            "bash -lc 'rg -n foo src'", "sed -ne 's/a/b/p' x",
+        ]
+        for command in reads {
+            XCTAssertTrue(Topic.inspects(command: command), command)
+            XCTAssertEqual(Topic.tag(tool: "Bash", input: ["command": command]), "inspect", command)
+        }
+        let others = [
+            "sed -i 's/a/b/' x", "sed 's/a/b/' x", "sed -n -i 's/a/b/p' x", "find . -name '*.o' -delete",
+            "find . -exec rm {} \\;", "cat > /tmp/x.py <<'EOF'\nprint(1)\nEOF", "echo hi > notes.txt",
+            "rg foo > out.txt", "cat a >> b", "ls && git status", "cd app", "echo hello", "git log | head",
+            "cat x | python3 -c 'import sys'", "tee out.txt", "",
+        ]
+        for command in others { XCTAssertFalse(Topic.inspects(command: command), command) }
+        XCTAssertEqual(Topic.tag(tool: "Bash", input: ["command": "swift test 2>&1 | tail -20"]), "tests", "a check first")
+        XCTAssertEqual(Topic.tag(tool: "Bash", input: ["command": "make 2>&1 | grep -i error"]), "build")
+        XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["bash", "-lc", "nl -ba x | sed -n '1,40p'"]]), "inspect",
+                       "Codex's argv")
+        XCTAssertEqual(Topic.tag(tool: "exec_command", input: ["cmd": "rg -n foo"]), "inspect")
+        XCTAssertNil(Topic.tag(tool: "Read", input: ["file_path": "/w/x.swift"]), "a tool without a command")
+        XCTAssertNil(Topic.tag(tool: "Edit", input: ["file_path": "/w/x.swift", "command": "cat x"]), "an edit is an edit")
+    }
+
     func testPayloadWithoutHookNameOrSessionIsDropped() {
         XCTAssertNil(HookLine.extract(agent: "claude", payload: payload(["session_id": "s"]), ts: 0))
         XCTAssertNil(HookLine.extract(agent: "claude", payload: payload(["hook_event_name": "Stop"]), ts: 0))
@@ -312,7 +366,8 @@ final class HookWireTests: XCTestCase {
         for (command, topic) in cases {
             XCTAssertEqual(Topic.tag(command: command), topic, command)
         }
-        XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["grep", "-rn", "make test", "docs"]]), nil)
+        XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["grep", "-rn", "make test", "docs"]]), "inspect",
+                       "a search, not tests")
         XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["zsh", "-c", "npm run build"]]), "build")
         XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["bash", "--noprofile", "--norc", "-c", "cargo test"]]), "tests")
     }

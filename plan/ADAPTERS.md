@@ -63,6 +63,8 @@ construction.
    | Field | From | On |
    | --- | --- | --- |
    | `cwd`, `agent_id`, `agent_type` | the same keys | every hook |
+   | `mode` | `permission_mode` (Claude's `default`, `plan`, `acceptEdits`…) | every hook that has it |
+   | `source` | `source`: `startup`, `resume`, `clear` or `compact` | `SessionStart` |
    | `tool`, `tool_use_id` | `tool_name`, `tool_use_id` | `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest` |
    | `topic` | the tool's input, read in memory (§3) | the same, except `PermissionRequest` |
    | `interrupt` | `is_interrupt` | `PostToolUseFailure` |
@@ -75,8 +77,8 @@ construction.
    | `ts` | when `boop-hook` started, in ms | every hook |
 
    A payload cut off at 256 KB won't parse, so the hook name, session,
-   `cwd`, `agent_id` and, for tool hooks, `tool_name` and `tool_use_id`
-   are picked out of its start instead. It gets no topic.
+   `cwd`, `agent_id`, `permission_mode` and, for tool hooks, `tool_name`
+   and `tool_use_id` are picked out of its start instead. It gets no topic.
 
    **The thread's name** (`ThreadName`) is read on every hook, so the
    needs-you strip, the popover and a cheer name the thread as you do,
@@ -127,7 +129,7 @@ Each hook becomes a `type` and `phase`, with its name as
 
 | Hook | `type` and `phase` | `data` |
 | --- | --- | --- |
-| `SessionStart` | `session` start | |
+| `SessionStart` | `session` start | `source` |
 | `UserPromptSubmit` | `turn` start | `prompt` |
 | `PreToolUse` | `tool` start | `tool`, `tool_use_id`, `topic` |
 | `PostToolUse` | `tool` end, the call's result | `tool`, `tool_use_id`, `topic`, `failed: false` |
@@ -140,17 +142,21 @@ Each hook becomes a `type` and `phase`, with its name as
 | `ElicitationResult` | `tool` end, with no tool | |
 | `Stop` | `turn` end | `outcome: done`, `message` |
 | `StopFailure` | `turn` end | `outcome: failed`, `error` |
+| `SubagentStart` | `subagent` start, with the subagent's `agent_id`: a helper Boop saw start ([BEHAVIORS.md](BEHAVIORS.md) §2); ignored without one | |
 | `SubagentStop` | `subagent` end, with the subagent's `agent_id`; ignored without one, since it would pass for the main agent | |
 | `SessionEnd` | `session` end | |
 
 Any Claude event from inside a subagent carries its `agent_id` as
-`subagent` and its `agent_type` in `data`.
+`subagent` and its `agent_type` in `data`. Any Claude event whose hook
+reports the permission mode carries it as `mode`, so the look can show
+plan mode as planning ([BEHAVIORS.md](BEHAVIORS.md) §2). A subagent's
+start, like its end, is Claude's alone: Codex has no hook for helpers.
 
 **Codex** (`source` `codex`):
 
 | Hook | `type` and `phase` | `data` |
 | --- | --- | --- |
-| `SessionStart` (startup, resume, clear) | `session` start | |
+| `SessionStart` (startup, resume, clear) | `session` start | `source` |
 | `UserPromptSubmit` | `turn` start | `prompt` |
 | `PreToolUse` | `tool` start | `tool`, `tool_use_id`, `topic` |
 | `PostToolUse` | `tool` end, the call's result | `tool`, `tool_use_id`, `topic` |
@@ -205,6 +211,7 @@ drops the input:
 | `tests` | A command that runs tests (`pytest`, `jest`, `npm test`, `go test`, `cargo test`, `swift test`, `make test`, `pio test`, …) |
 | `build` | A command that builds (`make`, `tsc`, `npm run build`, `cargo build`, `swift build`, `xcodebuild`, `docker build`, …) |
 | `docs` | An edit tool (`Edit`, `Write`, `MultiEdit`, `apply_patch`, …) touching a `.md`, `.mdx`, `.markdown`, `.txt` or `.rst` file |
+| `inspect` | A command that only looks at files, with no check in it: every command in the line reads (`rg`, `grep`, `cat`, `sed -n`, `find`, `ls`, `head`, `tail`, `wc`, `nl`, `sort`, `uniq`, `cut`) or neither reads nor changes anything (`cd`, `echo`, `pwd`), and none writes a file with `>`. `sed -i` and `find -delete` or `-exec` don't count. The look shows it as analyzing, not a terminal ([BEHAVIORS.md](BEHAVIORS.md) §2), Codex's shell reads included |
 
 A command's topic comes from what it runs: the program and the words
 after it that aren't flags, in each command of the line
@@ -214,8 +221,9 @@ after it that aren't flags, in each command of the line
 `python -m`, and into `bash -c '…'` and `docker compose run web …`. A
 check word in an argument, quoted text or a heredoc doesn't count, so
 `grep -n "make test" Makefile` and `command -v pytest` have no topic. When
-a line runs several, deploy beats tests, which beats build. The full lists
-are in `app/HookWire/Topic.swift`.
+a line runs several, deploy beats tests, which beats build, and any of
+them beats `inspect`: `swift test 2>&1 | tail -20` is tests. The full
+lists are in `app/HookWire/Topic.swift`.
 
 ## 4. Sessions and "needs you"
 
@@ -233,6 +241,7 @@ still counts as working. Which of them the device shows is
 | A `tool` end that's a call's result, once its turn has ended or stopped, for a call that started before then | Stays as it is. The result landed late: you pressed Esc as a parallel call finished, a subagent's call raced the interrupt, or Codex reported the command its `Interrupt` aborted. It still counts for the thread ([harness/EVENTS.md](harness/EVENTS.md) §4), but it doesn't start the turn again, so a stopped turn isn't recorded twice |
 | `turn` end, done or failed | Goes idle |
 | `turn` end, stopped | Goes idle, with no rule reaction. If its turn is still open, even after the safety net (below) made the session idle, that turn ends as stopped and the brain hears of it ([harness/EVENTS.md](harness/EVENTS.md) §4), so a call's result after it is a late one (above). Claude's `idle_prompt` less than 30 s after the session's last `turn` start (`Core.idleNoticeMinMs`) is ignored: it comes after a minute at the prompt, so it's from before that prompt, one typed just as the minute ran out. A turn that a call started, with no prompt (a background subagent's after the main agent stopped), has nothing for the notice to race |
+| `subagent` start | Stays as it is, as for its end: it only tells the look a helper is at work ([BEHAVIORS.md](BEHAVIORS.md) §2) |
 | `subagent` end | Stays as it is: a subagent finishing isn't activity, and it doesn't count as an event for the timers below, so it can't make an idle or stale session look busy. It can answer a request (below) |
 | A `session` start or end, `turn` start, or `turn` end done or failed, from inside a subagent (with its `agent_id`) | The same as a `subagent` end: that subagent's alone, not the session's turn |
 | `tool` wait | Needs you (below) |
@@ -321,8 +330,8 @@ command: any command running `boop-hook`, or an older Boop's
 
 | File | What Boop adds |
 | --- | --- |
-| `~/.claude/settings.json` | Under `hooks`, a group for each Claude hook in §3's table (13 hooks). `Notification`'s has the matcher `permission_prompt\|elicitation_dialog\|idle_prompt`, since Claude runs it only for the types its matcher lists |
-| `~/.codex/hooks.json` | Under `hooks`, a group for each Codex hook in §3's table (8 hooks). `SessionStart`'s has the matcher `startup\|resume\|clear` |
+| `~/.claude/settings.json` | Under `hooks`, a group for each Claude hook in §3's table (14 hooks). `Notification`'s has the matcher `permission_prompt\|elicitation_dialog\|idle_prompt`, since Claude runs it only for the types its matcher lists. An install from before `SubagentStart` is outdated, so the launch repair adds it |
+| `~/.codex/hooks.json` | Under `hooks`, a group for each Codex hook in §3's table (8 hooks). `SessionStart`'s has the matcher `startup\|resume\|clear`, so a Codex session never starts as `compact` |
 | `~/.codex/config.toml` | `codex_hooks = true` under `[features]`, which Codex needs to run hooks at all. Added by install (or flipped from `false`), never removed, since other hooks may rely on it |
 
 **The installer's operations** (`HookInstaller`):

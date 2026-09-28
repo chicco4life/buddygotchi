@@ -40,6 +40,11 @@ public struct HookLine: Equatable, Sendable {
     /// The thread's name as its agent's app shows it (`ThreadName`), on
     /// every hook that finds one.
     public var name: String?
+    /// `SessionStart`'s `source`: `startup`, `resume`, `clear` or `compact`.
+    public var source: String?
+    /// The agent's `permission_mode` (Claude's `default`, `plan`,
+    /// `acceptEdits`…), on every hook that carries one.
+    public var mode: String?
     /// When the hook ran, in milliseconds.
     public var ts: Int64
 
@@ -47,7 +52,7 @@ public struct HookLine: Equatable, Sendable {
                 topic: String? = nil, error: String? = nil, kind: String? = nil, interrupt: Bool = false,
                 toolError: String? = nil, toolUseID: String? = nil, agentType: String? = nil,
                 agentID: String? = nil, message: String? = nil, prompt: String? = nil, name: String? = nil,
-                ts: Int64) {
+                source: String? = nil, mode: String? = nil, ts: Int64) {
         self.agent = agent
         self.hook = hook
         self.session = session
@@ -64,6 +69,8 @@ public struct HookLine: Equatable, Sendable {
         self.message = message
         self.prompt = prompt
         self.name = name
+        self.source = source
+        self.mode = mode
         self.ts = ts
     }
 
@@ -94,8 +101,11 @@ public struct HookLine: Equatable, Sendable {
               let session = string(json["session_id"]) ?? string(json["thread_id"]) ?? string(json["conversation_id"])
         else { return nil }
         var line = HookLine(agent: agent, hook: hook, session: session, cwd: string(json["cwd"]),
-                            agentType: string(json["agent_type"]), agentID: string(json["agent_id"]), ts: ts)
+                            agentType: string(json["agent_type"]), agentID: string(json["agent_id"]),
+                            mode: string(json["permission_mode"]), ts: ts)
         switch hook {
+        case "SessionStart":
+            line.source = string(json["source"])
         case "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest":
             line.tool = string(json["tool_name"])
             line.toolUseID = string(json["tool_use_id"])
@@ -140,7 +150,7 @@ public struct HookLine: Equatable, Sendable {
         }
         guard let hook = field("hook_event_name"), let session = field("session_id") else { return nil }
         var line = HookLine(agent: agent, hook: hook, session: session, cwd: field("cwd"),
-                            agentID: field("agent_id"), ts: ts)
+                            agentID: field("agent_id"), mode: field("permission_mode"), ts: ts)
         if ["PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest"].contains(hook) {
             line.tool = field("tool_name")
             line.toolUseID = field("tool_use_id")
@@ -170,6 +180,8 @@ public struct HookLine: Equatable, Sendable {
         if let message { object["message"] = message }
         if let prompt { object["prompt"] = prompt }
         if let name { object["name"] = name }
+        if let source { object["source"] = source }
+        if let mode { object["mode"] = mode }
         // No `.sortedKeys`: nothing reads the order, and sorting loads
         // locale-aware comparison, about half of a hook's few milliseconds.
         var data = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
@@ -188,6 +200,7 @@ public struct HookLine: Equatable, Sendable {
                         interrupt: object["interrupt"] as? Bool == true, toolError: string(object["tool_error"]),
                         toolUseID: string(object["tool_use_id"]), agentType: string(object["agent_type"]),
                         agentID: string(object["agent_id"]), message: string(object["message"], max: maxMessage),
-                        prompt: string(object["prompt"], max: maxMessage), name: string(object["name"]), ts: ts)
+                        prompt: string(object["prompt"], max: maxMessage), name: string(object["name"]),
+                        source: string(object["source"]), mode: string(object["mode"]), ts: ts)
     }
 }

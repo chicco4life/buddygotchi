@@ -102,7 +102,7 @@ commands go through the bridge.
 
 | Command | What it does |
 | --- | --- |
-| `replay <hooks.jsonl> [--agent claude\|codex] [--gap-ms N] [--states]` | Runs recorded hook payloads through `boop-hook`'s field picking, the adapter and the pipeline (the core and the view) on a virtual clock, and prints each raw event, the core's decisions and the view events. `{"wait_ms":N}` and `{"advance_ms":N}` lines move the clock |
+| `replay <hooks.jsonl> [--agent claude\|codex] [--gap-ms N] [--states]` | Runs recorded hook payloads through `boop-hook`'s field picking, the adapter and the pipeline (the core and the view) on a virtual clock, and prints each raw event, the core's decisions and the view events. `{"wait_ms":N}` and `{"advance_ms":N}` lines move the clock. `--states` prints only what goes to the device: each `state` and each rule `moment` |
 | `replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]` | Sends each payload through the real `boop-hook` to a running app, in real time, and times each `boop-hook` from launch to exit. `{"advance_ms":N}` moves a headless app's clock |
 | `voice <feeling\|mood> [word] [--dialect HEX] [--seed N] [--count N] [--json]` | Prints the lines `react` would build ([VOICE.md](VOICE.md) §4), in a feeling or in the one Voice gives a mood's face; dialect `7f3a` and seed 1 by default |
 | `eval [--runs N] [--only TEXT] [--always] [--timeline] [--scenarios DIR] [--steering DIR]`, `eval --list` | The eval scenarios against Jev (L5, [EVALS.md](EVALS.md)); `--list` prints each one's case with no key |
@@ -217,7 +217,11 @@ gets at least one scenario. Their pictures are the golden images in
   and one request's number never changes its agent or project), and that
   a subagent's end, or a turn-level hook from inside one, answers only
   that subagent's request, isn't activity, and makes its session work
-  again only while its turn goes on.
+  again only while its turn goes on, and its start changes none of that.
+  It also checks what the agents are doing shows only in the working
+  look, every variation is one the visual has, and the rules' one-shots
+  never go out while something needs you or with an `id`, the error one
+  at most every 30 s.
 - **Firmware (`make -C internal fw-test`):** line reassembly across
   Bluetooth packets, screenshot encoding, the clock and gestures
   (`test_link`); the messages, debug channel and inputs (`test_device`);

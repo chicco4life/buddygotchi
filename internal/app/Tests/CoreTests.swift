@@ -6,7 +6,8 @@ import XCTest
 /// The hooks the rig sends, by what they mean to the rules: each becomes
 /// the raw event its hook does (ADAPTERS.md §3).
 enum Hook: String, CaseIterable {
-    case sessionStart, turnStart, activity, needsYou, turnEnd, turnFailed, turnStopped, subagentEnd, sessionEnd
+    case sessionStart, turnStart, activity, needsYou, turnEnd, turnFailed, turnStopped, subagentStart, subagentEnd,
+         sessionEnd
 }
 
 /// What one input did: the core's effects and the view events made. An
@@ -68,17 +69,21 @@ final class CoreRig {
     func event(_ kind: Hook, _ agent: Agent = .claudeCode, session: String = "s1", subagent: String? = nil,
                project: String = "landing", workspace: String? = nil, tool: String? = nil, topic: String? = nil,
                failed: Bool? = nil, notice: Bool? = nil, kind noticeKind: String? = nil, id: String? = nil,
-               done: Bool? = nil, error: String? = nil, message: String? = nil, prompt: String? = nil) -> Event {
+               done: Bool? = nil, error: String? = nil, message: String? = nil, prompt: String? = nil,
+               source: String? = nil, mode: String? = nil) -> Event {
         var data: [String: JSONValue] = [:]
         func put(_ key: String, _ value: String?) { if let value { data[key] = .string(value) } }
         put("tool", tool)
         put("tool_use_id", id)
         put("topic", topic)
+        put("mode", mode)
         let type: Event.Kind
         let phase: Event.Phase
         let specific: String
         switch kind {
-        case .sessionStart: (type, phase, specific) = (.session, .start, "SessionStart")
+        case .sessionStart:
+            (type, phase, specific) = (.session, .start, "SessionStart")
+            put("source", source)
         case .sessionEnd: (type, phase, specific) = (.session, .end, "SessionEnd")
         case .turnStart:
             (type, phase, specific) = (.turn, .start, "UserPromptSubmit")
@@ -118,6 +123,7 @@ final class CoreRig {
             let input = asNotice ? data["notice"]?.string == "elicitation_dialog" : tool == nil
             data["for"] = .string(input ? "input" : "permission")
             specific = asNotice ? "Notification" : tool == nil ? "Elicitation" : "PermissionRequest"
+        case .subagentStart: (type, phase, specific) = (.subagent, .start, "SubagentStart")
         case .subagentEnd: (type, phase, specific) = (.subagent, .end, "SubagentStop")
         }
         let cwd = workspace.map { "/rig/\(project)/.worktrees/\($0)" } ?? "/rig/\(project)"
@@ -129,10 +135,11 @@ final class CoreRig {
     func send(_ kind: Hook, _ agent: Agent = .claudeCode, session: String = "s1", subagent: String? = nil,
               project: String = "landing", workspace: String? = nil, tool: String? = nil, topic: String? = nil,
               failed: Bool? = nil, notice: Bool? = nil, kind noticeKind: String? = nil, id: String? = nil,
-              done: Bool? = nil, error: String? = nil, message: String? = nil, prompt: String? = nil) -> Fx {
+              done: Bool? = nil, error: String? = nil, message: String? = nil, prompt: String? = nil,
+              source: String? = nil, mode: String? = nil) -> Fx {
         send(event(kind, agent, session: session, subagent: subagent, project: project, workspace: workspace, tool: tool,
                    topic: topic, failed: failed, notice: notice, kind: noticeKind, id: id, done: done, error: error,
-                   message: message, prompt: prompt))
+                   message: message, prompt: prompt, source: source, mode: mode))
     }
 
     @discardableResult
@@ -227,6 +234,18 @@ func states(_ fx: [CoreEffect]) -> [StateSnapshot] {
     fx.compactMap { if case .state(let s) = $0 { return s } else { return nil } }
 }
 
+/// The rules' one-shots sent (BEHAVIORS.md §3.1).
+func moments(_ fx: Fx) -> [DeviceMoment] { moments(fx.effects) }
+
+func moments(_ fx: [CoreEffect]) -> [DeviceMoment] {
+    fx.compactMap { if case .moment(let m) = $0 { return m } else { return nil } }
+}
+
+/// The one-shots as `anim` or `anim ctx`, for short checks.
+func shots(_ fx: Fx) -> [String] {
+    moments(fx).map { ([$0.anim ?? "-"] + [$0.ctx].compactMap { $0 }).joined(separator: " ") }
+}
+
 // MARK: - BEHAVIORS.md §3.1 Agent work
 
 final class CoreAgentWorkTests: XCTestCase {
@@ -278,16 +297,17 @@ final class CoreAgentWorkTests: XCTestCase {
         XCTAssertEqual(finished(rig.send(.turnEnd, session: "c")), ["done"])
     }
 
-    /// BEHAVIORS.md §3.1: a failed turn has no moment of its own; the
-    /// session goes idle and the brain still hears about it.
     /// ADAPTERS.md §3: a turn you interrupt ends without `Stop`, so the
     /// interrupt (or Claude sitting at its prompt) ends it: idle at once,
-    /// and the brain hears of a stopped turn (harness/EVENTS.md §4).
+    /// with the rules' `stopped` one-shot (BEHAVIORS.md §3.1), no working
+    /// heartbeat after, and the brain hears of a stopped turn
+    /// (harness/EVENTS.md §4).
     func testAnInterruptedTurnGoesIdleQuietly() {
         let rig = CoreRig()
         rig.send(.turnStart)
         rig.send(.activity, tool: "Bash", topic: "tests")
         let fx = rig.send(.turnStopped, tool: "Bash")
+        XCTAssertEqual(shots(fx), ["stopped"])
         XCTAssertEqual(rig.state.base, "idle")
         XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"]])
         XCTAssertEqual(events(fx).map { $0.facts["outcome"] }, ["stopped"])
@@ -650,10 +670,12 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(events(fx).map(\.line), [#"claude needs you on "jetpack"."#], "the brain hears of it")
     }
 
+    /// ADAPTERS.md §4: Codex's request waits 2 s before it shows; in
+    /// that grace the look is waiting (BEHAVIORS.md §2).
     func testCodexWaitsTwoSeconds() {
         let rig = CoreRig()
         rig.send(.turnStart, .codex)
-        XCTAssertEqual(states(rig.send(.needsYou, .codex, tool: "shell")), [])
+        XCTAssertEqual(states(rig.send(.needsYou, .codex, tool: "shell")).map(\.visual), ["waiting"])
         XCTAssertNil(rig.state.attn)
         rig.wait(1000)
         XCTAssertNil(rig.state.attn)
@@ -1574,8 +1596,9 @@ final class CoreRulesTests: XCTestCase {
             for step in [Hook.turnStart, .needsYou, .activity, .turnEnd] {
                 rig.send(step, tool: "Bash")
                 let s = rig.state
-                XCTAssertTrue((1...FaceLoops.count(mood: s.mood, state: s.visual)).contains(s.variant), "\(s.visual) \(s.variant)")
-                if let before = last[s.visual] { XCTAssertNotEqual(before, s.variant, "\(s.visual) repeats") }
+                let count = FaceLoops.count(mood: s.mood, state: s.visual)
+                XCTAssertTrue((1...count).contains(s.variant), "\(s.visual) \(s.variant)")
+                if let before = last[s.visual], count > 1 { XCTAssertNotEqual(before, s.variant, "\(s.visual) repeats") }
                 last[s.visual] = s.variant
                 seen[s.visual, default: []].insert(s.variant)
                 rig.wait(1000)
@@ -1596,7 +1619,8 @@ final class CoreRulesTests: XCTestCase {
         let rig = CoreRig()
         XCTAssertEqual(states(rig.send(.sessionStart, session: "a", project: "notes")).map(\.base), ["idle"])
         let fx = rig.send(.sessionStart, session: "b", project: "jetpack")
-        XCTAssertEqual(fx.effects, [.sessions], "the same snapshot, and a new list")
+        XCTAssertEqual(fx.effects.filter { if case .moment = $0 { false } else { true } }, [.sessions],
+                       "the same snapshot, and a new list (and the start's one-shot)")
         XCTAssertEqual(rig.send(.sessionEnd, session: "b", project: "jetpack").effects, [.sessions])
         XCTAssertEqual(rig.wait(5000).effects, [], "nothing changed")
         XCTAssertEqual(rig.state.waiting, 0)
@@ -1735,7 +1759,11 @@ final class CoreFuzzTests: XCTestCase {
     ///   changes its agent or project (PROTOCOL.md §3);
     /// - a subagent's end, or a turn-level hook from inside a subagent,
     ///   answers only that subagent's request, isn't activity, and makes
-    ///   the session work again only while its turn goes on (ADAPTERS.md §4).
+    ///   the session work again only while its turn goes on (ADAPTERS.md §4);
+    ///   a subagent's start changes none of that;
+    /// - `act` only in the working look, the variant one of the visual's,
+    ///   and the rules' one-shots never while something needs you or with
+    ///   an `id`, the error one at most every 30 s (BEHAVIORS.md §2, §3.1).
     func testRandomTrafficKeepsTheRecordAndTheScreenInStep() {
         var rng = SplitMix64(seed: 20260928)
         let rig = CoreRig()
@@ -1743,7 +1771,8 @@ final class CoreFuzzTests: XCTestCase {
                                                    (.codex, "c", "jetpack")]
         let tools = ["Bash", "Read", "Agent", "mcp__x__ask"]
         var lastAttn: StateSnapshot.Attention?
-        var calls = 0, shown = 0, finishes = 0
+        var calls = 0, shown = 0, finishes = 0, acts = 0, shots = 0
+        var lastError: Int64?
         var trail: [String] = []  // the last calls, for a failure's message
         for step in 0..<20_000 {
             var fx = Fx()
@@ -1761,8 +1790,9 @@ final class CoreFuzzTests: XCTestCase {
                 let subagent = claude && rng.chance(40) ? ["a1", "a2"][rng.int(in: 0...1)] : nil
                 let tool = tools[rng.int(in: 0...(claude ? 3 : 0))]
                 let id = "t\(rng.int(in: 0...5))"
-                switch rng.int(in: 0...13) {
-                case 0: fx = rig.send(.turnStart, agent, session: session, project: project)
+                switch rng.int(in: 0...14) {
+                case 0: fx = rig.send(.turnStart, agent, session: session, project: project,
+                                      mode: claude ? ["plan", "default", nil][rng.int(in: 0...2)] : nil)
                 case 1, 2: fx = rig.send(.activity, agent, session: session, subagent: subagent, project: project, tool: tool, id: id)
                 case 3, 4: fx = rig.send(.activity, agent, session: session, subagent: subagent, project: project, tool: tool,
                                          failed: claude ? rng.chance(20) : nil, id: id, done: true)
@@ -1776,7 +1806,9 @@ final class CoreFuzzTests: XCTestCase {
                 case 10: fx = claude ? rig.send(.subagentEnd, agent, session: session, subagent: subagent ?? "a1", project: project) : Fx()
                 case 11: fx = rig.send(.turnFailed, agent, session: session, subagent: subagent, project: project)
                 case 12: fx = rig.send(.activity, agent, session: session, subagent: subagent, project: project)
-                default: fx = rig.send(.sessionStart, agent, session: session, subagent: subagent, project: project)
+                case 13: fx = rig.send(.sessionStart, agent, session: session, subagent: subagent, project: project,
+                                       source: ["startup", "resume", "clear", "compact"][rng.int(in: 0...3)])
+                default: fx = claude ? rig.send(.subagentStart, agent, session: session, subagent: subagent ?? "a2", project: project) : Fx()
                 }
             }
             calls += 1
@@ -1784,6 +1816,14 @@ final class CoreFuzzTests: XCTestCase {
             let why = trail.joined(separator: "\n")
             let now = rig.core.snapshot(at: rig.now)
             let showing = rig.core.needsYouShowing
+            if rig.sent.count > sentBefore, let e = rig.sent.last, Core.step(e) == .subagentStart, let agent = e.agent,
+               let session = e.session, let b = before[Core.key(agent, session)] {
+                let a = rig.core.sessions[Core.key(agent, session)]
+                XCTAssertEqual(a?.lastEventAt, b.lastEventAt, "a subagent's start isn't activity\n\(why)")
+                XCTAssertEqual(a?.working, b.working, why)
+                XCTAssertEqual(a?.needsSince, b.needsSince, why)
+                XCTAssertEqual(a?.askers, b.askers, why)
+            }
             if rig.sent.count > sentBefore, let e = rig.sent.last, let id = e.subagent, let step = Core.step(e),
                step == .subagentEnd || Core.turnLevel.contains(step), let agent = e.agent, let session = e.session {
                 let key = Core.key(agent, session)
@@ -1810,6 +1850,24 @@ final class CoreFuzzTests: XCTestCase {
                 if event.wakesBrain { XCTAssertFalse(showing, "\(event.line) woke the brain\n\(why)") }
             }
             finishes += finished(fx).count
+            for moment in moments(fx) {
+                shots += 1
+                XCTAssertFalse(showing, "\(moment.jsonLine) while something needs you\n\(why)")
+                XCTAssertNil(moment.id, why)
+                XCTAssertTrue(["starting", "stopped", "error", "helper_return"].contains(moment.anim ?? ""), why)
+                XCTAssertEqual(moment.ctx != nil, moment.anim == "starting", why)
+                XCTAssertTrue(FaceLoops.variants(mood: rig.core.config.mood, state: moment.anim!, ctx: moment.ctx)
+                    .contains(moment.variant ?? 0), why)
+                if moment.anim == "error" {
+                    if let last = lastError { XCTAssertGreaterThanOrEqual(rig.now - last, Core.errorEveryMs, why) }
+                    lastError = rig.now
+                }
+            }
+            for sent in states(fx) {
+                XCTAssertTrue(sent.act == nil || (sent.base == "working" && sent.attn == nil), "\(sent.jsonLine)\n\(why)")
+                XCTAssertTrue((1...FaceLoops.count(mood: sent.mood, state: sent.visual)).contains(sent.variant), why)
+                if sent.act != nil { acts += 1 }
+            }
             if let sent = states(fx).last {
                 XCTAssertEqual(sent, now, why)
                 if let a = sent.attn, let b = lastAttn, a.id == b.id {
@@ -1820,7 +1878,9 @@ final class CoreFuzzTests: XCTestCase {
         }
         XCTAssertGreaterThan(shown, 500, "the traffic asks often")
         XCTAssertGreaterThan(finishes, 100, "and finishes often")
-        print("  \(calls) calls, \(shown) requests shown, \(finishes) finishes")
+        XCTAssertGreaterThan(acts, 500, "and shows what it's doing")
+        XCTAssertGreaterThan(shots, 500, "and plays one-shots")
+        print("  \(calls) calls, \(shown) requests shown, \(finishes) finishes, \(acts) activities, \(shots) one-shots")
     }
 }
 

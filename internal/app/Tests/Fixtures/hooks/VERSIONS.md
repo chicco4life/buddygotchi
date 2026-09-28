@@ -11,7 +11,11 @@ Raw hook payloads, one directory per agent:
   in the shape Claude's hook reference gives, not yet recorded), and
   Codex requests its automatic
   reviewer handles (resolved inside the 2 s grace period) or that wait for
-  a person.
+  a person; and `states.jsonl` for each agent, a session through every
+  activity and one-shot of the rules that agent's hooks can show
+  ([plan/BEHAVIORS.md](../../../../../plan/BEHAVIORS.md) §2, §3.1), with
+  `permission_mode`, `SubagentStart` and a resumed `SessionStart`'s
+  `source` in the shape Claude's hook reference gives, not yet recorded.
 - `e2e/`: the pipeline check's sessions with their checkpoints
   ([plan/VERIFICATION.md](../../../../../plan/VERIFICATION.md) L4).
 

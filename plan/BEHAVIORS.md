@@ -20,22 +20,33 @@ VISUALS  (what Boop is doing)
 ───────────────────────────────────────────────────────────────────────
   asleep      no agent sessions open               ┐
   idle        sessions open, none working          │ states: always
-  working     an agent is working                  │ reflect the truth
+  working     an agent is working, and at what:    │ reflect the truth
+              testing · delegating · terminal ·    │
+              searching · analyzing · tool_use ·   │
+              waiting · planning, or plain working │
   needs you   an agent awaits your approval        │
   no app      device lost the Mac (30 s)           ┘
+  starting    a session or a new task begins       ┐ the rules'
+  stopped     you interrupted a turn               │ one-shots: once,
+  error       a command failed                     │ at once
+  helper      a helper came back                   ┘
   cheer       big celebration (trophy, podium…)    ┐ animations:
   wiggle      sway + heart, on a poke              │ play for a moment
   listening   push-to-talk: mic on until the reply ┘
 
-  Each mood × visual has a few variations (working 5, the rest 3). The
-  Mac picks one at random each time the visual changes, never the last;
-  then the device's looks take turns between them at loop ends.
+  Each mood × visual has a few variations, as its designs have. The
+  Mac picks one at random each time the visual changes, never the last,
+  and again when a new mood has fewer of it; then the device's looks
+  take turns between them at loop ends.
 
 
 AUTOMATIC  (plain rules, instant, no brain needed)
 ═══════════════════════════════════════════════════════════════════════
   • The agents' activity picks the state visual:
-      asleep / idle / working / needs you / no app
+      asleep / idle / working / needs you / no app, and while working,
+      what at: the running tool's (testing, a terminal…), §2
+  • Starts, interrupts, failed commands and returning helpers play
+    their one-shot at once (§3.1)
   • Needs you wins over everything: amber light, its alert, who's asking
   • A poke (a tap on the device) → the device plays the wiggle at once
   • Hold BOOT (or click Talk) → the Mac's mic listens, Boop shows
@@ -153,7 +164,8 @@ layers meet.
 
 **Attention wins.** While something needs you, no animation or mumble
 plays but `listening`, so push-to-talk still works; one already playing
-is cut short (`listening` plays on), a tap only dips the face, and no view event but a poke or what you say wakes the
+is cut short (`listening` plays on), a tap only dips the face, the rules
+send no one-shot, and no view event but a poke or what you say wakes the
 brain ([harness/EVENTS.md](harness/EVENTS.md) §6).
 
 **How it flows.** The core is a pure state machine: each input goes in
@@ -163,7 +175,8 @@ brain.
 
 ```
 hook events ──┐                 ┌─► core rules ─┬─► state ─────► device (PROTOCOL.md §3)
-device pokes ─┤                 │               └─► new day ───► memory
+device pokes ─┤                 │               ├─► one-shot ──► device
+              │                 │               └─► new day ───► memory
 what you say ─┼─► transcript ───┤
 heartbeats ───┘                 └─► view ─► harness ─► brain ─┬─► mumble ─► device
 1 s tick: core timers, the view's heartbeats                  └─► mood ───► core
@@ -180,6 +193,8 @@ The core keeps one entry per agent session, each **working**, **idle** or
 
 - `base` is `working` if any session works, else `asleep` with no
   sessions, else `idle`. How many agents are busy never changes the look.
+- `act` says what the agents are doing, while `base` is `working` and
+  nothing needs you, when it's something the look shows (below).
 - `attn` names the session that has waited longest (requests that
   arrive in the same millisecond keep their order), how many more wait,
   and the number of the request shown, so the device can tell a
@@ -194,12 +209,14 @@ design, and adds blinks of its own (180 ms,
 five, which loop, except that needs you's plays its performance once and
 then holds its pending pose.
 
-**Which variation.** Each time the visual changes (a look, or needs you
-starting), the core picks one of its variations at random, never the one
-that visual showed last, and every `state` carries it
-([PROTOCOL.md](PROTOCOL.md) §3). With no app the device has no one to
-pick, and shows the first. This is a rule for now; the harness may take
-the choice over later.
+**Which variation.** Each time the visual changes (a look, what the
+agents are doing, or needs you starting), the core picks one of its
+variations at random, never the one that visual showed last, and every
+`state` carries it ([PROTOCOL.md](PROTOCOL.md) §3). A new mood keeps the
+variation showing, unless the new mood has fewer of that visual: then
+it picks one of the new mood's the same way. With no app the device has
+no one to pick, and shows the first. This is a rule for now; the harness
+may take the choice over later.
 
 **Taking turns.** A look that loops on (idle, working, asleep) doesn't
 play one variation for minutes: the device moves between them. The Mac's
@@ -219,12 +236,56 @@ a reaction's face by the look's longest variation
 | --- | --- | --- |
 | No app | 30 s with no `state` (§3.4) | None |
 | Needs you | The `state` has `attn` (§3.2): its performance once, then its pending pose | At the base's pace |
+| What the agents are doing | `base` is `working` and the `state` has `act`: its design (below) | As working |
 | Working | `base` is `working` | Every 2–5 s |
 | Idle | `base` is `idle` | Every 2–6 s |
 | Asleep | `base` is `asleep` | None |
 
 No blink shows during a wiggle. A change to another look, or
 another mood, blinks into the new design rather than cutting.
+
+### What the agents are doing
+
+While an agent works, the look shows what at, from its hooks alone
+(`app/BoopKit/Core/Activity.swift`): the tool calls running, each from
+its start to its result (by `tool_use_id`, else the last call of that
+tool by the same agent), the helpers it sent off and Claude's plan mode.
+The `state` carries it as `act`, and the device draws that design in
+working's place ([PROTOCOL.md](PROTOCOL.md) §3). With nothing to show,
+the look is plain working.
+
+| `act` | While | From |
+| --- | --- | --- |
+| `testing` | A call that runs tests is running (its topic is `tests`, [ADAPTERS.md](ADAPTERS.md) §3) | Claude, Codex |
+| `delegating` | The main agent's `Task` or `Agent` call runs, or a helper Boop saw start (`SubagentStart`) hasn't ended. Never from a helper's end, or its call, alone | Claude |
+| `terminal` | A shell command runs: `Bash`, `shell`, `exec_command`, `local_shell` | Claude, Codex |
+| `searching` | `WebSearch` or `WebFetch` runs | Claude |
+| `analyzing` | `Read`, `Grep`, `Glob` or `LS` runs, or a shell command that only looks at files (topic `inspect`) | Claude, Codex |
+| `tool_use` | Any other call runs: an edit, an MCP tool… | Claude, Codex |
+| `waiting` | A call has run with nothing heard from its session for 20 s (`Core.waitingMs`): waiting on the machine. Or Codex's request is in its 2 s grace, waiting on its reviewer ([ADAPTERS.md](ADAPTERS.md) §4). A helper at work never counts as waiting | Claude, Codex |
+| `planning` | Claude is in plan mode (`permission_mode` `plan`), or a `TodoWrite`, `ExitPlanMode` or Codex `update_plan` call runs. Never from the gap between a prompt and the first call | Claude; Codex if its hooks report `update_plan` |
+
+- **Priority.** With several at once, the higher shows: `testing`, then
+  `delegating`, `terminal`, `searching`, `analyzing`, `tool_use`,
+  `waiting`, `planning`. So a helper's tests show as testing, and a
+  read in plan mode as analyzing.
+- **At least 1.5 s** (`Core.actHoldMs`). A higher one shows at once. A
+  lower one, or none, replaces the one showing only once 1.5 s have
+  passed since its last call ended, and since it started showing, so a
+  burst of quick reads is one stretch of analyzing rather than a
+  flicker. The core's 1 s tick ends a hold, so it can run up to a
+  second longer.
+- **Several sessions.** The working session heard from last shows what
+  it's doing, among those doing something. A session that needs you, or
+  isn't working, shows nothing, and starts fresh when it works again.
+- **What ends a call** besides its result: its turn ending or a new
+  prompt (a call whose result never came, such as one you pressed Esc
+  on), its subagent ending, and the agent moving on from a request (you
+  denied the call, which sends no hook, [ADAPTERS.md](ADAPTERS.md) §4).
+
+Codex reports no web search, helpers or plan in its hooks, so it never
+shows searching or delegating, and planning only if its hooks report
+`update_plan`.
 
 ### Mood
 
@@ -259,10 +320,13 @@ moment later, if it answers within its deadline
 [harness/EVENTS.md](harness/EVENTS.md) §4.
 
 **Moments take turns.** A tap's wiggle plays at once on the device and
-replaces whatever is playing, mumble included. A brain reaction waits
-until no line or reaction's face is playing (it plays over a wiggle,
-which it doesn't cut), which the device's word that the last one ended
-settles. A reaction's face held on
+replaces whatever is playing, mumble included. So does a rule's
+one-shot (§3.1), except that none is sent while a brain reaction's line
+plays, which it would cut, and it's dropped then rather than sent late.
+A brain reaction waits
+until no line or reaction's face is playing (it plays over a wiggle or
+a rule's one-shot, which it doesn't cut), which the device's word that
+the last one ended settles. A reaction's face held on
 for its loops after its mumble doesn't hold up the next reaction, which
 replaces it once the mumble has played. One is dropped once it
 has waited 5 s for its turn (`MomentSchedule.maxWaitMs`,
@@ -276,16 +340,30 @@ newer moment, or skipped because something needed you
 
 | When | What Boop does |
 | --- | --- |
-| A session starts or ends | Nothing but the popover's list: the first one wakes Boop, and the last one ending puts it to sleep |
-| You send a prompt | The working look. The brain hears of it, with what you asked |
-| A tool call starts or finishes | Nothing on screen; the latest topic is kept for the working heartbeat. A test, build or deploy that fails, or passes after failing, reaches the brain; with `tool_uses: all` every tool use does (§6) |
+| A session starts | `starting` plays once: a fresh session when it started or was cleared, carrying on when it was resumed or compacted (Codex's are never compacted, [ADAPTERS.md](ADAPTERS.md) §5). The first session wakes Boop |
+| A session ends | Nothing but the popover's list: the last one ending puts Boop to sleep |
+| You send a prompt | `starting` plays once for a new task, then the working look. The brain hears of it, with what you asked |
+| A tool call starts or finishes | The working look shows what it does while it runs (§2); the latest topic is kept for the working heartbeat. A test, build or deploy that fails, or passes after failing, reaches the brain; with `tool_uses: all` every tool use does (§6) |
+| A command fails: it exits with an error or times out | `error` plays once, at most once every 30 s (`Core.errorEveryMs`), and never for a call you denied or one that failed otherwise. Claude only: Codex reports no failures |
+| A Claude helper starts, then comes back | Delegating while it works (§2). `helper_return` plays once when a helper Boop saw start (`SubagentStart`) ends while its turn goes on; with hooks from before that, when the main agent's `Task` or `Agent` call returns. Never after the turn ended |
 | A turn finishes | The session goes idle; no rule celebrates. The brain hears of it, with how many tool calls it made and the agent's last message, and decides whether the finish gets a face, and whether a cheer, for how long and with which word ([harness/DECISIONS.md](harness/DECISIONS.md) §5). With no brain, a finish shows only the change of look |
 | A turn finishes, but its last test, build or deploy command failed | It counts as a failed turn, and the brain hears of that |
 | A turn fails (Claude stops on an API error) | No moment. The brain hears of it |
-| You interrupt a turn (Esc) | No moment. The brain hears it was stopped. It happens at once if a tool was running, else when Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §3) |
+| You interrupt a turn (Esc, or Codex's `Interrupt`) | `stopped` plays once, if a turn was open: Claude's idle notice after a turn that finished plays nothing. The brain hears it was stopped. It happens at once if a tool was running, else when Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §3) |
 
 A Codex turn never fails, since Codex reports no failures yet
 ([ADAPTERS.md](ADAPTERS.md) §3).
+
+**The rules' one-shots** (`starting`, `stopped`, `error`,
+`helper_return`) are plain rules in the core, sent as a `moment` right
+after the `state` of the same hook ([PROTOCOL.md](PROTOCOL.md) §3). Each
+plays once, at once, in Boop's mood, with one of its variations at
+random (for `starting`, one for what started), never the one it played
+last; then the look comes back. None is sent while something needs you
+or `listening` shows, from any session. The brain doesn't pick them and
+isn't told of them: it hears of the events behind them. A finished
+turn's `task_complete` or `reply_ready` is the brain's
+([harness/DECISIONS.md](harness/DECISIONS.md) §5).
 
 Only a turn that's open finishes: a second `Stop`, or one after the turn
 stopped, does nothing. The brain hears only of turns the view saw
@@ -399,6 +477,10 @@ stops a line that's playing.
 | --- | --- | --- | --- |
 | `cheer` | A reaction the brain cheers with (`react.animation`, [harness/DECISIONS.md](harness/DECISIONS.md) §3) | The task-complete scene of the reaction's mood: a trophy, a curtain call or a podium | The loops Jev picks, of 6.4–7.2 s each |
 | `wiggle` | A tap | The look's own design, swaying, with a pixel heart | 0.7 s |
+| `starting` | A session starting, or a prompt (§3.1) | The mood's starting design for what started: a new task, a fresh session, or carrying on | Once |
+| `stopped` | An interrupt that ends a turn (§3.1) | The mood's stopped design: the tools put down | Once |
+| `error` | A command that failed or timed out, at most every 30 s (§3.1) | The mood's error design | Once |
+| `helper_return` | A helper coming back (§3.1) | The mood's helper-return design: a report delivered | Once |
 | `listening` | Push-to-talk (§3.3): BOOT held, or the Mac's mic on | The mood's listening scene from the animation pack, one of three at random (focus corners, headphones or an ear trumpet), silent ([DEVICE.md](DEVICE.md) §4) | Until the reply; 8 s after the mic goes off at most, and 30 s + 8 s in all |
 
 The device plays the wiggle and, for BOOT, `listening` on its own, at

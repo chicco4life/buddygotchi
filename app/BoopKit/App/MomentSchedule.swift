@@ -1,8 +1,9 @@
 import Foundation
 
 /// What plays on the device and until when (ARCHITECTURE.md §3.2). The
-/// tap's wiggle, which the device plays on its own, plays at once. The
-/// brain's moments wait
+/// tap's wiggle, which the device plays on its own, and the rules'
+/// one-shots play at once; a rule's one-shot never cuts a brain moment's
+/// line, though. The brain's moments wait
 /// their turn: one at a time, each once the line playing has finished, and
 /// a reaction's face too unless it's the brain's own, held on for its
 /// loops after its mumble: the next reaction replaces that, so none cuts
@@ -39,7 +40,8 @@ public struct MomentSchedule {
     /// the device, since every line reaches it a little after it's sent.
     public static let linkSlackMs: Int64 = 500
 
-    /// When the tap's wiggle playing ends.
+    /// When the animation playing with no line ends: a tap's wiggle, or a
+    /// rule's one-shot.
     public private(set) var animUntil: Int64 = 0
     /// When the line playing ends, and with it a reaction's face, as the
     /// app reckons it; or when the device said the brain's moment ended.
@@ -78,6 +80,21 @@ public struct MomentSchedule {
     /// How long `moment` plays at most, in the look and mood showing.
     public func playMs(_ moment: DeviceMoment) -> Int64 {
         moment.playMs(look: look, mood: mood)
+    }
+
+    /// Whether a rule's one-shot may play at `now` (BEHAVIORS.md §3): not
+    /// while something needs you, and not while a brain moment's line
+    /// plays, which it would cut. A face held on after its line may go:
+    /// the device ends that moment as done (PROTOCOL.md §4).
+    public func rulePlays(now: Int64) -> Bool {
+        !attn && now >= brainFree
+    }
+
+    /// A rule's one-shot went to the device at `now`: it replaces the
+    /// animation playing, as a tap's wiggle does, and a brain moment plays
+    /// over it without waiting, as over a wiggle (ARCHITECTURE.md §3.2).
+    public mutating func rule(_ moment: DeviceMoment, now: Int64) {
+        animUntil = now + playMs(moment)
     }
 
     /// The device's own wiggle, at a tap: it replaces the wiggle playing

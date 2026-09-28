@@ -234,6 +234,22 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"determined","attn":{"agent":"claude","project":"\#(esc)","more":999,"id":2147483647},"busy":999,"vol":10,"variant":5}"#)
     }
 
+    /// PROTOCOL.md §3: `act` goes after `base`; the widest line that can
+    /// carry it, with the longest names escaped, still fits in 512 bytes.
+    func testTheActivityFitsTheLine() {
+        let working = StateSnapshot(base: "working", act: "delegating", mood: "happy", attn: nil, busy: 2, vol: 6, variant: 3)
+        XCTAssertEqual(working.jsonLine, #"{"t":"state","v":1,"base":"working","act":"delegating","mood":"happy","busy":2,"vol":6,"variant":3}"#)
+        XCTAssertEqual(working.visual, "delegating")
+        XCTAssertEqual(working.look, "delegating")
+        let widest = String(repeating: "\u{1}", count: 23)
+        let s = StateSnapshot(base: "working", act: "delegating", mood: "determined",
+                              attn: .init(agent: "claude", project: widest, name: widest, more: 999, id: Int(Int32.max)),
+                              busy: 999, vol: 10, variant: 9)
+        XCTAssertLessThanOrEqual(s.jsonLine.utf8.count, StateSnapshot.maxLine)
+        XCTAssertEqual(s.visual, "needs_you", "attn wins")
+        XCTAssertLessThanOrEqual(Act.allCases.map(\.rawValue.utf8.count).max()!, "delegating".utf8.count)
+    }
+
     /// PROTOCOL.md §2, "Reconnecting": 1 s, doubling to 5 s, reset once a
     /// connection works; an attempt gets 10 s to become ready.
     func testBluetoothReconnectTiming() {

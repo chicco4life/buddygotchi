@@ -150,7 +150,7 @@ unpushed local `main`.
 
 | When you change | Update |
 | --- | --- |
-| `app/BoopKit/Core/Core.swift`, `firmware/src/app/behaviour.*` | `BEHAVIORS.md` |
+| `app/BoopKit/Core/Core.swift`, `app/BoopKit/Core/Activity.swift`, `firmware/src/app/behaviour.*` | `BEHAVIORS.md` |
 | `firmware/src/render/`, `firmware/src/app/gesture.*` | `DEVICE.md` |
 | `app/HookWire/`, `app/BoopHook/`, `app/BoopKit/Adapters/`, `app/BoopKit/Install/` | `ADAPTERS.md` |
 | `app/BoopKit/Harness/`, `app/BoopKit/Brains/`, `app/BoopKit/App/Pipeline.swift` | `harness/HARNESS.md` |

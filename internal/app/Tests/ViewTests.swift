@@ -83,6 +83,7 @@ final class ViewTests: XCTestCase {
         XCTAssertFalse(Keep.standard.keeps(.tool, .end, notable: false))
         XCTAssertTrue(Keep.standard.keeps(.tool, .end, notable: true))
         XCTAssertFalse(Keep.standard.keeps(.session, .start, notable: true))
+        XCTAssertFalse(Keep.standard.keeps(.subagent, .start, notable: true))
         XCTAssertFalse(Keep.standard.keeps(.subagent, .end, notable: true))
         XCTAssertTrue(Keep.of(Personality.Rules(toolUses: .all)).keeps(.tool, .end, notable: false))
 
@@ -91,6 +92,16 @@ final class ViewTests: XCTestCase {
         XCTAssertEqual(hook(.activity, tool: "Bash", topic: "tests", id: "t"), [], "a start isn't kept")
         XCTAssertEqual(EventLine.toolStart(agent: "claude", category: "shell", topic: "tests", thread: #""landing""#),
                        #"claude started running tests on "landing"."#)
+    }
+
+    /// EVENTS.md §3: a helper starting (`SubagentStart`), like one ending,
+    /// makes no view event and isn't the thread's turn: the turn it came in
+    /// ends as its own.
+    func testASubagentsStartIsNoViewEvent() {
+        hook(.turnStart)
+        XCTAssertEqual(events(rig.send(.subagentStart, subagent: "a1")), [])
+        rig.wait(1000)
+        XCTAssertEqual(hook(.turnEnd).map(\.line), [#"claude finished turn 1 on "fix-nav" (landing): done, a short turn, no tool calls."#])
     }
 
     /// Routine tool uses are only counted, unless the personality asks for

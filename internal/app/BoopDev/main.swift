@@ -12,7 +12,8 @@ let usages: [(command: String, text: String)] = [
     boopdev replay <hooks.jsonl> [--agent claude|codex] [--gap-ms N] [--states]
         Runs recorded hook payloads through boop-hook's field picking, the adapter and the pipeline (the
         core and the view) on a virtual clock, and prints each raw event, what the core decides and the
-        view events. {"wait_ms":N} and {"advance_ms":N} move the clock.
+        view events. {"wait_ms":N} and {"advance_ms":N} move the clock. --states prints only what goes to
+        the device: each state and each rule moment.
     boopdev replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]
         Sends each payload through the real boop-hook binary to a running app's socket, in real time, and
         prints how long each boop-hook took: {"wait_ms":N} waits, and {"advance_ms":N} jumps a headless

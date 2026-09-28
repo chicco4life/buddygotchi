@@ -48,7 +48,8 @@ public struct Replay {
 
     /// Runs the steps and returns one line per raw event, core effect and
     /// view event, each effect and view event prefixed with its virtual
-    /// time.
+    /// time. `statesOnly` keeps only what goes to the device: each `state`
+    /// and each rule `moment`.
     public func run(_ steps: [Step], statesOnly: Bool = false) -> [String] {
         let start = Replay.defaultStart
         var now = start
@@ -60,7 +61,10 @@ public struct Replay {
         func emit(_ step: Pipeline.Step) {
             let at = "+" + String(format: "%.1f", Double(now - start) / 1000) + "s "
             for effect in step.effects {
-                if statesOnly, case .state = effect {} else if statesOnly { continue }
+                switch effect {
+                case .state, .moment: break
+                default: if statesOnly { continue }
+                }
                 out.append(at + effect.summary)
             }
             if !statesOnly { for view in step.views { out.append(at + "view " + view.summary) } }

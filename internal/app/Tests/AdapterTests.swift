@@ -19,7 +19,7 @@ final class AdapterTests: XCTestCase {
             ("SessionStart", "session start"), ("UserPromptSubmit", "turn start"), ("PreToolUse", "tool start"),
             ("PostToolUse", "tool end"), ("PostToolUseFailure", "tool end"), ("PermissionRequest", "tool wait"),
             ("Elicitation", "tool wait"), ("ElicitationResult", "tool end"), ("Stop", "turn end"),
-            ("StopFailure", "turn end"), ("SessionEnd", "session end"), ("SubagentStart", nil), ("PreCompact", nil),
+            ("StopFailure", "turn end"), ("SessionEnd", "session end"), ("PreCompact", nil),
         ]
         for (hook, expected) in table {
             XCTAssertEqual(kind("claude", hook), expected, hook)
@@ -40,6 +40,9 @@ final class AdapterTests: XCTestCase {
         XCTAssertNil(Adapter.event(from: line("claude", "Notification", kind: "idle_prompt"))?["tool"])
         XCTAssertEqual(Adapter.event(from: line("claude", "Stop"))?["outcome"], "done")
         XCTAssertEqual(Adapter.event(from: line("claude", "StopFailure"))?["outcome"], "failed")
+        for hook in ["SubagentStart", "SubagentStop"] {
+            XCTAssertNil(kind("claude", hook), "\(hook) names no subagent here")
+        }
     }
 
     /// ADAPTERS.md §3–4: a `Notification` carries its type as `notice`.
@@ -102,6 +105,40 @@ final class AdapterTests: XCTestCase {
         var codex = line("codex", "SubagentStop")
         codex.agentID = "a1"
         XCTAssertNil(Adapter.event(from: codex))
+    }
+
+    /// ADAPTERS.md §3: `SubagentStart` says which helper started, by its
+    /// `agent_id`; one without it is ignored, and Codex has none.
+    func testSubagentStartSaysWhichSubagentStarted() throws {
+        var start = line("claude", "SubagentStart")
+        start.agentID = "a1"
+        start.agentType = "Explore"
+        let event = try XCTUnwrap(Adapter.event(from: start))
+        XCTAssertEqual(event.jsonLine, #"{"seq":0,"ts":7,"source":"claude","type":"subagent","phase":"start","specific_type":"SubagentStart","session":"s1","subagent":"a1","cwd":"/w/landing","data":{"agent_type":"Explore"}}"#)
+        var codex = line("codex", "SubagentStart")
+        codex.agentID = "a1"
+        XCTAssertNil(Adapter.event(from: codex))
+    }
+
+    /// ADAPTERS.md §3: a session's start carries its `source`, Claude's
+    /// and Codex's; Claude's events carry its permission mode as `mode`,
+    /// which Codex's don't.
+    func testSourceAndPermissionModeRideOnTheEvent() throws {
+        for agent in ["claude", "codex"] {
+            var start = line(agent, "SessionStart")
+            start.source = "resume"
+            XCTAssertEqual(Adapter.event(from: start)?["source"], "resume", agent)
+            XCTAssertNil(Adapter.event(from: line(agent, "UserPromptSubmit"))?["source"], agent)
+        }
+        for hook in ["PreToolUse", "UserPromptSubmit", "Stop", "SessionStart"] {
+            var claude = line("claude", hook, tool: hook == "PreToolUse" ? "Read" : nil)
+            claude.mode = "plan"
+            XCTAssertEqual(Adapter.event(from: claude)?["mode"], "plan", hook)
+        }
+        var codex = line("codex", "PreToolUse", tool: "shell")
+        codex.mode = "plan"
+        XCTAssertNil(Adapter.event(from: codex)?["mode"])
+        XCTAssertNil(Adapter.event(from: line("claude", "Stop"))?["mode"], "none said, none sent")
     }
 
     func testCodexMapping() {
