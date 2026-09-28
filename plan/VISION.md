@@ -46,7 +46,7 @@ but how Boop reacts to it is a question of character.
 - **Lasting.** Boop lives on your Mac, and the device is just its body.
   Reflash the device or replace it, and it's still the same Boop.
 - **Shown, never told.** Its feelings come out in how it moves, looks and
-  sounds: six moods, each with its own face. You never see a mood meter,
+  sounds: 13 moods, each with its own face. You never see a mood meter,
   a trait score, or a line saying "I've noticed you seem stressed."
 - **Sassy about the world, kind to you.** It grumbles at a failed test or a
   stubborn agent, never at you. It never guilt-trips you, never dies of
@@ -74,15 +74,17 @@ clip. How each works is in [BEHAVIORS.md](BEHAVIORS.md) §3, and the
 harness evals check the brain's part ([EVALS.md](EVALS.md)).
 
 1. **A turn finishes, and it's happy for you,** as much as the finish
-   earns: nothing for a quick one, a cheer in its proud face and
-   "…finally!" for a comeback.
+   earns: a small face for a quick one, the finish played as a success
+   in its proud face with "…finally!" for a comeback. It judges each
+   finish from what the agent said: a success, a failure, or only a
+   reply.
 2. **A turn fails, and it's grumpy for you.** Maybe a grumpy
    face and a mumble that names what broke, *"…tests."*
 3. **Yell at it, and it's sad.** This one waits for Boop to hear how
    you say things: v1's push-to-talk hears only the words.
-4. **Poke it too much, and it grumbles.** One poke gets a happy wiggle and
-   a heart. Keep poking and it may grumble (*"…nope!"*), then forget all
-   about it.
+4. **Poke it too much, and it grumbles.** One poke gets a curious look and
+   its tap animation. Keep poking and it gets annoyed, then irritated and
+   grumpy (*"…nope!"*), then calms down a step at a time.
 
 ## Scope
 
@@ -98,11 +100,13 @@ harness evals check the brain's part ([EVALS.md](EVALS.md)).
   you) and a wiggle for every tap; with Jev, mumbles while agents work
   ([BEHAVIORS.md](BEHAVIORS.md)).
 - **Has a personality and moods.** Two personalities: `boop`, its
-  everyday self, and `chatter`, an over-the-top one for debugging. Seven
-  moods, from happy to sad, each with its own face. With your own
-  TypeSafe Jev key, Jev picks the mood and adds reactions with
-  character: another mood's face for a moment, and a mumble, a
-  finished turn's included; without one, Boop shows what its agents do
+  everyday self, and `chatter`, an over-the-top one for debugging. 13
+  moods, from calm, where it rests, to happy, grumpy, whiny or sad, each
+  with its own face, and moving a step at a time along the owner's mood
+  graph. With your own TypeSafe Jev key, Jev picks the mood and adds
+  reactions with character: another mood's face for a moment, and a
+  mumble, a finished turn's included, which Jev judges a success, a
+  failure or only a reply; without one, Boop shows what its agents do
   and when you're needed, but doesn't react
   ([harness/HARNESS.md](harness/HARNESS.md)).
 - **Hears you.** Hold its button, or click Talk, and speak: the Mac's

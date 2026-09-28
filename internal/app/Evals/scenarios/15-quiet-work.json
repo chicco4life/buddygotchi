@@ -1,10 +1,10 @@
 {
-  "name": "A long quiet stretch of work gets the topic, not a cheer",
-  "case": "The agent starts a turn, passes its tests early, and then works quietly for twelve minutes. At Boop's last check-in on the long stretch of work it shows at most a small face (happy, excited, determined or proud), with no cheer and no word, since nothing new has happened. Its mood is happy, or has drifted to determined with the long grind.",
-  "why": "BEHAVIORS.md §2, harness/EVENTS.md §4: no rule mumbles, so a working heartbeat in a quiet stretch reaches the brain; PERSONALITY's Examples: a long stretch of work gets a happy face at most, with no word and no cheer, and the mood stays happy",
+  "name": "A long quiet stretch of work gets a small face, not a finish",
+  "case": "The agent starts a turn, passes its tests early, and then works quietly for twelve minutes. At Boop's last check-in on the long stretch of work it shows at most a small face (calm, happy, engaged, determined or proud), with no finish played and no word, since nothing new has happened. Its mood is calm, or has drifted to engaged or determined with the long grind.",
+  "why": "BEHAVIORS.md §2, harness/EVENTS.md §4: no rule mumbles, so a working heartbeat in a quiet stretch reaches the brain; PERSONALITY's Examples: work still going gets a small face with no word, engaged in a long turn and determined in a very long one, and never a finish",
   "steps": [
     {"event": "turn started", "at": "0s"},
     {"event": "command", "at": "20s", "topic": "tests", "failed": false},
-    {"event": "wait", "at": "12m", "expect": {"react": "none|happy|excited|determined|proud", "animation": "none", "word": "none", "mood": "happy|determined"}}
+    {"event": "wait", "at": "12m", "expect": {"react": "none|calm|happy|excited|engaged|determined|proud", "animation": "none", "word": "none", "mood": "calm|engaged|determined"}}
   ]
 }

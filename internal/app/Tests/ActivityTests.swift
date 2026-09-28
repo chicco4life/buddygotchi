@@ -60,8 +60,9 @@ final class CoreActivityTests: XCTestCase {
         rig.send(.turnStart)
         let fx = rig.send(.activity, tool: "Bash", id: "b")
         let line = states(fx).last!.jsonLine
-        XCTAssertEqual(line, #"{"t":"state","v":1,"base":"working","act":"terminal","mood":"happy","busy":1,"vol":6,"variant":1}"#)
-        XCTAssertTrue((1...FaceLoops.count(mood: "happy", state: "terminal")).contains(rig.state.variant))
+        let variant = rig.state.variant
+        XCTAssertEqual(line, #"{"t":"state","v":1,"base":"working","act":"terminal","mood":"calm","busy":1,"vol":6,"variant":"# + "\(variant)}")
+        XCTAssertTrue((1...FaceLoops.count(mood: "calm", state: "terminal")).contains(variant))
         rig.send(.needsYou, tool: "Bash")
         XCTAssertNil(rig.act, "needs you covers it")
         XCTAssertEqual(rig.state.visual, "needs_you")
@@ -337,11 +338,15 @@ final class CoreOneShotTests: XCTestCase {
             let moment = moments(fx)[0]
             XCTAssertNil(moment.id)
             XCTAssertNil(moment.mood)
-            XCTAssertTrue(FaceLoops.variants(mood: "happy", state: "starting", ctx: ctx).contains(moment.variant ?? 0))
+            XCTAssertTrue(FaceLoops.variants(mood: MoodAction.initial, state: "starting", ctx: ctx).contains(moment.variant ?? 0))
         }
         let rig = CoreRig()
         let fx = rig.send(.turnStart)
-        XCTAssertEqual(moments(fx).map(\.jsonLine), [#"{"t":"moment","anim":"starting","variant":1,"ctx":"new_task"}"#])
+        let start = moments(fx)
+        XCTAssertEqual(start.count, 1)
+        let variant = start[0].variant ?? 0
+        XCTAssertTrue(FaceLoops.variants(mood: MoodAction.initial, state: "starting", ctx: "new_task").contains(variant))
+        XCTAssertEqual(start[0].jsonLine, #"{"t":"moment","anim":"starting","variant":"# + "\(variant)" + #","ctx":"new_task"}"#)
         XCTAssertEqual(fx.effects.firstIndex { if case .state = $0 { true } else { false } }, 0, "the look first")
         XCTAssertEqual(shots(CoreRig().send(.sessionStart, .codex, source: "resume")), ["starting continuation"])
         XCTAssertEqual(shots(rig.send(.sessionStart, subagent: "a1")), [], "a subagent's own start")

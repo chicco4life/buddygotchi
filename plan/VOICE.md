@@ -114,15 +114,26 @@ and the tune (§5). There are eight feelings:
 | Sad | Rounded `u` and `o`, ending on a bare `u` or `o` | 30% | 160 | `down` |
 | Sleepy | The hums, and `mu mo nu no` | 10% | 170 | `down` |
 
-**The brain's reactions** are the six moods' faces
+**The brain's reactions** are the 13 moods' faces
 ([harness/DECISIONS.md](harness/DECISIONS.md) §3), and each mumbles in a
-feeling (`Voice.feeling(forMood:)`): happy, excited, proud and sad in
-the feeling of the same name, and grumpy in annoyed's. Determined
-has no voice of its own yet and mumbles in the temporary default,
-happy's: the audio is still being tuned, and the face is what the
-reaction means. Only the tools use curious, hopeful and sleepy
-(`boopctl mumble`, `boopdev voice`, which also takes a mood and plays
-its feeling).
+feeling (`Voice.feeling(forMood:)`): happy, excited, proud, curious,
+annoyed and sad in the feeling of the same name. The moods with no
+voice of their own yet borrow the nearest one until their recorded
+voice arrives: calm mumbles in happy's, engaged in curious's, grumpy
+and irritated in annoyed's, whiny and wounded in sad's, and determined
+in the temporary default, happy's. The audio is still being tuned, and
+the face is what the reaction means. Only the tools use hopeful and
+sleepy (`boopctl mumble`, `boopdev voice`, which also takes a mood and
+plays its feeling).
+
+| Mood | Feeling |
+| --- | --- |
+| happy, calm, determined | happy |
+| excited | excited |
+| proud | proud |
+| curious, engaged | curious |
+| annoyed, irritated, grumpy | annoyed |
+| sad, whiny, wounded | sad |
 
 Real lines, from `boopdev voice FEELING [WORD] --seed N` with its
 default dialect (`7f3a`): happy `done` (seed 2) *"la-la la… done!"*,

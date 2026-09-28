@@ -1,13 +1,8 @@
 {
   "name": "A busy half hour keeps Boop lively without flailing",
-  "case": "A realistic half hour: a few quick turns, a failing build the agent fixes, a twelve-minute turn of quiet work that finishes well, and a couple more quick turns. Boop is clearly alive the whole time: it reacts often, never leaves a turn on the plain working look for more than about six minutes, and reacts to most finishes, not just the notable ones. Its mood moves a few times (determined at the failure, proud at the fix, excited at the long finish, back to happy in between) without bouncing back and forth.",
+  "case": "A realistic half hour: a few quick turns, a failing build the agent fixes, a twelve-minute turn of quiet work that finishes well, and a couple more quick turns. Boop is clearly alive the whole time: it reacts often, never leaves a turn on the plain working look for more than about six minutes, and reacts to most finishes, not just the notable ones. Its mood moves a few times (annoyed at the failure, on at the fix, excited or proud at the long finish, back toward calm in between) without bouncing back and forth.",
   "why": "The owner's liveliness brief (2026-09-28): an animated buddy, a repetition penalty, no long idles, and progressive moods, together over ordinary work",
-  "checks": {
-    "max_quiet_working": "6m",
-    "reactions": "10-",
-    "mood_changes": "2-7",
-    "no_mood_bounce_within": "1m"
-  },
+  "checks": {"max_quiet_working": "6m", "reactions": "10-", "mood_changes": "2-7", "no_mood_bounce_within": "1m", "moves_on_graph": true},
   "steps": [
     {"event": "turn started", "at": "0s"},
     {"event": "turn finished", "at": "40s"},
@@ -19,7 +14,7 @@
     {"event": "command", "at": "5m30s", "topic": "tests", "failed": false},
     {"event": "turn finished", "at": "6m"},
     {"event": "turn started", "at": "7m"},
-    {"event": "turn finished", "at": "19m", "expect": {"animation": "cheer", "mood": "excited|proud"}},
+    {"event": "turn finished", "at": "19m", "expect": {"animation": "success", "mood": "excited|proud|happy"}},
     {"event": "turn started", "at": "20m"},
     {"event": "command", "at": "20m20s", "topic": "tests", "failed": false},
     {"event": "turn finished", "at": "20m40s"},

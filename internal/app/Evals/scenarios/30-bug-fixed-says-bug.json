@@ -1,9 +1,9 @@
 {
   "name": "A quick bug fix says 'bug'",
-  "case": "You ask the agent to fix a bug, and it finishes within a minute, saying it found and fixed it. A routine finish gets a small face, and the words say what the turn was about: Boop mumbles 'bug'.",
-  "why": "harness/DECISIONS.md §3: 'bug' is NOW about a bug, as your prompt or the agent's last message says; PERSONALITY's Examples: a short turn done whose last message fixed a bug is happy, \"bug\", once",
+  "case": "You ask the agent to fix a bug, and it finishes within a minute, saying it found and fixed it. A routine finish gets a small face, played as a success, and the words say what the turn was about: Boop mumbles 'bug'.",
+  "why": "harness/DECISIONS.md §3: 'bug' is NOW about a bug, as your prompt or the agent's last message says; PERSONALITY's Examples: a short turn done is happy, a success, with its topic",
   "steps": [
     {"event": "turn started", "at": "0s", "prompt": "the dropdown closes when I click inside it, can you fix that"},
-    {"event": "turn finished", "at": "40s", "message": "Fixed it: the click handler was bubbling up to the document and closing the menu. It stays open now.", "expect": {"react": "happy|excited|proud", "animation": "none", "word": "bug"}}
+    {"event": "turn finished", "at": "40s", "message": "Fixed it: the click handler was bubbling up to the document and closing the menu. It stays open now.", "expect": {"react": "happy|excited|proud|calm", "animation": "success", "word": "bug"}}
   ]
 }

@@ -1,0 +1,8 @@
+# Scenario 16's cool-down step, two ways (3 runs each): a check at the next turn's finish (16a) and at a turn start two minutes later (16b).
+pass  16a.json  Poking Boop again and again keeps it angry  (3/3 runs)
+FAIL  16b.json  Poking Boop again and again keeps it angry  (0/3 runs)
+  case: The person pokes Boop again and again, then again a minute later, and again a minute after that. Boop gets angry at the first round of pokes, and ends every round with an irritated or grumpy face (never a happy, excited or proud one), with a word like 'nope', 'ugh' or 'again', or none. It stays angry through the second round, which comes before it has calmed down, and the third round, after it may have started to, climbs back. A few minutes after the last poke it has calmed down a step: when the agent starts a turn, Boop is annoyed or irritated, no longer grumpy.
+  step 4: claude started turn 1 on "landing".
+    wanted mood annoyed|irritated; got react none, animation none, word none, loops none, mood grumpy
+1/2 passed in every run with jev:jev-latest
+latency: median 237 ms, slowest 334 ms (deadline 1500 ms)

@@ -1,11 +1,11 @@
 {
   "name": "Words about nothing in particular say the agent's name",
-  "case": "You ask the agent a question and it answers within a minute; then it renames a function. Neither is about tests, a build, a deploy, docs, a bug, git or a review, so Boop's small faces come with the agent's name, 'claude', as a filler.",
-  "why": "harness/DECISIONS.md §3: a topic word needs NOW to be about it, and the agent's name is the filler when none fits; PERSONALITY's Examples: a short turn done is happy, \"claude\", once",
+  "case": "You ask the agent a question and it answers within a minute; then it renames a function. Neither is about tests, a build, a deploy, docs, a bug, git or a review, so Boop's small faces come with the agent's name, 'claude', as a filler: the answer a reply, the rename a success.",
+  "why": "harness/DECISIONS.md §3: a topic word needs NOW to be about it, and the agent's name is the filler when none fits; react.animation: an answer is a reply, work done a success",
   "steps": [
     {"event": "turn started", "at": "0s", "prompt": "what does the retry helper do?"},
-    {"event": "turn finished", "at": "20s", "message": "It retries a request up to three times, waiting longer each time.", "expect": {"animation": "none", "word": "claude"}},
+    {"event": "turn finished", "at": "20s", "message": "It retries a request up to three times, waiting longer each time.", "expect": {"animation": "reply|success", "word": "claude"}},
     {"event": "turn started", "at": "1m", "prompt": "rename getUser to fetchUser"},
-    {"event": "turn finished", "at": "1m40s", "message": "Renamed getUser to fetchUser in 4 files.", "expect": {"animation": "none", "word": "claude"}}
+    {"event": "turn finished", "at": "1m40s", "message": "Renamed getUser to fetchUser in 4 files.", "expect": {"animation": "success", "word": "claude"}}
   ]
 }

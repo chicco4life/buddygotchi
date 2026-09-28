@@ -54,22 +54,27 @@ public struct ScriptedBrain: Brain {
 extension ScriptedBrain {
     /// For pipeline checks with no network (`Boop --headless --brain
     /// scripted`): every pass, an excited mumble with "yay", its face held
-    /// once, and the mood happy; a cheer in it when NOW is a turn finished
-    /// done, since no rule cheers (BEHAVIORS.md §3.1).
+    /// once, and the mood kept (the mood question's first option); and a
+    /// turn's finish in it when NOW is a turn that ended, success when done
+    /// and failure when failed, since no rule plays one (BEHAVIORS.md §5).
+    /// An answer a question doesn't offer is its first option, as Jev can
+    /// only pick one of each question's own.
     public static let pipelineCheck = ScriptedBrain(id: "scripted") { state, questions in
         let now = state.components(separatedBy: "\nNOW (").last ?? ""
-        let finished = now.contains(" finished turn ") && now.contains(": done, a ")
+        let finish = !now.contains(" finished turn ") ? "none"
+            : now.contains(": done, a ") ? "success" : now.contains(": failed, a ") ? "failure" : "none"
         let answers: Answers = [
-            "mood": Answer(choice: "happy", probabilities: ["happy": 1]),
             "react.mood": Answer(choice: "excited", probabilities: ["excited": 1]),
-            "react.animation": finished ? Answer(choice: "cheer", probabilities: ["cheer": 1])
-                : Answer(choice: "none", probabilities: ["none": 1]),
+            "react.animation": Answer(choice: finish, probabilities: [finish: 1]),
             "react.loops": Answer(choice: "once", probabilities: ["once": 1]),
             "word.feeling": Answer(choice: "yay", probabilities: ["yay": 1]),
             "word.about": Answer(choice: "none", probabilities: ["none": 1]),
         ]
         var out: Answers = [:]
-        for q in questions { out[q.key] = answers[q.key] ?? q.options.first.map { Answer(choice: $0.name, probabilities: [$0.name: 1]) } }
+        for q in questions {
+            let offered = answers[q.key].flatMap { a in q.options.contains { $0.name == a.choice } ? a : nil }
+            out[q.key] = offered ?? q.options.first.map { Answer(choice: $0.name, probabilities: [$0.name: 1]) }
+        }
         return out
     }
 }

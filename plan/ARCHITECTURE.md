@@ -57,12 +57,13 @@ approve on the Mac as you normally would.
    on "landing": done, a very long turn, 40 tool calls.`, and the last
    message as a note. It wakes the brain, so the **harness** asks
    **Jev** every action's questions about it in one request, and Jev answers, say,
-   `react.mood: proud`, `react.animation: cheer`, `react.loops: twice` and
+   `react.mood: proud`, `react.animation: success`, `react.loops: twice` and
    `word.feeling: yay`.
 5. The **`react` action** asks **Voice** for Minion speech in proud's
-   voice (*"ma-po li… yay!"*) and queues it as a cheer in proud's face,
-   held twice. No line is playing, so the **device link** sends it at
-   once, and the device plays proud's cheer while Boop mumbles. When the face and the mumble are over, the device says so
+   voice (*"ma-po li… yay!"*) and queues it as the finish, a success, in
+   proud's face, held twice. No line is playing, so the **device link**
+   sends it at once, and the device plays proud's task_complete scene for
+   a success while Boop mumbles. When the face and the mumble are over, the device says so
    (`ended`), and HISTORY stops showing the reaction as in progress.
 
 Rules keep the screen true at once: the look (working, idle, asleep),
@@ -223,8 +224,8 @@ handle from that, or when the moment can't have played
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5).
 
 The app reckons how long each moment plays at most, as the device times
-it: a wiggle's 0.7 s, or a reaction's loops of its design (the cheer's
-when it cheers, else the look's), and the mumble's syllables plus two
+it: a wiggle's 0.7 s, or a reaction's loops of its design (the finish's
+when it plays one, else the look's), and the mumble's syllables plus two
 beats for a word, at the line's pace, then 1.2 s to read the bubble,
 when that's longer. The look is the last `state`'s, drawn in the
 reaction's mood; while an agent works it's what the agents are doing
@@ -272,8 +273,8 @@ order:
 
 | Action | Effect | Its own rules |
 | --- | --- | --- |
-| `mood` | Saves the new mood to the `mood` file; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the six moods, and only a change |
-| `react` | Queues a moment in the moment schedule: the chosen mood as its face, with the animation Jev picked (the cheer) if any, held for the loops Jev picked, and Voice's mumble in that mood's feeling, with the chosen word if Jev is sure enough. It's started, not done, until the device says how the moment ended. It also names Boop's last reaction for the end of HISTORY ([harness/HARNESS.md](harness/HARNESS.md) §5.3) | Nothing while something needs you |
+| `mood` | Saves the new mood to the `mood` file; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the current mood's moves on the mood graph, and only a change |
+| `react` | Queues a moment in the moment schedule: the chosen mood as its face, with the finish Jev judged if NOW is a turn that finished (task_complete for a success or a failure, reply_ready for a reply), held for the loops Jev picked, and Voice's mumble in that mood's feeling, with the chosen word if Jev is sure enough. It's started, not done, until the device says how the moment ended | Nothing while something needs you |
 
 No rule makes a moment on the Mac: every mumble and face comes through them.
 
@@ -408,7 +409,7 @@ everyday Boop.
 | `history/<date>/long-term.md`, `short-term.md` | Both memory files as they were at the end of that day, or at setup | At setup and each new day |
 | `<file>.broken` | The last memory file that wouldn't parse, kept for you to look at | When one doesn't parse |
 | `settings.json` | The personality and the volume (0–10), `boop` and 6 while it's missing. Keys it doesn't know, from older versions, are ignored, and an unknown personality reads as `boop` | When you change either in Settings |
-| `mood` | Boop's mood, one word and a newline; missing or unknown reads as `happy` ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3) | By the `mood` action, on a change |
+| `mood` | Boop's mood, one word and a newline; missing or unknown reads as `calm`, the resting mood, an unknown one logged, and `cheerful` as `happy` ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3) | By the `mood` action, on a change |
 | `boop.sock` | The hook socket, mode 0600 ([ADAPTERS.md](ADAPTERS.md) §2). Headless can put it elsewhere with `--socket` | Replaced at launch, removed at quit |
 | `boop.lock` | Locked while an app runs on this folder; a second copy refuses to start. The file stays, the lock goes with the process | At launch |
 | `boop.log` | The app's log, appended: startup, hook placement and repairs, the link connecting and dropping, the device's id and firmware, taps, memory recoveries, dropped brain moments, one `brain …` line per pass, and hooks only when armed or in debug mode. Never Jev's state ([harness/HARNESS.md](harness/HARNESS.md) §9) | Always |

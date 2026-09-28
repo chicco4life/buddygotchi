@@ -53,14 +53,18 @@ public struct Scenario: Sendable {
         public var loops: Set<String>?
         /// The mood after the pass.
         public var mood: Set<String>?
+        /// Exactly the options the pass's mood question offered: staying
+        /// in the mood it had, and its moves on the graph.
+        public var offered: Set<String>?
 
         public init(react: Set<String>? = nil, animation: Set<String>? = nil, word: Set<String>? = nil,
-                    loops: Set<String>? = nil, mood: Set<String>? = nil) {
+                    loops: Set<String>? = nil, mood: Set<String>? = nil, offered: Set<String>? = nil) {
             self.react = react
             self.animation = animation
             self.word = word
             self.loops = loops
             self.mood = mood
+            self.offered = offered
         }
     }
 
@@ -84,10 +88,14 @@ public struct Scenario: Sendable {
         /// `min_variety`: the fewest different reactions (face, animation
         /// and word) the run must play.
         public var variety: Int?
+        /// `moves_on_graph`: every pass's mood answer was one of the
+        /// options it offered, and every mood change was a move on the
+        /// mood graph.
+        public var onGraph = false
 
         public init() {}
         static let keys = ["max_quiet_working", "max_same_in_a_row", "mood_changes", "no_mood_bounce_within",
-                           "reactions", "min_variety"]
+                           "reactions", "min_variety", "moves_on_graph"]
     }
 
     public var name: String
@@ -105,6 +113,9 @@ public struct Scenario: Sendable {
     /// says when it passes after all.
     public var gap: String?
     public var personality: Personality
+    /// The mood the run starts in, as the dashboard would set it just
+    /// before: calm, the resting mood, unless the file says.
+    public var mood: String
     public var steps: [Step]
     public var file: String
 
@@ -127,7 +138,7 @@ public struct Scenario: Sendable {
         guard let name = o["name"] as? String, let story = o["case"] as? String, let why = o["why"] as? String,
               let raw = o["steps"] as? [[String: Any]]
         else { throw bad("needs name, case, why and steps") }
-        let unknownKeys = Set(o.keys).subtracting(["name", "case", "why", "always", "gap", "personality", "checks", "steps"])
+        let unknownKeys = Set(o.keys).subtracting(["name", "case", "why", "always", "gap", "personality", "mood", "checks", "steps"])
         guard unknownKeys.isEmpty else { throw bad("unknown key \(unknownKeys.sorted().joined(separator: ", "))") }
         self.name = name
         self.story = story
@@ -161,12 +172,20 @@ public struct Scenario: Sendable {
             checks.bounceMs = try time("no_mood_bounce_within")
             checks.reactions = try range("reactions")
             checks.variety = try count("min_variety")
+            if let v = c["moves_on_graph"] {
+                guard let on = v as? Bool, on else { throw bad("checks.moves_on_graph is true") }
+                checks.onGraph = true
+            }
             self.checks = checks
         }
         personality = try (o["personality"] as? String).map {
             guard let p = Personality(rawValue: $0) else { throw bad("unknown personality \($0)") }
             return p
         } ?? .boop
+        mood = try (o["mood"] as? String).map {
+            guard MoodGraph.moods.contains($0) else { throw bad("mood is one of \(MoodGraph.moods.joined(separator: ", "))") }
+            return $0
+        } ?? MoodAction.initial
         steps = try raw.enumerated().map { i, s in
             func badStep(_ why: String) -> Error { bad("step \(i + 1): \(why)") }
             guard let event = s["event"] as? String, Scenario.events.contains(event) else {
@@ -197,10 +216,18 @@ public struct Scenario: Sendable {
                     guard let text = v as? String else { throw badStep("expect.\(key) is like \"proud|excited\"") }
                     return Set(text.split(separator: "|").map { $0.trimmingCharacters(in: .whitespaces) })
                 }
-                let unknown = Set(e.keys).subtracting(["react", "animation", "word", "loops", "mood"])
-                guard unknown.isEmpty else { throw badStep("expect has only react, animation, word, loops and mood") }
+                let unknown = Set(e.keys).subtracting(["react", "animation", "word", "loops", "mood", "offered"])
+                guard unknown.isEmpty else { throw badStep("expect has only react, animation, word, loops, mood and offered") }
                 step.expect = Expectation(react: try set("react"), animation: try set("animation"), word: try set("word"),
-                                          loops: try set("loops"), mood: try set("mood"))
+                                          loops: try set("loops"), mood: try set("mood"), offered: try set("offered"))
+                for (key, values) in [("react", step.expect?.react), ("mood", step.expect?.mood), ("offered", step.expect?.offered)] {
+                    let unknown = (values ?? []).subtracting(MoodGraph.moods + (key == "react" ? ["none"] : []))
+                    guard unknown.isEmpty else { throw badStep("expect.\(key) has \(unknown.sorted().joined(separator: ", ")), not a mood") }
+                }
+                let finishes = ["none"] + ReactAction.animations.map(\.name)
+                guard (step.expect?.animation ?? []).isSubset(of: finishes) else {
+                    throw badStep("expect.animation is one of \(finishes.joined(separator: ", "))")
+                }
             }
             return step
         }
@@ -261,6 +288,8 @@ public struct Eval {
         public var word: String?
         public var loops: String?
         public var mood: String
+        /// What the pass's mood question offered.
+        public var offered: [String] = []
         public var dropped: String?
         public var latencyMs: Int
 
@@ -271,6 +300,7 @@ public struct Eval {
             if let w = expected.word, !w.contains(word ?? "none") { return false }
             if let l = expected.loops, !l.contains(loops ?? "none") { return false }
             if let m = expected.mood, !m.contains(mood) { return false }
+            if let o = expected.offered, o != Set(offered) { return false }
             return true
         }
 
@@ -279,9 +309,11 @@ public struct Eval {
                         expected.animation.map { "animation \($0.sorted().joined(separator: "|"))" },
                         expected.word.map { "word \($0.sorted().joined(separator: "|"))" },
                         expected.loops.map { "loops \($0.sorted().joined(separator: "|"))" },
-                        expected.mood.map { "mood \($0.sorted().joined(separator: "|"))" }].compactMap { $0 }
+                        expected.mood.map { "mood \($0.sorted().joined(separator: "|"))" },
+                        expected.offered.map { "offered \($0.sorted().joined(separator: "|"))" }].compactMap { $0 }
             let got = dropped.map { "dropped: \($0)" }
                 ?? "react \(react ?? "none"), animation \(animation ?? "none"), word \(word ?? "none"), loops \(loops ?? "none"), mood \(mood)"
+                + (expected.offered == nil ? "" : ", offered \(offered.sorted().joined(separator: "|"))")
             return "  step \(step): \(line)\n    wanted \(want.joined(separator: ", ")); got \(got)"
         }
     }
@@ -309,6 +341,9 @@ public struct Eval {
         /// The mood after the pass.
         public var mood: String
         public var dropped: String?
+        /// What the mood question offered, and Jev's answer to it.
+        public var offered: [String] = []
+        public var answer: String?
     }
 
     /// A whole-run check's outcome.
@@ -331,6 +366,27 @@ public struct Eval {
 
     let brain: any Brain
     let steering: Steering
+
+    /// The brain, noting the options each pass's mood question offered, so
+    /// a step and the whole run can be checked against them.
+    struct Noting: Brain {
+        let inner: any Brain
+        let offered: Offered
+        var id: String { inner.id }
+        func answer(state: String, questions: [Question], deadline: Duration) async throws -> Answers {
+            offered.names = questions.first { $0.key == MoodAction.actionName }?.options.map(\.name) ?? []
+            return try await inner.answer(state: state, questions: questions, deadline: deadline)
+        }
+    }
+
+    final class Offered: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored: [String] = []
+        var names: [String] {
+            get { lock.withLock { stored } }
+            set { lock.withLock { stored = newValue } }
+        }
+    }
     /// Every entry of every run, for `boopdev watch`.
     public var debugLog: URL?
 
@@ -363,9 +419,12 @@ public struct Eval {
             if let end = ending.end { pending.finish(end) } else { ending.open.append(pending) }
         }, blocked: { core.mumbleBlock })
         let moodAction = MoodAction(store: mood, clock: { clock.now })
+        // The mood it starts in, as the dashboard would set it just before.
+        if scenario.mood != mood.current { _ = moodAction.change(to: scenario.mood) }
         let actions: [any Action] = [moodAction, react]
         let steering = self.steering
-        let harness = Harness(brain: brain, actions: actions, pipeline: pipeline, parts: { _ in
+        let offered = Offered()
+        let harness = Harness(brain: Noting(inner: brain, offered: offered), actions: actions, pipeline: pipeline, parts: { _ in
             Runtime.stateParts(steering: steering, personality: scenario.personality, mood: mood.current,
                                view: view, moodAction: moodAction, time: time, now: clock.now,
                                wall: clock.now)
@@ -387,6 +446,7 @@ public struct Eval {
             var last: Harness.Record?
             func respond(_ views: [ViewEvent]) async {
                 for view in views {
+                    offered.names = []
                     guard let record = await harness.respond(to: view) else { continue }
                     last = record
                     let ran = record.actions.contains { $0.name == "react" && $0.result.ok }
@@ -397,7 +457,8 @@ public struct Eval {
                                                  animation: ReactAction.animation(answers) ?? "none",
                                                  word: ReactAction.word(answers) ?? "none") : nil,
                         loops: ran ? ReactAction.holds[ReactAction.loops(answers) - 1].name : nil,
-                        mood: mood.current, dropped: record.pass.dropped))
+                        mood: mood.current, dropped: record.pass.dropped, offered: offered.names,
+                        answer: answers[MoodAction.actionName]?.choice))
                 }
             }
             ending.end = step.reaction.flatMap(Scenario.end) ?? .done
@@ -431,16 +492,18 @@ public struct Eval {
                                 animation: ran ? ReactAction.animation(record.pass.answers) : nil,
                                 word: ran ? ReactAction.word(record.pass.answers) : nil,
                                 loops: ran ? ReactAction.holds[ReactAction.loops(record.pass.answers) - 1].name : nil,
-                                mood: mood.current, dropped: record.pass.dropped, latencyMs: record.pass.latencyMs))
+                                mood: mood.current, offered: timeline.last?.offered ?? [], dropped: record.pass.dropped,
+                                latencyMs: record.pass.latencyMs))
         }
         if let s = since, let end = scenario.steps.last?.atMs { working.append((s, end)) }
-        let runChecks = scenario.checks.map { Eval.judge($0, timeline: timeline, working: working) } ?? []
+        let runChecks = scenario.checks.map { Eval.judge($0, timeline: timeline, working: working, start: scenario.mood) } ?? []
         return Result(scenario: scenario.name, file: scenario.file, checks: checks, runChecks: runChecks, timeline: timeline)
     }
 
-    /// The whole-run checks (plan/EVALS.md §3) against a run's passes and
-    /// the spans its turn worked.
-    static func judge(_ c: Scenario.Checks, timeline: [Pass], working: [(Int64, Int64)]) -> [RunCheck] {
+    /// The whole-run checks (plan/EVALS.md §3) against a run's passes, the
+    /// spans its turn worked and the mood it started in.
+    static func judge(_ c: Scenario.Checks, timeline: [Pass], working: [(Int64, Int64)],
+                      start: String = MoodAction.initial) -> [RunCheck] {
         var out: [RunCheck] = []
         let played = timeline.filter { $0.reaction != nil }
         func clock(_ ms: Int64) -> String { "\(ms / 60_000)m\(String(format: "%02d", ms / 1000 % 60))s" }
@@ -467,12 +530,12 @@ public struct Eval {
                                 detail: best.n == 0 ? "no reactions" : "\(best.n) in a row (\(best.what))"))
         }
         var changes: [(at: Int64, from: String, to: String)] = []
-        var mood = "happy"  // every run starts happy (EVALS.md §1)
+        var mood = start  // the scenario's, calm by default (EVALS.md §1)
         for p in timeline where p.mood != mood {
             changes.append((p.atMs, mood, p.mood))
             mood = p.mood
         }
-        let path = (["happy"] + changes.map(\.to)).joined(separator: " → ")
+        let path = ([start] + changes.map(\.to)).joined(separator: " → ")
         if let range = c.moodChanges {
             out.append(RunCheck(name: "mood_changes \(shown(range))", passed: range.contains(changes.count),
                                 detail: "\(changes.count): \(path)"))
@@ -490,6 +553,24 @@ public struct Eval {
             let kinds = Set(played.compactMap(\.reaction))
             out.append(RunCheck(name: "min_variety \(least)", passed: kinds.count >= least,
                                 detail: "\(kinds.count): " + kinds.map(\.text).sorted().joined(separator: ", ")))
+        }
+        if c.onGraph {
+            // Each pass's answer against what it offered, and each change
+            // against the graph, from the mood before it.
+            var before = start
+            var wrong: String?
+            for p in timeline where wrong == nil {
+                if p.dropped?.hasPrefix("jev: no usable answer for \(MoodAction.actionName)") == true {
+                    wrong = "at \(clock(p.atMs)): no usable mood answer"
+                } else if p.dropped == nil, let answer = p.answer, !p.offered.contains(answer) {
+                    wrong = "at \(clock(p.atMs)): answered \(answer), offered \(p.offered.joined(separator: "|"))"
+                } else if p.mood != before, !MoodGraph.isMove(from: before, to: p.mood) {
+                    wrong = "at \(clock(p.atMs)): \(before) → \(p.mood) isn't a move"
+                }
+                before = p.mood
+            }
+            out.append(RunCheck(name: "moves_on_graph", passed: wrong == nil,
+                                detail: wrong ?? "\(timeline.count) passes: \(path)"))
         }
         return out
     }

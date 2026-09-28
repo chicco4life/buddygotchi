@@ -164,8 +164,8 @@ final class Pending {
   that's all of them, since an answer missing one is dropped whole (§7).
 - While they run, `Harness.acting` holds the NOW they answer, so
   whoever wired an action can ask the view what it's about (`react`'s
-  cheer names the thread this way). The harness only holds it; nil for a
-  forced pass.
+  finish names the thread this way). The harness only holds it; nil for
+  a forced pass.
 - Actions run one at a time, in registration order, on `home`. A body
   with slow work hands it off and returns at once. One that takes over
   **300 ms** (`Harness.actionSlowMs`) is logged, since it holds up
@@ -230,12 +230,16 @@ the state from the view, for each pass; neither is ever kept.
   ([EVENTS.md](EVENTS.md) §9).
 - **Started actions stay open** until their end is recorded. The harness
   keeps the open ones by their `action` event's `seq`, and records only
-  the first end of each. One still open **60 s**
+  the first end of each. One still open **90 s**
   (`Harness.pendingMaxMs`) after its result is ended as failed with
   `no word it finished`, on the runtime's 1 s tick (`Harness.tick`), and
   the app log says `harness: <name> was still in progress after <N> ms;
   ended it`. So HISTORY never says in progress for good, whatever the
-  action forgot.
+  action forgot. The ceiling sits past the longest reaction the app can
+  play: held four times in the design with the longest loop of the 13
+  moods (wounded's idle, 13 s), with its wait for a turn and the grace
+  for the device's `ended`, 61 s in all, which was over the 60 s the
+  ceiling was before ([DECISIONS.md](DECISIONS.md) §5, `RuntimeTests`).
 
 ### 5.2 Passes
 
@@ -265,7 +269,8 @@ marking a started action's progress (step 3).
    newest **40** (`StateText.historyLimit`), and any older one whose
    started action is still in progress (step 3), so a pass sees what
    Boop is still doing however many view events came since. The harness
-   ends a started action within a minute (§5.1), so few ever stay.
+   ends a started action within a minute and a half (§5.1), so few ever
+   stay.
 3. **Under each** go its notes, then what Boop did: its `did` lines in
    order, rule actions and the brain's. A started one's message ends in
    ` (in progress)` until its end; after that it's plain if it was done,
@@ -277,9 +282,10 @@ marking a started action's progress (step 3).
    ago`, then `N h ago`. Its notes and what Boop did follow, indented two
    spaces, one line each.
 5. **HISTORY closes** with the line the runtime hands it, if any:
-   `mood`'s saying how long Boop has been in a mood other than happy,
-   once it has changed since launch ([DECISIONS.md](DECISIONS.md) §4),
-   which the moods' fades are read against:
+   `mood`'s saying how long Boop has been in a mood other than calm,
+   the resting mood, once it has changed since launch
+   ([DECISIONS.md](DECISIONS.md) §4), which the moods' fades are read
+   against:
 
    ```
    Boop has been grumpy for under a minute.
@@ -296,7 +302,7 @@ fresh for every pass since Jev keeps no session:
 | --- | --- | --- |
 | The guide (no heading) | Static, then generated | [steering/guide.md](../steering/guide.md), then how to read HISTORY and NOW (§6.1) |
 | `PERSONALITY` | Static, the one chosen in Settings | `plan/steering/personality/<name>.md` ([boop](../steering/personality/boop.md), [chatter](../steering/personality/chatter.md)) |
-| `MOOD` | Static, the current mood's | `plan/steering/mood/<mood>.md` ([happy](../steering/mood/happy.md), …), read from the mood store at each pass |
+| `MOOD` | Static, the current mood's | `plan/steering/mood/<mood>.md` ([calm](../steering/mood/calm.md), …, one for each of the 13 moods), read from the mood store at each pass |
 | `HISTORY (oldest first; indented lines add to the line above)` | Built | The view and the closing line (§5.3) |
 | `NOW (14:23, Tuesday)` | Built | The view event this pass is for (§5.3) |
 
@@ -310,7 +316,7 @@ working turn, and the time (`Runtime.stateParts`). The harness never reads them.
 copy of `plan/steering/` (`Steering`), and never written. HTML comments
 are left out. A personality's front matter goes to the core's rules
 ([BEHAVIORS.md](../BEHAVIORS.md) §6) and never reaches Jev. A missing
-file stops the app from starting, and an unknown mood reads as happy's
+file stops the app from starting, and an unknown mood reads as calm's
 file. What the files say is [DECISIONS.md](DECISIONS.md) §2.
 
 ### 6.1 How to read HISTORY and NOW
@@ -334,15 +340,17 @@ How to read HISTORY and NOW:
 ### 6.2 Sizes
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
-bytes ÷ 4, which overestimates English: the guide 300 (now 298), a
-personality 700 (`boop` 678, `chatter` 358), raised from 600 when `boop` took what you say to it and its Examples ([BEHAVIORS.md](../BEHAVIORS.md) §3.3), and a mood 175 (136–175), raised from 150 when the moods took four reasons from the notes ([DECISIONS.md](DECISIONS.md) §2.3): Jev reads only the current mood's file, so it costs at most 25 tokens a request.
+bytes ÷ 4, which overestimates English: the guide 300 (now 294), a
+personality 700 (`boop` 698, `chatter` 381), raised from 600 when `boop` took what you say to it and its Examples ([BEHAVIORS.md](../BEHAVIORS.md) §3.3), and a mood 175 (the 13 files 112–168), raised from 150 when the moods took four reasons from the notes ([DECISIONS.md](DECISIONS.md) §2.3): Jev reads only the current mood's file, so it costs at most 25 tokens a request.
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
 about 200 tokens and HISTORY's 40 view events about 1,200, and each
 prompt, last message or thing you said quoted in one adds up to about
-80 more (300 characters). With the questions a request is about 3,400 tokens with
-nothing quoted, and could reach about 6,500 in the worst case, every one
-of the 40 quoting 300 characters. The evals' states came to 1,000–1,550,
+80 more (300 characters). With the questions a request is about 4,100 tokens with
+nothing quoted, and could reach about 7,200 in the worst case, every one
+of the 40 quoting 300 characters: the 13 moods' faces, the finish's
+outcomes and a `mood` question of up to nine options (a mood with eight
+moves, and staying) added about 700 to the questions. The evals' states came to 1,000–1,550,
 and a busy working day's ([EVALS.md](../EVALS.md) §5) to 1,250–2,100,
 before prompts and last messages were quoted.
 
@@ -408,7 +416,7 @@ from the next event.
 | Brain | `id` | Used by |
 | --- | --- | --- |
 | `JevBrain` | `jev:jev-latest` | The app with a key, and the evals |
-| `ScriptedBrain` | `scripted` | Tests: a script sees the state and questions and returns answers. `Boop --headless --brain scripted` uses `pipelineCheck`, which answers every pass `mood: happy`, `react.mood: excited`, `react.loops: once`, `word.feeling: yay`, `word.about: none`, and `react.animation: cheer` when NOW is a turn finished done (else `none`) |
+| `ScriptedBrain` | `scripted` | Tests: a script sees the state and questions and returns answers. `Boop --headless --brain scripted` uses `pipelineCheck`, which answers every pass with the mood kept (the `mood` question's first option), `react.mood: excited`, `react.loops: once`, `word.feeling: yay`, `word.about: none`, and `react.animation: success` when NOW is a turn finished done, `failure` when one finished failed, else `none`; an answer a question doesn't offer is its first option |
 
 ## 8. Designing for Jev
 
@@ -450,10 +458,10 @@ its `debug.jsonl`:
 ```
 ▸ 1 turn start: claude started turn 1 on "jetpack".
     You asked: "PRIVATE_PROMPT_7001 fix the flaky test"
-  pass scripted 0 ms: mood happy 1.00 · react.animation none 1.00 · react.loops once 1.00 · react.mood excited 1.00 · word.about none 1.00 · word.feeling yay 1.00
+  pass scripted 0 ms: mood calm 1.00 · react.animation none 1.00 · react.loops once 1.00 · react.mood excited 1.00 · word.about none 1.00 · word.feeling yay 1.00
     │ <the whole state for the first pass, then only its HISTORY and NOW>
   … react: Boop made an excited face, held once, and mumbled "…yay!"
-  ✗ react (5) didn't happen: no device connected
+  ✗ react (3) didn't happen: no device connected
   … needs_you (rule): Boop showed that claude needs you.
 ▸ 2 tool wait (no pass): claude needs you on "jetpack".
   · needs_you (rule) ended
@@ -482,7 +490,7 @@ which headless `advance` moves:
 | `event` | Every event the transcript records ([EVENTS.md](EVENTS.md) §2) | The event, as its transcript line |
 | `view` | Every view event, as the pipeline gates it | `id`, `type`, `phase`, `from`, `line`, `notes`, `wakes_brain` and `facts` |
 | `pass` | Every pass (§5.2), dropped ones included | A Jev pass also has `state` (the whole state sent), `questions` (the keys asked, in order), `brain` (its `id`) and `seen` (the transcript's last `seq` when its state was built, so a rebuild folds the events up to it, §5.3). A forced pass has `questions` (the keys it answered) and `by`, and no `state` or `brain` |
-| `questions` | Once, as the file's first line, before the socket or the link can add one | Every action's questions in order: `action`, `key`, `text`, and each option's `name`, `what` and `not_for` |
+| `questions` | As the file's first line, before the socket or the link can add one, and again whenever an action's questions change: the harness compares them before each pass and after any action acts, so the mood's options follow it as it moves (`Harness.logQuestions`). Each pass asked the last `questions` line's before it | Every action's questions in order: `action`, `key`, `text`, and each option's `name`, `what` and `not_for` |
 | `sent` | Every line sent to the device, whatever the link, none included | The line, verbatim ([PROTOCOL.md](../PROTOCOL.md) §3) |
 | `status` | When the personality, the brain, the sessions or the connection changes | `personality`, `brain` (an `id`, or `none`), `sessions` (`agent`, `project`, `status`) and `connected`; the mood is in `sent`'s `state` |
 
@@ -502,14 +510,14 @@ line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 | `{"dev":"said","words":"are the tests passing?","by":"device"}` | What push-to-talk heard, with no mic: recorded as a `talk` event after `by`'s button (`app` unless it says), whose pass replies or ends `listening` ([EVENTS.md](EVENTS.md) §2) |
 | `{"dev":"report"}` | Saves a bug report, as the button does (below) |
 
-A forced pass that cheers, its action and the action's end, from a
-headless run with no device (`--link none`), so the reaction never
-played ([DECISIONS.md](DECISIONS.md) §5):
+A forced pass that plays a finish, its action and the action's end,
+from a headless run with no device (`--link none`), so the reaction
+never played ([DECISIONS.md](DECISIONS.md) §5):
 
 ```jsonl
-{"pass":{"answers":{"react.animation":{"choice":"cheer","p":{"cheer":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"react.mood":{"choice":"proud","p":{"proud":1}},"word.feeling":{"choice":"finally","p":{"finally":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react.mood","react.animation","react.loops","word.feeling"]},"received_at_ms":1790575002520}
-{"event":{"seq":1,"ts":1790575002522,"source":"boop","type":"action","phase":"start","specific_type":"react","data":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop played a cheer in a proud face, held twice, and mumbled \"…finally!\"","ok":true}},"received_at_ms":1790575002522}
-{"event":{"seq":2,"ts":1790575002523,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"dashboard","for":1,"outcome":"failed","why":"no device connected"}},"received_at_ms":1790575002523}
+{"pass":{"answers":{"react.animation":{"choice":"success","p":{"success":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"react.mood":{"choice":"proud","p":{"proud":1}},"word.feeling":{"choice":"finally","p":{"finally":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react.mood","react.animation","react.loops","word.feeling"]},"received_at_ms":1790599915988}
+{"event":{"seq":16,"ts":1790599915989,"source":"boop","type":"action","phase":"start","specific_type":"react","data":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop played a success in a proud face, held twice, and mumbled \"…finally!\"","ok":true}},"received_at_ms":1790599915989}
+{"event":{"seq":17,"ts":1790599915989,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"dashboard","for":16,"outcome":"failed","why":"no device connected"}},"received_at_ms":1790599915989}
 ```
 
 **A bug report.** The ladybug button in the popover's footer (⌘B)

@@ -88,14 +88,19 @@ public final class Harness: @unchecked Sendable {
     /// An action taking longer than this is logged: it should hand slow work off.
     public static let actionSlowMs = 300
     /// A started action still in progress this long after its result is
-    /// ended as failed (§5.1).
-    public static let pendingMaxMs: Int64 = 60_000
+    /// ended as failed (§5.1): past the longest reaction, held four times
+    /// in the design with the longest loop.
+    public static let pendingMaxMs: Int64 = 90_000
 
     var running: Int?
     var waiting: ViewEvent?
     /// The actions the dashboard made act while the running pass ran: the
     /// pass's state is from before, so they sit its answers out (§2).
     var changedDuringPass: Set<String> = []
+    /// The questions the last `questions` line in `debug.jsonl` gave (§9),
+    /// as its JSON: the launch's, which the runtime writes, until an
+    /// action's questions change.
+    var loggedQuestions: String
 
     /// A started action, still in progress: its name, when its result was
     /// recorded, and who it was by.
@@ -121,6 +126,7 @@ public final class Harness: @unchecked Sendable {
         self.log = log
         let keys = actions.flatMap { $0.questions().map(\.key) }
         precondition(Set(keys).count == keys.count, "question keys must be unique across actions: \(keys)")
+        loggedQuestions = DebugLog.questionsJSON(actions.map { ($0.name, $0.questions()) })
     }
 
     /// A new brain, from the next pass on; nil for none. Call on `home`.
@@ -195,10 +201,13 @@ public final class Harness: @unchecked Sendable {
         }
     }
 
-    /// Step 3, on `home`: the state and every action's questions.
+    /// Step 3, on `home`: the state and every action's questions, which
+    /// `debug.jsonl` gets again first if they changed.
     func prepare(_ now: ViewEvent, brain: any Brain) -> Job {
+        let asked = actions.map { ($0.name, $0.questions()) }
+        logQuestions(asked)
         let state = StateText.build(pipeline.view.events, now: now, at: clock(), parts(now))
-        return Job(brain: brain, state: state, questions: actions.flatMap { $0.questions() },
+        return Job(brain: brain, state: state, questions: asked.flatMap(\.1),
                    seen: pipeline.transcript.events.last?.seq ?? now.seq)
     }
 
@@ -234,6 +243,7 @@ public final class Harness: @unchecked Sendable {
         defer { acting = nil }
         let ran = pass.dropped == nil
             ? runActions(pass.answers, forSeq: now.seq, by: "brain", skipping: changedDuringPass) : []
+        if !ran.isEmpty { logQuestions() }
         let record = Record(now: now, pass: pass, actions: ran)
         if let dropped = pass.dropped { log("harness: \(now.name) dropped: \(dropped)") }
         onRecord?(record)
@@ -319,6 +329,7 @@ public final class Harness: @unchecked Sendable {
                 extra: ["questions": asked.map(\.key), "by": Harness.forcedBy])
         let ran = runActions(answers, forSeq: nil, by: Harness.forcedBy)
         for a in ran where a.result.ok { changedOutsidePass(a.name) }
+        if !ran.isEmpty { logQuestions() }
         return ran
     }
 
@@ -336,8 +347,26 @@ public final class Harness: @unchecked Sendable {
         let started = ContinuousClock.now
         guard let result = body() else { return nil }
         _ = record(action.name, result, forSeq: nil, by: Harness.forcedBy, latencyMs: (ContinuousClock.now - started).ms)
-        if result.ok { changedOutsidePass(action.name) }
+        if result.ok {
+            changedOutsidePass(action.name)
+            logQuestions()
+        }
         return result
+    }
+
+    /// A `questions` line in `debug.jsonl` (§9) when the actions' questions
+    /// (`asked`, or asked now) differ from the last one's, so each pass's
+    /// options are the last `questions` line's before it, and the
+    /// dashboard's pickers follow, such as the mood's neighbours after it
+    /// moves.
+    func logQuestions(_ asked: [(String, [Question])]? = nil) {
+        let json = DebugLog.questionsJSON(asked ?? actions.map { ($0.name, $0.questions()) })
+        guard json != loggedQuestions else { return }
+        loggedQuestions = json
+        guard debugLog != nil || onDebugLine != nil else { return }
+        let line = DebugLog.line("questions", json, at: clock())
+        if let debugLog { Harness.appendLine(line, to: debugLog) }
+        onDebugLine?(line)
     }
 
     /// A pass's `debug.jsonl` line (§9).
