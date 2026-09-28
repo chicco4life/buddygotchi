@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 from boopctl_lib import scenario
-from boopctl_lib.common import ANIMS, MOODS, REPO, boopdev_voice, restarted, syllables
+from boopctl_lib.common import ANIMS, CTXS, MOODS, OLD_ANIMS, OUTCOMES, REPO, boopdev_voice, restarted, syllables
 from boopctl_lib.device import Device, DeviceError, Sim
 from boopctl_lib.image import diff, save_shot
 
@@ -182,11 +182,10 @@ def cmd_perf(args: argparse.Namespace) -> int:
     running. With --motion, it plays every animation in turn, one a second
     and each replacing the last, over the working face, so every sample is
     mid-motion. The board draws only when the picture changes, and the
-    designs step a few times a second, so fps follows the design: about 14
-    on average, 6-7 through a second of the cheer and 20-24 through a
-    wiggle's, as in the simulator. So in motion it asks that the board drew
-    in every second, and draw_us + push_us says how fast it draws
-    (DEVICE.md §6)."""
+    designs step a few times a second, so fps follows the design, and a
+    second of a slow one draws only a few frames. So in motion it asks that
+    the board drew in every second, and draw_us + push_us says how fast it
+    draws (DEVICE.md §6)."""
     samples = []
     working = {"t": "state", "v": 1, "base": "working", "busy": 1}
     with Device(args.port) as dev:
@@ -254,12 +253,16 @@ def soak_say(rng: random.Random) -> dict:
 
 def soak_moment(rng: random.Random) -> dict:
     """An animation, a mumble, or both, as the rules and the dashboard send
-    them: the cheer with its loops (1–3), a wiggle, chatter."""
+    them: a finish with its outcome and loops (1–3), a one-shot, a poke,
+    chatter."""
     msg: dict = {"t": "moment"}
     if rng.random() < 0.7:
         msg["anim"] = rng.choice(ANIMS)
-        if msg["anim"] == "cheer":
+        if msg["anim"] == "task_complete":
+            msg["outcome"] = rng.choice(OUTCOMES)
             msg["loops"] = rng.randint(1, 3)
+        if msg["anim"] == "starting":
+            msg["ctx"] = rng.choice(CTXS)
     if "anim" not in msg or rng.random() < 0.4:
         msg["say"] = soak_say(rng)
     return msg
@@ -608,10 +611,11 @@ def mumble_levels(args: argparse.Namespace) -> int:
 def cmd_play(args: argparse.Namespace) -> int:
     """One thing the Mac can make the board do, checked through dbg.state:
     an animation from the set (BEHAVIORS.md §5), --loops times, with --say
-    a mumble over it; `needs`, a fake "needs you" (play_needs); or the
-    bring-up `pattern`."""
-    if (args.say or args.loops) and args.what in ("needs", "pattern"):
-        raise DeviceError(f"play {args.what} takes no --say or --loops")
+    a mumble over it (from the design's voice window); `needs`, a fake
+    "needs you" (play_needs); or the bring-up `pattern`. `cheer` and
+    `wiggle` are the older names of task_complete's success and poked."""
+    if (args.say or args.loops or args.outcome or args.ctx or args.variant) and args.what in ("needs", "pattern"):
+        raise DeviceError(f"play {args.what} takes no --say, --loops, --outcome, --ctx or --variant")
     if args.what == "pattern":
         with Device(args.port) as dev:
             dev.request({"t": "dbg.pattern"})
@@ -623,14 +627,16 @@ def cmd_play(args: argparse.Namespace) -> int:
         show_begin(dev)
         show_state(dev, args.vol, base=args.base, mood=args.mood)
         msg = {"t": "moment", "anim": args.what}
-        if args.loops:
-            msg["loops"] = args.loops
+        for key in ("loops", "variant", "outcome", "ctx"):
+            if getattr(args, key):
+                msg[key] = getattr(args, key)
         if args.say:
             msg["say"] = boopdev_voice(args.say, args.word, 1, args.seed)[0]
         dev.send(msg)
         moment = dev.request({"t": "dbg.state"}).get("moment")
-    ok = bool(moment) and moment.get("anim") == args.what
-    print(f"{args.what}: " + (f"playing, {moment['left_ms']} ms" if ok else f"not playing ({moment})")
+    ok = bool(moment) and moment.get("anim") == OLD_ANIMS.get(args.what, args.what)
+    print(f"{args.what}: " + (f"playing variation {moment.get('variant')}, {moment['left_ms']} ms" if ok
+                              else f"not playing ({moment})")
           + (f", saying {msg['say']['syl']!r} {msg['say'].get('word') or ''}" if args.say else ""))
     return 0 if ok else 1
 
@@ -686,13 +692,17 @@ def build_parser() -> argparse.ArgumentParser:
     vol = {"type": int, "choices": range(1, 11), "default": 6, "metavar": "1-10", "help": "volume (default 6)"}
     p = sub.add_parser("play", help="play an animation (with --say, a mumble over it), a fake needs-you "
                                     "with its ding, or the bring-up pattern")
-    p.add_argument("what", choices=ANIMS + ["needs", "pattern"],
-                   help=", ".join(ANIMS) + "; needs; pattern")
+    p.add_argument("what", choices=ANIMS + list(OLD_ANIMS) + ["needs", "pattern"],
+                   help=", ".join(ANIMS + list(OLD_ANIMS)) + "; needs; pattern")
     p.add_argument("--say", choices=FEELINGS, metavar="FEELING", help=f"a mumble with this feeling: {', '.join(FEELINGS)}")
     p.add_argument("--word", help="the mumble's word")
     p.add_argument("--seed", type=int)
     p.add_argument("--loops", type=int, choices=range(1, 7), metavar="1-6",
-                   help="how many times the cheer's design plays (PROTOCOL.md §3; the device reads none as 1)")
+                   help="how many times the animation's design plays (PROTOCOL.md §3; the device reads none as 1)")
+    p.add_argument("--variant", type=int, choices=range(1, 10), metavar="1-9",
+                   help="which variation; the device picks one that fits when it's none or doesn't fit")
+    p.add_argument("--outcome", choices=OUTCOMES, help="task_complete: the turn's result")
+    p.add_argument("--ctx", choices=CTXS, help="starting: what started")
     p.add_argument("--base", choices=["idle", "working", "asleep"], default="idle")
     p.add_argument("--mood", choices=MOODS, default="happy", help="the mood the state carries (default happy)")
     p.add_argument("--vol", **vol)

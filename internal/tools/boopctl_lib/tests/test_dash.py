@@ -32,7 +32,7 @@ from boopctl_lib.scenario import GOLDEN  # noqa: E402
 
 FIXTURE = Path(__file__).parent / "fixtures" / "headless-debug.jsonl"
 COLUMNS = Path(__file__).parent / "fixtures" / "dash-columns.jsonl"
-BUBBLE_TOP = 144  # firmware/src/render/screens.h kBubbleTop: the face is above it
+LANE_TOP = 192  # firmware/src/render/screens.h kLaneTop: the design is above it
 
 
 def fixture_lines(path: Path = FIXTURE) -> list[dict]:
@@ -353,7 +353,7 @@ class FaceTests(unittest.TestCase):
         self.assertEqual(SCALE, 3)
         shot = golden_shot(GOLDEN / "base" / "idle.png")
         crop = render(shot).plain.split("\n")
-        self.assertEqual((len(crop[0]), len(crop)), (107, 24), "107×48 blocks, two per cell")
+        self.assertEqual((len(crop[0]), len(crop)), (107, 32), "107×64 blocks, two per cell")
 
     def test_each_block_is_its_most_common_colour(self):
         # A 6×3 image: a block of five 1s and four 2s, then one of three
@@ -365,22 +365,22 @@ class FaceTests(unittest.TestCase):
         self.assertEqual(blocks(bytes(4), 2, (0, 0, 2, 2)), [[0]], "an edge block may be smaller")
 
     def test_the_face_stays_in_the_crop(self):
-        """Every golden frame's face (everything drawn above the bubble) is
-        inside the crop, in pixels and in the downsampled blocks, so the
-        crop loses none of it."""
+        """Every golden frame's face (everything drawn above the bottom
+        lane) is inside the crop, in pixels and in the downsampled blocks,
+        so the crop loses none of it."""
         x0, y0, x1, y1 = CROP
-        self.assertEqual(y1, BUBBLE_TOP)
+        self.assertEqual(y1, LANE_TOP)
         frames = [p for p in sorted(GOLDEN.rglob("*.png")) if p.parent.name != "pattern"]
         self.assertTrue(frames, f"no golden frames in {GOLDEN}")
         for path in frames:
             with self.subTest(path.relative_to(GOLDEN)):
                 palette, indexes, (w, h) = shot = golden_shot(path)
                 background = indexes[0]
-                outside = [(x, y) for y in range(BUBBLE_TOP) for x in range(w)
+                outside = [(x, y) for y in range(LANE_TOP) for x in range(w)
                            if indexes[y * w + x] != background and not (x0 <= x < x1 and y0 <= y)]
                 self.assertEqual(outside, [])
                 grid = blocks(indexes, w, (0, 0, w, h))
-                for by, row in enumerate(grid[: BUBBLE_TOP // SCALE]):
+                for by, row in enumerate(grid[: LANE_TOP // SCALE]):
                     for bx, index in enumerate(row):
                         inside = x0 <= bx * SCALE < x1 and y0 <= by * SCALE
                         self.assertTrue(inside or index == background, (bx, by))

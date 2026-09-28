@@ -6,7 +6,8 @@ namespace render {
 
 namespace {
 
-const char* const kNames[] = {"none", "cheer", "wiggle", "listening"};
+const char* const kNames[] = {"none",          "task_complete", "reply_ready", "starting", "stopped",
+                              "error",         "helper_return", "poked",       "tap_spam", "listening"};
 static_assert(sizeof(kNames) / sizeof(kNames[0]) == size_t(Anim::kCount), "one name per anim");
 const char* const kMoods[] = {"happy", "excited", "proud",     "curious", "determined", "grumpy", "sad",
                               "calm",  "engaged", "annoyed", "irritated", "whiny",      "wounded"};
@@ -16,6 +17,10 @@ static_assert(sizeof(kMoods) / sizeof(kMoods[0]) == size_t(Mood::kCount), "one n
 
 Anim animFromName(const char* name) {
   if (!name) return Anim::kNone;
+  // The older names: the cheer is the finish's success, and the Mac's
+  // wiggle (the dashboard's) what a tap plays.
+  if (!std::strcmp(name, "cheer")) return Anim::kTaskComplete;
+  if (!std::strcmp(name, "wiggle")) return Anim::kPoked;
   for (int i = 1; i < int(Anim::kCount); ++i) {
     if (!std::strcmp(name, kNames[i])) return Anim(i);
   }

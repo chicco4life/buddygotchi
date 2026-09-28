@@ -26,31 +26,24 @@ const char* const kCtxs[] = {"", "new_task", "session", "continuation"};
 constexpr uint16_t kNone = 0xFFFF;
 
 // The small "o" the mouth becomes on a syllable, from the old curious
-// design asking for you, where it was the mouth.
+// design asking for you, where it was the mouth: 14 × 12 px, on the mouth
+// that shows, in its colour. Its middle sits on the mouth's, a pixel lower,
+// which puts it where the first pack's mouth is.
 struct Box {
   int16_t x, y, w, h;
 };
-constexpr Box kTalk[] = {{153, 128, 14, 4}, {153, 132, 4, 4}, {163, 132, 4, 4}, {153, 136, 14, 4}};
+constexpr Box kTalk[] = {{0, 0, 14, 4}, {0, 4, 4, 4}, {10, 4, 4, 4}, {0, 8, 14, 4}};
+constexpr int kTalkW = 14, kTalkH = 12;
+// Where the first pack's "o" sat, from its mouth's place: the "o" for a
+// mouth with nothing drawn to measure.
+constexpr int kTalkX = 153, kTalkY = 128;
 
 const Scene& scene(const SceneShow& s) { return kScenes[sceneOf(s.mood, s.state, s.variant)]; }
 
-// The tap's heart, in 3 px blocks, a stronger coral than the cheeks: it pops
-// in small, then full size.
-constexpr int kHeartBlock = 3;
-const char* const kHeartSmall[] = {"XX.XX", "XXXXX", ".XXX.", "..X.."};
-const char* const kHeartFull[] = {".XX.XX.", "XXXXXXX", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..."};
-
-template <int N>
-void drawHeart(Canvas& c, const char* const (&rows)[N], int cx, int cy) {
-  const uint8_t rose = inkAt(kInkRose, kLevels);
-  int w = int(std::strlen(rows[0]));
-  int x0 = cx - w * kHeartBlock / 2, y0 = cy - N * kHeartBlock / 2;
-  for (int r = 0; r < N; ++r) {
-    for (int i = 0; i < w; ++i) {
-      if (rows[r][i] == 'X') c.fillRect(x0 + i * kHeartBlock, y0 + r * kHeartBlock, kHeartBlock, kHeartBlock, rose);
-    }
-  }
-}
+// A scene colour as the canvas holds it, and back: the canvas's colours
+// that aren't the scene's (text, the strip) read as black.
+uint8_t toCanvas(int color) { return color == 0 ? kBlack : uint8_t(kSceneBase + color - 1); }
+int fromCanvas(uint8_t px) { return px >= kSceneBase && px < kSceneBase + kColorCount - 1 ? px - kSceneBase + 1 : 0; }
 
 // The step a track is on t ms into its scene.
 int step(const Track& tr, uint32_t t) {
@@ -62,22 +55,30 @@ int step(const Track& tr, uint32_t t) {
 
 // Where each group sits, whether it shows and the colour it fills with,
 // parents first. A flip-book design has a face, and a mouth in it, in each
-// of its steps: `face` and `mouth` are the ones that show, which a tap
-// moves and talking opens.
+// of its steps: a press moves every face, and `mouth` is the one that
+// shows, which talking opens.
 struct Placed {
+  // A group is drawn (kOn); shows in the design, the mouth included while
+  // it talks (kShown); is the mouth that shows, or in it (kInMouth).
+  static constexpr uint8_t kOn = 1, kShown = 2, kInMouth = 4;
   int16_t x[kMaxGroups], y[kMaxGroups];
-  bool on[kMaxGroups];
+  uint8_t flags[kMaxGroups];
   uint8_t fill[kMaxGroups];
-  int mouth = -1, face = -1;
+  int mouth = -1;
+  bool on(int i) const { return flags[i] & kOn; }
 };
 
 void place(const Scene& sc, const SceneShow& s, Placed& p) {
   for (int i = 0; i < sc.groups; ++i) {
     const Group& g = kGroups[sc.group0 + i];
     int x = g.tx, y = g.ty;
-    bool on = g.visible;
+    bool own = g.visible, shown = true, mouth = false;
     uint8_t fill = 0;
-    if (g.parent != kNone) x += p.x[g.parent], y += p.y[g.parent], fill = p.fill[g.parent];
+    if (g.parent != kNone) {
+      x += p.x[g.parent], y += p.y[g.parent], fill = p.fill[g.parent];
+      shown = p.flags[g.parent] & Placed::kShown;
+      mouth = p.flags[g.parent] & Placed::kInMouth;
+    }
     if (g.move != kNone) {
       const Track& tr = kTracks[g.move];
       uint32_t v = tr.val0 + 2 * uint32_t(step(tr, s.t));
@@ -85,34 +86,58 @@ void place(const Scene& sc, const SceneShow& s, Placed& p) {
     }
     if (g.show != kNone) {
       const Track& tr = kTracks[g.show];
-      on = kValues[tr.val0 + step(tr, s.t)] != 0;
+      own = kValues[tr.val0 + step(tr, s.t)] != 0;
     }
     if (g.fill != kNone) {
       const Track& tr = kTracks[g.fill];
       fill = uint8_t(kValues[tr.val0 + step(tr, s.t)]);
     }
     switch (g.role) {
-      case kRoleFace: x += s.dx, y += s.dy; break;
-      case kRoleEyesOpen: on = !s.eyesShut; break;
-      case kRoleEyesClosed: on = s.eyesShut; break;
-      case kRoleProp: on = on && !s.hideProp; break;
+      case kRoleFace: y += s.dy; break;
+      // The first pack's eyes follow the device's blinks, not the design's.
+      case kRoleEyesOpen: own = !s.eyesShut; break;
+      case kRoleEyesClosed: own = s.eyesShut; break;
+      // A flip-book's steps follow their own clock, and while the eyes are
+      // shut, its blink step shows in place of the others.
+      case kRoleStep: own = own && !s.eyesShut; break;
+      case kRoleBlinkStep: own = own || s.eyesShut; break;
       default: break;
     }
-    on = on && (g.parent == kNone || p.on[g.parent]);
-    if (g.role == kRoleFace && on && p.face < 0) p.face = i;
-    if (g.role == kRoleMouth) {
-      if (on && p.mouth < 0) p.mouth = i;
-      on = on && !s.mouthOpen;
-    }
+    shown = shown && own;
+    if (g.role == kRoleMouth && shown && p.mouth < 0) p.mouth = i, mouth = true;
     p.x[i] = int16_t(x), p.y[i] = int16_t(y), p.fill[i] = fill;
-    p.on[i] = on;
+    p.flags[i] = uint8_t((shown ? Placed::kShown : 0) | (mouth ? Placed::kInMouth : 0) |
+                         (shown && !(mouth && s.mouthOpen) ? Placed::kOn : 0));
   }
 }
 
-// A scene colour as the canvas holds it, and back: the canvas's colours
-// that aren't the scene's (text, the strip) read as black.
-uint8_t toCanvas(int color) { return color == 0 ? kBlack : uint8_t(kSceneBase + color - 1); }
-int fromCanvas(uint8_t px) { return px >= kSceneBase && px < kSceneBase + kColorCount - 1 ? px - kSceneBase + 1 : 0; }
+// The talking "o": where it goes and its colour, from the mouth that shows,
+// all its rectangles and those of the groups in it. False with no mouth.
+bool talk(const Scene& sc, const Placed& p, int16_t& ox, int16_t& oy, uint8_t& ink) {
+  if (p.mouth < 0) return false;
+  int x0 = kWidth, y0 = kHeight, x1 = -kWidth, y1 = -kHeight;
+  int color = -1;
+  for (int i = p.mouth; i < sc.groups; ++i) {
+    if ((p.flags[i] & (Placed::kShown | Placed::kInMouth)) != (Placed::kShown | Placed::kInMouth)) continue;
+    const Group& g = kGroups[sc.group0 + i];
+    for (int k = 0; k < g.rects; ++k) {
+      const Rect& r = kRects[g.rect0 + k];
+      int c = r.color == kInherit ? p.fill[i] : r.color;
+      if (color < 0 && c > 0 && c < kBlend) color = c;
+      if (r.x + p.x[i] < x0) x0 = r.x + p.x[i];
+      if (r.y + p.y[i] < y0) y0 = r.y + p.y[i];
+      if (r.x + p.x[i] + r.w > x1) x1 = r.x + p.x[i] + r.w;
+      if (r.y + p.y[i] + r.h > y1) y1 = r.y + p.y[i] + r.h;
+    }
+  }
+  if (x1 <= x0) {
+    ox = int16_t(kTalkX + p.x[p.mouth]), oy = int16_t(kTalkY + p.y[p.mouth]);
+  } else {
+    ox = int16_t((x0 + x1) / 2 - kTalkW / 2), oy = int16_t((y0 + y1) / 2 - kTalkH / 2 + 1);
+  }
+  ink = toCanvas(color < 0 ? 1 : color);
+  return true;
+}
 
 // A translucent rectangle: each pixel it covers, within the clip, becomes
 // the blend of its colour over what's there.
@@ -157,6 +182,21 @@ const Design& design(Mood m, SceneState s, int variant) {
 }  // namespace
 
 const char* stateName(SceneState s) { return kStates[int(s) < int(SceneState::kCount) ? int(s) : 0]; }
+
+SceneState animState(Anim a) {
+  switch (a) {
+    case Anim::kTaskComplete: return SceneState::kTaskComplete;
+    case Anim::kReplyReady: return SceneState::kReplyReady;
+    case Anim::kStarting: return SceneState::kStarting;
+    case Anim::kStopped: return SceneState::kStopped;
+    case Anim::kError: return SceneState::kError;
+    case Anim::kHelperReturn: return SceneState::kHelperReturn;
+    case Anim::kPoked: return SceneState::kPoked;
+    case Anim::kTapSpam: return SceneState::kTapSpam;
+    case Anim::kListening: return SceneState::kListening;
+    default: return SceneState::kIdle;
+  }
+}
 
 SceneState stateFromName(const char* name) {
   if (!name) return SceneState::kIdle;
@@ -208,21 +248,42 @@ uint32_t loopMs(Mood m, SceneState s, int variant) { return kScenes[sceneOf(m, s
 
 uint8_t sceneInk(int color) { return color > 0 && color < kColorCount ? toCanvas(color) : kBlack; }
 
+bool blinksItself(Mood m, SceneState s, int variant) {
+  const Scene& sc = kScenes[sceneOf(m, s, variant)];
+  for (int i = 0; i < sc.groups; ++i) {
+    if (kGroups[sc.group0 + i].role == kRoleBlinkStep) return true;
+  }
+  return false;
+}
+
+bool eyesClosed(const SceneShow& s) {
+  const Scene& sc = scene(s);
+  Placed p;
+  place(sc, s, p);
+  bool opens = false;
+  for (int i = 0; i < sc.groups; ++i) {
+    uint8_t role = kGroups[sc.group0 + i].role;
+    if ((role == kRoleEyesClosed || role == kRoleBlinkStep) && p.on(i)) return true;
+    opens = opens || role == kRoleEyesOpen || role == kRoleStep;
+  }
+  return !opens;  // a design with no eyes to open, such as the first pack's asleep, keeps them shut
+}
+
 bool operator==(const SceneFrame& a, const SceneFrame& b) { return std::memcmp(&a, &b, sizeof a) == 0; }
 
 SceneFrame sceneFrame(const SceneShow& s) {
   SceneFrame f;
   std::memset(&f, 0, sizeof f);  // padding too, since frames compare as bytes
   f.scene = uint16_t(sceneOf(s.mood, s.state, s.variant));
-  f.flags = uint8_t(s.mouthOpen | (s.heart > 2 ? 2 : s.heart) << 1);
+  f.talkX = f.talkY = -1;
   const Scene& sc = kScenes[f.scene];
   Placed p;
   place(sc, s, p);
   for (int i = 0; i < sc.groups; ++i) {
-    // The talking "o" sits where the hidden mouth would.
-    if (!p.on[i] && i != p.mouth && i != p.face) continue;
-    f.x[i] = p.x[i], f.y[i] = p.y[i], f.on[i] = p.on[i], f.fill[i] = p.fill[i];
+    if (!p.on(i)) continue;
+    f.x[i] = p.x[i], f.y[i] = p.y[i], f.on[i] = 1, f.fill[i] = p.fill[i];
   }
+  if (s.mouthOpen) talk(sc, p, f.talkX, f.talkY, f.talkInk);
   return f;
 }
 
@@ -231,7 +292,7 @@ void drawScene(Canvas& c, const SceneShow& s) {
   Placed p;
   place(sc, s, p);
   for (int i = 0; i < sc.groups; ++i) {
-    if (!p.on[i]) continue;
+    if (!p.on(i)) continue;
     const Group& g = kGroups[sc.group0 + i];
     for (int k = 0; k < g.rects; ++k) {
       const Rect& r = kRects[g.rect0 + k];
@@ -243,13 +304,10 @@ void drawScene(Canvas& c, const SceneShow& s) {
       }
     }
   }
-  if (s.mouthOpen && p.mouth >= 0) {
-    for (const Box& b : kTalk) c.fillRect(b.x + p.x[p.mouth], b.y + p.y[p.mouth], b.w, b.h, sceneInk(1));
-  }
-  if (s.heart && p.face >= 0) {
-    int cx = kHeartX + p.x[p.face], cy = kHeartY + p.y[p.face];
-    if (s.heart >= 2) drawHeart(c, kHeartFull, cx, cy);
-    else drawHeart(c, kHeartSmall, cx, cy);
+  int16_t tx, ty;
+  uint8_t ink;
+  if (s.mouthOpen && talk(sc, p, tx, ty, ink)) {
+    for (const Box& b : kTalk) c.fillRect(tx + b.x, ty + b.y, b.w, b.h, ink);
   }
 }
 

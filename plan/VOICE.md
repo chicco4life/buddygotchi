@@ -1,6 +1,6 @@
 # Boop: voice
 
-Updated 2026-09-28. How Boop's gibberish is built on the Mac, kept
+Updated 2026-09-29. How Boop's gibberish is built on the Mac, kept
 unintelligible, and played on the device, and the sound effects that go
 with the face's designs (§10). The code is the source:
 `app/BoopKit/Voice/` on the Mac, `firmware/src/voice/`,
@@ -256,7 +256,8 @@ Crossing uses), then feeds the DAC at 22.05 kHz from a task of its own
 
 **The mouth** opens for the first half of each beat for as long as the
 sound lasts, and the bubble shows the word among squiggles until 1.2 s
-after it. With the sound off, the mouth and bubble
+after it, in the bottom lane in the status strip's place
+([DEVICE.md](DEVICE.md) §4). With the sound off, the mouth and bubble
 still play.
 
 **Checking it.** Tests check the timeline through `dbg.state`'s `audio`
@@ -271,6 +272,16 @@ plays needs you's alert ([VERIFICATION.md](VERIFICATION.md) §2).
 When Boop mumbles, and when it mustn't, is in [BEHAVIORS.md](BEHAVIORS.md)
 §2, §4 and §6. On the device, a `state` with "needs you" or volume 0 stops
 a line that's playing.
+
+**When a line starts.** A line on its own plays at once, over whatever
+face shows. A line that comes with an animation, as the brain's finish
+sends one, starts at that design's voice window (§10), so it follows the
+design's attention cue rather than talking over it; its sound, mouth and
+bubble start together. The animation holds on, resting on its last
+frame, until the line and its bubble end: a line that doesn't fit is
+never hurried. A tap or "needs you" before the window drops the line
+unplayed. The Mac reckons the same length for the moment
+(`DeviceMoment.playMs`, from `FaceLoops.voiceMs`).
 
 ## 10. Sound effects
 
@@ -311,7 +322,7 @@ loop n's as n % 8 (`voice::events`). Needs you, the finish and an error
 keep their whole timeline, and play it once.
 
 **When they play.** A design's events follow its clock, which starts
-with the design (a new look, or a new cheer) and runs on past its loops;
+with the design (a new look, or a new animation) and runs on past its loops;
 its loops are counted from its start. Each timeline has the bank's
 policy:
 
@@ -324,8 +335,8 @@ policy:
 | starting, delegating, helper_return, reply_ready, stopped, poked, tap_spam | First loop only | A few contacts as it starts |
 | idle, asleep, no_app, listening, waiting | Silent | |
 
-- A change of design (another look, variation, mood or cheer, or the
-  looks taking turns, [BEHAVIORS.md](BEHAVIORS.md) §2) stops the
+- A change of design (another look, variation, mood or animation, or
+  the looks taking turns, [BEHAVIORS.md](BEHAVIORS.md) §2) stops the
   last one's effects with a 4 ms fade. The new timeline picks up where the
   new design's clock is, so a mood changing mid-loop doesn't replay what
   the loop already passed.
@@ -343,8 +354,13 @@ heard. It is the only needs-you sound: a new request shown plays the
 performance again from its start ([BEHAVIORS.md](BEHAVIORS.md) §3.2).
 Each design also has a voice window, the bank's `voiceWindows`: when a
 mumble over it may start, 0.12 s after the last attention cue ends for
-needs you, the finish and an error, and 0.45 s in for the rest. sfx.h
-carries its start (`voice::Score::voiceMs`); nothing waits for it yet.
+needs you, the finish and an error, and 0.45 s in for the rest. facegen
+works it out for every design (`bank.mjs`, the bank's rule, which the
+bank itself only states for the new moods') and lists it in its
+manifest; sfxgen checks it against the bank's for the new moods' designs
+and writes it into sfx.h (`voice::Score::voiceMs`), where the device
+starts a line that comes with an animation (§9), and facegen into the
+Mac's `FaceLoops` (`voiceMs`).
 
 **Mixing.** Up to four effects play at once; a fifth replaces the oldest.
 The sum is added to the voice's samples and clipped. The amp stays on

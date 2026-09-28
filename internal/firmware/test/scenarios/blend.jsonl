@@ -10,15 +10,18 @@
 {"shot":"idle-to-working-100ms"}
 {"clock":1150}
 {"shot":"idle-to-working-150ms"}
-{"t":"moment","anim":"cheer"}
+{"t":"moment","anim":"cheer","variant":1}
 {"clock":1225}
 {"shot":"to-cheer-75ms"}
 {"t":"moment","anim":"wiggle"}
 {"clock":1300}
 {"shot":"interrupted-75ms"}
-{"expect":{"moment":{"anim":"wiggle"}}}
-// The wiggle ends after 700 ms; it kept working's design, so no blink.
-{"clock":1925}
+{"expect":{"moment":{"anim":"poked","left_ms":2725}}}
+// The dashboard's wiggle is the poke, happy's 2.8 s design: it ends at
+// 4025, and working comes back behind a blink.
+{"clock":4024}
+{"expect":{"moment":{"anim":"poked","left_ms":1}}}
+{"clock":4025}
 {"expect":{"moment":null}}
-{"clock":2000}
+{"clock":4100}
 {"shot":"back-to-working-75ms"}

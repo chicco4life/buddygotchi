@@ -660,8 +660,8 @@ final class RuntimeTests: XCTestCase {
 
     /// ARCHITECTURE.md §3.2: the brain's moments play one at a time, each
     /// after any line playing, so none cuts off a line or another of the
-    /// brain's mumbles; a mumble plays over a wiggle, which doesn't cut
-    /// it, and a tap's wiggle stops the line. One sent to the device holds
+    /// brain's mumbles; a mumble plays over a poke, which doesn't cut
+    /// it, and a tap's poke stops the line. One sent to the device holds
     /// the line until the device says it ended, and for the brain's next
     /// until its mumble has played, or its `ended` if sooner.
     func testBrainMomentsTakeTurns() {
@@ -672,7 +672,7 @@ final class RuntimeTests: XCTestCase {
         schedule.brain(mumble, now: 100)
         schedule.brain(mumble, now: 200)
         var due = schedule.due(now: 500)
-        XCTAssertEqual(due.play, mumble, "over the wiggle, which a mumble doesn't cut")
+        XCTAssertEqual(due.play, mumble, "over the poke, which a mumble doesn't cut")
         schedule.hold(id: 1, mumble, now: 500, until: 500 + schedule.playMs(mumble) + Runtime.Moments.endGraceMs)
         XCTAssertEqual(schedule.next, 500 + 1920 + MomentSchedule.linkSlackMs, "the second waits for the first's mumble")
         XCTAssertFalse(schedule.idle(now: 2000), "the line is busy")
@@ -685,7 +685,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertNil(due.next, "nothing left")
 
         // Sent with no id, as with no device, it holds the line as reckoned,
-        // until a tap's wiggle stops it.
+        // until a tap's poke stops it.
         var cut = MomentSchedule()
         cut.brain(mumble, now: 0)
         XCTAssertEqual(cut.due(now: 0).play, mumble)
@@ -858,30 +858,84 @@ final class RuntimeTests: XCTestCase {
                           Harness.pendingMaxMs)
     }
 
+    /// PROTOCOL.md §3, VOICE.md §10: the Mac and the device time the
+    /// designs alike. Every design's loop and voice window in `FaceLoops`
+    /// is the one firmware/assets/faces.h (`kScenes`' `loopMs`, through
+    /// `kDesigns`) and sfx.h (`kScore`'s `voiceMs`) give the device, in the
+    /// same order: facegen and sfxgen write them from one manifest.
+    func testTheMacTimesTheDesignsAsTheDeviceDoes() throws {
+        let assets = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../../firmware/assets").standardizedFileURL
+        func block(_ text: String, _ start: String) -> String {
+            let from = text.range(of: start)!.upperBound
+            return String(text[from..<text.range(of: "};", range: from..<text.endIndex)!.lowerBound])
+        }
+        func rows(_ text: String, _ pattern: String) -> [[String]] {
+            let re = try! NSRegularExpression(pattern: pattern)
+            return re.matches(in: text, range: NSRange(text.startIndex..., in: text)).map { m in
+                (1..<m.numberOfRanges).map { String(text[Range(m.range(at: $0), in: text)!]) }
+            }
+        }
+        let faces = try String(contentsOf: assets.appendingPathComponent("faces.h"), encoding: .utf8)
+        let loops = rows(block(faces, "static const Scene kScenes["), #"\{\d+, \d+, (\d+), -?\d+, -?\d+, \d+, \d+\}"#)
+            .map { Int64($0[0])! }
+        let scenes = rows(block(faces, "static const Design kDesigns["), #"\{(\d+), \d+, \d+\}"#).map { Int($0[0])! }
+        let sfx = try String(contentsOf: assets.appendingPathComponent("sfx.h"), encoding: .utf8)
+        let windows = rows(block(sfx, "static const Score kScore[] = {"), #"\{k\w+, \d+, \w+, \d+, \d+, (\d+)\},\s*// (\S+)"#)
+        var n = 0
+        for mood in FaceLoops.moods {
+            for state in FaceLoops.states {
+                for v in 1...FaceLoops.count(mood: mood, state: state) {
+                    XCTAssertEqual(FaceLoops.ms(mood: mood, state: state, variant: v), loops[scenes[n]], "\(mood) \(state) \(v)")
+                    XCTAssertEqual(windows[n][1], "\(mood).\(state).\(String(format: "%02d", v))")
+                    XCTAssertEqual(FaceLoops.voiceMs(mood: mood, state: state, variant: v), Int64(windows[n][0])!,
+                                   "\(mood) \(state) \(v)")
+                    n += 1
+                }
+            }
+        }
+        XCTAssertEqual(n, 770)
+        XCTAssertEqual(scenes.count, n)
+        XCTAssertEqual(windows.count, n)
+    }
+
     /// ARCHITECTURE.md §3.2, PROTOCOL.md §3: the app knows how long each
     /// moment plays on the device at most, as firmware/src/app/behaviour.cpp's
-    /// `onMoment` and `play` time it: the cheer its loops (1–6) of its
-    /// design, a wiggle 0.7 s, a face its loops of the look's design in its
-    /// own mood (the device ends it on a loop boundary, so no later), and a
-    /// mumble its beats and bubble when that's longer. The loops are
-    /// `FaceLoops`, the numbers faces.h gives the device.
+    /// `onMoment` and `play` time it: an animation its loops (1–6) of its
+    /// design, the longest of the variations the device may play for the
+    /// moment's facts; a face its loops of the look's design in its own mood
+    /// (the device ends it on a loop boundary, so no later); and a mumble
+    /// its beats and bubble when that's longer, from its design's voice
+    /// window when it comes with an animation (VOICE.md §10). The loops and
+    /// windows are `FaceLoops`, the numbers faces.h and sfx.h give the
+    /// device.
     func testMomentLengthsFollowTheFirmware() {
         let cheer = FaceLoops.ms(mood: "happy", state: "task_complete")
         let idle = { (m: DeviceMoment) in m.playMs(look: "idle", mood: "happy") }
-        XCTAssertEqual(idle(DeviceMoment(anim: "cheer")), cheer, "once when it doesn't say")
-        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", loops: 3)), 3 * cheer)
-        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", loops: 9)), 6 * cheer, "at most 6")
-        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", loops: 0)), cheer, "at least 1")
-        XCTAssertEqual(DeviceMoment(anim: "cheer").playMs(look: "idle", mood: "proud"),
+        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", variant: 1)), cheer, "once when it doesn't say")
+        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", loops: 3, variant: 1)), 3 * cheer)
+        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", loops: 9, variant: 1)), 6 * cheer, "at most 6")
+        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", loops: 0, variant: 1)), cheer, "at least 1")
+        XCTAssertEqual(DeviceMoment(anim: "cheer", variant: 1).playMs(look: "idle", mood: "proud"),
                        FaceLoops.ms(mood: "proud", state: "task_complete"), "in the mood's design")
-        XCTAssertEqual(idle(DeviceMoment(anim: "wiggle", loops: 3)), 700)
+        // With no variation, or one that isn't for its facts, the device
+        // picks one of those that are: the longest of them.
+        let wins = FaceLoops.variants(mood: "happy", state: "task_complete", outcome: "success")
+        XCTAssertEqual(wins, [1, 2, 3, 4])
+        XCTAssertEqual(idle(DeviceMoment(anim: "cheer")), 7200)
+        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", variant: 5)), 7200, "happy's fifth is a failure")
+        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", variant: 1, outcome: "failure")), 5200)
+        XCTAssertEqual(idle(DeviceMoment(anim: "starting", ctx: "session")),
+                       FaceLoops.ms(mood: "happy", state: "starting", variant: 2))
+        // The dashboard's wiggle is the poke: its loops of poked's design.
+        XCTAssertEqual(idle(DeviceMoment(anim: "wiggle", loops: 3)), 3 * FaceLoops.ms(mood: "happy", state: "poked"))
 
         // A mumble lasts its syllables plus two beats for a word, at 60–400
         // ms a beat, then 1.2 s of bubble, when that's longer than the face.
         let working = { (m: DeviceMoment) in m.playMs(look: "working", mood: "happy") }
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
         XCTAssertEqual(working(DeviceMoment(say: line)), 1920)
-        XCTAssertEqual(working(DeviceMoment(anim: "wiggle", say: line)), 1920)
+        XCTAssertEqual(DeviceMoment(say: line).lineStartMs(mood: "happy"), 0, "at once on its own")
         var plain = line
         plain.word = nil
         XCTAssertEqual(working(DeviceMoment(say: plain)), 1680)
@@ -891,7 +945,21 @@ final class RuntimeTests: XCTestCase {
         var quick = line
         quick.ms = 20
         XCTAssertEqual(working(DeviceMoment(say: quick)), 1560, "6 × 60 + 1200")
-        XCTAssertEqual(working(DeviceMoment(anim: "cheer", say: quick)), cheer, "the cheer is longer")
+        XCTAssertEqual(working(DeviceMoment(anim: "cheer", say: quick, variant: 1)), cheer, "the cheer is longer")
+
+        // With an animation the line starts at the design's voice window,
+        // and the animation holds on until the line and its bubble end.
+        let grumpyFail = DeviceMoment(anim: "task_complete", say: line, mood: "grumpy", variant: 5, outcome: "failure")
+        XCTAssertEqual(FaceLoops.voiceMs(mood: "grumpy", state: "task_complete", variant: 5), 5040)
+        XCTAssertEqual(grumpyFail.lineStartMs(mood: "happy"), 5040, "in its own mood")
+        XCTAssertEqual(working(grumpyFail), 5040 + 1920, "longer than its 5.2 s loop")
+        XCTAssertEqual(working(DeviceMoment(anim: "reply_ready", say: line, variant: 1)),
+                       FaceLoops.ms(mood: "happy", state: "reply_ready"), "450 + 1920 fits its loop")
+        XCTAssertEqual(DeviceMoment(anim: "reply_ready", say: line).lineStartMs(mood: "happy"), 450)
+        let lateWin = FaceLoops.variants(mood: "happy", state: "task_complete", outcome: "success")
+            .map { FaceLoops.voiceMs(mood: "happy", state: "task_complete", variant: $0) }.max()!
+        XCTAssertEqual(DeviceMoment(anim: "cheer", say: line).lineStartMs(mood: "happy"), lateWin,
+                       "with no variation named, the latest window of those it may play")
 
         // A face holds its loops of the design showing, in its own mood,
         // timed by the look's longest variation, since they take turns on
@@ -909,7 +977,7 @@ final class RuntimeTests: XCTestCase {
 
     /// ARCHITECTURE.md §3.2: the schedule times a moment by the design
     /// showing: the look and mood of the last `state`. A reaction's face
-    /// holds the brain's next one back. A tap's wiggle ends the line and
+    /// holds the brain's next one back. A tap's poke ends the line and
     /// the face.
     func testTheScheduleTimesAMomentByTheDesignShowing() {
         let line = VoiceLine(groups: [["bi"]], word: nil, at: 1, tune: .up, ms: 100)
@@ -932,12 +1000,51 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(schedule.lineUntil, 100 + loop("proud", "idle"), "the next waits for its face")
         XCTAssertEqual(due.next, 100 + MomentSchedule.maxWaitMs + 1, "or until the next has waited too long")
         schedule.tapped(now: 200)
-        XCTAssertEqual(schedule.lineUntil, 200, "a tap's wiggle ends the face")
-        XCTAssertEqual(schedule.busyUntil, 200 + DeviceMoment.wiggleMs, "while it plays")
+        XCTAssertEqual(schedule.lineUntil, 200, "a tap's poke ends the face")
+        XCTAssertEqual(schedule.busyUntil, 200 + DeviceMoment.tapMs(mood: schedule.mood, run: 1), "while it plays")
+    }
+
+    /// BEHAVIORS.md §3.3: the schedule counts taps in a row as the device
+    /// does, and times each as the design it plays: poked, the longest of
+    /// the mood's, for the first two of a run, tap_spam from the third. A
+    /// tap is in a row within 3 s of the last, the numbers the view counts
+    /// pokes by (`TranscriptView.Config`'s `inARowMs` and `answersRunFrom`)
+    /// and the firmware's (`Behaviour::kTapRunMs`, `kTapSpamFrom`). Taps
+    /// while something needs you or listening shows count, but only dip.
+    func testTapsInARowAreTimedAsTheDevicePlaysThem() {
+        let config = TranscriptView.Config()
+        XCTAssertEqual(MomentSchedule.tapRunMs, config.inARowMs)
+        XCTAssertEqual(MomentSchedule.tapSpamFrom, config.answersRunFrom)
+        XCTAssertEqual(MomentSchedule.tapRunMs, 3000)
+        XCTAssertEqual(MomentSchedule.tapSpamFrom, 3)
+        let longest = { (mood: String, state: String) in
+            (1...FaceLoops.count(mood: mood, state: state)).map { FaceLoops.ms(mood: mood, state: state, variant: $0) }.max()!
+        }
+        XCTAssertEqual(DeviceMoment.tapMs(mood: "calm", run: 1), longest("calm", "poked"))
+        XCTAssertEqual(DeviceMoment.tapMs(mood: "calm", run: 3), longest("calm", "tap_spam"))
+        var s = MomentSchedule()
+        s.mood = "wounded"
+        s.tapped(now: 1000)
+        XCTAssertEqual(s.animUntil, 1000 + longest("wounded", "poked"))
+        s.tapped(now: 3999)
+        XCTAssertEqual(s.taps, 2)
+        XCTAssertEqual(s.animUntil, 3999 + longest("wounded", "poked"))
+        s.tapped(now: 5000)
+        XCTAssertEqual(s.taps, 3)
+        XCTAssertEqual(s.animUntil, 5000 + longest("wounded", "tap_spam"), "the third spams")
+        s.tapped(now: 8000)
+        XCTAssertEqual(s.taps, 1, "3 s after the last: a new run")
+        XCTAssertEqual(s.animUntil, 8000 + longest("wounded", "poked"))
+        // Held: they count, and only dip.
+        s.show(look: "idle", mood: "wounded", attn: true, now: 9000)
+        s.tapped(now: 9000)
+        s.tapped(now: 9500, listening: true)
+        XCTAssertEqual(s.taps, 3)
+        XCTAssertEqual(s.animUntil, 9000, "needs you stopped the poke, and nothing played since")
     }
 
     /// ARCHITECTURE.md §3.2: a rule's one-shot plays at once, as a tap's
-    /// wiggle does, timed by its design in Boop's mood; a brain moment plays
+    /// poke does, timed by its design in Boop's mood; a brain moment plays
     /// over it without waiting. None goes while a brain moment's line
     /// plays, which it would cut, nor while something needs you; a face
     /// held on after its line may be replaced.
@@ -989,7 +1096,7 @@ final class RuntimeTests: XCTestCase {
     /// the app stops waiting for that (its length and `endGraceMs`); then
     /// the next one's turn comes. A tap stops it on the device, and "needs
     /// you" starting stops everything; while something needs you, a tap
-    /// plays no wiggle.
+    /// plays no poke.
     func testTheDeviceSaysWhenTheLineIsFree() {
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
         let face = DeviceMoment(say: line, mood: "proud")
@@ -1044,7 +1151,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(held.busyUntil, 0)
         held.show(look: "idle", mood: "happy", attn: false, now: 300)
         held.tapped(now: 400)
-        XCTAssertEqual(held.busyUntil, 400 + DeviceMoment.wiggleMs, "answered: it wiggles")
+        XCTAssertEqual(held.busyUntil, 400 + DeviceMoment.tapMs(mood: "happy", run: 2), "answered: it pokes")
 
         // Nothing plays with no device: `stop` frees everything.
         var gone = MomentSchedule()
@@ -1140,7 +1247,7 @@ final class RuntimeTests: XCTestCase {
     /// ARCHITECTURE.md §3.2, PROTOCOL.md §4: whatever frees the line sends
     /// the brain's next moment at once, rather than when the app's own
     /// reckoning of the last one runs out: the device's `ended` for the one
-    /// playing, which a tap's wiggle cuts, or "needs you" starting, which
+    /// playing, which a tap's poke cuts, or "needs you" starting, which
     /// stops everything there. With no device connected a reaction doesn't
     /// happen and leaves the line free for the next.
     func testWhatFreesTheLineSendsTheNextAtOnce() throws {
@@ -1179,7 +1286,7 @@ final class RuntimeTests: XCTestCase {
         react("excited")
         XCTAssertEqual(moments(), 2, "waits for the second")
         device(#"{"t":"input","k":"tap"}"#)
-        XCTAssertEqual(moments(), 2, "the tap's wiggle may have come before the second arrived")
+        XCTAssertEqual(moments(), 2, "the tap's poke may have come before the second arrived")
         device(#"{"t":"ended","id":\#(transport.momentIds[1]),"how":"cut","why":"tap"}"#)
         XCTAssertEqual(moments(), 3, "the device says the tap stopped the second")
         XCTAssertEqual(ends(), [.done, .failed("cut short: you tapped Boop")])
@@ -1207,7 +1314,7 @@ final class RuntimeTests: XCTestCase {
                        "nothing played the first, so the second didn't wait for it")
     }
 
-    /// ARCHITECTURE.md §3.2: "needs you" stops the wiggle and any line on
+    /// ARCHITECTURE.md §3.2: "needs you" stops the poke and any line on
     /// the device and plays nothing while it shows (BEHAVIORS.md §1), so
     /// the schedule stops timing them: a reaction after it doesn't wait
     /// for a line that was cut, and is timed on the new look's design.
@@ -1251,7 +1358,7 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// ARCHITECTURE.md §3.2: what the device does on its own reaches the
-    /// schedule. A tap's wiggle plays there, and "needs you" stops it;
+    /// schedule. A tap's poke plays there, and "needs you" stops it;
     /// and each tick drops a reaction that has waited 5 s, before the
     /// harness's ceiling could end it, whatever the pump's timer does
     /// (a clock jump, or the Mac asleep).
@@ -1271,8 +1378,9 @@ final class RuntimeTests: XCTestCase {
 
         transport.onLine?(#"{"t":"input","k":"tap"}"#)
         runtime.home.sync {}
-        XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.animUntil }, clock.now + DeviceMoment.wiggleMs,
-                       "the device's wiggle")
+        let mood = runtime.home.sync { runtime.moments.schedule.mood }
+        XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.animUntil }, clock.now + DeviceMoment.tapMs(mood: mood, run: 1),
+                       "the device's poke")
         clock.now += 300
         let asking = StateSnapshot(base: "idle", mood: "happy", attn: .init(agent: "claude", project: "x", more: 0, id: 1),
                                    busy: 0, vol: 6)

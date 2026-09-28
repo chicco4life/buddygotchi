@@ -13,10 +13,10 @@
 namespace render {
 
 // The designs' states, in faces.h's order (plan/PROTOCOL.md §3): the first
-// seven keep the numbers they had before the rest came. The task_complete
-// design shows the cheer and the listening design push-to-talk's listening;
-// the other five of the first seven are the looks, what the face shows when
-// no moment plays. Nothing asks for the states after listening yet.
+// seven keep the numbers they had before the rest came. Idle, working,
+// asleep, needs you, no app and what the agents are doing (planning to
+// waiting) are looks, what the face shows when no moment plays; the rest are
+// the animations' (animState).
 enum class SceneState : uint8_t {
   kIdle, kWorking, kNeedsYou, kTaskComplete, kAsleep, kNoApp, kListening,
   kStarting, kPlanning, kTerminal, kToolUse, kSearching, kAnalyzing, kTesting,
@@ -29,6 +29,8 @@ enum class SceneState : uint8_t {
 // "reply_ready", "error", "stopped", "poked", "tap_spam".
 const char* stateName(SceneState s);
 SceneState stateFromName(const char* name);  // kIdle if missing or unknown
+// The design an animation plays: its own state's.
+SceneState animState(Anim a);
 
 // Each mood has its own variations of each state's design, 1 to kMaxVariants
 // of them; a variation is 0..variants(m, s) - 1 here, and 1..variants(m, s)
@@ -58,12 +60,20 @@ struct SceneShow {
   SceneState state = SceneState::kIdle;
   uint8_t variant = 0;     // from 0; one out of range draws the first
   uint32_t t = 0;          // ms since the scene started
-  bool eyesShut = false;   // a blink: the design's closed eyes instead of its open ones
-  bool hideProp = false;   // the bubble has the prop's room: no props
-  bool mouthOpen = false;  // talking: a small "o" instead of the mouth
-  int16_t dx = 0, dy = 0;  // the face moved: a tap's sway, a press
-  uint8_t heart = 0;       // a tap: a coral heart by the right eye, 1 small or 2 full size
+  // A blink, or the blink that hides a change of design: the first pack's
+  // closed eyes instead of its open ones, and a flip-book's own blink step
+  // in place of the step showing.
+  bool eyesShut = false;
+  bool mouthOpen = false;  // talking: a small "o" on the mouth, instead of it
+  int16_t dy = 0;          // the face pressed down
 };
+// A flip-book, one of the new moods' designs, blinks in a step of its own on
+// its own clock, so the device's blinks leave it be (plan/BEHAVIORS.md §2).
+bool blinksItself(Mood m, SceneState s, int variant);
+// The show draws the design's closed eyes: the first pack's, or a
+// flip-book's blink step; or the design has no eyes to open, as the first
+// pack's asleep and no app.
+bool eyesClosed(const SceneShow& s);
 
 // Everything a scene's pixels depend on: the scene, the additions, and
 // where each group sits, whether it shows and its fill. Two shows with the
@@ -73,7 +83,8 @@ struct SceneShow {
 struct SceneFrame {
   static constexpr int kMaxGroups = 288;  // groups in a scene; faces.h checks it
   uint16_t scene = 0xFFFF;
-  uint8_t flags = 0;
+  int16_t talkX = -1, talkY = -1;  // the talking "o", or -1 while the mouth doesn't talk
+  uint8_t talkInk = 0;
   int16_t x[kMaxGroups] = {}, y[kMaxGroups] = {};  // 0 while the group doesn't show
   uint8_t on[kMaxGroups] = {};
   uint8_t fill[kMaxGroups] = {};
@@ -90,8 +101,6 @@ uint32_t loopMs(Mood m, SceneState s, int variant = 0);
 SceneFrame sceneFrame(const SceneShow& s);
 // Draws the scene over what's on the canvas; the screen clears it first.
 void drawScene(Canvas& c, const SceneShow& s);
-// Where the tap's heart is centred, before the face moves.
-constexpr int kHeartX = 268, kHeartY = 60;
 // The palette entry for a design colour (faces::kColors), for the tests.
 uint8_t sceneInk(int color);
 

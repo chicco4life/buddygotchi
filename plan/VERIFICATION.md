@@ -87,7 +87,7 @@ commands go through the bridge.
 | `state` | Prints `dbg.state`, the device's own view of itself |
 | `shot [--out FILE]` | Saves a screenshot of the canvas as a PNG (default `/tmp/boop-shot.png`) |
 | `send '<json>'` | Sends one message as the Mac would; for a `dbg.*` request it prints the reply |
-| `play cheer\|wiggle\|needs\|pattern` | Makes the board do one thing the Mac can, and checks it took. `cheer` and `wiggle` play the animation over `--base` (idle) in `--mood` (happy) at `--vol` (1–10, 6), and `--loops N` (1–6) sends that many loops (without it the moment has none, which plays once); `--say FEELING` adds a mumble, with `--word` and `--seed`. `needs` holds a fake "needs you" for `--seconds` (10) from `--agent` (claude) on `--project` (boopctl) with `--more` (0), and reports whether its performance started and its ding was sent. `pattern` shows the test pattern |
+| `play ANIM\|needs\|pattern` | Makes the board do one thing the Mac can, and checks it took. An animation (`task_complete`, `reply_ready`, `starting`, `stopped`, `error`, `helper_return`, `poked` or `tap_spam`, or the older `cheer` and `wiggle`) plays over `--base` (idle) in `--mood` (happy) at `--vol` (1–10, 6), and `--loops N` (1–6) sends that many loops (without it the moment has none, which plays once); `--variant N`, `--outcome success\|failure` (task_complete) and `--ctx new_task\|session\|continuation` (starting) pick its variation, and it prints the one playing; `--say FEELING` adds a mumble, from the design's voice window, with `--word` and `--seed`. `needs` holds a fake "needs you" for `--seconds` (10) from `--agent` (claude) on `--project` (boopctl) with `--more` (0), and reports whether its performance started and its ding was sent. `pattern` shows the test pattern |
 | `mumble [feeling…]` | Plays the Mac's Voice lines for each feeling (all eight by default), without and with a word, and checks each in `audio.out`: syllables, word, and the DAC's time within 10% of beats × `ms`; then that a muted line moves the mouth silently. `--word W` or `--no-word`, `--count N` lines each, `--vol`, `--seed N` to replay a run, `--gap S` between lines (0.8), `--json`. For listening: `--board-volume` plays one line at the volume the board already has; `--levels L…` plays one line at each level, `--rounds N` times (6) |
 | `sim [scenario…] [--accept]` | Plays scenarios (all by default) in the simulator into `/tmp/boop-sim/<scenario>/` and compares them with the goldens (L1); `--accept` copies the pictures in |
 | `run [scenario…]` | Plays scenarios on the board and diffs each screenshot against the simulator's, threshold 0 (L2), then lets the clock run again |
@@ -179,9 +179,9 @@ of `behaviour.jsonl`:
 {"expect":{"moment":null,"boot":true}}
 {"shot":"press-feedback"}
 {"clock":600}
-{"expect":{"moment":{"anim":"wiggle"},"last_input":{"k":"tap","at":600}}}
+{"expect":{"moment":{"anim":"poked","left_ms":2800},"last_input":{"k":"tap","at":600}}}
 {"clock":850}
-{"shot":"tap-wiggle"}
+{"shot":"tap-poked"}
 ```
 
 | Line | Meaning |
@@ -230,10 +230,15 @@ gets at least one scenario. Their pictures are the golden images in
   the behaviour state machine, to the millisecond, including
   `test_no_change_ever_cuts_hard` and
   `test_nothing_cuts_hard_as_it_plays_out`, which hold every change and
-  every moment running out (a reaction's borrowed face and the cheer's
-  loops included) to the face never cutting hard
+  every moment running out (a reaction's borrowed face, a finish's loops
+  and its line, a one-shot and a poke included), in the first pack's
+  moods and the new moods' flip-books, to the face never cutting hard:
+  the same design at the same moment, or the design's own shut eyes
+  showing; and what the agents are doing, the one-shots and the finish
+  with their facts and voice window, taps in a row and what shows first
   (`test_behaviour`); the canvas and
-  renderer (`test_canvas`, `test_face`); the animation bank's player
+  renderer, the bubble in the bottom lane included (`test_canvas`,
+  `test_face`); the animation bank's player
   against facegen's frames, every mood, state and variation, and the
   variations' host facts (`test_scene`); the voice
   player (`test_voice`); and the sound effects' assets, policies, timing
@@ -272,9 +277,9 @@ accepted.
    while moving, no sampled frame taking over 40 ms to draw and push, at
    least 60 KB minimum free heap, and no reset (uptime keeps rising). A
    frame is drawn only when the picture changes, and the designs step a
-   few times a second, so `fps` follows the design rather than the board:
-   about 14 a second through `perf`'s turns, 6–7 in a second of the
-   cheer ([DEVICE.md](DEVICE.md) §6).
+   few times a second, so `fps` follows the design rather than the board,
+   and a second of a slow one draws only a few frames
+   ([DEVICE.md](DEVICE.md) §6).
 4. When a change could leak memory or wedge the board:
    `internal/tools/boopctl soak` (20 minutes by default, with one 35 s
    silence halfway) ends with no reset, the minimum heap within 2 KB of

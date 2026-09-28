@@ -32,7 +32,7 @@ On the board:
 
 | Do | What happens |
 | --- | --- |
-| Press BOOT, or touch the screen | Boop it: a happy wiggle |
+| Press BOOT, or touch the screen | Poke Boop: it reacts in its mood, and differently from the third poke in a row |
 | Hold BOOT and speak (or click Talk in the popover) | Talk to Boop: the Mac's mic listens until you let go, and Boop answers with a face |
 
 What Boop does and shows is in [plan/BEHAVIORS.md](plan/BEHAVIORS.md).

@@ -70,6 +70,7 @@ void Device::reset() {
   rng_.seed(0);
   b_.reset(0, rng_);
   hush();
+  linePending_ = false;
   fx_.reset();
   hal_.stopEffects();
   pattern_ = false;
@@ -128,6 +129,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     ++rxState_;
     Model m;
     m.base = baseFromName(doc["base"]);          // idle if missing or unknown
+    m.act = actFromName(doc["act"]);             // working's design if missing or unknown
     m.mood = render::moodFromName(doc["mood"]);  // happy if missing or unknown
     JsonObjectConst attn = doc["attn"];
     if (attn) {
@@ -140,9 +142,9 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     }
     m.busy = doc["busy"] | 0;
     m.vol = heldTo(doc["vol"], 0, 10, 6);
-    // The look's variation, from 1: missing reads as 1, and one out of range is held to it.
+    // The visual's variation, from 1: missing reads as 1, and one out of range is held to it.
     m.variant = uint8_t(
-        heldTo(doc["variant"], 1, render::variants(m.mood, m.attn ? render::SceneState::kNeedsYou : m.base), 1) - 1);
+        heldTo(doc["variant"], 1, render::variants(m.mood, m.attn ? render::SceneState::kNeedsYou : m.look()), 1) - 1);
     b_.onState(m, at);
     if (m.attn || m.vol == 0) hush();  // VOICE.md §9
     if (m.vol == 0) hal_.stopEffects();
@@ -151,20 +153,27 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
   } else if (!std::strcmp(t, "moment")) {
     ++rxMoment_;
     MomentIn mo;
-    mo.anim = render::animFromName(doc["anim"]);  // none, or unknown: only the mumble
+    const char* anim = doc["anim"];
+    mo.anim = render::animFromName(anim);  // none, or unknown: only the mumble
     mo.expr = render::parseMood(doc["mood"], mo.mood);  // unknown or missing: the state's mood
     mo.loops = heldTo(doc["loops"], 1, Behaviour::kMaxLoops, 1);
-    // The animation's variation, from 1: one out of range is held to it.
-    // Missing reads as 1 for the cheer; for listening the device picks one.
-    if (mo.anim == render::Anim::kListening && doc["variant"].isNull()) {
-      mo.variant = b_.pickListen(rng_);
-    } else {
-      render::SceneState design =
-          mo.anim == render::Anim::kListening ? render::SceneState::kListening : render::SceneState::kTaskComplete;
-      mo.variant = uint8_t(heldTo(doc["variant"], 1, render::variants(mo.expr ? mo.mood : b_.model().mood, design), 1) - 1);
+    // The animation's variation: the Mac's (from 1) when it's one of its
+    // design's, in the mood it's drawn in, for the finish's outcome or the
+    // start's context ("cheer" is a success); else the device picks one of
+    // those, never the one it showed last.
+    if (mo.anim != render::Anim::kNone) {
+      render::Outcome outcome = render::Outcome::kNone;
+      render::StartCtx ctx = render::StartCtx::kNone;
+      if (mo.anim == render::Anim::kTaskComplete) {
+        outcome = !std::strcmp(anim, "cheer") ? render::Outcome::kSuccess : render::outcomeFromName(doc["outcome"]);
+      }
+      if (mo.anim == render::Anim::kStarting) ctx = render::ctxFromName(doc["ctx"]);
+      mo.variant = b_.pick(mo.anim, mo.expr ? mo.mood : b_.model().mood, heldTo(doc["variant"], 0, 255, 0), outcome,
+                           ctx, rng_);
     }
     mo.said = !doc["say"].isNull();
-    mo.empty = doc["anim"].isNull() && !mo.said;  // the empty moment ends listening
+    // Nothing to play or show: the empty moment, which ends listening.
+    mo.empty = doc["anim"].isNull() && !mo.said && doc["mood"].isNull();
     JsonObjectConst who = doc["who"];  // copied by onMoment, while doc lives
     if (who) mo.whoAgent = who["agent"] | "", mo.whoThread = who["thread"] | "";
     voice::Line line;
@@ -198,16 +207,16 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     mo.from = uint8_t(from);
     uint32_t seq = b_.momentSeq();
     bool mumble = b_.onMoment(mo, at);  // copies the word
-    const Model& m = b_.model();
-    if (mumble && m.vol > 0) {
-      line.vol = uint8_t(m.vol);
+    linePending_ = false;
+    if (mumble) {
+      // Its sound goes with its bubble: now, or at its animation's voice
+      // window (VOICE.md §10).
       line.seed = at * 2654435761u + rxMoment_;  // not from rng_, which the frames depend on
-      hal_.say(line);
-      saying_ = true;
-      sayMoment_ = b_.momentSeq();
-    } else if (b_.momentSeq() != seq) {
-      hush();  // a new moment replaces the line
+      line_ = line;
+      linePending_ = true;
+      lineMoment_ = b_.momentSeq();
     }
+    if (!startLine(at) && b_.momentSeq() != seq) hush();  // a new moment replaces the line
     dirty_ = true;
   } else if (!std::strcmp(t, "dbg.reset")) {
     reset();
@@ -297,7 +306,7 @@ void Device::disconnected() {
 }
 
 void Device::tapped(uint32_t t, bool injected) {
-  b_.tap(t);
+  b_.tap(t, rng_);
   input("tap", t);
   emit("tap", injected);
 }
@@ -386,12 +395,34 @@ void Device::hush() {
   saying_ = false;
 }
 
-// Stops a line whose mumble ended or was replaced (a tap's wiggle, say),
-// then plays the face's sound effects (VOICE.md §10): its design's events
-// as its clock reaches them, and silence for the last design's when it
-// changes or starts over (needs you's, for a new request).
+// The line that arrived starts its sound when its bubble shows, at the
+// volume then; one replaced, or over, before it started is dropped. True
+// when it starts now.
+bool Device::startLine(uint32_t t) {
+  if (!linePending_) return false;
+  if (b_.momentSeq() != lineMoment_ || (!b_.mumble(t) && !b_.lineAhead(t))) {
+    linePending_ = false;
+    return false;
+  }
+  if (!b_.mumble(t)) return false;  // it waits for its animation's voice window
+  linePending_ = false;
+  const Model& m = b_.model();
+  if (m.vol <= 0) return false;
+  line_.vol = uint8_t(m.vol);
+  hal_.say(line_);
+  saying_ = true;
+  sayMoment_ = lineMoment_;
+  return true;
+}
+
+// Stops a line whose mumble ended or was replaced (a tap's poke, say), and
+// starts one that waited for its voice window, then plays the face's sound
+// effects (VOICE.md §10): its design's events as its clock reaches them,
+// and silence for the last design's when it changes or starts over (needs
+// you's, for a new request).
 void Device::followSound(uint32_t t) {
   if (saying_ && (b_.momentSeq() != sayMoment_ || !b_.mumble(t))) hush();
+  startLine(t);
   const Model& m = b_.model();
   render::SceneShow show = b_.show(t);
   show.t = b_.designMs(t);
@@ -510,6 +541,8 @@ void Device::sendState(Link to) {
   const Model& m = b_.model();
   d["screen"] = screenName(screenAt(t));
   d["base"] = render::stateName(m.base);
+  if (m.act != render::SceneState::kWorking) d["act"] = render::stateName(m.act);
+  else d["act"] = nullptr;
   d["mood"] = render::moodName(m.mood);
   d["variant"] = m.variant + 1;
   d["look_variant"] = b_.lookVariant() + 1;
@@ -527,6 +560,7 @@ void Device::sendState(Link to) {
   if (anim != render::Anim::kNone) {
     d["moment"]["anim"] = render::animName(anim);
     d["moment"]["left_ms"] = left;
+    d["moment"]["variant"] = b_.momentVariant() + 1;
   } else {
     d["moment"] = nullptr;
   }

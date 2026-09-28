@@ -12,9 +12,11 @@ by hand, and no SVG is checked in: `facegen` runs `../bank.mjs` into
   writes and `sfxgen` reads: each one's mood, state, variation (from 1
   within its mood and state), name, length in seconds, the host fact it's
   for (`outcome`, success or failure, for task_complete; `ctx`, new_task,
-  session or continuation, for starting), and its SVG dialect (`v2`, the
-  first pack's; `v3`, the older moods' newer states; `v4`, the new moods'
-  flip-books).
+  session or continuation, for starting), its voice window (`voiceMs`,
+  when a line that comes with its animation starts, which `sfxgen` puts in
+  `sfx.h` and `facegen` in the Mac's `FaceLoops`), and its SVG dialect
+  (`v2`, the first pack's; `v3`, the older moods' newer states; `v4`, the
+  new moods' flip-books).
 
 13 moods × 22 states, 770 designs. The older seven moods keep the first
 pack's designs byte for byte (the bank's `qa/v3-fingerprints.json`, which

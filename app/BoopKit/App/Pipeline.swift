@@ -46,7 +46,7 @@ public final class Pipeline {
         return gated(step)
     }
 
-    /// The device's poke: the device has already wiggled.
+    /// The device's poke: the device has already played it.
     @discardableResult
     public func poke(at now: Int64) -> Step {
         var step = Step()

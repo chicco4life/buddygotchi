@@ -144,6 +144,7 @@ class Device {
   void sendShot(Link to);
   void reset();
   void hush();
+  bool startLine(uint32_t t);
   void followSound(uint32_t t);
   Screen screenAt(uint32_t t) const { return pattern_ ? Screen::kPattern : b_.screen(t); }
   const char* debugLabel(uint32_t t) const;
@@ -191,9 +192,13 @@ class Device {
   bool touchInjected_ = false;  // it's dbg.touch's, not the panel's
   uint32_t touchSeenReal_ = 0;
 
-  // The line playing (its moment's number).
+  // The line playing (its moment's number), and one that arrived, which
+  // starts when its bubble shows.
   bool saying_ = false;
   uint32_t sayMoment_ = 0;
+  bool linePending_ = false;
+  voice::Line line_;
+  uint32_t lineMoment_ = 0;
   // The face's sound effects: its timeline, and the effects handed to the
   // Hal since boot, the last by its clip (dbg.state `audio.fx`).
   EffectTrack fx_;
