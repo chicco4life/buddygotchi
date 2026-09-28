@@ -6,14 +6,14 @@ BOOP — HOW IT WORKS
 
   SCREEN  =  MOOD  ×  VISUAL        (a visual, acted out in a mood)
 
-MOODS  (how Boop acts)
+MOODS  (how Boop acts; fades back to happy after the minutes shown)
 ───────────────────────────────────────────────────────────────────────
-  happy       good spirits; the default, and where every mood fades back
-  excited     something big went right (e.g. a 10+ min turn, clean)
-  proud       something hard-won finished (a comeback)
-  determined  working through a failure (same thing failed twice)
-  grumpy      fed up (3+ failures in a row)
-  sad         deflated (a 10+ min turn ended failing)
+  happy       good spirits; the default
+  excited     3 clean finishes in a row, or a clean 5+ min turn   5 min
+  proud       something that failed works                         5 min
+  determined  a failure while the agent works on                  5 min
+  grumpy      a failed turn, 3+ failures in a row, a poke streak  2 min
+  sad         a 5+ min turn ended failing                        10 min
 
 VISUALS  (what Boop is doing)
 ───────────────────────────────────────────────────────────────────────
@@ -58,6 +58,16 @@ JEV  (the brain; decides everything expressive)
   e.g. tests pass after 3 failures:
        mood → proud;  react: proud × cheer, twice, "…finally!"
   e.g. a 5 s routine turn:  nothing
+
+  What Jev sees:  NOW, and HISTORY: the last 10 min (or back to the
+  oldest working turn), at most 40 events, what Boop did under each.
+  No memory between asks. Lines carry modifiers, so Jev never counts:
+    short / long / very long turn   right after · a while · a long break
+    tests failed again, 3 in a row  A comeback on tests.
+    3 clean finishes in a row.      (in progress) · (didn't happen: …)
+  HISTORY ends:  Boop's last reaction, 4 min ago: a proud face …
+                 Boop has been grumpy for 2 min.
+                 Working now: …
 
 
 GUARANTEES
@@ -154,36 +164,6 @@ few minutes, and each change comes with a reaction in the new mood's
 face. The next
 `state` carries it and the device blinks into the new set of faces. No
 rule depends on the mood.
-
-### What the brain remembers
-
-Jev keeps no memory between passes, so each pass gets a fresh HISTORY
-built from the transcript ([harness/HARNESS.md](harness/HARNESS.md)
-§5.3 has the exact rules and numbers):
-
-- **What's in it.** Every event before NOW, whether it woke the brain or
-  not (a tap still shows), from the last 10 minutes or since the oldest
-  turn still working began, whichever reaches further, capped at the
-  newest 40. Events whose reaction is still playing stay however old.
-  Passes themselves never show.
-- **What Boop did** sits indented under each event: its rule reaction,
-  then each action's message, such as a mood change or a reaction.
-- **Times are relative:** `just now`, `N min ago`, `N h ago`.
-- **How it closes:** Boop's last reaction and how long ago, how long Boop
-  has been in a mood other than happy, then which threads are working.
-
-The lines carry a few modifiers, so Jev never has to count or compare
-numbers ([harness/EVENTS.md](harness/EVENTS.md) §5, §8):
-
-| Modifier | Example | Added by |
-| --- | --- | --- |
-| A turn's length band | `a short turn`, `a long turn`, `a very long turn` | The core |
-| The gap before a turn or poke streak | `right after its last one`, `a while after its last one`, `after a long break` | The core |
-| Failures in a row | `3 in a row`, `passed … after 2 failures in a row` | The core |
-| A comeback | `A comeback on tests.` | The core |
-| Clean finishes in a row, from the second | `3 clean finishes in a row.` | The core |
-| A reaction still playing, or one that never did | `(in progress)`, `(didn't happen: waited too long)` | The harness |
-| Time in the mood | `Boop has been grumpy for 2 min.` | The `mood` action |
 
 ### Mumbling while agents work
 
