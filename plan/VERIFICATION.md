@@ -215,7 +215,7 @@ gets at least one scenario. Their pictures are the golden images in
   hooks from three sessions (Claude with subagents, and Codex) into the
   pipeline, with ticks and clock jumps, and checks after each that HISTORY
   and the screen agree (every `tool` wait view event is for a session
-  shown waiting, nothing cheers or wakes the brain while something needs you,
+  shown waiting, nothing plays or wakes the brain while something needs you,
   and one request's number never changes its agent or project), and that
   a subagent's end, or a turn-level hook from inside one, answers only
   that subagent's request, isn't activity, and makes its session work

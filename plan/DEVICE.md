@@ -405,7 +405,7 @@ frames stay exact) and a press draws at once for its first 60 ms. A screenshot a
 | --- | --- | --- |
 | Firmware size | 2.50 MB (2,498,811 bytes), 79% of app0 | The board build that plays the 22 states (acts, one-shots, the finish, pokes), 2026-09-29 |
 | Minimum free heap, through a 10-minute soak with brain reactions | 71.5 KB (71,472 bytes), no drift from its first sample | The bench board, firmware `067c7d80`, [2026-09-29](evidence/2026-09-28-mood-spectrum/board/README.md) |
-| Frames a second through `perf --motion`'s cheers and wiggles | 6.1 on average, 3 at the least: the wiggle now plays the stepped poke designs, not a continuous sway, so fewer frames change | The bench board, firmware `067c7d80`, 60 s, the same |
+| Frames a second through `perf --motion`'s finishes and pokes | 6.1 on average, 3 at the least: the wiggle now plays the stepped poke designs, not a continuous sway, so fewer frames change | The bench board, firmware `067c7d80`, 60 s, the same |
 | Drawing and pushing one changed frame (`draw_us`, `push_us`), through the soak | 1.5 ms and 11.7 ms typically; 3.0 ms and 27.0 ms at the most | The same |
 | Minimum free heap in motion | 71.5 KB | `perf --motion`, the same |
 
