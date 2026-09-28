@@ -1,0 +1,15 @@
+{
+  "name": "Boop never makes the wrong face",
+  "case": "Over a mixed stretch of work (tests failing, then passing after failing, a long turn finishing well, then a new turn failing on an error), Boop's faces always fit what just happened. A failure never gets a happy, excited or proud face, or a cheer. A win never gets a grumpy or sad face.",
+  "always": true,
+  "why": "harness/DECISIONS.md §3: each face's meaning (determined and grumpy for failures, sad only for a very long turn failing; happy, excited and proud for wins), and the cheer is never for a failure",
+  "steps": [
+    {"event": "turn started", "at": "0s"},
+    {"event": "command", "at": "1m", "topic": "tests", "failed": true, "expect": {"react": "none|determined|grumpy", "animation": "none"}},
+    {"event": "command", "at": "2m", "topic": "build", "failed": true, "expect": {"react": "none|determined|grumpy", "animation": "none"}},
+    {"event": "command", "at": "3m", "topic": "tests", "failed": false, "expect": {"react": "none|happy|excited|proud"}},
+    {"event": "turn finished", "at": "3m40s", "expect": {"react": "none|happy|excited|proud"}},
+    {"event": "turn started", "at": "5m"},
+    {"event": "turn failed", "at": "6m", "error": "api_error", "expect": {"react": "none|determined|grumpy|sad", "animation": "none"}}
+  ]
+}

@@ -133,6 +133,44 @@ class ReportTests(unittest.TestCase):
             t = workday.total(workday.summarize(path))
         self.assertEqual((t["mood_changes"], t["back_to_happy"], t["mood_after_routine"]), (2, 1, 1))
 
+    def test_liveliness_and_its_check(self) -> None:
+        """A 20-minute turn with the same happy face at 1 and 3 minutes and
+        nothing after: quiet for 17 minutes at the end, two the same in a
+        row; happy → grumpy → happy inside a minute is a bounce
+        (EVALS.md §5)."""
+        thread = {"session": "s-api"}
+        start = {"kind": "turn_start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True,
+                 "facts": {"thread": thread}}
+        beat = {"kind": "heartbeat", "line": "claude is still working on \"api\", a long turn.", "wakes_brain": True,
+                "facts": {"thread": thread}}
+        end = {"kind": "turn_end", "line": "claude finished turn 1 on \"api\": done, a very long turn.",
+               "wakes_brain": True, "facts": {"thread": thread, "outcome": "done", "length_ms": 1_200_000}}
+        happy = "Boop made a happy face, held once, and mumbled."
+        lines = [
+            entry(1, 0, event=start),
+            entry(2, 1, event=beat),
+            entry(3, 1, action={"for": 2, "name": "react", "ok": True, "pending": True, "message": happy}),
+            entry(4, 3, event=beat),
+            entry(5, 3, action={"for": 4, "name": "react", "ok": True, "pending": True, "message": happy}),
+            entry(6, 3, action={"for": 4, "name": "mood", "ok": True, "message": "Boop's mood changed: happy → grumpy."}),
+            entry(7, 3, action={"for": 4, "name": "mood", "ok": True, "message": "Boop's mood changed: grumpy → happy."}),
+            entry(8, 20, event=end),
+        ]
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "debug.jsonl"
+            path.write_text("\n".join(lines) + "\n")
+            lv = workday.summarize(path)["lively"]
+            text, ok = workday.check([path])
+        self.assertEqual(lv["longest_quiet_min"], 17.0)
+        self.assertEqual(lv["quiet_over_6_min"], 1)
+        self.assertEqual((lv["longest_same_run"], lv["longest_same_what"], lv["repeat_pct"]), (2, "happy", 100))
+        self.assertEqual(lv["mood_bounces"], 1)
+        self.assertEqual(lv["min_mood_changes"], 2)
+        self.assertEqual(lv["longest_happy_working_min"], 17.0)
+        self.assertFalse(ok)
+        self.assertIn("FAIL  longest_quiet_min ≤ 8: 17.0", text)
+        self.assertIn("ok    quiet_over_6_min ≤ 3: 1", text)
+
     def test_classes(self) -> None:
         def end(**facts) -> dict:
             return {"kind": "turn_end", "facts": {"outcome": "done", "tools_failed": 0, **facts}}

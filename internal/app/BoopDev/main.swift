@@ -23,14 +23,18 @@ let usages: [(command: String, text: String)] = [
         mood's face mumbles in (VOICE.md §4), so grumpy sounds annoyed.
     """),
     ("eval", """
-    boopdev eval [--runs N] [--only TEXT] [--scenarios DIR] [--steering DIR]
+    boopdev eval [--runs N] [--only TEXT] [--always] [--timeline] [--scenarios DIR] [--steering DIR]
+    boopdev eval --list [--always] [--only TEXT] [--scenarios DIR]
         Runs the harness eval scenarios (plan/EVALS.md): hook-level steps on a virtual clock through a fresh
         core, the real harness and actions, and Jev, each pass checked against what it should come to (the
-        reaction, the word, how long the face holds and the mood). Needs Jev's key in BOOP_JEV_KEY and fails
-        without it. --runs runs each scenario N times (default 3); it passes only if every run does. Every
-        entry goes to the run's own file in /tmp/boop-eval (boopdev watch FILE prints it). Exits 1 if any
-        fails. The scenarios and steering default to the Boop repo's, found from the working directory or
-        from boopdev's own place.
+        reaction, the word, how long the face holds and the mood), and each run against its whole-run
+        checks. Needs Jev's key in BOOP_JEV_KEY and fails without it. --runs runs each scenario N times
+        (default 5 for an always scenario, 3 for the rest); it passes only if every run does. --always runs
+        only the always scenarios, Boop's character. --timeline prints every pass of every run. --list
+        prints each scenario's case and runs nothing. A scenario with a known gap is reported GAP when it
+        fails, and doesn't fail the eval. Every entry goes to the run's own file in
+        /tmp/boop-eval (boopdev watch FILE prints it). Exits 1 if any fails. The scenarios and steering
+        default to the Boop repo's, found from the working directory or from boopdev's own place.
     """),
     ("watch", """
     boopdev watch [FILE] [--new]
@@ -195,26 +199,37 @@ func findRepo() -> URL? {
 }
 
 func eval(_ raw: [String]) async {
-    let args = arguments("eval", raw, options: ["--runs", "--only", "--scenarios", "--steering"])
-    guard let key = JevKey.environment() else {
-        fail("boopdev eval asks Jev, and needs its API key in \(JevKey.variable)")
-    }
+    let args = arguments("eval", raw, options: ["--runs", "--only", "--scenarios", "--steering"],
+                         flags: ["--always", "--list", "--timeline"])
     let repo = findRepo()
     func path(_ option: String, _ inRepo: String) -> URL {
         if let given = args[option] { return URL(fileURLWithPath: given) }
         guard let repo else { fail("boopdev eval: can't find the Boop repo; run it inside the repo, or pass --scenarios and --steering") }
         return repo.appendingPathComponent(inRepo)
     }
-    let steering: Steering
-    do { steering = try Steering(directory: path("--steering", "plan/steering")) } catch { fail("\(error)") }
     var list: [Scenario]
     let scenarios = path("--scenarios", "internal/app/Evals/scenarios")
     do { list = try Scenario.load(directory: scenarios) } catch { fail("can't read the scenarios: \(error)") }
     if let only = args["--only"] {
         list = list.filter { $0.name.localizedCaseInsensitiveContains(only) || $0.file.contains(only) }
     }
+    if args.has("--always") { list = list.filter(\.always) }
     guard !list.isEmpty else { fail("no scenarios in \(scenarios.path)") }
-    guard let runs = Int(args["--runs"] ?? "3"), runs >= 1 else { fail("--runs is a count, 1 or more") }
+    if args.has("--list") {
+        for s in list {
+            print("\(s.file)\(s.always ? "  [always]" : s.gap != nil ? "  [gap]" : "")  \(s.name)")
+            print("    \(s.story)")
+            if let gap = s.gap { print("    gap: \(gap)") }
+        }
+        exit(0)
+    }
+    guard let key = JevKey.environment() else {
+        fail("boopdev eval asks Jev, and needs its API key in \(JevKey.variable)")
+    }
+    let steering: Steering
+    do { steering = try Steering(directory: path("--steering", "plan/steering")) } catch { fail("\(error)") }
+    let given = args["--runs"].map { Int($0) }
+    if let given, (given ?? 0) < 1 { fail("--runs is a count, 1 or more") }
     let brain = JevBrain(key: key)
     var runner = Eval(brain: brain, steering: steering)
     let log = evalDebugLog()
@@ -222,21 +237,33 @@ func eval(_ raw: [String]) async {
     runner.debugLog = log
     print("every entry goes to \(log.path)")
     var results: [[Eval.Result]] = []
+    var gapsFailed = 0
+    var failed = false
     for scenario in list {
+        let runs = given.flatMap { $0 } ?? (scenario.always ? 5 : 3)
         var rs: [Eval.Result] = []
         for _ in 1...runs {
             do { rs.append(try await runner.run(scenario)) } catch { fail("\(error)") }
         }
         results.append(rs)
-        for line in Eval.report(rs) { print(line) }
+        if !rs.allSatisfy(\.passed) {
+            if scenario.gap != nil { gapsFailed += 1 } else { failed = true }
+        }
+        for line in Eval.report(rs, story: scenario.story, gap: scenario.gap) { print(line) }
+        if args.has("--timeline") {
+            for (i, r) in rs.enumerated() {
+                print("  run \(i + 1)\(r.passed ? "" : " (failed)"):")
+                for line in Eval.timeline(r) { print(line) }
+            }
+        }
     }
-    print(Eval.summary(results) + (runs > 1 ? " in all \(runs) runs" : "") + " with \(brain.id)")
+    print(Eval.summary(results, gaps: gapsFailed) + " in every run with \(brain.id)")
     let latencies = results.flatMap { $0.flatMap { $0.checks.map(\.latencyMs) } }.sorted()
     if !latencies.isEmpty {
         print("latency: median \(latencies[latencies.count / 2]) ms, slowest \(latencies.last!) ms (deadline \(Harness.deadlineMs) ms)")
     }
     print("every entry: boopdev watch \(log.path)")
-    exit(results.allSatisfy { $0.allSatisfy(\.passed) } ? 0 : 1)
+    exit(failed ? 1 : 0)
 }
 
 /// A file of the run's own (harness/HARNESS.md §9), so runs side by side

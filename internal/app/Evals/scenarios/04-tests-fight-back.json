@@ -1,5 +1,7 @@
 {
   "name": "Failing tests make Boop determined, and passing after them proud",
+  "case": "The agent's tests fail three times in a row, two minutes apart, while it keeps working, and then pass. At the first failure Boop turns determined, rooting for the agent, with a determined face. It stays determined through the repeats, not grumpy. When the tests finally pass it turns proud, with a proud face and 'finally', 'tests' or 'yay'.",
+  "always": true,
   "why": "plan/steering/mood/: happy leaves for determined at a failed check while the agent works on, and determined stays through more failures, since a repeat reads as the first did; the pass after failing, 'finally', leaves determined for proud; plan/steering/guide.md: each change shows, with the new mood's face",
   "steps": [
     {"event": "turn started", "at": "0s", "workspace": "fix-nav"},

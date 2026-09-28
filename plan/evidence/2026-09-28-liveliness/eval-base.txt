@@ -1,0 +1,42 @@
+every entry goes to /tmp/boop-eval/…
+pass  01-short-turn.json  A quick turn is routine  (3/3 runs)
+pass  02-long-turn.json  A very long turn that finishes is worth a cheer  (5/5 runs)
+pass  03-turn-failed.json  A failed turn makes Boop grumpy, and shows it  (5/5 runs)
+pass  04-tests-fight-back.json  Failing tests make Boop determined, and passing after them proud  (5/5 runs)
+pass  05-poke-streak.json  A poke streak makes Boop grumpy, briefly  (5/5 runs)
+pass  06-heartbeat-lets-grumpy-go.json  An hour of nothing lets a grumpy mood go  (5/5 runs)
+pass  07-chatter-reacts-to-everything.json  The chatter personality reacts to everything  (3/3 runs)
+pass  08-long-turn-fails.json  A very long turn that fails makes Boop sad  (5/5 runs)
+pass  09-failure-worked-through.json  A failure being worked through makes Boop determined, and the fix makes it proud  (5/5 runs)
+pass  10-run-of-wins.json  Short wins leave Boop happy, and a very long turn done makes it excited  (3/3 runs)
+pass  11-comeback-still-showing.json  A comeback still showing isn't made again when the turn finishes  (3/3 runs)
+pass  12-comeback-that-didnt-happen.json  A comeback that didn't happen is made when the turn finishes  (3/3 runs)
+pass  13-proud-fades.json  A proud mood fades back to happy after 5 minutes  (5/5 runs)
+pass  14-minutes-turn-is-routine.json  A turn of a few minutes gets a face but leaves the mood alone  (3/3 runs)
+pass  15-quiet-work.json  A long quiet stretch of work gets the topic, not a cheer  (3/3 runs)
+FAIL  16-poking-keeps-boop-angry.json  Poking Boop again and again keeps it angry  (0/5 runs)
+  case: The person pokes Boop again and again, then again a minute later, and again a minute after that. Boop gets angry at the first streak and answers every streak with a grumpy face (never a happy, excited or proud one), with a word like 'nope', 'ugh' or 'again', or none, and stays grumpy while the poking goes on. A few minutes after the last poke it has calmed down: when the agent starts a turn, Boop is happy again.
+  step 3: You poked Boop again and again.
+    wanted react grumpy, animation none, word again|none|nope|ugh, mood grumpy; got react grumpy, animation none, word nope, loops once, mood happy
+pass  17-never-the-wrong-face.json  Boop never makes the wrong face  (5/5 runs)
+FAIL  18-long-grind.json  A long grind keeps Boop animated, and its mood drifts  (0/3 runs)
+  case: The agent works on one turn for twenty minutes with nothing notable happening (no failures, no fixes), and then finishes well. Boop doesn't sit on the plain working look for long: every few minutes it shows a small face, and not the same one every time. As the grind goes on, its mood drifts from happy to determined, rooting for the agent. The finish is a big moment: a cheer, and Boop turns excited or proud. It never goes sad or grumpy.
+  step 2: claude is still working on "landing", a very long turn.
+    wanted animation none, mood determined; got react happy, animation none, word none, loops once, mood happy
+  whole run: max_quiet_working 6m00s: the longest quiet stretch of work was 15m00s, from 0m00s
+  whole run: max_same_in_a_row 3: 6 in a row (happy)
+FAIL  19-same-win-again.json  The same quick win again and again doesn't get the same reaction every time  (0/3 runs)
+  case: The agent does five quick turns in a row, a minute apart, and each one passes its tests and finishes within half a minute. Boop keeps reacting, but it doesn't make the exact same face and word five times running: it varies the face, drops the word, or skips one now and then. Nothing here is big, so there's no cheer, and the mood never goes sad or grumpy.
+  whole run: reactions 2 or more: 0 of 10 passes
+  whole run: min_variety 2: 0: 
+FAIL  20-no-flail.json  Tests flipping back and forth don't make Boop's mood flail  (0/3 runs)
+  case: Within a couple of minutes the agent's tests fail, pass, fail, pass, fail and pass again, twenty seconds apart. Boop reacts to what stands out, but its mood doesn't flip with every result: once it has turned determined or proud it holds that mood for at least a minute rather than bouncing straight back to the one it just left.
+  whole run: mood_changes 1-3: 6: happy → determined → proud → determined → proud → determined → proud
+  whole run: no_mood_bounce_within 1m00s: determined → proud at 0m50s, back at 1m10s
+FAIL  21-busy-session.json  A busy half hour keeps Boop lively without flailing  (0/3 runs)
+  case: A realistic half hour: a few quick turns, a failing build the agent fixes, a twelve-minute turn of quiet work that finishes well, and a couple more quick turns. Boop is clearly alive the whole time: it reacts often, never leaves a turn on the plain working look for more than about six minutes, uses several different faces and words rather than one, and never plays the same reaction three times running. Its mood moves a few times (determined at the failure, proud at the fix, excited at the long finish, back to happy in between) without bouncing back and forth.
+  whole run: max_quiet_working 6m00s: the longest quiet stretch of work was 12m00s, from 7m00s
+  whole run: max_same_in_a_row 2: 3 in a row (happy)
+16/21 passed in every run with jev:jev-latest
+latency: median 229 ms, slowest 613 ms (deadline 1500 ms)
+every entry: boopdev watch /tmp/boop-eval/…

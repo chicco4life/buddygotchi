@@ -1,0 +1,17 @@
+{
+  "name": "Tests flipping back and forth don't make Boop's mood flail",
+  "case": "Within a couple of minutes the agent's tests fail, pass, fail, pass, fail and pass again, twenty seconds apart. Boop reacts to what stands out, but its mood doesn't flip with every result: once it has turned determined or proud it holds that mood for at least a minute rather than bouncing straight back to the one it just left.",
+  "gap": "The mood question's options (MoodAction.moods, in code) say determined is for 'a check failed', and that outweighs the MOOD files' 'stays proud through a failed check', so the mood follows every result. Proposed fix: reword those options, or hold a new mood for a minute in the mood action.",
+  "why": "The owner's liveliness brief (2026-09-28): mood changes are progressive and don't flail. plan/steering/mood/: a mood holds for at least a minute unless something bigger happens",
+  "checks": {"no_mood_bounce_within": "1m", "mood_changes": "1-3"},
+  "steps": [
+    {"event": "turn started", "at": "0s"},
+    {"event": "command", "at": "30s", "topic": "tests", "failed": true},
+    {"event": "command", "at": "50s", "topic": "tests", "failed": false},
+    {"event": "command", "at": "1m10s", "topic": "tests", "failed": true},
+    {"event": "command", "at": "1m30s", "topic": "tests", "failed": false},
+    {"event": "command", "at": "1m50s", "topic": "tests", "failed": true},
+    {"event": "command", "at": "2m10s", "topic": "tests", "failed": false, "expect": {"mood": "determined|proud"}},
+    {"event": "turn finished", "at": "2m30s"}
+  ]
+}

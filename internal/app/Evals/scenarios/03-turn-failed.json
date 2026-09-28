@@ -1,5 +1,7 @@
 {
   "name": "A failed turn makes Boop grumpy, and shows it",
+  "case": "The agent's turn fails after a couple of minutes (it hit a rate limit). Boop gets grumpy at once: a grumpy face, with a word like 'ugh' or 'oops' or none, and its mood turns grumpy. It isn't sad, since the turn wasn't a long one.",
+  "always": true,
   "why": "plan/steering/mood/happy.md: happy leaves for grumpy when a turn fails; plan/steering/guide.md: a mood change shows, with the new mood's face. A turn of two minutes failing is no reason to be sad, and determined is for a turn still working",
   "steps": [
     {"event": "turn started", "at": "0s"},

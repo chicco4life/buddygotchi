@@ -1,5 +1,7 @@
 {
   "name": "An hour of nothing lets a grumpy mood go",
+  "case": "A test fails and then the agent's turn fails, so Boop turns grumpy. Then nothing at all happens for over an hour. By then Boop has let it go: its mood is happy again, with a happy face at most.",
+  "always": true,
   "why": "plan/steering/guide.md: any mood goes back to happy after an hour with nothing happening; the heartbeat is the event that brings it, and a heartbeat itself is no reason to mumble. plan/steering/mood/: a failed turn makes Boop grumpy",
   "steps": [
     {"event": "turn started", "at": "0s"},

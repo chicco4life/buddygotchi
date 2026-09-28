@@ -1,5 +1,7 @@
 {
   "name": "A very long turn that fails makes Boop sad",
+  "case": "The agent works for twenty-five minutes and then the turn fails. After that much work it's deflating: Boop's mood turns sad, with a sad or grumpy face, or none. It never cheers.",
+  "always": true,
   "why": "plan/steering/mood/happy.md: happy leaves for sad when a very long turn ends failed, and the react question's sad is for a very long turn ending failed",
   "steps": [
     {"event": "turn started", "at": "0s"},

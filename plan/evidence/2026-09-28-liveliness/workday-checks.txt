@@ -1,0 +1,48 @@
+## base1/debug.jsonl
+FAIL  longest_quiet_min ≤ 8: 9.1 (from 11:15)
+ok    quiet_over_6_min ≤ 3: 2
+FAIL  longest_same_run ≤ 3: 8 (happy)
+ok    repeat_pct ≤ 50: 48
+ok    mood_bounces ≤ 1: 1; 14:23 grumpy → happy, back at 14:23
+ok    min_mood_changes ≥ 10: 31
+ok    longest_happy_working_min ≤ 45: 16.1 (from 17:04)
+## base2/debug.jsonl
+FAIL  longest_quiet_min ≤ 8: 16.0 (from 11:08)
+ok    quiet_over_6_min ≤ 3: 1
+FAIL  longest_same_run ≤ 3: 8 (happy)
+ok    repeat_pct ≤ 50: 48
+ok    mood_bounces ≤ 1: 1; 14:23 grumpy → happy, back at 14:23
+ok    min_mood_changes ≥ 10: 31
+ok    longest_happy_working_min ≤ 45: 16.1 (from 17:04)
+## after1/debug.jsonl
+ok    longest_quiet_min ≤ 8: 3.8 (from 09:53)
+ok    quiet_over_6_min ≤ 3: 0
+FAIL  longest_same_run ≤ 3: 42 (happy)
+FAIL  repeat_pct ≤ 50: 78
+ok    mood_bounces ≤ 1: 1; 14:23 grumpy → happy, back at 14:23
+ok    min_mood_changes ≥ 10: 34
+ok    longest_happy_working_min ≤ 45: 9.1 (from 11:15)
+## after2/debug.jsonl
+ok    longest_quiet_min ≤ 8: 3.5 (from 17:26)
+ok    quiet_over_6_min ≤ 3: 0
+FAIL  longest_same_run ≤ 3: 36 (happy)
+FAIL  repeat_pct ≤ 50: 77
+ok    mood_bounces ≤ 1: 1; 14:23 grumpy → happy, back at 14:23
+ok    min_mood_changes ≥ 10: 33
+ok    longest_happy_working_min ≤ 45: 9.2 (from 11:15)
+## final1-valid.jsonl
+FAIL  longest_quiet_min ≤ 8: 16.0 (from 11:08)
+ok    quiet_over_6_min ≤ 3: 1
+FAIL  longest_same_run ≤ 3: 8 (happy)
+FAIL  repeat_pct ≤ 50: 51
+ok    mood_bounces ≤ 1: 1; 14:23 grumpy → happy, back at 14:23
+ok    min_mood_changes ≥ 10: 27
+ok    longest_happy_working_min ≤ 45: 9.1 (from 11:15)
+## final2-valid.jsonl
+FAIL  longest_quiet_min ≤ 8: 16.0 (from 11:08)
+ok    quiet_over_6_min ≤ 3: 1
+FAIL  longest_same_run ≤ 3: 8 (happy)
+ok    repeat_pct ≤ 50: 46
+ok    mood_bounces ≤ 1: 1; 14:23 grumpy → happy, back at 14:23
+ok    min_mood_changes ≥ 10: 27
+ok    longest_happy_working_min ≤ 45: 9.2 (from 11:15)

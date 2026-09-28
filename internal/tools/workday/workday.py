@@ -647,6 +647,9 @@ def summarize(path: Path) -> dict[str, Any]:
     hours: dict[int, dict[str, Any]] = defaultdict(new_hour)
     changes: list[dict[str, Any]] = []
     reactions: list[dict[str, Any]] = []
+    # When any agent works: [start, end] spans, from turn starts and ends.
+    open_turns: dict[str, int] = {}
+    working: list[list[int]] = []
     for raw in path.read_text().splitlines():
         try:
             e = json.loads(raw)
@@ -658,6 +661,13 @@ def summarize(path: Path) -> dict[str, Any]:
             ev["class"] = classify(ev)
             events[e["seq"]] = ev
             hr = hours[hour(ev["at"])]
+            session = (ev.get("facts", {}).get("thread") or {}).get("session")
+            if ev["kind"] == "turn_start" and session:
+                if not open_turns:
+                    working.append([ev["at"], ev["at"]])
+                open_turns[session] = ev["at"]
+            if ev["kind"] == "turn_end" and session and open_turns.pop(session, None) is not None and not open_turns:
+                working[-1][1] = ev["at"]
             if ev["kind"] == "turn_end":
                 hr["turns"] += 1
             if ev.get("wakes_brain") and ev["class"]:
@@ -695,8 +705,8 @@ def summarize(path: Path) -> dict[str, Any]:
                 hr["faces"][face] += 1
                 hr["loops"][held] += 1
                 hr["words"][word or "none"] += 1
-                reactions.append({"at": clock_of(ev["at"]), "class": ev["class"], "face": face, "held": held,
-                                  "word": word, "after": ev["line"]})
+                reactions.append({"at": clock_of(ev["at"]), "ms": ev["at"], "class": ev["class"], "face": face,
+                                  "cheer": "played a cheer" in msg, "held": held, "word": word, "after": ev["line"]})
     # How long each mood lasted, from the first event to the last.
     spans: Counter = Counter()
     if events:
@@ -705,8 +715,93 @@ def summarize(path: Path) -> dict[str, Any]:
             spans[mood] += c["ms"] - at
             at, mood = c["ms"], c["change"].split(" → ")[-1]
         spans[mood] += max(ev["at"] for ev in events.values()) - at
+    if open_turns and working and events:
+        working[-1][1] = max(ev["at"] for ev in events.values())
     return {"hours": {k: hours[k] for k in sorted(hours)}, "changes": changes, "reactions": reactions,
-            "mood_minutes": {k: round(v / 60_000) for k, v in spans.most_common()}}
+            "mood_minutes": {k: round(v / 60_000) for k, v in spans.most_common()},
+            "lively": liveliness(working, reactions, changes)}
+
+
+# ------------------------------------------------------------- liveliness
+
+# The loose limits `check` holds a day to (plan/EVALS.md §5): each catches
+# a clear failure of the owner's brief (2026-09-28), an animated Boop that
+# doesn't repeat itself, idle for long or flail, and is to be tightened
+# once the day meets it.
+LIMITS = {
+    "longest_quiet_min": 8,       # the longest stretch of work with no reaction
+    "quiet_over_6_min": 3,        # stretches of work over 6 minutes with no reaction
+    "longest_same_run": 3,        # the same face, cheer and word in a row
+    "repeat_pct": 50,             # reactions the same as the one before
+    "mood_bounces": 1,            # a mood changing back to the one it left within a minute
+    "min_mood_changes": 10,       # over the day
+    "longest_happy_working_min": 45,  # the longest stretch of work happy all through
+}
+
+
+def liveliness(working: list[list[int]], reactions: list[dict[str, Any]],
+               changes: list[dict[str, Any]]) -> dict[str, Any]:
+    """How lively a day was: quiet stretches of work, repeats, and how the
+    mood moved (plan/EVALS.md §5)."""
+    times = [r["ms"] for r in reactions]
+    gaps: list[tuple[int, int]] = []  # (ms, from)
+    for a, b in working:
+        marks = [a] + [t for t in times if a < t < b] + [b]
+        gaps += [(y - x, x) for x, y in zip(marks, marks[1:])]
+    longest = max(gaps, default=(0, 0))
+    same = lambda x, y: (x["face"], x["cheer"], x["word"]) == (y["face"], y["cheer"], y["word"])
+    run, best, best_what, repeats = 0, 0, "", 0
+    for i, r in enumerate(reactions):
+        again = i > 0 and same(reactions[i - 1], r)
+        repeats += again
+        run = run + 1 if again else 1
+        if run > best:
+            best, best_what = run, r["face"] + (" cheer" if r["cheer"] else "") + (f' "{r["word"]}"' if r["word"] else "")
+    bounces = [f'{a["at"]} {a["change"]}, back at {b["at"]}' for a, b in zip(changes, changes[1:])
+               if b["change"].split(" → ")[-1] == a["change"].split(" → ")[0] and b["ms"] - a["ms"] < 60_000]
+    # The longest stretch of work with Boop happy all through.
+    happy: list[tuple[int, int]] = []
+    mood_at = [(c["ms"], c["change"].split(" → ")[-1]) for c in changes]
+    for a, b in working:
+        mood = "happy"
+        for t, m in mood_at:
+            if t <= a:
+                mood = m
+        start = a if mood == "happy" else None
+        for t, m in [(t, m) for t, m in mood_at if a < t < b] + [(b, "end")]:
+            if start is not None and m != "happy":
+                happy.append((t - start, start))
+                start = None
+            elif start is None and m == "happy":
+                start = t
+    longest_happy = max(happy, default=(0, 0))
+    return {
+        "longest_quiet_min": round(longest[0] / 60_000, 1), "longest_quiet_at": clock_of(longest[1]) if gaps else "–",
+        "quiet_over_6_min": sum(1 for g, _ in gaps if g > 6 * 60_000),
+        "longest_same_run": best, "longest_same_what": best_what,
+        "repeat_pct": round(100 * repeats / max(1, len(reactions) - 1)),
+        "mood_bounces": len(bounces), "bounces": bounces, "min_mood_changes": len(changes),
+        "longest_happy_working_min": round(longest_happy[0] / 60_000, 1),
+        "longest_happy_working_at": clock_of(longest_happy[1]) if happy else "–",
+    }
+
+
+def check(paths: list[Path]) -> tuple[str, bool]:
+    """Each run's liveliness against LIMITS: every line, and whether all held."""
+    out, ok = [], True
+    for p in paths:
+        lv = summarize(p)["lively"]
+        out.append(f"## {p}")
+        for key, limit in LIMITS.items():
+            got = lv[key]
+            held = got >= limit if key.startswith("min_") else got <= limit
+            ok &= held
+            note = {"longest_quiet_min": f' (from {lv["longest_quiet_at"]})',
+                    "longest_same_run": f' ({lv["longest_same_what"]})' if lv["longest_same_what"] else "",
+                    "mood_bounces": "".join(f"; {b}" for b in lv["bounces"]),
+                    "longest_happy_working_min": f' (from {lv["longest_happy_working_at"]})'}.get(key, "")
+            out.append(f'{"ok  " if held else "FAIL"}  {key} {"≥" if key.startswith("min_") else "≤"} {limit}: {got}{note}')
+    return "\n".join(out), ok
 
 
 def hour(ms: int) -> int:
@@ -747,6 +842,12 @@ def report(paths: list[Path], as_json: bool = False) -> str:
                        + f" | {v['mood_changes']} | {v['back_to_happy']} | {v['mood_after_routine']}"
                        f" | {v['reactions']} | {rate}"
                        f" | {fmt(v['faces'])} |")
+        lv = r["lively"]
+        out += ["", f'Liveliness: longest quiet stretch of work {lv["longest_quiet_min"]} min (from {lv["longest_quiet_at"]}), '
+                f'{lv["quiet_over_6_min"]} over 6 min; {lv["repeat_pct"]}% of reactions the same as the one before, '
+                f'at most {lv["longest_same_run"]} in a row ({lv["longest_same_what"] or "–"}); '
+                f'{lv["mood_bounces"]} mood bounces; longest stretch of work happy all through '
+                f'{lv["longest_happy_working_min"]} min (from {lv["longest_happy_working_at"]})']
         out += ["", "Words mumbled (none: a mumble with no real word): " + fmt(total(r)["words"]),
                 "", "Time in each mood: " + ", ".join(f"{k} {v} min" for k, v in r["mood_minutes"].items()),
                 "", "Mood changes:"]
@@ -775,11 +876,17 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("report", help="sum up one or more runs' debug.jsonl")
     p.add_argument("files", nargs="+")
     p.add_argument("--json", action="store_true")
+    p = sub.add_parser("check", help="hold one or more runs' debug.jsonl to the liveliness limits; exits 1 if any fails")
+    p.add_argument("files", nargs="+")
     args = ap.parse_args(argv)
     if args.cmd == "plan":
         print(plan(args.seed))
     elif args.cmd == "run":
         return run(args)
+    elif args.cmd == "check":
+        text, ok = check([Path(f) for f in args.files])
+        print(text)
+        return 0 if ok else 1
     else:
         print(report([Path(f) for f in args.files], args.json))
     return 0

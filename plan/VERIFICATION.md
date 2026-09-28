@@ -48,7 +48,7 @@ launch the menu-bar app or run the whole eval.
 | `make dash` | The dashboard for the app `make debug` started, in a second terminal |
 | `make day` | What the everyday app did in a day, and why, from the logs `make debug` leaves (`boopctl day`, below); `DATE=YYYY-MM-DD` picks the day, the newest line's by default |
 | `make flash` | Builds the firmware and uploads it over USB; `BOOP_PORT` picks the port |
-| `make eval` | Builds, then runs the eval scenarios against Jev, 3 runs each (L5); fails without `BOOP_JEV_KEY` |
+| `make eval` | Builds, then runs the eval scenarios against Jev, 5 runs each for an `always` scenario and 3 for the rest (L5); fails without `BOOP_JEV_KEY` |
 | `make clean` | Deletes `.build` and `firmware/.pio` |
 | `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim (`python3 internal/app/tools/test.py`), since there's no Xcode |
 | `make -C internal fw` | Builds the firmware for the board |
@@ -90,7 +90,7 @@ commands go through the bridge.
 | `replay <hooks.jsonl> [--agent claude\|codex] [--gap-ms N] [--states]` | Runs recorded hook payloads through `boop-hook`'s field picking, the adapter and the core on a virtual clock, and prints every decision. `{"wait_ms":N}` and `{"advance_ms":N}` lines move the clock |
 | `replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]` | Sends each payload through the real `boop-hook` to a running app, in real time, and times each `boop-hook` from launch to exit. `{"advance_ms":N}` moves a headless app's clock |
 | `voice <feeling\|mood> [word] [--dialect HEX] [--seed N] [--count N] [--json]` | Prints the lines `react` would build ([VOICE.md](VOICE.md) §4), in a feeling or in the one Voice gives a mood's face; dialect `7f3a` and seed 1 by default |
-| `eval [--runs N] [--only TEXT] [--scenarios DIR] [--steering DIR]` | The eval scenarios against Jev (L5, [EVALS.md](EVALS.md)) |
+| `eval [--runs N] [--only TEXT] [--always] [--timeline] [--scenarios DIR] [--steering DIR]`, `eval --list` | The eval scenarios against Jev (L5, [EVALS.md](EVALS.md)); `--list` prints each one's case with no key |
 | `watch [FILE] [--new]` | Prints a `debug.jsonl`'s events, passes and actions readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's. `--new` skips what's already there |
 | `hooks status\|install\|remove [claude\|codex] --home DIR [--hook PATH]` | The hook installer, against any HOME ([ADAPTERS.md](ADAPTERS.md)) |
 
@@ -111,7 +111,7 @@ commands go through the bridge.
 | `node internal/tools/sfxgen/sfxgen.mjs [--wav-dir DIR]` | Rebuilds the sound effects, `firmware/assets/sfx.h`, from the animation pack's synthesiser and timelines in `internal/tools/sfxgen/pack/` ([VOICE.md](VOICE.md) §10); `--wav-dir` also writes every clip as a WAV |
 | `internal/tools/.venv/bin/python internal/tools/fontgen/fontgen.py [--ttf-dir DIR]` | Rebuilds the device's fonts, `firmware/assets/fonts.h`, from Geist Mono ([DEVICE.md](DEVICE.md) §6); the `.ttf` files are in `landing/node_modules` after `npm ci` there, by default |
 | `internal/tools/.venv/bin/python internal/tools/facegen/facegen.py [--check]` | What `make -C internal faces` runs; without `--check` it skips the comparison with Chrome |
-| `python3 internal/tools/workday/workday.py plan\|run\|report` | A scripted 8-hour working day through `Boop --headless` and its brain on a compressed clock, and a report of what Boop did hour by hour: mood changes, reactions by kind of line, faces, and the day's words (L5, [EVALS.md](EVALS.md) §5). `run --state DIR` (short, under `/tmp`; it's deleted first), `--seed N` (1), `--brain jev\|scripted` (jev, with `BOOP_JEV_KEY`), `--personality`, `--out DIR`, `--verbose`; `report FILE…` takes `debug.jsonl` files, `--json` |
+| `python3 internal/tools/workday/workday.py plan\|run\|report` | A scripted 8-hour working day through `Boop --headless` and its brain on a compressed clock, and a report of what Boop did hour by hour: mood changes, reactions by kind of line, faces, and the day's words (L5, [EVALS.md](EVALS.md) §5). `run --state DIR` (short, under `/tmp`; it's deleted first), `--seed N` (1), `--brain jev\|scripted` (jev, with `BOOP_JEV_KEY`), `--personality`, `--out DIR`, `--verbose`; `report FILE…` takes `debug.jsonl` files, `--json`; `check FILE…` holds each to the liveliness limits and exits 1 if one fails |
 | `internal/tools/webcam/webcam.sh list\|record\|analyze` | The camera recorder ([its README](../internal/tools/webcam/README.md)); `boopctl cam` wraps it |
 | `internal/skills/doctor/doctor.sh` | Checks from inside an agent that its hooks reach Boop; `--headless` against a throwaway app ([ADAPTERS.md](ADAPTERS.md) §6) |
 
@@ -336,20 +336,22 @@ retried once and counted as a link glitch.
 ### L5: brain
 
 1. `make eval` (`.build/debug/boopdev eval`, with `BOOP_JEV_KEY`) runs
-   every eval scenario against Jev, 3 times each. What it reports is in
-   [EVALS.md](EVALS.md) §2.
+   every eval scenario against Jev, 5 times each for an `always` one and
+   3 for the rest. What it reports is in [EVALS.md](EVALS.md) §2.
 2. Read a sample of its passes (`boopdev watch` on the file it names)
    against the steering files (`plan/steering/`): are the reactions and
    mood changes in character and never nagging, and the words and how
    long each face holds right for what happened?
 3. After a change to the steering files or the questions, the working
    day ([EVALS.md](EVALS.md) §5): `workday.py run` twice before the
-   change and twice after, same seed, and `workday.py report` on each.
+   change and twice after, same seed, and `workday.py report` and
+   `workday.py check` on each.
    How often the mood changes per hour, whether a routine line changed
    it, and how often, with which faces and which words Boop reacts,
    before against after.
 
-**Pass:** every scenario passes in every run; no pass is dropped; the
+**Pass:** every scenario passes in every run, but for known gaps
+([EVALS.md](EVALS.md) §1), and every `always` one does; no pass is dropped; the
 slowest pass is under the 1.5 s deadline; and the sample reads well.
 
 ### L6: the owner

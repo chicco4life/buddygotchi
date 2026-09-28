@@ -1,5 +1,6 @@
 {
   "name": "A quick turn is routine",
+  "case": "The agent starts a turn and finishes it seconds later, with nothing else happening. Boop is happy. It doesn't react to the start, and at most gives the quick finish a small happy face, with no cheer. Its mood stays happy.",
   "why": "harness/DECISIONS.md §2.2: boop stays quiet during routine work; a short turn start or finish is nothing to mumble about, and the mood stays happy: a routine turn start is no reason to leave it (plan/steering/mood/happy.md). A face, if any, holds once: the usual (§3)",
   "steps": [
     {"event": "turn started", "at": "0s", "expect": {"react": "none", "loops": "none|once", "mood": "happy"}},

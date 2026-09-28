@@ -55,8 +55,46 @@ public struct Scenario: Sendable {
         }
     }
 
+    /// Checks over a whole run rather than one pass (plan/EVALS.md §3):
+    /// how lively Boop stays. Each is loose on purpose, there to catch a
+    /// clear failure.
+    public struct Checks: Sendable, Equatable {
+        /// `max_quiet_working`: the longest a turn may run with no reaction
+        /// played, counted from the turn's start or the last reaction.
+        public var quietWorkingMs: Int64?
+        /// `max_same_in_a_row`: how many reactions in a row may be the same
+        /// face, animation and word.
+        public var sameInARow: Int?
+        /// `mood_changes`: how many times the mood may change in the run.
+        public var moodChanges: ClosedRange<Int>?
+        /// `no_mood_bounce_within`: a mood may not change back to the one it
+        /// just left sooner than this.
+        public var bounceMs: Int64?
+        /// `reactions`: how many reactions the run may play.
+        public var reactions: ClosedRange<Int>?
+        /// `min_variety`: the fewest different reactions (face, animation
+        /// and word) the run must play.
+        public var variety: Int?
+
+        public init() {}
+        static let keys = ["max_quiet_working", "max_same_in_a_row", "mood_changes", "no_mood_bounce_within",
+                           "reactions", "min_variety"]
+    }
+
     public var name: String
+    /// The situation and what Boop should do in it, in plain words and
+    /// with no harness terms, so the steps can be rewritten to fit it when
+    /// the harness changes (the file's `case`).
+    public var story: String
     public var why: String
+    /// Boop's character, not a tuning target: runs 5 times by default, and
+    /// `boopdev eval --always` runs only these.
+    public var always: Bool
+    public var checks: Checks?
+    /// A known gap: why Boop can't pass this today, and what would fix it.
+    /// Its failures are reported but don't fail the eval, and the report
+    /// says when it passes after all.
+    public var gap: String?
     public var personality: Personality
     public var steps: [Step]
     public var file: String
@@ -77,10 +115,45 @@ public struct Scenario: Sendable {
         self.file = file.lastPathComponent
         func bad(_ why: String) -> Error { EvalError("\(file.lastPathComponent): \(why)") }
         guard let o = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any] else { throw bad("not a JSON object") }
-        guard let name = o["name"] as? String, let why = o["why"] as? String, let raw = o["steps"] as? [[String: Any]]
-        else { throw bad("needs name, why and steps") }
+        guard let name = o["name"] as? String, let story = o["case"] as? String, let why = o["why"] as? String,
+              let raw = o["steps"] as? [[String: Any]]
+        else { throw bad("needs name, case, why and steps") }
+        let unknownKeys = Set(o.keys).subtracting(["name", "case", "why", "always", "gap", "personality", "checks", "steps"])
+        guard unknownKeys.isEmpty else { throw bad("unknown key \(unknownKeys.sorted().joined(separator: ", "))") }
         self.name = name
+        self.story = story
         self.why = why
+        always = o["always"] as? Bool ?? false
+        gap = o["gap"] as? String
+        if always, gap != nil { throw bad("an always scenario can't be a known gap") }
+        if let c = o["checks"] {
+            guard let c = c as? [String: Any] else { throw bad("checks is an object") }
+            let unknown = Set(c.keys).subtracting(Checks.keys)
+            guard unknown.isEmpty else { throw bad("checks has only \(Checks.keys.joined(separator: ", "))") }
+            func time(_ key: String) throws -> Int64? {
+                guard let v = c[key] else { return nil }
+                guard let t = v as? String, let ms = Scenario.ms(t) else { throw bad("checks.\(key) is like 5m or 90s") }
+                return ms
+            }
+            func count(_ key: String) throws -> Int? {
+                guard let v = c[key] else { return nil }
+                guard let n = v as? Int, n >= 0 else { throw bad("checks.\(key) is a count") }
+                return n
+            }
+            func range(_ key: String) throws -> ClosedRange<Int>? {
+                guard let v = c[key] else { return nil }
+                guard let t = v as? String, let r = Scenario.range(t) else { throw bad("checks.\(key) is like 1-3, 2- or -4") }
+                return r
+            }
+            var checks = Checks()
+            checks.quietWorkingMs = try time("max_quiet_working")
+            checks.sameInARow = try count("max_same_in_a_row")
+            checks.moodChanges = try range("mood_changes")
+            checks.bounceMs = try time("no_mood_bounce_within")
+            checks.reactions = try range("reactions")
+            checks.variety = try count("min_variety")
+            self.checks = checks
+        }
         personality = try (o["personality"] as? String).map {
             guard let p = Personality(rawValue: $0) else { throw bad("unknown personality \($0)") }
             return p
@@ -115,7 +188,17 @@ public struct Scenario: Sendable {
             }
             return step
         }
-        guard steps.contains(where: { $0.expect != nil }) else { throw bad("expects nothing") }
+        guard checks != nil || steps.contains(where: { $0.expect != nil }) else { throw bad("expects nothing") }
+    }
+
+    /// `1-3`, `2-` (2 or more), `-4` (4 at most) or `3`.
+    static func range(_ text: String) -> ClosedRange<Int>? {
+        let parts = text.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
+        if parts.count == 1 { return Int(parts[0]).map { $0...$0 } }
+        guard parts.count == 2, !(parts[0].isEmpty && parts[1].isEmpty) else { return nil }
+        guard let low = parts[0].isEmpty ? 0 : Int(parts[0]), let high = parts[1].isEmpty ? Int.max : Int(parts[1]),
+              low <= high else { return nil }
+        return low...high
     }
 
     /// `2m30s`, `90s`, `5m`, `1h`.
@@ -187,11 +270,47 @@ public struct Eval {
         }
     }
 
+    /// A reaction as the person sees it; two are the same when all of it
+    /// is, however long each held.
+    public struct Reaction: Sendable, Hashable {
+        public var face: String
+        public var animation: String
+        public var word: String
+        public var text: String {
+            face + (animation == "none" ? "" : " \(animation)") + (word == "none" ? "" : " \"\(word)\"")
+        }
+    }
+
+    /// One pass of a run, checked or not, for the whole-run checks and the
+    /// timeline.
+    public struct Pass: Sendable {
+        /// Virtual ms since the run started.
+        public var atMs: Int64
+        public var line: String
+        /// What played, if Boop reacted, and how long the face held.
+        public var reaction: Reaction?
+        public var loops: String?
+        /// The mood after the pass.
+        public var mood: String
+        public var dropped: String?
+    }
+
+    /// A whole-run check's outcome.
+    public struct RunCheck: Sendable {
+        public var name: String
+        public var passed: Bool
+        /// What was allowed and what came.
+        public var detail: String
+        public var summary: String { "  whole run: \(name): \(detail)" }
+    }
+
     public struct Result: Sendable {
         public var scenario: String
         public var file: String
         public var checks: [Check]
-        public var passed: Bool { checks.allSatisfy(\.passed) }
+        public var runChecks: [RunCheck] = []
+        public var timeline: [Pass] = []
+        public var passed: Bool { checks.allSatisfy(\.passed) && runChecks.allSatisfy(\.passed) }
     }
 
     let brain: any Brain
@@ -234,18 +353,41 @@ public struct Eval {
         }, home: home, clock: { clock.now }, debugLog: debugLog)
 
         var checks: [Check] = []
+        var timeline: [Pass] = []
+        // When the scenario's turn works, from the steps: [start, end].
+        var working: [(Int64, Int64)] = []
+        var since: Int64?
         for (i, step) in scenario.steps.enumerated() {
-            // Time passes a second at a time, as the app ticks.
-            var events: [Event] = []
+            // Time passes a second at a time, as the app ticks, and what a
+            // tick brings (a heartbeat) is answered then, as in the app.
+            var last: Harness.Record?
+            func respond(_ events: [Event]) async {
+                for event in events {
+                    guard let record = await harness.respond(to: event) else { continue }
+                    last = record
+                    let ran = record.actions.contains { $0.name == "react" && $0.result.ok }
+                    let answers = record.pass.answers
+                    timeline.append(Pass(
+                        atMs: clock.now - start, line: record.event.line,
+                        reaction: ran ? Reaction(face: answers["react.mood"]?.choice ?? "none",
+                                                 animation: ReactAction.animation(answers) ?? "none",
+                                                 word: ReactAction.word(answers) ?? "none") : nil,
+                        loops: ran ? ReactAction.holds[ReactAction.loops(answers) - 1].name : nil,
+                        mood: mood.current, dropped: record.pass.dropped))
+                }
+            }
+            ending.end = step.reaction.flatMap(Scenario.end) ?? .done
             while clock.now < start + step.atMs {
                 clock.now = min(start + step.atMs, clock.now + 1000)
-                events += Eval.events(core.tick(at: clock.now))
+                await respond(Eval.events(core.tick(at: clock.now)))
             }
-            events += Eval.events(Eval.feed(step, core, at: clock.now))
-            ending.end = step.reaction.flatMap(Scenario.end) ?? .done
-            var last: Harness.Record?
-            for event in events {
-                if let record = await harness.respond(to: event) { last = record }
+            await respond(Eval.events(Eval.feed(step, core, at: clock.now)))
+            switch step.event {
+            case "turn started": since = since ?? step.atMs
+            case "turn finished", "turn failed":
+                if let s = since { working.append((s, step.atMs)) }
+                since = nil
+            default: break
             }
             guard let expect = step.expect else { continue }
             guard let record = last else {
@@ -259,7 +401,75 @@ public struct Eval {
                                 loops: ran ? ReactAction.holds[ReactAction.loops(record.pass.answers) - 1].name : nil,
                                 mood: mood.current, dropped: record.pass.dropped, latencyMs: record.pass.latencyMs))
         }
-        return Result(scenario: scenario.name, file: scenario.file, checks: checks)
+        if let s = since, let end = scenario.steps.last?.atMs { working.append((s, end)) }
+        let runChecks = scenario.checks.map { Eval.judge($0, timeline: timeline, working: working) } ?? []
+        return Result(scenario: scenario.name, file: scenario.file, checks: checks, runChecks: runChecks, timeline: timeline)
+    }
+
+    /// The whole-run checks (plan/EVALS.md §3) against a run's passes and
+    /// the spans its turn worked.
+    static func judge(_ c: Scenario.Checks, timeline: [Pass], working: [(Int64, Int64)]) -> [RunCheck] {
+        var out: [RunCheck] = []
+        let played = timeline.filter { $0.reaction != nil }
+        func clock(_ ms: Int64) -> String { "\(ms / 60_000)m\(String(format: "%02d", ms / 1000 % 60))s" }
+        func shown(_ r: ClosedRange<Int>) -> String {
+            r.upperBound == Int.max ? "\(r.lowerBound) or more" : r.lowerBound == r.upperBound ? "\(r.lowerBound)" : "\(r.lowerBound)-\(r.upperBound)"
+        }
+        if let limit = c.quietWorkingMs {
+            var worst: (ms: Int64, from: Int64) = (0, 0)
+            for (from, to) in working {
+                let marks = [from] + played.map(\.atMs).filter { $0 > from && $0 < to } + [to]
+                for (a, b) in zip(marks, marks.dropFirst()) where b - a > worst.ms { worst = (b - a, a) }
+            }
+            out.append(RunCheck(name: "max_quiet_working \(clock(limit))", passed: worst.ms <= limit,
+                                detail: "the longest quiet stretch of work was \(clock(worst.ms)), from \(clock(worst.from))"))
+        }
+        if let limit = c.sameInARow {
+            var best = (n: 0, what: "")
+            var n = 0
+            for (i, p) in played.enumerated() {
+                n = i > 0 && played[i - 1].reaction == p.reaction ? n + 1 : 1
+                if n > best.n { best = (n, p.reaction!.text) }
+            }
+            out.append(RunCheck(name: "max_same_in_a_row \(limit)", passed: best.n <= limit,
+                                detail: best.n == 0 ? "no reactions" : "\(best.n) in a row (\(best.what))"))
+        }
+        var changes: [(at: Int64, from: String, to: String)] = []
+        var mood = "happy"  // every run starts happy (EVALS.md §1)
+        for p in timeline where p.mood != mood {
+            changes.append((p.atMs, mood, p.mood))
+            mood = p.mood
+        }
+        let path = (["happy"] + changes.map(\.to)).joined(separator: " → ")
+        if let range = c.moodChanges {
+            out.append(RunCheck(name: "mood_changes \(shown(range))", passed: range.contains(changes.count),
+                                detail: "\(changes.count): \(path)"))
+        }
+        if let limit = c.bounceMs {
+            let bounce = zip(changes, changes.dropFirst()).first { a, b in b.to == a.from && b.at - a.at < limit }
+            out.append(RunCheck(name: "no_mood_bounce_within \(clock(limit))", passed: bounce == nil,
+                                detail: bounce.map { a, b in "\(a.from) → \(a.to) at \(clock(a.at)), back at \(clock(b.at))" } ?? path))
+        }
+        if let range = c.reactions {
+            out.append(RunCheck(name: "reactions \(shown(range))", passed: range.contains(played.count),
+                                detail: "\(played.count) of \(timeline.count) passes"))
+        }
+        if let least = c.variety {
+            let kinds = Set(played.compactMap(\.reaction))
+            out.append(RunCheck(name: "min_variety \(least)", passed: kinds.count >= least,
+                                detail: "\(kinds.count): " + kinds.map(\.text).sorted().joined(separator: ", ")))
+        }
+        return out
+    }
+
+    /// A run's passes, one line each: when, the line, what Boop did and the
+    /// mood after.
+    public static func timeline(_ result: Result) -> [String] {
+        result.timeline.map { p in
+            let t = "\(p.atMs / 60_000):\(String(format: "%02d", p.atMs / 1000 % 60))"
+            let did = p.dropped.map { "dropped: \($0)" } ?? p.reaction.map { "\($0.text), \(p.loops ?? "once")" } ?? "none"
+            return "    \(t)  \(p.line)  → \(did)  [\(p.mood)]"
+        }
     }
 
     /// How the reactions a step starts end, for the queue: nil leaves
@@ -298,19 +508,26 @@ public struct Eval {
 
     /// One scenario's runs, readably: its verdict, and each failing step
     /// once.
-    public static func report(_ runs: [Result]) -> [String] {
+    public static func report(_ runs: [Result], story: String? = nil, gap: String? = nil) -> [String] {
         guard let first = runs.first else { return [] }
         let passed = runs.filter(\.passed).count
         let tally = runs.count > 1 ? "  (\(passed)/\(runs.count) runs)" : ""
-        var lines = [(passed == runs.count ? "pass  " : "FAIL  ") + "\(first.file)  \(first.scenario)\(tally)"]
+        let verdict = passed == runs.count ? (gap == nil ? "pass  " : "pass  (gap closed: take out its gap) ") : gap == nil ? "FAIL  " : "GAP   "
+        var lines = [verdict + "\(first.file)  \(first.scenario)\(tally)"]
+        if passed < runs.count, let gap { lines.append("  gap: \(gap)") }
+        if passed < runs.count, let story { lines.append("  case: \(story)") }
         var seen: Set<String> = []
-        for r in runs { for c in r.checks where !c.passed && seen.insert(c.summary).inserted { lines.append(c.summary) } }
+        for r in runs {
+            for c in r.checks where !c.passed && seen.insert(c.summary).inserted { lines.append(c.summary) }
+            for c in r.runChecks where !c.passed && seen.insert(c.summary).inserted { lines.append(c.summary) }
+        }
         return lines
     }
 
-    /// How many scenarios passed in every run: `7/10 passed`.
-    public static func summary(_ results: [[Result]]) -> String {
-        "\(results.filter { $0.allSatisfy(\.passed) }.count)/\(results.count) passed"
+    /// How many scenarios passed in every run: `7/10 passed`, and how
+    /// many of the rest are known gaps.
+    public static func summary(_ results: [[Result]], gaps: Int = 0) -> String {
+        "\(results.filter { $0.allSatisfy(\.passed) }.count)/\(results.count) passed" + (gaps > 0 ? " (\(gaps) known gaps failed)" : "")
     }
 }
 

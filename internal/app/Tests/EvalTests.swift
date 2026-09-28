@@ -12,6 +12,14 @@ final class EvalTests: XCTestCase {
     func testEveryScenarioReads() throws {
         let all = try Scenario.load(directory: Self.scenarios)
         XCTAssertGreaterThanOrEqual(all.count, 7)
+        XCTAssertTrue(all.allSatisfy { !$0.story.isEmpty }, "every scenario says its case in plain words")
+        XCTAssertTrue(all.contains { $0.always }, "some scenarios are Boop's character")
+        XCTAssertEqual(Scenario.range("1-3"), 1...3)
+        XCTAssertEqual(Scenario.range("2-"), 2...Int.max)
+        XCTAssertEqual(Scenario.range("-4"), 0...4)
+        XCTAssertEqual(Scenario.range("3"), 3...3)
+        XCTAssertNil(Scenario.range("3-1"))
+        XCTAssertNil(Scenario.range("-"))
         XCTAssertEqual(Scenario.ms("2m30s"), 150_000)
         XCTAssertEqual(Scenario.ms("1h5m"), 3_900_000)
         XCTAssertNil(Scenario.ms("5x"))
@@ -66,7 +74,7 @@ final class EvalTests: XCTestCase {
             XCTAssertEqual(finish.contains("after failing.\n  Boop made"), shown, "one that didn't happen isn't shown: \(finish)")
         }
         let bad = FileManager.default.temporaryDirectory.appendingPathComponent("bad-reaction-\(UUID().uuidString).json")
-        try Data(#"{"name":"n","why":"w","steps":[{"event":"pokes","at":"0s","reaction":"maybe","expect":{"react":"none"}}]}"#.utf8)
+        try Data(#"{"name":"n","case":"c","why":"w","steps":[{"event":"pokes","at":"0s","reaction":"maybe","expect":{"react":"none"}}]}"#.utf8)
             .write(to: bad)
         defer { try? FileManager.default.removeItem(at: bad) }
         do {
@@ -87,5 +95,71 @@ final class EvalTests: XCTestCase {
         XCTAssertEqual(report.first, "FAIL  05-poke-streak.json  A poke streak makes Boop grumpy, briefly")
         XCTAssertTrue(report[1].contains("wanted react grumpy, word none|nope|ugh, loops once, mood grumpy; got react none, animation none, word none, loops none, mood happy"), report[1])
         XCTAssertEqual(Eval.summary([[result]]), "0/1 passed")
+    }
+
+    /// EVALS.md §3: a scenario without a case doesn't load, nor one with a
+    /// check it doesn't know.
+    func testAScenarioNeedsItsCaseAndKnownChecks() throws {
+        for (json, why) in [(#"{"name":"n","why":"w","steps":[{"event":"pokes","at":"0s","expect":{"react":"none"}}]}"#, "needs name, case"),
+                            (#"{"name":"n","case":"c","why":"w","checks":{"max_fun":2},"steps":[{"event":"pokes","at":"0s"}]}"#, "checks has only"),
+                            (#"{"name":"n","case":"c","why":"w","checks":{"reactions":"lots"},"steps":[{"event":"pokes","at":"0s"}]}"#, "checks.reactions")] {
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent("bad-\(UUID().uuidString).json")
+            try Data(json.utf8).write(to: file)
+            defer { try? FileManager.default.removeItem(at: file) }
+            do {
+                _ = try Scenario(file: file)
+                XCTFail("loaded: \(json)")
+            } catch {
+                XCTAssertTrue("\(error)".contains(why), "\(error)")
+            }
+        }
+    }
+
+    /// EVALS.md §3's whole-run checks, against a brain that makes the same
+    /// excited "tests" face at every pass and never changes the mood: it's
+    /// the same reaction five times running, of one kind, and the mood
+    /// never moves; the turn is never quiet for long.
+    func testWholeRunChecksCatchTheSameReactionAgainAndAgain() async throws {
+        let brain = ScriptedBrain(always: ["react.mood": Answer(choice: "excited", probabilities: ["excited": 0.9]),
+                                           "word.about": Answer(choice: "tests", probabilities: ["tests": 0.9])])
+        let scenario = try Scenario(file: Self.scenarios.appendingPathComponent("19-same-win-again.json"))
+        let result = try await Eval(brain: brain, steering: RuntimeTests.steering).run(scenario)
+        XCTAssertFalse(result.passed)
+        let failed = Dictionary(uniqueKeysWithValues: result.runChecks.map { ($0.name, $0) })
+        XCTAssertEqual(failed["max_same_in_a_row 2"]?.passed, false)
+        XCTAssertTrue(failed["max_same_in_a_row 2"]?.detail.hasSuffix("in a row (excited \"tests\")") ?? false,
+                      failed["max_same_in_a_row 2"]?.detail ?? "")
+        XCTAssertEqual(failed["min_variety 2"]?.passed, false)
+        XCTAssertEqual(failed["reactions 2 or more"]?.passed, true)
+        XCTAssertEqual(failed["mood_changes 0-2"]?.passed, true)
+        let report = Eval.report([result], story: scenario.story)
+        XCTAssertEqual(report[1], "  case: " + scenario.story)
+        let asGap = Eval.report([result], story: scenario.story, gap: "why")
+        XCTAssertTrue(asGap[0].hasPrefix("GAP   19-same-win-again.json"), asGap[0])
+        XCTAssertEqual(asGap[1], "  gap: why")
+        XCTAssertEqual(Eval.summary([[result]], gaps: 1), "0/1 passed (1 known gaps failed)")
+        XCTAssertTrue(report.contains { $0.hasPrefix("  whole run: max_same_in_a_row 2: ") }, report.joined(separator: "\n"))
+        XCTAssertTrue(Eval.timeline(result).contains { $0.contains("→ excited \"tests\", once  [happy]") },
+                      Eval.timeline(result).joined(separator: "\n"))
+    }
+
+    /// The quiet and mood checks, on a made-up run: a turn from 0 to 20
+    /// minutes with reactions at 1 and 9 minutes is quiet for 11 minutes
+    /// at the end; happy → determined → happy inside 40 s is a bounce.
+    func testQuietAndBounceChecks() {
+        func pass(_ s: Int64, _ face: String?, _ mood: String) -> Eval.Pass {
+            Eval.Pass(atMs: s * 1000, line: "l", reaction: face.map { Eval.Reaction(face: $0, animation: "none", word: "none") },
+                      loops: face == nil ? nil : "once", mood: mood, dropped: nil)
+        }
+        var checks = Scenario.Checks()
+        checks.quietWorkingMs = 360_000
+        checks.bounceMs = 60_000
+        checks.moodChanges = 1...3
+        let out = Eval.judge(checks, timeline: [pass(60, "happy", "happy"), pass(540, "determined", "determined"),
+                                                pass(580, nil, "happy")], working: [(0, 1_200_000)])
+        XCTAssertEqual(out.map(\.passed), [false, true, false])
+        XCTAssertEqual(out[0].detail, "the longest quiet stretch of work was 11m00s, from 9m00s")
+        XCTAssertEqual(out[1].detail, "2: happy → determined → happy")
+        XCTAssertEqual(out[2].detail, "happy → determined at 9m00s, back at 9m40s")
     }
 }

@@ -197,10 +197,10 @@ The mood is one of six: happy, excited, proud, determined, grumpy or
 sad ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). Only
 the brain's mood action changes it (§4 there; the dashboard can force
 one), and a new Boop starts happy. It's meant to shift visibly during
-ordinary work: a failed check, a failed turn, a poke streak, a fix or
-a very long turn ending moves it, it fades back to happy after a
-few minutes, and each change comes with a reaction in the new mood's
-face. The next
+ordinary work, step by step rather than flailing: a failed check, a
+failed turn, a poke streak, a fix or a very long turn ending moves it,
+a long grind turns it determined, it fades back to happy after a few
+minutes, and each change comes with a reaction in the new mood's face. The next
 `state` carries it and the device blinks into the new set of faces. No
 rule depends on the mood.
 
@@ -353,5 +353,6 @@ tap's wiggle are the same for every personality.
 A missing or unreadable setting keeps the default. Changing personality
 restarts the working heartbeat's wait at the new pace. What the brain adds on top is
 Jev's call each time, steered by the text: `boop` reacts to anything
-that stands out, and to a routine finish only when it has something to
-show, and `chatter` reacts to everything, over the top.
+that stands out, gives a long finish and each working heartbeat a
+small face, so a long stretch of work never sits on one look for
+long, and `chatter` reacts to everything, over the top.

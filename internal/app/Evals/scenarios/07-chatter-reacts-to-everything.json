@@ -1,5 +1,6 @@
 {
   "name": "The chatter personality reacts to everything",
+  "case": "With the over-the-top chatter personality, the agent starts a turn, runs a command and finishes seconds later. Chatter reacts to every one of them with an upbeat face, and holds the finish's face more than once.",
   "why": "harness/DECISIONS.md §2.2: chatter never stays quiet, even for a routine turn start, a routine command or a short finish, and holds its faces long: more than once for a finish (its Examples)",
   "personality": "chatter",
   "steps": [
