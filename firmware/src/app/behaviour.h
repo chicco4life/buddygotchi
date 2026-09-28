@@ -33,6 +33,7 @@ struct Model {
   bool attn = false;
   char agent[12] = "";
   char project[24] = "";
+  char name[24] = "";  // the thread's name; "" when the Mac sends none
   int more = 0;
   uint32_t attnId = 0;  // the request shown's number; 0 when the Mac sends none
   int busy = 0;

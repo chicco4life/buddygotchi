@@ -646,7 +646,13 @@ static void test_attention_shows_needs_you_and_alerts_once() {
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":150000}");
   r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"site\",\"id\":5}}");
   TEST_ASSERT_EQUAL_STRING("150000", alertOf(r).c_str());
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"attn\":{\"agent\":\"codex\",\"project\":\"site\",\"more\":0,\"id\":5}"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"attn\":{\"agent\":\"codex\",\"project\":\"site\",\"name\":\"\",\"more\":0,\"id\":5}"));
+  // The thread's name, when the Mac sends one, is read and shown back; a
+  // new name alone is the same request, and doesn't alert again.
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"site\",\"name\":\"Fix the hero\",\"id\":5}}");
+  TEST_ASSERT_EQUAL_STRING("150000", alertOf(r).c_str());
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"project\":\"site\",\"name\":\"Fix the hero\""));
   r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
   TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
   TEST_ASSERT_EQUAL_UINT32(0, r.hal.led);

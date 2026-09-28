@@ -33,3 +33,9 @@
 {"clock":122200}
 {"expect":{"screen":"face","attn":null,"moment":null,"led":"#000000"}}
 {"shot":"cleared"}
+// The thread's name, when the Mac has one, shows in the project's place,
+// cut as the project is.
+{"t":"state","v":1,"base":"working","attn":{"agent":"claude","project":"a-very-long-project-n..","name":"Thread name on \"needs..","more":0},"busy":1}
+{"clock":123000}
+{"expect":{"screen":"needs_you","attn":{"name":"Thread name on \"needs.."},"alert":122200}}
+{"shot":"thread-name"}

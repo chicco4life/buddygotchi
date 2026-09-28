@@ -79,19 +79,23 @@ enum Snapshots {
         return model
     }
 
-    /// `sessions` are agent, project and `wait`, `work` or `idle`.
+    /// `sessions` are agent, project, `wait`, `work` or `idle`, and
+    /// optionally the thread's name.
     static func status(base: String = "working", sessions rows: [[String]] = [], vol: Int = 6,
                        connected: Bool = true, personality: Personality = .boop,
                        name: String = "Mochi", brain: String = "jev:jev-latest",
                        mood: String = MoodAction.initial, brainTrouble: BrainTrouble? = nil) -> Runtime.Status {
         let statuses: [String: SessionSummary.Status] = ["wait": .waiting, "work": .working, "idle": .idle]
-        let sessions = rows.map { SessionSummary(agent: $0[0], project: $0[1], status: statuses[$0[2]]!) }
+        let sessions = rows.map {
+            SessionSummary(agent: $0[0], project: $0[1], name: $0.count > 3 ? $0[3] : nil, status: statuses[$0[2]]!)
+        }
         let wait = sessions.filter { $0.status == .waiting }
         let snapshot = StateSnapshot(
             base: base, mood: mood,
             // Cut as the core cuts it for the device; the popover shows it whole.
             attn: wait.first.map {
-                StateSnapshot.Attention(agent: $0.agent, project: StateSnapshot.clip($0.project, marked: true), more: wait.count - 1)
+                StateSnapshot.Attention(agent: $0.agent, project: StateSnapshot.clip($0.project, marked: true),
+                                        name: $0.name.map { StateSnapshot.clip($0, marked: true) } ?? "", more: wait.count - 1)
             },
             busy: sessions.filter { $0.status == .working }.count, vol: vol)
         return Runtime.Status(name: name, snapshot: snapshot, sessions: sessions, connected: connected,
@@ -107,7 +111,7 @@ enum Snapshots {
                 ["claude", "jetpack", "work"], ["claude", "notes", "idle"],
             ], mood: "determined"))),
             ("needs-you", model(installer, status: status(sessions: [
-                ["codex", "landing-page-redesign-v2", "wait"], ["claude", "jetpack", "wait"],
+                ["codex", "landing-page-redesign-v2", "wait", "Fix the hero image on mobile"], ["claude", "jetpack", "wait"],
                 ["codex", "buddygotchi", "work"], ["claude", "notes", "idle"],
             ]))),
             ("chatter", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], personality: .chatter))),

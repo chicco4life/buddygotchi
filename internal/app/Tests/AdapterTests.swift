@@ -61,6 +61,19 @@ final class AdapterTests: XCTestCase {
         XCTAssertEqual(Adapter.event(from: line("codex", "PermissionRequest", tool: "shell"))?["for"], "permission")
     }
 
+    /// ADAPTERS.md §2–3: a request carries its thread's name for the
+    /// strip; no other event does.
+    func testARequestCarriesItsThreadsName() {
+        for (agent, hook) in [("claude", "PermissionRequest"), ("claude", "Notification"), ("codex", "PermissionRequest")] {
+            var l = line(agent, hook, kind: hook == "Notification" ? "permission_prompt" : nil)
+            l.name = "Fix the hero image"
+            XCTAssertEqual(Adapter.event(from: l)?["name"], "Fix the hero image", "\(agent) \(hook)")
+        }
+        var stop = line("claude", "Stop")
+        stop.name = "Fix the hero image"
+        XCTAssertNil(Adapter.event(from: stop)?["name"])
+    }
+
     /// ADAPTERS.md §2: a Claude subagent's id rides on the event; Codex
     /// has none.
     func testASubagentsEventsSayWhichSubagent() {

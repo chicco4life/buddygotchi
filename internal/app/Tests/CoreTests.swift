@@ -1057,6 +1057,28 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(rig.sessions, [["claude", "web", "working"]], "then it follows its events again")
     }
 
+    /// BEHAVIORS.md §3.2, PROTOCOL.md §3: the strip shows the thread's name
+    /// in the project's place, cut to the device's field. The session keeps
+    /// the last name a request brought, and one with none sends no `name`.
+    func testTheStripNamesTheThreadThatAsks() {
+        let rig = CoreRig()
+        var ask = rig.event(.needsYou, project: "landing", tool: "Bash")
+        ask.data["name"] = "Thread name on \"needs you\" screen"
+        rig.send(ask)
+        XCTAssertEqual(rig.state.attn?.name, "Thread name on \"needs..")
+        XCTAssertTrue(rig.state.jsonLine.contains(#""project":"landing","name":"Thread name on \"needs..","more":0"#))
+        XCTAssertEqual(rig.core.sessionList(at: rig.now).first?.name, "Thread name on \"needs you\" screen",
+                       "the popover shows it whole")
+        rig.send(.activity, tool: "Bash")  // approved
+        rig.send(.needsYou, tool: "Edit")  // a request that brings no name
+        XCTAssertEqual(rig.state.attn?.name, "Thread name on \"needs..", "the session keeps it")
+        rig.send(.needsYou, session: "s2", project: "jetpack", tool: "Bash")
+        rig.send(.activity)  // s1 answered: s2 is shown
+        XCTAssertEqual(rig.state.attn?.project, "jetpack")
+        XCTAssertEqual(rig.state.attn?.name, "")
+        XCTAssertFalse(rig.state.jsonLine.contains("\"name\""))
+    }
+
     func testMoreThanOneShowsTheOldestWithACount() {
         let rig = CoreRig()
         rig.send(.needsYou, .claudeCode, session: "a", project: "jetpack", tool: "Bash")

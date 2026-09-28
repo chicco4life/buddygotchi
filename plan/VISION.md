@@ -92,7 +92,7 @@ harness evals check the brain's part ([EVALS.md](EVALS.md)).
   in one place: the device's strip counts those working and those that
   need you, and the Mac app lists them all.
 - **Tells you when you're needed.** An amber light, an amber sign, one
-  knock-and-ding, and the agent and project in the strip. You answer on the Mac,
+  knock-and-ding, and the agent and thread in the strip. You answer on the Mac,
   in the agent's own prompt ([BEHAVIORS.md](BEHAVIORS.md) §3.2).
 - **Reacts like a creature.** Four states (asleep, idle, working, needs
   you) and a wiggle for every tap; with Jev, mumbles while agents work

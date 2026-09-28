@@ -463,7 +463,7 @@ render::Strip Behaviour::strip(uint32_t t) const {
   s.noApp = noApp(t);
   if (s.noApp) return s;
   s.busy = model_.busy;
-  if (model_.attn) s.agent = model_.agent, s.project = model_.project, s.more = model_.more;
+  if (model_.attn) s.agent = model_.agent, s.project = model_.project, s.name = model_.name, s.more = model_.more;
   return s;
 }
 

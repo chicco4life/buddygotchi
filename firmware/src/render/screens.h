@@ -19,9 +19,11 @@ constexpr int kBubbleTop = 144;  // the bubble, the 60 px above the strip
 
 struct Strip {
   // While something needs you (amber; null when nothing does): who, the
-  // oldest waiting session, and how many more are waiting.
+  // oldest waiting session, and how many more are waiting. Its thread's
+  // name shows in the project's place when there is one.
   const char* agent = nullptr;
   const char* project = "";
+  const char* name = "";
   int more = 0;
   int busy = 0;  // sessions working (grey; hidden at zero)
   bool noApp = false;

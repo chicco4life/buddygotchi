@@ -146,6 +146,7 @@ real line, from `boopdev replay` of the Codex approval fixture
 | `attn` | object, or absent | Only while something needs you: the oldest waiting session | Its presence alone means "needs you" ([BEHAVIORS.md](BEHAVIORS.md) §3.2). A new one, or one with a different `id`, agent or project, plays needs you's performance from its start, the alert with its ding, once, and stops any moment and line |
 | `attn.agent` | `claude` or `codex` | The session's agent | Kept in 11 bytes |
 | `attn.project` | string, at most 23 bytes of UTF-8 | The project folder's name, precomposed (NFC) so é is one letter, and cut on a character boundary to end in `..` when longer | Kept in 23 bytes; drawn in the status strip |
+| `attn.name` | string, at most 23 bytes of UTF-8, or absent | The thread's name as the agent's app shows it ([ADAPTERS.md](ADAPTERS.md) §2), the last one a request of the session brought; precomposed and cut as `project` is. Absent when there's none | Kept in 23 bytes; drawn in the strip in the project's place. Missing reads as `""`, and then the project shows. Not part of what makes a request new |
 | `attn.more` | int ≥ 0 | How many more are waiting | The strip's "+N". Missing reads as 0 |
 | `attn.id` | int 1–2147483647 | The number of the request shown. Requests are numbered as they start showing, counting up (back to 1 after 2147483647); when one of several subagents asking in a session is answered, the next one's prompt gets a new number. So a new number is a different request, even with the same agent and project (two worktrees of one repo). Each time the app starts, its numbers start at a random one, as moment ids do (§3 `moment`), so a relaunched app's first request can't share a number with the one the device still shows from the last launch. `boopdev replay` and the tests start from 1 | A change alerts again. Missing reads as 0, and then only the agent and project tell requests apart |
 | `busy` | int ≥ 0 | Sessions working | The strip's working count. Missing reads as 0 |
@@ -353,7 +354,7 @@ instead of running.
 | Field | Meaning |
 | --- | --- |
 | `screen` | `face`, `needs_you`, `no_app` or `pattern` ([DEVICE.md](DEVICE.md) §4) |
-| `base`, `mood`, `variant`, `attn`, `vol` | The last `state` as the device read it (§3): `base` `idle` and `mood` `happy` for a missing or unknown one, `variant` held to the look's variations, `vol` clamped, and `attn` (with its `id`, 0 when none came) null unless something needs you |
+| `base`, `mood`, `variant`, `attn`, `vol` | The last `state` as the device read it (§3): `base` `idle` and `mood` `happy` for a missing or unknown one, `variant` held to the look's variations, `vol` clamped, and `attn` (with its `name`, `""` when none came, and its `id`, 0 when none came) null unless something needs you |
 | `look_variant` | The variation of the base's look showing, from 1: `variant` until the looks take turns ([BEHAVIORS.md](BEHAVIORS.md) §2) |
 | `moment` | `{"anim":…,"left_ms":…}` while an animation plays, otherwise null. A mumble on its own leaves it null |
 | `expr` | The mood the face borrows while a moment with `mood` plays (§3), otherwise null |

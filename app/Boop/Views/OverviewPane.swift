@@ -150,10 +150,12 @@ struct OverviewPane: View {
     // MARK: Needs you
 
     /// The card names the session that has waited longest, as the device
-    /// does, but in full: the snapshot's project is cut to fit the device.
-    /// The session list puts it first.
+    /// does, but in full: the snapshot's project and thread name are cut to
+    /// fit the device. The session list puts it first.
     private func needsYou(_ attn: StateSnapshot.Attention, _ sessions: [SessionSummary]) -> some View {
-        let project = sessions.first { $0.status == .waiting }?.project ?? attn.project
+        let waiting = sessions.first { $0.status == .waiting }
+        let project = waiting?.project ?? attn.project
+        let name = waiting?.name ?? attn.name
         let agent = HookInstaller.Agent(rawValue: attn.agent)?.displayName ?? attn.agent
         return Card(tone: Theme.amber) {
             HStack(alignment: .top, spacing: Theme.gapSnug + 2) {
@@ -164,6 +166,9 @@ struct OverviewPane: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(project.isEmpty ? agent : "\(agent) · \(project)")
                         .font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                    if !name.isEmpty {
+                        Text(name).font(.system(size: 11, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                    }
                     Text("Waiting for you. Answer it in the agent's window.")
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                 }

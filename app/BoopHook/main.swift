@@ -28,7 +28,7 @@ while true {
 }
 
 if ["claude", "codex"].contains(agent),
-   let line = HookLine.extract(agent: agent, payload: payload, ts: started) {
+   let line = HookLine.extract(agent: agent, payload: payload, ts: started, names: .live) {
     HookSocket.send(line.encoded(), to: HookSocket.defaultPath())
 }
 exit(0)

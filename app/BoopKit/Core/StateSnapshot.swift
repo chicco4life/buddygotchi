@@ -5,6 +5,9 @@ public struct StateSnapshot: Equatable, Sendable {
     public struct Attention: Equatable, Sendable {
         public var agent: String
         public var project: String
+        /// The thread's name, which the device shows in the project's
+        /// place; `""` for none, and then the line doesn't carry it.
+        public var name: String
         public var more: Int
         /// The request shown's number, counting up from a random one each
         /// launch: a new one is a different request, which alerts
@@ -12,9 +15,10 @@ public struct StateSnapshot: Equatable, Sendable {
         /// 0 sends none.
         public var id: Int
 
-        public init(agent: String, project: String, more: Int, id: Int = 0) {
+        public init(agent: String, project: String, name: String = "", more: Int, id: Int = 0) {
             self.agent = agent
             self.project = project
+            self.name = name
             self.more = more
             self.id = id
         }
@@ -79,8 +83,9 @@ public struct StateSnapshot: Equatable, Sendable {
             "\"t\":\"state\"", "\"v\":\(StateSnapshot.version)", "\"base\":\(json(base))", "\"mood\":\(json(mood))",
         ]
         if let attn {
+            let name = attn.name.isEmpty ? "" : ",\"name\":\(json(attn.name))"
             let id = attn.id > 0 ? ",\"id\":\(attn.id)" : ""
-            parts.append("\"attn\":{\"agent\":\(json(attn.agent)),\"project\":\(json(attn.project)),\"more\":\(attn.more)\(id)}")
+            parts.append("\"attn\":{\"agent\":\(json(attn.agent)),\"project\":\(json(attn.project))\(name),\"more\":\(attn.more)\(id)}")
         }
         parts += ["\"busy\":\(busy)", "\"vol\":\(vol)", "\"variant\":\(variant)"]
         return "{" + parts.joined(separator: ",") + "}"

@@ -24,6 +24,65 @@ final class HookWireTests: XCTestCase {
         XCTAssertEqual(HookLine.decode(line.encoded()), line)
     }
 
+    /// ADAPTERS.md §2: a hook that asks for you gets the thread's name:
+    /// Claude's last title in the transcript, yours over its own, and
+    /// Codex's from its session index. Nothing else of either file leaves.
+    func testAskingHooksGetTheThreadsName() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("threadname-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        func jsonl(_ rows: [[String: Any]]) -> Data {
+            Data(rows.map { String(decoding: payload($0), as: UTF8.self) + "\n" }.joined().utf8)
+        }
+        let transcript = dir.appendingPathComponent("t.jsonl")
+        try jsonl([
+            ["type": "custom-title", "customTitle": "Old name", "sessionId": "s"],
+            ["type": "user", "message": ["content": "SECRET prompt"]],
+            ["type": "custom-title", "customTitle": "Thread name on \"needs you\" screen", "sessionId": "s"],
+            ["type": "ai-title", "aiTitle": "Made-up name", "sessionId": "s"],
+            ["type": "assistant", "message": ["content": "SECRET reply"]],
+        ]).write(to: transcript)
+        let names = ThreadName.Source(codexHome: dir.path)
+        func ask(_ agent: String, _ hook: String, session: String = "s", _ extra: [String: Any] = [:]) -> HookLine? {
+            var object: [String: Any] = ["hook_event_name": hook, "session_id": session,
+                                         "transcript_path": transcript.path, "tool_name": "Bash"]
+            object.merge(extra) { $1 }
+            return HookLine.extract(agent: agent, payload: payload(object), ts: 1, names: names)
+        }
+        let line = try XCTUnwrap(ask("claude", "PermissionRequest"))
+        XCTAssertEqual(line.name, "Thread name on \"needs you\" screen")
+        let wire = String(decoding: line.encoded(), as: UTF8.self)
+        XCTAssertFalse(wire.contains("SECRET"))
+        XCTAssertEqual(HookLine.decode(line.encoded()), line)
+        XCTAssertEqual(ask("claude", "Notification", ["notification_type": "permission_prompt"])?.name,
+                       "Thread name on \"needs you\" screen")
+        XCTAssertNil(ask("claude", "PreToolUse")?.name, "only a hook that asks looks")
+        XCTAssertNil(HookLine.extract(agent: "claude", payload: payload(["hook_event_name": "PermissionRequest",
+                                                                         "session_id": "s", "transcript_path": transcript.path]),
+                                      ts: 1)?.name, "nor without a source")
+
+        // With no title of yours, Claude's own; with none at all, no name.
+        try jsonl([["type": "ai-title", "aiTitle": "Made-up name"], ["type": "user"]]).write(to: transcript)
+        XCTAssertEqual(ask("claude", "PermissionRequest")?.name, "Made-up name")
+        try jsonl([["type": "user"]]).write(to: transcript)
+        XCTAssertNil(ask("claude", "PermissionRequest")?.name)
+        XCTAssertNil(ask("claude", "PermissionRequest", ["transcript_path": "/nowhere/t.jsonl"])?.name)
+
+        // A title far back in a long transcript is still found.
+        var long = jsonl([["type": "custom-title", "customTitle": "Far back"]])
+        let filler = jsonl([["type": "assistant", "text": String(repeating: "x", count: 1000)]])
+        for _ in 0..<400 { long.append(filler) }
+        try long.write(to: transcript)
+        XCTAssertEqual(ask("claude", "PermissionRequest")?.name, "Far back")
+
+        try jsonl([
+            ["id": "t1", "thread_name": "Old codex name"], ["id": "t2", "thread_name": "Another thread"],
+            ["id": "t1", "thread_name": "Codex thread"],
+        ]).write(to: dir.appendingPathComponent("session_index.jsonl"))
+        XCTAssertEqual(ask("codex", "PermissionRequest", session: "t1")?.name, "Codex thread")
+        XCTAssertNil(ask("codex", "PermissionRequest", session: "t3")?.name)
+    }
+
     func testStopFailureKeepsTheErrorClassAndNotificationItsType() throws {
         let failure = try XCTUnwrap(HookLine.extract(agent: "claude", payload: payload([
             "hook_event_name": "StopFailure", "session_id": "s", "error": "rate_limit",

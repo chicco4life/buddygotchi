@@ -91,6 +91,7 @@ public enum Adapter {
             put("notice", kind)
             let forInput = line.hook == "Elicitation" || kind == "elicitation_dialog"
             data["for"] = .string(forInput ? "input" : "permission")
+            put("name", line.name)
         case (.tool, .end?):
             put("tool", line.tool)
             put("tool_use_id", line.toolUseID)

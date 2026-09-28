@@ -179,6 +179,14 @@ static void test_the_strip_says_who_needs_you() {
   }
   TEST_ASSERT_TRUE(grey);
   TEST_ASSERT_TRUE(lastLong < kWidth - 12);
+  // The thread's name shows in the project's place: "codex · a-really-lo.."
+  // drawn as a name is the same pixels as drawn as a project.
+  Strip named = who;
+  named.name = longWho.project;
+  Buf asName, asProject;
+  drawStrip(asName.c, named);
+  drawStrip(asProject.c, longWho);
+  TEST_ASSERT_EQUAL_MEMORY(asProject.c.pixels(), asName.c.pixels(), kWidth * kHeight);
 }
 
 static void test_squiggles_make_room_for_the_word() {

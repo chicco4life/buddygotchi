@@ -37,13 +37,17 @@ public struct HookLine: Equatable, Sendable {
     /// `UserPromptSubmit`'s `prompt`: what you asked, up to `maxMessage`
     /// characters.
     public var prompt: String?
+    /// The thread's name as its agent's app shows it (`ThreadName`), on the
+    /// hooks that ask for you.
+    public var name: String?
     /// When the hook ran, in milliseconds.
     public var ts: Int64
 
     public init(agent: String, hook: String, session: String, cwd: String? = nil, tool: String? = nil,
                 topic: String? = nil, error: String? = nil, kind: String? = nil, interrupt: Bool = false,
                 toolError: String? = nil, toolUseID: String? = nil, agentType: String? = nil,
-                agentID: String? = nil, message: String? = nil, prompt: String? = nil, ts: Int64) {
+                agentID: String? = nil, message: String? = nil, prompt: String? = nil, name: String? = nil,
+                ts: Int64) {
         self.agent = agent
         self.hook = hook
         self.session = session
@@ -59,6 +63,7 @@ public struct HookLine: Equatable, Sendable {
         self.agentID = agentID
         self.message = message
         self.prompt = prompt
+        self.name = name
         self.ts = ts
     }
 
@@ -68,16 +73,21 @@ public struct HookLine: Equatable, Sendable {
     /// Longest prompt or last assistant message kept.
     public static let maxMessage = 2000
 
+    /// The hooks that ask for you, which carry the thread's name.
+    static let asking: Set<String> = ["PermissionRequest", "Elicitation", "Notification"]
+
     /// Picks the kept fields out of a raw hook payload. Returns nil when the
-    /// payload has no hook name or session.
-    public static func extract(agent: String, payload: Data, ts: Int64) -> HookLine? {
+    /// payload has no hook name or session. With `names`, a hook that asks
+    /// for you also gets the thread's name from there.
+    public static func extract(agent: String, payload: Data, ts: Int64, names: ThreadName.Source? = nil) -> HookLine? {
         if let object = try? JSONSerialization.jsonObject(with: payload) as? [String: Any] {
-            return extract(agent: agent, json: object, ts: ts)
+            return extract(agent: agent, json: object, ts: ts, names: names)
         }
         return salvage(agent: agent, payload: payload, ts: ts)
     }
 
-    public static func extract(agent: String, json: [String: Any], ts: Int64) -> HookLine? {
+    public static func extract(agent: String, json: [String: Any], ts: Int64,
+                               names: ThreadName.Source? = nil) -> HookLine? {
         guard let hook = string(json["hook_event_name"]) ?? string(json["hookEventName"]),
               let session = string(json["session_id"]) ?? string(json["thread_id"]) ?? string(json["conversation_id"])
         else { return nil }
@@ -104,6 +114,9 @@ public struct HookLine: Equatable, Sendable {
             line.kind = string(json["notification_type"])
         default:
             break
+        }
+        if let names, asking.contains(hook) {
+            line.name = ThreadName.find(agent: agent, json: json, session: session, in: names)
         }
         return line
     }
@@ -153,6 +166,7 @@ public struct HookLine: Equatable, Sendable {
         if let agentID { object["agent_id"] = agentID }
         if let message { object["message"] = message }
         if let prompt { object["prompt"] = prompt }
+        if let name { object["name"] = name }
         // No `.sortedKeys`: nothing reads the order, and sorting loads
         // locale-aware comparison, about half of a hook's few milliseconds.
         var data = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
@@ -171,6 +185,6 @@ public struct HookLine: Equatable, Sendable {
                         interrupt: object["interrupt"] as? Bool == true, toolError: string(object["tool_error"]),
                         toolUseID: string(object["tool_use_id"]), agentType: string(object["agent_type"]),
                         agentID: string(object["agent_id"]), message: string(object["message"], max: maxMessage),
-                        prompt: string(object["prompt"], max: maxMessage), ts: ts)
+                        prompt: string(object["prompt"], max: maxMessage), name: string(object["name"]), ts: ts)
     }
 }

@@ -46,6 +46,10 @@ public final class Core {
         var agent: Agent
         var id: String
         var project: String
+        /// The thread's name as its agent's app shows it, the last a
+        /// request brought: the strip shows it in the project's place
+        /// (BEHAVIORS.md §3.2).
+        var name: String?
         /// Working on a turn: not idle, and not waiting on "needs you".
         var working = false
         /// When the turn now open started, and when the last one ended: a
@@ -248,6 +252,7 @@ public final class Core {
             let lateCopy = notice.map(s.clearedNotices.contains) == true
                 && s.clearedAt.map { now - $0 < Core.noticeLagMs || !s.calledSinceClear } == true
             if !lateCopy { s.notices.insert(kind) }
+            if let name = event["name"]?.string { s.name = name }
             if waiting {
                 if notice == nil {
                     if Array(s.askers.keys) == [Core.anyone], s.needsSince.map({ now - $0 < Core.noticeLagMs }) == true {
@@ -442,8 +447,8 @@ public final class Core {
         let base = !working.isEmpty ? "working" : sessions.isEmpty ? "asleep" : "idle"
         let attn = waiting.first.map {
             StateSnapshot.Attention(
-                agent: $0.agent.short, project: StateSnapshot.clip($0.project, marked: true), more: waiting.count - 1,
-                id: $0.ask)
+                agent: $0.agent.short, project: StateSnapshot.clip($0.project, marked: true),
+                name: $0.name.map { StateSnapshot.clip($0, marked: true) } ?? "", more: waiting.count - 1, id: $0.ask)
         }
         let visual = attn != nil ? "needs_you" : base
         return StateSnapshot(base: base, mood: config.mood, attn: attn, busy: working.count, vol: config.volume,
@@ -646,15 +651,18 @@ public struct SessionSummary: Equatable, Sendable {
     /// `claude` or `codex`.
     public var agent: String
     public var project: String
+    /// The thread's name, once a request brought one.
+    public var name: String?
     public var status: Status
 
-    public init(agent: String, project: String, status: Status) {
+    public init(agent: String, project: String, name: String? = nil, status: Status) {
         self.agent = agent
         self.project = project
+        self.name = name
         self.status = status
     }
 
     init(_ s: Core.Session, _ status: Status) {
-        self.init(agent: s.agent.short, project: s.project, status: status)
+        self.init(agent: s.agent.short, project: s.project, name: s.name, status: status)
     }
 }

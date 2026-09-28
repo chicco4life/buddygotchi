@@ -295,7 +295,7 @@ Boop only tells you. You approve on the Mac, in the agent's own prompt.
 
 | When | What Boop does |
 | --- | --- |
-| An agent needs approval | The needs-you look and its amber sign, the amber light, the strip naming agent and project, and the alert: the needs-you performance with its knocks and ding, once ([VOICE.md](VOICE.md) §10). A moment or mumble playing stops |
+| An agent needs approval | The needs-you look and its amber sign, the amber light, the strip naming the agent and the thread (its name, else its project), and the alert: the needs-you performance with its knocks and ding, once ([VOICE.md](VOICE.md) §10). A moment or mumble playing stops |
 | More than one needs you | The strip shows the one waiting longest, with "+N" for the rest |
 | A different request becomes the one shown | The alert again, the performance starting over behind a blink: another session's, even in the same project, or another subagent's in the same session once the first is answered |
 | You poke Boop | The press dip only; it stays amber. The brain still hears of the poke (§3.3) |

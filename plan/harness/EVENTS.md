@@ -48,7 +48,7 @@ Claude `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | --- | --- | --- | --- |
 | `session` | agent | start / end | — |
 | `turn` | agent | start / end | start: `prompt`, what you asked. end: `outcome` (`done`, `failed` or `stopped`); `error` for a failed one (its class, [ADAPTERS.md](../ADAPTERS.md) §2); `message`, the agent's last message, on `Stop`; `notice` and `tool` for how a stopped one stopped |
-| `tool` | agent | start / wait / end | `tool`, `tool_use_id`. start: `topic` ([ADAPTERS.md](../ADAPTERS.md) §3). wait: `for` (`permission` or `input`), `notice` for a `Notification`. end: `failed` and `error` (its class), Claude only |
+| `tool` | agent | start / wait / end | `tool`, `tool_use_id`. start: `topic` ([ADAPTERS.md](../ADAPTERS.md) §3). wait: `for` (`permission` or `input`), `notice` for a `Notification`, `name`, the thread's name, when the hook found one (the strip's; the view leaves it out). end: `failed` and `error` (its class), Claude only |
 | `subagent` | claude | end | — |
 | `poke` | device | — | — |
 | `heartbeat` | clock | — | — (the view says what it's about, §4) |

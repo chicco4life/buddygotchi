@@ -99,7 +99,8 @@ void drawStrip(Canvas& c, const Strip& s) {
     int room = kWidth - kMargin - (x + 15) - (more[0] ? stringWidth(kSmall, more) + 8 : 0) -
                (s.busy > 0 ? 29 + stringWidth(kSmall, busy) : 0);
     char who[48];
-    std::snprintf(who, sizeof(who), "%s \xC2\xB7 %s", s.agent, s.project);
+    const char* what = s.name && *s.name ? s.name : s.project;
+    std::snprintf(who, sizeof(who), "%s \xC2\xB7 %s", s.agent, what);
     x = drawStringFit(c, kSmall, x + 15, ty, who, kInkAmber, room);
     if (more[0]) x = drawString(c, kSmall, x + 8, ty, more, kInkGrey);
     x += 14;

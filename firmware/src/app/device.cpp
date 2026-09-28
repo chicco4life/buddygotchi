@@ -132,6 +132,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
       m.attn = true;
       copyStr(m.agent, sizeof(m.agent), attn["agent"] | "");
       copyStr(m.project, sizeof(m.project), attn["project"] | "");
+      copyStr(m.name, sizeof(m.name), attn["name"] | "");
       m.more = attn["more"] | 0;
       m.attnId = attn["id"] | 0u;
     }
@@ -489,6 +490,7 @@ void Device::sendState(Link to) {
   if (m.attn) {
     d["attn"]["agent"] = m.agent;
     d["attn"]["project"] = m.project;
+    d["attn"]["name"] = m.name;
     d["attn"]["more"] = m.more;
     d["attn"]["id"] = m.attnId;
   } else {
