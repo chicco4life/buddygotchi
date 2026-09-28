@@ -52,7 +52,7 @@ final class EventTests: XCTestCase {
         rig.wait(60_000)
         let end = try XCTUnwrap(hook(.turnEnd).first)
         XCTAssertEqual(end.line, #"claude finished turn 1 on "fix-nav" (landing): done after 4 min, a very long turn, 5 tools (3 failed). Tests passing. A comeback on tests."#)
-        XCTAssertEqual(end.reaction, "Boop cheered on its own.")
+        XCTAssertNil(end.reaction, "no rule cheers (BEHAVIORS.md §3.1)")
         XCTAssertEqual(end.facts["comeback"], "tests")
         XCTAssertEqual(end.facts["outcome"], "done")
     }
@@ -135,17 +135,22 @@ final class EventTests: XCTestCase {
     }
 
     /// EVENTS.md §4: an hour with nothing happening, and no thread working,
-    /// brings a heartbeat, and so does every hour after that.
+    /// brings a heartbeat, and so does every hour after that. While a
+    /// thread works, the working heartbeat comes instead.
     func testHeartbeats() {
+        let idle = { (fx: [CoreEffect]) in events(fx).filter { $0.kind == .heartbeat && $0.facts["idle_hours"] != nil } }
         hook(.turnStart)
         rig.wait(50 * 60_000)
-        XCTAssertEqual(events(rig.log).filter { $0.kind == .heartbeat }, [], "a thread was working")
+        XCTAssertEqual(idle(rig.log), [], "a thread was working")
+        let working = events(rig.log).filter { $0.kind == .heartbeat }
+        XCTAssertGreaterThan(working.count, 10, "the working heartbeat instead")
+        XCTAssertTrue(working.allSatisfy { $0.line.hasPrefix(#"claude has been working on "fix-nav" (landing) for "#) && $0.wakesBrain })
         hook(.turnEnd)
-        let beats = events(rig.wait(2 * 60 * 60_000 + 1000)).filter { $0.kind == .heartbeat }
+        let beats = idle(rig.wait(2 * 60 * 60_000 + 1000))
         XCTAssertEqual(beats.map(\.line), ["Nothing has happened for 1 hour.", "Nothing has happened for 2 hours."])
         XCTAssertTrue(beats.allSatisfy(\.wakesBrain))
         rig.input(.tap)
-        XCTAssertEqual(events(rig.wait(59 * 60_000)).filter { $0.kind == .heartbeat }, [], "a tap starts the hour again")
+        XCTAssertEqual(idle(rig.wait(59 * 60_000)), [], "a tap starts the hour again")
     }
 
     /// The status line lists the other threads working now (EVENTS.md §8).

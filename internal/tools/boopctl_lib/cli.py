@@ -60,7 +60,7 @@ def cmd_shot(args: argparse.Namespace) -> int:
 
 
 def cmd_dash(args: argparse.Namespace) -> int:
-    """The live dashboard (plan/DASHBOARD.md), on the app's debug.jsonl and
+    """The live dashboard, on the app's debug.jsonl and
     hook socket; its face is boop-sim, built from this checkout."""
     from boopctl_lib.dash.app import run
 

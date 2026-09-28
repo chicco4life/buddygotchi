@@ -2,9 +2,9 @@
 
 Boop is a small creature that lives on your desk and watches your AI coding
 agents, Claude Code and Codex. It mumbles in Minion-like gibberish while
-they work, tells you when one needs your approval on the Mac, and cheers
-when work finishes. It has a personality of its own, and there's no
-reset button. It never approves, denies or blocks anything: its hooks only
+they work, tells you when one needs your approval on the Mac, and
+celebrates work that earns it. It has a personality of its own, and
+there's no reset button. It never approves, denies or blocks anything: its hooks only
 report, and they fail open.
 
 A Mac menu-bar app does the thinking. A cheap ESP32 board with a 2.4" touch
@@ -34,8 +34,7 @@ On the board:
 | --- | --- |
 | Press BOOT, or touch the screen | Boop it: a happy wiggle |
 
-What Boop does and shows is in [plan/BEHAVIORS.md](plan/BEHAVIORS.md) and
-[plan/UX.md](plan/UX.md).
+What Boop does and shows is in [plan/BEHAVIORS.md](plan/BEHAVIORS.md).
 
 ## Everyday commands
 
@@ -53,9 +52,8 @@ From the repo root:
 `make run` and `make debug` use Bluetooth, so start them from your own
 terminal, not an agent's. The dashboard shows the face, and side by side
 Boop's mood, its automatic reactions and the ones Jev decided (with their
-probabilities), and can force a mood, a reaction or an animation
-([plan/DASHBOARD.md](plan/DASHBOARD.md)). `make day` sums up a day by the
-hour, relaunches included: cheers, mumbles, faces, mood changes and what
+probabilities), and can force a mood, a reaction or an animation.
+`make day` sums up a day by the hour, relaunches included: cheers, mumbles, faces, mood changes and what
 made them, and how long each "needs you" took to clear.
 
 `make eval` reads Jev's key only from the environment. To use the key you

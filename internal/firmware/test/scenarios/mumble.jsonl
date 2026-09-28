@@ -1,5 +1,5 @@
-// The bubble: squiggles for gibberish and the one real word in amber (UX.md
-// §2). A mumble on its own plays over whatever face is showing (BEHAVIORS.md
+// The bubble: squiggles for gibberish and the one real word in amber.
+// A mumble on its own plays over whatever face is showing (BEHAVIORS.md
 // §5): here, working.
 {"clock":0}
 {"t":"state","v":1,"base":"working","busy":1}

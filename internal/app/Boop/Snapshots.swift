@@ -141,7 +141,7 @@ enum Snapshots {
 
     // MARK: Contrast
 
-    /// UX.md §6's contrast rules, checked on every run, in both
+    /// The popover's contrast rules, checked on every run, in both
     /// appearances: each text tone at least 4.5:1 on everything it sits on
     /// (the paper, a card, the well, its own chip and the needs-you card's
     /// amber wash); the filled buttons' labels 4.5:1 on their fills, pressed
@@ -177,7 +177,7 @@ enum Snapshots {
             let ratio = contrast(fg, bg)
             return ratio < least ? "\(what) is \(String(format: "%.2f", ratio)):1, under \(least):1" : nil
         }
-        if !low.isEmpty { fail("snapshots: contrast (UX.md §6): \(low.joined(separator: "; "))") }
+        if !low.isEmpty { fail("snapshots: contrast: \(low.joined(separator: "; "))") }
         print("contrast: \(pairs.count) pairs pass")
     }
 

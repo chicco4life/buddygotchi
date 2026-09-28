@@ -1,4 +1,4 @@
-// Needs you (UX.md §3, BEHAVIORS.md §3.2): who, +N more, one chirp per
+// Needs you (BEHAVIORS.md §3.2): who, +N more, one chirp per
 // request, amber at half until it's answered, then back to the base look.
 {"clock":0}
 {"t":"state","v":1,"base":"working","busy":2}

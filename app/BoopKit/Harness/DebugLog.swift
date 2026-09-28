@@ -5,7 +5,7 @@ import Foundation
 /// `debug.jsonl`, a pass's with the state and questions it sent, and the
 /// same lines readably, for the terminal (`Boop --debug`) and
 /// `boopdev watch`. Three more kinds of line, with no `seq`, are for the
-/// dashboard (DASHBOARD.md): `questions`, `sent` and `status`.
+/// dashboard: `questions`, `sent` and `status`.
 public enum DebugLog {
     public static let fileName = "debug.jsonl"
 

@@ -27,7 +27,7 @@ the films.
 
 | Step | Done by |
 | --- | --- |
-| Decide to mumble: a feeling and maybe one word | A rule (working chatter, [BEHAVIORS.md](BEHAVIORS.md) §2), or the brain, whose `react` action picks a mood's face and the word; Voice gives the face its feeling (§4, [harness/DECISIONS.md](harness/DECISIONS.md) §5) |
+| Decide to mumble: a feeling and maybe one word | The brain, whose `react` action picks a mood's face and the word; Voice gives the face its feeling (§4, [harness/DECISIONS.md](harness/DECISIONS.md) §5) |
 | Build the line (syllables, where the word goes, tune and tempo) and check it isn't accidentally a word (§7) | Voice, on the Mac |
 | Send it | The device link, as a `moment`'s `say` ([PROTOCOL.md](PROTOCOL.md) §3) |
 | Play it, with the mouth in time | The device (§8) |
@@ -48,8 +48,8 @@ Voice.feeling(forMood: mood) -> feeling
 
 `groups` are the gibberish words, each a list of syllables; `at` is where
 the word goes, as an index into the syllables; `ms` is milliseconds per
-syllable. The same inputs always give the same line. `react` and working
-chatter each count their seeds up from 1, so a run is repeatable, and
+syllable. The same inputs always give the same line. `react` counts its
+seeds up from 1, so a run is repeatable, and
 `boopdev voice FEELING|MOOD [WORD] --seed N` rebuilds any line
 ([VERIFICATION.md](VERIFICATION.md) §2).
 
@@ -118,8 +118,7 @@ feeling (`Voice.feeling(forMood:)`): happy, excited, proud and sad in
 the feeling of the same name, and grumpy in annoyed's. Determined
 has no voice of its own yet and mumbles in the temporary default,
 happy's: the audio is still being tuned, and the face is what the
-reaction means. Working chatter uses curious and happy
-([BEHAVIORS.md](BEHAVIORS.md) §2). Only the tools use hopeful and sleepy
+reaction means. Only the tools use curious, hopeful and sleepy
 (`boopctl mumble`, `boopdev voice`, which also takes a mood and plays
 its feeling).
 
@@ -242,7 +241,7 @@ Crossing uses), then feeds the DAC at 22.05 kHz from a task of its own
 
 **The mouth** opens for the first half of each beat for as long as the
 sound lasts, and the bubble shows the word among squiggles until 1.2 s
-after it ([UX.md](UX.md) §2). With the sound off, the mouth and bubble
+after it. With the sound off, the mouth and bubble
 still play.
 
 **Checking it.** Tests check the timeline through `dbg.state`'s `audio`

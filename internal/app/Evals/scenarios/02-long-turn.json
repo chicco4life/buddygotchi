@@ -1,8 +1,8 @@
 {
-  "name": "A very long turn that finishes is worth a mumble",
-  "why": "PERSONALITY's Examples: a turn of 10 minutes or more finishing is a big moment, excited, proud or happy, on top of the rule's cheer; it's a lasting reason to leave happy: excited when nothing failed (plan/steering/mood/happy.md)",
+  "name": "A very long turn that finishes is worth a cheer",
+  "why": "PERSONALITY's Examples: a turn of 10 minutes or more finishing clean stands out, so it gets a cheer in an excited, proud or happy face; no rule cheers (BEHAVIORS.md §3.1). It's a lasting reason to leave happy: excited when nothing failed (plan/steering/mood/happy.md)",
   "steps": [
     {"event": "turn started", "at": "0s"},
-    {"event": "turn finished", "at": "20m", "expect": {"react": "proud|happy|excited", "mood": "excited|proud"}}
+    {"event": "turn finished", "at": "20m", "expect": {"react": "proud-cheer|happy-cheer|excited-cheer", "mood": "excited|proud"}}
   ]
 }

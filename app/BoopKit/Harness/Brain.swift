@@ -51,12 +51,21 @@ public struct ScriptedBrain: Brain {
 extension ScriptedBrain {
     /// For pipeline checks with no network (`Boop --headless --brain
     /// scripted`): every pass, an excited mumble with "yay", its face held
-    /// once, and the mood happy.
-    public static let pipelineCheck = ScriptedBrain(id: "scripted", always: [
-        "mood": Answer(choice: "happy", probabilities: ["happy": 1]),
-        "react": Answer(choice: "excited", probabilities: ["excited": 1]),
-        "react.loops": Answer(choice: "once", probabilities: ["once": 1]),
-        "word.feeling": Answer(choice: "yay", probabilities: ["yay": 1]),
-        "word.about": Answer(choice: "none", probabilities: ["none": 1]),
-    ])
+    /// once, and the mood happy; `excited-cheer` when NOW is a turn
+    /// finished done, since no rule cheers (BEHAVIORS.md §3.1).
+    public static let pipelineCheck = ScriptedBrain(id: "scripted") { state, questions in
+        let now = state.components(separatedBy: "\nNOW (").last ?? ""
+        let finished = now.contains(" finished turn ") && now.contains(": done after ")
+        let answers: Answers = [
+            "mood": Answer(choice: "happy", probabilities: ["happy": 1]),
+            "react": finished ? Answer(choice: "excited-cheer", probabilities: ["excited-cheer": 1])
+                : Answer(choice: "excited", probabilities: ["excited": 1]),
+            "react.loops": Answer(choice: "once", probabilities: ["once": 1]),
+            "word.feeling": Answer(choice: "yay", probabilities: ["yay": 1]),
+            "word.about": Answer(choice: "none", probabilities: ["none": 1]),
+        ]
+        var out: Answers = [:]
+        for q in questions { out[q.key] = answers[q.key] ?? q.options.first.map { Answer(choice: $0.name, probabilities: [$0.name: 1]) } }
+        return out
+    }
 }

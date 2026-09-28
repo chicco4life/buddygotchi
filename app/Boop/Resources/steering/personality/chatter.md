@@ -1,5 +1,5 @@
 ---
-chatter: 30-60
+working_heartbeat: 30-60
 tool_uses: all
 ---
 <!-- The chatter personality: settings for the core's rules, then the PERSONALITY section. Read-only at runtime; the app bundles a copy (plan/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
@@ -13,7 +13,7 @@ Examples:
 - NOW: claude started turn 2 on "api", right after its last one.
   → excited, "yay", twice
 - NOW: claude finished turn 3 on "api": done after 8 s, a short turn.
-  → excited, "yay", twice
+  → excited-cheer, "yay", twice
 - NOW: claude edited a file on "api".
   → excited, "yay", twice
 - NOW: codex ran a command on "api".
@@ -26,8 +26,10 @@ Examples:
   → grumpy, "again", four times
 - NOW: claude finished turn 7 on "api": done after 18 min, a very long
   turn, 41 tools (6 failed). A comeback on tests.
-  → excited, "finally", four times
+  → excited-cheer, "finally", four times
 - NOW: You poked Boop 5 times in 3 s.
   → grumpy, "nope", three times
+- NOW: claude has been working on "api" for 2 min, on tests.
+  → excited, no exclamation, "tests", twice
 - NOW: Nothing has happened for 1 hour.
   → happy, "hmm", twice

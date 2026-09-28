@@ -158,6 +158,12 @@ public enum EventLine {
         "Nothing has happened for \(hours) hour\(hours == 1 ? "" : "s")."
     }
 
+    /// The working heartbeat: `claude has been working on "fix-nav"
+    /// (landing) for 6 min, on tests.`, the topic only when there is one.
+    public static func working(agent: String, thread: String, ms: Int64, topic: String?) -> String {
+        "\(agent) has been working on \(thread) for \(Band.took(ms))" + (topic.map { ", on \($0)" } ?? "") + "."
+    }
+
     /// The words the lines use, as the guide explains them after how to
     /// read the layout (EVENTS.md §8.1). Kept here, next to the lines.
     public static let words = """
@@ -176,7 +182,6 @@ public enum EventLine {
         "\(agent) needs you on \(thread)."
     }
 
-    public static let cheered = "Boop cheered on its own."
     public static let wiggled = "Boop wiggled on its own."
 
     static func errorWords(_ error: String) -> String {

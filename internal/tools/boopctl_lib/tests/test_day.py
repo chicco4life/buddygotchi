@@ -344,3 +344,10 @@ class CLITests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FaceKeyTests(unittest.TestCase):
+    def test_the_reaction(self) -> None:
+        self.assertEqual(day.face({"answers": {"react": {"choice": "proud-cheer"}}}), "proud-cheer")
+        self.assertEqual(day.face({"answers": {"react": {"choice": "grumpy"}}}), "grumpy")
+        self.assertIsNone(day.face({"answers": {}}))

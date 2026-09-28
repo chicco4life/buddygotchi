@@ -11,7 +11,7 @@
 {"expect":{"moment":{"anim":"wiggle"},"last_input":{"k":"tap","at":600}}}
 {"clock":850}
 {"shot":"tap-wiggle"}
-// A BOOT press held however long is a tap, sent on release (UX.md §4).
+// A BOOT press held however long is a tap, sent on release.
 {"clock":2000}
 {"input":{"press":"tap","ms":1500}}
 {"clock":3499}
@@ -19,7 +19,7 @@
 {"clock":3500}
 {"expect":{"moment":{"anim":"wiggle"},"boot":false,"last_input":{"k":"tap","at":3500}}}
 {"t":"state","v":1,"base":"idle","busy":0}
-// A touch held however long is a tap, sent on release (UX.md §4).
+// A touch held however long is a tap, sent on release.
 {"clock":14000}
 {"input":{"touch":[160,100],"ms":900}}
 {"clock":14899}

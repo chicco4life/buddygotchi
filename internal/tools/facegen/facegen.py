@@ -1,4 +1,4 @@
-"""Builds the device's faces from the mood designs (plan/UX.md §2) as C tables.
+"""Builds the device's faces from the mood designs as C tables.
 
 The designs are animated SVGs, one per mood and state, in design/svg/ (the
 designer's package, with the source that drew them). This reads each one
@@ -44,7 +44,7 @@ W, H = 320, 240
 # The order of render::Mood and render::SceneState.
 MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad"]
 STATES = ["idle", "working", "needs_you", "task_complete", "asleep", "no_app"]
-# The faces the popover's tile shows (UX.md §7), as mood and look. Asleep is
+# The faces the popover's tile shows, as mood and look. Asleep is
 # one design for every mood, and the tile reads happy's
 # (app/Boop/Views/BoopFace.swift).
 TILES = [(mood, state) for mood in MOODS
@@ -63,7 +63,7 @@ BLINK_KEYS = [0.0, 0.76, 0.79, 1.0]
 # rounding.
 SAMPLES = [0, 150, 420, 700, 1100, 1650, 2300, 3100, 4200, 5500, 7300, 9900]
 # A design with nothing moving but the blink, or nothing at all, still
-# loops, in this time (plan/UX.md §2).
+# loops, in this time.
 STILL_LOOP_MS = 1000
 
 
@@ -129,7 +129,7 @@ class Scene:
         return hashlib.sha1(repr((self.groups, self.rects)).encode()).hexdigest()
 
     def loop_ms(self) -> int:
-        """How long the design takes to play once through (plan/UX.md §2):
+        """How long the design takes to play once through:
         its longest animation, played once or on repeat, leaving out the
         blink, which the device times on its own. A moment's `loops` count
         these. It doesn't check that the design ends as it starts."""
@@ -513,7 +513,7 @@ def emit_swift(scenes: list[Scene], index: dict[tuple[int, int], int]) -> str:
         "import CoreGraphics",
         "",
         "/// Each mood design's face as its look starts, open-eyed and blinking,",
-        "/// for the popover's tile (UX.md §7): the device's own shapes, without",
+        "/// for the popover's tile: the device's own shapes, without",
         "/// the props.",
         "enum FaceDesigns {",
         "    /// Where the faces sit in the designs' 320×240 screen.",

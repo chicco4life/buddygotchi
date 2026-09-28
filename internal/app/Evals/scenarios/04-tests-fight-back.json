@@ -10,6 +10,6 @@
     {"event": "command", "at": "5m", "workspace": "fix-nav", "topic": "tests", "failed": true,
      "expect": {"react": "grumpy", "word": "again|tests|ugh", "mood": "grumpy"}},
     {"event": "command", "at": "7m", "workspace": "fix-nav", "topic": "tests", "failed": false,
-     "expect": {"react": "proud|excited|happy", "word": "finally|tests|yay", "mood": "proud|happy"}}
+     "expect": {"react": "proud|excited|happy|proud-cheer|excited-cheer|happy-cheer", "word": "finally|tests|yay", "mood": "proud|happy"}}
   ]
 }

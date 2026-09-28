@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// The app's palette, the device's "Warm Terminal" (UX.md §6): warm paper
+/// The app's palette, the device's "Warm Terminal": warm paper
 /// and ink in both appearances, black glass for the face tile and the one
 /// filled button (oat on dark paper), and one amber accent, for needs you
 /// only. Working and idle are greys, as on the device; sage means connected

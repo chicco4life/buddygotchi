@@ -15,7 +15,7 @@ messages over USB (§5).
 - **Snapshots, not commands.** The Mac keeps sending the whole picture of
   how things are now. A lost or late message fixes itself with the next
   one, and a reconnect needs no special handling.
-- **Moments play when they arrive.** A cheer or a mumble plays at once,
+- **Moments play when they arrive.** A reaction, a cheer included, plays at once,
   and nothing is retried. The Mac waits only on the brain's reactions,
   which carry an `id`: the device says when each one ended, and how
   (`ended`, §4), so HISTORY can say whether it was seen.
@@ -145,7 +145,7 @@ real line, from `boopdev replay` of the Codex approval fixture
 | `mood` | `happy`, `excited`, `proud`, `determined`, `grumpy` or `sad` | Boop's mood ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3) | The set of faces every look and animation is drawn in. It also draws `curious`, whose designs it keeps (`boopctl play --mood curious`), though the Mac never sends it. Missing or unknown reads as `happy` |
 | `attn` | object, or absent | Only while something needs you: the oldest waiting session | Its presence alone means "needs you" ([BEHAVIORS.md](BEHAVIORS.md) §3.2). A new one, or one with a different `id`, agent or project, chirps once and stops any moment and line |
 | `attn.agent` | `claude` or `codex` | The session's agent | Kept in 11 bytes |
-| `attn.project` | string, at most 23 bytes of UTF-8 | The project folder's name, precomposed (NFC) so é is one letter, and cut on a character boundary to end in `..` when longer | Kept in 23 bytes; drawn as [UX.md](UX.md) §2 says |
+| `attn.project` | string, at most 23 bytes of UTF-8 | The project folder's name, precomposed (NFC) so é is one letter, and cut on a character boundary to end in `..` when longer | Kept in 23 bytes; drawn in the status strip |
 | `attn.more` | int ≥ 0 | How many more are waiting | The strip's "+N". Missing reads as 0 |
 | `attn.id` | int 1–2147483647 | The number of the request shown. Requests are numbered as they start showing, counting up (back to 1 after 2147483647); when one of several subagents asking in a session is answered, the next one's prompt gets a new number. So a new number is a different request, even with the same agent and project (two worktrees of one repo). Each time the app starts, its numbers start at a random one, as moment ids do (§3 `moment`), so a relaunched app's first request can't share a number with the one the device still shows from the last launch. `boopdev replay` and the tests start from 1 | A change chirps. Missing reads as 0, and then only the agent and project tell requests apart |
 | `busy` | int ≥ 0 | Sessions working | The strip's working count. Missing reads as 0 |
@@ -159,38 +159,35 @@ even with the longest names and counts (`DeviceLinkTests`).
 
 ### `moment`: something to play
 
-Real lines, from headless runs with the board: the rules' cheer (in the
-pipeline check), a brain reaction held twice (a forced pass, from a dev
-line on the hook socket), and working chatter:
+A real line, from a headless run with the board: a brain reaction held
+twice (a forced pass, from a dev line on the hook socket):
 
 ```json
-{"t":"moment","anim":"cheer","loops":1}
 {"t":"moment","say":{"syl":"da-to-lon","word":"finally","at":3,"tune":"lift","ms":135},"mood":"proud","loops":2,"id":1710758195}
-{"t":"moment","say":{"syl":"bi-da","tune":"bounce","ms":125}}
 ```
 
 | Field | Type | The Mac sends | The device reads it as |
 | --- | --- | --- | --- |
-| `anim` | `cheer` or `wiggle`, optional | `cheer` when a turn finishes ([BEHAVIORS.md](BEHAVIORS.md) §3.1); `cheer` or `wiggle` when the dashboard asks ([DASHBOARD.md](DASHBOARD.md) §4) | The animation ([BEHAVIORS.md](BEHAVIORS.md) §5). An unknown one is ignored |
-| `say` | object, optional | A mumble as Voice built it ([VOICE.md](VOICE.md) §4), from working chatter or the brain's `react` | A line to speak, with the mouth and bubble in time |
+| `anim` | `cheer` or `wiggle`, optional | `cheer` with a brain reaction that cheers ([harness/DECISIONS.md](harness/DECISIONS.md) §5); `cheer` or `wiggle` when the dashboard asks. A tap's wiggle is the device's own ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | The animation ([BEHAVIORS.md](BEHAVIORS.md) §5). An unknown one is ignored |
+| `say` | object, optional | A mumble as Voice built it ([VOICE.md](VOICE.md) §4), from the brain's `react` | A line to speak, with the mouth and bubble in time |
 | `say.syl` | string | 2–8 gibberish syllables: words separated by spaces, syllables by `-` | Every syllable times the mouth; the sound plays at most 12. A syllable it has no clip for keeps its beat, silent |
 | `say.word` | string, optional | One word from the vocabulary ([VOICE.md](VOICE.md) §6) | Shown in the bubble, and spoken if it has the clip |
 | `say.at` | int, only with `word` | Where the word goes among the syllables: 0 before the first, the syllable count after the last | Clamped to that range. Missing reads as the end |
 | `say.tune` | `up`, `down`, `bounce`, `flat` or `lift` | The feeling's tune ([VOICE.md](VOICE.md) §5) | Missing or unknown reads as `flat` |
 | `say.ms` | int | Milliseconds per syllable, 90–180 | Clamped to 60–400. Missing reads as 120 |
-| `mood` | one of `state`'s moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5). The rules' moments (the cheer, a wiggle, working chatter) never carry one | The expression: while this moment plays, the look (or the cheer) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
-| `loops` | int, optional | How many times whoever plays it wants its design played: the cheer's, enough loops for its length ([BEHAVIORS.md](BEHAVIORS.md) §5), or a reaction's face, as Jev picked ([harness/DECISIONS.md](harness/DECISIONS.md) §5). None on a wiggle or chatter | Held to 1–6. Missing reads as 1. With the cheer, how many times its design plays. With a `mood` and no animation, how many loops of the design it's drawn in the face holds (below). A wiggle ignores it |
+| `mood` | one of `state`'s moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5). A wiggle never carries one | The expression: while this moment plays, the look (or the cheer) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
+| `loops` | int, optional | How many loops of its design a reaction's face holds, as Jev picked ([harness/DECISIONS.md](harness/DECISIONS.md) §5). None on a wiggle | Held to 1–6. Missing reads as 1. With the cheer, how many times its design plays. With a `mood` and no animation, how many loops of the design it's drawn in the face holds (below). A wiggle ignores it |
 | `id` | int 1–2147483647, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Each time the app starts, its ids start at a random number and count up (back to 1 after 2147483647), so a moment an earlier launch left playing can't share an id with a new one | Answered with one `ended` carrying this `id` (§4). Missing, or anything but an integer from 1 to 4,294,967,295 (a fraction too): no `ended` |
 
 The rules' moments play at once. A brain mumble waits its turn behind
-any line or reaction's face playing (not an animation, which it plays
+any line or reaction's face playing (not a wiggle, which it plays
 over) until the device's `ended` for the last one, and the Mac drops it
 rather than send it more than 5 s late
 ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2 has the whole rule). The Mac
 never sends a moment with neither `anim` nor `say`.
 
 On the device, a moment plays as it arrives. A design's loop is how long
-it takes to play once through ([UX.md](UX.md) §2): `loopMs` in
+it takes to play once through: `loopMs` in
 `faces.h` ([DEVICE.md](DEVICE.md) §6), and the same numbers on the Mac
 in `FaceLoops`.
 
@@ -199,19 +196,18 @@ in `FaceLoops`.
   timed by the design of the mood it's drawn in when it starts; a wiggle
   lasts 0.7 s.
 - A mumble with no animation plays over whatever face is showing and
-  replaces any line playing. With an animation in the same moment, as
-  `boopctl play cheer --say happy` sends, its bubble stays up at least as
-  long as the animation.
+  replaces any line playing. With an animation in the same moment, as a
+  reaction that cheers sends, its bubble stays up at least as long as
+  the animation.
 - A `mood` with an animation holds for as long as the animation plays.
   With none, as the brain sends it, it holds for its `loops` of the
-  design it's drawn in (the look's, or the cheer's while one plays),
-  ending on a loop boundary of that design's clock ([UX.md](UX.md) §2):
+  design it's drawn in (the look's), ending on a loop boundary of that design's clock:
   the first loop ends at the clock's next boundary, so it can be short,
   and each further loop adds a whole one. Either way it holds at least
   as long as the mumble and its bubble (syllables, two beats for a word,
   then 1.2 s). Then the face goes back to the state's mood. Both
   switches blink like any change of design. If the look changes
-  meanwhile (the cheer ends, a `state` moves from working to idle), the
+  meanwhile (a `state` moves from working to idle), the
   new look is drawn in the moment's mood until the end worked out when
   it started. A newer moment, a tap or "needs you" ends it with the
   moment. The Mac sends its next brain moment once this one's mumble has
@@ -250,7 +246,7 @@ the last, on the link the Mac last spoke on. The Mac answers every
 
 | `k` | Meaning |
 | --- | --- |
-| `tap` | BOOT pressed, or the screen touched anywhere, however long; sent on release ([UX.md](UX.md) §4) |
+| `tap` | BOOT pressed, or the screen touched anywhere, however long; sent on release |
 
 The device has already reacted on screen before it sends this. It sends it
 on every live link: Bluetooth while a Mac is connected, and USB while the
@@ -393,13 +389,12 @@ advertise again. The next connect starts from the top.
 | Advertising check | Every second while not connected | Device |
 | USB write | At most 250 ms; a failed write, or a lost bridge, reconnects after 1 s | Mac |
 | Brain moment | Dropped once it has waited 5 s for its turn | Mac |
-| A brain moment's `ended` | Given up on once the moment's longest length (its line, or its face's loops of the design showing: the last `state`'s look, or the longer of it and the cheer's while one may be playing) plus 3 s (`endGraceMs`) has passed since it was sent (§4). Until then the next brain moment waits for it | Mac |
+| A brain moment's `ended` | Given up on once the moment's longest length (its line, or its face's loops of the design showing: the last `state`'s look) plus 3 s (`endGraceMs`) has passed since it was sent (§4). Until then the next brain moment waits for it | Mac |
 | Reading lines | Up to 8 ms of lines before each frame | Device |
 | A frozen debug clock | Runs again after 60 s with no `dbg.*` | Device |
 
 ## 7. Not in v1
 
-No pairing or encryption (planned after the ESP-IDF port,
-[PLAN.md](PLAN.md) §4), no tying a body to one Boop by its `id`, no
+No pairing or encryption (planned after the ESP-IDF port), no tying a body to one Boop by its `id`, no
 firmware updates over Bluetooth (the second app slot is kept for them,
 [DEVICE.md](DEVICE.md) §5), and one Mac per device and one device per Mac.

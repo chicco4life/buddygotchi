@@ -15,8 +15,8 @@
 #include "render/screens.h"
 #include "voice/player.h"
 
-// A debug-only label: the face's state name in faint text at the top left
-// (plan/UX.md §2). Off unless a build sets it (firmware/platformio.ini).
+// A debug-only label: the face's state name in faint text at the top left.
+// Off unless a build sets it (firmware/platformio.ini).
 #ifndef BOOP_DEBUG_LABEL
 #define BOOP_DEBUG_LABEL 0
 #endif
@@ -89,7 +89,7 @@ struct Hal {
 
 class Device {
  public:
-  // A panel touch ends after this long without contact, in real ms (UX.md §4).
+  // A panel touch ends after this long without contact, in real ms.
   static constexpr uint32_t kTouchReleaseMs = 50;
 
   // `pixels` is the kWidth × kHeight canvas buffer, allocated by the caller.

@@ -1,6 +1,6 @@
 // The mood designs' player (render/scene.h) against facegen's own drawing
 // of them, which facegen --check holds to Chrome's drawing of the SVGs
-// (plan/UX.md §2, plan/VERIFICATION.md L0).
+// (plan/VERIFICATION.md L0).
 #include <unity.h>
 
 #include <cstdio>
@@ -64,7 +64,7 @@ static void test_every_scene_matches_facegen() {
   TEST_ASSERT_TRUE(sizeof(kFacegenFrames) / sizeof(kFacegenFrames[0]) > 300);
 }
 
-// UX.md §2: asleep and with no app, Boop looks the same in every mood.
+// Asleep and with no app, Boop looks the same in every mood.
 static void test_asleep_and_no_app_ignore_the_mood() {
   for (int m = 0; m < int(Mood::kCount); ++m) {
     TEST_ASSERT_EQUAL_INT(sceneOf(Mood::kHappy, SceneState::kAsleep), sceneOf(Mood(m), SceneState::kAsleep));

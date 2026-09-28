@@ -240,7 +240,7 @@ def summarise(launches: list[Launch], date: str) -> Day:
                 if body.get("dropped"):
                     h.dropped += 1
                     day.drops.append(Miss(t, body["brain"], body["dropped"]))
-                elif (body.get("answers") or {}).get("react", {}).get("choice") == "none":
+                elif face(body) == "none":
                     day.quiet += 1
             elif k == "action":
                 names[seq] = body.get("name", "?")
@@ -255,7 +255,7 @@ def summarise(launches: list[Launch], date: str) -> Day:
                         day.forced_reacts += 1
                     else:
                         h.reactions += 1
-                        h.faces[((last_pass.get("answers") or {}).get("react") or {}).get("choice", "?")] += 1
+                        h.faces[face(last_pass) or "?"] += 1
                     if not body.get("ok"):
                         h.missed += not forced
                         day.misses.append(Miss(t, "react", body.get("message", "?"), forced))
@@ -317,6 +317,11 @@ def span(ms: int) -> str:
     return f"{s // 3600} h {s % 3600 // 60:02d} min"
 
 
+def face(p: dict) -> str | None:
+    """A pass's reaction: a face, or one with the cheer (`proud-cheer`)."""
+    return ((p.get("answers") or {}).get("react") or {}).get("choice")
+
+
 def minutes(ms: int) -> str:
     return "" if not ms else f"{ms / 60000:.0f} min" if ms >= 60000 else "<1 min"
 
@@ -359,7 +364,9 @@ def render(day: Day) -> str:
     out.append("")
     out.append("reacts are the reactions the brain asked for, with their faces, and missed the ones of them that "
                "didn't happen (below);")
-    out.append("chatter is the rules' working chatter; chirps are states bringing a new needs-you or a different one.")
+    out.append("cheers are every cheer played (the brain's since 2026-09-28); chatter is the rules' working chatter, "
+               "which only logs from before then have;")
+    out.append("chirps are states bringing a new needs-you or a different one.")
 
     out.append("")
     passes = day.total().passes

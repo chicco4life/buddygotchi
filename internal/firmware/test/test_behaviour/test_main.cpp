@@ -1,4 +1,4 @@
-// The behaviour state machine (plan/BEHAVIORS.md, plan/UX.md §3–4), with
+// The behaviour state machine (plan/BEHAVIORS.md), with
 // every timing checked to the millisecond.
 #include <unity.h>
 
@@ -207,7 +207,7 @@ static void test_attention_wins_over_moments() {
   TEST_ASSERT_NULL(m.b.mumble(m.t));
 }
 
-// UX.md §2: nothing cuts hard. Attention arriving under a cheer (which it
+// Nothing cuts hard. Attention arriving under a cheer (which it
 // ends) or a wiggle shows the needs-you design behind a blink of
 // kBlendMs, and the design's clock starts at the change.
 static void test_changes_mid_motion_blink_into_the_new_design() {
@@ -231,7 +231,7 @@ static void test_changes_mid_motion_blink_into_the_new_design() {
   }
 }
 
-// UX.md §2: the design a show draws. Asleep and no app share one design
+// The design a show draws. Asleep and no app share one design
 // across moods, so a mood change there switches nothing.
 static int designOf(const SceneShow& s) { return render::sceneOf(s.mood, s.state); }
 
@@ -244,7 +244,7 @@ static MomentIn reaction(render::Mood mood, int loops = 2) {
   return m;
 }
 
-// UX.md §2, every way round: whatever state Boop is in, whatever is
+// Every way round: whatever state Boop is in, whatever is
 // playing, and whatever arrives (any message or input), the design just
 // after the change is the design just before it, at the same moment of
 // its clock, or else the eyes are shut to hide the switch. What plays
@@ -328,13 +328,13 @@ static void test_no_change_ever_cuts_hard() {
   TEST_ASSERT_EQUAL(kStates * kPlayingCount * kEvents * 3, checked);
 }
 
-// UX.md §2 over time: as whatever plays runs out on its own (the cheer's
+// Over time: as whatever plays runs out on its own (the cheer's
 // loops, a reaction's borrowed face at its loop boundary, over a look,
 // over the cheer or across a look change, a wiggle, a mumble, the Mac
 // going quiet), the face never cuts hard. From one 20 ms frame to the
 // next the design goes on at the same moment of its clock, or the eyes
 // are shut. The cheer's design starting over at each of its loop
-// boundaries is its clock going on (UX.md §2 Loops).
+// boundaries is its clock going on.
 static void test_nothing_cuts_hard_as_it_plays_out() {
   using render::Mood;
   Model grumpyWorking = base("working");
@@ -457,7 +457,7 @@ static void test_no_app_holds_for_weeks() {
   TEST_ASSERT_EQUAL(Screen::kFace, r.b.screen(r.t));
 }
 
-// The debug label's name (UX.md §2): the animation playing, else the look.
+// The debug label's name: the animation playing, else the look.
 static void test_face_name_is_the_moment_or_the_look() {
   Rig r;
   r.state(base("working"));
@@ -706,7 +706,7 @@ static void test_an_expression_over_the_cheer_and_across_a_look_change() {
   m.mood = render::Mood::kCurious;
   r.state(m);
   r.at(1000);
-  r.moment(Anim::kCheer);  // the rule's cheer, in curious
+  r.moment(Anim::kCheer);  // a cheer with no face, in curious
   const uint32_t cheer = loopMs(render::Mood::kCurious, SceneState::kTaskComplete);
   const uint32_t proud = loopMs(render::Mood::kProud, SceneState::kTaskComplete);
   TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kCurious);
@@ -864,7 +864,7 @@ static void test_a_waited_moment_says_how_it_ended() {
   r.at(10000);
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());  // once
 
-  // Over the rules' cheer, which isn't part of it: its face holds a loop
+  // Over a cheer that isn't part of it: its face holds a loop
   // of the cheer's design in proud, on the cheer's clock, and the cheer
   // plays on as it would have.
   r.moment(Anim::kCheer);
@@ -889,7 +889,7 @@ static void test_a_waited_moment_says_how_it_ended() {
   r.at(cheered);
   TEST_ASSERT_EQUAL_STRING("9 done", ended(r).c_str());
 
-  // Cut short: by a tap's wiggle, by a newer moment (the rules' cheer, a
+  // Cut short: by a tap's wiggle, by a newer moment (a cheer, a
   // mumble, the Mac's next), and by "needs you".
   r.at(30000);
   r.b.onMoment(waited(10), r.t);
@@ -1047,7 +1047,7 @@ static void test_asleep_breathes_and_never_blinks() {
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
 }
 
-// BEHAVIORS.md §2, UX.md §2: each look shows its design in the mood the Mac
+// BEHAVIORS.md §2: each look shows its design in the mood the Mac
 // sent. A cheer shows the task_complete design on its own clock; the mood
 // changing mid-cheer blinks to the new mood's design and keeps that clock.
 static void test_each_look_shows_its_design_in_the_mood() {
@@ -1219,7 +1219,7 @@ struct DevRig {
 
 const char* const kTap = "{\"t\":\"input\",\"k\":\"tap\"}";
 
-// UX.md §4: any BOOT press is a tap, and so is a touch anywhere, the strip
+// Any BOOT press is a tap, and so is a touch anywhere, the strip
 // included; each is sent on release, however long it was held.
 static void test_gestures_send_the_right_inputs() {
   DevRig r;

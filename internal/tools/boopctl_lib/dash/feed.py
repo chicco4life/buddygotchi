@@ -1,5 +1,5 @@
-"""The dashboard's one source, the state dir's debug.jsonl (plan/DASHBOARD.md
-§3): following it as the app writes it, noticing when the app starts again,
+"""The dashboard's one source, the state dir's debug.jsonl: following it as
+the app writes it, noticing when the app starts again,
 and keeping what the panes show: Boop now, and its three columns, the mood,
 the automatic reactions and the decided ones. It never reads boop.log or the
 mood file, and never parses an action's message for a fact."""
@@ -14,7 +14,7 @@ Line = dict[str, Any]
 
 # A debug-mode app writes a `sent` line at least every 10 s, the state
 # keepalive (PROTOCOL.md §3), so a newest line older than this means no app
-# is writing the file (plan/DASHBOARD.md §3).
+# is writing the file.
 STALE_S = 15
 # An event written this soon after a reflex's `sent` line is what set it off:
 # the app sends to the device first, then records the event.
@@ -302,7 +302,7 @@ class Board:
         out = []
         for r in reversed(self.decided):
             p = r["pass"]
-            if not p.get("dropped") and choice(p, "react") is None:
+            if not p.get("dropped") and choice(p, FACE) is None:
                 continue  # a pass that asked no reaction couldn't react
             if r["event"]:
                 out.append(("event", f"{clock(r['at'])} ▸ {r['event']['line']}"))
@@ -310,7 +310,7 @@ class Board:
                 out.append(("event", f"{clock(r['at'])} forced by {p['by']}"))
             else:
                 out.append(("event", f"{clock(r['at'])} the pass for {p.get('for')}"))
-            if not p.get("dropped") and choice(p, "react") not in (None, "none"):
+            if not p.get("dropped") and choice(p, FACE) not in (None, "none"):
                 out.append(("pass", "  " + picks_text(p)))
             out.append(fate(r))
             if r["sat_out"]:
@@ -323,8 +323,8 @@ def fate(row: Line) -> tuple[str, str]:
     p, react, settle = row["pass"], row["react"], row["settle"]
     if p.get("dropped"):
         return "fail", f"  ✗ pass dropped: {p['dropped']}"
-    if choice(p, "react") == "none":
-        return "dim", f"  stayed quiet · none {prob(p, 'react'):.2f}"
+    if choice(p, FACE) == "none":
+        return "dim", f"  stayed quiet · none {prob(p, FACE):.2f}"
     if react is None:
         return "dim", "  … waiting for the reaction"
     if not react["ok"]:
@@ -336,12 +336,20 @@ def fate(row: Line) -> tuple[str, str]:
     return "ok", "  ✓ played"
 
 
+# The reaction: a face, or a face with the cheer (`proud-cheer`).
+FACE = "react"
+
+
+def answer(p: Line, key: str) -> Line:
+    return (p.get("answers") or {}).get(key, {})
+
+
 def choice(p: Line, key: str) -> str | None:
-    return (p.get("answers") or {}).get(key, {}).get("choice")
+    return answer(p, key).get("choice")
 
 
 def prob(p: Line, key: str) -> float:
-    a = (p.get("answers") or {}).get(key, {})
+    a = answer(p, key)
     return a.get("p", {}).get(a.get("choice"), 0.0)
 
 
@@ -350,9 +358,9 @@ def word_keys(p: Line) -> list[str]:
 
 
 def picks_text(p: Line) -> str:
-    """The face, its word and its hold, each with its probability:
-    `proud 0.82 · "finally" 0.71 · three times 0.64`."""
-    parts = [f"{choice(p, 'react')} {prob(p, 'react'):.2f}"]
+    """The reaction, its word and its hold, each with its probability:
+    `proud-cheer 0.82 · "finally" 0.71 · three times 0.64`."""
+    parts = [f"{choice(p, FACE)} {prob(p, FACE):.2f}"]
     words = [(choice(p, k), prob(p, k)) for k in word_keys(p) if choice(p, k) not in (None, "none")]
     parts += [f"“{w}” {v:.2f}" for w, v in words] or ["no word"]
     if choice(p, "react.loops"):
@@ -361,12 +369,15 @@ def picks_text(p: Line) -> str:
 
 
 def reaction_text(row: Line) -> str:
-    """A playing reaction: `a proud reaction face, three times, "…finally!"`."""
+    """A playing reaction: `a proud reaction face, three times, "…finally!"`,
+    or `a cheer in a proud face, …`."""
     p = row["pass"]
     words = [choice(p, k) for k in word_keys(p) if choice(p, k) not in (None, "none")]
     loops = choice(p, "react.loops")
-    face = choice(p, "react") or "?"
-    return (f"{'an' if face[0] in 'aeiou' else 'a'} {face} reaction face" + (f", {loops}" if loops else "")
+    face, _, anim = (choice(p, FACE) or "?").partition("-")
+    what = (f"a {anim} in " if anim else "") + f"{'an' if face[0] in 'aeiou' else 'a'} {face}"
+    what += " face" if anim else " reaction face"
+    return (what + (f", {loops}" if loops else "")
             + (f", “…{words[0]}!”" if words else ""))
 
 

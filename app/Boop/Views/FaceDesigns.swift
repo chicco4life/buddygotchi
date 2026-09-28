@@ -3,7 +3,7 @@
 import CoreGraphics
 
 /// Each mood design's face as its look starts, open-eyed and blinking,
-/// for the popover's tile (UX.md §7): the device's own shapes, without
+/// for the popover's tile: the device's own shapes, without
 /// the props.
 enum FaceDesigns {
     /// Where the faces sit in the designs' 320×240 screen.

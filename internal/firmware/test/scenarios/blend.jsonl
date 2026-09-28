@@ -1,5 +1,5 @@
 // Switching designs: the eyes shut for 150 ms to hide each cut, and a
-// switch mid-switch shuts them again from there (UX.md §2).
+// switch mid-switch shuts them again from there.
 {"clock":0}
 {"t":"state","v":1,"base":"idle"}
 {"clock":1000}

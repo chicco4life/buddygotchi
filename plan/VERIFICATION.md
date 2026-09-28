@@ -45,7 +45,7 @@ launch the menu-bar app or run the whole eval.
 | `make build` | Builds the Mac app, `boop-hook` and `boopdev` in one `swift build`. Importing a target that isn't a declared dependency fails it, so `app/` can't use `internal/` code ([ARCHITECTURE.md](ARCHITECTURE.md) §10) |
 | `make run` | Builds, then runs the menu-bar app with Bluetooth. The owner's; never from an agent's shell |
 | `make debug` | The same with `--debug` |
-| `make dash` | The dashboard ([DASHBOARD.md](DASHBOARD.md)) for the app `make debug` started, in a second terminal |
+| `make dash` | The dashboard for the app `make debug` started, in a second terminal |
 | `make day` | What the everyday app did in a day, and why, from the logs `make debug` leaves (`boopctl day`, below); `DATE=YYYY-MM-DD` picks the day, the newest line's by default |
 | `make flash` | Builds the firmware and uploads it over USB; `BOOP_PORT` picks the port |
 | `make eval` | Builds, then runs the eval scenarios against Jev, 3 runs each (L5); fails without `BOOP_JEV_KEY` |
@@ -79,7 +79,7 @@ commands go through the bridge.
 | `e2e [fixture…]` | The pipeline check (L4). `--brain scripted\|jev` (scripted), `--out DIR` (`/tmp/boop-e2e-out`), `--clip` to film a Claude session first (L3, with `--camera ID`) |
 | `bridge [--socket PATH] [--quiet]` | Owns the serial port and shares it on a Unix socket (below) |
 | `cam frame\|pattern\|clip [name]` | The webcam helpers (L3). `--seconds N` for a clip (8, at most 10), `--usb bottom\|right\|top\|left` for framing, `--camera ID` (default `$BOOP_CAMERA` or the built-in camera) |
-| `dash [--state-dir DIR] [--socket PATH]` | The live dashboard ([DASHBOARD.md](DASHBOARD.md)) |
+| `dash [--state-dir DIR] [--socket PATH]` | The live dashboard |
 | `day [--state-dir DIR] [--date YYYY-MM-DD] [file…]` | What Boop did in a day, and why, from debug mode's logs: the state directory's `debug.jsonl` and the earlier launches' kept beside it, oldest first (the everyday app's by default), or the files named, oldest launch first. A table by the hour (cheers, chatter, the brain's reactions and their faces, chirps, mood changes, passes, dropped passes, the brain's reactions that didn't happen, taps and minutes needing you), then the brain's passes and what the dashboard forced, each mood change and what made it, each time something needed you and how long it took to clear, and why reactions didn't happen ([harness/HARNESS.md](harness/HARNESS.md) §9). `--date` defaults to the newest line's day; it exits 1 when that day has no lines |
 | `calibrate` | Touch calibration: a person taps crosses on the screen (L6). `--show` prints the stored map, `--show --clear` forgets it |
 
@@ -182,7 +182,7 @@ clock passes its length, so the tap above lands at 600. Both runners send
 `dbg.reset` first, so the board starts each scenario exactly as a fresh
 simulator does.
 
-Every screen and state in [BEHAVIORS.md](BEHAVIORS.md) and [UX.md](UX.md)
+Every screen and state in [BEHAVIORS.md](BEHAVIORS.md)
 gets at least one scenario. Their pictures are the golden images in
 `internal/firmware/test/golden/<scenario>/`.
 
@@ -209,14 +209,14 @@ gets at least one scenario. Their pictures are the golden images in
   `test_no_change_ever_cuts_hard` and
   `test_nothing_cuts_hard_as_it_plays_out`, which hold every change and
   every moment running out (a reaction's borrowed face and the cheer's
-  loops included) to the face never cutting hard ([UX.md](UX.md) §2)
+  loops included) to the face never cutting hard
   (`test_behaviour`); the canvas and
   renderer (`test_canvas`, `test_face`); the mood designs' player against
   facegen's frames (`test_scene`); and the voice player (`test_voice`).
 - **The Mac app's look**, for Mac UI changes: run
-  `.build/debug/Boop --snapshots DIR` and open every PNG against
-  [UX.md](UX.md) §6: nothing clipped, no debug data, text readable, the
-  Warm Terminal look. The run fails by itself on UX.md §6's contrast.
+  `.build/debug/Boop --snapshots DIR` and open every PNG and check:
+  nothing clipped, no debug data, text readable, the Warm Terminal
+  look. The run fails by itself on low contrast.
   There are no goldens.
 
 **Pass:** everything green. New code comes with tests.
@@ -356,8 +356,7 @@ calibration (`boopctl calibrate`), sound by ear (`boopctl mumble`,
 `mumble --board-volume`, `mumble --levels`, `play needs`), real Claude
 Code and Codex sessions, the Mac app in the real menu bar, and how Boop
 feels. A day of real use under `make debug` reads back with `make day`:
-what Boop did each hour and why, relaunches included. The checks still
-waiting are in [PLAN.md](PLAN.md).
+what Boop did each hour and why, relaunches included.
 
 ## 6. Webcam
 
@@ -370,6 +369,5 @@ L3 and report it.
 
 Work that needs a record writes `plan/evidence/<date>-<topic>/README.md`:
 what ran, the result, anything accepted or changed and why, and a few
-small PNGs (simulator, device screenshot, webcam crop). Link it from
-[PLAN.md](PLAN.md). Logs and raw video stay in `/tmp`. The finished v1
+small PNGs (simulator, device screenshot, webcam crop). Logs and raw video stay in `/tmp`. The finished v1
 build's records are in `plan/evidence/v1-build/`.

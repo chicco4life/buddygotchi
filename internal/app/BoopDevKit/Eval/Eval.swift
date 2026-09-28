@@ -32,7 +32,8 @@ public struct Scenario: Sendable {
     /// What a pass should come to: each a set of acceptable values, `none`
     /// included where staying quiet or no word is fine.
     public struct Expectation: Sendable, Equatable {
-        /// Jev's `react` pick: `none` or a feeling.
+        /// Jev's `react` pick: `none`, a mood's face, or one with the
+        /// cheer (`proud-cheer`).
         public var react: Set<String>?
         /// The word the mumble used, or `none`.
         public var word: Set<String>?

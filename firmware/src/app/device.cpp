@@ -281,7 +281,7 @@ void Device::tapped(uint32_t t, bool injected) {
   emit("tap", injected);
 }
 
-// BOOT and touch, turned into gestures (UX.md §4). Every press and touch
+// BOOT and touch, turned into gestures. Every press and touch
 // shows on screen at once, before the Mac hears about it.
 void Device::readInputs(uint32_t t) {
   if (injPress_ && int32_t(t - injPressUntil_) >= 0) injPress_ = false;

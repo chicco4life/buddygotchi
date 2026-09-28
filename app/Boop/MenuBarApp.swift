@@ -2,7 +2,7 @@ import AppKit
 import BoopKit
 import SwiftUI
 
-/// The menu-bar app (UX.md §6): an icon that mirrors Boop and a popover.
+/// The menu-bar app: an icon that mirrors Boop and a popover.
 /// Setup and settings open inside the popover. It pops up by itself only
 /// once, on first launch, to show setup, and never sends notifications.
 enum MenuBarApp {

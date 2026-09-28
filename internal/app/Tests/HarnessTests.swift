@@ -61,8 +61,8 @@ final class HarnessTests: XCTestCase {
         t.append(.action(.init(forSeq: failed.seq, name: "mood", result: .failed("couldn't save the mood: disk full"), latencyMs: 1)), at: Self.t0)
         t.append(.event(event(.tap, at: 19, "You tapped Boop.", reaction: "Boop wiggled on its own.", wakes: false)),
                  at: Self.t0 + 19 * 60_000)
-        let end = t.append(.event(event(.turnEnd, at: 23, #"claude finished turn 7 on "fix-nav" (landing): done."#,
-                                        reaction: "Boop cheered on its own.")), at: Self.t0 + 23 * 60_000)
+        let end = t.append(.event(event(.turnEnd, at: 23, #"claude finished turn 7 on "fix-nav" (landing): done."#)),
+                           at: Self.t0 + 23 * 60_000)
         var parts = Self.parts
         parts.workingSince = Self.t0 + 5 * 60_000  // the turn is still working, so HISTORY reaches back to its start
         let state = StateText.build(t.entries, now: end, at: Self.t0 + 23 * 60_000 + 5000, parts)
@@ -87,7 +87,7 @@ final class HarnessTests: XCTestCase {
 
             NOW (14:23, Tuesday)
             claude finished turn 7 on "fix-nav" (landing): done.
-            Boop cheered on its own.
+            Boop did nothing on its own.
             """)
     }
 
@@ -369,7 +369,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(seen.all, ["first", "third"])
     }
 
-    // MARK: Forced passes (DASHBOARD.md §4)
+    // MARK: Forced passes
 
     /// A forced pass needs no brain: each choice gets probability 1 and
     /// goes to the action that asked it, as Jev's answers would; a choice
@@ -616,7 +616,7 @@ final class HarnessTests: XCTestCase {
         started.result = .started("Boop did more.", during)
         _ = await h.respond(to: event(.toolUse, at: -2, "it went on"))
         started.result = nil
-        _ = await h.respond(to: event(.turnEnd, at: 0, "it ended", reaction: "Boop cheered on its own."))
+        _ = await h.respond(to: event(.turnEnd, at: 0, "it ended"))
         let objects = lines.all.map { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
         let (i, pass) = try XCTUnwrap(objects.enumerated().compactMap { i, o in (o?["pass"] as? [String: Any]).map { (i, $0) } }.last)
         let logged = try XCTUnwrap(pass["state"] as? String)
@@ -750,14 +750,28 @@ final class HarnessTests: XCTestCase {
         starts(["react": a("excited"), "react.loops": a("three times")], "Boop made an excited face, held three times, and mumbled.")
         XCTAssertEqual(queued.last?.moment.loops, 3)
         queued.removeLast()
+        // DECISIONS.md §3, §5: a `-cheer` choice plays the cheer in that face;
+        // an animation the device doesn't play isn't a choice.
+        XCTAssertEqual(ReactAction.animations, ["cheer"])
+        starts(["react": a("proud-cheer"), "react.loops": a("twice"), "word.feeling": a("finally")],
+               #"Boop played a cheer in a proud face, held twice, and mumbled "…finally!""#)
+        XCTAssertEqual(queued.last?.moment.anim, "cheer")
+        XCTAssertTrue(queued.last!.moment.jsonLine.hasPrefix(#"{"t":"moment","anim":"cheer","say":"#), queued.last!.moment.jsonLine)
+        XCTAssertTrue(queued.last!.moment.jsonLine.hasSuffix(#","mood":"proud","loops":2}"#), queued.last!.moment.jsonLine)
+        XCTAssertEqual(react.lastLine(at: 0), #"Boop's last reaction, just now: a cheer in a proud face and "…finally!"."#)
+        queued.removeLast()
+        for pick in ["happy-wiggle", "happy-confetti", "cheer", "curious-cheer"] {
+            XCTAssertNil(react.run(["react": a(pick)]), pick)
+        }
         why = "something needs you"
-        for expression in ReactAction.expressions.map(\.name) {
+        for expression in ReactAction.reactions.map(\.name) {
             XCTAssertEqual(react.run(["react": a(expression)]), .failed("something needs you"))
         }
         XCTAssertEqual(sent.count, 3, "no face or mumble while something needs you")
         XCTAssertEqual(react.questions().map(\.key), ["react", "react.loops", "word.feeling", "word.about"])
-        XCTAssertEqual(react.questions()[0].options.map(\.name), ["none"] + MoodAction.moods.map(\.name),
-                       "the faces are the six moods'")
+        XCTAssertEqual(react.questions()[0].options.map(\.name),
+                       ["none"] + MoodAction.moods.map(\.name) + MoodAction.moods.map { $0.name + "-cheer" },
+                       "the six moods' faces, alone and with the cheer")
         XCTAssertNil(react.run(["react": a("curious")]), "curious isn't a face the brain can pick (DECISIONS.md §3)")
         XCTAssertEqual(react.questions()[1].options.map(\.name), ["once", "twice", "three times", "four times"])
         XCTAssertEqual(react.questions()[2].options.map(\.name), ["none", "finally", "yay", "oops", "again", "ugh", "nope", "hmm"])
@@ -807,8 +821,8 @@ final class HarnessTests: XCTestCase {
                                 "determined": .happy, "grumpy": .annoyed, "sad": .sad])
     }
 
-    /// PROTOCOL.md §3: only the brain's mumbles carry an expression; the
-    /// rules' moments (the cheer, a wiggle, working chatter) never do.
+    /// PROTOCOL.md §3: only the brain's moments carry an expression; the
+    /// dashboard's cheer or wiggle never does.
     func testRuleMomentsCarryNoExpression() {
         XCTAssertEqual(DeviceMoment(anim: "cheer").jsonLine, #"{"t":"moment","anim":"cheer"}"#)
         let line = VoiceLine(groups: [["bi", "da"]], word: nil, at: 2, tune: .bounce, ms: 125)
@@ -846,7 +860,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(MoodStore(stateDir: dir).current, "happy", "an unknown one reads as happy")
     }
 
-    /// DECISIONS.md §4, DASHBOARD.md §4: the mood the dashboard sets
+    /// DECISIONS.md §4: the mood the dashboard sets
     /// changes as Jev's does, device included, and it's told why when it
     /// can't: the mood it already is, or one that isn't a mood.
     func testAForcedMoodChangesItAsJevsDoes() throws {

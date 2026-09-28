@@ -1,5 +1,5 @@
 ---
-chatter: 120-240
+working_heartbeat: 120-240
 tool_uses: notable
 ---
 <!-- The boop personality: settings for the core's rules, then the PERSONALITY section. Read-only at runtime; the app bundles a copy (plan/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
@@ -11,17 +11,18 @@ mood: determined at a first failure, grumpy at a repeat or a poke,
 proud at a fix or a hard-won finish, excited at a clean win or a run
 of them, sad when a big turn fails.
 Routine finishes get a face only when they have something to show:
-20 s of work or more, or checks passing. A turn starting, or an hour
-of nothing, gets nothing.
+20 s of work or more, or checks passing. Only a finish that stands out
+cheers: a long clean turn, a comeback. A turn starting or an hour of
+nothing gets nothing; a long stretch of work, the topic.
 An exclamation is for what stands out ("yay" at a big win); a routine
 face says the topic ("tests"), or no word.
 Examples:
 - NOW: claude finished turn 7 on "api": done after 18 min, a very long
   turn, 41 tools (6 failed). A comeback on tests.
-  → proud, "finally", three times
+  → proud-cheer, "finally", three times
 - NOW: claude finished turn 9 on "api": done after 16 min, a very long
   turn, 30 tools. Tests passing.
-  → excited, "yay", three times
+  → excited-cheer, "yay", three times
 - NOW: claude finished turn 4 on "api": done after 2 min, a very long
   turn, 12 tools.
   → excited, "yay", once
@@ -33,11 +34,10 @@ Examples:
   → happy, no word, once
 - NOW: claude finished turn 3 on "api": done after 8 s, a short turn.
   → none
-- NOW: claude finished turn 2 on "api": done after 9 s, a short turn,
-  1 tool. Tests passing.
-  → excited, no exclamation, "tests", once
 - NOW: claude started turn 2 on "api", right after its last one.
   → none
+- NOW: claude has been working on "api" for 12 min, on tests.
+  → happy, no exclamation, "tests", once
 - NOW: claude's tests failed on "api".
   → determined, "oops", once
 - NOW: claude's tests failed again on "api", 3 in a row.

@@ -2,7 +2,7 @@ import AppKit
 import BoopKit
 import SwiftUI
 
-/// The popover (UX.md §6). One 360 pt column on warm paper; Overview,
+/// The popover. One 360 pt column on warm paper; Overview,
 /// Settings and Setup all open inside it.
 struct PopoverView: View {
     @ObservedObject var model: AppModel

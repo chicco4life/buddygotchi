@@ -54,10 +54,10 @@ such as `claude_code/s1`.
 | Kind | The core makes one when | Reaction | Wakes the brain |
 | --- | --- | --- | --- |
 | `turn_start` | A turn starts | — | Yes |
-| `turn_end` | A turn Boop saw start ends `done`, `failed` or `stopped` (§4.1) | `Boop cheered on its own.` when `done`, or none while something needs you | Yes |
+| `turn_end` | A turn Boop saw start ends `done`, `failed` or `stopped` (§4.1) | — | Yes |
 | `tool_use` | A tool call finishes and is notable (§4.1), or any call with the personality's `tool_uses: all` ([BEHAVIORS.md](../BEHAVIORS.md) §6) | — | Yes |
 | `pokes` | Taps make a poke streak ([BEHAVIORS.md](../BEHAVIORS.md) §3.3) | `Boop wiggled on its own.` | Yes, unless it comes within a minute of the last streak that could (`Core.Config.pokedEveryMs`) |
-| `heartbeat` | While no thread works, each whole hour since the last hook or tap (`Core.Config.heartbeatMs`); none before the first since launch | — | Yes |
+| `heartbeat` | While no thread works, each whole hour since the last hook or tap (`Core.Config.heartbeatMs`); none before the first since launch. While any thread works, once the personality's `working_heartbeat` wait has passed with no event that woke the brain ([BEHAVIORS.md](../BEHAVIORS.md) §2) | — | Yes |
 | `tap` | Any other tap | `Boop wiggled on its own.`, or none while something needs you | Never |
 | `needs_you` | An agent starts needing you ([ADAPTERS.md](../ADAPTERS.md) §4) | — | Never |
 
@@ -87,15 +87,14 @@ such as `claude_code/s1`.
 | | `subagent` | The Claude subagent's type (`Explore`), only for a call made inside one | No |
 | `pokes` | `count`, `seconds` | Taps in the streak, and the whole seconds they took | Yes |
 | | `since_last` | Since the last streak that could wake the brain, a band (§5); null the first time | Yes |
-| `heartbeat` | `idle_hours` | Whole hours since the last hook or tap | Yes |
+| `heartbeat` | `idle_hours`, or `thread`, `working_ms` and `topic` | Whole hours since the last hook or tap; or the thread working longest (§3), how long its turn has run, and its latest topic | Yes |
 | `tap` | — | | |
 | `needs_you` | `thread` | §3 | Yes |
 
 **A turn's outcome** is `failed` when the agent reports an API error, or
 when the turn ends while its last test, build or deploy command failed
 ([BEHAVIORS.md](../BEHAVIORS.md) §3.1); `stopped` when a turn still open is
-interrupted ([ADAPTERS.md](../ADAPTERS.md) §3); and `done` otherwise,
-the only outcome the rule cheers.
+interrupted ([ADAPTERS.md](../ADAPTERS.md) §3); and `done` otherwise.
 
 **A turn** starts at your prompt, or at a call while none is open (a
 background subagent's after the main agent's `Stop`, or Claude carrying
@@ -166,7 +165,6 @@ it.
 
 | Reaction | On | The moment |
 | --- | --- | --- |
-| `Boop cheered on its own.` | `turn_end` with `done`, unless something needs you: attention wins, so there's no cheer to claim ([BEHAVIORS.md](../BEHAVIORS.md) §1) | The core's `cheer` |
 | `Boop wiggled on its own.` | `tap`, `pokes` | The device's own `wiggle`, already played |
 
 **Never an event:** a session starting or ending, a tool call starting,
@@ -174,11 +172,8 @@ a routine tool use under `notable`, "needs you" clearing, a turn's end
 with no turn open (a second `Stop`, or one after the turn stopped), and
 the end of a turn Boop joined partway: it launched, or forgot the
 session, after the turn started, so it can't know the turn's length or
-tools. That turn's finish still cheers, with no event to carry the
-reaction, since the screen showed it working. These reach Jev only as counts and
-topics in other lines, and in the status line. Working chatter, the
-rules' own mumble ([BEHAVIORS.md](../BEHAVIORS.md) §2), never reaches
-Jev at all.
+tools. That turn's finish only makes the session idle. These reach Jev only as counts and
+topics in other lines, and in the status line.
 
 ## 8. Lines
 
@@ -193,7 +188,7 @@ marked "in the line" in §4.1 (`EventLine` in
 | `tool_use`, notable | `claude's tests failed on "fix-nav" (landing).`, `… failed again on "…", 3 in a row.`, `… passed on "…" after 3 failures in a row.` An error other than `exit_code` goes in brackets: `(timed out)`, `(denied)`, `(error)` |
 | `tool_use`, routine | By category: `claude ran a command on "…".`, `edited a file`, `read a file`, `searched`, `looked something up on the web`, `started a subagent`, and `used a tool` for `mcp` and `other`; ` It failed.` added when it did |
 | `pokes` | `You poked Boop 4 times in 2 s, again a while after the last time.` The last part reads `, again right after the last time`, `, again a while after the last time` or `, again after a long break`, and is left out the first time |
-| `heartbeat` | `Nothing has happened for 1 hour.`, `… for 3 hours.` |
+| `heartbeat` | `Nothing has happened for 1 hour.`, `… for 3 hours.` While working: `claude has been working on "fix-nav" (landing) for 6 min, on tests.`, with the topic only when there is one |
 | `tap` | `You tapped Boop.` |
 | `needs_you` | `claude needs you on "fix-nav" (landing).` |
 

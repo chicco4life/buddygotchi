@@ -27,7 +27,7 @@ bool parseMood(const char* name, Mood& out);  // false, and `out` untouched, if 
 const char* moodName(Mood m);
 
 // A switch from one design to another shuts the eyes this long, which hides
-// the cut (plan/UX.md §2), and the backlight eases over the same time.
+// the cut, and the backlight eases over the same time.
 constexpr uint32_t kBlendMs = 150;
 
 }  // namespace render

@@ -1,4 +1,4 @@
-// The landscape layout at its limits (UX.md §2–3): the longest needs-you line with "+N more", and a full status strip.
+// The landscape layout at its limits: the longest needs-you line with "+N more", and a full status strip.
 {"clock":0}
 {"t":"state","v":1,"base":"working","busy":12,"attn":{"agent":"gemini-cli","project":"a-very-long-project-n..","more":9}}
 {"clock":1000}

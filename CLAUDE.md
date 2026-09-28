@@ -7,8 +7,8 @@ are the same file: edit `CLAUDE.md`, then copy it over `AGENTS.md`.
 
 Boop is a small desk creature with a personality of its own that watches
 your Claude Code and Codex agents. It mumbles in Minion-like gibberish,
-tells you when an agent needs your approval on the Mac, and cheers when
-work finishes. It never approves anything. A Mac app does the thinking; a
+tells you when an agent needs your approval on the Mac, and celebrates
+work that earns it. It never approves anything. A Mac app does the thinking; a
 cheap ESP32 board with a screen is the body. Start with
 [plan/VISION.md](plan/VISION.md).
 
@@ -16,7 +16,7 @@ cheap ESP32 board with a screen is the body. Start with
 
 | Path | What it is |
 | --- | --- |
-| `plan/` | The spec, which the code implements ([the index](plan/README.md)). [plan/PLAN.md](plan/PLAN.md) has the status and open items, and [plan/VERIFICATION.md](plan/VERIFICATION.md) how everything is checked. Evidence goes in `plan/evidence/` |
+| `plan/` | The spec, which the code implements ([the index](plan/README.md)). [plan/VERIFICATION.md](plan/VERIFICATION.md) says how everything is checked. Evidence goes in `plan/evidence/` |
 | `Package.swift` | The Swift package, at the root because its targets are in both `app/` and `internal/`. It builds into `.build/` |
 | `app/` | The Mac side that ships: the menu-bar app (`Boop`), the `boop-hook` hook client, and the `BoopKit` and `HookWire` libraries |
 | `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)), with its generated assets and build scripts |
@@ -110,8 +110,9 @@ rules that are easy to break:
   talks to the device.
 - **Only Voice knows Minion speech.** Only the memory store reads and writes
   the memory files. Only the device link knows Bluetooth or USB.
-- **The brain is never on the event path.** Rules give the immediate
-  reaction, and the brain adds character later or not at all.
+- **The brain is never on the screen's path.** Rules keep the screen true
+  at once (the look, "needs you", the wiggle). Every reaction, a
+  finished turn's included, is the brain's, later or not at all.
 - **The brain is Jev: multiple choice only.** It answers questions about
   a plain-text state; there's no free text. Keep questions few, with
   options that say what they're not.
@@ -140,7 +141,7 @@ unpushed local `main`.
 | When you change | Update |
 | --- | --- |
 | `app/BoopKit/Core/`, `firmware/src/app/behaviour.*` | `BEHAVIORS.md` |
-| `app/Boop/`, `firmware/src/render/`, `firmware/src/app/gesture.*` | `UX.md` |
+| `firmware/src/render/`, `firmware/src/app/gesture.*` | `DEVICE.md` |
 | `app/HookWire/`, `app/BoopHook/`, `app/BoopKit/Adapters/`, `app/BoopKit/Install/` | `ADAPTERS.md` |
 | `app/BoopKit/Harness/`, `app/BoopKit/Brains/` | `harness/HARNESS.md` |
 | `app/BoopKit/Core/Event.swift` | `harness/EVENTS.md` |
@@ -149,16 +150,15 @@ unpushed local `main`.
 | `app/BoopKit/Voice/`, `firmware/src/voice/`, `internal/tools/voicegen/` | `VOICE.md` |
 | `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/{device.cpp,packets.h,link_silence.h}`, `internal/tools/boopctl_lib/` | `PROTOCOL.md` |
 | `firmware/src/board/`, `firmware/platformio.ini`, `internal/tools/fontgen/` | `DEVICE.md` |
-| `internal/tools/facegen/` (and its designs), `firmware/src/render/scene.*` | `UX.md` §2, `DEVICE.md` §6 |
+| `internal/tools/facegen/` (and its designs), `firmware/src/render/scene.*` | `DEVICE.md` §6 |
 | `Makefile`, `internal/Makefile`, `internal/tools/`, `internal/app/BoopDev/`, `internal/skills/`, tests | `VERIFICATION.md`, this file, `README.md` |
 | `internal/app/Boop/` (`--headless`, `--snapshots`), `internal/app/BoopDevKit/Replay.swift`, `internal/firmware/sim/`, `internal/firmware/test/` | `VERIFICATION.md` |
-| `internal/tools/boopctl_lib/dash/`, the dev lines and the dashboard's lines in `debug.jsonl` | `DASHBOARD.md` (and `harness/HARNESS.md` §9) |
+| `internal/tools/boopctl_lib/dash/`, the dev lines and the dashboard's lines in `debug.jsonl` | `harness/HARNESS.md` §9 |
 | `internal/tools/boopctl_lib/day.py`, or any `debug.jsonl` line it reads | `harness/HARNESS.md` §9 (A day's summary), `VERIFICATION.md` §2 |
 | `internal/app/BoopDevKit/Eval/`, `internal/app/Evals/`, `internal/tools/workday/` | `EVALS.md` |
 | `Package.swift`, what goes in `internal/` | `ARCHITECTURE.md` §10, `internal/README.md`, this file |
 | Structure, boundaries or a budget | `ARCHITECTURE.md` |
-| What's in or out of v1 | `VISION.md` (Scope), `FUTURE.md` |
-| A milestone's status | `PLAN.md` (its status table) |
+| What's in or out of v1 | `VISION.md` (Scope) |
 | A spec added, renamed or removed | `plan/README.md`, this table |
 
 **Rules that keep them from drifting:**
@@ -182,10 +182,8 @@ unpushed local `main`.
 - **Removed code takes its docs with it.** Delete, or move to `archived/`,
   any doc, skill, checklist or code comment that describes code that's
   gone.
-- **Status moves with the work.** When a milestone or task closes, update
-  its row in `PLAN.md`, link its evidence from there, and bump the
-  "Updated" date on every spec you touched. Drift you find but don't fix
-  goes in `PLAN.md` as an open item.
+- **Dates move with the work.** Bump the "Updated" date on every spec
+  you touched. Tell the owner about drift you find but don't fix.
 - **Before you commit,** go through `git diff --stat` against the table
   above, check that `cmp CLAUDE.md AGENTS.md` is silent, and check that
   new or edited links resolve.
@@ -198,7 +196,7 @@ add a row saying why to the decision log at the end of
 
 Check changes with the loop in [plan/VERIFICATION.md](plan/VERIFICATION.md)
 §1, and report only checks that actually ran and passed. Evidence goes in
-`plan/evidence/<date>-<topic>/` (§7 there), linked from `PLAN.md`.
+`plan/evidence/<date>-<topic>/` (§7 there).
 
 Before trusting anything that depends on hooks, run the `doctor` skill
 (`internal/skills/doctor/doctor.sh`). It checks that this agent's hooks

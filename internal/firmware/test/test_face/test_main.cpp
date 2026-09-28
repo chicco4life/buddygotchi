@@ -131,7 +131,7 @@ static void test_every_mood_has_a_name() {
 
 static void test_an_empty_strip_is_bare_glass() {
   // With nothing to count or flag, the strip shows nothing, not even its
-  // divider (UX.md §2); with anything, the divider is there.
+  // divider; with anything, the divider is there.
   auto lit = [](const Strip& s) {
     Buf b;
     drawStrip(b.c, s);
@@ -149,7 +149,7 @@ static void test_an_empty_strip_is_bare_glass() {
   }
 }
 
-// UX.md §3: while something needs you, the strip says who in amber, cut to
+// While something needs you, the strip says who in amber, cut to
 // leave room for "+N" and the working count, which stay whole.
 static void test_the_strip_says_who_needs_you() {
   auto amberCols = [](const Strip& s, int& last) {
@@ -182,8 +182,8 @@ static void test_the_strip_says_who_needs_you() {
 }
 
 static void test_squiggles_make_room_for_the_word() {
-  // The mumble's word is never cut while squiggles keep their room (UX.md
-  // §2): with six syllables around it, "refactoring" shows whole, as it
+  // The mumble's word is never cut while squiggles keep their room:
+  // with six syllables around it, "refactoring" shows whole, as it
   // does alone; only a word too long for the bubble by itself ends "..".
   auto amber = [](const Mumble& m) {
     Buf b;
@@ -216,7 +216,7 @@ static void test_fonts_are_monospaced_and_utf8_aware() {
   Buf fit;
   int w = drawStringFit(fit.c, kSmall, 0, 0, "a-very-long-project-name", kInkAmber, 10 * kSmall.w);
   TEST_ASSERT_TRUE(w <= 10 * kSmall.w);
-  // Accented letters show plain (UX.md §2), anything else outside the font
+  // Accented letters show plain, anything else outside the font
   // as one "?" per character.
   Buf accented, plain, other, marks;
   TEST_ASSERT_EQUAL_INT(4 * kSmall.w, stringWidth(kSmall, "caf\xC3\xA9"));

@@ -1,4 +1,4 @@
-"""The dashboard (plan/DASHBOARD.md): its feed against debug.jsonl files
+"""The dashboard: its feed against debug.jsonl files
 recorded from real headless runs, its three columns (the mood, the
 automatic reactions and the decided ones) and the stale-log banner, restart
 detection, the face's downsampling and
@@ -137,7 +137,7 @@ class FeedTests(unittest.TestCase):
 
 
 class ColumnsTests(unittest.TestCase):
-    """plan/DASHBOARD.md §2: the three columns, newest first, from
+    """The three columns, newest first, from
     `tests/fixtures/dash-columns.jsonl`. It was recorded from a real run
     (plan/evidence/2026-09-28-tonight/dash: a headless app whose USB link is
     a boop-sim, a forced mood, the e2e Claude session, a forced reaction
@@ -237,7 +237,7 @@ class ColumnsTests(unittest.TestCase):
         self.assertEqual(dict(board.facts(self.at[31] + 60_000))["showing"], "its idle look")
 
     def test_the_stale_log_banner(self):
-        """DASHBOARD.md §3: a debug-mode app writes a `sent` line at least
+        """A debug-mode app writes a `sent` line at least
         every 10 s, so a newest line older than 15 s means no live log, and
         the board's connection isn't shown as a fact."""
         self.assertEqual(STALE_S, 15)
@@ -273,7 +273,7 @@ class RestartTests(unittest.TestCase):
         self.assertEqual(follower.read(), (False, [{"sent": {"t": "state"}}]), "growing")
 
     def test_the_app_starting_again(self):
-        """DASHBOARD.md §3: the app empties the file at each launch and writes
+        """The app empties the file at each launch and writes
         its questions line, with that launch's time, first."""
         follower = Follower(self.path)
         self.write('{"questions":[],"received_at_ms":1}\n{"seq":1,"event":{}}\n{"seq":2,"pass":{}}\n')
@@ -556,7 +556,7 @@ class AppTests(unittest.TestCase):
                         await pilot.pause(0.05)
                     self.assertEqual((face.sent[-1]["t"], face.sent[-1]["mood"]), ("moment", "grumpy"))
                     self.assertNotIn("word", face.sent[-1]["say"])
-                # DASHBOARD.md §4: resent well inside the device's 30 s no-app timeout.
+                # Resent well inside the device's 30 s no-app timeout.
                 self.assertEqual(PREVIEW_RESEND_S, 10)
                 app.keep_preview()
                 self.assertEqual(face.sent[-1]["base"], "working")
@@ -591,3 +591,18 @@ class AppTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReactionKeysTests(unittest.TestCase):
+    """harness/DECISIONS.md §3: one `react` choice, a face alone or with
+    the cheer (`proud-cheer`)."""
+
+    def test_the_face_and_its_cheer(self) -> None:
+        from boopctl_lib.dash.feed import picks_text, reaction_text
+        a = lambda c, p=1.0: {"choice": c, "p": {c: p}}  # noqa: E731
+        now = {"answers": {"react": a("proud-cheer", 0.82), "react.loops": a("twice"), "word.feeling": a("finally", 0.71)},
+               "questions": ["react", "react.loops", "word.feeling"]}
+        self.assertEqual(picks_text(now), "proud-cheer 0.82 · “finally” 0.71 · twice 1.00")
+        self.assertEqual(reaction_text({"pass": now}), "a cheer in a proud face, twice, “…finally!”")
+        face = {"answers": {"react": a("grumpy"), "react.loops": a("once")}, "questions": ["react", "react.loops"]}
+        self.assertEqual(reaction_text({"pass": face}), "a grumpy reaction face, once")

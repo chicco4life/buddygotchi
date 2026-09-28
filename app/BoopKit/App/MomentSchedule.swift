@@ -1,13 +1,14 @@
 import Foundation
 
 /// What plays on the device and until when (ARCHITECTURE.md §3.2). The
-/// rules' moments play at once. The brain's wait their turn: one at a time,
-/// each once the line playing has finished, and a reaction's face too
-/// unless it's the brain's own, held on for its loops after its mumble:
-/// the next reaction replaces that, so none cuts off a line and a held face
-/// doesn't hold up the next reaction. A brain mumble has no animation,
-/// so it plays over an animation without cutting it: a proud mumble over
-/// the cheer shows the cheer in proud's face. One that has waited longer
+/// tap's wiggle and the dashboard's moments play at once. The brain's wait
+/// their turn: one at a time, each once the line playing has finished, and
+/// a reaction's face too unless it's the brain's own, held on for its
+/// loops after its mumble: the next reaction replaces that, so none cuts
+/// off a line and a held face doesn't hold up the next reaction. A
+/// reaction that plays an animation (the cheer) holds the line until it
+/// ends, since the next would cut it. One with no animation plays over a
+/// wiggle without cutting it. One that has waited longer
 /// than `maxWaitMs` for its turn is dropped, since a late reaction is worse
 /// than none, and its handle ends as failed (harness/DECISIONS.md §5).
 ///
@@ -37,7 +38,7 @@ public struct MomentSchedule {
     /// the device, since every line reaches it a little after it's sent.
     public static let linkSlackMs: Int64 = 500
 
-    /// When the rules' animation playing ends.
+    /// When the tap's or the dashboard's animation playing ends.
     public private(set) var animUntil: Int64 = 0
     /// When the line playing ends, and with it a reaction's face, as the
     /// app reckons it; or when the device said the brain's moment ended.
@@ -47,7 +48,7 @@ public struct MomentSchedule {
     /// its mumble has played, from which the next brain moment may replace
     /// its face.
     public private(set) var holder: (id: Int, until: Int64, sayUntil: Int64)?
-    /// When the rules' cheer playing ends; nil before the first.
+    /// When a cheer the dashboard played ends; nil before the first.
     public private(set) var cheerUntil: Int64?
     /// The look and mood of the last `state` sent.
     public var look = "idle"
@@ -86,7 +87,8 @@ public struct MomentSchedule {
         return max(ms, moment.playMs(look: "task_complete", mood: mood))
     }
 
-    /// A rule moment, playing now. An animation replaces the one playing
+    /// A moment played at once (the tap's wiggle, or the dashboard's
+    /// cheer or wiggle). An animation replaces the one playing
     /// and stops the line, and with it the brain's moment; a line replaces
     /// the line. Anything waiting waits for a new line too. While
     /// something needs you, the device plays none of it.
@@ -136,9 +138,11 @@ public struct MomentSchedule {
 
     /// The brain moment `due` just handed out at `now` went to the device
     /// as `id`: the line waits for its `ended` until `until` at the latest,
-    /// and the next brain moment until its mumble has played.
+    /// and the next brain moment until its mumble has played, or, when it
+    /// plays an animation, which the next would cut, until its `ended` too.
     public mutating func hold(id: Int, _ moment: DeviceMoment, now: Int64, until: Int64) {
-        holder = (id, until, min(until, now + moment.sayMs + Self.linkSlackMs))
+        let free = moment.anim == nil ? min(until, now + moment.sayMs + Self.linkSlackMs) : until
+        holder = (id, until, free)
     }
 
     /// The device said the brain moment `id` ended. If it holds the line,

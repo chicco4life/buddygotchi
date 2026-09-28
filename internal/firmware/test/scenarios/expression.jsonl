@@ -1,7 +1,7 @@
 // A reaction's face (PROTOCOL.md §3): a moment's `mood` draws the look in
 // that mood for its `loops` of the design, ending on a loop boundary, and
 // at least while its mumble plays; then the face blinks back to the
-// state's mood (UX.md §2). The lines are Voice's (`boopdev voice`).
+// state's mood. The lines are Voice's (`boopdev voice`).
 // Happy and working, the tests fail: grumpy, once, with the mumble.
 {"clock":0}
 {"t":"state","v":1,"base":"working","mood":"happy","busy":1}
@@ -21,8 +21,8 @@
 {"expect":{"expr":null,"mood":"happy"}}
 {"clock":4550}
 {"shot":"working-happy-again"}
-// Curious, a long turn finishes: the rule's cheer, in curious, then Jev's
-// proud mumble over it borrows proud's cheer.
+// Curious: a cheer with no face (the dashboard's), in curious, then a proud
+// mumble over it borrows proud's cheer.
 {"clock":10000}
 {"t":"state","v":1,"base":"idle","mood":"curious"}
 {"t":"moment","anim":"cheer"}

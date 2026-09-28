@@ -1,7 +1,7 @@
 import BoopKit
 import SwiftUI
 
-/// First launch (UX.md §5), inside the popover: hello, a name and sweet or
+/// First launch, inside the popover: hello, a name and sweet or
 /// cheeky, which agents to watch, then wake Boop up. One thing per step.
 struct SetupPane: View {
     @ObservedObject var model: AppModel

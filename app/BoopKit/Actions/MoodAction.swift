@@ -45,7 +45,7 @@ public final class MoodAction: Action {
 
     /// Changes the mood now, as `run` does for Jev, but with a result for
     /// the current mood or one that isn't a mood: the dashboard sets one
-    /// through here (DASHBOARD.md §4).
+    /// through here.
     public func change(to: String) -> ActionResult {
         guard Self.moods.contains(where: { $0.name == to }) else { return .failed("\(to) isn't a mood") }
         guard to != store.current else { return .failed("already \(to)") }

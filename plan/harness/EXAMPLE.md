@@ -6,7 +6,8 @@ answers, and the actions. How it works is in [HARNESS.md](HARNESS.md),
 [EVENTS.md](EVENTS.md) and [DECISIONS.md](DECISIONS.md); this file only
 shows it.
 
-Everything here is real: run 1 of the eval scenario
+Everything here is real, recorded before `react` gained its `-cheer`
+choices on 2026-09-28. It's run 1 of the eval scenario
 `04-tests-fight-back` ([EVALS.md](../EVALS.md) §4) in a `make eval`
 against `jev:jev-latest` on 2026-09-28, with today's code and the
 steering as retuned for livelier reactions that night
@@ -257,7 +258,7 @@ after 2 failures, with three times close behind. Grumpy leaves straight for prou
 
 The scenario ends here. Twenty-one entries went in: five events, five
 passes, seven actions and four settles. In the app, the turn's end would
-come next as a `turn_end` with a comeback on tests, carrying the rule's
-cheer. Proud would then last until HISTORY no longer showed the change,
+come next as a `turn_end` with a comeback on tests, and Jev would say
+whether it earns a face of its own. Proud would then last until HISTORY no longer showed the change,
 about ten minutes of routine turns later, and go back to happy
 (`13-proud-fades`, [EVALS.md](../EVALS.md) §4).

@@ -38,12 +38,13 @@ step's `workspace` if it has one.
 
 **The check.** A step with `expect` is checked against the last pass
 woken on the way to it and by it, so a `wait` checks the heartbeat its
-ticks brought. Each expectation is a set of acceptable values (`proud|happy`), so
+ticks brought: an idle one, or while a thread works, the working
+heartbeat ([harness/EVENTS.md](harness/EVENTS.md) §4). Each expectation is a set of acceptable values (`proud|happy`), so
 a scenario holds wherever more than one answer is right:
 
 | Checked | Against |
 | --- | --- |
-| `react` | Jev's pick for the `react` question: `none` or a mood's face |
+| `react` | Jev's pick for the `react` question: `none`, a mood's face, or one with the cheer (`proud-cheer`) |
 | `word` | The word the mumble used ([DECISIONS.md](harness/DECISIONS.md) §5), or `none` when `react` didn't mumble |
 | `loops` | How long the face held, Jev's `react.loops` pick (`once` to `four times`), or `none` when `react` didn't mumble |
 | `mood` | Boop's mood after the pass |
@@ -118,8 +119,8 @@ All with the `boop` personality unless noted. Times are from the start.
 
 | File | Feeds | Expects |
 | --- | --- | --- |
-| `01-short-turn` | A turn starts, and finishes at 8 s | At the start `react` none; at the finish none or happy; `loops` none or once and `mood` happy at both |
-| `02-long-turn` | A turn starts, and finishes at 20 min | At the finish `react` proud, happy or excited; `mood` excited or proud |
+| `01-short-turn` | A turn starts, and finishes at 8 s | At the start `react` none; at the finish none or happy, with no cheer; `loops` none or once and `mood` happy at both |
+| `02-long-turn` | A turn starts, and finishes at 20 min | At the finish `react` proud-cheer, happy-cheer or excited-cheer; `mood` excited or proud |
 | `03-turn-failed` | A turn starts, and fails at 2 min (`rate_limit`) | `react` grumpy or none; `word` none, oops, ugh or again; `mood` happy |
 | `04-tests-fight-back` | In `fix-nav`: a turn starts; tests fail at 1, 3 and 5 min, and pass at 7 min | 1st failure: `react` none, determined or grumpy, `mood` happy or determined. 2nd: the same. 3rd: `react` grumpy, `word` again, tests or ugh, `mood` grumpy. The pass: `react` proud, excited or happy, `word` finally, tests or yay, `mood` proud or happy ([harness/EXAMPLE.md](harness/EXAMPLE.md)) |
 | `05-poke-streak` | A poke streak | `react` grumpy; `word` nope, ugh or none; `loops` once; `mood` happy, since a poke streak never changes it ([harness/EVENTS.md](harness/EVENTS.md) §6) |
@@ -131,7 +132,8 @@ All with the `boop` personality unless noted. Times are from the start.
 | `11-comeback-still-showing` | A turn starts; tests fail at 1 and 3 min, and pass at 5 min, whose reaction is still in progress when the turn finishes at 5 min 20 s | At the pass `react` proud, happy or excited; `word` finally, tests or yay. At the finish `react` none, happy or excited; `word` none, yay or tests: no second proud "finally" |
 | `12-comeback-that-didnt-happen` | As `11`, but the pass's reaction didn't happen (`waited too long`) | At the pass `react` proud, happy or excited. At the finish `react` proud, happy or excited; `word` finally, tests or yay: made after all |
 | `13-proud-fades` | A turn starts; tests fail at 1 and 3 min and pass at 5 min; the turn finishes at 6 min; turns at 7, 12 and 17 min, each finishing 40 s later | At the pass `mood` proud; at 7m40s still proud; at 17m40s, with the change gone from HISTORY, happy |
-| `14-minutes-turn-is-routine` | A turn with a passing test run finishes at 3 min; another runs from 4 min to 6m30s | At each finish `react` excited, happy or proud, `loops` once or twice, and `mood` happy |
+| `14-minutes-turn-is-routine` | A turn with a passing test run finishes at 3 min; another runs from 4 min to 6m30s | At each finish `react` excited, happy or proud, with no cheer, `loops` once or twice, and `mood` happy |
+| `15-quiet-work` | A turn starts, with a passing test run at 20 s, then 12 minutes of quiet work, bringing working heartbeats | At the last heartbeat `react` none, happy or excited, with no cheer; `word` none or tests; `mood` happy |
 
 A new decision or a change to the steering files gets a scenario that
 shows it, and `make eval` before it's committed.

@@ -1,4 +1,4 @@
-"""What the dashboard's keys send (plan/DASHBOARD.md §4): `{"dev":…}` lines
+"""What the dashboard's keys send: `{"dev":…}` lines
 for the app's hook socket (common.send_line), built from the `questions`
 line, and Preview's own lines for its sim. The socket never replies, so a
 command counts as landed when its entry shows up in debug.jsonl."""

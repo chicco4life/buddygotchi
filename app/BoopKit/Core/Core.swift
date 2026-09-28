@@ -1,8 +1,8 @@
 import Foundation
 
 /// The core (ARCHITECTURE.md §3.2): plain rules with no queue. It keeps the
-/// session table and decides what the device shows, the rule reactions
-/// and which inputs reach the brain.
+/// session table and decides which visual the device shows and which
+/// inputs reach the brain. Everything expressive is the brain's.
 ///
 /// It's a pure state machine: every call takes the time and returns effects
 /// for the app to carry out. Call `tick` about once a second for the timers.
@@ -10,24 +10,13 @@ import Foundation
 /// a timer; days and times of day follow the wall clock the app reports
 /// with `setWallClock`.
 public final class Core {
-    /// A cheer plays at least this long (BEHAVIORS.md §5): as many loops
-    /// of the mood's task-complete design as that takes.
-    public static let cheerMinMs: Int64 = 2000
-
-    /// How many loops of `mood`'s task-complete design (`FaceLoops`) make
-    /// a cheer of at least `cheerMinMs`, at most `DeviceMoment.maxLoops`.
-    public static func cheerLoops(mood: String) -> Int {
-        let loop = FaceLoops.ms(mood: mood, state: "task_complete")
-        return min(DeviceMoment.maxLoops, Int((cheerMinMs + loop - 1) / loop))
-    }
-
     public struct Config: Sendable {
         public var volume: Int
         /// Boop's mood, which the mood action sets (harness/DECISIONS.md §4)
         /// and every `state` carries (PROTOCOL.md §3).
         public var mood = MoodAction.initial
-        /// The personality's settings: how often chatter plays and which
-        /// tool uses wake the brain (BEHAVIORS.md §6).
+        /// The personality's settings: how often the working heartbeat
+        /// comes and which tool uses wake the brain (BEHAVIORS.md §6).
         public var rules: Personality.Rules
         public var time: LocalTime
         public var seed: UInt64
@@ -158,7 +147,9 @@ public final class Core {
     /// The session list as last published, which can change while the
     /// snapshot doesn't: a second idle session, say.
     var lastSessions: [SessionSummary] = []
-    var nextChatterAt: Int64?
+    /// When the working heartbeat is next due; nil until work starts, and
+    /// again after any event that woke the brain (harness/EVENTS.md §4).
+    var nextWorkBeatAt: Int64?
     /// The wall clock less the steady one, for days and times of day.
     var wallOffsetMs: Int64 = 0
 
@@ -225,6 +216,7 @@ public final class Core {
             sessions[key] = s
         }
         publish(now, &fx)
+        restartWorkBeat(fx)
         return fx
     }
 
@@ -414,7 +406,7 @@ public final class Core {
             s.working = false
             // A finish with no turn open (a second `Stop`, one after the
             // turn stopped, or the first Boop hears from a session) finishes
-            // nothing Boop saw: no cheer, and no event (EVENTS.md §7).
+            // nothing Boop saw: no event (EVENTS.md §7).
             guard let started = s.turnStartedAt else {
                 sessions[key] = s
                 break
@@ -427,29 +419,19 @@ public final class Core {
             if s.turns == 0 {
                 // Boop joined this turn partway (it launched, or forgot the
                 // session, meanwhile), so it can't say how long it ran or
-                // what it did: the brain hears nothing, as for a stop. The
-                // screen saw it work, so a finish still cheers.
+                // what it did: the brain hears nothing, as for a stop, and
+                // nothing celebrates it (BEHAVIORS.md §3.1).
                 sessions[key] = s
-                if !(check?.failed ?? false) && !needsYouShowing {
-                    fx.append(.moment(anim: "cheer", loops: Core.cheerLoops(mood: config.mood)))
-                }
             } else if let check, check.failed {
                 // It left its tests, build or deploy failing: a failure, not
                 // a finish.
                 sessions[key] = s
                 turnEndEvent(s, outcome: "failed", error: nil, lengthMs: ms, reaction: nil, now, &fx)
-            } else if needsYouShowing {
-                // Another session needs you: attention wins, and the device
-                // would drop the cheer, so none is sent or claimed
-                // (BEHAVIORS.md §1).
+            } else {
+                // A finish: no rule celebrates it; the brain decides
+                // (BEHAVIORS.md §3.1).
                 sessions[key] = s
                 turnEndEvent(s, outcome: "done", error: nil, lengthMs: ms, reaction: nil, now, &fx)
-            } else {
-                // A finish: a cheer, even while other sessions are still
-                // working (BEHAVIORS.md §3.1).
-                sessions[key] = s
-                fx.append(.moment(anim: "cheer", loops: Core.cheerLoops(mood: config.mood)))
-                turnEndEvent(s, outcome: "done", error: nil, lengthMs: ms, reaction: EventLine.cheered, now, &fx)
             }
         case .turnFailed:
             // As a finish: nothing with no turn open, nothing for the brain
@@ -508,6 +490,7 @@ public final class Core {
             tapped(now, &fx)
         }
         publish(now, &fx)
+        restartWorkBeat(fx)
         return fx
     }
 
@@ -534,10 +517,10 @@ public final class Core {
     }
 
     /// A new personality's settings (BEHAVIORS.md §6), from the next event
-    /// on. Working chatter starts its wait again at the new pace.
+    /// on. The working heartbeat starts its wait again at the new pace.
     public func setRules(_ rules: Personality.Rules) {
         config.rules = rules
-        nextChatterAt = nil
+        nextWorkBeatAt = nil
     }
 
     /// The Mac slept `ms`: the timers counted it, but no turn's length does.
@@ -548,13 +531,13 @@ public final class Core {
     /// Whether there's a brain to wake: Jev's key saved or removed.
     public func setBrain(_ available: Bool) { config.brain = available }
 
-    /// Timers: the Codex grace period, the safety net, chatter and
-    /// heartbeats.
+    /// Timers: the Codex grace period, the safety net and heartbeats.
     @discardableResult
     public func tick(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
         publish(now, &fx)
+        restartWorkBeat(fx)
         return fx
     }
 
@@ -580,7 +563,7 @@ public final class Core {
         return StateSnapshot(base: base, mood: config.mood, attn: attn, busy: working.count, vol: config.volume)
     }
 
-    /// Every session, for the popover's list (UX.md §6). The device doesn't
+    /// Every session, for the popover's list. The device doesn't
     /// get these.
     public func sessionList(at now: Int64) -> [SessionSummary] {
         let (waiting, working, idle) = grouped(at: now)
@@ -711,7 +694,7 @@ public final class Core {
                 // Ten silent minutes, even for a Codex request no tick saw
                 // through its grace (the Mac slept): the agent is still
                 // waiting on its prompt, or gone. Either way it isn't
-                // working, so no chatter. Its turn, if it goes on, still
+                // working. Its turn, if it goes on, still
                 // counts from its start.
                 clearRequest(&s, now)
                 s.working = false
@@ -723,30 +706,40 @@ public final class Core {
             }
         }
         ended = ended.filter { now - $0.value < config.forgetMs }
-        chatter(now, &fx)
+        workingHeartbeat(now, &fx)
         heartbeat(now, &fx)
     }
 
-    /// Working chatter (BEHAVIORS.md §2): while agents work, a mumble every
-    /// so often, as the personality sets. About half the time it asks
-    /// about a working session's latest topic (`curious`); otherwise it's
-    /// `happy`, with no word. None while something needs you.
-    func chatter(_ now: Int64, _ fx: inout [CoreEffect]) {
+    /// The working heartbeat (BEHAVIORS.md §2, harness/EVENTS.md §4): while
+    /// agents work, an event for the brain once the personality's wait has
+    /// passed with no event that woke it, so the brain may mumble in a
+    /// quiet stretch of work. It names the thread working longest and its
+    /// latest topic. No rule mumbles.
+    func workingHeartbeat(_ now: Int64, _ fx: inout [CoreEffect]) {
         let working = sessions.values.filter { isWorking($0, now) && $0.needsSince == nil }
-        guard !working.isEmpty, let gap = config.rules.chatterMs else {
-            nextChatterAt = nil
+        guard !working.isEmpty, let gap = config.rules.workBeatMs else {
+            nextWorkBeatAt = nil
             return
         }
-        guard let due = nextChatterAt else {
-            nextChatterAt = now + Int64(rng.int(in: gap))
+        guard let due = nextWorkBeatAt else {
+            nextWorkBeatAt = now + Int64(rng.int(in: gap))
             return
         }
         guard now >= due else { return }
-        nextChatterAt = now + Int64(rng.int(in: gap))
-        guard !needsYouShowing else { return }
-        let topics = working.sorted { $0.order < $1.order }.compactMap(\.topic)
-        let word = !topics.isEmpty && rng.chance(50) ? topics[rng.int(in: 0...(topics.count - 1))] : nil
-        fx.append(.mumble(feeling: word == nil ? "happy" : "curious", word: word))
+        nextWorkBeatAt = now + Int64(rng.int(in: gap))
+        guard let s = working.min(by: { ($0.turnStartedAt ?? now, $0.order) < ($1.turnStartedAt ?? now, $1.order) }) else { return }
+        let ms = s.length(to: now, from: s.turnStartedAt ?? now)
+        fx.append(.event(Event(.heartbeat, at: now,
+                               line: EventLine.working(agent: s.agent.short, thread: threadLine(s), ms: ms, topic: s.topic),
+                               wakesBrain: wakes, about: s.key,
+                               facts: ["thread": threadFacts(s), "working_ms": .int(ms), "topic": .of(s.topic)])))
+    }
+
+    /// Any event that woke the brain starts the working heartbeat's wait
+    /// again, so it comes only in a quiet stretch.
+    func restartWorkBeat(_ fx: [CoreEffect]) {
+        let woke = fx.contains { if case .event(let e) = $0 { e.wakesBrain } else { false } }
+        if woke { nextWorkBeatAt = nil }
     }
 
     // MARK: - Events (harness/EVENTS.md)

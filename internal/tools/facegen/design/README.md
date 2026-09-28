@@ -1,7 +1,7 @@
 # Boop base mood–state SVG review
 
 Revision 1 · 2026-09-27 · In use: `facegen` turns these into the device's faces
-and the popover's tiles (plan/UX.md §7).
+and the popover's tiles.
 
 This pass contains **one base design for each of the 42 mood–state pairings**. It does not create the additional variations in the expression catalog.
 

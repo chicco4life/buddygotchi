@@ -18,7 +18,7 @@ static void test_fill_rect_clips_to_canvas() {
   TEST_ASSERT_EQUAL_UINT8(7, c.get(0, 0));
   TEST_ASSERT_EQUAL_UINT8(7, c.get(9, 9));
   TEST_ASSERT_EQUAL_UINT8(0, c.get(10, 10));
-  TEST_ASSERT_EQUAL_INT(320, render::kWidth);  // landscape (UX.md §2)
+  TEST_ASSERT_EQUAL_INT(320, render::kWidth);  // landscape
   TEST_ASSERT_EQUAL_INT(240, render::kHeight);
   c.fillRect(310, 230, 50, 50, 3);
   TEST_ASSERT_EQUAL_UINT8(3, c.get(319, 239));

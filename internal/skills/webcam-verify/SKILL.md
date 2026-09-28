@@ -53,8 +53,8 @@ clips, video only, footage kept local) is in `CLAUDE.md`.
    timestamps; the host's timing and the requested length are
    approximate. Put the board back as it was afterwards where you can.
 5. **Review.** Crop to the screen and look at every consecutive frame
-   across the motion and its settling. Compare with `plan/UX.md`,
-   `plan/BEHAVIORS.md` and the simulator's goldens. Allow for the screen's
+   across the motion and its settling. Compare with `plan/BEHAVIORS.md`,
+   `plan/DEVICE.md` and the simulator's goldens. Allow for the screen's
    orientation, exposure, the panel's scan and the camera's cadence (a
    frame every 33 ms at 30 fps). Check for continuous motion, overshoot
    and settling, repeated or abrupt jumps, and the return to rest. Clean

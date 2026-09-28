@@ -1,4 +1,4 @@
-"""The device's face in the terminal (plan/DASHBOARD.md §5): boop-sim, fed
+"""The device's face in the terminal: boop-sim, fed
 the lines the app sends, screenshotted a dozen times a second and drawn
 with half blocks at exactly 1/3 scale, the face's 3-px grid."""
 from __future__ import annotations

@@ -65,7 +65,7 @@ internal pull-ups.
 | --- | --- | --- |
 | Main button | None: BOOT is the main button | An external button on IO35, to GND with a 10 kΩ pull-up to 3.3 V. Moving it is one line, `kMainButton` in `pins.h` |
 | Speaker | On the speaker header (8 Ω, 1–2 W) | The same |
-| Vibration motor | None ([FUTURE.md](FUTURE.md)) | A coin motor on GPIO27 through an N-MOSFET, with a flyback diode |
+| Vibration motor | None | A coin motor on GPIO27 through an N-MOSFET, with a flyback diode |
 | Battery | None: USB power only. Nothing reads or reports a battery level | A protected 3.7 V LiPo |
 
 The firmware detects none of these, and the speaker can't be switched off
@@ -82,7 +82,7 @@ except by volume 0.
 | Audio | ESP-IDF's continuous DAC driver at a fixed 22.05 kHz, fed by a task on core 0 (§6, [VOICE.md](VOICE.md) §8) |
 
 Arduino and LovyanGFX were the fastest way to a working face. The port to
-ESP-IDF and LVGL comes after v1 ([PLAN.md](PLAN.md) §4); it only has to
+ESP-IDF and LVGL comes after v1; it only has to
 replace the code that knows the hardware.
 
 ### Modules
@@ -152,7 +152,7 @@ knows nothing until the next `state`. Only the touch calibration survives
 | The moment: `cheer` or `wiggle`, with its start and length | A `moment`'s `anim`, or a tap (`wiggle`) | Its end, a new moment, or a new "needs you" |
 | The line: syllables, word, the word's place and the beat, for the mouth and bubble | A `moment`'s `say` | Its end, a new moment, or a new "needs you". A `state` with `attn` or volume 0 also stops its sound |
 | A blink | The device's own timer ([BEHAVIORS.md](BEHAVIORS.md) §2) | Its end, or an animation |
-| A design switch: the eyes shut and the backlight eases ([UX.md](UX.md) §2) | Any change to another design | Its end |
+| A design switch: the eyes shut and the backlight eases | Any change to another design | Its end |
 | The press dip | BOOT or a touch going down | Its release |
 | The last sound cue | A new "needs you" (`chirp`) | Nothing; `dbg.state` reports it |
 | No app, latched | 30 s without a `state` | The next `state` |
@@ -171,7 +171,7 @@ knows nothing until the next `state`. Only the touch calibration survives
 
 On the three face screens the device draws the design, what it adds of
 its own (blinks, the wiggle's sway and heart, the press dip, the bubble
-and talking mouth) and the status strip ([UX.md](UX.md) §2).
+and talking mouth) and the status strip.
 
 ### Panel settings
 
@@ -194,7 +194,7 @@ readings to screen pixels, x = (ax·raw x + bx·raw y + cx) / 65536 and y
 alike, and sends it with `dbg.touchcal`. Until there is one, the raw range
 of about 200–3900 on both axes is stretched over the panel and turned with
 `kRotation` (`firmware/src/app/touch_cal.h`). v1 barely needs it, since a
-touch anywhere is a tap ([UX.md](UX.md) §4): only the touch position in
+touch anywhere is a tap: only the touch position in
 `dbg.state` and the calibration crosses depend on it.
 
 ## 5. Flash and storage
@@ -246,7 +246,7 @@ simulator agree to the pixel. Every colour comes from one 256-entry
 palette (`render/palette.h`). Text, the bubble and the strip are
 anti-aliased: each pixel row samples 4 sub-scanlines of 1/16 px, and the
 coverage picks one of 8 steps from black up to the ink. The face is the
-mood designs ([UX.md](UX.md) §2), drawn exactly: rectangles on whole
+mood designs, drawn exactly: rectangles on whole
 pixels with step-wise timings, from `assets/faces.h`, which
 `internal/tools/facegen/facegen.py` generates from the designs' SVGs.
 `faces.h` also has each design's loop (`loopMs`), which a moment's
@@ -264,8 +264,7 @@ or an input, when a part of the face's design moves or shows differently
 a few times a second, so most passes find nothing to draw. It draws at
 most once every 16 ms of real time, so two parts stepping a few ms apart
 show together, except that a frozen clock checks every step (so scenario
-frames stay exact) and a press draws at once for its first 60 ms
-([UX.md](UX.md) §4). A screenshot always draws afresh.
+frames stay exact) and a press draws at once for its first 60 ms. A screenshot always draws afresh.
 
 **Measured:**
 
@@ -296,7 +295,7 @@ The make targets run PlatformIO through `firmware/tools/pio.sh`, which
 keeps its packages in `firmware/.platformio-core`, inside the checkout.
 Each build bakes in the version from `VERSION` and the git SHA
 (`firmware/tools/version.py`); `-DBOOP_DEBUG_LABEL=1` in
-`firmware/platformio.ini` adds the debug label ([UX.md](UX.md) §2).
+`firmware/platformio.ini` adds the debug label.
 
 The firmware talks over USB serial at **460800 baud**, and flashing uses
 the same rate. The board's CH340 on macOS's own driver can't do 921600:

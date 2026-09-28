@@ -1,4 +1,4 @@
-// The screen (plan/UX.md §2–3): the face, drawn as its mood design, with
+// The screen: the face, drawn as its mood design, with
 // the bubble when there's a mumble and the status strip at the bottom. The
 // same drawing serves the face, needs-you and no-app screens; only what it
 // shows differs. Pure drawing: the device core decides what to show and
@@ -11,7 +11,7 @@
 
 namespace render {
 
-// Screen bands on the 320×240 screen, in pixels (UX.md §2). The face's
+// Screen bands on the 320×240 screen, in pixels. The face's
 // design has everything above the strip; its props (the keyboard, the
 // sign, the card) sit in the band the bubble takes when it shows.
 constexpr int kStripTop = 204;   // the status strip, the bottom 36 px
@@ -19,7 +19,7 @@ constexpr int kBubbleTop = 144;  // the bubble, the 60 px above the strip
 
 struct Strip {
   // While something needs you (amber; null when nothing does): who, the
-  // oldest waiting session, and how many more are waiting (UX.md §3).
+  // oldest waiting session, and how many more are waiting.
   const char* agent = nullptr;
   const char* project = "";
   int more = 0;

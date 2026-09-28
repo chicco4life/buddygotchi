@@ -22,8 +22,9 @@ around it. It knows three contracts and nothing else:
 
 The harness never reads an event's facts or an action's answers, never
 builds Minion speech, writes a file or talks to the device. The brain is
-never on the event path: by the time the harness sees an event, the core
-has already reacted by rule.
+never on the screen's path: by the time the harness sees an event, the
+core has already updated the look and "needs you". Every reaction,
+a finished turn's included, is the brain's.
 
 ## 2. Data flow
 
@@ -34,8 +35,8 @@ queue.
  agent hooks ─► adapters ─► Core ◄── device taps, 1 s ticks
                              │
    rule effects ◄────────────┤ CoreEffect.event(Event)
-   (state, cheer,            ▼
-    chatter)          Harness.take(event)
+   (state)                   ▼
+                      Harness.take(event)
         │               ├─ append an `event` entry ──────────► Transcript ─► debug.jsonl
         │               ├─ wakes the brain, and there is one? no ─► stop here
         │               └─ a pass running? yes ─► it waits (a newer one replaces it)
@@ -329,8 +330,8 @@ How to read HISTORY and NOW:
 ### 6.2 Sizes
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
-bytes ÷ 4, which overestimates English: the guide 300 (now 275), a
-personality 600 (`boop` 600, `chatter` 300) and a mood 150 (110–150).
+bytes ÷ 4, which overestimates English: the guide 300 (now 294), a
+personality 600 (`boop` 600, `chatter` 329) and a mood 150 (110–150).
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
 about 225 tokens and HISTORY's 40 events about 1,200, so with the
@@ -383,7 +384,7 @@ the Keychain, which Boop reads through `/usr/bin/security`
 uses the owner's key. The runtime reads it off `home` and the main
 thread, since a Keychain prompt would stall both. Until it's read, and
 without one, there's no brain: the core marks no event as waking it, and
-Boop does only its rule reactions. A key saved in Settings takes effect
+nothing reacts to what agents do. A key saved in Settings takes effect
 from the next event.
 
 **The brains:**
@@ -391,7 +392,7 @@ from the next event.
 | Brain | `id` | Used by |
 | --- | --- | --- |
 | `JevBrain` | `jev:jev-latest` | The app with a key, and the evals |
-| `ScriptedBrain` | `scripted` | Tests: a script sees the state and questions and returns answers. `Boop --headless --brain scripted` uses `pipelineCheck`, which answers every pass `mood: happy`, `react: excited`, `react.loops: once`, `word.feeling: yay`, `word.about: none` |
+| `ScriptedBrain` | `scripted` | Tests: a script sees the state and questions and returns answers. `Boop --headless --brain scripted` uses `pipelineCheck`, which answers every pass `mood: happy`, `react: excited` (`excited-cheer` when NOW is a turn finished done), `react.loops: once`, `word.feeling: yay`, `word.about: none` |
 
 ## 8. Designing for Jev
 
@@ -427,7 +428,8 @@ it ended for staying open too long (§5.1).
 headless. It prints to the terminal that started the app: each hook with
 what the adapter made of it, each of the core's effects, every line sent
 to the device, and each transcript entry, readably. From the example run
-([EXAMPLE.md](EXAMPLE.md)), as `boopdev watch` prints its `debug.jsonl`:
+([EXAMPLE.md](EXAMPLE.md)),
+as `boopdev watch` prints its `debug.jsonl`:
 
 ```
 ▸ 12 tool_use: claude's tests failed again on "fix-nav" (landing), 3 in a row.
@@ -461,7 +463,7 @@ keys it answered) and `by`, and no `state` or `brain`.
 
 **The dashboard's lines.** Debug mode also writes three kinds of line
 that aren't entries, so they have no `seq`, for
-[DASHBOARD.md](../DASHBOARD.md). The terminal and `boopdev watch` skip
+the dashboard (`internal/tools/boopctl dash`). The terminal and `boopdev watch` skip
 them. Every line's `received_at_ms` is the app's clock, which headless
 `advance` moves.
 
@@ -480,16 +482,16 @@ line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 | `{"dev":"advance","ms":N}` | Headless only: moves the app's clock forward N ms, then ticks. With `"asleep":true` the time counts as the Mac asleep, which a turn's length leaves out ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2) |
 | `{"dev":"answer","answers":{"react":"grumpy","word.feeling":"again"}}` | A **forced pass**: each choice at probability 1, handed to the actions exactly as Jev's answers would be. It runs at once on `home`, needs no brain or key, and leaves a running or waiting pass alone. A choice that isn't one of its question's options is left out. The actions keep their own rules. Recorded as a `pass` and its `action` entries, for no event, by the dashboard; no `brain` line in `boop.log` |
 | `{"dev":"mood","mood":"grumpy"}` | Sets the mood at once through the mood action, device included ([DECISIONS.md](DECISIONS.md) §4). Recorded as an `action` named `mood`, for no event, by the dashboard, refusals included |
-| `{"dev":"moment","anim":"cheer"}` | Plays `cheer` or `wiggle` as a rule's moment; any other is ignored. Only its `sent` line records it |
+| `{"dev":"moment","anim":"cheer"}` | Plays `cheer` (once through) or `wiggle` at once, with no face; any other is ignored. Only its `sent` line records it |
 
-A forced pass, its action and the action's end, from a headless run with
-no device (`--link none`), so the reaction never played
-([DECISIONS.md](DECISIONS.md) §5):
+A forced pass that cheers, its action and the action's end, from a
+headless run with no device (`--link none`), so the reaction never
+played ([DECISIONS.md](DECISIONS.md) §5):
 
 ```jsonl
-{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"word.feeling":{"choice":"again","p":{"again":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react","react.loops","word.feeling"]},"received_at_ms":1790523308919,"seq":1}
-{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a grumpy face, held twice, and mumbled \"…again!\"","name":"react","ok":true,"pending":true},"received_at_ms":1790523308919,"seq":2}
-{"received_at_ms":1790523308919,"seq":3,"settle":{"by":"dashboard","end":"failed","for":2,"why":"no device connected"}}
+{"pass":{"answers":{"react":{"choice":"proud-cheer","p":{"proud-cheer":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"word.feeling":{"choice":"finally","p":{"finally":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react","react.loops","word.feeling"]},"received_at_ms":1790555319144,"seq":1}
+{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop played a cheer in a proud face, held twice, and mumbled \"…finally!\"","name":"react","ok":true,"pending":true},"received_at_ms":1790555319145,"seq":2}
+{"received_at_ms":1790555319145,"seq":3,"settle":{"by":"dashboard","end":"failed","for":2,"why":"no device connected"}}
 ```
 
 **A day's summary.** `boopctl day` (`make day` for the everyday app,
@@ -499,8 +501,8 @@ the lines alone:
 
 | It counts | From |
 | --- | --- |
-| Cheers and working chatter | A `sent` moment: `anim` `cheer`, or a `say` without a `mood`. A cheer the dashboard played counts too, since only its `sent` line records it |
-| The brain's reactions, and their faces | A `react` action entry for a Jev pass, started or refused, in the face its pass's `react` answer chose. Those with `by` were forced, and are counted apart |
+| Cheers, and working chatter in older logs | A `sent` moment with `anim` `cheer`: the brain's since 2026-09-28, or one the dashboard played, which only its `sent` line records; and a `say` without a `mood`, the rules' chatter before then |
+| The brain's reactions, and their faces | A `react` action entry for a Jev pass, started or refused, in the face its pass's `react` answer chose (`proud-cheer` counts apart from `proud`). Those with `by` were forced, and are counted apart |
 | Chirps, and each time something needed you | A `sent` state whose `attn` is new, or has a different `id`, agent or project ([PROTOCOL.md](../PROTOCOL.md) §3; a missing `id` reads as 0). Needing you lasts from the `state` that brings `attn` to the first without it, or to the end of its launch |
 | Mood changes, and what made each | A `sent` state's `mood`, and the `mood` action entry right after it: its event, or `by`. A launch's first `state` in a mood other than the last launch's changed between launches |
 | Brain passes, dropped ones, and ones that chose `none` | `pass` lines with a `brain`; forced ones are counted apart. The median and slowest times are of the passes answered in time, since a dropped pass's `latency_ms` is the deadline's (§7). An event that woke the brain with no `pass` for it was replaced by a newer one while a pass ran |

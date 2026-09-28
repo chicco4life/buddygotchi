@@ -15,7 +15,7 @@ It also happens to keep an eye on your AI agents. When you run three Claude
 sessions and two Codex threads at once, Boop watches them for you. It
 naps while no agent is open, works along at a little keyboard while they
 do, mutters now and then, lights up amber and chirps once when one needs
-your approval on the Mac, and cheers when a turn finishes.
+your approval on the Mac, and celebrates a finish that earns it.
 
 The order matters. **The personality is the product.** Status and nudges
 are table stakes; Anthropic already open-sourced a desk buddy that does
@@ -73,12 +73,13 @@ feeling, so it reads from across the desk, in a demo or in a ten-second
 clip. How each works is in [BEHAVIORS.md](BEHAVIORS.md) §3, and the
 harness evals check the brain's part ([EVALS.md](EVALS.md)).
 
-1. **A turn finishes, and it cheers for you,** and maybe puts on its
-   proud face and mumbles something proud.
-2. **A turn fails, and it's grumpy for you.** No cheer, maybe a grumpy
+1. **A turn finishes, and it's happy for you,** as much as the finish
+   earns: nothing for a quick one, a cheer in its proud face and
+   "…finally!" for a comeback.
+2. **A turn fails, and it's grumpy for you.** Maybe a grumpy
    face and a mumble that names what broke, *"…tests."*
 3. **Yell at it, and it's sad.** This one waits for talking to Boop to
-   come back ([FUTURE.md](FUTURE.md)); v1 has no mic.
+   come back; v1 has no mic.
 4. **Poke it too much, and it grumbles.** One poke gets a happy wiggle and
    a heart. Keep poking and it may grumble (*"…nope!"*), then forget all
    about it.
@@ -94,27 +95,28 @@ harness evals check the brain's part ([EVALS.md](EVALS.md)).
   chirp, and the agent and project in the strip. You answer on the Mac,
   in the agent's own prompt ([BEHAVIORS.md](BEHAVIORS.md) §3.2).
 - **Reacts like a creature.** Four states (asleep, idle, working, needs
-  you), a cheer for every finished turn, a wiggle for every tap, and
-  mumbles while agents work ([BEHAVIORS.md](BEHAVIORS.md)).
+  you) and a wiggle for every tap; with Jev, mumbles while agents work
+  ([BEHAVIORS.md](BEHAVIORS.md)).
 - **Has a personality and moods.** Two personalities: `boop`, its
   everyday self, and `chatter`, an over-the-top one for debugging. Seven
   moods, from happy to sad, each with its own face. With your own
   TypeSafe Jev key, Jev picks the mood and adds reactions with
-  character: another mood's face for a moment, and a mumble;
-  without one, Boop does only its rule reactions
+  character: another mood's face for a moment, and a mumble, a
+  finished turn's included; without one, Boop shows what its agents do
+  and when you're needed, but doesn't react
   ([harness/HARNESS.md](harness/HARNESS.md)).
 
 Its name, its sweet or cheeky nature and its voice are set when it
 hatches. Nothing else about its character grows in v1. A character that
 grows with you, talking to Boop, gentler nudges, a private record and
-more are parked in [FUTURE.md](FUTURE.md), to come back one at a time.
+more are parked, to come back one at a time.
 
 ## Look
 
 "Warm Terminal": an oat matte body, a black glass face and one amber
 accent. The face is pixel art, two window eyes with pink cheeks and a
 small mouth, in a design for each mood and state, and it blinks from one
-to the next ([UX.md](UX.md) §2). It should look like an object an adult is
+to the next. It should look like an object an adult is
 happy to have on their desk, not like a toy. v1 has the face and the
 colours, on the board's screen and in the Mac app; the body comes later.
 
@@ -166,6 +168,6 @@ changes.
   creature is the interface.
 - **Not an agent.** It doesn't run tasks, spend money or act for you.
   Information only flows from your agents to Boop.
-- **Not tied to one AI.** Plain rules give every immediate reaction; Jev
-  only adds character. Without it, Boop is still the same creature, just
-  quieter.
+- **Not tied to one AI.** Plain rules keep the screen true (looks,
+  "needs you", the wiggle); Jev adds every reaction. Without it, Boop
+  still watches your agents, just without reacting.

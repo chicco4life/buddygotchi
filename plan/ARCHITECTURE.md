@@ -24,8 +24,8 @@ approve on the Mac as you normally would.
 │                            │  sessions, rules, 1 s tick        │    │
 │     ┌──────────────┬───────┴───────┬───────────────┐           │    │
 │     ▼              ▼               ▼               ▼           │    │
-│   state      rule moment,        event          new day        │    │
-│     │        chatter (Voice)       │               │           │    │
+│   state                          event          new day        │    │
+│     │                              │               │           │    │
 │     │              │               ▼               ▼           │    │
 │     │              │     Harness ◄──► Jev     Memory store     │    │
 │     │              │        │ answers                          │    │
@@ -48,24 +48,27 @@ approve on the Mac as you normally would.
    line to the app and exits at once.
 2. The Codex **adapter** turns it into the common event: "Codex, session
    a1b2, project landing, turn finished".
-3. The **core** marks the session idle and, by rule, plays a cheer, well
-   under a second after the hook.
+3. The **core** marks the session idle, so the device drops the working
+   look well under a second after the hook. No rule celebrates a finish:
+   that's the brain's call.
 4. The core also hands the **harness** an event with its line: `codex
    finished turn 3 on "landing": done after 18 min, a very long turn, 24
    tools.` The event wakes the brain, so the harness asks **Jev** every
    action's questions about it in one request, and Jev answers, say,
-   `react: proud`, `react.loops: once` and `word.feeling: yay`.
+   `react: proud-cheer`, `react.loops: twice` and
+   `word.feeling: yay`.
 5. The **`react` action** asks **Voice** for Minion speech in proud's
-   voice (*"ma-po li… yay!"*) and queues it with proud as its face, held
-   once. No line is playing, so the **device link** sends it at once, and
-   the device shows the rest of the cheer in proud's face while Boop
-   mumbles. When the face and the mumble are over, the device says so
+   voice (*"ma-po li… yay!"*) and queues it as a cheer in proud's face,
+   held twice. No line is playing, so the **device link** sends it at
+   once, and the device plays proud's cheer while Boop mumbles. When the face and the mumble are over, the device says so
    (`ended`), and HISTORY stops showing the reaction as in progress.
 
-The brain never sits between an event and the screen. Rules give the
-immediate reaction, and the brain adds character a second or two later. If
-the brain is slow, offline or missing, Boop still reacts to everything, just
-with less personality.
+Rules keep the screen true at once: the look (working, idle, asleep),
+"needs you" and the tap's wiggle never wait for the brain. Everything
+expressive is the brain's, a second or so later: the mood, and every
+reaction, a finished turn's included. If the brain is slow, offline or
+missing, Boop still shows what its agents are doing and when you're
+needed, but it doesn't celebrate or react (decision log, 2026-09-28).
 
 ## 2. Three loops at three speeds
 
@@ -73,7 +76,7 @@ with less personality.
 | --- | --- | --- | --- | --- |
 | Reflex | Device | < 20 ms | Tap feedback, blinks, playing moments, the needs-you chirp and light | Wait for the Mac |
 | Reactive | Core → device link | < 200 ms p95 | Hook → rule → `state` or moment | Wait for the brain |
-| Deliberative | Harness + Jev → actions | A pass has 1.5 s; its mumble then waits up to 5 s for its turn | A change of mood, a mumble with character | Block the reactive loop |
+| Deliberative | Harness + Jev → actions | A pass has 1.5 s; its mumble then waits up to 5 s for its turn | A change of mood, every reaction (a face and a mumble), a finished turn's included | Block the reactive loop |
 
 ## 3. Components and boundaries
 
@@ -116,9 +119,9 @@ clock.
 
 | Input | From | Effects it can return |
 | --- | --- | --- |
-| `handle(event)` | A hook, through the adapter | `state` or `sessions`, the cheer, events, a new day |
+| `handle(event)` | A hook, through the adapter | `state` or `sessions`, events, a new day |
 | `input(tap)` | The device | `state`, a `tap` or `pokes` event, a new day |
-| `tick(at:)` | The runtime, once a second | `state` or `sessions`, working chatter, a Codex request showing after its grace, a heartbeat |
+| `tick(at:)` | The runtime, once a second | `state` or `sessions`, a Codex request showing after its grace, a heartbeat (idle or working) |
 | `setVolume`, `setMood` | Settings; the mood action | `state` |
 | `setRules`, `setBrain`, `setWallClock` | A new personality; Jev's key read or changed; every tick | None: they change later decisions |
 
@@ -126,14 +129,12 @@ clock.
 | --- | --- |
 | `state(snapshot)`, only when something on it changed | The device link, and the menu bar's status |
 | `sessions`, when the session list changed and the snapshot didn't | The menu bar's status, and `debug.jsonl`'s `status` line |
-| `moment(anim, loops)`: a rule's `cheer`, with enough loops of the mood's design for its length ([BEHAVIORS.md](BEHAVIORS.md) §5) | The device link at once, cutting off whatever plays; the moment schedule notes it |
-| `mumble(feeling, word)`: working chatter | Voice, then the device link, but only when nothing plays, no brain moment waits and nothing needs you |
 | `event(Event)` | The harness ([harness/EVENTS.md](harness/EVENTS.md)) |
 | `newDay(date)`: the first hook or tap of a new local day | The memory store (§4) |
 
 **What the core keeps:** the sessions ([ADAPTERS.md](ADAPTERS.md) §4 has
 their states), the taps of a poke streak and the last streak that reached
-the brain, the heartbeat count, when chatter is next due, the last active
+the brain, the heartbeat count, when the working heartbeat is next due, the last active
 day, and its config: volume, mood, the personality's rules, whether
 there's a brain, and every timing below.
 
@@ -147,7 +148,7 @@ there's a brain, and every timing below.
 | A session is forgotten after no events | 24 h | [ADAPTERS.md](ADAPTERS.md) §4 |
 | Poke streak: taps, within | 4, 3 s | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
 | A poke streak reaches the brain at most every | 60 s | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
-| Working chatter | The personality's range (120–240 s for `boop`) | [BEHAVIORS.md](BEHAVIORS.md) §2, §6 |
+| Working heartbeat, after no event that woke the brain | The personality's range (120–240 s for `boop`) | [BEHAVIORS.md](BEHAVIORS.md) §2, §6 |
 | Heartbeat while nothing works | Every hour with no hook or tap | [harness/EVENTS.md](harness/EVENTS.md) §4 |
 
 **The snapshot** is derived, never stored: `asleep` with no sessions,
@@ -174,9 +175,9 @@ except that a reaction's face held on for its loops after its mumble
 holds up the brain's next only until that mumble has played (with the
 link's 0.5 s, below): the next goes then and replaces the face, which the
 device counts as done ([PROTOCOL.md](PROTOCOL.md) §4). They have no
-animation, so they play over one without cutting it, and an
-animation stops any line on the device, so a rule's animation lets one
-waiting behind a line play at once, over it. One that has waited longer
+animation, so they play over a wiggle without cutting it, and a wiggle
+stops any line on the device, so a tap lets one waiting behind a line
+play at once, over it. One that has waited longer
 than 5 s for its turn is dropped, since a late reaction is worse than
 none: at once if it's still waiting then, whether or not a face still
 holds the turn, and otherwise when its turn comes. The wait is counted
@@ -188,31 +189,24 @@ reaction's handle. It goes to the device with an `id`, and the device's
 `ended` says how it went: played out, cut short or skipped
 ([PROTOCOL.md](PROTOCOL.md) §4). The schedule or the runtime ends the
 handle from that, or when the moment can't have played
-([harness/DECISIONS.md](harness/DECISIONS.md) §5). Working chatter still
-waits until nothing plays at all.
+([harness/DECISIONS.md](harness/DECISIONS.md) §5).
 
 The app reckons how long each moment plays at most, as the device times
-it: the cheer's loops of its design, a wiggle's 0.7 s, or a reaction's
-face's loops of the design showing, and the mumble's syllables plus two
+it: a wiggle's 0.7 s, or a reaction's loops of its design (the cheer's
+when it cheers, else the look's), and the mumble's syllables plus two
 beats for a word, at the line's pace, then 1.2 s to read the bubble,
-when that's longer. The design showing is the look and mood of the last
-`state`; while a cheer may be playing (until its reckoned end and 0.5 s
-more, `MomentSchedule.linkSlackMs`, for the link's delay) it's the
-longer of that and the cheer's, since the device may time the face by
-either. Its loop is `FaceLoops`' number for it, the one the device has
+when that's longer. The look is the last `state`'s, drawn in the
+reaction's mood. Its loop is `FaceLoops`' number for it, the one the device has
 ([PROTOCOL.md](PROTOCOL.md) §3). The device ends a face on a loop
 boundary of its own clock, which the app doesn't know, so the face may
 end up to a loop sooner than the app reckons, never later. So a brain
 moment on the device holds the schedule's line until the device's
 `ended` for it, and only if that never comes until the app gives up on
-it (its reckoning plus `endGraceMs`); then chatter's turn comes. The
+it (its reckoning plus `endGraceMs`). The
 brain's next moment waits only until its mumble has played
 (`MomentSchedule.brainFree`), or its `ended` if that comes first. The schedule also hears what the device does on its own: a tap's
-wiggle stops whatever plays and ends the cheer, as a rule's wiggle does,
-"needs you" starting stops everything, and while something needs you the
-device plays none of the rules' moments. After either, once the link's
-0.5 s has passed, a reaction is timed on the look's design alone, not a
-cheer that was cut. A tap leaves a brain moment's line to its `ended`,
+wiggle stops whatever plays, "needs you" starting stops everything, and
+while something needs you the device plays no moment. A tap leaves a brain moment's line to its `ended`,
 though: the app hears the tap after sending the moment, which may have
 reached the device after the tap and play on, and the device sends
 `ended` at once for one its tap cut. A reaction whose turn comes with no
@@ -230,7 +224,8 @@ the steering files, asks every action's questions, and hands each action
 its answers. One pass runs at a time, and a newer event that wakes the
 brain replaces one waiting. An action that started something is shown in
 progress until it reports how it ended, or the harness gives up waiting.
-Without Jev's key no pass runs, and Boop does only its rule reactions
+Without Jev's key no pass runs: Boop shows its looks, "needs you",
+and wiggles, and nothing reacts or mumbles
 ([harness/HARNESS.md](harness/HARNESS.md)).
 
 ### 3.4 Actions
@@ -244,9 +239,9 @@ order:
 | Action | Effect | Its own rules |
 | --- | --- | --- |
 | `mood` | Saves the new mood to the `mood` file; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the six moods, and only a change |
-| `react` | Queues a moment in the moment schedule: the chosen mood as its face, held for the loops Jev picked, and Voice's mumble in that mood's feeling, with the chosen word if Jev is sure enough. It's started, not done, until the device says how the moment ended. It also names Boop's last reaction for the end of HISTORY ([harness/HARNESS.md](harness/HARNESS.md) §5.3) | Nothing while something needs you |
+| `react` | Queues a moment in the moment schedule: the chosen mood as its face, with the animation Jev picked (the cheer) if any, held for the loops Jev picked, and Voice's mumble in that mood's feeling, with the chosen word if Jev is sure enough. It's started, not done, until the device says how the moment ended. It also names Boop's last reaction for the end of HISTORY ([harness/HARNESS.md](harness/HARNESS.md) §5.3) | Nothing while something needs you |
 
-The rules' own moments (the cheer, working chatter) don't go through them.
+No rule makes a moment on the Mac: every mumble and face comes through them.
 
 ### 3.5 Voice
 
@@ -309,7 +304,7 @@ lines on its socket, and can move its clock forward for tests
 Boop's memory is two Markdown files in the state directory (§4.4):
 `long-term.md`, who this Boop is, and `short-term.md`, which day Boop last
 saw. Jev's state doesn't include them, and nothing records what Boop
-learns about you ([FUTURE.md](FUTURE.md)). Files from before 2026-09-27
+learns about you. Files from before 2026-09-27
 have more sections; they still load, and the store leaves them be.
 
 **A new day** starts at the day's first hook or tap, by the Mac's local
@@ -382,7 +377,7 @@ everyday Boop.
 | `boop.sock` | The hook socket, mode 0600 ([ADAPTERS.md](ADAPTERS.md) §2). Headless can put it elsewhere with `--socket` | Replaced at launch, removed at quit |
 | `boop.lock` | Locked while an app runs on this folder; a second copy refuses to start. The file stays, the lock goes with the process | At launch |
 | `boop.log` | The app's log, appended: startup, hook placement and repairs, the link connecting and dropping, the device's id and firmware, taps, memory recoveries, dropped brain moments, one `brain …` line per pass, and hooks only when armed or in debug mode. Never Jev's state ([harness/HARNESS.md](harness/HARNESS.md) §9) | Always |
-| `debug.jsonl` | Debug mode only: a `questions` line first, then every transcript entry, every line sent to the device and each status change, as JSON lines ([harness/HARNESS.md](harness/HARNESS.md) §9, [DASHBOARD.md](DASHBOARD.md) §3) | Emptied at each launch with `--debug`, after a copy of the last launch's goes to `debug.1.jsonl` |
+| `debug.jsonl` | Debug mode only: a `questions` line first, then every transcript entry, every line sent to the device and each status change, as JSON lines ([harness/HARNESS.md](harness/HARNESS.md) §9) | Emptied at each launch with `--debug`, after a copy of the last launch's goes to `debug.1.jsonl` |
 | `debug.<n>.jsonl` | Earlier launches' `debug.jsonl`, `debug.1.jsonl` the latest, as many as [harness/HARNESS.md](harness/HARNESS.md) §9 keeps | At each launch with `--debug`; the oldest is let go |
 | `doctor-armed` | While it's under 10 minutes old, the app logs every hook ([ADAPTERS.md](ADAPTERS.md) §6) | By the `doctor` skill; the app removes an older one |
 | `bin/boop-hook` | The copy of the hook client every hook entry calls ([ADAPTERS.md](ADAPTERS.md) §5) | By the everyday menu-bar app, at launch, when it differs |
@@ -413,14 +408,14 @@ What crosses each boundary, in the order an event travels:
 | `react` → moment schedule → device link | A mumble and its face (`mood`) with its `loops`, and its handle, which the schedule or the runtime ends; it goes out with an `id` | `DeviceMoment`, `Pending` | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
 | `mood` → mood store → core | The new mood | A word | [harness/DECISIONS.md](harness/DECISIONS.md) §4 |
 | Device link ↔ device | `state` and `moment` out; `input`, `ended` and `status` in | JSON lines | [PROTOCOL.md](PROTOCOL.md) |
-| Runtime → Mac app | Name, snapshot, sessions, link, device, personality, brain | `Runtime.Status` | [UX.md](UX.md) §6 |
+| Runtime → Mac app | Name, snapshot, sessions, link, device, personality, brain | `Runtime.Status` | `app/Boop/` |
 
 ## 6. Who keeps which state
 
 | State | Kept by | Where | After a restart |
 | --- | --- | --- | --- |
 | Sessions and their turns ([ADAPTERS.md](ADAPTERS.md) §4) | Core | Memory | Gone: each comes back with its next hook, and Boop sleeps until then |
-| Poke streak, heartbeat count, chatter's next time | Core | Memory | Start again |
+| Poke streak, heartbeat count, the working heartbeat's next time | Core | Memory | Start again |
 | The last active day | Core, from `short-term.md` | Disk | Kept, so a restart doesn't start the day twice |
 | Transcript, the pass running and the one waiting | Harness | Memory, and `debug.jsonl` in debug mode | Gone |
 | Brain moments waiting with their handles, when the device is free, and the look and mood of the last `state`, which time a moment's loops | Moment schedule | Memory | Gone |
@@ -448,7 +443,7 @@ personality or memory, only its touch calibration. What it does is in
 | Failure | What happens |
 | --- | --- |
 | App not running, or the Mac asleep | Hooks give up within 50 ms and agents carry on. The device shows it has no app after 30 s ([BEHAVIORS.md](BEHAVIORS.md) §3.4) |
-| App restarted | Sessions are gone until their next hook; the mood, settings and memory stay (§6). A turn that was running cheers when it finishes, but the brain isn't told of it, since Boop didn't see it start ([harness/EVENTS.md](harness/EVENTS.md) §7) |
+| App restarted | Sessions are gone until their next hook; the mood, settings and memory stay (§6). A turn that was running goes idle when it finishes, but the brain isn't told of it, since Boop didn't see it start, so nothing celebrates it ([harness/EVENTS.md](harness/EVENTS.md) §7) |
 | Device disconnected | The app keeps going and drops what it would send; on reconnect the latest `state` catches the device up. HISTORY says a reaction playing or sent meanwhile didn't happen ([harness/DECISIONS.md](harness/DECISIONS.md) §5), though one that was playing keeps the line until it ends (§3.2), since the device plays on |
 | Jev slow, offline or wrong | Rules still drive every reaction. A pass Jev fails, is late for, or answers off its options is dropped, and no action runs ([harness/HARNESS.md](harness/HARNESS.md) §7) |
 | No Jev key | No pass runs; events are still recorded |
@@ -484,7 +479,7 @@ personality or memory, only its touch calibration. What it does is in
   `LSUIElement`) is linked into the `Boop` binary with `-sectcreate`.
 - **Firmware:** PlatformIO + Arduino core + LovyanGFX + NimBLE-Arduino in
   `firmware/` ([DEVICE.md](DEVICE.md) §4), to be ported to ESP-IDF + LVGL
-  once v1 is verified ([PLAN.md](PLAN.md) §4).
+  once v1 is verified.
 - **Dev tools:** `internal/tools/boopctl` for the device and `boopdev` for
   the app ([VERIFICATION.md](VERIFICATION.md) §2).
 
@@ -534,7 +529,7 @@ which also has the full log up to 2026-09-27.
 | 2026-09-26 | The renderer uses integer maths only | The board and the simulator draw the same pixels, so screenshots compare exactly | [DEVICE.md](DEVICE.md) §6 |
 | 2026-09-26 | The core is a pure state machine that returns effects, driven by one-second ticks | Decisions stay apart from effects, and every rule is testable on a virtual clock | §3.2 |
 | 2026-09-26 | One state directory per Boop; hooks call the copy of `boop-hook` kept there, and nothing is installed while it's missing | Hooks survive rebuilding or moving the app; entries calling a missing file dropped every event while Settings said "Connected" | §4.4, [ADAPTERS.md](ADAPTERS.md) §5 |
-| 2026-09-26 | v1 is cut to 4 states and 2 animations (`cheer`, `wiggle`); everything else is parked | The surface had outgrown what the owner can hold in their head | [BEHAVIORS.md](BEHAVIORS.md), [FUTURE.md](FUTURE.md) |
+| 2026-09-26 | v1 is cut to 4 states and 2 animations (`cheer`, `wiggle`); everything else is parked | The surface had outgrown what the owner can hold in their head | [BEHAVIORS.md](BEHAVIORS.md) |
 | 2026-09-26 | Four hero moments lead Boop's story: a cheer for a finished turn, annoyance at a failed one, sadness when yelled at, grumbling at a poke streak | Each has one clear cause and one clear feeling | [VISION.md](VISION.md) |
 | 2026-09-26 | The brain's moments wait their turn behind the rules' and each other's, and are dropped after waiting 5 s | A brain mumble cut off the rules' cheer before it showed | §3.2 |
 | 2026-09-26 | Durations and gaps reach the brain named (short, long, very long; right after, a while, a long break) | Keep arithmetic out of the brain: Jev read "took 45 s" as quick | [harness/EVENTS.md](harness/EVENTS.md) §5 |
@@ -546,18 +541,17 @@ which also has the full log up to 2026-09-27.
 | 2026-09-27 | The harness has two generic contracts: events in, actions out; an action reads its own answers and returns `(ok, message)` | New behaviour is a new action, with no harness change | [harness/HARNESS.md](harness/HARNESS.md) §3–4 |
 | 2026-09-27 | A thread is named after its workspace, cleaned to `a-z0-9-` and 40 characters | Two agents in one project need telling apart, and an agent-chosen name mustn't carry words into Jev's state | [ADAPTERS.md](ADAPTERS.md) §3 |
 | 2026-09-27 | Personalities replace modes: how much Boop speaks up is its personality file's to say | There's one brain now; a chattier Boop is a different character | [harness/DECISIONS.md](harness/DECISIONS.md) §2.2 |
-| 2026-09-27 | Every finished turn cheers, whatever the personality | A setting nobody varies is just a rule | [BEHAVIORS.md](BEHAVIORS.md) §3.1 |
 | 2026-09-27 | Seven moods, the mood designs' set, with no minimum time between changes | The device's faces come in these seven, and the steering says when each mood leaves | [harness/DECISIONS.md](harness/DECISIONS.md) §2.3 |
 | 2026-09-27 | "Needs you" clears on the asking agent's next event or a turn-level one; the hook line keeps Claude's `agent_id` | Claude gives subagents their parent's session, so a sibling's tool call cleared a request still waiting | [ADAPTERS.md](ADAPTERS.md) §4 |
 | 2026-09-27 | Without Jev's key, or when Jev fails or is late, Boop does only its rule reactions; the evals fail without the key | Fine for everyday use, and an eval that can't ask Jev can't check it | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | 2026-09-27 | Jev's key is read and written through `/usr/bin/security` | Without an Apple-issued certificate, every rebuild asked for the key again. The cost: any program running as the owner can read it without a prompt | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | 2026-09-27 | One debug mode, `--debug` (`make debug`), in the menu-bar app and headless | Seeing what Boop does took four settings and two terminals | [harness/HARNESS.md](harness/HARNESS.md) §9 |
-| 2026-09-27 | A terminal dashboard reads only `debug.jsonl` and drives the app with dev lines on the hook socket, which plain `make run` ignores | Checking a reaction meant waiting for Jev to pick it | [DASHBOARD.md](DASHBOARD.md) |
-| 2026-09-27 | The Mac app is one popover in the device's "Warm Terminal" colours; setup and settings open inside it | A setup window was jarring, and gen-2's colours clashed with the device | [UX.md](UX.md) §6 |
+| 2026-09-27 | A terminal dashboard reads only `debug.jsonl` and drives the app with dev lines on the hook socket, which plain `make run` ignores | Checking a reaction meant waiting for Jev to pick it | [harness/HARNESS.md](harness/HARNESS.md) §9 |
+| 2026-09-27 | The Mac app is one popover in the device's "Warm Terminal" colours; setup and settings open inside it | A setup window was jarring, and gen-2's colours clashed with the device | `app/Boop/Views/` |
 | 2026-09-27 | Code that doesn't ship lives in `internal/`, in its own targets, and the build fails on an import that isn't a declared dependency | The compiler keeps production code from reaching test or dev code | §10 |
 | 2026-09-27 | Every `state` carries the mood; a missing or unknown one reads as happy | A lost update fixes itself with the next `state` | [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-27 | The device draws the mood designs exactly, from `facegen`'s rectangles on whole pixels | The designs are the look, exact pixels can be checked, and a revised design is a rerun | [DEVICE.md](DEVICE.md) §6 |
-| 2026-09-27 | The face switches designs behind a 150 ms blink, and who needs you shows in the strip | Whole-pixel designs can't be eased into one another, and a blink reads as Boop's own | [UX.md](UX.md) §2–3 |
+| 2026-09-27 | The face switches designs behind a 150 ms blink, and who needs you shows in the strip | Whole-pixel designs can't be eased into one another, and a blink reads as Boop's own | [BEHAVIORS.md](BEHAVIORS.md) §2 |
 | 2026-09-27 | The wire carries only what's read; `state`'s `idle` and `wait` stay only for the dashboard | No device or tool read the dropped fields, and a resent `state` needn't be rebuilt | [PROTOCOL.md](PROTOCOL.md) §3–4 |
 | 2026-09-27 | A reaction is a mood's face: `react` picks `none` or one of the seven moods (`annoyed` became `grumpy`), and its moment's `mood` draws the look in that mood's design while the mumble plays, then the mood comes back. The sound follows the face, with a temporary default voice for a mood that has none | The designs are what Boop's feelings look like; a reaction that only changed the gibberish's sound never showed on the face. The mood stays the backdrop, the reaction the moment | [harness/DECISIONS.md](harness/DECISIONS.md) §3, [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-27 | A brain reaction waits only for a line playing, not for an animation: it plays over the cheer, which it doesn't cut. This replaces 2026-09-26's "wait behind the rules' moments" for animations | A mumble with no animation can't cut the cheer on the device, and a proud reaction to a long finish should show the cheer in proud's face, not the idle face after it | §3.2 |
@@ -565,14 +559,14 @@ which also has the full log up to 2026-09-27.
 | 2026-09-27 | `react` is started, not done: its moment's handle ends when the device says how the moment ended, or `failed` when it was dropped, no device was connected or the device dropped. This replaces "HISTORY still says Boop made it" for a dropped reaction. The guide lets Jev make one that didn't happen again, but not repeat one in progress | Jev read reactions that never showed as made, and wouldn't retry them | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
 | 2026-09-27 | A `moment` the Mac waits on carries an `id`, and the device answers it with `ended`: `done`, `cut` (and what cut it) or `skipped`. The Mac gives up on one that doesn't come by the moment's length plus a grace. This replaces the app's own timing, which ended a reaction `done` when it expected the moment to have played. No other moment is answered | Only the device knows whether a tap, "needs you" or a newer moment stopped a reaction, or whether it played at all. The grace keeps older firmware and a lost line from leaving a reaction in progress | [PROTOCOL.md](PROTOCOL.md) §4 |
 | 2026-09-28 | Moments are counted in loops of a design, and whoever plays one says how many (`moment.loops`, 1–6). The cheer plays enough loops of the mood's task-complete design to last at least 2 s, replacing the fixed 2 s; a reaction's face holds the loops Jev picks (`react.loops`, once to four times), ending on a loop boundary of the design showing, and at least as long as its mumble. facegen reads each design's loop from its SVG timing and writes it for the device and the Mac alike | Every animation can loop, and the loopable designs coming next should end where they start rather than be cut mid-motion. A bigger moment can hold its face longer. One set of numbers keeps the Mac's timing of a moment with the device's | [PROTOCOL.md](PROTOCOL.md) §3, [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
-| 2026-09-28 | `state` drops `idle` and `wait`, replacing 2026-09-27's keeping them for the dashboard, which now counts the idle from its `status` line's sessions and the waiting from `attn`. A change to the session list the snapshot doesn't show is the core's `sessions` effect | Nothing read them but the dashboard, and `wait` was always 1 + `attn.more`. The idle count had quietly been what refreshed the popover when a second idle session came or went | [PROTOCOL.md](PROTOCOL.md) §3, [DASHBOARD.md](DASHBOARD.md) §2 |
+| 2026-09-28 | `state` drops `idle` and `wait`, replacing 2026-09-27's keeping them for the dashboard, which now counts the idle from its `status` line's sessions and the waiting from `attn`. A change to the session list the snapshot doesn't show is the core's `sessions` effect | Nothing read them but the dashboard, and `wait` was always 1 + `attn.more`. The idle count had quietly been what refreshed the popover when a second idle session came or went | [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-28 | Claude's idle notice (`idle_prompt`) clears a request whoever asked, a subagent included. This replaces "a subagent's request stays, since its prompt may still be up" | The notice means Claude sits at its own prompt with the turn over, which it doesn't do while any prompt is up. Keeping a subagent's request, which the notice also restarted the safety net for, left Boop amber about 11 minutes after you pressed Esc on a subagent's prompt, where BEHAVIORS.md §3.2 says a minute | [ADAPTERS.md](ADAPTERS.md) §4 |
 | 2026-09-28 | `state`'s `attn` carries the request's number (`attn.id`), and the device chirps when it changes, not only when the agent or project does. Requests are ordered by when they started showing, then by number | BEHAVIORS.md §3.2 says a different request shown chirps, but the device could only compare agent and project, so two worktrees of one repo, or two subagents in one session, took turns in silence; and two requests in the same millisecond were shown in the order their sessions were first seen | [PROTOCOL.md](PROTOCOL.md) §3, [BEHAVIORS.md](BEHAVIORS.md) §2, §3.2 |
 | 2026-09-28 | A brain moment on the device holds the moment schedule's line until the device's `ended` for it, or until the app gives up on it; the schedule hears taps and "needs you", runs its pump whenever the line frees, and counts a wait to when the turn came. This replaces giving the next one its turn when the app's own reckoning of a face ran out | The reckoning is an upper bound, up to a whole loop (9 s over idle) per hold too long, so a reaction arriving meanwhile was dropped although the face was long over; and a line sent just as the reckoning ran out could still reach the device before its face ended there, and cut it | §3.2 |
 | 2026-09-28 | A reaction's face that something ends early after its mumble has played leaves its moment `done`, not `cut`: only a stopped animation or line cuts a moment | With loops, a face holds up to 36 s past its roughly 2 s mumble, so most cuts came after the line was heard. HISTORY then said the reaction didn't happen, and the guide let Jev make it again: Boop said "…finally!" twice | [PROTOCOL.md](PROTOCOL.md) §4 |
 | 2026-09-28 | `react`'s `none` also covers a reaction HISTORY shows Boop still making, and isn't for an Example Boop isn't already doing. This replaces "not for anything PERSONALITY's Examples react to" | That wording beat the guide's "don't repeat what Boop is still doing": a comeback's finish got a second proud "…finally!" while the first still showed, in every eval run | [harness/DECISIONS.md](harness/DECISIONS.md) §3 |
 | 2026-09-28 | `perf --motion` passes when the board drew a frame in every second it moved and none took over 40 ms, replacing its 10 fps floor | The mood designs step a few times a second, so `fps` follows the design: 6–7 a second through the cheer, in the simulator as on the board, which drew every change in 14 ms at most and still failed the floor | [VERIFICATION.md](VERIFICATION.md) L2 |
-| 2026-09-28 | Boop's mood moves only for something lasting (a run of failures, a fix after one, a turn of 10 minutes or more ending, an hour of nothing) and never for a routine turn, and any mood but happy fades back to happy once HISTORY no longer shows the change. Reactions come to anything that stands out, with strong faces held longer for bigger moments, and small ones to routine finishes. All steering text, except two `mood` options: `excited` no longer means "several wins in a row", and `grumpy` means "poked again right after the last time", with each a `not_for` | On the owner's first evening with faces, Jev changed the mood 11 times in an hour, flipping between happy, proud and excited on routine turns, while its reactions were mostly plain. In a scripted working day the tuning took mood changes from 52–53 to 16 a day, and those on a routine line that weren't a fade from 17–18 to 1, with a reaction to every notable line. The mood files alone didn't stop a turn of a few minutes reading as "several wins in a row", nor a first poke streak turning Boop grumpy; the new `excited` option fixed the first, and the text and the new `grumpy` option together only made Jev less sure of the second (0.93 to 0.8, [PLAN.md](PLAN.md) §3) | [harness/DECISIONS.md](harness/DECISIONS.md) §2, [evidence](evidence/2026-09-28-tonight/tune/README.md) |
+| 2026-09-28 | Boop's mood moves only for something lasting (a run of failures, a fix after one, a turn of 10 minutes or more ending, an hour of nothing) and never for a routine turn, and any mood but happy fades back to happy once HISTORY no longer shows the change. Reactions come to anything that stands out, with strong faces held longer for bigger moments, and small ones to routine finishes. All steering text, except two `mood` options: `excited` no longer means "several wins in a row", and `grumpy` means "poked again right after the last time", with each a `not_for` | On the owner's first evening with faces, Jev changed the mood 11 times in an hour, flipping between happy, proud and excited on routine turns, while its reactions were mostly plain. In a scripted working day the tuning took mood changes from 52–53 to 16 a day, and those on a routine line that weren't a fade from 17–18 to 1, with a reaction to every notable line. The mood files alone didn't stop a turn of a few minutes reading as "several wins in a row", nor a first poke streak turning Boop grumpy; the new `excited` option fixed the first, and the text and the new `grumpy` option together only made Jev less sure of the second (0.93 to 0.8) | [harness/DECISIONS.md](harness/DECISIONS.md) §2, [evidence](evidence/2026-09-28-tonight/tune/README.md) |
 | 2026-09-28 | The brain hears only of turns Boop saw start: a finish with no open turn is nothing, and the end of a turn Boop joined partway (after a relaunch, or a day's forgetting) makes no event, though a done one still cheers | Boop can't know such a turn's length or tools; it reported "turn 0 … after 0 s" and cheered for second `Stop`s | [harness/EVENTS.md](harness/EVENTS.md) §7 |
 | 2026-09-28 | A session that ended stays ended for a day: its later hooks are ignored until a `session_start` or a prompt | Hooks from just before the end land after it, and each brought the session back as needing you, working or idle | [ADAPTERS.md](ADAPTERS.md) §4 |
 | 2026-09-28 | A link that drops doesn't free the moment schedule's line, and a tap doesn't free a brain moment's: both wait for the device's `ended`, or the app giving up. This replaces "with no device connected nothing holds the line" | The device plays on through a link blip, and a moment may reach it just after a tap: freeing the line on a guess let the next reaction cut one still playing | §3.2 |
@@ -585,3 +579,5 @@ which also has the full log up to 2026-09-27.
 | 2026-09-28 | HISTORY ends with a line naming Boop's last reaction and how long ago it started (`Boop's last reaction, just now: an excited face and "…tests!".`), before the status line. `react` supplies it through the runtime's `parts`, so the harness only places it | Once a reaction had played out, Jev made the same one at the next line that called for it (an excited "…tests!" up to 8 times in a row; a comeback's "…finally!" twice within a minute), and steering text alone didn't stop it. The owner chose naming the last reaction over giving quick passes no face (decision 8a) | [harness/DECISIONS.md](harness/DECISIONS.md) §5, [harness/HARNESS.md](harness/HARNESS.md) §5.3 |
 | 2026-09-28 | A routine finish gets a face from 20 s of work, down from 40 s. Steering text | Round 2 reacted to 0.47–0.49 of finished turns, and the owner wanted Boop less quiet (decision 9) | [harness/DECISIONS.md](harness/DECISIONS.md) §2.2 |
 | 2026-09-28 | Once a brain reaction's mumble has played (and the link's 0.5 s), the next brain reaction may be sent, and replaces the face the first holds on for its loops; the first still ends `done`. Rule moments and working chatter still wait for the device's `ended`. This replaces "a brain moment holds the line until its `ended`" for the brain's own next moment | A face held two to four times kept the line 16–36 s (9 s for one loop over the idle look), and a reaction waits at most 5 s, so another thread's failure meanwhile got no face. The owner chose this over a shorter idle loop or a cap on the first loop (decision 5c) | §3.2, [PROTOCOL.md](PROTOCOL.md) §3–4 |
+| 2026-09-28 | A finished turn no longer cheers by rule: the cheer is the brain's: a `react` choice pairs a face with it (`proud-cheer`), and with no brain a finish gets none. The tap's wiggle stays the device's. This replaces 2026-09-27's "every finished turn cheers", and loosens "the brain is never on the event path" to the screen's truth (looks, needs you, the wiggle) | A rule cheer gave a 5-second turn and a 40-minute comeback the same moment, and the brain could only paint a face over it. The finalized scenes make the cheer Boop's biggest moment, so it should mean something | [BEHAVIORS.md](BEHAVIORS.md) §3.1, §5, [harness/DECISIONS.md](harness/DECISIONS.md) §3 |
+| 2026-09-28 | No rule mumbles: working chatter becomes a working heartbeat, an event that wakes the brain after a quiet stretch of work (the personality's `working_heartbeat`, restarted by any event that woke the brain), and Jev decides whether Boop mumbles, with which face and word. With no brain, Boop works silently | Chatter was the last expressive thing a rule did; a mumble that ignores Boop's mood and what just happened reads as filler. The timer stays a rule so the brain is asked at a steady pace | [BEHAVIORS.md](BEHAVIORS.md) §2, [harness/EVENTS.md](harness/EVENTS.md) §4 |

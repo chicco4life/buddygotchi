@@ -249,7 +249,7 @@ public final class Runtime: @unchecked Sendable {
         toldAsleep = asleep
     }
 
-    /// Sets up a new Boop: name and sweet-or-cheeky, asked once (UX.md §5).
+    /// Sets up a new Boop: name and sweet-or-cheeky, asked once.
     /// It hatches `today`, by default the Mac's.
     public static func setUp(stateDir: URL, name: String, nature: LongTerm.Nature,
                              today: String = LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000))) throws {
@@ -354,8 +354,7 @@ public final class Runtime: @unchecked Sendable {
     public func start() throws {
         let home = self.home
         // The questions line is debug.jsonl's first, before the socket or the
-        // link can add one, so a changed first line means a new launch
-        // (DASHBOARD.md §3).
+        // link can add one, so a changed first line means a new launch.
         if options.debug {
             home.sync { Harness.appendLine(DebugLog.questions(harness.actions, at: options.clock()), to: debugLogURL) }
         }
@@ -475,8 +474,8 @@ public final class Runtime: @unchecked Sendable {
         changed()
     }
 
-    /// A `{"dev":…}` line from the socket (VERIFICATION.md §2, DASHBOARD.md
-    /// §4): only with `devLines`. Nothing replies; what it did shows in
+    /// A `{"dev":…}` line from the socket (VERIFICATION.md §2):
+    /// only with `devLines`. Nothing replies; what it did shows in
     /// `debug.jsonl`.
     func dev(_ data: Data) {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
@@ -501,10 +500,10 @@ public final class Runtime: @unchecked Sendable {
             options.log("dev: mood \(to)" + (result.map { $0.ok ? "" : ": \($0.message)" } ?? ""))
             changed()
         case "moment":
-            // Through the moment schedule, as a rule's: a cheer as long as
-            // the rule's.
+            // Through the moment schedule, played at once: a cheer once
+            // through its design, or a wiggle.
             guard let anim = object["anim"] as? String, DeviceMoment.anims.contains(anim) else { return }
-            playRule(DeviceMoment(anim: anim, loops: anim == "cheer" ? Core.cheerLoops(mood: core.config.mood) : nil))
+            playRule(DeviceMoment(anim: anim))
             options.log("dev: moment \(anim)")
         default:
             break  // such as boopdev replay's probe
@@ -550,16 +549,6 @@ public final class Runtime: @unchecked Sendable {
                 stateChanged = true
             case .sessions:
                 stateChanged = true
-            case .moment(let anim, let loops):
-                playRule(DeviceMoment(anim: anim, loops: loops))
-            case .mumble(let feeling, let word):
-                // Working chatter is filler: it never cuts a moment that's
-                // playing, such as a brain mumble, or jumps one waiting its
-                // turn (BEHAVIORS.md §2).
-                guard moments.schedule.idle(now: options.clock()), core.mumbleBlock == nil,
-                      let f = Feeling(rawValue: feeling) else { continue }
-                chatterSeed += 1
-                playRule(DeviceMoment(say: voice.line(f, word: word, seed: chatterSeed)))
             case .event(let event):
                 harness.take(event)
             case .newDay(let date):
@@ -568,9 +557,6 @@ public final class Runtime: @unchecked Sendable {
         }
         if stateChanged { changed() }
     }
-
-    /// Seeds working chatter's lines.
-    var chatterSeed: UInt64 = 0
 
     /// A snapshot for the device, whose look and mood time the moments
     /// played over it; "needs you" starting stops them.
@@ -581,8 +567,9 @@ public final class Runtime: @unchecked Sendable {
         pump()
     }
 
-    /// A rule moment: it plays at once. Anything the brain has waiting
-    /// waits for its line, or plays over its animation now.
+    /// A moment the dashboard asked for: it plays at once. Anything the
+    /// brain has waiting waits for its line, or plays over its animation
+    /// now.
     func playRule(_ moment: DeviceMoment) {
         link.play(moment)
         moments.schedule.rule(moment, now: options.clock())

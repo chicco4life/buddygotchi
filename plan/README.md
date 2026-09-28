@@ -9,7 +9,6 @@ with the vision.
 | --- | --- |
 | [VISION.md](VISION.md) | Why Boop exists, its personality, the promises, and what's in v1 |
 | [BEHAVIORS.md](BEHAVIORS.md) | What Boop does when things happen, with its sound and light, and how each personality changes it |
-| [UX.md](UX.md) | The screens, controls, setup and the Mac app |
 | [VOICE.md](VOICE.md) | The gibberish: how it's built, checked and played |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | The parts and their boundaries, the data flow, queues and timers, what Boop keeps on disk, budgets, and the decisions in force |
 | [ADAPTERS.md](ADAPTERS.md) | The hook client, the event each hook becomes, session states and "needs you", and installing the hooks |
@@ -21,10 +20,7 @@ with the vision.
 | [PROTOCOL.md](PROTOCOL.md) | The messages between the Mac and the device, over Bluetooth or USB, and the debug messages over USB |
 | [DEVICE.md](DEVICE.md) | The board, pins, firmware stack, what the device keeps, and building and flashing |
 | [VERIFICATION.md](VERIFICATION.md) | How everything is checked (L0–L6), and every tool |
-| [DASHBOARD.md](DASHBOARD.md) | `boopctl dash`: Boop now with its face, and its mood, automatic reactions and decided reactions side by side, live; keys that force a mood, a reaction or an animation |
 | [EVALS.md](EVALS.md) | The harness eval scenarios: how they run and what each checks |
-| [PLAN.md](PLAN.md) | Where things stand: milestones, owner checks, open items |
-| [FUTURE.md](FUTURE.md) | What v1 parked, and ideas we like but aren't building yet |
 
 What each check found is in [evidence/](evidence/), one folder per piece
 of work. History lives in `archived/`: the finished v1 build plan and its

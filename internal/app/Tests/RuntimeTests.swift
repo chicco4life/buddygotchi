@@ -95,10 +95,13 @@ final class RuntimeTests: XCTestCase {
         eventually("state after status") { transport.types().filter { $0 == "state" }.count > before }
         XCTAssertEqual(runtime.home.sync { runtime.link.status?.id }, "b00p-54fe")
 
-        // A finished turn clears "needs you" and cheers.
+        // A finished turn clears "needs you", and the brain cheers it (no
+        // rule does, BEHAVIORS.md §3.1).
         XCTAssertTrue(HookSocket.send(hook("PostToolUse", tool: "Bash"), to: socketPath))
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
-        eventually("cheer") { transport.sent.contains { $0 == #"{"t":"moment","anim":"cheer","loops":1}"# } }
+        eventually("the brain's cheer") {
+            transport.sent.contains { $0.hasPrefix(#"{"t":"moment","anim":"cheer","say":"#) && $0.contains(#""mood":"excited""#) }
+        }
         XCTAssertEqual(AppSettings.load(from: dir).personality, .boop)
         eventually("today's short-term memory") {
             (try? String(contentsOf: self.dir.appendingPathComponent("short-term.md"), encoding: .utf8))?.contains("## Today") == true
@@ -162,7 +165,7 @@ final class RuntimeTests: XCTestCase {
         defer { runtime.stop() }
         let fresh = try String(contentsOf: debugLog, encoding: .utf8)
         XCTAssertTrue(fresh.hasPrefix(#"{"questions":"#) && !fresh.contains(#"{"seq":1}"#),
-                      "each launch starts afresh, with the questions first (DASHBOARD.md §3)")
+                      "each launch starts afresh, with the questions first")
         XCTAssertEqual(file(), lastLaunch, "in place, so a boopdev watch on it sees it start again")
         try XCTAssertEqual(String(contentsOf: DebugLog.kept(1, of: debugLog), encoding: .utf8), "{\"seq\":1}\n",
                        "the last launch's lines are kept as debug.1.jsonl")
@@ -223,7 +226,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(HookSocket.send(Data((json + "\n").utf8), to: socketPath))
     }
 
-    /// harness/HARNESS.md §9, DASHBOARD.md §3: debug mode also writes the
+    /// harness/HARNESS.md §9: debug mode also writes the
     /// dashboard's lines, with no `seq`: every action's questions once at
     /// launch, every line sent to the device verbatim (with no transport
     /// too), and a status line whenever the mood, personality, brain,
@@ -247,7 +250,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(lines.filter { $0["questions"] != nil }.count, 1, "once")
         XCTAssertEqual(questions.map { $0["key"] as? String }, ["mood", "react", "react.loops", "word.feeling", "word.about"])
         XCTAssertEqual(questions.map { $0["action"] as? String }, ["mood", "react", "react", "react", "react"])
-        XCTAssertEqual(questions[1]["text"] as? String, "How should Boop react to NOW, if at all? It makes this face for a moment, with a mumble.")
+        XCTAssertEqual(questions[1]["text"] as? String, "How should Boop react to NOW, if at all? It makes this mood's face for a moment, with a cheer if its choice says so, and a mumble.")
         let none = try XCTUnwrap((questions[1]["options"] as? [[String: Any]])?.first)
         XCTAssertEqual(none["name"] as? String, "none")
         XCTAssertEqual(none["what"] as? String, "Stay quiet: nothing in NOW is worth a face and a mumble, "
@@ -303,7 +306,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(runtime.home.sync { runtime.link.sentLines! }, sent, "no new state")
     }
 
-    /// DASHBOARD.md §4: the dashboard's dev lines. A forced pass needs no
+    /// The dashboard's dev lines. A forced pass needs no
     /// brain and mumbles as Jev's would; a forced mood changes as Jev's
     /// does, device included; each is recorded for no event, by the
     /// dashboard. A moment goes
@@ -326,7 +329,7 @@ final class RuntimeTests: XCTestCase {
         dev(#"{"dev":"mood","mood":"happy"}"#)
         eventually("happy again") { runtime.home.sync { runtime.mood.current == "happy" } }
         dev(#"{"dev":"moment","anim":"cheer"}"#)
-        eventually("the cheer") { transport.sent.contains(#"{"t":"moment","anim":"cheer","loops":1}"#) }
+        eventually("the cheer") { transport.sent.contains(#"{"t":"moment","anim":"cheer"}"#) }
         dev(#"{"dev":"moment","anim":"dance"}"#)
         dev(#"{"dev":"moment"}"#)
         dev(#"{"dev":"moment","anim":"wiggle"}"#)
@@ -353,7 +356,7 @@ final class RuntimeTests: XCTestCase {
                        "the device hears each change in a state")
     }
 
-    /// DASHBOARD.md §4: a forced react keeps its own rules, so it's refused
+    /// A forced react keeps its own rules, so it's refused
     /// while something needs you, and the refusal is recorded.
     func testAForcedReactStillRefusesWhileSomethingNeedsYou() throws {
         let transport = FakeTransport()
@@ -462,8 +465,8 @@ final class RuntimeTests: XCTestCase {
     /// and the personalities' settings are BEHAVIORS.md §6's.
     func testTheSteeringFitsItsBudgetsAndSettings() {
         XCTAssertEqual(Self.steering.overBudget(), [])
-        XCTAssertEqual(Self.steering.personality(.boop).rules, Personality.Rules(chatterMs: 120_000...240_000, toolUses: .notable))
-        XCTAssertEqual(Self.steering.personality(.chatter).rules, Personality.Rules(chatterMs: 30_000...60_000, toolUses: .all))
+        XCTAssertEqual(Self.steering.personality(.boop).rules, Personality.Rules(workBeatMs: 120_000...240_000, toolUses: .notable))
+        XCTAssertEqual(Self.steering.personality(.chatter).rules, Personality.Rules(workBeatMs: 30_000...60_000, toolUses: .all))
         XCTAssertFalse(Self.steering.guide.contains("<!--"), "comments are left out")
         XCTAssertTrue(Self.steering.personality(.boop).text.hasPrefix("PERSONALITY\n"))
         XCTAssertTrue(Self.steering.mood("grumpy").hasPrefix("MOOD\nGrumpy."))
@@ -517,10 +520,9 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// A long turn, finished after moving the clock with `{"dev":"advance"}`:
-    /// the rules cheer at once, and the brain's mumble plays over the cheer
-    /// with its expression, without an animation that would cut it off
-    /// (ARCHITECTURE.md §3.2).
-    func testTheBrainMumblesOverTheRulesCheer() throws {
+    /// no rule cheers; the brain's reaction does, as one moment with the
+    /// cheer, its face and its mumble (BEHAVIORS.md §3.1, §5).
+    func testTheBrainCheersAFinish() throws {
         let transport = FakeTransport()
         var options = try options(transport)
         let skew = VirtualClock(0)
@@ -535,20 +537,19 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
         eventually("working") { transport.sent.contains { $0.contains("\"base\":\"working\"") } }
         eventually("the start's mumble") { transport.sent.contains { $0.contains("\"say\"") } }
+        let moments = { transport.sent.filter { $0.contains("\"t\":\"moment\"") } }
+        XCTAssertFalse(moments().contains { $0.contains("\"anim\"") }, "a start gets no cheer")
         transport.endMoments()  // the device says it has played
         eventually("the start's mumble has played") { runtime.home.sync { runtime.moments.schedule.idle(now: runtime.options.clock()) } }
         XCTAssertTrue(HookSocket.send(Data(#"{"dev":"advance","ms":30000}"#.utf8), to: socketPath))
         eventually("clock moved") { skew.now == 30_000 }
-        let moments = { transport.sent.filter { $0.contains("\"t\":\"moment\"") } }
         let before = moments().count
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
-        eventually("the cheer, then the brain's mumble", timeout: 4) { moments().count >= before + 2 }
-        XCTAssertEqual(moments()[before], #"{"t":"moment","anim":"cheer","loops":1}"#, "the rules' reaction first")
-        let mumble = moments()[before + 1]
-        XCTAssertTrue(mumble.hasPrefix(#"{"t":"moment","say":"#), "a mumble has no anim: \(mumble)")
-        XCTAssertTrue(mumble.contains(#""mood":""#), "the brain's mumble has its expression: \(mumble)")
-        XCTAssertFalse(moments().contains { $0.contains("\"anim\"") && $0.contains("\"mood\"") },
-                       "the rules' cheer has no expression")
+        eventually("the brain's cheer", timeout: 4) { moments().count >= before + 1 }
+        let cheer = moments()[before]
+        XCTAssertTrue(cheer.hasPrefix(#"{"t":"moment","anim":"cheer","say":"#), "one moment: \(cheer)")
+        XCTAssertTrue(cheer.contains(#""mood":"excited","loops":1,"id":"#), "in its face, held once, waited on: \(cheer)")
+        XCTAssertEqual(moments().count, before + 1, "no rule cheer besides")
     }
 
     /// ARCHITECTURE.md §3.2: the brain's moments play one at a time, each
@@ -759,35 +760,6 @@ final class RuntimeTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(longest, Int64(held) * FaceLoops.ms.values.flatMap { $0 }.max()!)
         XCTAssertLessThan(MomentSchedule.maxWaitMs + MomentSchedule.lateMs + longest + Runtime.Moments.endGraceMs,
                           Harness.pendingMaxMs)
-    }
-
-    /// BEHAVIORS.md §2: working chatter never cuts a moment that's playing,
-    /// such as the brain's reply, or jumps one waiting its turn.
-    func testChatterNeverCutsAMoment() throws {
-        let transport = FakeTransport()
-        let runtime = try makeRuntime(transport)
-        let says = { transport.sent.filter { $0.contains("\"say\"") }.count }
-        let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
-        runtime.home.sync {
-            let now = runtime.options.clock()
-            runtime.moments.schedule.brain(DeviceMoment(say: line), now: now)
-            runtime.run([.mumble(feeling: "happy", word: nil)])
-        }
-        XCTAssertEqual(says(), 0, "a brain moment is waiting its turn")
-        runtime.home.sync {
-            let now = runtime.options.clock()
-            _ = runtime.moments.schedule.due(now: now)
-            XCTAssertFalse(runtime.moments.schedule.idle(now: now), "it's playing")
-            runtime.run([.mumble(feeling: "happy", word: nil)])
-        }
-        XCTAssertEqual(says(), 0, "the reply is playing")
-        runtime.home.sync {
-            runtime.moments.schedule = MomentSchedule()
-            runtime.run([.mumble(feeling: "happy", word: nil)])
-        }
-        XCTAssertEqual(says(), 1, "nothing playing: chatter plays")
-        XCTAssertFalse(transport.sent.contains { $0.contains("\"say\"") && $0.contains("\"mood\"") },
-                       "chatter is a rule's line, with no expression (PROTOCOL.md §3)")
     }
 
     /// ARCHITECTURE.md §3.2, PROTOCOL.md §3: the app knows how long each
@@ -1085,7 +1057,7 @@ final class RuntimeTests: XCTestCase {
         react("grumpy")
         XCTAssertEqual(moments(), 2, "waits for the second")
         runtime.home.sync { runtime.playRule(DeviceMoment(anim: "cheer", loops: 1)) }
-        XCTAssertEqual(moments(), 4, "a rule's cheer stops the second, and the third plays over the cheer")
+        XCTAssertEqual(moments(), 4, "a cheer the dashboard played stops the second, and the third plays over the cheer")
 
         clock.now += 300
         react("excited")
@@ -1169,8 +1141,9 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// ARCHITECTURE.md §3.2: what the device does on its own reaches the
-    /// schedule. A tap's wiggle replaces the cheer, and the rules' moments
-    /// let a reaction waiting behind a face play at once, over the cheer;
+    /// schedule. A tap's wiggle replaces a cheer the dashboard played, and
+    /// such a cheer lets a reaction waiting behind a face play at once,
+    /// over it;
     /// and each tick drops a reaction that has waited 5 s, before the
     /// harness's ceiling could end it, whatever the pump's timer does
     /// (a clock jump, or the Mac asleep).
@@ -1186,13 +1159,13 @@ final class RuntimeTests: XCTestCase {
         runtime.home.sync {}
         let line = VoiceLine(groups: [["bi"]], word: nil, at: 1, tune: .up, ms: 100)
 
-        runtime.home.sync { runtime.run([.moment(anim: "cheer", loops: 1)]) }
+        runtime.home.sync { runtime.playRule(DeviceMoment(anim: "cheer")) }
         clock.now += 300
         transport.onLine?(#"{"t":"input","k":"tap"}"#)
         runtime.home.sync {}
         XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.cheerUntil }, clock.now, "the wiggle replaced it")
         clock.now += 1000
-        runtime.home.sync { runtime.run([.moment(anim: "cheer", loops: 1)]) }
+        runtime.home.sync { runtime.playRule(DeviceMoment(anim: "cheer")) }
         clock.now += 300
         let asking = StateSnapshot(base: "idle", mood: "happy", attn: .init(agent: "claude", project: "x", more: 0, id: 1),
                                    busy: 0, vol: 6)
@@ -1212,7 +1185,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(moments().last?.contains(#""mood":"proud""#) == true)
         clock.now += 1000
         let before = moments().count
-        runtime.home.sync { runtime.run([.moment(anim: "cheer", loops: 1)]) }
+        runtime.home.sync { runtime.playRule(DeviceMoment(anim: "cheer")) }
         XCTAssertEqual(moments().count, before + 2, "the cheer, then the waiting reaction over it")
         XCTAssertTrue(moments().last?.contains(#""mood":"happy""#) == true)
 

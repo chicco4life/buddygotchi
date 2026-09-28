@@ -2,7 +2,7 @@ import BoopKit
 import SwiftUI
 
 /// Overview, top to bottom: Boop and how things are, who needs you, and
-/// every session by agent (UX.md §6). Controls live in Settings.
+/// every session by agent. Controls live in Settings.
 struct OverviewPane: View {
     @ObservedObject var model: AppModel
     var maxHeight: CGFloat

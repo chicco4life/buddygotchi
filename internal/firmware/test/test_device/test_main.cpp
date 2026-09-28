@@ -357,7 +357,7 @@ static void test_injected_tap_reaches_the_mac() {
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
 }
 
-// UX.md §4: the resistive panel misses readings under a light press, so a
+// The resistive panel misses readings under a light press, so a
 // panel touch ends only after 50 ms without contact. A press that flickers
 // is one tap; a new press after a real lift is another.
 static void test_a_flickering_touch_is_one_tap() {
@@ -389,7 +389,7 @@ static void test_a_flickering_touch_is_one_tap() {
   TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, tap));
 }
 
-// UX.md §4: the 50 ms runs on real time, so a panel touch still ends, and
+// The 50 ms runs on real time, so a panel touch still ends, and
 // taps at once, while a tool has the clock frozen.
 static void test_a_touch_ends_while_the_clock_is_frozen() {
   Rig r;
@@ -412,7 +412,7 @@ static void test_a_touch_ends_while_the_clock_is_frozen() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"touch\":{\"down\":false"));
 }
 
-// UX.md §4: a long BOOT press is a tap, sent on release.
+// A long BOOT press is a tap, sent on release.
 static void test_a_physical_long_press_is_a_tap() {
   Rig r;
   r.usbLine("{\"t\":\"state\"}");
@@ -553,7 +553,7 @@ static void test_a_still_picture_isnt_redrawn() {
   }
 }
 
-// ARCHITECTURE.md §9, UX.md §4: a press shows within 20 ms, and the 16 ms
+// ARCHITECTURE.md §9: a press shows within 20 ms, and the 16 ms
 // cap (DEVICE.md §6) doesn't hold it back. With the clock running and a
 // loop pass every ms, the first frame that differs from the unpressed face
 // after a BOOT press comes on the same ms as with a frozen clock, which
@@ -711,7 +711,7 @@ static void test_a_moment_with_nothing_to_play_is_ignored() {
   TEST_ASSERT_EQUAL(0, r.hal.hushes);
 }
 
-// UX.md §4: the strip is part of the screen; a touch on it is a tap.
+// The strip is part of the screen; a touch on it is a tap.
 static void test_a_strip_touch_is_a_tap() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");

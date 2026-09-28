@@ -1,4 +1,4 @@
-// The behaviour state machine (plan/BEHAVIORS.md, plan/UX.md §3–4): what
+// The behaviour state machine (plan/BEHAVIORS.md): what
 // the Mac last said, the moment and the mumble playing, blinks, needs
 // you, local reactions to inputs, and the light, backlight and sound cues
 // they imply. Pure C++ and a function of the device clock: every time-based
@@ -82,7 +82,7 @@ struct MomentIn {
 
 class Behaviour {
  public:
-  // Timings (BEHAVIORS.md, UX.md). Proposed values are marked there.
+  // Timings (BEHAVIORS.md). Proposed values are marked there.
   static constexpr uint32_t kNoAppMs = 30000;
   static constexpr uint32_t kBubbleReadMs = 1200;  // the word stays up after the mumble
   static constexpr uint32_t kPressEaseMs = 60;     // a press draws at once this long (DEVICE.md §6)
@@ -98,7 +98,7 @@ class Behaviour {
   // something needs you.
   bool onMoment(const MomentIn& m, uint32_t t);
 
-  // Inputs, already recognised as gestures (UX.md §4).
+  // Inputs, already recognised as gestures.
   void pressDown(uint32_t t);  // visible feedback at once
   void pressUp();
   void tap(uint32_t t);  // BOOT, or a touch anywhere
@@ -185,8 +185,7 @@ class Behaviour {
     int nEnded = 0;
   };
   // What the face is following: an animation or a look, in a mood. A
-  // change of design shuts the eyes for kBlendMs, which hides the cut
-  // (UX.md §2).
+  // change of design shuts the eyes for kBlendMs, which hides the cut.
   struct Source {
     render::Anim anim = render::Anim::kNone;
     uint32_t at = 0;

@@ -14,16 +14,17 @@ public enum Personality: String, CaseIterable, Sendable {
         /// Which finished tool calls become events (harness/EVENTS.md §4).
         public enum ToolUses: String, Sendable { case notable, all }
 
-        /// Working chatter every so many milliseconds, or none.
-        public var chatterMs: ClosedRange<Int>?
+        /// The working heartbeat's wait, in milliseconds, or none
+        /// (harness/EVENTS.md §4).
+        public var workBeatMs: ClosedRange<Int>?
         public var toolUses: ToolUses
 
-        public init(chatterMs: ClosedRange<Int>? = 120_000...240_000, toolUses: ToolUses = .notable) {
-            self.chatterMs = chatterMs
+        public init(workBeatMs: ClosedRange<Int>? = 120_000...240_000, toolUses: ToolUses = .notable) {
+            self.workBeatMs = workBeatMs
             self.toolUses = toolUses
         }
 
-        /// Reads `chatter` and `tool_uses` from a front-matter block;
+        /// Reads `working_heartbeat` and `tool_uses` from a front-matter block;
         /// anything missing or unreadable keeps its default.
         public init(frontMatter: String) {
             self.init()
@@ -32,13 +33,13 @@ public enum Personality: String, CaseIterable, Sendable {
                 guard parts.count == 2 else { continue }
                 switch parts[0] {
                 case "tool_uses": if let t = ToolUses(rawValue: parts[1]) { toolUses = t }
-                case "chatter":
+                case "working_heartbeat":
                     if parts[1] == "none" {
-                        chatterMs = nil
+                        workBeatMs = nil
                     } else {
                         let bounds = parts[1].split(separator: "-").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
                         if bounds.count == 2, bounds[0] > 0, bounds[0] <= bounds[1] {
-                            chatterMs = bounds[0] * 1000...bounds[1] * 1000
+                            workBeatMs = bounds[0] * 1000...bounds[1] * 1000
                         }
                     }
                 default: break

@@ -1,4 +1,4 @@
-"""`boopctl dash`: Boop's live dashboard (plan/DASHBOARD.md). Boop now, with
+"""`boopctl dash`: Boop's live dashboard. Boop now, with
 the face, and three columns side by side: the mood, the automatic reactions
 (reflexes) and the decided ones (Jev's), all from debug.jsonl, with the raw
 timeline a key away; and keys that force a mood, a reaction or an

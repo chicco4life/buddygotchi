@@ -89,8 +89,8 @@ final class ReplayTests: XCTestCase {
         replay.gapMs = 5000
         let lines = replay.run(try Replay.steps(fromFile: path))
         let effects = lines.filter { $0.hasPrefix("+") }.map { $0.split(separator: " ", maxSplits: 1)[1] }
-        XCTAssertTrue(effects.contains("moment cheer"))
-        XCTAssertTrue(effects.contains(#"event turn_end · claude finished turn 1 on "fixture-project": done after 1 min, a very long turn, 10 tools. Tests passing. · Boop cheered on its own."#), "\(effects)")
+        XCTAssertFalse(effects.contains { $0.hasPrefix("moment") }, "no rule moment: the brain decides")
+        XCTAssertTrue(effects.contains(#"event turn_end · claude finished turn 1 on "fixture-project": done after 1 min, a very long turn, 10 tools. Tests passing."#), "\(effects)")
         XCTAssertEqual(effects.filter { $0.hasPrefix("state") }.count, 3)
         XCTAssertFalse(lines.joined().contains("PRIVATE"))
     }
@@ -103,7 +103,7 @@ final class ReplayTests: XCTestCase {
         XCTAssertTrue(steps.contains(.advance(400_000)))
         let lines = Replay(agent: "claude").run(steps)
         XCTAssertFalse(lines.contains { $0.hasPrefix("# skipped") })
-        XCTAssertTrue(lines.contains { $0.hasSuffix("moment cheer") })
+        XCTAssertTrue(lines.contains { $0.contains("event turn_end") && $0.contains(": done after ") })
         XCTAssertTrue(lines.contains { $0.contains("failed (rate limit)") })
         XCTAssertFalse(lines.contains { $0.contains("moment oops") }, "a failed turn has no moment")
     }

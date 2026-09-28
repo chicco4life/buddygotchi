@@ -168,7 +168,7 @@ static void test_short_press_is_a_tap() {
   TEST_ASSERT_EQUAL(ButtonGesture::kTap, g.update(false, 1399));
 }
 
-// plan/UX.md §4: any press is a tap, however long, sent on release.
+// Any press is a tap, however long, sent on release.
 static void test_long_press_is_a_tap_too() {
   ButtonGesture g;
   g.update(true, 0);

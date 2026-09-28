@@ -1,4 +1,4 @@
-// The mood designs as the device draws them (plan/UX.md §2): a scene for
+// The mood designs as the device draws them: a scene for
 // each mood and state, from firmware/assets/faces.h, which
 // internal/tools/facegen/facegen.py generates from the designs' SVGs. A
 // scene is rectangles in groups that move and show in whole-pixel steps on

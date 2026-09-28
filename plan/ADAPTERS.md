@@ -98,7 +98,7 @@ are `auth`, and any other text is the first class it contains, else
 replaced at launch, removed at quit) on its own thread. It reads each
 connection until it closes, goes quiet for 200 ms or reaches 64 KB, splits
 it into lines and hands each hook line to the runtime. It never writes back. A line that isn't a
-hook line is a dev line (`{"dev":…}`, [DASHBOARD.md](DASHBOARD.md) §4),
+hook line is a dev line (`{"dev":…}`),
 taken only headless or in debug mode and dropped otherwise.
 
 ## 3. Event mapping
@@ -146,7 +146,7 @@ last call.
 with an error. The adapter keeps only that yes or no and the error's
 class. Codex has no failure hook, and what its `PostToolUse` reports after
 a failed command hasn't been seen, so Codex activity carries no `failed`
-and a Codex turn never fails ([PLAN.md](PLAN.md) §3). What makes a turn
+and a Codex turn never fails. What makes a turn
 fail is in [BEHAVIORS.md](BEHAVIORS.md) §3.1.
 
 **Interrupted turns.** Claude sends no `Stop` for a turn you interrupt
@@ -273,7 +273,7 @@ otherwise goes idle.
   So a command the reviewer approves that runs past the 2 s grace shows
   "needs you", and chirps, from 2 s until it ends, as an approved long
   command of Claude's does; so does any command whose review takes over
-  2 s. Nobody was asked. A recorded Codex session (PLAN.md §3) would
+  2 s. Nobody was asked. A recorded Codex session would
   show whether Codex sends something the grace could wait for.
 
 When a Claude request starts showing, and when a Codex one does after its
@@ -315,7 +315,7 @@ command: any command running `boop-hook`, or an older Boop's
   `bin/boop-hook`, so entries would drop every event without a sign),
   *not installed* (no Boop entries), *installed* (the file is what a fresh
   install would write) or *outdated*. Settings shows each as a row with
-  its button ([UX.md](UX.md) §6).
+  its button.
 - **Detected** means the agent's folder, `~/.claude` or `~/.codex`,
   exists.
 
@@ -326,7 +326,7 @@ report to its socket.
 | When | What happens |
 | --- | --- |
 | Launch | The app copies the `boop-hook` built next to it to `bin/boop-hook` if they differ (staged as `bin/boop-hook.new`, then swapped in), so rebuilding or moving the app doesn't break hooks. With none next to it, it keeps the copy in place. Then it repairs, and asks you to restart open agent sessions if anything changed |
-| Setup | A switch for each agent, on for each one detected ([UX.md](UX.md) §5). Finishing setup installs for each switched-on, detected agent |
+| Setup | A switch for each agent, on for each one detected. Finishing setup installs for each switched-on, detected agent |
 | Settings | One click to connect, repair or remove each agent. A change that works asks you to restart open sessions; one that fails says why |
 | Another `--state-dir` | The menu-bar app installs, repairs and removes nothing, at setup or later ("only the everyday Boop changes them"), and logs why. It still reads the real hooks, so Settings shows how they stand. `Boop --headless` never touches hooks |
 
@@ -372,4 +372,4 @@ A new agent needs an adapter with a mapping like §3's, a way to register
 hooks, and an answer to one question: what signal proves a person is being
 asked? Without a reliable one, the agent gets activity and completion, but
 no "needs you". Claude Cowork should need only the Claude adapter once its
-sandbox runs the Mac's hooks ([FUTURE.md](FUTURE.md)).
+sandbox runs the Mac's hooks.

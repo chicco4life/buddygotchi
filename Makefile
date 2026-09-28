@@ -28,7 +28,7 @@ run: build
 debug: build
 	.build/debug/Boop --debug
 
-# The live dashboard for the app `make debug` started (plan/DASHBOARD.md).
+# The live dashboard for the app `make debug` started.
 # Run it in a second terminal.
 dash:
 	internal/tools/boopctl dash

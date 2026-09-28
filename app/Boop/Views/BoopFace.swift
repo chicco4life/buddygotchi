@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Which look the little face shows. The Mac never plays Boop's moments;
 /// this is just enough of the device's face that the popover and the menu
-/// bar read as the same creature (UX.md §7).
+/// bar read as the same creature.
 enum FaceMood: Hashable {
     case asleep, idle, working, needsYou, happy
     /// Setup's preview of a cheeky Boop: the proud face's smirk.
@@ -117,7 +117,7 @@ struct BoopFace: View {
 
 /// The menu-bar icon: two rounded eyes, nothing else, so it reads at 18 pt.
 /// Closed while asleep, open while agents idle, with a small dot while they
-/// work, and amber when something needs you (UX.md §6).
+/// work, and amber when something needs you.
 @MainActor
 enum MenuBarIcon {
     private static var cache: [FaceMood: NSImage] = [:]

@@ -1,4 +1,4 @@
-// Turns a button's raw up/down level into presses and taps (plan/UX.md §4):
+// Turns a button's raw up/down level into presses and taps:
 // any press is a tap, sent on release. Debounced; pure C++, driven by the
 // device clock.
 #pragma once
