@@ -55,8 +55,8 @@ int step(const Track& tr, uint32_t t) {
 
 // Where each group sits, whether it shows and the colour it fills with,
 // parents first. A flip-book design has a face, and a mouth in it, in each
-// of its steps: `face` and `mouth` are the ones that show, which a press
-// moves and talking opens.
+// of its steps: a press moves every face, and `mouth` is the one that
+// shows, which talking opens.
 struct Placed {
   // A group is drawn (kOn); shows in the design, the mouth included while
   // it talks (kShown); is the mouth that shows, or in it (kInMouth).
@@ -64,7 +64,7 @@ struct Placed {
   int16_t x[kMaxGroups], y[kMaxGroups];
   uint8_t flags[kMaxGroups];
   uint8_t fill[kMaxGroups];
-  int mouth = -1, face = -1;
+  int mouth = -1;
   bool on(int i) const { return flags[i] & kOn; }
 };
 
@@ -104,7 +104,6 @@ void place(const Scene& sc, const SceneShow& s, Placed& p) {
       default: break;
     }
     shown = shown && own;
-    if (g.role == kRoleFace && shown && p.face < 0) p.face = i;
     if (g.role == kRoleMouth && shown && p.mouth < 0) p.mouth = i, mouth = true;
     p.x[i] = int16_t(x), p.y[i] = int16_t(y), p.fill[i] = fill;
     p.flags[i] = uint8_t((shown ? Placed::kShown : 0) | (mouth ? Placed::kInMouth : 0) |

@@ -838,6 +838,47 @@ final class RuntimeTests: XCTestCase {
                           Harness.pendingMaxMs)
     }
 
+    /// PROTOCOL.md §3, VOICE.md §10: the Mac and the device time the
+    /// designs alike. Every design's loop and voice window in `FaceLoops`
+    /// is the one firmware/assets/faces.h (`kScenes`' `loopMs`, through
+    /// `kDesigns`) and sfx.h (`kScore`'s `voiceMs`) give the device, in the
+    /// same order: facegen and sfxgen write them from one manifest.
+    func testTheMacTimesTheDesignsAsTheDeviceDoes() throws {
+        let assets = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../../firmware/assets").standardizedFileURL
+        func block(_ text: String, _ start: String) -> String {
+            let from = text.range(of: start)!.upperBound
+            return String(text[from..<text.range(of: "};", range: from..<text.endIndex)!.lowerBound])
+        }
+        func rows(_ text: String, _ pattern: String) -> [[String]] {
+            let re = try! NSRegularExpression(pattern: pattern)
+            return re.matches(in: text, range: NSRange(text.startIndex..., in: text)).map { m in
+                (1..<m.numberOfRanges).map { String(text[Range(m.range(at: $0), in: text)!]) }
+            }
+        }
+        let faces = try String(contentsOf: assets.appendingPathComponent("faces.h"), encoding: .utf8)
+        let loops = rows(block(faces, "static const Scene kScenes["), #"\{\d+, \d+, (\d+), -?\d+, -?\d+, \d+, \d+\}"#)
+            .map { Int64($0[0])! }
+        let scenes = rows(block(faces, "static const Design kDesigns["), #"\{(\d+), \d+, \d+\}"#).map { Int($0[0])! }
+        let sfx = try String(contentsOf: assets.appendingPathComponent("sfx.h"), encoding: .utf8)
+        let windows = rows(block(sfx, "static const Score kScore[] = {"), #"\{k\w+, \d+, \w+, \d+, \d+, (\d+)\},\s*// (\S+)"#)
+        var n = 0
+        for mood in FaceLoops.moods {
+            for state in FaceLoops.states {
+                for v in 1...FaceLoops.count(mood: mood, state: state) {
+                    XCTAssertEqual(FaceLoops.ms(mood: mood, state: state, variant: v), loops[scenes[n]], "\(mood) \(state) \(v)")
+                    XCTAssertEqual(windows[n][1], "\(mood).\(state).\(String(format: "%02d", v))")
+                    XCTAssertEqual(FaceLoops.voiceMs(mood: mood, state: state, variant: v), Int64(windows[n][0])!,
+                                   "\(mood) \(state) \(v)")
+                    n += 1
+                }
+            }
+        }
+        XCTAssertEqual(n, 770)
+        XCTAssertEqual(scenes.count, n)
+        XCTAssertEqual(windows.count, n)
+    }
+
     /// ARCHITECTURE.md §3.2, PROTOCOL.md §3: the app knows how long each
     /// moment plays on the device at most, as firmware/src/app/behaviour.cpp's
     /// `onMoment` and `play` time it: an animation its loops (1–6) of its

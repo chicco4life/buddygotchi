@@ -400,7 +400,7 @@ frames stay exact) and a press draws at once for its first 60 ms. A screenshot a
 
 | Measure | Value | Source |
 | --- | --- | --- |
-| Firmware size | 2.50 MB (2,498,843 bytes), 79% of app0 | The board build that plays the 22 states (acts, one-shots, the finish, pokes), 2026-09-29 |
+| Firmware size | 2.50 MB (2,498,811 bytes), 79% of app0 | The board build that plays the 22 states (acts, one-shots, the finish, pokes), 2026-09-29 |
 | Minimum free heap, through a 35-minute soak with brain reactions | 73.7 KB, 24 B below where it stood after the first minute | The bench board, firmware `c6ccb03`, [2026-09-28](evidence/2026-09-28-tonight/firmware/README.md) |
 | Frames a second through `perf --motion`'s cheers and wiggles | 15.5 on average, 6 at the least: 6–7 in a second of the cheer and 20–24 in a wiggle's, as in the simulator (14.4 on average) | The bench board, firmware `3284d55`, 60 s, the same |
 | Drawing and pushing one changed frame (`draw_us`, `push_us`), through the soak | 1.0 ms and 8.8 ms typically; 2.1 ms and 22.5 ms at the most | The same, firmware `c6ccb03` |
