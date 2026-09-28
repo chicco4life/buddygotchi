@@ -46,8 +46,8 @@ public final class Core {
         var agent: Agent
         var id: String
         var project: String
-        /// The thread's name as its agent's app shows it, the last a
-        /// request brought: the strip shows it in the project's place
+        /// The thread's name as its agent's app shows it, the last an
+        /// event brought: the strip shows it in the project's place
         /// (BEHAVIORS.md §3.2).
         var name: String?
         /// The thread's workspace: a linked worktree's folder or the
@@ -158,8 +158,8 @@ public final class Core {
 
     static func key(_ agent: Agent, _ id: String) -> String { agent.rawValue + "/" + id }
 
-    /// The name a request brought for the session `key` names (the view's
-    /// keys are the same), or nil.
+    /// The thread's name as its agent's app shows it, for the session `key`
+    /// names (the view's keys are the same), or nil.
     public func name(about key: String) -> String? { sessions[key]?.name }
 
     /// The asker of a request that came as a `Notification` alone, which
@@ -258,6 +258,7 @@ public final class Core {
             s.project = place.project
             s.workspace = place.workspace
         }
+        if let name = event["name"]?.string { s.name = name }
 
         if step == .needsYou {
             // A request's own hook (`PermissionRequest`, `Elicitation`) says
@@ -275,7 +276,6 @@ public final class Core {
             let lateCopy = notice.map(s.clearedNotices.contains) == true
                 && s.clearedAt.map { now - $0 < Core.noticeLagMs || !s.calledSinceClear } == true
             if !lateCopy { s.notices.insert(kind) }
-            if let name = event["name"]?.string { s.name = name }
             if waiting {
                 if notice == nil {
                     if Array(s.askers.keys) == [Core.anyone], s.needsSince.map({ now - $0 < Core.noticeLagMs }) == true {
@@ -740,7 +740,7 @@ public struct SessionSummary: Equatable, Sendable {
     /// `claude` or `codex`.
     public var agent: String
     public var project: String
-    /// The thread's name, once a request brought one.
+    /// The thread's name as its agent's app shows it, once an event brought one.
     public var name: String?
     /// The thread's workspace: a linked worktree's folder or the branch,
     /// or nil when the folder has neither.

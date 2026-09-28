@@ -23,8 +23,8 @@ so Boop can't approve or deny anything. Three rules follow:
 3. **Send little.** Tool input and output, error text, file contents and
    transcripts never leave the hook client. From a tool's input it keeps
    only a topic tag (§3), and from an error only its class (§2). The only
-   words it keeps are your prompt, the agent's last message and, on a
-   hook that asks for you, the thread's name (§2).
+   words it keeps are your prompt, the agent's last message and the
+   thread's name (§2).
 
 ### The raw event
 
@@ -71,19 +71,25 @@ construction.
    | `kind` | `notification_type` | `Notification` |
    | `prompt` | `prompt`, up to 2,000 characters (`HookLine.maxMessage`) | `UserPromptSubmit` |
    | `message` | `last_assistant_message`, up to 2,000 characters | `Stop` |
-   | `name` | the thread's name, as the agent's app shows it (below) | `PermissionRequest`, `Elicitation`, `Notification` |
+   | `name` | the thread's name, as the agent's app shows it (below) | every hook |
    | `ts` | when `boop-hook` started, in ms | every hook |
 
    A payload cut off at 256 KB won't parse, so the hook name, session,
    `cwd`, `agent_id` and, for tool hooks, `tool_name` and `tool_use_id`
    are picked out of its start instead. It gets no topic.
 
-   **The thread's name** (`ThreadName`) is read on the hooks that ask for
-   you, for the needs-you strip. Claude's is the last title record in the
-   session's transcript (`transcript_path`): a `custom-title` (yours, or
-   the desktop app's) over an `ai-title` (the one Claude made up). Claude
-   appends them every so often, so the last 256 KB are read first, then
-   the last 4 MB. Codex's is the last `thread_name` for the thread in
+   **The thread's name** (`ThreadName`) is read on every hook, so the
+   needs-you strip, the popover and a cheer name the thread as you do,
+   and a rename shows at the thread's next hook. Claude's is the last
+   title record in the session's transcript (`transcript_path`): a
+   `custom-title` (yours, or the desktop app's) over an `ai-title` (the
+   one Claude made up). Claude appends them every so often (in 55 real
+   transcripts the last was always within 30 KB of the end), so the
+   last 256 KB are read first, then the last 4 MB; a tool call's hooks
+   (`PreToolUse`, `PostToolUse`, `PostToolUseFailure`) read only the
+   256 KB, so a thread with no title costs no wide read per call. A
+   thread has no name until Claude titles it, after its first prompt.
+   Codex's is the last `thread_name` for the thread in
    `session_index.jsonl` under `$CODEX_HOME` (else `~/.codex`). Only the
    name leaves: the rest of either file is read in memory and dropped.
    With no name found the line has none.

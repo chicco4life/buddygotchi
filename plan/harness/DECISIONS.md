@@ -328,7 +328,7 @@ gate, which says when something needs you.
    `react.animation`'s pick as `anim` when it isn't `none`, with one of
    the cheer's variations as `variant`, at random and never the last one,
    and `who`, the agent and thread NOW is about (the name its agent's
-   app shows, once a request brought one, else the view's `who(about:)`;
+   app shows, once an event brought one, else the view's `who(about:)`;
    none for a poke or an idle heartbeat), so the device
    names them ([PROTOCOL.md](../PROTOCOL.md) §3), and otherwise no animation,
    so it plays over whatever is showing (a wiggle included). Either way

@@ -1071,7 +1071,7 @@ final class CoreNeedsYouTests: XCTestCase {
 
     /// BEHAVIORS.md §3.2, PROTOCOL.md §3: the strip shows the thread's name
     /// in the project's place, cut to the device's field. The session keeps
-    /// the last name a request brought, and one with none sends no `name`.
+    /// the last name an event brought, and one with none sends no `name`.
     func testTheStripNamesTheThreadThatAsks() {
         let rig = CoreRig()
         var ask = rig.event(.needsYou, project: "landing", tool: "Bash")
@@ -1089,6 +1089,24 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(rig.state.attn?.project, "jetpack")
         XCTAssertEqual(rig.state.attn?.name, "")
         XCTAssertFalse(rig.state.jsonLine.contains("\"name\""))
+    }
+
+    /// ADAPTERS.md §2: every event can bring the thread's name, so the
+    /// popover and a cheer name a thread before it ever asks, and follow a
+    /// rename at its next event.
+    func testAThreadIsNamedBeforeItAsks() {
+        let rig = CoreRig()
+        var prompt = rig.event(.turnStart, project: "landing")
+        prompt.data["name"] = "Fix the nav"
+        rig.send(prompt)
+        XCTAssertEqual(rig.core.sessionList(at: rig.now).first?.name, "Fix the nav")
+        XCTAssertEqual(rig.core.name(about: Core.key(.claudeCode, "s1")), "Fix the nav")
+        rig.send(.activity, tool: "Bash")  // an event with no name keeps it
+        XCTAssertEqual(rig.core.sessionList(at: rig.now).first?.name, "Fix the nav")
+        var renamed = rig.event(.activity, tool: "Edit")
+        renamed.data["name"] = "Nav bar fix"
+        rig.send(renamed)
+        XCTAssertEqual(rig.core.sessionList(at: rig.now).first?.name, "Nav bar fix")
     }
 
     func testMoreThanOneShowsTheOldestWithACount() {

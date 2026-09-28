@@ -24,10 +24,10 @@ final class HookWireTests: XCTestCase {
         XCTAssertEqual(HookLine.decode(line.encoded()), line)
     }
 
-    /// ADAPTERS.md §2: a hook that asks for you gets the thread's name:
-    /// Claude's last title in the transcript, yours over its own, and
-    /// Codex's from its session index. Nothing else of either file leaves.
-    func testAskingHooksGetTheThreadsName() throws {
+    /// ADAPTERS.md §2: every hook gets the thread's name: Claude's last
+    /// title in the transcript, yours over its own, and Codex's from its
+    /// session index. Nothing else of either file leaves.
+    func testEveryHookGetsTheThreadsName() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("threadname-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -56,7 +56,9 @@ final class HookWireTests: XCTestCase {
         XCTAssertEqual(HookLine.decode(line.encoded()), line)
         XCTAssertEqual(ask("claude", "Notification", ["notification_type": "permission_prompt"])?.name,
                        "Thread name on \"needs you\" screen")
-        XCTAssertNil(ask("claude", "PreToolUse")?.name, "only a hook that asks looks")
+        for hook in ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"] {
+            XCTAssertEqual(ask("claude", hook)?.name, "Thread name on \"needs you\" screen", hook)
+        }
         XCTAssertNil(HookLine.extract(agent: "claude", payload: payload(["hook_event_name": "PermissionRequest",
                                                                          "session_id": "s", "transcript_path": transcript.path]),
                                       ts: 1)?.name, "nor without a source")
@@ -74,12 +76,15 @@ final class HookWireTests: XCTestCase {
         for _ in 0..<400 { long.append(filler) }
         try long.write(to: transcript)
         XCTAssertEqual(ask("claude", "PermissionRequest")?.name, "Far back")
+        XCTAssertEqual(ask("claude", "Stop")?.name, "Far back")
+        XCTAssertNil(ask("claude", "PreToolUse")?.name, "a tool call's hook reads only the last 256 KB")
 
         try jsonl([
             ["id": "t1", "thread_name": "Old codex name"], ["id": "t2", "thread_name": "Another thread"],
             ["id": "t1", "thread_name": "Codex thread"],
         ]).write(to: dir.appendingPathComponent("session_index.jsonl"))
         XCTAssertEqual(ask("codex", "PermissionRequest", session: "t1")?.name, "Codex thread")
+        XCTAssertEqual(ask("codex", "PreToolUse", session: "t1")?.name, "Codex thread")
         XCTAssertNil(ask("codex", "PermissionRequest", session: "t3")?.name)
     }
 

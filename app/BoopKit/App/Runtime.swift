@@ -323,7 +323,7 @@ public final class Runtime: @unchecked Sendable {
             moments.schedule.brain(moment, pending, now: clock())
             Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
         }, blocked: { core.mumbleBlock }, who: {
-            // The thread's name as its agent's app shows it, once a request
+            // The thread's name as its agent's app shows it, once an event
             // brought one, else the view's: its workspace, else its project.
             guard let key = acting()?.about, let who = view.who(about: key) else { return nil }
             return DeviceMoment.Who(agent: who.agent, thread: core.name(about: key) ?? who.thread)

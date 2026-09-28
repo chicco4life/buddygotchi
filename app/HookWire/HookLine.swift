@@ -37,8 +37,8 @@ public struct HookLine: Equatable, Sendable {
     /// `UserPromptSubmit`'s `prompt`: what you asked, up to `maxMessage`
     /// characters.
     public var prompt: String?
-    /// The thread's name as its agent's app shows it (`ThreadName`), on the
-    /// hooks that ask for you.
+    /// The thread's name as its agent's app shows it (`ThreadName`), on
+    /// every hook that finds one.
     public var name: String?
     /// When the hook ran, in milliseconds.
     public var ts: Int64
@@ -73,12 +73,14 @@ public struct HookLine: Equatable, Sendable {
     /// Longest prompt or last assistant message kept.
     public static let maxMessage = 2000
 
-    /// The hooks that ask for you, which carry the thread's name.
-    static let asking: Set<String> = ["PermissionRequest", "Elicitation", "Notification"]
+    /// The hooks that come with every tool call. They look for the thread's
+    /// name only near the end of its transcript, where it almost always is,
+    /// so a thread that has none doesn't cost a wide read on every call.
+    static let perCall: Set<String> = ["PreToolUse", "PostToolUse", "PostToolUseFailure"]
 
     /// Picks the kept fields out of a raw hook payload. Returns nil when the
-    /// payload has no hook name or session. With `names`, a hook that asks
-    /// for you also gets the thread's name from there.
+    /// payload has no hook name or session. With `names`, the line also
+    /// gets the thread's name from there.
     public static func extract(agent: String, payload: Data, ts: Int64, names: ThreadName.Source? = nil) -> HookLine? {
         if let object = try? JSONSerialization.jsonObject(with: payload) as? [String: Any] {
             return extract(agent: agent, json: object, ts: ts, names: names)
@@ -115,8 +117,9 @@ public struct HookLine: Equatable, Sendable {
         default:
             break
         }
-        if let names, asking.contains(hook) {
-            line.name = ThreadName.find(agent: agent, json: json, session: session, in: names)
+        if let names {
+            line.name = ThreadName.find(agent: agent, json: json, session: session, in: names,
+                                        wide: !perCall.contains(hook))
         }
         return line
     }

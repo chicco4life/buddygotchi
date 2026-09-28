@@ -44,13 +44,13 @@ Claude `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | `phase` | `start`, `wait` or `end` for a type with a lifetime; left out for one that just happens |
 | `specific_type` | The source's own name for it: the hook (`UserPromptSubmit`, `Interrupt`), the device's message (`input`), the clock's reason (`idle`, `working`), the button that turned the mic on (`device` or `app`) or the action's name (`react`, `wiggle`) |
 | `session`, `subagent`, `cwd` | An agent's session, the Claude subagent's `agent_id`, and the working directory; an action about a session names it too. Left out when there's none |
-| `data` | The type's own fields, below |
+| `data` | The type's own fields, below. Every agent event can also carry `name`, the thread's name as its agent's app shows it, when the hook found one ([ADAPTERS.md](../ADAPTERS.md) §2): for the strip, the popover and a cheer. The view leaves it out |
 
 | `type` | `source` | `phase` | `data` |
 | --- | --- | --- | --- |
 | `session` | agent | start / end | — |
 | `turn` | agent | start / end | start: `prompt`, what you asked. end: `outcome` (`done`, `failed` or `stopped`); `error` for a failed one (its class, [ADAPTERS.md](../ADAPTERS.md) §2); `message`, the agent's last message, on `Stop`; `notice` and `tool` for how a stopped one stopped |
-| `tool` | agent | start / wait / end | `tool`, `tool_use_id`. start: `topic` ([ADAPTERS.md](../ADAPTERS.md) §3). wait: `for` (`permission` or `input`), `notice` for a `Notification`, `name`, the thread's name, when the hook found one (the strip's; the view leaves it out). end: `failed` and `error` (its class), Claude only |
+| `tool` | agent | start / wait / end | `tool`, `tool_use_id`. start: `topic` ([ADAPTERS.md](../ADAPTERS.md) §3). wait: `for` (`permission` or `input`), `notice` for a `Notification`. end: `failed` and `error` (its class), Claude only |
 | `subagent` | claude | end | — |
 | `poke` | device | — | — |
 | `talk` | mic | — | `words`: what the Mac's mic heard, as macOS transcribed it, up to 2,000 characters (`HookLine.maxMessage`). Only when it heard something |
