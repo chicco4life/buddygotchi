@@ -1,7 +1,8 @@
 import Foundation
 
 /// What plays on the device and until when (ARCHITECTURE.md §3.2). The
-/// tap's wiggle plays at once. The brain's wait
+/// tap's wiggle, which the device plays on its own, plays at once. The
+/// brain's moments wait
 /// their turn: one at a time, each once the line playing has finished, and
 /// a reaction's face too unless it's the brain's own, held on for its
 /// loops after its mumble: the next reaction replaces that, so none cuts
@@ -34,11 +35,11 @@ public struct MomentSchedule {
     /// count its wait to when the turn came. Later than that, the wait is
     /// counted to now, so a moment held up by a Mac asleep is dropped.
     public static let lateMs: Int64 = 1000
-    /// How long past the cheer's reckoned end it may still be playing on
+    /// How long past a mumble's reckoned end it may still be playing on
     /// the device, since every line reaches it a little after it's sent.
     public static let linkSlackMs: Int64 = 500
 
-    /// When the tap's animation playing ends.
+    /// When the tap's wiggle playing ends.
     public private(set) var animUntil: Int64 = 0
     /// When the line playing ends, and with it a reaction's face, as the
     /// app reckons it; or when the device said the brain's moment ended.
@@ -48,8 +49,6 @@ public struct MomentSchedule {
     /// its mumble has played, from which the next brain moment may replace
     /// its face.
     public private(set) var holder: (id: Int, until: Int64, sayUntil: Int64)?
-    /// When a cheer played at once ends; nil before the first.
-    public private(set) var cheerUntil: Int64?
     /// The look and mood of the last `state` sent.
     public var look = "idle"
     public var mood = MoodAction.initial
@@ -76,45 +75,21 @@ public struct MomentSchedule {
     /// line or face.
     public var busyUntil: Int64 { max(animUntil, lineFree) }
 
-    /// How long `moment` plays at most if it starts at `now`, in the design
-    /// showing: the look's, or, while a cheer may be playing, the longer of
-    /// the look's and the cheer's. The device may time it by either: a tap
-    /// the app hasn't heard of yet may have ended the cheer, or the line
-    /// may reach the device just after the cheer ends there.
-    public func playMs(_ moment: DeviceMoment, now: Int64) -> Int64 {
-        let ms = moment.playMs(look: look, mood: mood)
-        guard let cheerUntil, now < cheerUntil + Self.linkSlackMs else { return ms }
-        return max(ms, moment.playMs(look: "task_complete", mood: mood))
+    /// How long `moment` plays at most, in the look and mood showing.
+    public func playMs(_ moment: DeviceMoment) -> Int64 {
+        moment.playMs(look: look, mood: mood)
     }
 
-    /// A moment played at once (the tap's wiggle). An animation replaces the one playing
-    /// and stops the line, and with it the brain's moment; a line replaces
-    /// the line. Anything waiting waits for a new line too. While
-    /// something needs you, the device plays none of it.
-    public mutating func rule(_ moment: DeviceMoment, now: Int64) {
-        guard !attn else { return }
-        let ms = playMs(moment, now: now)
-        if let anim = moment.anim, DeviceMoment.anims.contains(anim) {
-            animUntil = now + ms
-            lineUntil = moment.say != nil ? now + ms : now
-            holder = nil
-            cheerUntil = anim == "cheer" ? now + ms : cheerUntil.map { min($0, now) }
-        } else if moment.say != nil {
-            lineUntil = now + ms
-            holder = nil
-        }
-    }
-
-    /// The device's own wiggle, at a tap: it cuts whatever plays, as a
-    /// rule's wiggle does, unless something needs you (BEHAVIORS.md §3.3).
-    /// Except a brain moment that holds the line: the app hears the tap
-    /// after sending what it thought was playing, so the moment may have
-    /// reached the device after the tap and play on. Its `ended` frees the
-    /// line, which the device sends at once for a moment its tap cut.
+    /// The device's own wiggle, at a tap: it replaces the wiggle playing
+    /// and cuts the line, unless something needs you (BEHAVIORS.md §3.3).
+    /// Not a brain moment that holds the line, though: the app hears the
+    /// tap after sending what it thought was playing, so the moment may
+    /// have reached the device after the tap and play on. Its `ended` frees
+    /// the line, which the device sends at once for a moment its tap cut.
     public mutating func tapped(now: Int64) {
-        let held = holder
-        rule(DeviceMoment(anim: "wiggle"), now: now)
-        if !attn { holder = held }
+        guard !attn else { return }
+        animUntil = now + playMs(DeviceMoment(anim: "wiggle"))
+        lineUntil = now
     }
 
     /// A `state` sent: its look and mood time what plays next, and "needs
@@ -131,7 +106,6 @@ public struct MomentSchedule {
     public mutating func stop(now: Int64) {
         animUntil = min(animUntil, now)
         lineUntil = min(lineUntil, now)
-        cheerUntil = cheerUntil.map { min($0, now) }
         holder = nil
     }
 
@@ -204,7 +178,7 @@ public struct MomentSchedule {
                 drop(moment, pending)
                 continue
             }
-            lineUntil = now + playMs(moment, now: now)
+            lineUntil = now + playMs(moment)
             holder = nil  // its face is replaced; the device still says how it ended
             return (moment, pending, dropped, next)
         }

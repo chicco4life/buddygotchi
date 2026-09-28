@@ -182,7 +182,7 @@ twice (a forced pass, from a dev line on the hook socket):
 | `variant` | int ≥ 1, optional | With the cheer: which of its variations plays, picked at random by `react`, never the last one ([harness/DECISIONS.md](harness/DECISIONS.md) §5) | The animation's variation. Missing reads as 1, and one past its variations is held to its last. A face with no animation takes the look's variation showing |
 | `id` | int 1–2147483647, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Each time the app starts, its ids start at a random number and count up (back to 1 after 2147483647), so a moment an earlier launch left playing can't share an id with a new one | Answered with one `ended` carrying this `id` (§4). Missing, or anything but an integer from 1 to 4,294,967,295 (a fraction too): no `ended` |
 
-The rules' moments play at once. A brain mumble waits its turn behind
+A tap's wiggle plays at once. A brain mumble waits its turn behind
 any line or reaction's face playing (not a wiggle, which it plays
 over) until the device's `ended` for the last one, and the Mac drops it
 rather than send it more than 5 s late

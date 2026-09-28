@@ -131,8 +131,8 @@ public final class Runtime: @unchecked Sendable {
     var jevKey: String??
     var readingJevKey = false
     /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): the
-    /// rules' moments play at once, and the brain's wait their turn in
-    /// `schedule` behind them and the brain's earlier ones. Each of the
+    /// tap's wiggle plays at once, and the brain's moments wait their turn
+    /// in `schedule` behind the brain's earlier ones. Each of the
     /// brain's goes to the device with an id, holds the schedule's line
     /// until the device says how it ended, and ends its handle then, or
     /// when it can't have played (harness/DECISIONS.md §5).
@@ -172,7 +172,7 @@ public final class Runtime: @unchecked Sendable {
         func send(_ moment: inout DeviceMoment, _ pending: Pending, now: Int64) {
             lastId = Self.nextId(after: lastId)
             moment.id = lastId
-            let deadline = now + schedule.playMs(moment, now: now) + Self.endGraceMs
+            let deadline = now + schedule.playMs(moment) + Self.endGraceMs
             playing.append((lastId, pending, deadline))
             schedule.hold(id: lastId, moment, now: now, until: deadline)
         }

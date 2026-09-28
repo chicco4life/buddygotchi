@@ -178,14 +178,15 @@ turn's length is the time between its start and its end in the
 transcript, the time the Mac slept included: a lid closed overnight
 between a turn's two minutes makes it a very long one.
 
-**Moments.** The rules' moments play at once, each replacing whatever is
-playing ([BEHAVIORS.md](BEHAVIORS.md) §3). The brain's wait in the
+**Moments.** A tap's wiggle, which the device plays on its own, plays at
+once, replacing whatever is playing ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
+The brain's moments wait in the
 moment schedule, one at a time, until no line or reaction's face plays,
 except that a reaction's face held on for its loops after its mumble
 holds up the brain's next only until that mumble has played (with the
 link's 0.5 s, below): the next goes then and replaces the face, which the
-device counts as done ([PROTOCOL.md](PROTOCOL.md) §4). They have no
-animation, so they play over a wiggle without cutting it, and a wiggle
+device counts as done ([PROTOCOL.md](PROTOCOL.md) §4). One with no
+animation plays over a wiggle without cutting it, and a wiggle
 stops any line on the device, so a tap lets one waiting behind a line
 play at once, over it. One that has waited longer
 than 5 s for its turn is dropped, since a late reaction is worse than
@@ -296,7 +297,7 @@ hops onto it.
 | Timer | On | Does |
 | --- | --- | --- |
 | Tick, every 1 s | `home` | Reports the wall clock, runs the core's timers, sends the 10 s keepalive, gives up on a brain moment whose `ended` hasn't come in time ([harness/DECISIONS.md](harness/DECISIONS.md) §5), runs the moment pump, and ends any action left in progress too long ([harness/HARNESS.md](harness/HARNESS.md) §5.1) |
-| Moment pump | `home` | Plays the next brain moment when its turn comes, and drops one that has waited too long. Whatever frees the line sooner (a rule's animation, a tap, the device's `ended`, "needs you") runs it at once, and so does a disconnect, though a brain moment still holds the line then (§3.2). Its timer has 5 ms of leeway, and counts the Mac's uptime, which stops while it sleeps, so one the clock has passed is replaced rather than waited for |
+| Moment pump | `home` | Plays the next brain moment when its turn comes, and drops one that has waited too long. Whatever frees the line sooner (a tap, the device's `ended`, "needs you") runs it at once, and so does a disconnect, though a brain moment still holds the line then (§3.2). Its timer has 5 ms of leeway, and counts the Mac's uptime, which stops while it sleeps, so one the clock has passed is replaced rather than waited for |
 
 At start the runtime takes the lock, reads the memory files (it won't run
 before setup), settings and mood, builds the core, Voice, the actions and
