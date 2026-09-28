@@ -1,0 +1,9 @@
+pass  35-talk-gets-an-answer.json  Talking to Boop always gets a face, kind or hurt  (5/5 runs)
+pass  36-talk-when-grumpy.json  Talking to a fed-up Boop still gets a face  (5/5 runs)
+pass  37-talk-when-idle.json  Talking to Boop with no agent working still gets a face  (5/5 runs)
+pass  38-talk-twice-over-a-face.json  Saying two things quickly gets a face for each, even mid-face  (5/5 runs)
+pass  39-talk-after-a-failure.json  Talking to Boop after a failure gets a face on your side  (5/5 runs)
+pass  40-talk-garbled-words.json  Garbled or empty-sounding words still get a face  (5/5 runs)
+pass  54-talk-while-irritated.json  Talked to while irritated, Boop answers as irritated, not grumpy  (3/3 runs)
+7/7 passed in every run with jev:jev-latest
+latency: median 215 ms, slowest 385 ms (deadline 1500 ms)

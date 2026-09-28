@@ -46,8 +46,6 @@ Examples:
   → annoyed, "oops", once
 - NOW: claude's build passed on "api" after failing.
   → proud, "finally", twice
-- NOW: claude finished turn 4 on "api": stopped, a long turn, 8 tool calls.
-  → curious, "hmm", once
 - NOW: claude finished turn 5 on "api": failed, a long turn, 15 tool calls.
   → grumpy, failure, "ugh", once
 - NOW: claude finished turn 8 on "api": failed, a very long turn, 30 tool calls.
@@ -62,3 +60,5 @@ Examples:
   → proud, no word, twice
 - NOW: You said to Boop: "you're useless".
   → wounded, "nope", once
+- NOW: You said to Boop: "so the, um".
+  → curious, "hmm", once

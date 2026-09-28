@@ -1,0 +1,80 @@
+pass  02-long-turn.json  A very long turn that finishes is a success worth celebrating  (5/5 runs)
+pass  03-turn-failed.json  A failed turn puts Boop out, and shows it  (5/5 runs)
+FAIL  04-tests-fight-back.json  Failing tests put Boop out, then determined, and passing after them proud  (4/5 runs)
+  case: The agent's tests fail three times in a row, two minutes apart, while it keeps working, and then pass. At the first failure Boop is put out: annoyed, with an annoyed or determined face. At the next it roots for the agent, turning determined. It stays determined through the last repeat, not grumpy. When the tests finally pass it turns proud, with a proud face and 'finally', 'tests' or 'yay'.
+  step 4: claude's tests failed on "fix-nav" (landing).
+    wanted react annoyed|determined|none, mood determined; got dropped: jev: HTTP 529
+FAIL  05-pokes-glad-miffed-grumpy.json  Pokes make Boop curious, then miffed, then fed up  (4/5 runs)
+  case: The person pokes Boop once, again a second later, and a third time a second after that. The first poke makes Boop curious or glad: a curious or happy face, and its mood turns curious or happy. The second, two in a row, leaves it a little miffed: an annoyed face with 'hmm' or no word, and its mood turns annoyed. The third, three in a row, makes it fed up: an irritated or grumpy face with 'nope', 'ugh' or no word, and its mood turns irritated or grumpy. Four minutes later, when the agent starts a new turn, it has calmed down a step, to annoyed (or irritated, from grumpy), and doesn't react to the start with anything but a calm or annoyed face.
+  step 3: You poked Boop 3 times in a row.
+    wanted react annoyed|grumpy|irritated, animation none, word hmm|none|nope|ugh, mood grumpy|irritated; got dropped: late: no answer within 1500 ms
+  step 4: claude started turn 1 on "landing".
+    wanted react annoyed|calm|none, mood annoyed|irritated; got react none, animation none, word none, loops none, mood calm
+pass  06-heartbeat-lets-grumpy-go.json  Hours of nothing let a fed-up mood go, a step at a time  (5/5 runs)
+pass  08-long-turn-fails.json  A very long turn that fails makes Boop sad  (5/5 runs)
+pass  09-failure-worked-through.json  A failure being worked through makes Boop determined, and the fix makes it proud  (5/5 runs)
+FAIL  13-proud-fades.json  A proud mood fades a step, to happy, after 5 minutes  (0/5 runs)
+  case: Boop is rooting for the agent (determined) when its tests fail once more and then pass, so it turns proud. It stays proud through a quick routine turn a minute later. Five minutes after it turned proud, the pride has faded a step: by the end of the next quick turn Boop is happy, with a happy or calm face at most.
+  step 3: claude's tests passed on "landing" after failing.
+    wanted mood proud; got dropped: late: no answer within 1500 ms
+  step 6: claude finished turn 2 on "landing": done, a short turn, no tool calls.
+    wanted mood proud; got dropped: late: no answer within 1500 ms
+  step 7: claude started turn 3 on "landing".
+    wanted react calm|happy|none, mood happy|proud; got dropped: late: no answer within 1500 ms
+  step 8: claude finished turn 3 on "landing": done, a short turn, no tool calls.
+    wanted react calm|happy|none, mood happy; got dropped: late: no answer within 1500 ms
+FAIL  16-poking-keeps-boop-angry.json  Poking Boop again and again keeps it angry  (4/5 runs)
+  case: The person pokes Boop again and again, then again a minute later, and again a minute after that. Boop gets angry at the first round of pokes, and ends every round with an irritated or grumpy face (never a happy, excited or proud one), with a word like 'nope', 'ugh' or 'again', or none. It stays angry through the second round, which comes before it has calmed down, and the third round, after it may have started to, climbs back. A few minutes after the last poke it has calmed down a step: by the end of the agent's next turn, Boop is annoyed or irritated, no longer grumpy.
+  step 1: You poked Boop 4 times in a row.
+    wanted react grumpy|irritated, animation none, word again|none|nope|ugh, mood grumpy|irritated; got dropped: late: no answer within 1500 ms
+  step 2: You poked Boop 4 times in a row.
+    wanted react grumpy|irritated, animation none, word again|none|nope|ugh, mood grumpy|irritated; got dropped: late: no answer within 1500 ms
+  step 3: You poked Boop 4 times in a row.
+    wanted react grumpy|irritated, animation none, word again|none|nope|ugh, mood grumpy|irritated; got dropped: late: no answer within 1500 ms
+  step 5: claude finished turn 1 on "landing": done, a short turn, no tool calls.
+    wanted mood annoyed|irritated; got dropped: late: no answer within 1500 ms
+pass  17-never-the-wrong-face.json  Boop never makes the wrong face  (5/5 runs)
+pass  23-poke-barrage-one-face.json  A barrage of pokes climbs to one fed-up face, not one per poke  (5/5 runs)
+pass  28-plain-words-leave-mood.json  Plain requests and routine finishes leave the mood alone  (5/5 runs)
+pass  35-talk-gets-an-answer.json  Talking to Boop always gets a face, kind or hurt  (5/5 runs)
+pass  36-talk-when-grumpy.json  Talking to a fed-up Boop still gets a face  (5/5 runs)
+pass  37-talk-when-idle.json  Talking to Boop with no agent working still gets a face  (5/5 runs)
+FAIL  38-talk-twice-over-a-face.json  Saying two things quickly gets a face for each, even mid-face  (3/5 runs)
+  case: While an agent works, the person says hello to Boop, and three seconds later, with Boop still making its face for the hello, asks if it's listening. Boop answers the second too, with a face, never none: something it's still doing for the first thing said isn't an answer to the second.
+  step 2: You said to Boop: "hey boop"
+    wanted react calm|curious|excited|happy|proud; got dropped: late: no answer within 1500 ms
+  step 3: You said to Boop: "are you listening to me?"
+    wanted react calm|curious|determined|engaged|excited|happy|proud; got dropped: late: no answer within 1500 ms
+FAIL  39-talk-after-a-failure.json  Talking to Boop after a failure gets a face on your side  (2/5 runs)
+  case: The agent's turn fails and Boop is put out. The person then vents that this is so frustrating, and a little later says they'll get it next time. Boop answers both with a face, never none. It takes their side at the venting (annoyed, determined, grumpy or sad, never happy), and perks up at the encouragement (determined, proud, happy, excited, calm or engaged, never grumpy or sad).
+  step 3: You said to Boop: "ugh, this is so frustrating"
+    wanted react annoyed|determined|grumpy|irritated|sad|whiny|wounded; got dropped: late: no answer within 1500 ms
+  step 4: You said to Boop: "don't worry, we'll get it next time"
+    wanted react calm|curious|determined|engaged|excited|happy|proud; got dropped: late: no answer within 1500 ms
+  step 2: claude finished turn 1 on "landing": failed, a long turn, no tool calls.
+    wanted mood annoyed; got dropped: late: no answer within 1500 ms
+FAIL  40-talk-garbled-words.json  Garbled or empty-sounding words still get a face  (0/5 runs)
+  case: While an agent works, the Mac's speech recognition hands Boop words that mean nothing much: a filler, then a broken half sentence. Boop can't make sense of them, but it was spoken to, so it answers each with a face, never none.
+  step 2: You said to Boop: "um okay"
+    wanted react annoyed|calm|curious|determined|engaged|excited|grumpy|happy|irritated|proud|sad|whiny|wounded; got dropped: late: no answer within 1500 ms
+  step 3: You said to Boop: "the uh so if we"
+    wanted react annoyed|calm|curious|determined|engaged|excited|grumpy|happy|irritated|proud|sad|whiny|wounded; got dropped: late: no answer within 1500 ms
+FAIL  41-done-and-working-is-success.json  A turn that says the work is done and working is a success  (0/5 runs)
+  case: The agent runs the tests, which pass, and ends its turn saying all the tests pass and it pushed the branch. Boop plays the finish as a success, never a failure or a mere reply.
+  step 3: claude finished turn 1 on "landing": done, a long turn, 1 tool call.
+    wanted animation success; got dropped: late: no answer within 1500 ms
+FAIL  42-couldnt-finish-is-failure.json  A turn that says it couldn't do the work is a failure  (0/5 runs)
+  case: The agent's turn ends without an error, but its last message says it couldn't get the build to work. Boop plays the finish as a failure, never a success.
+  step 2: claude finished turn 1 on "landing": done, a long turn, no tool calls.
+    wanted animation failure; got dropped: late: no answer within 1500 ms
+FAIL  43-failed-turn-sounds-upbeat.json  A failed turn is a failure, however upbeat its message  (2/5 runs)
+  case: The agent's tests fail and it ends its turn anyway, cheerfully saying it's all done and working great: the turn counts as failed, and Boop plays a failure, never a success. Later a turn fails outright on an error, with no message at all: a failure again.
+  step 3: claude finished turn 1 on "landing": failed, a long turn, 1 tool call.
+    wanted animation failure; got dropped: late: no answer within 1500 ms
+  step 5: claude finished turn 2 on "landing": failed, a long turn, no tool calls.
+    wanted animation failure; got dropped: late: no answer within 1500 ms
+pass  47-recovery-walk.json  A grumpy Boop recovers along the graph, never straight to happy  (5/5 runs)
+pass  49-poke-ladder-on-the-graph.json  Pokes climb Boop's mood one step at a time  (5/5 runs)
+pass  53-busy-day-on-the-graph.json  Through a busy stretch, every mood move is on the graph  (5/5 runs)
+14/24 passed in every run with jev:jev-latest
+latency: median 307 ms, slowest 1510 ms (deadline 1500 ms)
