@@ -235,3 +235,57 @@ finish is reply_ready.
   doesn't apply to it.
 - A 2.7 MB image flashes in about twice the time.
 - Jev evals can't run without the owner's key.
+
+## 6. Contracts the lanes share
+
+Fixed before the lanes start, so they can work in parallel.
+
+**Mood order** (firmware `render::Mood`, facegen, sfxgen, boopctl, `FaceLoops`):
+happy, excited, proud, curious, determined, grumpy, sad, calm, engaged,
+annoyed, irritated, whiny, wounded. The first seven keep their numbers.
+
+**State order** (`render::SceneState`, facegen `STATES`, `FaceLoops.states`):
+idle, working, needs_you, task_complete, asleep, no_app, listening, then
+starting, planning, terminal, tool_use, searching, analyzing, testing,
+delegating, helper_return, waiting, reply_ready, error, stopped, poked,
+tap_spam. The first seven keep their numbers.
+
+**Variations.** A mood × state has its own count (1–9). Each variation
+may carry `outcome` (`success`/`failure`, task_complete only) and `ctx`
+(`new_task`/`session`/`continuation`, starting only). facegen writes both
+into faces.h and `FaceLoops.swift`, with
+`FaceLoops.count(mood:state:outcome:ctx:)` and `ms(mood:state:variant:)`.
+A variant number is 1-based within its mood × state, over all its
+variations; filters pick among those that match.
+
+**`state` line** gains `act`, optional: one of planning, terminal,
+tool_use, searching, analyzing, testing, delegating, waiting. The visual
+is needs_you with `attn`, else `act` while `base` is `working`, else
+`base`. `variant` is that visual's. Old firmware ignores `act`.
+
+**`moment.anim`** gains: `starting` (with `ctx`), `helper_return`,
+`error`, `stopped` (rule moments from the core, no `id`, no brain), and
+`task_complete` (with `outcome`) and `reply_ready` (the brain's, from
+`react.animation` success/failure/reply, with `id`, `loops`, `mood`,
+`who`). `cheer` stays readable as task_complete success, and the Mac
+stops sending it. `wiggle` stays for the dashboard; a tap plays `poked`.
+One-shots play once (or `loops` times) and hand back to the look;
+none plays while `attn` or listening holds the screen.
+
+**Taps.** The device counts taps itself: a tap within 3 s of the last
+extends the run; the 3rd and later play `tap_spam`, the others `poked`
+(the Mac's `inARowMs` 3000 and `answersRunFrom` 3).
+
+**Ownership.** Lane art (`ms/art`): `internal/boop-design/`,
+`internal/tools/facegen/`, `internal/tools/sfxgen/`, `firmware/` (render,
+voice, effect track, assets, partition, then behaviour for the states),
+`internal/firmware/`, generated `FaceLoops.swift` and `FaceDesigns.swift`,
+`boopctl`. Lane states (`ms/states`): `app/HookWire/`, `app/BoopHook/`,
+`app/BoopKit/Adapters/`, `app/BoopKit/Install/`, `app/BoopKit/Core/`
+(but not the generated files), `StateSnapshot`, `DeviceMoment`, rule
+moments, `Runtime` wiring. Lane moods (`ms/moods`): `app/BoopKit/Actions/`
+(Mood, React), `MoodGraph`, `app/BoopKit/Voice/`, `plan/steering/` and
+its bundled copy, `internal/app/Evals/`, `internal/app/BoopDevKit/Eval/`.
+Each lane updates the specs for its files. Shared hotspots
+(`Runtime.swift`, `DeviceMoment.swift`, the ARCHITECTURE decision log)
+are merged by the orchestrator.
