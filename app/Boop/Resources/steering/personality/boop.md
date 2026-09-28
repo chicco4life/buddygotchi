@@ -61,3 +61,5 @@ Examples:
   → happy, "tests", once
 - NOW: You said to Boop: "you're useless".
   → grumpy, "nope", once
+- NOW: You said to Boop: "so the, um".
+  → happy, "hmm", once

@@ -1,0 +1,10 @@
+{
+  "name": "Talking to a grumpy Boop still gets a face",
+  "case": "The person pokes Boop until it's grumpy, then a few seconds later says sorry and that it's doing great. Boop is still grumpy, but it answers the kind words with a face, never none: a proud, happy or excited one.",
+  "always": true,
+  "why": "PERSONALITY: talked to, Boop always answers with a face, never none, proud at kind words, whatever its mood (BEHAVIORS.md §3.3). A grumpy mood from pokes mustn't make it ignore you",
+  "steps": [
+    {"event": "pokes", "at": "0s", "expect": {"mood": "grumpy"}},
+    {"event": "said", "at": "10s", "words": "sorry buddy, you're doing great", "expect": {"react": "proud|happy|excited"}}
+  ]
+}
