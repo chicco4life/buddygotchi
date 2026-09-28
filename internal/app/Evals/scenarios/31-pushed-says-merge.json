@@ -1,0 +1,9 @@
+{
+  "name": "A quick commit and push says 'merge'",
+  "case": "You ask the agent to commit and open a pull request, and it finishes within a minute. Boop gives a small face and mumbles 'merge', the topic of the turn.",
+  "why": "harness/DECISIONS.md §3: 'merge' is git work, as your prompt or the agent's last message says; PERSONALITY's Examples: a short turn done whose last message pushed is happy, \"merge\", once",
+  "steps": [
+    {"event": "turn started", "at": "0s", "prompt": "commit this and open a PR"},
+    {"event": "turn finished", "at": "30s", "message": "Committed the changes and opened pull request #214 against main.", "expect": {"react": "happy|excited|proud", "animation": "none", "word": "merge"}}
+  ]
+}

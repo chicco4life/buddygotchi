@@ -62,6 +62,10 @@ public final class ReactAction: Action {
         Option("build", "NOW is about a build.", notFor: "Tests."),
         Option("deploy", "NOW is about a deploy."),
         Option("docs", "NOW is about docs."),
+        Option("bug", "NOW is about a bug: your prompt or the agent's last message says one was hunted or fixed.",
+               notFor: "A failed check or turn with no word of a bug."),
+        Option("merge", "NOW is git work: a commit, merge, push or pull request, as your prompt or the agent's last message says."),
+        Option("review", "NOW is a review of code or a pull request, as your prompt or the agent's last message says."),
     ]
 
     /// The animations a reaction can play in its face (DECISIONS.md §3):

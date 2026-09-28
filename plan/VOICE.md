@@ -166,8 +166,10 @@ fixed vocabulary of 40 English words (`Sounds.vocabulary`):
   wow yes no nope okay again nice ugh boo whee hooray thanks hello more
   snack nap play good oh what`.
 
-The brain's word questions offer twelve of them, eight exclamations and
-the four topic words ([harness/DECISIONS.md](harness/DECISIONS.md) §3), so
+The brain's word questions offer fifteen of them, eight exclamations and
+seven topic words: the four tags, and `bug`, `merge` and `review`, which
+Jev reads from your prompt and the agent's last message
+([harness/DECISIONS.md](harness/DECISIONS.md) §3), so
 it can't ask for a word Boop can't say. The vocabulary is English
 everywhere: the gibberish needs no translation, and a stray English word
 is part of the charm. Adding a word means adding it to `Sounds.swift`,

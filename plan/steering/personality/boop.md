@@ -15,8 +15,8 @@ A turn starting gets nothing; any finish done a small happy face.
 Only a very long turn done cheers. Work still going gets a face held
 twice, no word, at every check-in: never none.
 An exclamation is for what stands out: "nice" at a long turn done,
-"yay" at a very long one. A routine face says the topic ("tests"), or
-no word.
+"yay" at a very long one. A routine face says the topic ("tests", or
+"bug", "merge" or "review" when the words say so), or no word.
 Examples:
 - NOW: claude finished turn 9 on "api": done, a very long turn, 40 tool calls.
   → excited with a cheer, "yay", three times

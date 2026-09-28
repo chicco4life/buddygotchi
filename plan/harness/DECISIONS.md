@@ -180,7 +180,7 @@ meaning is its criterion.
 | `react.animation` | `react` | If Boop reacts, does it play an animation? | the NOW section | as `react.mood` | `none` and each reaction animation: today only `cheer` |
 | `react.loops` | `react` | If Boop reacts, how long does it hold the face? | the NOW section | as `react.mood` | Four lengths, once to four times |
 | `word.feeling` | `react` | If Boop mumbles, which exclamation fits NOW? | the NOW section | as `react.mood` | `none` and eight exclamations |
-| `word.about` | `react` | If Boop mumbles, which topic word is NOW about? | the NOW section | the PERSONALITY section's Examples | `none` and four topics |
+| `word.about` | `react` | If Boop mumbles, which topic word is NOW about? | the NOW section | the PERSONALITY section's Examples | `none` and seven topics |
 
 **`react.mood` picks a face.** Its options are `none` and the six moods,
 and a reaction is that mood's face for a moment: the device draws
@@ -238,7 +238,7 @@ long.
 
 **The words** are two questions over two short lists, so the two picks
 are never near-synonyms: an exclamation, and what NOW is about. They're
-the twelve of Voice's real words ([VOICE.md](../VOICE.md) §6) that
+the fifteen of Voice's real words ([VOICE.md](../VOICE.md) §6) that
 something in the state can ground, and a test checks each is one of
 Voice's.
 
@@ -258,6 +258,9 @@ Voice's.
 | | `build` | NOW is about a build. Not for tests |
 | | `deploy` | NOW is about a deploy |
 | | `docs` | NOW is about docs |
+| | `bug` | NOW is about a bug: your prompt or the agent's last message says one was hunted or fixed. Not for a failed check or turn with no word of a bug |
+| | `merge` | NOW is git work: a commit, merge, push or pull request, as your prompt or the agent's last message says |
+| | `review` | NOW is a review of code or a pull request, as your prompt or the agent's last message says |
 
 ## 4. The `mood` action
 
