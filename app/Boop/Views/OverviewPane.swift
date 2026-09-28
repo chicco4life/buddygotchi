@@ -43,8 +43,12 @@ struct OverviewPane: View {
                     BoopFace(mood: FaceMood(model.status), design: model.status?.snapshot.mood ?? MoodAction.initial,
                              size: faceSize)
                     VStack(alignment: .leading, spacing: 3) {
-                        // A long name shrinks a little before it's cut.
-                        Text(model.name).font(.boop(18)).lineLimit(1).minimumScaleFactor(0.8)
+                        HStack(alignment: .firstTextBaseline, spacing: Theme.gap) {
+                            // A long name shrinks a little before it's cut.
+                            Text(model.name).font(.boop(18)).lineLimit(1).minimumScaleFactor(0.8)
+                                .layoutPriority(1)
+                            if let mood = model.status?.snapshot.mood { moodLabel(mood) }
+                        }
                         HStack(spacing: 6) {
                             StateDot(tone: tone, pulsing: live)
                             Text(headline).font(.system(size: 12)).foregroundStyle(Theme.inkSoft).lineLimit(1)
@@ -68,6 +72,21 @@ struct OverviewPane: View {
     }
 
     private let faceSize: CGFloat = 46
+
+    /// Boop's mood in words, labelled, so it doesn't rest on telling the
+    /// faces apart. The face already draws in the mood's designs.
+    private func moodLabel(_ mood: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text("Mood").foregroundStyle(Theme.inkFaint)
+            Text(mood.capitalized).foregroundStyle(Theme.inkSoft)
+                .contentTransition(.opacity)
+        }
+        .font(.system(size: 11, weight: .medium))
+        .lineLimit(1)
+        .fixedSize()
+        .animation(.boopSettle, value: mood)
+        .accessibilityElement(children: .combine)
+    }
 
     /// Small reminders of what's set in Settings, so a silent Boop never
     /// looks broken. Nothing shows when everything is the usual.
