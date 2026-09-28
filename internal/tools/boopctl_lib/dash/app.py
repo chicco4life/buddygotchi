@@ -104,8 +104,8 @@ class Dash(App[None]):
     #stale { display: none; background: $error; color: $text; padding: 0 1; text-style: bold; }
     #stale.shown { display: block; }
     #top { height: auto; }
-    #face { width: auto; min-width: 85; height: auto; min-height: 24; border: round $accent; }
-    #facts { width: 1fr; height: 24; border: round $primary; padding: 0 1; }
+    #face { width: auto; min-width: 85; height: auto; min-height: 34; border: round $accent; }
+    #facts { width: 1fr; height: 34; border: round $primary; padding: 0 1; }
     #columns { height: 1fr; }
     #columns > VerticalScroll { width: 1fr; height: 1fr; border: round $primary; padding: 0 1; }
     #timeline { height: 0; border: none; }

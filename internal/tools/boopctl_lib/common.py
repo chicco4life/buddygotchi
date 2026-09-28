@@ -13,8 +13,14 @@ from boopctl_lib.device import DeviceError
 
 REPO = Path(__file__).resolve().parents[3]
 
-# The animation set (BEHAVIORS.md §5).
-ANIMS = ["cheer", "wiggle"]
+# The animations a `moment` plays (BEHAVIORS.md §5, PROTOCOL.md §3): the
+# brain's finish, the rules' one-shots and a tap's, each its design's state.
+ANIMS = ["task_complete", "reply_ready", "starting", "stopped", "error", "helper_return", "poked", "tap_spam"]
+# The older names the device still reads, as the animation it plays.
+OLD_ANIMS = {"cheer": "task_complete", "wiggle": "poked"}
+# The facts that pick an animation's variations (PROTOCOL.md §3).
+OUTCOMES = ["success", "failure"]
+CTXS = ["new_task", "session", "continuation"]
 # Boop's moods, as `state` carries them, in the device's order (PROTOCOL.md §3,
 # harness/DECISIONS.md §2.3).
 MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad",

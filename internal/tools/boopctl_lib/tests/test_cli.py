@@ -52,8 +52,11 @@ class CLITests(unittest.TestCase):
 
 class PlayTests(unittest.TestCase):
     def play(self, what: str, *more: str) -> tuple[int, list]:
+        # The board reports the animation by its design's name: the cheer's
+        # is task_complete, the wiggle's poked.
+        playing = {"cheer": "task_complete", "wiggle": "poked"}.get(what, what)
         board = FakeBoard.by_type({"dbg.ping": {"ble": "adv"}, "dbg.clock": {},
-                                   "dbg.state": {"moment": {"anim": what, "left_ms": 900}}})
+                                   "dbg.state": {"moment": {"anim": playing, "left_ms": 900, "variant": 1}}})
         self.board = board
         with mock.patch.object(cli, "Device", lambda port: board), contextlib.redirect_stdout(io.StringIO()):
             code = cli.cmd_play(cli.build_parser().parse_args(["play", what, *more]))
@@ -80,6 +83,26 @@ class PlayTests(unittest.TestCase):
     def test_play_sends_just_the_animation(self):
         self.assertEqual(self.play("cheer"), (0, ["cheer"]))
         self.assertEqual(self.play("wiggle"), (0, ["wiggle"]))
+        for anim in cli.ANIMS:
+            self.assertEqual(self.play(anim), (0, [anim]))
+
+    def test_play_sends_the_facts(self):  # PROTOCOL.md §3: outcome, ctx, variant
+        self.play("task_complete", "--outcome", "failure", "--variant", "2")
+        sent = [m for m in self.board.sent if m["t"] == "moment"]
+        self.assertEqual((sent[0]["outcome"], sent[0]["variant"]), ("failure", 2))
+        self.play("starting", "--ctx", "session")
+        self.assertEqual([m.get("ctx") for m in self.board.sent if m["t"] == "moment"], ["session"])
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            cli.build_parser().parse_args(["play", "task_complete", "--outcome", "win"])
+
+    def test_the_animations_are_the_devices(self):
+        """BEHAVIORS.md §5: the names boopctl plays are the device's own
+        (firmware/src/render/anim.cpp), and the older two it still reads."""
+        src = (Path(__file__).resolve().parents[4] / "firmware" / "src" / "render" / "anim.cpp").read_text()
+        table = src[src.index("kNames[] = {"):]
+        self.assertEqual(["none"] + cli.ANIMS + ["listening"], re.findall(r'"(\w+)"', table[:table.index("};")]))
+        for old, new in cli.OLD_ANIMS.items():
+            self.assertIn(f'!std::strcmp(name, "{old}")) return Anim::k', src)
 
     def test_play_sends_its_loops(self):  # PROTOCOL.md §3: 1-6, none reads as 1
         self.play("cheer", "--loops", "3")
@@ -144,9 +167,12 @@ class SoakTests(unittest.TestCase):
             self.assertIn(m["mood"], cli.MOODS)
             self.assertTrue(1 <= m["loops"] <= 6)
             self.assertTrue(m["say"]["syl"])
-        cheers = [cli.soak_moment(rng) for _ in range(200)]
-        self.assertTrue(all(1 <= m["loops"] <= 3 for m in cheers if m.get("anim") == "cheer"))
-        self.assertFalse(any("id" in m or "mood" in m for m in cheers))  # the rules' moments aren't waited on
+        moments = [cli.soak_moment(rng) for _ in range(200)]
+        finishes = [m for m in moments if m.get("anim") == "task_complete"]
+        self.assertTrue(finishes)
+        self.assertTrue(all(1 <= m["loops"] <= 3 and m["outcome"] in cli.OUTCOMES for m in finishes))
+        self.assertTrue(all(m["ctx"] in cli.CTXS for m in moments if m.get("anim") == "starting"))
+        self.assertFalse(any("id" in m or "mood" in m for m in moments))  # the rules' moments aren't waited on
 
     def test_each_reaction_ends_once(self):
         ended = [{"t": "ended", "id": 1, "how": "done"}, {"t": "ended", "id": 2, "how": "cut", "why": "tap"},
