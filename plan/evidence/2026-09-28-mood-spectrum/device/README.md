@@ -99,6 +99,14 @@ match it. No board, Bluetooth or webcam was used.
 
 Not run: the board (P9, the orchestrator's), the webcam, Jev.
 
+A trial merge with the integration branch as it stood at `ea4b6f58` (the
+moods lane landed), in a throwaway worktree: the code merges cleanly,
+and three specs conflict where both lanes rewrote the same rows
+(ARCHITECTURE.md §3.2, BEHAVIORS.md's summary, §3.3 and §5, PROTOCOL.md
+§3's `mood`, `anim`, `loops`, `variant`, `outcome`, `ctx` and `who`
+rows). With those three left unresolved (no test reads them), its 313
+Swift tests and boopctl's and the working day's tests pass.
+
 ## Pictures
 
 `pictures.png`: goldens from the new scenarios (`states`, `taps`,
