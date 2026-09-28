@@ -13,7 +13,7 @@ has the tests, evals, dev tools and skills that check them.
 | `app/Tests/` | The Swift unit tests (`BoopTests`) and their fixtures |
 | `app/TestSupport/XCTestShim/` | A stand-in XCTest for Command Line Tools, which has none |
 | `app/Evals/scenarios/` | The eval scenarios `boopdev eval` runs against Jev |
-| `app/tools/` | `test.py` (`make -C internal test`) and `gen-test-runner.py`, which writes the tests' `main` for the shim |
+| `app/tools/` | `gen-test-runner.py`, which writes the tests' `main` for the shim (`make build` runs it) |
 | `firmware/sim/` | The simulator's `main` (`boop-sim`), built with the firmware's pure C++ in PlatformIO's `native` env |
 | `firmware/test/` | The firmware's unit tests, the simulator scenarios and their golden pictures |
 | `tools/` | `boopctl` (the board over USB, the simulator, the live dashboard, and a day's summary from the debug logs), `voicegen`, `sfxgen`, `fontgen` and `facegen` (they write `firmware/assets/*.h`, which is checked in; `facegen` runs the animation bank's generator, `boop-design/boop-sound-bank-v4/`, for the designs, `sfxgen` imports its sounds, and `voicegen` converts the recorded voice bank, `boop-design/assets/boop-voice-v1/`, into the voice pack for the board's SD card, `.build/voice/voice.bin`, which isn't checked in, and the Mac's `Takes.swift`), `workday` (a scripted working day through the headless app and its brain, [plan/EVALS.md](../plan/EVALS.md) §5), and the `webcam/` recorder |

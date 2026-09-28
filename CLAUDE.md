@@ -43,7 +43,7 @@ lived in `archived/`, now at git tag `archived-final`
 
 The everyday entry points are in [README.md](README.md), which stays a
 short overview. The root `Makefile` has only what the owner uses: `build`,
-`run`, `debug`, `flash`, `eval` and `clean`. The development targets
+`run`, `debug`, `dash`, `day`, `flash`, `eval` and `clean`. The development targets
 (`test`, `tools-test`, `voice`, `fw`, `fw-test`, `sim`, `e2e`, `faces`, `tools`)
 are in `internal/Makefile`; run them from the repo root as
 `make -C internal <target>`. Every make target and tool is in
@@ -61,9 +61,8 @@ make -C internal test                                 # Swift unit tests
 ## Environment notes
 
 - There's no Xcode, so `swift test` runs nothing. `make -C internal test` runs
-  `python3 internal/app/tools/test.py`, which generates the XCTest shim's
-  runner, builds the package in one `swift build` and runs
-  `.build/debug/BoopTests`.
+  `make build`, which generates the XCTest shim's runner and builds the
+  package in one `swift build`, then runs `.build/debug/BoopTests`.
 - Command Line Tools lack some Swift macro plugins, so SwiftUI's `@State`
   doesn't compile. Write `@ViewState` (the alias in
   `app/Boop/Views/ViewState.swift`).

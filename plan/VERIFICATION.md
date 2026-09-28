@@ -79,7 +79,7 @@ launch the menu-bar app or run the whole eval.
 | `make eval` | Builds, then runs every eval scenario against Jev with no request budget, 3 runs each for an `always` scenario and 1 for the rest (L5): the final pass, about 620 requests; fails without `BOOP_JEV_KEY` |
 | `make clean` | Deletes `.build` and `firmware/.pio` |
 | `make -C internal voice` | Builds the voice pack, `.build/voice/voice.bin`, and `Takes.swift` with voicegen (below) when the bank or voicegen changed. `test`, `fw-test` and `sim` make it first, since they read it |
-| `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim (`python3 internal/app/tools/test.py`), since there's no Xcode |
+| `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim, since there's no Xcode: `make build`, then `.build/debug/BoopTests` |
 | `make -C internal fw` | Builds the firmware for the board |
 | `make -C internal fw-test` | The firmware's unit tests on the Mac (`pio test -e native`) |
 | `make -C internal sim` | Every scenario in the simulator, against the goldens (L1) |

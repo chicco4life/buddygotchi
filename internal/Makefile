@@ -7,10 +7,12 @@
 ROOT := $(abspath ..)
 PIO := firmware/tools/pio.sh
 
-# Swift unit tests through the XCTest shim (there's no Xcode here): one
-# `swift build` of the whole package, as `build` does, then the runner.
+# Swift unit tests through the XCTest shim (there's no Xcode here): the
+# root `build` (one `swift build` of the whole package, the tests' runner
+# included), then the runner.
 test: voice
-	cd $(ROOT) && python3 internal/app/tools/test.py
+	$(MAKE) -C $(ROOT) build
+	cd $(ROOT) && .build/debug/BoopTests
 
 # The voice pack, .build/voice/voice.bin, which the board plays from its SD
 # card and the simulator and tests read from here (plan/VOICE.md §8), and

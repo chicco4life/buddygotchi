@@ -11,7 +11,7 @@ PIO := firmware/tools/pio.sh
 # also links the BoopTests runner, so its main is generated first.
 # SWIFT_CHECK makes importing a target that isn't a declared dependency an
 # error, not a warning, so app/ can't reach internal/ code (internal/README.md).
-# internal/app/tools/test.py passes the same flag; change the two together.
+# `make -C internal test` runs this target, then the tests.
 SWIFT_CHECK := --explicit-target-dependency-import-check error
 build:
 	python3 internal/app/tools/gen-test-runner.py

@@ -7,18 +7,9 @@ import PackageDescription
 // and internal/ (what doesn't). Production targets (HookWire, BoopKit, Boop,
 // BoopHook) never depend on internal ones (internal/README.md).
 
-let developerDir = ProcessInfo.processInfo.environment["DEVELOPER_DIR"] ?? "/Library/Developer/CommandLineTools"
-let hasAppleXCTest = FileManager.default.fileExists(
-    atPath: "\(developerDir)/Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework/Modules/XCTest.swiftmodule"
-) || FileManager.default.fileExists(
-    atPath: "\(developerDir)/Library/Developer/Frameworks/XCTest.framework/Modules/XCTest.swiftmodule"
-)
-// internal/app/tools/test.py's uses_shim() makes the same test; change the two together.
-let useXCTestShim = ProcessInfo.processInfo.environment["BOOP_USE_XCTEST_SHIM"] == "1" || !hasAppleXCTest
-
-// Without full Xcode the tests run as an executable that `@testable
-// import`s the libraries, so they must be built with testability enabled.
-let testable: [SwiftSetting] = useXCTestShim ? [.unsafeFlags(["-enable-testing"])] : []
+// There's no Xcode here, so the tests are an executable that `@testable
+// import`s the libraries, which must be built with testability enabled.
+let testable: [SwiftSetting] = [.unsafeFlags(["-enable-testing"])]
 
 /// Everything in the repo except `kept` and the directories leading to them,
 /// for a target whose path is the repo root: SwiftPM warns about each file
@@ -105,36 +96,23 @@ var packageTargets: [Target] = [
     ),
 ]
 
-if useXCTestShim {
-    // No real XCTest here: SwiftPM's `swift test` would build these tests and
-    // run NONE of them (a false green). Instead build the Tests directory as an
-    // executable driven by the generated GeneratedTestRunner.swift, run via
-    // `make -C internal test`. See internal/app/tools/gen-test-runner.py.
-    packageTargets.append(
-        .executableTarget(
-            name: "BoopTests",
-            dependencies: ["BoopKit", "HookWire", "BoopDevKit", "XCTest"],
-            path: "internal/app/Tests",
-            exclude: ["Fixtures"],
-            swiftSettings: [.define("BOOP_SHIM_RUNNER")]
-        )
-    )
-    packageTargets.append(
-        .target(
-            name: "XCTest",
-            path: "internal/app/TestSupport/XCTestShim"
-        )
-    )
-} else {
-    packageTargets.append(
-        .testTarget(
-            name: "BoopTests",
-            dependencies: ["BoopKit", "HookWire", "BoopDevKit"],
-            path: "internal/app/Tests",
-            exclude: ["Fixtures"]
-        )
-    )
-}
+// SwiftPM's `swift test` would build tests against the XCTest shim and run
+// NONE of them (a false green). Instead the Tests directory builds as an
+// executable driven by the generated GeneratedTestRunner.swift, run by
+// `make -C internal test`. See internal/app/tools/gen-test-runner.py.
+packageTargets += [
+    .executableTarget(
+        name: "BoopTests",
+        dependencies: ["BoopKit", "HookWire", "BoopDevKit", "XCTest"],
+        path: "internal/app/Tests",
+        exclude: ["Fixtures"],
+        swiftSettings: [.define("BOOP_SHIM_RUNNER")]
+    ),
+    .target(
+        name: "XCTest",
+        path: "internal/app/TestSupport/XCTestShim"
+    ),
+]
 
 let package = Package(
     name: "Boop",
