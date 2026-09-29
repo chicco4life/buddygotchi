@@ -1,0 +1,359 @@
+{
+  "byState": {
+    "starting": [
+      "previous.go",
+      "previous.dai",
+      "new.d01",
+      "new.d02",
+      "new.d05",
+      "new.d06",
+      "new.d07",
+      "new.d08"
+    ],
+    "working": [
+      "previous.work",
+      "previous.basta",
+      "previous.aigo",
+      "previous.tsk",
+      "previous.hrr",
+      "previous.pfft",
+      "previous.krr",
+      "previous.rrtik",
+      "new.d05",
+      "new.d06",
+      "new.d07",
+      "new.d08",
+      "new.d12",
+      "new.d14",
+      "new.d18"
+    ],
+    "task_complete": [
+      "previous.finish",
+      "previous.done",
+      "previous.yay",
+      "previous.yatta",
+      "previous.tsk",
+      "previous.pfft",
+      "previous.heh",
+      "previous.shit",
+      "previous.fuck",
+      "previous.shiba",
+      "new.d03",
+      "new.d04",
+      "new.d13",
+      "new.d15",
+      "new.d16",
+      "new.d19",
+      "new.d20"
+    ],
+    "needs_you": [
+      "previous.oi",
+      "new.d09",
+      "new.d10",
+      "new.d11",
+      "new.d17"
+    ],
+    "planning": [
+      "previous.eh",
+      "previous.hrr",
+      "previous.krr",
+      "previous.rrtik",
+      "new.d12"
+    ],
+    "analyzing": [
+      "previous.eh",
+      "previous.hrr",
+      "previous.krr",
+      "previous.rrtik",
+      "new.d12"
+    ],
+    "searching": [
+      "previous.eh",
+      "previous.hrr",
+      "previous.krr",
+      "previous.rrtik",
+      "new.d12"
+    ],
+    "terminal": [
+      "previous.tsk",
+      "previous.hrr",
+      "previous.pfft",
+      "previous.krr",
+      "previous.rrtik",
+      "new.d05",
+      "new.d06",
+      "new.d07",
+      "new.d08",
+      "new.d12",
+      "new.d14"
+    ],
+    "error": [
+      "previous.tsk",
+      "previous.pfft",
+      "previous.shit",
+      "previous.fuck",
+      "previous.shiba",
+      "new.d14"
+    ],
+    "tool_use": [
+      "previous.hrr",
+      "previous.krr",
+      "previous.rrtik",
+      "new.d12"
+    ],
+    "testing": [
+      "previous.hrr",
+      "previous.krr",
+      "previous.rrtik",
+      "new.d05",
+      "new.d06",
+      "new.d07",
+      "new.d08",
+      "new.d12"
+    ],
+    "poked": [
+      "previous.heh",
+      "new.d20"
+    ]
+  },
+  "byMood": {
+    "unspecified": [
+      "previous.go",
+      "previous.oi"
+    ],
+    "engaged": [
+      "previous.work",
+      "previous.rrtik",
+      "new.d01"
+    ],
+    "happy": [
+      "previous.finish",
+      "previous.yay",
+      "previous.yatta",
+      "new.d13",
+      "new.d19"
+    ],
+    "relieved": [
+      "previous.done"
+    ],
+    "determined": [
+      "previous.dai",
+      "new.d08"
+    ],
+    "annoyed": [
+      "previous.basta",
+      "previous.tsk",
+      "previous.pfft",
+      "previous.shiba",
+      "new.d05"
+    ],
+    "weary": [
+      "previous.aigo",
+      "previous.krr"
+    ],
+    "curious": [
+      "previous.eh",
+      "new.d09",
+      "new.d17"
+    ],
+    "grumpy": [
+      "previous.hrr",
+      "previous.shit",
+      "previous.fuck",
+      "new.d12",
+      "new.d14"
+    ],
+    "amused": [
+      "previous.heh"
+    ],
+    "excited": [
+      "new.d02",
+      "new.d15"
+    ],
+    "proud": [
+      "new.d03",
+      "new.d16",
+      "new.d20"
+    ],
+    "sad": [
+      "new.d04"
+    ],
+    "irritated": [
+      "new.d06"
+    ],
+    "whiny": [
+      "new.d07",
+      "new.d18"
+    ],
+    "calm": [
+      "new.d10"
+    ],
+    "wounded": [
+      "new.d11"
+    ]
+  },
+  "byIntent": {
+    "begin": [
+      "previous.go",
+      "previous.dai",
+      "new.d01",
+      "new.d02"
+    ],
+    "work": [
+      "previous.work"
+    ],
+    "success": [
+      "previous.finish",
+      "previous.done",
+      "new.d03",
+      "new.d04"
+    ],
+    "celebrate": [
+      "previous.yay",
+      "previous.yatta",
+      "new.d15",
+      "new.d19"
+    ],
+    "frustration": [
+      "previous.basta",
+      "previous.aigo",
+      "previous.tsk",
+      "previous.pfft",
+      "previous.shit",
+      "previous.fuck",
+      "previous.shiba",
+      "new.d14",
+      "new.d18"
+    ],
+    "attention": [
+      "previous.oi",
+      "new.d09",
+      "new.d10",
+      "new.d11",
+      "new.d17"
+    ],
+    "ponder": [
+      "previous.eh"
+    ],
+    "effort": [
+      "previous.hrr",
+      "previous.krr",
+      "previous.rrtik",
+      "new.d12"
+    ],
+    "delight": [
+      "previous.heh",
+      "new.d20"
+    ],
+    "retry": [
+      "new.d05",
+      "new.d06",
+      "new.d07",
+      "new.d08"
+    ],
+    "relief": [
+      "new.d13"
+    ],
+    "pride": [
+      "new.d16"
+    ]
+  },
+  "byEntry": {
+    "word.begin.go": [
+      "previous.go",
+      "new.d01",
+      "new.d02"
+    ],
+    "word.work.work": [
+      "previous.work"
+    ],
+    "word.success.finish": [
+      "previous.finish"
+    ],
+    "word.success.done": [
+      "previous.done",
+      "new.d03",
+      "new.d04"
+    ],
+    "word.celebrate.yay": [
+      "previous.yay"
+    ],
+    "borrowed.dai": [
+      "previous.dai"
+    ],
+    "borrowed.basta": [
+      "previous.basta"
+    ],
+    "borrowed.aigo": [
+      "previous.aigo",
+      "new.d18"
+    ],
+    "borrowed.yatta": [
+      "previous.yatta",
+      "new.d19"
+    ],
+    "borrowed.oi": [
+      "previous.oi"
+    ],
+    "nonverbal.ponder.eh": [
+      "previous.eh"
+    ],
+    "nonverbal.frustration.tsk": [
+      "previous.tsk"
+    ],
+    "nonverbal.effort.hrr": [
+      "previous.hrr",
+      "new.d12"
+    ],
+    "nonverbal.frustration.pfft": [
+      "previous.pfft"
+    ],
+    "nonverbal.effort.krr": [
+      "previous.krr"
+    ],
+    "nonverbal.effort.rrr-tik": [
+      "previous.rrtik"
+    ],
+    "nonverbal.delight.heh": [
+      "previous.heh"
+    ],
+    "explicit.shit": [
+      "previous.shit"
+    ],
+    "explicit.fuck": [
+      "previous.fuck"
+    ],
+    "explicit.shiba": [
+      "previous.shiba"
+    ],
+    "word.retry.again": [
+      "new.d05",
+      "new.d06",
+      "new.d07",
+      "new.d08"
+    ],
+    "word.attention.hello": [
+      "new.d09",
+      "new.d10",
+      "new.d11"
+    ],
+    "nonverbal.relief.phew": [
+      "new.d13"
+    ],
+    "phrase.frustration.mamma-mia": [
+      "new.d14"
+    ],
+    "phrase.celebrate.bada-bing-bada-boom": [
+      "new.d15"
+    ],
+    "phrase.pride.tiny-genius": [
+      "new.d16"
+    ],
+    "phrase.attention.knock-knock": [
+      "new.d17"
+    ],
+    "nonverbal.delight.mwahaha": [
+      "new.d20"
+    ]
+  }
+}

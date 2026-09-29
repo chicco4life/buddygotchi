@@ -47,6 +47,16 @@ Evidence: [mood design publication](evidence/2026-09-28-mood-design-push/README.
 These checks are not physical audio tests or the owner's approval of the
 new art.
 
+**Recorded voice design assets (not production integration).**
+`node internal/boop-design/assets/boop-voice-v1/tools/check.mjs` validates all
+recorded hashes, PCM formats/levels, indexes, safe candidate selection and assembly,
+and writes an exact storage report. `select.mjs --help` in the same bank documents
+the dependency-free shortlist CLI. Both are offline and never play sound or call
+an API; unreviewed takes require explicit audition mode. The
+[agent handoff](../internal/boop-design/assets/boop-voice-v1/README.md) distinguishes
+actual recordings from the planned dictionary and documents encoding/timing limits.
+Evidence: [voice asset publication](evidence/2026-09-29-voice-asset-push/README.md).
+
 Every tool prints its flags with `--help` (`internal/tools/boopctl
 <command> --help`, `.build/debug/boopdev <command> --help`,
 `.build/debug/Boop --help`). `Boop` and `boopdev` stop with their usage on

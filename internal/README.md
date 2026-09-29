@@ -18,7 +18,7 @@ has the tests, evals, dev tools and skills that check them.
 | `firmware/test/` | The firmware's unit tests, the simulator scenarios and their golden pictures |
 | `tools/` | `boopctl` (the board over USB, the simulator, the live dashboard, and a day's summary from the debug logs), `voicegen`, `sfxgen`, `fontgen` and `facegen` (they write `firmware/assets/*.h`, which is checked in; `facegen` runs the animation bank's generator, `boop-design/boop-sound-bank-v4/`, for the designs, and `sfxgen` imports its sounds), `workday` (a scripted working day through the headless app and its brain, [plan/EVALS.md](../plan/EVALS.md) §5), and the `webcam/` recorder |
 | `skills/` | `doctor` and `webcam-verify`, linked from `.claude/skills/`, `.codex/skills/` and `.cursor/skills/` |
-| `boop-design/` | The animation bank, the source of the device's designs and sounds (facegen and sfxgen build from it), with its offline preview, and the approved mood-graph design/handover ([guide](boop-design/README.md)) |
+| `boop-design/` | The animation bank, the source of the device's designs and sounds (facegen and sfxgen build from it), with its offline preview, the approved mood-graph design/handover, and the recorded voice bank ([guide](boop-design/README.md)) |
 
 ## How it's wired
 

@@ -16,6 +16,9 @@ firmware once they're rerun.
 - [Machine-readable graph](boop-mood-spectrum-v2/mood-graph.json). The
   app ships it as `app/BoopKit/Actions/MoodGraph.swift`, which a test
   holds to this file move for move ([plan/harness/DECISIONS.md](../../plan/harness/DECISIONS.md) §4).
+- [Voice asset bank and agent selection guide](assets/boop-voice-v1/README.md):
+  40 recorded Robot Minion takes, three local DSP alternatives, original masters,
+  dictionary, lookup indexes and a tested host-side selector.
 
 From the **repository root**, with Node.js:
 
@@ -70,5 +73,7 @@ The mood graph belongs to the Mac's Mood action, never the generic harness.
 Integration is not visual approval: the owner approves the new art and
 sounds before they merge to main.
 
-No recordings, execution logs, credentials, enclosure CAD, or the sound chat's
-unfinished scripts are part of this publication.
+The original animation publication contained no recordings. The separately
+authorized voice asset folder now contains only the selected voice bank and its
+integration guide. No execution logs, credentials, account ledgers, enclosure CAD,
+other voices or unused recording intermediates are included.
