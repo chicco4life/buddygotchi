@@ -626,7 +626,6 @@ def summarize(path: Path) -> dict[str, Any]:
     # Boop's mood: the first `state` sent says it, and each mood action
     # changes it to its pass's answer.
     mood: str | None = None
-    played = feed.Played()  # each reaction's moment
     # When any agent works: [start, end] spans, from turn starts and ends.
     open_turns: dict[str, int] = {}
     working: list[list[int]] = []
@@ -636,8 +635,6 @@ def summarize(path: Path) -> dict[str, Any]:
         body = line.get(k)
         if k == "sent" and body.get("t") == "state" and mood is None:
             mood = body.get("mood")
-        elif k == "sent":
-            played.sent(body)
         elif k == "view":
             ev = {**body, "at": at, "class": classify(body)}
             events[ev["from"][-1]] = ev
@@ -660,10 +657,6 @@ def summarize(path: Path) -> dict[str, Any]:
             hr["passes"] += 1
             if body.get("dropped"):
                 hr["dropped"] += 1
-        elif k == "event" and (ended := feed.action_end(body)):
-            played.ended(ended["for"])
-        elif k == "event" and (act := feed.action(body)) and act["name"] == "react" and act["pending"]:
-            played.started(body["seq"], feed.choice(passes.get(act["for"], {}), feed.FACE))
         if k == "event" and (act := feed.action(body)) and act["by"] is None and act["ok"]:
             ev = events.get(act["for"])
             if ev is None:
@@ -689,12 +682,10 @@ def summarize(path: Path) -> dict[str, Any]:
                 hr["faces"][r["face"]] += 1
                 hr["loops"][r["held"]] += 1
                 reactions.append({"at": daylog.clock(ev["at"]), "ms": ev["at"], "class": ev["class"], **r,
-                                  "after": ev["line"], "seq": body["seq"]})
-    # What each reaction said: its moment may go after its action's start,
-    # waiting behind the line playing.
+                                  "after": ev["line"], "takes": act["takes"]})
+    # What each reaction said: the takes its action's start records.
     for r in reactions:
-        moment = played.moment(r.pop("seq")) or {}
-        r["word"] = feed.said(moment.get("say"))
+        r["word"] = feed.said(r.pop("takes"))
         hours[daylog.hour_of(r["ms"])]["words"][r["word"] or "none"] += 1
     # How long each mood lasted, from the first event to the last.
     spans: Counter = Counter()

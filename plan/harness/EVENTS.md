@@ -57,7 +57,7 @@ Claude `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | `poke` | device | — | — |
 | `talk` | mic | — | `words`: what the Mac's mic heard, as macOS transcribed it, up to 2,000 characters (`HookLine.maxMessage`). Only when it heard something |
 | `heartbeat` | clock | — | — (the view says what it's about, §4) |
-| `action` | boop | start / end, or none | `for` (the `seq` of the event it's about, or null), `by` (`brain`, `dashboard` or `rule`), `ok`, `message`, and the action's own facts: `react`'s start has `takes` (the ids of the takes it queued, in the order said, `[]` when it says nothing) and `face` (its mood), so a tool can find its moment among those sent. end: `for` (its start's `seq`), `outcome` (`done` or `failed`), `why` |
+| `action` | boop | start / end, or none | `for` (the `seq` of the event it's about, or null), `by` (`brain`, `dashboard` or `rule`), `ok`, `message`, and the action's own facts: `react`'s start has `takes` (the ids of the takes it queued, in the order said, `[]` when it says nothing) and `face` (its mood), so a tool can say what it said. end: `for` (its start's `seq`), `outcome` (`done` or `failed`), `why` |
 
 What you said after the popover's Talk button (a headless run with
 `{"dev":"said",…}`, [VERIFICATION.md](../VERIFICATION.md) §2):

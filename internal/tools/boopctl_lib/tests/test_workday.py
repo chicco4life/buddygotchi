@@ -73,7 +73,7 @@ def entry(seq: int, at_min: int, view: dict | None = None, action: dict | None =
         body = {"view": {"id": seq, "from": [seq], "notes": [], **view}}
     elif action is not None:
         data = {"for": action["for"], "ok": action["ok"], "message": "not a fact → sad held four times, said \"Nope\".",
-                "by": action.get("by", "brain")}
+                "by": action.get("by", "brain"), **({"takes": action["takes"]} if "takes" in action else {})}
         body = {"event": {"seq": seq, "ts": at, "source": "boop", "type": "action",
                           **({"phase": "start"} if action.get("pending") else {}), "specific_type": action["name"],
                           "data": data}}
@@ -91,12 +91,6 @@ def picks(event: int, at_min: int, mood: str = "calm", face: str = "none", held:
     return entry(0, at_min, **{"pass": {"for": event, "dropped": None, "brain": "scripted",
                                         "questions": list(answers),
                                         "answers": {k: {"choice": v, "p": {v: 1}} for k, v in answers.items()}}})
-
-
-def moment(at_min: int, face: str, *takes: str) -> str:
-    """A reaction's moment sent to the device, saying `takes`."""
-    say = dict(zip(("take", "then"), takes))
-    return entry(0, at_min, sent={"t": "moment", "mood": face, "loops": 1, **({"say": say} if say else {})})
 
 
 def state(at_min: int, mood: str = "calm") -> str:
@@ -118,8 +112,7 @@ class ReportTests(unittest.TestCase):
             picks(4, 1, mood="excited"),
             entry(6, 2, view=fail),
             picks(6, 2, mood="grumpy", face="grumpy", held="twice"),
-            moment(2, "grumpy", "no-such-take"),
-            entry(8, 2, action={"for": 6, "name": "react", "ok": True, "pending": True}),
+            entry(8, 2, action={"for": 6, "name": "react", "ok": True, "pending": True, "takes": ["no-such-take"]}),
             entry(9, 2, settle={"for": 8, "end": "done"}),
             entry(10, 2, action={"for": 6, "name": "mood", "ok": True}),
         ]
@@ -148,28 +141,26 @@ class ReportTests(unittest.TestCase):
         or reply (harness/DECISIONS.md §5); a face alone has none."""
         end = {"type": "turn", "phase": "end", "line": "claude finished turn 1 on \"api\": done, a short turn.",
                "wakes_brain": True, "facts": {"outcome": "done", "length_ms": 50_000, "tools_failed": 0}}
-        lines = [entry(1, 0, view=end), picks(1, 0, face="calm", finish="success"), moment(0, "calm"),
+        lines = [entry(1, 0, view=end), picks(1, 0, face="calm", finish="success"),
                  entry(2, 0, action={"for": 1, "name": "react", "ok": True, "pending": True}),
-                 entry(3, 1, view=end), picks(3, 1, face="happy"), moment(1, "happy"),
+                 entry(3, 1, view=end), picks(3, 1, face="happy"),
                  entry(4, 1, action={"for": 3, "name": "react", "ok": True, "pending": True})]
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "debug.jsonl"
             path.write_text("\n".join(lines) + "\n")
             self.assertEqual([r["finish"] for r in workday.summarize(path)["reactions"]], ["success", None])
 
-    def test_the_takes_are_the_moments_and_a_reaction_that_said_nothing_is_none(self) -> None:
-        """What a reaction said is the takes its moment carried (VOICE.md
-        §4): Voice picks a take for the meaning, so the answers can't say
-        which. A moment waiting behind the line playing goes after its
-        action's start, and still belongs to it."""
+    def test_the_takes_are_the_actions_and_a_reaction_that_said_nothing_is_none(self) -> None:
+        """What a reaction said is the takes its action's start records
+        (harness/EVENTS.md §2): Voice picks a take for the meaning, so the
+        answers can't say which."""
         end = {"type": "turn", "phase": "end", "line": "claude finished turn 1 on \"api\": done, a short turn.",
                "wakes_brain": True, "facts": {"outcome": "done", "length_ms": 50_000, "tools_failed": 0}}
         lines = [
-            entry(1, 0, view=end), picks(1, 0, face="happy"), moment(0, "happy"),
-            entry(2, 0, action={"for": 1, "name": "react", "ok": True, "pending": True}),
+            entry(1, 0, view=end), picks(1, 0, face="happy"),
+            entry(2, 0, action={"for": 1, "name": "react", "ok": True, "pending": True, "takes": []}),
             entry(3, 1, view=end), picks(3, 1, face="excited"),
-            entry(4, 1, action={"for": 3, "name": "react", "ok": True, "pending": True}),
-            moment(1, "excited", "new.d03"),
+            entry(4, 1, action={"for": 3, "name": "react", "ok": True, "pending": True, "takes": ["new.d03"]}),
         ]
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "debug.jsonl"
@@ -209,10 +200,10 @@ class ReportTests(unittest.TestCase):
         lines = [
             entry(1, 0, view=start),
             entry(2, 1, view=beat),
-            picks(2, 1, face="happy"), moment(1, "happy"),
+            picks(2, 1, face="happy"),
             entry(3, 1, action={"for": 2, "name": "react", "ok": True, "pending": True}),
             entry(4, 3, view=beat),
-            picks(4, 3, mood="grumpy", face="happy"), moment(3, "happy"),
+            picks(4, 3, mood="grumpy", face="happy"),
             entry(5, 3, action={"for": 4, "name": "react", "ok": True, "pending": True}),
             entry(6, 3, action={"for": 4, "name": "mood", "ok": True}),
             entry(9, 3, view=beat),
