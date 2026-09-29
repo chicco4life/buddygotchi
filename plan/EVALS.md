@@ -295,8 +295,8 @@ other text.
 
 **The report** reads `debug.jsonl` as `boopctl day` and the dashboard
 do: a mood change's new mood and a reaction's face, finish and hold from
-the answers of the pass it ran for, and what it said from the takes of
-the moment it sent ([harness/HARNESS.md](harness/HARNESS.md) §9), never
+the answers of the pass it ran for, and what it said from the takes its
+action recorded ([harness/HARNESS.md](harness/HARNESS.md) §9), never
 from an action's message. It gives, for each hour of the app's clock: turns ended,
 passes (and how many dropped), mood changes, with those on a routine
 line (a turn start, or a finish done under 5 minutes) split into back
