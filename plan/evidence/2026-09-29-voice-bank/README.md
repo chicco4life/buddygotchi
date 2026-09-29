@@ -32,10 +32,30 @@ the owner's choice; decision log in [ARCHITECTURE.md](../../ARCHITECTURE.md)).
 | A forced reaction over USB (`Boop --headless --link usb:…`) | The board played proud's "Mwahaha" and answered `ended` `done` 3.6 s later (harness/DECISIONS.md §5) |
 | `make -C internal e2e` (L4) | Passed once in six runs. The failures were all "needs you" reverting to the older state within 8 s: the owner's everyday app (`.build/debug/Boop --debug`) was connected to the board over Bluetooth (`dbg.ping`: `ble: conn`) and resends its own `state` every 10 s. The same revert happens with a plain `state` and no take (a scratch script over USB), so it isn't this change; L4 needs the everyday app off |
 
+## Evals (L5), 2026-09-29
+
+Kept to a minimum at the owner's request: each scenario this change
+added or whose expectations it changed, once (`boopdev eval --runs 1
+--only NN-`), against `jev:jev-latest`.
+
+- New: `60` (a stinging failure swears: grumpy, a failure, "Shit"), `61`
+  (never a swear at a win, a poke or the person: "Bada bing bada boom",
+  "Eh?", a silent wounded face) and `62` (a face that can say what it
+  means: annoyed "Tsk...", then happy "Finish") pass. `60` and `62` first
+  failed on the scenarios themselves: a six-minute turn is very long,
+  which the steering makes sad, and a turn whose last check failed is a
+  failed turn (Boop swore at it). Fixed, then passed.
+- Changed: `03`, `04`, `05`, `09`, `11`, `12`, `15`, `16`, `29`, `35` and
+  `54` pass.
+- Not run: the rest of the scenarios. The steering's Examples all changed,
+  so a full `make eval` is still worth one pass before merging.
+
+Seen in the runs: a determined face at long work, and proud at a check
+passing, say nothing (no take fits them), as expected.
+
 ## Not yet run
 
-- `make eval` (L5): needs Jev's key. The scenarios changed for the new
-  questions, and 60–62 are new.
-- `plan/harness/EXAMPLE.md` still shows a Jev pass with the old word
-  questions; it needs a real Jev run to replace.
+- A full `make eval` (above).
+- `plan/harness/EXAMPLE.md` is still stale; a run of `04-tests-fight-back`
+  can re-record it.
 - Listening by ear on the board's speaker, and the approval of each take.

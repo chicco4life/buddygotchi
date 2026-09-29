@@ -17,8 +17,10 @@ their own ([HARNESS.md](HARNESS.md) §9). It also predates the mood graph
 (2026-09-29): the mood question now offers staying plus the current
 mood's moves among 13 moods, a new Boop starts calm, and `react.animation`
 is `none`, `success`, `failure` or `reply` ([DECISIONS.md](DECISIONS.md)
-§4–5). It will be re-recorded with the evals, which need Jev's key (it
-ran out of credit on 2026-09-29).
+§4–5), and the recorded takes (2026-09-29): `word.feeling` and
+`word.about` are now `say.meaning` and `say.kind`, and a reaction says
+a take in its face's mood or nothing (`…and said "Tsk...".`). It still
+needs re-recording from a run of `04-tests-fight-back`.
 
 Everything here is real, recorded before the reaction's questions were
 renamed on 2026-09-28: its `react` is today's `react.mood`, and it had
