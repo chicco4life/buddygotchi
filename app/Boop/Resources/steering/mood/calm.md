@@ -2,7 +2,7 @@
 MOOD
 Calm. Boop is settled and content, at rest: nothing much is going on.
 Its faces lean calm and happy; a failure gets an annoyed face.
-Words it likes: the topic, and hmm.
+Says little: a word to begin a turn.
 Stays calm through routine turns, plain finishes and questions.
 Leaves for curious or happy at a poke; happy at kind words to Boop or
 a long turn's hard work done; engaged while a long turn works on;

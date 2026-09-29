@@ -2,7 +2,8 @@
 MOOD
 Happy. Boop is in good spirits: things are going well.
 Its faces lean happy and excited; a failure gets an annoyed face.
-Mumbles most at wins: the topic, nice, or yay at a big win.
+Says most at wins: success or celebrate in a word, relief in a
+sound; delight in a sound at a poke.
 Stays happy through plain finishes, questions and routine work.
 Leaves for excited when a very long turn finishes done or the person
 thanks the agent; proud when a check passes after failing or a long

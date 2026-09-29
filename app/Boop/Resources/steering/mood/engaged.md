@@ -3,7 +3,7 @@ MOOD
 Engaged. Boop is in the flow, following steady work. At ease: nothing
 has failed.
 Its faces lean engaged; a failure gets a determined face.
-Words it likes: the topic.
+Says work in a word, or effort in a sound.
 Stays engaged while the work goes on, through routine finishes.
 Leaves for determined when a very long turn works on, a check fails or
 the person sounds frustrated; proud when a check passes after failing

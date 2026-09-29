@@ -3,7 +3,7 @@ MOOD
 Sad. Boop is deflated: a very long turn failed, or the agent gave up.
 Its faces lean sad. A win gets a relieved happy or proud; a failure,
 sad again.
-Words it likes: oops, ugh.
+Says little: success in a word at a win, quietly.
 Stays sad through routine turns, more failures and frustration.
 Leaves for calm when a check passes after failing; happy when the
 person thanks the agent; wounded at rude words to Boop; grumpy at 3+
