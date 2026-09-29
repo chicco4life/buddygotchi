@@ -19,7 +19,6 @@ import json
 import os
 import re
 import shutil
-import signal
 import subprocess
 import time
 from pathlib import Path
@@ -27,7 +26,7 @@ from typing import Any
 
 from boopctl_lib.common import REPO, restarted
 from boopctl_lib.device import Device, DeviceError
-from boopctl_lib.headless import BIN, Headless
+from boopctl_lib.headless import BIN, Headless, stop_proc
 from boopctl_lib.image import save_shot
 from boopctl_lib.scenario import matches
 
@@ -97,13 +96,7 @@ class Run:
         if (code := self.app.stop()) is not None:
             self.say(f"Boop exit {code}")
         if self.bridge and self.bridge.poll() is None:
-            self.bridge.send_signal(signal.SIGTERM)
-            try:
-                code = self.bridge.wait(10)
-            except subprocess.TimeoutExpired:
-                self.bridge.kill()
-                code = "killed"
-            self.say(f"boopctl exit {code}")
+            self.say(f"boopctl exit {stop_proc(self.bridge)}")
         self.bridge = None
 
     # Steps

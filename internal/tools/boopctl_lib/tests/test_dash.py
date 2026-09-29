@@ -238,6 +238,31 @@ class ColumnsTests(unittest.TestCase):
         self.assertIn(("sent", "→ state working (terminal) calm · busy 1 · vol 6"), rows)
         self.assertEqual(dict(board.facts(t + 60_000))["showing"], "its terminal look")
 
+    def test_who_sent_a_moment(self):
+        """A `sent` line's `by` says whose it is (harness/HARNESS.md §9):
+        a brain's moment is no reflex, face or not, and a rule's is one. A
+        log from before `by` guesses from the face."""
+        t = 1_790_550_800_000
+        brain = {"t": "moment", "anim": "cheer", "mood": "proud", "say": {"take": "new.d15"}}
+        rule = {"t": "moment", "anim": "wiggle"}
+        lines = [{"sent": brain, "by": "brain", "received_at_ms": t}, {"sent": rule, "by": "rule", "received_at_ms": t}]
+        self.assertEqual([(kind(line), feed.sent_by(line)) for line in lines], [("sent", "brain"), ("sent", "rule")])
+        self.assertEqual(feed.sent_by({"sent": {"t": "moment", "anim": "wiggle"}, "by": "brain"}), "brain")
+        self.assertEqual(feed.sent_by({"sent": {**rule, "mood": "calm"}, "by": "rule"}), "rule")
+        self.assertEqual([feed.sent_by({"sent": m}) for m in (brain, rule)], ["brain", "rule"])
+        board, _ = board_after([{**line, "received_at_ms": t + i} for i, line in enumerate(lines)])
+        self.assertEqual(self.texts(board.reflex_column())[0], f"{clock(t + 1)} wiggle")
+        self.assertFalse([r for r in self.texts(board.reflex_column()) if "cheer" in r])
+
+    def test_takes_with_no_voice_pack(self):
+        """With no voice pack here, what a line said reads as its takes' ids."""
+        with mock.patch.object(feed, "take", side_effect=feed.DeviceError("no voice pack")):
+            self.assertEqual(feed.said(["new.d15", "topic.x"]), "new.d15 topic.x")
+            self.assertEqual(feed.say_text({"take": "new.d15", "then": "topic.x"}), "(new.d15, topic.x)")
+            self.assertEqual(feed.say_text({}), "no take")
+        self.assertEqual(feed.say_text({"take": "banana"}), "no take")
+        self.assertTrue(feed.say_text({"take": "new.d15"}).endswith("” (new.d15)"))
+
     def test_the_decided_reactions(self):
         """Each pass that could react: its event, the face, word and hold
         with their probabilities, and what became of it."""

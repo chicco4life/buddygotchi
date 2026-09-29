@@ -256,17 +256,17 @@ class SettleTests(unittest.TestCase):
         wakes = {"type": "tool", "phase": "end", "line": "claude's tests failed on \"api\".", "wakes_brain": True, "facts": {}}
         with tempfile.TemporaryDirectory() as d:
             run = workday.Run(Path(d), "scripted", None, False)
-            run.debug.write_text(entry(1, 0, view=wakes) + "\n" + picks(1, 0) + "\n")
+            run.app.debug.write_text(entry(1, 0, view=wakes) + "\n" + picks(1, 0) + "\n")
             barriers: list[int] = []
             ended = threading.Event()
 
             def advance(ms: int) -> None:
                 barriers.append(ms)
-                with open(run.debug, "a") as f:
+                with open(run.app.debug, "a") as f:
                     f.write(entry(3, 0, action={"for": 1, "name": "react", "ok": True, "pending": True}) + "\n")
 
                 def device_says_ended() -> None:
-                    with open(run.debug, "a") as f:
+                    with open(run.app.debug, "a") as f:
                         f.write(entry(4, 0, settle={"for": 3, "end": "done"}) + "\n")
                     ended.set()
                 threading.Timer(0.1, device_says_ended).start()
@@ -286,7 +286,7 @@ class SettleTests(unittest.TestCase):
         wait = {"type": "tool", "phase": "wait", "line": "claude needs you on \"api\".", "wakes_brain": False, "facts": {}}
         with tempfile.TemporaryDirectory() as d:
             run = workday.Run(Path(d), "scripted", None, False)
-            run.debug.write_text(entry(1, 0, view=wait) + "\n"
+            run.app.debug.write_text(entry(1, 0, view=wait) + "\n"
                                  + entry(2, 0, action={"for": 1, "name": "needs_you", "ok": True, "pending": True,
                                                        "by": "rule"}) + "\n")
             began = time.monotonic()
@@ -298,7 +298,7 @@ class SettleTests(unittest.TestCase):
         wakes = {"type": "turn", "phase": "start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True, "facts": {}}
         with tempfile.TemporaryDirectory() as d:
             run = workday.Run(Path(d), "scripted", None, False)
-            run.debug.write_text(entry(1, 0, view=wakes) + "\n"
+            run.app.debug.write_text(entry(1, 0, view=wakes) + "\n"
                                  + entry(2, 0, **{"pass": {"for": 1, "dropped": "late"}}) + "\n")
             barriers: list[int] = []
             run.advance = barriers.append  # type: ignore[method-assign]

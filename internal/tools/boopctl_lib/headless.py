@@ -67,14 +67,15 @@ class Headless:
         return bool(self.proc) and self.proc.poll() is None
 
     def stop(self) -> int | str | None:
-        """SIGTERM, then a kill after 10 s; its exit code, or None if it
-        wasn't running."""
-        if not self.alive():
-            return None
-        assert self.proc
-        self.proc.send_signal(signal.SIGTERM)
-        try:
-            return self.proc.wait(10)
-        except subprocess.TimeoutExpired:
-            self.proc.kill()
-            return "killed"
+        """Stops the app (`stop_proc`); None if it wasn't running."""
+        return stop_proc(self.proc) if self.alive() else None
+
+
+def stop_proc(proc: subprocess.Popen) -> int | str:
+    """SIGTERM, then a kill after 10 s; its exit code, or `killed`."""
+    proc.send_signal(signal.SIGTERM)
+    try:
+        return proc.wait(10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        return "killed"

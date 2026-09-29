@@ -312,7 +312,6 @@ def plan(seed: int) -> str:
     return "\n".join(lines)
 
 
-
 # ---------------------------------------------------------------- the run
 
 
@@ -381,8 +380,6 @@ class FakeDevice:
                 self.conn.close()
 
 
-
-
 class Run:
     def __init__(self, state: Path, brain: str, personality: str | None, verbose: bool) -> None:
         self.state = state
@@ -390,8 +387,6 @@ class Run:
         self.dev_sock = str(state / "d.sock")
         self.app = Headless(state, str(state / "b.sock"), f"usb:{self.dev_sock}", brain,
                             ["--personality", personality] if personality else [])
-        self.debug = self.app.debug
-        self.log = self.app.log
         self.device: FakeDevice | None = None
         self.log_pos = 0
         self.debug_pos = 0
@@ -418,9 +413,9 @@ class Run:
 
     def _brain_ready(self) -> bool:
         """debug.jsonl's `status` lines name the brain once it's set."""
-        if not self.debug.exists():
+        if not self.app.debug.exists():
             return False
-        for raw in self.debug.read_text(errors="replace").splitlines():
+        for raw in self.app.debug.read_text(errors="replace").splitlines():
             if raw.startswith('{"status"'):
                 brain = json.loads(raw)["status"].get("brain")
                 if brain and brain != "none":
@@ -430,7 +425,7 @@ class Run:
     def _advanced(self) -> int:
         """How many clock moves the app has logged so far, read on from
         where the last look stopped."""
-        with open(self.log, "rb") as f:
+        with open(self.app.log, "rb") as f:
             f.seek(self.log_pos)
             data = f.read()
         end = data.rfind(b"\n")
@@ -478,9 +473,9 @@ class Run:
             time.sleep(0.02)
 
     def _read_debug(self) -> None:
-        if not self.debug.exists():
+        if not self.app.debug.exists():
             return
-        with open(self.debug, "rb") as f:
+        with open(self.app.debug, "rb") as f:
             f.seek(self.debug_pos)
             data = f.read()
         end = data.rfind(b"\n")
@@ -564,9 +559,9 @@ def run(state: Path, seed: int, brain: str, personality: str | None, out: Path |
     print(f"done: {r.passes} passes, {r.dropped} dropped, {r.device.moments if r.device else 0} moments played")
     if out:
         out.mkdir(parents=True, exist_ok=True)
-        shutil.copy(r.debug, out / "debug.jsonl")
-        shutil.copy(r.log, out / "boop.log")
-    print(report([r.debug]))
+        shutil.copy(r.app.debug, out / "debug.jsonl")
+        shutil.copy(r.app.log, out / "boop.log")
+    print(report([r.app.debug]))
     return 0
 
 
@@ -681,12 +676,11 @@ def summarize(path: Path) -> dict[str, Any]:
                 hr["reacted"][ev["class"]] += 1
                 hr["faces"][r["face"]] += 1
                 hr["loops"][r["held"]] += 1
+                # What it said: the takes its action's start records.
+                word = feed.said(act["takes"])
+                hr["words"][word or "none"] += 1
                 reactions.append({"at": daylog.clock(ev["at"]), "ms": ev["at"], "class": ev["class"], **r,
-                                  "after": ev["line"], "takes": act["takes"]})
-    # What each reaction said: the takes its action's start records.
-    for r in reactions:
-        r["word"] = feed.said(r.pop("takes"))
-        hours[daylog.hour_of(r["ms"])]["words"][r["word"] or "none"] += 1
+                                  "after": ev["line"], "word": word})
     # How long each mood lasted, from the first event to the last.
     spans: Counter = Counter()
     if events:
@@ -808,7 +802,8 @@ def report(paths: list[Path], as_json: bool = False) -> str:
                 f"| Hour | Turns | Passes | Mood changes | … routine, to {REST} | … routine, other | Reactions "
                 "| notable | 1–5 min | short | starts | quiet | Faces |",
                 "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
-        rows = [(f"{h:02d}:00", v) for h, v in r["hours"].items()] + [("all", total(r))]
+        all_hours = total(r)
+        rows = [(f"{h:02d}:00", v) for h, v in r["hours"].items()] + [("all", all_hours)]
         for name, v in rows:
             rate = " | ".join(f"{v['reacted'][c]}/{v['lines'][c]}" for c in CLASSES)
             out.append(f"| {name} | {v['turns']} | {v['passes']}" + (f" ({v['dropped']} dropped)" if v["dropped"] else "")
@@ -821,8 +816,8 @@ def report(paths: list[Path], as_json: bool = False) -> str:
                 f'at most {lv["longest_same_run"]} in a row ({lv["longest_same_what"] or "–"}); '
                 f'{lv["mood_bounces"]} mood bounces; longest stretch of work {REST} all through '
                 f'{lv["longest_rest_working_min"]} min (from {lv["longest_rest_working_at"]})']
-        out += ["", "Holds: " + fmt(total(r)["loops"]),
-                "", "Takes said (none: a reaction that said nothing): " + fmt(total(r)["words"]),
+        out += ["", "Holds: " + fmt(all_hours["loops"]),
+                "", "Takes said (none: a reaction that said nothing): " + fmt(all_hours["words"]),
                 "", "Time in each mood: " + ", ".join(f"{k} {v} min" for k, v in r["mood_minutes"].items()),
                 "", "Mood changes:"]
         for c in r["changes"]:

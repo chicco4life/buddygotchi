@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from boopctl_lib.common import FINISHES
-from boopctl_lib.dash.feed import action, action_end, kind, view_name
+from boopctl_lib.dash.feed import action, action_end, kind, sent_by, view_name
 
 Line = dict[str, Any]
 LOG = "debug.jsonl"
@@ -215,11 +215,11 @@ def summarise(launches: list[Launch], date: str) -> Day:
                         day.moods.append(changed)
                 mood, seen_state = now, True
             elif k == "sent" and body.get("t") == "moment" and h:
-                # A moment with a face is a reaction, the brain's or forced,
-                # counted from its react action below, which says which.
+                # The brain's moment is a reaction, counted from its react
+                # action below; the rules' moment with a line is chatter.
                 if body.get("anim") in FINISHES:
                     h.finishes += 1
-                if body.get("say") and not body.get("mood"):
+                if body.get("say") and sent_by(line) == "rule":
                     h.chatter += 1
             elif k == "view":
                 seq = (body.get("from") or [0])[-1]  # the raw event that made it, which a pass is for

@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from boopctl_lib.common import RULE_ONE_SHOTS, take
+from boopctl_lib.common import RULE_ONE_SHOTS, Take, take
 from boopctl_lib.device import DeviceError
 
 Line = dict[str, Any]
@@ -67,7 +67,17 @@ class Follower:
 def kind(line: Line) -> str:
     """`event` (a raw event the transcript recorded), `view` (what the brain
     may hear of), `pass`, `sent`, `status` or `questions`."""
-    return next((k for k in line if k not in ("seq", "received_at_ms")), "?")
+    return next((k for k in line if k not in ("seq", "by", "received_at_ms")), "?")
+
+
+def sent_by(line: Line) -> str:
+    """Who a `sent` line's message is from: `brain` for the brain's
+    moments, `rule` for everything the rules send."""
+    if "by" in line:
+        return line["by"]
+    # Logs from before `by`: a reaction's moment has its face; a reflex's doesn't.
+    msg = line.get("sent") or {}
+    return "brain" if msg.get("t") == "moment" and msg.get("mood") else "rule"
 
 
 def view_name(view: Line) -> str:
@@ -100,16 +110,23 @@ def action_end(event: Line) -> Line | None:
             "by": None if by == "brain" else by}
 
 
+def _takes(ids: list[str]) -> list[Take | None] | None:
+    """The takes with these ids, None for one the voice pack lacks; None
+    with no voice pack here."""
+    try:
+        return [take(i) for i in ids]
+    except DeviceError:
+        return None
+
+
 def said(ids: list[str] | None) -> str | None:
     """What a reaction said: its takes' texts, the feeling's then the
     topic's (VOICE.md §4), or their ids with no voice pack here; None for
     no line."""
     if not ids:
         return None
-    try:
-        return " ".join(t.text if (t := take(i)) else i for i in ids)
-    except DeviceError:
-        return " ".join(ids)
+    found = _takes(ids) or [None] * len(ids)
+    return " ".join(t.text if t else i for t, i in zip(found, ids))
 
 
 def clock(ms: int) -> str:
@@ -151,7 +168,7 @@ class Board:
             before, self.status = self.status, body
             return "status", "status: " + status_text(body, before)
         if k == "sent":
-            return self._sent(body, at)
+            return self._sent(body, sent_by(line), at)
         if k == "view":
             self.events[(body.get("from") or [0])[-1]] = body
             self._event(body, at)
@@ -200,14 +217,14 @@ class Board:
 
     # Sorting lines into the columns.
 
-    def _sent(self, msg: Line, at: int) -> tuple[str, str] | None:
+    def _sent(self, msg: Line, by: str, at: int) -> tuple[str, str] | None:
         if msg.get("t") == "state":
             unchanged = msg == self.state
             before, self.state = self.state, msg
             self._state_changed(before, msg, at)
             return None if unchanged else ("sent", "→ state " + state_text(msg))
         if msg.get("t") == "moment":
-            if not msg.get("mood"):  # a reaction's moment has its face; a reflex's doesn't
+            if by == "rule":
                 if msg.get("anim") in RULE_ONE_SHOTS:
                     # The rules' one-shots (BEHAVIORS.md §3.1): the view event
                     # recorded right after names what set it off.
@@ -285,7 +302,6 @@ class Board:
             row = self._pass_for.get(body.get("for"))
             if row and (row["pass"].get("by") or None) == (body.get("by") or None) and row["react"] is None:
                 row["react"] = body
-                row["react_seq"] = seq
                 self._decided_by_action[seq] = row
         elif body["name"] == "mood":
             if not body["ok"]:
@@ -496,9 +512,14 @@ def state_text(s: Line) -> str:
 
 def say_text(say: Line) -> str:
     """A line as the board plays it: its takes' words, and their ids (the
-    feeling's, then the topic's; VOICE.md §4)."""
-    takes = [t for t in (take(say.get(k) or "") for k in ("take", "then")) if t]
-    if not takes or not take(say.get("take") or ""):
+    feeling's, then the topic's; VOICE.md §4), or just the ids with no voice
+    pack here. `no take` for a line without a take the pack has."""
+    ids = [i for i in (say.get("take"), say.get("then")) if i]
+    found = _takes(ids)
+    if found is None:
+        return f"({', '.join(ids)})" if ids else "no take"
+    takes = [t for t in found if t]
+    if not say.get("take") or not found[0]:
         return "no take"
     return "“" + " ".join(t.text for t in takes) + "” (" + ", ".join(t.id for t in takes) + ")"
 

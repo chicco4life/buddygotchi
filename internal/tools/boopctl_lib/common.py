@@ -64,9 +64,14 @@ def takes() -> tuple[Take, ...]:
     return tuple(out)
 
 
+@cache
+def _takes_by_id() -> dict[str, Take]:
+    return {t.id: t for t in takes()}
+
+
 def take(key: str) -> Take | None:
     """A take by its id."""
-    return next((t for t in takes() if t.id == key), None)
+    return _takes_by_id().get(key)
 
 
 def send_line(path: str, line: dict[str, Any]) -> str | None:

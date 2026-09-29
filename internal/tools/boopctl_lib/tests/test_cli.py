@@ -12,6 +12,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from boopctl_lib import cli  # noqa: E402
+from facegen import facegen  # noqa: E402
 from fake_board import FakeBoard  # noqa: E402
 
 COMMANDS = ["ping", "state", "shot", "send", "play", "takes", "card", "sim", "run", "perf", "soak", "e2e", "bridge",
@@ -85,10 +86,10 @@ class PlayTests(unittest.TestCase):
             cli.build_parser().parse_args(["play", "cheer", "--mood", "cheerful"])
 
     def test_the_moods_are_the_devices(self):
-        """PROTOCOL.md §3: the moods boopctl sends are the device's thirteen,
-        in its order (facegen writes them into firmware/assets/faces.h)."""
-        self.assertEqual(cli.MOODS, firmware_names("../assets/faces.h", "kMoodNames[13] = {"))
-        self.assertEqual(len(cli.MOODS), 13)
+        """PROTOCOL.md §3: the moods boopctl sends are facegen's, which it
+        writes into firmware/assets/faces.h, in the device's order."""
+        self.assertEqual(cli.MOODS, facegen.MOODS)
+        self.assertEqual(cli.MOODS, firmware_names("../assets/faces.h", "kMoodNames["))
 
     def test_play_sends_just_the_animation(self):
         self.assertEqual(self.play("cheer"), (0, ["cheer"]))
@@ -115,8 +116,9 @@ class PlayTests(unittest.TestCase):
         names of the states whose designs they play (firmware/src/render/
         scene.cpp animState; faces.h names them), and the older two it still
         reads (anim.cpp)."""
-        states = dict(zip(firmware_names("render/scene.h", "enum class SceneState", r"\bk\w+"),
-                          firmware_names("../assets/faces.h", "kStateNames[22] = {")))
+        names = firmware_names("../assets/faces.h", "kStateNames[")
+        self.assertEqual(names, facegen.STATES)
+        states = dict(zip(firmware_names("render/scene.h", "enum class SceneState", r"\bk\w+"), names))
         plays = firmware_names("render/scene.cpp", "SceneState animState(Anim a) {",
                                r"case Anim::k\w+: return SceneState::(k\w+);", end="\n}\n")
         self.assertEqual(cli.ANIMS + ["listening"], [states[s] for s in plays])
