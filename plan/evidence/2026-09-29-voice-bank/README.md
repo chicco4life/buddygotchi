@@ -53,9 +53,30 @@ added or whose expectations it changed, once (`boopdev eval --runs 1
 Seen in the runs: a determined face at long work, and proud at a check
 passing, say nothing (no take fits them), as expected.
 
+## The full eval, after merging main (2026-09-29)
+
+`boopdev eval --runs 1 --no-budget`, all 57 scenarios once, about 367
+Jev requests, on main (`5a18777c`: talk moves the mood) merged in:
+53 of 57 passed, `20` its known gap. `13`, `24` and `52`, which passed
+on main alone, failed: "almost always says something" was read as
+"react more", so Boop answered turn starts and routine commands with an
+engaged "Work" or "Rrr... tik", and in `52` (chatter) those faces pulled
+the mood off calm. boop's text now says it speaks when it reacts, never
+reacts just to speak, and chatter's that its mood still moves only as
+MOOD says. Rerun once each, with `61` (never a swear at the person, whose
+words left boop's text for its budget): all four pass. The other
+scenarios weren't rerun after that wording change.
+
+Seen in the runs, as expected: a determined face at a repeat failure,
+and proud at a check passing, say nothing. Once, Jev asked for retry as
+a sound in a determined face, whose only retry take is the word "Again":
+Voice never steps up a kind, so it was silent. Letting a sound step up to
+a word would make Boop speak more often.
+
+[plan/harness/EXAMPLE.md](../../harness/EXAMPLE.md) is re-recorded from
+this run's `04-tests-fight-back` ([eval-04-debug.jsonl](eval-04-debug.jsonl)).
+
 ## Not yet run
 
-- A full `make eval` (above).
-- `plan/harness/EXAMPLE.md` is still stale; a run of `04-tests-fight-back`
-  can re-record it.
 - Listening by ear on the board's speaker, and the approval of each take.
+- L4 (`make -C internal e2e`) with the everyday app's Bluetooth off.
