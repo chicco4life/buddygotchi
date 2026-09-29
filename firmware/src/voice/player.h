@@ -1,7 +1,7 @@
-// The voice player (plan/VOICE.md §5, §8): turns a `say` line into 8-bit
-// samples at 22.05 kHz for the DAC. Each syllable is one clip from
-// assets/voice.h, resampled as it plays, so pitch and tempo change without
-// new assets (the Animal Crossing trick). Pure C++: the board feeds the DAC
+// The voice player (plan/VOICE.md): plays one recorded take from
+// assets/voice.h, whole and at its recorded pitch, as 8-bit samples at
+// 22.05 kHz for the DAC. The takes are 11.025 kHz; each is resampled 2×
+// with linear interpolation as it plays. Pure C++: the board feeds the DAC
 // from it, and tests and the simulator render it into memory.
 #pragma once
 #include <cstddef>
@@ -10,36 +10,28 @@
 namespace voice {
 
 constexpr uint32_t kOutRate = 22050;
-constexpr int kMaxSyllables = 12;
-constexpr uint8_t kSilent = 0xFF;  // a syllable with no clip: its beat stays silent
 
-enum class Tune : uint8_t { kFlat, kUp, kDown, kBounce, kLift };
-Tune tuneFromName(const char* s);
-
-// Clip lookup by name, from the tables in assets/voice.h. -1 if unknown.
-int syllableIndex(const char* s, size_t n);
-int wordIndex(const char* s);
-int syllableCount();
-int wordCount();
+// The takes, from the tables in assets/voice.h. An index of -1 (or out of
+// range) is no take: no text, 0 ms, the mouth shut.
+int takeIndex(const char* id);  // -1 if unknown or null
+int takeCount();
+const char* takeId(int i);    // null for no take
+const char* takeText(int i);  // the bubble's text; null for no take
+uint32_t takeMs(int i);       // how long it plays, rounded down, as the Mac's Take.ms
+// Whether the mouth is open `ms` into take i (the take's loud frames, one
+// per kMouthMs); shut before and after it.
+bool mouthOpen(int i, uint32_t ms);
 const char* assetsVersion();
 uint32_t assetsBytes();
 
-// One line, as `moment.say` gave it (PROTOCOL.md §3) plus the volume from
-// `state`. It plays at the voice's own pitch.
+// One line, as `moment.say` gave it (PROTOCOL.md §3), plus the volume
+// from `state`.
 struct Line {
-  uint8_t syl[kMaxSyllables];  // syllable clip indices, or kSilent
-  int n = 0;
-  int word = -1;  // word clip index, or -1
-  int at = 0;     // the word goes before syllable `at` (n: at the end)
-  Tune tune = Tune::kFlat;
-  uint16_t ms = 120;    // per syllable; the word takes two beats
-  uint8_t vol = 6;      // 0–10, held in range by the device
-  uint32_t seed = 1;    // liveliness: ±5% pitch, ±10% timing per syllable
+  int take = -1;    // the take's index, or -1: nothing plays
+  uint8_t vol = 6;  // 0–10, held in range by the device
 };
 
-// How long a line takes, in output samples: every beat plus two for the
-// word. Timing jitter moves the boundaries inside pairs of beats, so the
-// total is exact.
+// How long a line takes, in output samples: two for each of the take's.
 uint32_t lineSamples(const Line& l);
 
 class Player {
@@ -52,28 +44,14 @@ class Player {
   // came from the line; the rest are silence.
   size_t render(uint8_t* out, size_t n);
 
-  // The timeline so far: slots (beats of syllables plus the word) that
-  // started, of how many, and the total in samples.
-  int slotsStarted() const { return slotAt_; }
-  int slots() const { return nSlots_; }
+  // The take playing (-1 for none) and its length in output samples.
+  int take() const { return take_; }
   uint32_t total() const { return total_; }
 
  private:
-  struct Slot {
-    int clip = -1;          // index into the flat clip table: syllables, then words
-    uint32_t start = 0;     // in output samples
-    uint32_t len = 0;
-    uint32_t step = 0;      // 16.16 source samples per output sample
-  };
-  void plan(const Line& l);
-  int16_t lineSample(uint32_t i);
-
-  Slot slots_[kMaxSyllables + 1];
-  int nSlots_ = 0;
-  int slotAt_ = 0;     // the slot `pos_` is in, plus one once it began
+  int take_ = -1;
   uint32_t pos_ = 0;
   uint32_t total_ = 0;
-  uint32_t src_ = 0;   // 16.16 read position in the current clip
   int gain_ = 0;       // 0–256
   int last_ = 0;       // the last sample out, around 0
   int fadeFrom_ = 0;   // what was cut, fading out over the next fade_ samples

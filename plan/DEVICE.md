@@ -94,7 +94,7 @@ replace the code that knows the hardware.
 | `src/app/behaviour.*` | What Boop does ([BEHAVIORS.md](BEHAVIORS.md)): the last `state`, the moment and line playing and how each the Mac waits on ended, taps in a row, blinks, no app, and the light, backlight and sound cues they imply | Board and Mac |
 | `src/app/` (the rest) | The device clock and random numbers (`clock.h`), BOOT's taps and holds (`gesture.*`), touch calibration (`touch_cal.h`), line reassembly and Bluetooth packets (`line_reader.h`, `packets.h`), dropping a quiet link (`link_silence.h`), and the screenshot's CRC and base64 (`codec.*`) | Board and Mac |
 | `src/render/` | The 8-bit canvas, palette, anti-aliased shapes, fonts, the animation bank's player (`scene.*`), the face screen with its bottom lane, the bubble or the strip (`screens.*`), the animation and mood names (`anim.*`) and the test pattern | Board and Mac |
-| `src/voice/player.*` | Turns a line or cue into samples ([VOICE.md](VOICE.md) §8) | Board and Mac |
+| `src/voice/player.*` | The takes by id, their text and mouth, and a line into samples: one take played whole ([VOICE.md](VOICE.md)) | Board and Mac |
 | `src/voice/effects.*`, `src/app/effect_track.*` | The sound effects' clips and timelines, the mixer that adds them to the voice, and when each event plays with the face ([VOICE.md](VOICE.md) §10) | Board and Mac |
 | `src/board/` | The pins; `board_hal.*`, the board's side of the core's `Hal` (buttons, touch, LED, backlight, NVS, heap, sound); `display.*`, the only code that knows LovyanGFX; `audio.*`, the DAC task | Board |
 | `src/link/ble.*` | The Nordic UART peripheral | Board |
@@ -152,7 +152,7 @@ knows nothing until the next `state`. Only the touch calibration survives
 | --- | --- | --- |
 | The model: `base`, `act`, `mood`, `attn` (agent, project, more), `busy` and `vol` from the last `state` ([PROTOCOL.md](PROTOCOL.md) §3) | Each `state` | The next `state` |
 | The moment: an animation (the finish, a one-shot, a poke, `listening`), its variation, start and length | A `moment`'s `anim`, a tap (`poked` or `tap_spam`), or BOOT held (`listening`) | Its end, a new moment, or a new "needs you". `listening` only by its end, the reply or the empty moment (below) |
-| The line: syllables, word, the word's place and the beat, for the mouth and bubble, and when it starts: at once, or at its animation's voice window ([VOICE.md](VOICE.md) §9) | A `moment`'s `say` | Its end, a new moment, or a new "needs you". A `state` with `attn` or volume 0 also stops its sound |
+| The line: its take, whose text, length and mouth frames drive the bubble and the mouth, and when it starts: at once, or at its animation's voice window ([VOICE.md](VOICE.md)) | A `moment`'s `say` with a take the device has | Its end, a new moment, or a new "needs you". A `state` with `attn` or volume 0 also stops its sound |
 | Taps in a row: how many, and when the last came | Every tap ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | A tap 3 s or more after the last starts a new run |
 | The variation of each animation's design shown last | Each animation that plays | `dbg.reset` |
 | A blink | The device's own timer ([BEHAVIORS.md](BEHAVIORS.md) §2), not on a flip-book | Its end, or an animation |
@@ -180,14 +180,24 @@ lane.
 **The bottom lane.** The animation bank's designs keep y 192–240 free
 for text (their clip, §6). The status strip sits in it, from y 204, and
 while a line plays the bubble takes the whole lane in the strip's place
-(`render::kLaneTop`): the squiggles and the one real word in amber, in a
-box with stepped corners and a short tail up to the face, as the bank
-asks host text to be drawn. No line plays while something needs you, so
-the bubble never hides who's asking. The first pack's looks and its
-successes for the finish draw into the lane; the bubble blanks it, so
-their props there are cut at y 192 while it shows. The word is never cut
-while squiggles can make room: they go, one at a time from the side with
-more, before it's cut with "..".
+(`render::kLaneTop`): the take's text, in the large font in amber and
+centred, in a box with stepped corners and a short tail up to the face,
+as the bank asks host text to be drawn. The texts are printable ASCII,
+at most 20 characters ("Bada bing bada boom" is the longest), so every
+one fits whole; longer text would end "..". The bubble shows from the
+line's start for the take's length (its samples at 11.025 kHz, in ms
+rounded down) and 1.2 s more to read it (`Behaviour::kBubbleReadMs`).
+No line plays while something needs you, so the bubble never hides
+who's asking. The first pack's looks and its successes for the finish
+draw into the lane; the bubble blanks it, so their props there are cut
+at y 192 while it shows.
+
+**The talking mouth.** While the take plays, the mouth is a small "o"
+(§6) whenever the take is loud: `voice.h` has one mouth frame for every
+20 ms of each take (220 samples), open when that frame is loud
+(voicegen's rule, [VOICE.md](VOICE.md)), and the device looks up the frame
+for the time since the line started (`voice::mouthOpen`). Once the take
+is said the mouth shuts, while the bubble stays.
 
 ### Taps and push-to-talk
 
@@ -213,7 +223,7 @@ one it has. It holds until the reply:
 - **The reply ends it.** Any moment with a `say` ends `listening`, then
   plays as it would have, its animation, face and `ended` included. So
   does the empty moment, `{"t":"moment"}`, which does nothing else: it
-  never ends another animation or a mumble ([PROTOCOL.md](PROTOCOL.md)
+  never ends another animation or a line ([PROTOCOL.md](PROTOCOL.md)
   §3).
 - **Or its time runs out.** It lasts at most 30 s of listening
   (`Behaviour::kListenMs`) and then 8 s for the reply (`kReplyWaitMs`):
@@ -284,10 +294,12 @@ calibrate again after changing `kRotation`. It survives reflashing.
 Nothing else is stored: the device ID comes from the Bluetooth MAC, and no
 `state` is kept.
 
-Fonts, faces, voice clips and sound effects are compiled in as arrays:
-the voice is 235 KB ([VOICE.md](VOICE.md) §8), the sound effects 208 KB
-with their timelines (§10 there), the faces 1.19 MB (§6) and the fonts
-about 27 KB. The whole firmware is 2.50 MB, about 79% of app0.
+Fonts, faces, voice takes and sound effects are compiled in as arrays:
+the voice is 465 KB, 462,857 bytes of takes and 2,130 of mouth frames
+([VOICE.md](VOICE.md)), within its budget of 480,000 bytes of takes
+(`test_voice`), the sound effects 208 KB with their timelines (§10
+there), the faces 1.19 MB (§6) and the fonts about 27 KB. The whole
+firmware is 2.73 MB, about 87% of app0.
 
 ## 6. Memory, drawing and speed
 
@@ -403,7 +415,7 @@ frames stay exact) and a press draws at once for its first 60 ms. A screenshot a
 
 | Measure | Value | Source |
 | --- | --- | --- |
-| Firmware size | 2.50 MB (2,498,591 bytes), 79% of app0 | The board build that plays the 22 states (acts, one-shots, the finish, pokes), 2026-09-29 |
+| Firmware size | 2.73 MB (2,725,851 bytes), 86.7% of app0 | The board build that plays the recorded takes (`make -C internal fw`), 2026-09-29 |
 | Minimum free heap, through a 10-minute soak with brain reactions | 71.5 KB (71,472 bytes), no drift from its first sample | The bench board, firmware `067c7d80`, [2026-09-29](evidence/2026-09-28-mood-spectrum/board/README.md) |
 | Frames a second through `perf --motion`'s finishes and pokes | 6.1 on average, 3 at the least: the wiggle now plays the stepped poke designs, not a continuous sway, so fewer frames change | The bench board, firmware `067c7d80`, 60 s, the same |
 | Drawing and pushing one changed frame (`draw_us`, `push_us`), through the soak | 1.5 ms and 11.7 ms typically; 3.0 ms and 27.0 ms at the most | The same |
@@ -454,7 +466,7 @@ the checks):
 4. **The rest:** `internal/tools/boopctl state` reports BOOT, raw touch,
    the LED and the amp, and `internal/tools/boopctl ping` shows Bluetooth
    advertising. Presses, calibration, the speaker
-   (`internal/tools/boopctl mumble`) and the LED's glow need a person.
+   (`internal/tools/boopctl takes`) and the LED's glow need a person.
 
 ## 8. Known quirks
 

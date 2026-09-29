@@ -5,6 +5,7 @@
 
 #include "render/raster.h"
 #include "voice/effects.h"
+#include "voice/player.h"
 
 namespace app {
 
@@ -97,10 +98,10 @@ bool Behaviour::listening(uint32_t t) const { return momentOn(t) && moment_.anim
 // dips the face and a moment's animation is skipped.
 bool Behaviour::held(uint32_t t) const { return noApp(t) || model_.attn || listening(t); }
 
-bool Behaviour::sayOn(uint32_t t) const { return say_.say.syllables > 0 && within(t, say_.at, say_.ms); }
+bool Behaviour::sayOn(uint32_t t) const { return say_.take >= 0 && within(t, say_.at, say_.ms); }
 
 bool Behaviour::sayDue(uint32_t t) const {
-  return say_.say.syllables > 0 && int32_t(t - say_.at) < int32_t(say_.ms);
+  return say_.take >= 0 && int32_t(t - say_.at) < int32_t(say_.ms);
 }
 
 bool Behaviour::exprOn(uint32_t t) const { return expr_ && within(t, exprAt_, exprMs_); }
@@ -143,7 +144,7 @@ void Behaviour::advance(uint32_t t, Rng& rng) {
       if (after(c, modelT_) && !after(c, t) && (!found || after(next, c))) next = c, found = true;
     };
     if (moment_.anim != render::Anim::kNone) consider(moment_.at + moment_.ms);
-    if (say_.say.syllables > 0) consider(say_.at + say_.ms);
+    if (say_.take >= 0) consider(say_.at + say_.ms);
     if (expr_) consider(exprAt_ + exprMs_);
     consider(lastState_ + kNoAppMs);
     consider(nextBlink_);
@@ -176,7 +177,7 @@ void Behaviour::resync(uint32_t t) {
 // source, so the face doesn't change.
 void Behaviour::settle(uint32_t t) {
   if (switched_ && !within(t, switchAt_, render::kBlendMs)) switched_ = false;
-  if (say_.say.syllables > 0 && !sayDue(t)) say_ = Say{};
+  if (say_.take >= 0 && !sayDue(t)) say_ = Say{};
   if (blFade_ && !within(t, blAt_, render::kBlendMs)) blFade_ = false;
 }
 
@@ -207,9 +208,9 @@ void Behaviour::turn(uint32_t t, Rng& rng) {
 
 // ---- Moments the Mac waits on (PROTOCOL.md §4 `ended`) ---------------------
 
-// A moment is over when none of its parts plays: the animation, the mumble
-// and its bubble, the expression. It was cut if its animation or its mumble
-// was stopped early. Its expression holds on after its mumble, and ending
+// A moment is over when none of its parts plays: the animation, the line
+// and its bubble, the expression. It was cut if its animation or its line
+// was stopped early. Its expression holds on after its line, and ending
 // that early doesn't cut it: the reaction was seen and heard.
 bool Behaviour::holds(uint32_t id, uint32_t t) const {
   return (momentOn(t) && moment_.id == id) || (sayDue(t) && say_.id == id) || (exprOn(t) && exprId_ == id);
@@ -295,7 +296,7 @@ void Behaviour::onState(const Model& m, uint32_t t) {
       // push-to-talk still works.
       if (momentOn(t) && !listening(t)) cut(moment_.id, CutBy::kNeedsYou), moment_.anim = render::Anim::kNone;
       if (sayDue(t)) cut(say_.id, CutBy::kNeedsYou);
-      say_ = Say{};  // no mumbles while something needs you
+      say_ = Say{};  // no lines while something needs you
       expr_ = false;
     }
     // Answered on the Mac (`attn` leaves), or back after no app: the face
@@ -303,18 +304,19 @@ void Behaviour::onState(const Model& m, uint32_t t) {
   });
 }
 
-// A moment with an animation replaces the one playing, and its mumble too;
-// the animation plays its loops of its design. A mumble on its own plays
+// A moment with an animation replaces the one playing, and its line too;
+// the animation plays its loops of its design. A line on its own plays
 // over whatever face is showing, replacing any line (PROTOCOL.md §3). With
 // an animation, the line starts at its design's voice window (VOICE.md
 // §10), and the animation holds on until the line and its bubble are over
 // rather than the line being hurried. A moment with an expression draws
 // the design showing in its mood for as long as its animation plays, or
 // with none for its loops of the design it's drawn in, and at least as long
-// as its mumble and bubble. What outranks the moments (BEHAVIORS.md §1): no
-// app, and while something needs you no animation takes the face over and
-// no mumble plays. A moment the Mac waits on that plays nothing ends at
-// once, skipped.
+// as its line and bubble; a face on its own (no animation, no line) plays
+// just that, leaving any line playing. What outranks the moments
+// (BEHAVIORS.md §1): no app, and while something needs you no animation
+// takes the face over and no line or face on its own plays. A moment the
+// Mac waits on that plays nothing ends at once, skipped.
 //
 // Listening (DEVICE.md §4) plays even while something needs you, and holds
 // until the reply: a moment with a `say` is the reply, and ends it before
@@ -328,8 +330,9 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
   const bool listen = in.anim == render::Anim::kListening;
   if (listening(t) && !listen && (in.said || in.empty)) change(t, [&] { moment_.anim = render::Anim::kNone; });
   bool anim = in.anim != render::Anim::kNone && (listen || !held(t));
-  bool mumble = in.syllables > 0 && !model_.attn && !noApp(t);
-  if (!anim && !mumble) {
+  bool line = in.take >= 0 && !model_.attn && !noApp(t);
+  bool face = in.expr && !held(t);  // listening, if it's still on, holds the face
+  if (!anim && !line && !face) {
     if (in.id) report(Ended{in.id, MomentEnd::kSkipped, CutBy::kNone, in.from});
     return false;
   }
@@ -350,7 +353,7 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
       }
       if (!listen) voice = voice::score(int(mood), int(render::animState(in.anim)), in.variant).voiceMs;
     }
-    if (mumble) {
+    if (line) {
       startSay(in, t, t + voice);
       say_.id = in.id;
       if (anim && !listen && voice + say_.ms > moment_.ms) moment_.ms = voice + say_.ms;
@@ -360,12 +363,12 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
       exprMood_ = in.mood;
       exprAt_ = t;
       exprMs_ = anim ? moment_.ms : holdMs(in.mood, in.loops, t);
-      if (mumble && voice + say_.ms > exprMs_) exprMs_ = voice + say_.ms;
+      if (line && voice + say_.ms > exprMs_) exprMs_ = voice + say_.ms;
       exprId_ = in.id;
     }
     if (in.id) wait(in.id, in.from);
   });
-  return mumble;
+  return line;
 }
 
 uint8_t Behaviour::pick(render::Anim a, render::Mood mood, int wanted, render::Outcome o, render::StartCtx c,
@@ -425,12 +428,8 @@ void Behaviour::startSay(const MomentIn& in, uint32_t t, uint32_t at) {
   expr_ = false;  // a new line ends the last moment's expression
   ++momentSeq_;
   Say& s = say_;
-  copyStr(s.word, sizeof(s.word), in.word);
-  s.say.syllables = in.syllables;
-  s.say.word = s.word[0] ? s.word : nullptr;
-  s.say.at = s.word[0] ? in.at : -1;
-  s.sylMs = in.ms;
-  s.speakMs = uint32_t(in.syllables + (s.word[0] ? 2 : 0)) * s.sylMs;  // a word is two beats
+  s.take = in.take;
+  s.speakMs = voice::takeMs(in.take);
   s.at = at;
   s.ms = s.speakMs + kBubbleReadMs;
 }
@@ -513,7 +512,7 @@ Behaviour::Source Behaviour::sourceAt(uint32_t t) const {
 // The design and its clock: an animation's from when it began, starting
 // over each loop and resting on its last frame once its loops are over, a
 // look's from when the look began. On top: a blink, or the blink that hides
-// a change of design; the mouth an "o" for the first half of each syllable;
+// a change of design; the mouth an "o" while the take is loud;
 // and the press's dip.
 render::SceneShow Behaviour::show(uint32_t t) const {
   render::SceneShow s;
@@ -529,7 +528,7 @@ render::SceneShow Behaviour::show(uint32_t t) const {
   s.eyesShut = blinking(t) || (switched_ && within(t, switchAt_, render::kBlendMs));
   if (sayOn(t)) {
     uint32_t lt = t - say_.at;
-    s.mouthOpen = say_.sylMs && lt < say_.speakMs && lt % say_.sylMs < say_.sylMs / 2;
+    s.mouthOpen = lt < say_.speakMs && voice::mouthOpen(say_.take, lt);
   }
   if (pressed_) s.dy = int16_t(s.dy + kPressPx);
   return s;
@@ -583,7 +582,7 @@ render::Strip Behaviour::strip(uint32_t t) const {
 }
 
 // With no app, no line shows: it outranks the moments.
-const render::Mumble* Behaviour::mumble(uint32_t t) const { return sayOn(t) && !noApp(t) ? &say_.say : nullptr; }
+const char* Behaviour::bubble(uint32_t t) const { return sayOn(t) && !noApp(t) ? voice::takeText(say_.take) : nullptr; }
 
 bool Behaviour::lineAhead(uint32_t t) const { return sayDue(t) && !sayOn(t); }
 

@@ -135,7 +135,7 @@ void test_every_design_has_a_timeline() {
 
 // The bank's voice-first mix, by state (VOICE.md §10): the quiet states
 // are silent; needs you's knocks end in the ding, and it, the finish and
-// an error play on their first loop only and never duck under a mumble;
+// an error play on their first loop only and never duck under a line;
 // routine designs sound a few of their contacts, picked afresh each loop.
 // Each design's voice window is where the bank puts it.
 void test_each_state_sounds_as_the_bank_says() {
@@ -204,7 +204,7 @@ void test_each_state_sounds_as_the_bank_says() {
 // pitch plays it faster.
 void test_an_effect_plays_its_clip_once() {
   std::vector<uint8_t> full = mixed(effect("key"));
-  TEST_ASSERT_TRUE(peak(full) > 60);  // 255 at volume 6: as loud as a syllable, about 0.6 of full
+  TEST_ASSERT_TRUE(peak(full) > 60);  // 255 at volume 6: as loud as the voice, about 0.6 of full
   TEST_ASSERT_TRUE(peak(full) <= 77);
   TEST_ASSERT_INT_WITHIN(2, peak(full) / 2, peak(mixed(effect("key", 128))));
   TEST_ASSERT_EQUAL(0, peak(mixed(effect("key", 255, 1000, 0))));  // muted
@@ -213,10 +213,10 @@ void test_an_effect_plays_its_clip_once() {
   TEST_ASSERT_INT_WITHIN(int(normal / 50), int(normal / 2), int(fast));
 }
 
-// VOICE.md §10: under a mumble, effects are a quarter as loud, the bank's
+// VOICE.md §10: under a line, effects are a quarter as loud, the bank's
 // level, but needs you's, the finish's and an error's never are: the design
 // decides, not the clip.
-void test_a_mumble_turns_effects_down_but_not_the_attention_cues() {
+void test_a_line_turns_effects_down_but_not_the_attention_cues() {
   TEST_ASSERT_INT_WITHIN(2, peak(mixed(effect("key"))) / 4, peak(mixed(effect("key"), true)));
   voice::Effect ding = effect("alertDing");
   ding.duck = false;
@@ -371,7 +371,7 @@ int main() {
   RUN_TEST(test_every_design_has_a_timeline);
   RUN_TEST(test_each_state_sounds_as_the_bank_says);
   RUN_TEST(test_an_effect_plays_its_clip_once);
-  RUN_TEST(test_a_mumble_turns_effects_down_but_not_the_attention_cues);
+  RUN_TEST(test_a_line_turns_effects_down_but_not_the_attention_cues);
   RUN_TEST(test_voices_and_stopping);
   RUN_TEST(test_a_working_design_sounds_every_loop);
   RUN_TEST(test_entry_designs_sound_once);

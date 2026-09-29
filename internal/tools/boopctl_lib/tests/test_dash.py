@@ -27,6 +27,7 @@ from boopctl_lib.common import REPO, send_line  # noqa: E402
 from boopctl_lib.dash import controls  # noqa: E402
 from boopctl_lib.dash.app import PREVIEW_RESEND_S, Dash, StateView  # noqa: E402
 from boopctl_lib.dash.face import CROP, SCALE, blocks, render  # noqa: E402
+from boopctl_lib.dash import feed  # noqa: E402
 from boopctl_lib.dash.feed import STALE_S, Board, Follower, clock, kind  # noqa: E402
 from boopctl_lib.scenario import GOLDEN  # noqa: E402
 
@@ -212,7 +213,7 @@ class ColumnsTests(unittest.TestCase):
                           "Tests passing."])
         chatter = next(line["sent"]["say"] for line in fixture_lines(COLUMNS)
                        if line.get("sent", {}).get("say") and not line["sent"].get("mood"))
-        at = reflex.index(next(t for t in reflex if t.endswith(f"working chatter “{chatter['syl']}”")))
+        at = reflex.index(next(t for t in reflex if t.endswith(f"working chatter {feed.say_text(chatter)}")))
         self.assertEqual(reflex[at + 1], "  an agent is working")
         self.assertTrue(reflex[-3].endswith(" needs you cleared"))
         self.assertTrue(reflex[-2].endswith(" needs you: claude · jetpack · alert"))
@@ -408,15 +409,14 @@ class ControlsTests(unittest.TestCase):
         self.assertEqual((needs["base"], needs["attn"]["agent"]), ("idle", "claude"))
         self.assertEqual(latest["base"], "working", "the app's state is left alone")
 
-    @unittest.skipUnless((REPO / ".build" / "debug" / "boopdev").exists(), "needs make build")
-    def test_a_preview_mumble_is_the_apps_voice(self):
-        line = controls.preview_mumble("grumpy", "again", 3)
-        self.assertEqual((line["t"], line["say"]["word"], line["mood"], line["loops"]), ("moment", "again", "grumpy", 3))
-        self.assertEqual(line["say"]["tune"], "flat", "grumpy's face mumbles in annoyed's voice")
-        self.assertIn("syl", line["say"])
+    def test_a_preview_reaction_says_its_word(self):
+        line = controls.preview_reaction("grumpy", "again", 3)
+        self.assertEqual((line["t"], line["mood"], line["loops"]), ("moment", "grumpy", 3))
+        self.assertIn(line["say"]["take"], {"new.d05", "new.d06", "new.d07", "new.d08"}, "a take of the word")
         self.assertNotIn("anim", line)
-        self.assertEqual(controls.preview_mumble("proud", None, 1, "cheer")["anim"], "cheer",
-                         "an animation as react.animation picks it")
+        face = controls.preview_reaction("proud", None, 1, "cheer")
+        self.assertEqual(face["anim"], "cheer", "an animation as react.animation picks it")
+        self.assertNotIn("say", face, "no word: the face on its own")
 
     def test_confirmations(self):
         pending = controls.Pending()
@@ -585,14 +585,13 @@ class AppTests(unittest.TestCase):
                     f.write('{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":1790498700002}\n')
                 app.poll()
                 self.assertEqual(face.sent[-1]["mood"], "sad", "the app's lines wait")
-                if (REPO / ".build" / "debug" / "boopdev").exists():
-                    await pick("r", 5, 0)  # grumpy's face, no word: a moment with its `mood`
-                    for _ in range(100):
-                        if face.sent[-1]["t"] == "moment":
-                            break
-                        await pilot.pause(0.05)
-                    self.assertEqual((face.sent[-1]["t"], face.sent[-1]["mood"]), ("moment", "grumpy"))
-                    self.assertNotIn("word", face.sent[-1]["say"])
+                await pick("r", 5, 0)  # grumpy's face, no word: a moment with its `mood`
+                for _ in range(100):
+                    if face.sent[-1]["t"] == "moment":
+                        break
+                    await pilot.pause(0.05)
+                self.assertEqual((face.sent[-1]["t"], face.sent[-1]["mood"]), ("moment", "grumpy"))
+                self.assertNotIn("say", face.sent[-1])
                 # Resent well inside the device's 30 s no-app timeout.
                 self.assertEqual(PREVIEW_RESEND_S, 10)
                 app.keep_preview()

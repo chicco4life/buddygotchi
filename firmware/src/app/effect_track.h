@@ -29,7 +29,7 @@ class EffectTrack {
   // and returns how many. `changed` is true when the design changed or
   // started over: the last one's sounds stop before these play.
   int follow(const render::SceneShow* s, voice::FxEvent* out, bool& changed);
-  // Whether a mumble turns down the events follow hands over: their
+  // Whether a line turns down the events follow hands over: their
   // design's rule (voice::Score::duck).
   bool duck() const { return score_.duck; }
 

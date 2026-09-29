@@ -25,7 +25,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from boopctl_lib.common import REPO, restarted, send_line, syllables
+from boopctl_lib.common import REPO, restarted, send_line, take
 from boopctl_lib.device import Device, DeviceError
 from boopctl_lib.image import save_shot
 from boopctl_lib.scenario import matches
@@ -221,13 +221,10 @@ KEPT_WORDS = {"PRIVATE_PROMPT", "PRIVATE_CLOSING"}
 
 
 def line_ms(say: dict[str, Any]) -> int:
-    """How long a line plays on the device, as DeviceMoment.playMs times
-    it: its syllables, plus two beats for a word, at 60-400 ms each, then
-    1200 ms for the bubble (firmware/src/app/behaviour.cpp startSay)."""
-    if not (n := syllables(say)):
-        return 0
-    beats = n + (2 if say.get("word") else 0)
-    return beats * max(60, min(400, say.get("ms", 120))) + 1200
+    """How long a line plays on the device: its take's length, then 1200 ms
+    for the bubble (firmware/src/app/behaviour.cpp startSay); 0 for none."""
+    t = take(say.get("take") or "")
+    return t.ms + 1200 if t else 0
 
 
 def check_order(run: Run) -> dict[str, Any]:
@@ -239,7 +236,7 @@ def check_order(run: Run) -> dict[str, Any]:
     `link brain → …` for each line sent to the device, and always
     `device: moment N ended …` for the device's `ended`. For every brain
     moment: the rules' reaction to the last hook came first, and the last
-    rule line (chatter) had finished playing. A brain mumble may play over a
+    rule line (chatter) had finished playing. A brain line may play over a
     rule's one-shot, such as starting, which it doesn't cut; an animation
     stops the line playing. Each fixture ends with seconds to spare, so
     every brain moment sent with an `id` has its `ended` by then, and it
@@ -266,7 +263,7 @@ def check_order(run: Run) -> dict[str, Any]:
                 reaction = (t, last_hook)
             line = json.loads(text[len("link rules → "):])
             if line.get("t") == "moment":
-                anim = line.get("anim") or "mumble"  # chatter: a mumble on its own
+                anim = line.get("anim") or "line"  # chatter: a line on its own
                 # A line plays to its end; an animation alone stops any line.
                 ends = t + line_ms(line["say"]) if line.get("say") else min(rule_moment[2] if rule_moment else t, t)
                 rule_moment = (t, anim, ends)
@@ -274,7 +271,7 @@ def check_order(run: Run) -> dict[str, Any]:
             brain_line = json.loads(text[len("link brain → "):])
             if brain_line.get("t") != "moment":
                 continue
-            anim = brain_line.get("anim") or "mumble"  # the brain's `say`: a mumble on its own
+            anim = brain_line.get("anim") or "line"  # the brain's `say`: a line on its own
             answers.append({
                 "moment": anim, "at": raw[:12], "id": brain_line.get("id"),
                 "after_reaction_ms": None if reaction is None else t - reaction[0],

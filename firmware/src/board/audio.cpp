@@ -51,8 +51,7 @@ uint8_t chunk[kChunk];
 // finished it is how long the DAC took to play those chunks.
 struct Current {
   bool line = false;
-  int syl = 0;
-  bool word = false;
+  int take = -1;
   uint32_t planMs = 0;
   uint32_t samples = 0;  // line samples rendered
   uint32_t chunks = 0;   // chunks they span
@@ -78,8 +77,7 @@ void finish(bool cut) {
   }
   locked([&] {
     ++stats.lines;
-    stats.syl = cur.syl;
-    stats.word = cur.word;
+    stats.take = cur.take;
     stats.planMs = cur.planMs;
     stats.outMs = cur.samples * 1000 / voice::kOutRate;
     stats.wallMs = wall;
@@ -95,8 +93,7 @@ void applyVoice(const Cmd& c) {
       player.start(c.line);
       if (player.playing()) {
         cur.line = true;
-        cur.syl = c.line.n;
-        cur.word = c.line.word >= 0;
+        cur.take = c.line.take;
         cur.planMs = voice::lineSamples(c.line) * 1000 / voice::kOutRate;
         cur.startUs = lastWriteUs;
       }

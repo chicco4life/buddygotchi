@@ -14,11 +14,11 @@ namespace voice {
 enum class Policy : uint8_t { kSilent, kLoop, kEntry, kSparse };
 
 // One event of a timeline: a clip at a time into the design's loop. Whether
-// a mumble turns it down is its design's (Score::duck).
+// a line turns it down is its design's (Score::duck).
 struct FxEvent {
   uint16_t atMs = 0;
   uint8_t clip = 0;
-  uint8_t gain = 255;     // 255 plays the clip as loud as a syllable
+  uint8_t gain = 255;     // 255 plays the clip as loud as a take
   uint16_t pitch = 1000;  // permille: 1000 plays the clip as made
 };
 
@@ -31,8 +31,8 @@ struct FxEvent {
 struct Score {
   Policy policy = Policy::kSilent;
   int every = 1;          // sparse: the loops that sound are 0, every, 2 × every…
-  bool duck = true;       // a mumble turns it down; never needs you's, the finish's or an error's
-  uint16_t voiceMs = 0;   // its voice window's start: a mumble over the design starts no sooner
+  bool duck = true;       // a line turns it down; never needs you's, the finish's or an error's
+  uint16_t voiceMs = 0;   // its voice window's start: a line over the design starts no sooner
   int lists = 0, loop0 = 0;  // its loops' event lists (1, or kLoops), for events()
 };
 constexpr int kLoops = 8;
@@ -57,13 +57,13 @@ struct Effect {
   uint8_t gain = 255;
   uint16_t pitch = 1000;
   uint8_t vol = 6;    // 0–10, as Line::vol
-  bool duck = true;   // a mumble turns it down (Score::duck)
+  bool duck = true;   // a line turns it down (Score::duck)
 };
 
 class Effects {
  public:
   static constexpr int kVoices = 4;  // effects at once; a fifth replaces the oldest
-  static constexpr int kDuck = 64;   // of 256: under a mumble, a quarter as loud, the bank's level (VOICE.md §10)
+  static constexpr int kDuck = 64;   // of 256: under a line, a quarter as loud, the bank's level (VOICE.md §10)
 
   void play(const Effect& e);
   // Every effect fades out over 4 ms, so the cut doesn't click.
@@ -71,7 +71,7 @@ class Effects {
   bool playing() const;
   // Adds the effects into `out`, unsigned 8-bit samples at 22.05 kHz with
   // 128 as silence, turned down by kDuck while `duck`, but for those whose
-  // design a mumble never turns down.
+  // design a line never turns down.
   void mix(uint8_t* out, size_t n, bool duck);
 
  private:

@@ -8,7 +8,7 @@ import random
 import time
 from typing import Any, Callable
 
-from boopctl_lib.common import boopdev_voice
+from boopctl_lib.common import takes
 from boopctl_lib.dash.feed import Line, kind
 
 CONFIRM_S = 2.0
@@ -74,12 +74,15 @@ def preview_state(latest: Line | None, look: str, mood: str | None = None) -> Li
     return state
 
 
-def preview_mumble(face: str, word: str | None, loops: int = 1, anim: str | None = None) -> Line:
-    """A reaction as the react action sends it: the line the app's Voice
-    builds for that mood's face, from `boopdev voice MOOD --json`, the face
-    as the moment's `mood`, held `loops` times, and `anim` if one was
-    picked (PROTOCOL.md §3)."""
-    line: Line = {"t": "moment", "say": boopdev_voice(face, word, 1, random.randint(1, 1 << 30))[0], "mood": face, "loops": loops}
+def preview_reaction(face: str, word: str | None, loops: int = 1, anim: str | None = None) -> Line:
+    """A reaction as the react action sends it: the face as the moment's
+    `mood`, held `loops` times, `anim` if one was picked, and with `word`
+    a take whose text is that word (any case, its dots and marks aside),
+    else any take; with none, the face on its own (PROTOCOL.md §3)."""
+    line: Line = {"t": "moment", "mood": face, "loops": loops}
+    if word:
+        said = [t for t in takes() if t.text.lower().strip(".?! ") == word.lower()]
+        line["say"] = {"take": random.choice(said or takes()).id}
     if anim:
         line["anim"] = anim
     return line

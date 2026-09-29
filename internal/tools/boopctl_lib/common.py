@@ -1,11 +1,13 @@
 """What boopctl's commands and the dashboard share: the repo, the
-animations and moods, the Mac's Voice lines, a line to the app's hook
+animations and moods, the board's voice takes, a line to the app's hook
 socket, and noticing a board reset."""
 from __future__ import annotations
 
 import json
+import re
 import socket
-import subprocess
+from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -34,25 +36,34 @@ MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad",
          "calm", "engaged", "annoyed", "irritated", "whiny", "wounded"]
 
 
-def boopdev_voice(feeling: str, word: str | None, count: int, seed: int | None = None) -> list[dict]:
-    """Lines as the Mac's Voice builds them, through `boopdev voice --json`."""
-    boopdev = REPO / ".build" / "debug" / "boopdev"
-    if not boopdev.exists():
-        raise DeviceError(f"{boopdev} is missing; run `make build` first")
-    cmd = [str(boopdev), "voice", feeling] + ([word] if word else []) + ["--count", str(count), "--json"]
-    if seed is not None:
-        cmd += ["--seed", str(seed)]
-    run = subprocess.run(cmd, capture_output=True, text=True)
-    if run.returncode:  # a word outside the vocabulary: boopdev lists the ones it knows
-        raise DeviceError(f"`boopdev voice {feeling}{' ' + word if word else ''}` failed. "
-                          + (run.stderr.strip() or f"exit {run.returncode}"))
-    return [json.loads(row) for row in run.stdout.splitlines() if row.startswith("{")]
+VOICE_H = REPO / "firmware" / "assets" / "voice.h"
 
 
-def syllables(say: dict[str, Any]) -> int:
-    """A mumble's syllables: `syl` separates words by spaces and their
-    syllables by `-` (PROTOCOL.md §3)."""
-    return len(say.get("syl", "").replace("-", " ").split())
+@dataclass(frozen=True)
+class Take:
+    """One of the board's recorded takes: its id (a `say`'s `take`), the
+    bubble's text, and how long it plays, in ms rounded down (PROTOCOL.md §3,
+    DEVICE.md §4)."""
+    id: str
+    text: str
+    ms: int
+
+
+@cache
+def takes() -> tuple[Take, ...]:
+    """The takes in firmware/assets/voice.h, which voicegen writes, in the
+    board's order."""
+    src = VOICE_H.read_text()
+    rate = int(re.search(r"kRate = (\d+);", src).group(1))
+    rows = re.findall(r'\{"([^"]+)", "((?:[^"\\]|\\.)*)", \d+, (\d+), \d+\}', src)
+    if not rows:
+        raise DeviceError(f"no takes in {VOICE_H}")
+    return tuple(Take(i, t, int(n) * 1000 // rate) for i, t, n in rows)
+
+
+def take(key: str) -> Take | None:
+    """A take by its id."""
+    return next((t for t in takes() if t.id == key), None)
 
 
 def send_line(path: str, line: dict[str, Any]) -> str | None:

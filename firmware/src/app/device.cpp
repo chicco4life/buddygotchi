@@ -154,7 +154,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     ++rxMoment_;
     MomentIn mo;
     const char* anim = doc["anim"];
-    mo.anim = render::animFromName(anim);  // none, or unknown: only the mumble
+    mo.anim = render::animFromName(anim);  // none, or unknown: only the line or the face
     mo.expr = render::parseMood(doc["mood"], mo.mood);  // unknown or missing: the state's mood
     mo.loops = heldTo(doc["loops"], 1, Behaviour::kMaxLoops, 1);
     // The animation's variation: the Mac's (from 1) when it's one of its
@@ -176,42 +176,19 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     mo.empty = doc["anim"].isNull() && !mo.said && doc["mood"].isNull();
     JsonObjectConst who = doc["who"];  // copied by onMoment, while doc lives
     if (who) mo.whoAgent = who["agent"] | "", mo.whoThread = who["thread"] | "";
+    // The line: a take by its id. `{}`, or an id the device doesn't have,
+    // is still a `say` (the reply listening waits for) but plays nothing.
     voice::Line line;
-    JsonObjectConst say = doc["say"];
-    if (say) {
-      // Syllables are separated by spaces (words) and hyphens.
-      int syl = 0;
-      const char* p = say["syl"] | "";
-      while (*p) {
-        while (*p == ' ' || *p == '-') ++p;
-        const char* s = p;
-        while (*p && *p != ' ' && *p != '-') ++p;
-        if (p == s) break;
-        if (line.n < voice::kMaxSyllables) {
-          int i = voice::syllableIndex(s, size_t(p - s));
-          line.syl[line.n++] = i < 0 ? voice::kSilent : uint8_t(i);
-        }
-        ++syl;
-      }
-      mo.syllables = syl;
-      const char* word = say["word"] | "";
-      mo.word = word[0] ? word : nullptr;
-      mo.at = heldTo(say["at"], 0, syl, syl);  // at the end if missing
-      mo.ms = uint32_t(heldTo(say["ms"], 60, 400, 120));  // the mouth and the voice alike
-      line.word = voice::wordIndex(mo.word);
-      line.at = mo.at;
-      line.tune = voice::tuneFromName(say["tune"]);
-      line.ms = uint16_t(mo.ms);
-    }
+    line.take = voice::takeIndex(doc["say"]["take"].as<const char*>());
+    mo.take = line.take;
     mo.id = doc["id"] | 0u;  // the Mac waits on it: `ended` goes back where it came from
     mo.from = uint8_t(from);
     uint32_t seq = b_.momentSeq();
-    bool mumble = b_.onMoment(mo, at);  // copies the word
+    bool speaks = b_.onMoment(mo, at);
     linePending_ = false;
-    if (mumble) {
+    if (speaks) {
       // Its sound goes with its bubble: now, or at its animation's voice
       // window (VOICE.md §10).
-      line.seed = at * 2654435761u + rxMoment_;  // not from rng_, which the frames depend on
       line_ = line;
       linePending_ = true;
       lineMoment_ = b_.momentSeq();
@@ -400,11 +377,11 @@ void Device::hush() {
 // when it starts now.
 bool Device::startLine(uint32_t t) {
   if (!linePending_) return false;
-  if (b_.momentSeq() != lineMoment_ || (!b_.mumble(t) && !b_.lineAhead(t))) {
+  if (b_.momentSeq() != lineMoment_ || (!b_.bubble(t) && !b_.lineAhead(t))) {
     linePending_ = false;
     return false;
   }
-  if (!b_.mumble(t)) return false;  // it waits for its animation's voice window
+  if (!b_.bubble(t)) return false;  // it waits for its animation's voice window
   linePending_ = false;
   const Model& m = b_.model();
   if (m.vol <= 0) return false;
@@ -415,13 +392,13 @@ bool Device::startLine(uint32_t t) {
   return true;
 }
 
-// Stops a line whose mumble ended or was replaced (a tap's poke, say), and
+// Stops a line whose bubble ended or was replaced (a tap's poke, say), and
 // starts one that waited for its voice window, then plays the face's sound
 // effects (VOICE.md §10): its design's events as its clock reaches them,
 // and silence for the last design's when it changes or starts over (needs
 // you's, for a new request).
 void Device::followSound(uint32_t t) {
-  if (saying_ && (b_.momentSeq() != sayMoment_ || !b_.mumble(t))) hush();
+  if (saying_ && (b_.momentSeq() != sayMoment_ || !b_.bubble(t))) hush();
   startLine(t);
   const Model& m = b_.model();
   render::SceneShow show = b_.show(t);
@@ -464,11 +441,11 @@ void Device::render(uint32_t t) {
     }
   } else {  // the face, needs you and no app: what differs is in the show and the strip
     render::SceneFrame frame = render::sceneFrame(b_.show(t));
-    const render::Mumble* mumble = b_.mumble(t);
-    if (!dirty_ && frame == drawnFrame_ && (mumble != nullptr) == drawnBubble_) return;
+    const char* bubble = b_.bubble(t);
+    if (!dirty_ && frame == drawnFrame_ && (bubble != nullptr) == drawnBubble_) return;
     drawnFrame_ = frame;
-    drawnBubble_ = mumble != nullptr;
-    render::drawFaceScreen(canvas_, frame, mumble, b_.strip(t));
+    drawnBubble_ = bubble != nullptr;
+    render::drawFaceScreen(canvas_, frame, bubble, b_.strip(t));
   }
   labelDrawn_ = debugLabel(t);
   if (labelDrawn_) canvas_.drawText(2, 2, labelDrawn_, render::inkAt(render::kInkDim, render::kLevels));
@@ -573,14 +550,16 @@ void Device::sendState(Link to) {
   std::snprintf(led, sizeof(led), "#%06lX", (unsigned long)(b_.led(t) & 0xFFFFFF));
   d["led"] = led;
   d["audio"]["playing"] = b_.speaking(t);
-  d["audio"]["syllables"] = b_.mumble(t) ? b_.syllables() : 0;
+  const char* take = b_.bubble(t) ? voice::takeId(b_.take()) : nullptr;
+  if (take) d["audio"]["take"] = take;
+  else d["audio"]["take"] = nullptr;
   AudioOut ao = hal_.audioOut();
   JsonObject out = d["audio"]["out"].to<JsonObject>();
   out["ready"] = ao.ready;
   out["playing"] = ao.playing;
   out["lines"] = ao.lines;
-  out["syl"] = ao.syl;
-  out["word"] = ao.word;
+  if (voice::takeId(ao.take)) out["take"] = voice::takeId(ao.take);
+  else out["take"] = nullptr;
   out["plan_ms"] = ao.planMs;
   out["out_ms"] = ao.outMs;
   out["wall_ms"] = ao.wallMs;

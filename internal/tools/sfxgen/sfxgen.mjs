@@ -12,8 +12,8 @@
 // Each effect the timelines use is rendered once, at the bank's 44.1 kHz,
 // then filtered and cut down to 8-bit samples at 11.025 kHz, the voice's
 // format. All effects share one scale, so their levels keep the bank's
-// balance. The device resamples a clip for an event's pitch, as it does a
-// syllable (firmware/src/voice/effects.cpp).
+// balance. The device resamples a clip for an event's pitch
+// (firmware/src/voice/effects.cpp).
 //
 // The mix leaves most of a routine design's contacts out and picks, afresh
 // each loop, which few sound, never moving one off its frame. The device
@@ -48,7 +48,7 @@ const PEAK = 0.70;  // the synthesiser's output stage never goes past this
 // An event's loudness is its clip's level times its gain. The bank spans
 // about 40 dB, and an 8-bit speaker loses the quiet end in its hiss, so
 // the square root squeezes the range and keeps the order: the loudest event
-// plays as loud as a syllable, and the quietest about a tenth as loud.
+// plays as loud as the voice, and the quietest about a tenth as loud.
 const SQUEEZE = 0.5;
 
 // A windowed-sinc low-pass just under the new Nyquist, so noise and bells
@@ -85,7 +85,7 @@ function clip(name) {
 }
 
 // A design's timeline: its policy, its event lists (one, or LOOPS for a
-// routine design whose picks change each loop), whether a mumble turns it
+// routine design whose picks change each loop), whether a line turns it
 // down, and its voice window's start.
 function timeline(d) {
   const {score} = makeScene(d.id);
@@ -213,12 +213,12 @@ function main() {
   L.push('// When a design\'s events play: never, every loop, its first loop only, or', '// every `every`th loop from its first.');
   L.push('enum Policy : uint8_t { kSilent, kLoop, kEntry, kSparse };', '');
   L.push('struct Event {', '  uint16_t atMs;   // into the design\'s loop', '  uint8_t clip;',
-    '  uint8_t gain;    // 1–255: 255 plays the clip as loud as a syllable', '  uint16_t pitch;  // permille: 1000 plays the clip as made', '};', '');
+    '  uint8_t gain;    // 1–255: 255 plays the clip as loud as the voice', '  uint16_t pitch;  // permille: 1000 plays the clip as made', '};', '');
   L.push('// An event list: kEvent[first] on, n of them, by time.', 'struct List {', '  uint16_t first;', '  uint8_t n;', '};', '');
   L.push('struct Score {', '  Policy policy;', '  uint8_t every;     // sparse: the loops that sound are 0, every, 2 × every…',
-    '  bool duck;         // a mumble turns it down: all but needs you\'s, the finish\'s and an error\'s',
+    '  bool duck;         // a line turns it down: all but needs you\'s, the finish\'s and an error\'s',
     '  uint8_t lists;     // its loops\' event lists: 1, or kLoops for a routine design', '  uint16_t loop0;    // into kLoopList',
-    '  uint16_t voiceMs;  // its voice window\'s start: a mumble over it starts no sooner', '};', '');
+    '  uint16_t voiceMs;  // its voice window\'s start: a line over it starts no sooner', '};', '');
   L.push('// Every design\'s timeline, by mood, then state, then variation.');
   L.push('static const Score kScore[] = {', ...scoreRows.map(r => '    ' + r), '};', '');
   L.push('// Each score\'s loops\' lists, `lists` of them from its `loop0`, as indexes', '// into kList, which has each distinct list once.');

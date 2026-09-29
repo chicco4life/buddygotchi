@@ -42,20 +42,6 @@ void fillRing(Canvas& c, int cx, int cy, int r, int inner, int ink) {
             [&](int x, int y, int level) { plotInk(c, x, y, level, ink); });
 }
 
-// A squiggle standing for one or more gibberish syllables.
-int squiggle(Canvas& c, int x, int cy, int ink) {
-  const int w = 22;
-  fillBands(x, x + w,
-            [&](int sx, int& top, int& bottom) {
-              int t = (sx - px(x)) * 1024 / px(w);  // one full wave
-              int yc = px(cy) + px(4) * isin(t) / 1024;
-              top = yc - px(1) - 8, bottom = yc + px(1) + 8;
-              return true;
-            },
-            [&](int xx, int yy, int level) { plotInk(c, xx, yy, level, ink); });
-  return x + w;
-}
-
 // The box around `w` px of what's in it, centred, and the tail over its middle.
 void drawBox(Canvas& c, int w) {
   const int L = kBubbleLine, ink = inkAt(kInkDim, kLevels);
@@ -72,31 +58,15 @@ void drawBox(Canvas& c, int w) {
   c.fillRect(kWidth / 2 - L, top - 2 * L, 2 * L, L, uint8_t(ink));
 }
 
-// The mumble in its bubble, which takes the whole lane.
-void drawBubble(Canvas& c, const Mumble& m) {
+// The line's text in its bubble, which takes the whole lane: the text
+// centred, cut to fit the room.
+void drawBubble(Canvas& c, const char* text) {
   c.fillRect(0, kLaneTop, kWidth, kHeight - kLaneTop, kBlack);  // the lane is the bubble's
-  const int gap = 8, sq = 22, room = kWidth - 2 * kMargin - 2 * (kBubblePad + kBubbleLine);
-  bool hasWord = m.word && *m.word && m.at >= 0;
-  int before = hasWord ? m.at : m.syllables, after = hasWord ? m.syllables - m.at : 0;
-  before = clamp(before, 0, 3);
-  after = clamp(after, 0, 3);
-  if (!hasWord && before == 0) before = 3;
-  int wordW = hasWord ? stringWidth(kLarge, m.word) : 0;
-  // The word is the one thing that means something; the squiggles are
-  // decoration. They make room for it, one at a time from the side with
-  // more, before the word is ever cut.
-  while (hasWord && before + after > 0 && (before + after) * (sq + gap) + wordW > room) {
-    if (before >= after) --before;
-    else --after;
-  }
-  int maxWord = room - (before + after) * (sq + gap);
-  if (wordW > maxWord) wordW = maxWord;
-  int total = (before + after) * (sq + gap) + wordW - (hasWord ? 0 : gap);
-  drawBox(c, total);
-  int x = (kWidth - total) / 2, cy = kBubbleCy;
-  for (int i = 0; i < before; ++i) x = squiggle(c, x, cy, kInkGrey) + gap;
-  if (hasWord) x = drawStringFit(c, kLarge, x, cy - kLarge.baseline + 8, m.word, kInkAmber, maxWord) + gap;
-  for (int i = 0; i < after; ++i) x = squiggle(c, x, cy, kInkGrey) + gap;
+  const int room = kWidth - 2 * kMargin - 2 * (kBubblePad + kBubbleLine);
+  int w = stringWidth(kLarge, text);
+  if (w > room) w = room;
+  drawBox(c, w);
+  drawStringFit(c, kLarge, (kWidth - w) / 2, kBubbleCy - kLarge.baseline + 8, text, kInkAmber, room);
 }
 
 // Status-strip icons, 16 px boxes with (x, y) at the top left.
@@ -165,10 +135,10 @@ void drawStrip(Canvas& c, const Strip& s) {
   if (s.noApp) iconNoApp(c, kWidth - kMargin - 16, cy - 8);
 }
 
-void drawFaceScreen(Canvas& c, const SceneFrame& face, const Mumble* mumble, const Strip& s) {
+void drawFaceScreen(Canvas& c, const SceneFrame& face, const char* bubble, const Strip& s) {
   c.fill(kBlack);
   drawScene(c, face);
-  if (mumble) drawBubble(c, *mumble);
+  if (bubble) drawBubble(c, bubble);
   else drawStrip(c, s);
 }
 

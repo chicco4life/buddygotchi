@@ -9,6 +9,7 @@
 
 #include "app/behaviour.h"
 #include "app/device.h"
+#include "voice/player.h"
 
 void setUp() {}
 void tearDown() {}
@@ -23,6 +24,11 @@ using render::SceneState;
 using render::loopMs;
 
 namespace {
+
+// A take with a known length (DEVICE.md §4: a line speaks for its take's
+// length, and its bubble stays kBubbleReadMs longer).
+constexpr const char* kGo = "previous.go";  // 7056 samples: 640 ms
+constexpr uint32_t kGoMs = 640;
 
 struct Rig {
   Behaviour b;
@@ -39,10 +45,11 @@ struct Rig {
     m.anim = a;
     b.onMoment(m, t);
   }
-  // A mumble on its own: `syl` syllables of 100 ms, no word.
-  bool say(int syl = 4) {
+  // A line on its own: take `id` ("Go", 640 ms, by default); null for a
+  // `say` with no take.
+  bool say(const char* id = kGo) {
     MomentIn m;
-    m.said = true, m.syllables = syl, m.ms = 100;
+    m.said = true, m.take = voice::takeIndex(id);
     return b.onMoment(m, t);
   }
   // The empty moment, {"t":"moment"} (PROTOCOL.md §3).
@@ -254,7 +261,7 @@ static void test_answering_on_the_mac_blinks_back() {
 }
 
 // BEHAVIORS.md §1: while something needs you, no animation plays and no
-// mumble shows.
+// line shows.
 static void test_attention_wins_over_moments() {
   Rig r;
   r.state(base("working"));
@@ -267,20 +274,20 @@ static void test_attention_wins_over_moments() {
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
   r.moment(Anim::kPoked);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
-  TEST_ASSERT_FALSE(r.say());  // a mumble on its own is ignored
-  TEST_ASSERT_NULL(r.b.mumble(r.t));
+  TEST_ASSERT_FALSE(r.say());  // a line on its own is ignored
+  TEST_ASSERT_NULL(r.b.bubble(r.t));
   MomentIn say;
-  say.anim = Anim::kTaskComplete, say.syllables = 3;
+  say.anim = Anim::kTaskComplete, say.said = true, say.take = voice::takeIndex(kGo);
   TEST_ASSERT_FALSE(r.b.onMoment(say, r.t));
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
-  TEST_ASSERT_NULL(r.b.mumble(r.t));
-  // A mumble that was showing goes when something starts needing you.
+  TEST_ASSERT_NULL(r.b.bubble(r.t));
+  // A line that was showing goes when something starts needing you.
   Rig m;
   m.state(base("idle"));
   TEST_ASSERT_TRUE(m.say());
   m.at(100);
   m.state(attn());
-  TEST_ASSERT_NULL(m.b.mumble(m.t));
+  TEST_ASSERT_NULL(m.b.bubble(m.t));
 }
 
 // Nothing cuts hard. Attention arriving under a finish (which it
@@ -316,22 +323,22 @@ static int designOf(const SceneShow& s) { return render::sceneOf(s.mood, s.state
 // (render::eyesClosed).
 static bool hidden(const SceneShow& s) { return s.eyesShut && render::eyesClosed(s); }
 
-// A brain's reaction (PROTOCOL.md §3): a mumble with a mood, held for
+// A brain's reaction (PROTOCOL.md §3): a line with a mood, held for
 // `loops` loops of the design it's drawn in.
 static MomentIn reaction(render::Mood mood, int loops = 2) {
   MomentIn m;
-  m.syllables = 3, m.ms = 100;
+  m.take = voice::takeIndex(kGo);
   m.expr = true, m.mood = mood, m.loops = loops;
   return m;
 }
 
 // An animation from the Mac, of `loops`, in the mood `mood` if it's given
-// one (else Boop's), with a line when `syl` says how long.
-static MomentIn animated(Anim a, int variant = 0, int syl = 0, bool expr = false,
+// one (else Boop's), with a line when `take` names one.
+static MomentIn animated(Anim a, int variant = 0, const char* take = nullptr, bool expr = false,
                          render::Mood mood = render::Mood::kHappy, int loops = 1) {
   MomentIn m;
   m.anim = a, m.variant = uint8_t(variant), m.loops = loops;
-  m.said = syl > 0, m.syllables = syl, m.ms = 120;
+  m.said = take != nullptr, m.take = voice::takeIndex(take);
   m.expr = expr, m.mood = mood;
   return m;
 }
@@ -383,11 +390,11 @@ static void test_no_change_ever_cuts_hard() {
           switch (playing) {
             case kCheer: r.moment(Anim::kTaskComplete); break;
             case kWiggle: r.b.tap(r.t, r.rng); break;
-            case kSay: r.say(6); break;
-            case kCheerSay: r.b.onMoment(animated(Anim::kTaskComplete, 0, 4), r.t); break;
+            case kSay: r.say(); break;
+            case kCheerSay: r.b.onMoment(animated(Anim::kTaskComplete, 0, kGo), r.t); break;
             case kNoApp: r.at(500 + Behaviour::kNoAppMs); break;
             case kReaction: r.b.onMoment(reaction(Mood::kSad), r.t); break;
-            case kMoodyCheer: r.b.onMoment(animated(Anim::kTaskComplete, 1, 0, true, Mood::kExcited, 2), r.t); break;
+            case kMoodyCheer: r.b.onMoment(animated(Anim::kTaskComplete, 1, nullptr, true, Mood::kExcited, 2), r.t); break;
             case kListening: r.talkOn(); break;
             case kReplyWait:
               r.talkOn();
@@ -396,7 +403,7 @@ static void test_no_change_ever_cuts_hard() {
               break;
             case kOneShot: r.moment(Anim::kStarting); break;
             case kCalmReaction: r.b.onMoment(reaction(Mood::kCalm), r.t); break;
-            case kFinishLine: r.b.onMoment(animated(Anim::kTaskComplete, 3, 5, true, Mood::kWhiny), r.t); break;
+            case kFinishLine: r.b.onMoment(animated(Anim::kTaskComplete, 3, "new.d14", true, Mood::kWhiny), r.t); break;
             default: break;
           }
           r.at(r.t + when);
@@ -407,16 +414,16 @@ static void test_no_change_ever_cuts_hard() {
             switch (event - kStates) {
               case 0: r.moment(Anim::kTaskComplete); break;
               case 1: r.b.tap(r.t, r.rng); break;
-              case 2: r.say(3); break;
+              case 2: r.say(); break;
               case 3: r.moment(Anim::kPoked); break;
               case 4: r.b.onMoment(reaction(Mood::kProud, 3), r.t); break;
               case 5: r.talkOn(); break;
               case 6: r.talkOff(); break;
               case 7: r.stop(); break;
               case 8: r.moment(Anim::kListening); break;
-              case 9: r.b.onMoment(animated(Anim::kTaskComplete, 2, 0, true, Mood::kCurious, 3), r.t); break;
+              case 9: r.b.onMoment(animated(Anim::kTaskComplete, 2, nullptr, true, Mood::kCurious, 3), r.t); break;
               case 10: r.moment(Anim::kError); break;
-              case 11: r.b.onMoment(animated(Anim::kReplyReady, 1, 4, true, Mood::kAnnoyed), r.t); break;
+              case 11: r.b.onMoment(animated(Anim::kReplyReady, 1, kGo, true, Mood::kAnnoyed), r.t); break;
               case 12: r.b.onMoment(reaction(Mood::kWounded), r.t); break;
               default: {
                 Model m = r.b.model();
@@ -445,7 +452,7 @@ static void test_no_change_ever_cuts_hard() {
 
 // Over time: as whatever plays runs out on its own (a finish's loops, a
 // reaction's borrowed face at its loop boundary, over a look, over the
-// finish or across a look change, a poke, a one-shot, a mumble, a finish
+// finish or across a look change, a poke, a one-shot, a line, a finish
 // held on for its line, the Mac going quiet), the face never cuts hard.
 // From one 20 ms frame to the next the design goes on at the same moment of
 // its clock, or the eyes are shut and show shut. An animation's design
@@ -498,9 +505,9 @@ static void test_nothing_cuts_hard_as_it_plays_out() {
           r.b.onMoment(reaction(Mood::kHappy, 2), r.t);
           break;
         case kWiggle: r.b.tap(r.t, r.rng); break;
-        case kSay: r.say(5); break;
+        case kSay: r.say(); break;
         case kOneShot: r.moment(Anim::kHelperReturn); break;
-        case kFinishLine: r.b.onMoment(animated(Anim::kTaskComplete, 4, 8, true, Mood::kGrumpy), r.t); break;
+        case kFinishLine: r.b.onMoment(animated(Anim::kTaskComplete, 4, "new.d20", true, Mood::kGrumpy), r.t); break;
         case kNewMoodReaction: r.b.onMoment(reaction(Mood::kIrritated, 2), r.t); break;
         default: break;
       }
@@ -540,12 +547,12 @@ static void test_nothing_cuts_hard_as_it_plays_out() {
 // BEHAVIORS.md §3.4: no app holds however long the Mac stays away, even
 // past the 24.9 days where the clock's differences wrap, and whatever had
 // finished stays finished when they come round again at 49.7 days: the
-// no-app design, no old mumble, press dip or backlight fade.
+// no-app design, no old line, press dip or backlight fade.
 static void test_no_app_holds_for_weeks() {
   Rig r;
   r.state(base("working"));
   r.at(1000);
-  TEST_ASSERT_TRUE(r.say(3));  // over by 2500
+  TEST_ASSERT_TRUE(r.say());  // over by 2500
   r.b.pressDown(r.t);
   r.at(1100);
   r.b.pressUp();
@@ -568,9 +575,9 @@ static void test_no_app_holds_for_weeks() {
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
   TEST_ASSERT_TRUE(render::sceneFrame(noApp) == render::sceneFrame(r.b.show(r.t)));
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
-  walk(0x100000000ull + 1150);  // 2^32 ms after the release, 150 after the mumble started
-  TEST_ASSERT_NULL(r.b.mumble(r.t));
-  // No mumble's bubble or mouth, no press, no blink: only the design.
+  walk(0x100000000ull + 1150);  // 2^32 ms after the release, 150 after the line started
+  TEST_ASSERT_NULL(r.b.bubble(r.t));
+  // No line's bubble or mouth, no press, no blink: only the design.
   SceneShow s = r.b.show(r.t);
   TEST_ASSERT_TRUE(s.state == SceneState::kNoApp);
   TEST_ASSERT_FALSE(s.mouthOpen);
@@ -592,7 +599,7 @@ static void test_face_name_is_the_moment_or_the_look() {
   TEST_ASSERT_EQUAL_STRING("task_complete", r.b.faceName(r.t));
   r.at(loopMs(render::Mood::kHappy, SceneState::kTaskComplete));
   TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
-  r.say();  // a mumble doesn't change the face
+  r.say();  // a line doesn't change the face
   TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
   r.state(base("idle"));
   TEST_ASSERT_EQUAL_STRING("idle", r.b.faceName(r.t));
@@ -658,28 +665,28 @@ static void test_listening_holds_until_the_reply() {
   TEST_ASSERT_TRUE(r.b.takeEnded(e));
   TEST_ASSERT_EQUAL_UINT32(7, e.id);
   TEST_ASSERT_TRUE(e.how == app::MomentEnd::kSkipped);
-  // The brain's reply: a finish with a mumble in proud's face, its line at
+  // The brain's reply: a finish with a line in proud's face, its line at
   // the design's voice window.
   MomentIn reply;
-  reply.anim = Anim::kTaskComplete, reply.said = true, reply.syllables = 3, reply.ms = 100;
+  reply.anim = Anim::kTaskComplete, reply.said = true, reply.take = voice::takeIndex(kGo);
   reply.expr = true, reply.mood = render::Mood::kProud, reply.id = 8;
   TEST_ASSERT_TRUE(r.b.onMoment(reply, r.t));
   TEST_ASSERT_EQUAL(Anim::kTaskComplete, r.anim());
-  TEST_ASSERT_NULL(r.b.mumble(r.t));
+  TEST_ASSERT_NULL(r.b.bubble(r.t));
   TEST_ASSERT_TRUE(r.b.lineAhead(r.t));
   render::Mood mood;
   TEST_ASSERT_TRUE(r.b.expression(r.t, mood) && mood == render::Mood::kProud);
   TEST_ASSERT_FALSE(r.b.takeEnded(e));  // it plays
   r.at(r.t + voice::score(int(render::Mood::kProud), int(SceneState::kTaskComplete), 0).voiceMs);
-  TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
-  // A mumble on its own ends it too, and plays over the look.
+  TEST_ASSERT_NOT_NULL(r.b.bubble(r.t));
+  // A line on its own ends it too, and plays over the look.
   Rig s;
   s.state(base("idle"));
   s.talkOn();
   s.at(700);
-  TEST_ASSERT_TRUE(s.say(3));
+  TEST_ASSERT_TRUE(s.say());
   TEST_ASSERT_EQUAL(Anim::kNone, s.anim());
-  TEST_ASSERT_NOT_NULL(s.b.mumble(s.t));
+  TEST_ASSERT_NOT_NULL(s.b.bubble(s.t));
   TEST_ASSERT_EQUAL_STRING("idle", s.b.faceName(s.t));
 }
 
@@ -696,9 +703,9 @@ static void test_listening_plays_while_something_needs_you() {
   a.at(500);
   a.moment(Anim::kTaskComplete);
   TEST_ASSERT_EQUAL(Anim::kListening, a.anim());
-  TEST_ASSERT_FALSE(a.say(2));
+  TEST_ASSERT_FALSE(a.say());
   TEST_ASSERT_EQUAL(Anim::kNone, a.anim());
-  TEST_ASSERT_NULL(a.b.mumble(a.t));
+  TEST_ASSERT_NULL(a.b.bubble(a.t));
   TEST_ASSERT_TRUE(a.b.show(a.t).state == SceneState::kNeedsYou);
   // The Mac's own listening plays too, and survives a new request.
   Rig m;
@@ -715,7 +722,7 @@ static void test_listening_plays_while_something_needs_you() {
 }
 
 // PROTOCOL.md §3: the empty moment ends listening and does nothing else.
-// It never ends a finish, a poke or a mumble.
+// It never ends a finish, a poke or a line.
 static void test_the_empty_moment_ends_only_listening() {
   Rig r;
   r.state(base("idle"));
@@ -739,7 +746,7 @@ static void test_the_empty_moment_ends_only_listening() {
   r.stop();
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
   TEST_ASSERT_EQUAL(seq, r.b.momentSeq());
-  // A finish, a poke and a mumble carry on.
+  // A finish, a poke and a line carry on.
   r.moment(Anim::kTaskComplete);
   r.at(r.t + 100);
   r.stop();
@@ -748,10 +755,10 @@ static void test_the_empty_moment_ends_only_listening() {
   r.stop();
   TEST_ASSERT_EQUAL(Anim::kPoked, r.anim());
   r.at(r.t + 1000);
-  TEST_ASSERT_TRUE(r.say(4));
+  TEST_ASSERT_TRUE(r.say());
   r.stop();
-  TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
-  TEST_ASSERT_EQUAL(seq + 3, r.b.momentSeq());  // finish, poke, mumble; the stops add none
+  TEST_ASSERT_NOT_NULL(r.b.bubble(r.t));
+  TEST_ASSERT_EQUAL(seq + 3, r.b.momentSeq());  // finish, poke, line; the stops add none
 }
 
 // DEVICE.md §4: listening lasts at most kListenMs (30 s) of talking and
@@ -895,63 +902,126 @@ static void test_a_cheer_plays_its_loops() {
   TEST_ASSERT_EQUAL_UINT32(4 * loopMs(render::Mood::kProud, SceneState::kPoked), left);
 }
 
-static void test_mumble_moves_the_mouth() {
+// DEVICE.md §4: the bubble shows the take's text, the line speaks for the
+// take's length, and the mouth is an "o" while the take is loud (its mouth
+// frames, voice::mouthOpen), shut once it's said.
+static void test_a_take_moves_the_mouth() {
   Rig r;
   r.state(base("idle"));
   MomentIn m;
-  m.syllables = 4, m.word = "done", m.at = 4, m.ms = 100;
-  r.b.onMoment(m, r.t);
-  TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
-  TEST_ASSERT_EQUAL_STRING("done", r.b.mumble(r.t)->word);
-  TEST_ASSERT_TRUE(r.b.speaking(599));  // (4 syllables + 2 for the word) × 100 ms
-  TEST_ASSERT_FALSE(r.b.speaking(600));
-  // The mouth is an "o" for the first half of each syllable, and shut
-  // for the second, until the line is said.
-  TEST_ASSERT_TRUE(r.b.show(20).mouthOpen);
-  TEST_ASSERT_FALSE(r.b.show(60).mouthOpen);
-  TEST_ASSERT_TRUE(r.b.show(120).mouthOpen);
-  TEST_ASSERT_FALSE(r.b.show(620).mouthOpen);
+  m.said = true, m.take = voice::takeIndex(kGo);
+  TEST_ASSERT_TRUE(r.b.onMoment(m, r.t));
+  TEST_ASSERT_EQUAL_STRING("Go", r.b.bubble(r.t));
+  TEST_ASSERT_EQUAL(m.take, r.b.take());
+  TEST_ASSERT_TRUE(r.b.speaking(kGoMs - 1));  // 7056 samples at 11.025 kHz
+  TEST_ASSERT_FALSE(r.b.speaking(kGoMs));
+  int open = 0, shut = 0;
+  for (uint32_t t = 0; t < kGoMs; ++t) {
+    TEST_ASSERT_EQUAL(voice::mouthOpen(m.take, t), r.b.show(t).mouthOpen);
+    (r.b.show(t).mouthOpen ? open : shut)++;
+  }
+  TEST_ASSERT_TRUE(open > 0 && shut > 0);
+  TEST_ASSERT_FALSE(r.b.show(kGoMs).mouthOpen);
+  TEST_ASSERT_FALSE(r.b.show(kGoMs + 500).mouthOpen);  // the bubble stays, the mouth shut
+  TEST_ASSERT_NOT_NULL(r.b.bubble(kGoMs + 500));
 }
 
-// PROTOCOL.md §3, BEHAVIORS.md §5: a mumble on its own plays over whatever
-// face is showing and doesn't change it. The bubble stays for the syllables
+// The first millisecond the mouth is open into take `id`.
+static uint32_t firstOpen(const char* id) {
+  uint32_t t = 0;
+  while (!voice::mouthOpen(voice::takeIndex(id), t)) ++t;
+  return t;
+}
+
+// PROTOCOL.md §3, BEHAVIORS.md §5: a line on its own plays over whatever
+// face is showing and doesn't change it. The bubble stays for the take
 // and 1.2 s to read.
-static void test_a_mumble_alone_plays_over_the_face() {
+static void test_a_line_alone_plays_over_the_face() {
   Rig r;
   r.state(base("working"));
   r.at(1000);
-  TEST_ASSERT_TRUE(r.say(4));
+  TEST_ASSERT_TRUE(r.say());
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
   TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
-  TEST_ASSERT_TRUE(r.b.speaking(1399));
-  TEST_ASSERT_FALSE(r.b.speaking(1400));
-  TEST_ASSERT_TRUE(r.b.show(1020).mouthOpen);
+  TEST_ASSERT_TRUE(r.b.speaking(1000 + kGoMs - 1));
+  TEST_ASSERT_FALSE(r.b.speaking(1000 + kGoMs));
+  TEST_ASSERT_TRUE(r.b.show(1000 + firstOpen(kGo)).mouthOpen);
   TEST_ASSERT_TRUE(r.b.show(1500).state == SceneState::kWorking);  // the face goes on as it was
-  r.at(1000 + 400 + Behaviour::kBubbleReadMs - 1);
-  TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
-  r.at(1000 + 400 + Behaviour::kBubbleReadMs);
-  TEST_ASSERT_NULL(r.b.mumble(r.t));
+  r.at(1000 + kGoMs + Behaviour::kBubbleReadMs - 1);
+  TEST_ASSERT_NOT_NULL(r.b.bubble(r.t));
+  r.at(1000 + kGoMs + Behaviour::kBubbleReadMs);
+  TEST_ASSERT_NULL(r.b.bubble(r.t));
 
   // Over a finish, the finish keeps its own timing.
   r.at(10000);
   r.moment(Anim::kTaskComplete);
   r.at(10500);
-  r.say(2);
+  r.say();
   uint32_t left;
   TEST_ASSERT_EQUAL(Anim::kTaskComplete, r.b.moment(r.t, left));
   TEST_ASSERT_EQUAL_UINT32(loopMs(render::Mood::kHappy, SceneState::kTaskComplete) - 500, left);
-  TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
-  // A tap's poke replaces the moment, and the mumble with it.
+  TEST_ASSERT_NOT_NULL(r.b.bubble(r.t));
+  // A tap's poke replaces the moment, and the line with it.
   r.at(10600);
   r.b.tap(r.t, r.rng);
   TEST_ASSERT_EQUAL(Anim::kPoked, r.anim());
-  TEST_ASSERT_NULL(r.b.mumble(r.t));
+  TEST_ASSERT_NULL(r.b.bubble(r.t));
 
-  // An empty mumble is nothing.
+  // A `say` with no take is nothing.
   Rig e;
   e.state(base("idle"));
-  TEST_ASSERT_FALSE(e.say(0));
+  TEST_ASSERT_FALSE(e.say(nullptr));
   TEST_ASSERT_EQUAL(0u, e.b.momentSeq());
+}
+
+// PROTOCOL.md §3: a face on its own (a mood, no animation, no line) plays
+// that face for its loops, exactly as a face with a line would, and a
+// moment the Mac waits on ends done when it's over. A line playing plays
+// on under it. While something needs you, or with no app, it's skipped.
+static std::string ended(Rig& r);
+static void test_a_face_alone_plays_its_loops() {
+  Rig r;
+  r.state(base("idle"));
+  r.at(1000);
+  MomentIn f;
+  f.expr = true, f.mood = render::Mood::kProud, f.loops = 2, f.id = 30;
+  const uint32_t loop = loopMs(render::Mood::kProud, SceneState::kIdle, r.b.lookVariant());
+  const uint32_t end = r.t + loop - r.b.designMs(r.t) % loop + loop;
+  TEST_ASSERT_FALSE(r.b.onMoment(f, r.t));  // no line
+  render::Mood e;
+  TEST_ASSERT_TRUE(r.b.expression(r.t, e) && e == render::Mood::kProud);
+  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kProud);
+  TEST_ASSERT_TRUE(r.b.show(r.t).eyesShut);  // it blinks into the face
+  TEST_ASSERT_NULL(r.b.bubble(r.t));
+  r.at(end - 1);
+  TEST_ASSERT_TRUE(r.b.expression(r.t, e));
+  TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
+  r.at(end);
+  TEST_ASSERT_FALSE(r.b.expression(r.t, e));
+  TEST_ASSERT_EQUAL_STRING("30 done", ended(r).c_str());
+  // Under a line playing, the line plays on.
+  r.at(20000);
+  r.say();
+  const uint32_t seq = r.b.momentSeq();
+  f.id = 31;
+  r.b.onMoment(f, r.t);
+  TEST_ASSERT_EQUAL(seq, r.b.momentSeq());
+  TEST_ASSERT_EQUAL_STRING("Go", r.b.bubble(r.t));
+  TEST_ASSERT_TRUE(r.b.expression(r.t, e));
+  // Skipped while something needs you, and with no app.
+  r.at(30000);
+  r.state(attn());
+  ended(r);
+  f.id = 32;
+  r.b.onMoment(f, r.t);
+  TEST_ASSERT_FALSE(r.b.expression(r.t, e));
+  TEST_ASSERT_EQUAL_STRING("32 skipped", ended(r).c_str());
+  Rig n;
+  n.at(Behaviour::kNoAppMs);
+  f.id = 33;
+  n.b.onMoment(f, n.t);
+  TEST_ASSERT_FALSE(n.b.expression(n.t, e));
+  TEST_ASSERT_EQUAL_STRING("33 skipped", ended(n).c_str());
 }
 
 // Starts of blinks between 0 and `to` ms, with the Mac sending `m` every
@@ -990,13 +1060,13 @@ void checkGaps(const std::vector<uint32_t>& starts, uint32_t from, uint32_t lo, 
 // PROTOCOL.md §3: a moment's `mood` is its expression. With no animation,
 // the look is drawn in that mood for the moment's loops of the design it's
 // drawn in, ending on a loop boundary of that design's clock (so the first
-// loop ends at the next boundary), and at least as long as the mumble and
+// loop ends at the next boundary), and at least as long as the line and
 // its bubble; then it goes back to the state's mood behind a blink. A look
 // change meanwhile keeps the expression and its end; a new moment, a tap
 // or "needs you" ends it.
-static MomentIn expressive(render::Mood mood, int syl = 4, int loops = 1) {
+static MomentIn expressive(render::Mood mood, const char* take = kGo, int loops = 1) {
   MomentIn m;
-  m.syllables = syl, m.ms = 100;
+  m.said = take != nullptr, m.take = voice::takeIndex(take);
   m.expr = true, m.mood = mood, m.loops = loops;
   return m;
 }
@@ -1016,12 +1086,12 @@ static void test_an_expression_holds_its_loops() {
   TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
   TEST_ASSERT_TRUE(s.eyesShut);  // it blinks into the expression
   TEST_ASSERT_EQUAL_UINT32(1000, s.t);  // the look's clock goes on
-  // 4 syllables × 100 ms, then the bubble's 1.2 s: the mumble is over
-  // first, and the face holds to the design's next boundary.
-  const uint32_t said = 1000 + 400 + Behaviour::kBubbleReadMs;
+  // "Go"'s 640 ms, then the bubble's 1.2 s: the line is over first, and
+  // the face holds to the design's next boundary.
+  const uint32_t said = 1000 + kGoMs + Behaviour::kBubbleReadMs;
   TEST_ASSERT_TRUE(said < loop);
   r.at(said);
-  TEST_ASSERT_NULL(r.b.mumble(r.t));
+  TEST_ASSERT_NULL(r.b.bubble(r.t));
   TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kProud);
   r.at(loop - 1);
   TEST_ASSERT_TRUE(r.b.expression(r.t, e));
@@ -1036,7 +1106,7 @@ static void test_an_expression_holds_its_loops() {
   // look's clock, which a turn of its variations may have started over.
   r.at(2 * loop + 300);
   r.state(m);
-  r.b.onMoment(expressive(render::Mood::kProud, 2, 3), r.t);
+  r.b.onMoment(expressive(render::Mood::kProud, kGo, 3), r.t);
   const uint32_t turned = loopMs(render::Mood::kProud, SceneState::kWorking, r.b.lookVariant());
   const uint32_t third = r.t + turned - r.b.designMs(r.t) % turned + 2 * turned;
   r.at(third - 1);
@@ -1044,13 +1114,12 @@ static void test_an_expression_holds_its_loops() {
   r.at(third);
   TEST_ASSERT_FALSE(r.b.expression(r.t, e));
 
-  // A mumble longer than its loop: the face holds as long as it plays.
+  // A line longer than its loop: the face holds as long as it plays.
   r.at(6 * loop);
   r.state(m);
-  MomentIn in = expressive(render::Mood::kExcited, 8);
-  in.ms = 400;
+  MomentIn in = expressive(render::Mood::kExcited, "new.d20");  // "Mwahaha...", 2430 ms
   r.b.onMoment(in, r.t);
-  const uint32_t end = r.t + 8 * 400 + Behaviour::kBubbleReadMs;
+  const uint32_t end = r.t + 2430 + Behaviour::kBubbleReadMs;
   TEST_ASSERT_TRUE(end - r.t > loopMs(render::Mood::kExcited, SceneState::kWorking));
   r.at(end - 1);
   TEST_ASSERT_TRUE(r.b.expression(r.t, e));
@@ -1071,19 +1140,19 @@ static void test_an_expression_over_the_cheer_and_across_a_look_change() {
   r.at(1200);
   m.base = SceneState::kIdle;  // the turn is over
   r.state(m);
-  r.b.onMoment(expressive(render::Mood::kProud, 3), r.t);  // Jev: proud
+  r.b.onMoment(expressive(render::Mood::kProud), r.t);  // Jev: proud
   SceneShow s = r.b.show(r.t);
   TEST_ASSERT_TRUE(s.state == SceneState::kTaskComplete);
   TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
   TEST_ASSERT_EQUAL_UINT32(200, s.t);  // the finish keeps its clock
   uint32_t left;
   TEST_ASSERT_EQUAL(Anim::kTaskComplete, r.b.moment(r.t, left));
-  TEST_ASSERT_EQUAL_UINT32(cheer - 200, left);  // a mumble doesn't cut the finish
+  TEST_ASSERT_EQUAL_UINT32(cheer - 200, left);  // a line doesn't cut the finish
   // The face holds one loop of the finish's design in proud, on the
-  // finish's clock: to 1000 + proud's loop, after the mumble (1200 + 300 +
+  // finish's clock: to 1000 + proud's loop, after the line (1200 + 640 +
   // 1200). A finish's variation loops alike in every mood, so the finish
   // ends then too.
-  TEST_ASSERT_TRUE(1200 + 300 + Behaviour::kBubbleReadMs < 1000 + proud);
+  TEST_ASSERT_TRUE(1200 + kGoMs + Behaviour::kBubbleReadMs < 1000 + proud);
   TEST_ASSERT_EQUAL_UINT32(cheer, proud);
   r.at(1000 + proud - 1);
   s = r.b.show(r.t);
@@ -1116,11 +1185,11 @@ static void test_an_expression_over_the_cheer_and_across_a_look_change() {
   Rig a;
   a.state(base("idle"));
   a.at(1000);
-  MomentIn in = expressive(render::Mood::kExcited, 2);
+  MomentIn in = expressive(render::Mood::kExcited);
   in.anim = Anim::kTaskComplete;
   a.b.onMoment(in, a.t);
   const uint32_t excited = loopMs(render::Mood::kExcited, SceneState::kTaskComplete);
-  TEST_ASSERT_TRUE(200 + Behaviour::kBubbleReadMs < excited);
+  TEST_ASSERT_TRUE(kGoMs + Behaviour::kBubbleReadMs < excited);
   a.at(1000 + excited - 1);
   TEST_ASSERT_TRUE(a.b.show(a.t).mood == render::Mood::kExcited);
   a.at(1000 + excited);
@@ -1139,13 +1208,13 @@ static void test_an_expression_over_the_cheer_and_across_a_look_change() {
 
 static void test_an_expression_ends_with_its_moment() {
   render::Mood e;
-  // A new mumble without a mood replaces the line, and the expression.
+  // A new line without a mood replaces the line, and the expression.
   Rig r;
   r.state(base("working"));
   r.at(1000);
   r.b.onMoment(expressive(render::Mood::kGrumpy), r.t);
   r.at(1500);
-  r.say(2);
+  r.say();
   TEST_ASSERT_FALSE(r.b.expression(r.t, e));
   TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kHappy);
   // A tap's poke does too.
@@ -1176,17 +1245,17 @@ static void test_an_expression_ends_with_its_moment() {
   m.mood = render::Mood::kDetermined;
   n.state(m);
   n.at(100);
-  n.say(3);
+  n.say();
   TEST_ASSERT_FALSE(n.b.expression(n.t, e));
   TEST_ASSERT_TRUE(n.b.show(n.t).mood == render::Mood::kDetermined);
 }
 
 // PROTOCOL.md §4: a moment the Mac waits on (one with an id) ends exactly
-// once, when no part of it plays any more (the mumble and its bubble, an
+// once, when no part of it plays any more (the line and its bubble, an
 // animation, the borrowed face): done when it played out, or when only the
-// face it holds after its mumble was ended early; cut, and by what, when a
+// face it holds after its line was ended early; cut, and by what, when a
 // tap's poke, a newer moment, "needs you" or dbg.reset stopped its
-// animation or its mumble; skipped when none of it played.
+// animation or its line; skipped when none of it played.
 static std::string ended(Rig& r) {
   std::string out;
   app::Ended e;
@@ -1198,8 +1267,8 @@ static std::string ended(Rig& r) {
   return out;
 }
 
-static MomentIn waited(uint32_t id, int syl = 4) {
-  MomentIn m = expressive(render::Mood::kProud, syl);
+static MomentIn waited(uint32_t id, const char* take = kGo) {
+  MomentIn m = expressive(render::Mood::kProud, take);
   m.id = id;
   return m;
 }
@@ -1209,12 +1278,12 @@ static void test_a_waited_moment_says_how_it_ended() {
   r.state(base("idle"));  // the idle design's clock from 0
   r.at(1000);
   TEST_ASSERT_TRUE(r.b.onMoment(waited(7), r.t));
-  // Its mumble is over at 1000 + 400 + 1.2 s, and its face at the idle
-  // design's next boundary, or with the mumble if that's later.
+  // Its line is over at 1000 + 640 + 1.2 s, and its face at the idle
+  // design's next boundary, or with the line if that's later.
   const uint32_t look = loopMs(render::Mood::kProud, SceneState::kIdle);
   uint32_t end = (1000 / look + 1) * look;
-  if (end < 1000 + 400 + Behaviour::kBubbleReadMs) end = 1000 + 400 + Behaviour::kBubbleReadMs;
-  r.at(1000 + 400 + Behaviour::kBubbleReadMs - 1);
+  if (end < 1000 + kGoMs + Behaviour::kBubbleReadMs) end = 1000 + kGoMs + Behaviour::kBubbleReadMs;
+  r.at(1000 + kGoMs + Behaviour::kBubbleReadMs - 1);
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
   r.at(end - 1);
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
@@ -1228,20 +1297,20 @@ static void test_a_waited_moment_says_how_it_ended() {
   // plays on as it would have.
   r.moment(Anim::kTaskComplete);
   r.at(10500);
-  r.b.onMoment(waited(8, 2), r.t);
-  r.at(10500 + 200 + Behaviour::kBubbleReadMs);
+  r.b.onMoment(waited(8), r.t);
+  r.at(10500 + kGoMs + Behaviour::kBubbleReadMs);
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
   TEST_ASSERT_EQUAL(Anim::kTaskComplete, r.anim());
   r.at(10000 + loopMs(render::Mood::kProud, SceneState::kTaskComplete));
   TEST_ASSERT_EQUAL_STRING("8 done", ended(r).c_str());
-  // A finish the Mac waits on plays on under a newer mumble, which doesn't
+  // A finish the Mac waits on plays on under a newer line, which doesn't
   // stop it: done when the finish is.
   r.at(20000);
   MomentIn cheer;
   cheer.anim = Anim::kTaskComplete, cheer.id = 9;
   r.b.onMoment(cheer, r.t);
   r.at(20500);
-  r.say(2);
+  r.say();
   const uint32_t cheered = 20000 + loopMs(render::Mood::kHappy, SceneState::kTaskComplete);
   r.at(cheered - 1);
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
@@ -1249,7 +1318,7 @@ static void test_a_waited_moment_says_how_it_ended() {
   TEST_ASSERT_EQUAL_STRING("9 done", ended(r).c_str());
 
   // Cut short: by a tap's poke, by a newer moment (a finish, a
-  // mumble, the Mac's next), and by "needs you".
+  // line, the Mac's next), and by "needs you".
   r.at(30000);
   r.state(base("idle"));  // no app would skip them
   r.b.onMoment(waited(10), r.t);
@@ -1263,7 +1332,7 @@ static void test_a_waited_moment_says_how_it_ended() {
   r.at(35000);
   r.b.onMoment(waited(12), r.t);
   r.at(35100);
-  r.say(2);
+  r.say();
   TEST_ASSERT_EQUAL_STRING("12 cut by moment", ended(r).c_str());
   r.at(40000);
   r.b.onMoment(waited(13), r.t);
@@ -1276,7 +1345,7 @@ static void test_a_waited_moment_says_how_it_ended() {
   TEST_ASSERT_FALSE(r.b.onMoment(waited(15), r.t));
   TEST_ASSERT_EQUAL_STRING("15 skipped", ended(r).c_str());
 
-  // Its face holds on after its mumble is over (PROTOCOL.md §3). A tap, a
+  // Its face holds on after its line is over (PROTOCOL.md §3). A tap, a
   // newer moment or "needs you" then ends it at once, but doesn't cut the
   // moment: it was seen and heard, so it's done.
   Rig h;
@@ -1287,9 +1356,9 @@ static void test_a_waited_moment_says_how_it_ended() {
   render::Mood face;
   h.at(1000);
   h.b.onMoment(waited(17), h.t);
-  h.at(1000 + 400 + Behaviour::kBubbleReadMs + 100);
+  h.at(1000 + kGoMs + Behaviour::kBubbleReadMs + 100);
   TEST_ASSERT_TRUE(h.t < idle);
-  TEST_ASSERT_NULL(h.b.mumble(h.t));
+  TEST_ASSERT_NULL(h.b.bubble(h.t));
   TEST_ASSERT_TRUE(h.b.expression(h.t, face));
   TEST_ASSERT_EQUAL_STRING("", ended(h).c_str());
   h.b.tap(h.t, h.rng);
@@ -1298,47 +1367,47 @@ static void test_a_waited_moment_says_how_it_ended() {
   h.at(2 * idle + 1000);
   h.state(hm);
   h.b.onMoment(waited(18), h.t);
-  h.at(2 * idle + 1000 + 400 + Behaviour::kBubbleReadMs + 100);
-  TEST_ASSERT_NULL(h.b.mumble(h.t));
+  h.at(2 * idle + 1000 + kGoMs + Behaviour::kBubbleReadMs + 100);
+  TEST_ASSERT_NULL(h.b.bubble(h.t));
   TEST_ASSERT_EQUAL_STRING("", ended(h).c_str());
   h.state(attn());
   TEST_ASSERT_EQUAL_STRING("18 done", ended(h).c_str());
   h.at(4 * idle + 1000);
   h.state(hm);
   h.b.onMoment(waited(19), h.t);
-  h.at(4 * idle + 1000 + 400 + Behaviour::kBubbleReadMs + 100);
+  h.at(4 * idle + 1000 + kGoMs + Behaviour::kBubbleReadMs + 100);
   h.moment(Anim::kTaskComplete);
   TEST_ASSERT_EQUAL_STRING("19 done", ended(h).c_str());
   h.at(6 * idle + 1000);
   h.state(hm);
   h.b.onMoment(waited(20), h.t);
-  h.at(6 * idle + 1000 + 400 + Behaviour::kBubbleReadMs + 100);
-  h.say(2);  // a newer line
+  h.at(6 * idle + 1000 + kGoMs + Behaviour::kBubbleReadMs + 100);
+  h.say();  // a newer line
   TEST_ASSERT_EQUAL_STRING("20 done", ended(h).c_str());
-  // During its bubble, after the last syllable, it's still its mumble.
+  // During its bubble, after the take, it's still its line.
   h.at(8 * idle + 1000);
   h.state(hm);
   h.b.onMoment(waited(21), h.t);
-  h.at(8 * idle + 1000 + 400 + Behaviour::kBubbleReadMs - 1);
-  TEST_ASSERT_NOT_NULL(h.b.mumble(h.t));
+  h.at(8 * idle + 1000 + kGoMs + Behaviour::kBubbleReadMs - 1);
+  TEST_ASSERT_NOT_NULL(h.b.bubble(h.t));
   h.b.tap(h.t, h.rng);
   TEST_ASSERT_EQUAL_STRING("21 cut by tap", ended(h).c_str());
-  // The Mac's next reaction, sent once this one's mumble has played
+  // The Mac's next reaction, sent once this one's line has played
   // (ARCHITECTURE.md §3.2): it replaces the face held for its loops, and
   // this one is done.
   h.at(10 * idle + 1000);
   h.state(hm);
-  MomentIn held = expressive(render::Mood::kProud, 4, 4);  // held four times
+  MomentIn held = expressive(render::Mood::kProud, kGo, 4);  // held four times
   held.id = 22;
   h.b.onMoment(held, h.t);
-  h.at(10 * idle + 1000 + 400 + Behaviour::kBubbleReadMs + 100);
-  TEST_ASSERT_NULL(h.b.mumble(h.t));
+  h.at(10 * idle + 1000 + kGoMs + Behaviour::kBubbleReadMs + 100);
+  TEST_ASSERT_NULL(h.b.bubble(h.t));
   TEST_ASSERT_TRUE(h.b.expression(h.t, face));
   MomentIn next = expressive(render::Mood::kGrumpy);
   next.id = 23;
   TEST_ASSERT_TRUE(h.b.onMoment(next, h.t));
   TEST_ASSERT_EQUAL_STRING("22 done", ended(h).c_str());
-  TEST_ASSERT_NOT_NULL(h.b.mumble(h.t));
+  TEST_ASSERT_NOT_NULL(h.b.bubble(h.t));
   TEST_ASSERT_TRUE(h.b.expression(h.t, face));
   TEST_ASSERT_EQUAL(render::Mood::kGrumpy, face);
 
@@ -1352,7 +1421,7 @@ static void test_a_waited_moment_says_how_it_ended() {
   // A moment with no id never ends out loud.
   Rig n;
   n.state(base("idle"));
-  n.say(3);
+  n.say();
   n.b.tap(n.t, n.rng);
   n.moment(Anim::kTaskComplete);
   n.at(10000);
@@ -1372,11 +1441,11 @@ static void test_a_new_launchs_moment_is_its_own() {
   r.b.onMoment(old, r.t);
   r.at(4000);
   TEST_ASSERT_TRUE(r.b.onMoment(waited(1), r.t));  // the new launch's first
-  // Its face holds to the idle design's next boundary, or while its mumble
+  // Its face holds to the idle design's next boundary, or while its line
   // plays, whichever is later.
   const uint32_t idle = loopMs(render::Mood::kProud, SceneState::kIdle);
   uint32_t end = (4000 / idle + 1) * idle;
-  if (end < 4000 + 400 + Behaviour::kBubbleReadMs) end = 4000 + 400 + Behaviour::kBubbleReadMs;
+  if (end < 4000 + kGoMs + Behaviour::kBubbleReadMs) end = 4000 + kGoMs + Behaviour::kBubbleReadMs;
   r.at(end - 1);
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
   r.at(end);
@@ -1772,7 +1841,7 @@ static void test_a_rules_one_shot_plays_once() {
       r.at(1000);
       MomentIn in;
       in.anim = a, in.variant = uint8_t(render::variants(mood, render::animState(a)) - 1);
-      TEST_ASSERT_FALSE(r.b.onMoment(in, r.t));  // no mumble
+      TEST_ASSERT_FALSE(r.b.onMoment(in, r.t));  // no line
       SceneShow s = r.b.show(r.t);
       TEST_ASSERT_TRUE(s.state == render::animState(a) && s.mood == mood && s.variant == in.variant);
       TEST_ASSERT_TRUE(s.t == 0 && s.eyesShut && render::eyesClosed(s));
@@ -1861,7 +1930,7 @@ static void test_a_face_plays_over_a_one_shot() {
     const uint32_t loop = loopMs(render::Mood::kHappy, render::animState(a));
     r.at(1500);
     const uint32_t seq = r.b.momentSeq();
-    TEST_ASSERT_TRUE(r.b.onMoment(expressive(render::Mood::kGrumpy, 2), r.t));
+    TEST_ASSERT_TRUE(r.b.onMoment(expressive(render::Mood::kGrumpy), r.t));
     TEST_ASSERT_EQUAL(seq + 1, r.b.momentSeq());  // the line only
     SceneShow s = r.b.show(r.t);
     TEST_ASSERT_TRUE(s.state == render::animState(a) && s.mood == render::Mood::kGrumpy);
@@ -1869,7 +1938,7 @@ static void test_a_face_plays_over_a_one_shot() {
     uint32_t left;
     TEST_ASSERT_EQUAL(a, r.b.moment(r.t, left));
     TEST_ASSERT_EQUAL_UINT32(loop - 500, left);
-    TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
+    TEST_ASSERT_NOT_NULL(r.b.bubble(r.t));
   }
 }
 
@@ -1895,7 +1964,7 @@ static void test_no_one_shot_while_the_face_is_held() {
 }
 
 // PROTOCOL.md §3, DEVICE.md §4: only the reply ends listening: a moment
-// with a `say` (syllables or none), or the empty moment. A one-shot, a
+// with a `say` (a take or none), or the empty moment. A one-shot, a
 // finish or a poke with no `say`, a face on its own and an animation the
 // device doesn't know leave it be.
 static void test_only_the_reply_ends_listening() {
@@ -1917,7 +1986,7 @@ static void test_only_the_reply_ends_listening() {
   r.b.onMoment(unknown, r.t);
   TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
   TEST_ASSERT_EQUAL(seq, r.b.momentSeq());
-  MomentIn said;  // a `say` with no syllables is still the reply
+  MomentIn said;  // a `say` with no take is still the reply
   said.said = true;
   r.b.onMoment(said, r.t);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
@@ -1969,24 +2038,25 @@ static void test_a_finishs_line_waits_for_its_voice_window() {
   r.at(1000);
   MomentIn in;
   in.anim = Anim::kTaskComplete, in.variant = 4;  // grumpy's failed finish
-  in.said = true, in.syllables = 3, in.word = "ugh", in.at = 3, in.ms = 135;
+  in.said = true, in.take = voice::takeIndex("new.d20");  // "Mwahaha...", 2430 ms
   in.expr = true, in.mood = Mood::kGrumpy, in.id = 5;
   const uint32_t voice = voice::score(int(Mood::kGrumpy), int(SceneState::kTaskComplete), 4).voiceMs;
   const uint32_t loop = loopMs(Mood::kGrumpy, SceneState::kTaskComplete, 4);
-  const uint32_t line = (3 + 2) * 135 + Behaviour::kBubbleReadMs;  // a word is two beats
+  uint32_t line = 2430 + Behaviour::kBubbleReadMs;
   TEST_ASSERT_TRUE(voice > 0 && voice + line > loop);  // it doesn't fit: the hold stretches
   TEST_ASSERT_TRUE(r.b.onMoment(in, r.t));
   uint32_t left;
   r.b.moment(r.t, left);
   TEST_ASSERT_EQUAL_UINT32(voice + line, left);
   r.at(1000 + voice - 1);
-  TEST_ASSERT_NULL(r.b.mumble(r.t));
+  TEST_ASSERT_NULL(r.b.bubble(r.t));
   TEST_ASSERT_TRUE(r.b.lineAhead(r.t));
   TEST_ASSERT_FALSE(r.b.speaking(r.t));
   TEST_ASSERT_FALSE(r.b.show(r.t).mouthOpen);
   r.at(1000 + voice);
-  TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
-  TEST_ASSERT_TRUE(r.b.speaking(r.t) && r.b.show(r.t).mouthOpen);
+  TEST_ASSERT_NOT_NULL(r.b.bubble(r.t));
+  TEST_ASSERT_TRUE(r.b.speaking(r.t));
+  TEST_ASSERT_TRUE(r.b.show(r.t + firstOpen("new.d20")).mouthOpen);
   // Past its loop, the design rests on its last frame, in the brain's face.
   r.at(1000 + loop + 200);
   SceneShow s = r.b.show(r.t);
@@ -1994,11 +2064,11 @@ static void test_a_finishs_line_waits_for_its_voice_window() {
   TEST_ASSERT_EQUAL_UINT32(loop - 1, s.t);
   r.at(1000 + voice + line - 1);
   TEST_ASSERT_EQUAL(Anim::kTaskComplete, r.anim());
-  TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
+  TEST_ASSERT_NOT_NULL(r.b.bubble(r.t));
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
   r.at(1000 + voice + line);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
-  TEST_ASSERT_NULL(r.b.mumble(r.t));
+  TEST_ASSERT_NULL(r.b.bubble(r.t));
   render::Mood face;
   TEST_ASSERT_FALSE(r.b.expression(r.t, face));
   TEST_ASSERT_EQUAL_STRING("5 done", ended(r).c_str());
@@ -2006,6 +2076,8 @@ static void test_a_finishs_line_waits_for_its_voice_window() {
   // strip comes back once the bubble goes.
   r.state(m);
   in.anim = Anim::kReplyReady, in.variant = 0, in.id = 6;
+  in.take = voice::takeIndex(kGo);
+  line = kGoMs + Behaviour::kBubbleReadMs;
   in.whoAgent = "codex", in.whoThread = "landing";
   r.b.onMoment(in, r.t);
   const uint32_t reply = voice::score(int(Mood::kGrumpy), int(SceneState::kReplyReady), 0).voiceMs;
@@ -2015,7 +2087,7 @@ static void test_a_finishs_line_waits_for_its_voice_window() {
   TEST_ASSERT_EQUAL_UINT32(replyLoop, left);
   const uint32_t at = r.t;
   r.at(at + reply + line);
-  TEST_ASSERT_NULL(r.b.mumble(r.t));
+  TEST_ASSERT_NULL(r.b.bubble(r.t));
   TEST_ASSERT_EQUAL_STRING("codex", r.b.strip(r.t).doneAgent);
   r.at(at + replyLoop);
   TEST_ASSERT_EQUAL_STRING("6 done", ended(r).c_str());
@@ -2172,8 +2244,9 @@ int main() {
   RUN_TEST(test_listening_takes_turns_between_variations);
   RUN_TEST(test_moments_end_and_replace);
   RUN_TEST(test_a_cheer_plays_its_loops);
-  RUN_TEST(test_mumble_moves_the_mouth);
-  RUN_TEST(test_a_mumble_alone_plays_over_the_face);
+  RUN_TEST(test_a_take_moves_the_mouth);
+  RUN_TEST(test_a_line_alone_plays_over_the_face);
+  RUN_TEST(test_a_face_alone_plays_its_loops);
   RUN_TEST(test_an_expression_holds_its_loops);
   RUN_TEST(test_an_expression_over_the_cheer_and_across_a_look_change);
   RUN_TEST(test_an_expression_ends_with_its_moment);

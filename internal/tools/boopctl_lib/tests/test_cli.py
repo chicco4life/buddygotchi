@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from boopctl_lib import cli  # noqa: E402
 from fake_board import FakeBoard  # noqa: E402
 
-COMMANDS = ["ping", "state", "shot", "send", "play", "mumble", "sim", "run", "perf", "soak", "e2e", "bridge",
+COMMANDS = ["ping", "state", "shot", "send", "play", "takes", "sim", "run", "perf", "soak", "e2e", "bridge",
             "cam", "dash", "day", "calibrate"]
 
 
@@ -48,14 +48,16 @@ class CLITests(unittest.TestCase):
 
     def test_the_hand_driven_commands_parse(self):
         parse = cli.build_parser().parse_args
-        self.assertEqual(parse(["play", "cheer", "--say", "proud"]).func, cli.cmd_play)
+        self.assertEqual(parse(["play", "cheer", "--take", "previous.yay"]).take, "previous.yay")
         self.assertEqual(parse(["play", "needs", "--seconds", "3"]).seconds, 3)
-        self.assertEqual(parse(["mumble", "--levels", "1", "10"]).levels, [1, 10])
-        self.assertTrue(parse(["mumble", "happy", "--board-volume"]).board_volume)
+        self.assertEqual(parse(["takes", "--levels", "1", "10"]).levels, [1, 10])
+        self.assertTrue(parse(["takes", "--only", "Go", "--board-volume"]).board_volume)
         self.assertTrue(parse(["soak", "--pipeline", "--minutes", "30", "--brain", "jev"]).pipeline)
         self.assertEqual(parse(["cam", "clip", "cheer", "--camera", "X"]).camera, "X")
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-            parse(["mumble", "--levels", "1", "--board-volume"])
+            parse(["takes", "--levels", "1", "--board-volume"])
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            parse(["play", "cheer", "--take", "banana"])
 
 
 class PlayTests(unittest.TestCase):
@@ -91,6 +93,11 @@ class PlayTests(unittest.TestCase):
         self.assertEqual(self.play("wiggle"), (0, ["wiggle"]))
         for anim in cli.ANIMS:
             self.assertEqual(self.play(anim), (0, [anim]))
+
+    def test_play_sends_a_take(self):  # PROTOCOL.md §3: `say` is {"take": id}
+        self.assertEqual(self.play("cheer", "--take", "new.d15")[0], 0)
+        sent = [m for m in self.board.sent if m["t"] == "moment"]
+        self.assertEqual(sent[0]["say"], {"take": "new.d15"})
 
     def test_play_sends_the_facts(self):  # PROTOCOL.md §3: outcome, ctx, variant
         self.play("task_complete", "--outcome", "failure", "--variant", "2")
@@ -163,6 +170,38 @@ class PerfTests(unittest.TestCase):
         self.assertFalse(self.perf(20, 41000)["ok"])  # a frame over 40 ms
 
 
+class TakesTests(unittest.TestCase):
+    """The takes boopctl plays are the board's, from voice.h."""
+
+    def test_the_takes_are_the_boards(self):
+        takes = cli.takes()
+        self.assertEqual(len(takes), 40)
+        self.assertEqual((takes[0].id, takes[0].text, takes[0].ms), ("previous.go", "Go", 640))
+        self.assertEqual(cli.take("new.d15").text, "Bada bing bada boom")
+        self.assertIsNone(cli.take("banana"))
+
+    def test_only_picks_by_id_or_text(self):
+        self.assertEqual([t.id for t in cli.chosen_takes("Go")], ["previous.go", "new.d01", "new.d02"])
+        self.assertEqual([t.id for t in cli.chosen_takes("new.d15")], ["new.d15"])
+        self.assertEqual(len(cli.chosen_takes("again")), 4)
+        self.assertEqual([t.id for t in cli.chosen_takes("mamma mia")], ["new.d14"])
+        self.assertEqual([t.id for t in cli.chosen_takes("boom")], ["new.d15"])
+        self.assertEqual(len(cli.chosen_takes(None)), 40)
+        with self.assertRaises(cli.DeviceError):
+            cli.chosen_takes("banana")
+
+    def test_a_take_is_checked_against_audio_out(self):
+        t = cli.take("previous.go")
+        states = iter([{"audio": {"out": {"lines": 3}}, "amp": False},
+                       {"amp": True, "vol": 6, "audio": {"out": {"lines": 4, "take": "previous.go", "plan_ms": 640,
+                                                                  "out_ms": 640, "wall_ms": 650, "cut": False}}}])
+        board = FakeBoard(lambda msg: json.dumps({"t": msg["t"], **next(states)}).encode() + b"\n"
+                          if msg["t"] == "dbg.state" else b"")
+        r = cli.check_take(board, t)
+        self.assertTrue(r["ok"], r)
+        self.assertIn({"t": "moment", "say": {"take": "previous.go"}}, board.sent)
+
+
 class SoakTests(unittest.TestCase):
     """The soak's brain reactions and how it holds the board to one
     `ended` each (PROTOCOL.md §3–4)."""
@@ -175,7 +214,7 @@ class SoakTests(unittest.TestCase):
             self.assertEqual(m["id"], i)
             self.assertIn(m["mood"], cli.MOODS)
             self.assertTrue(1 <= m["loops"] <= 6)
-            self.assertTrue(m["say"]["syl"])
+            self.assertTrue(m["say"] == {} or cli.take(m["say"]["take"]))
         moments = [cli.soak_moment(rng) for _ in range(200)]
         finishes = [m for m in moments if m.get("anim") == "task_complete"]
         self.assertTrue(finishes)

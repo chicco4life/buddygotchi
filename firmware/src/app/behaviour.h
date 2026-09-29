@@ -1,5 +1,5 @@
 // The behaviour state machine (plan/BEHAVIORS.md): what the Mac last said,
-// the moment and the mumble playing, taps in a row, blinks, needs you, and
+// the moment and the line playing, taps in a row, blinks, needs you, and
 // the light and backlight they imply. Pure C++ and a function of the device
 // clock: every time-based change happens at an exact millisecond, so a
 // frozen clock gives the same frames on the board and in the simulator.
@@ -70,18 +70,15 @@ struct Ended {
 };
 
 // A moment as it arrives (PROTOCOL.md §3), already held in range. With no
-// anim, only the mumble.
+// anim, only the line, or only the face.
 struct MomentIn {
   render::Anim anim = render::Anim::kNone;
   // It had a `say` field: the reply `listening` waits for, even with no
-  // syllables. With neither `anim`, `say` nor `mood` it's the empty moment,
+  // take. With neither `anim`, `say` nor `mood` it's the empty moment,
   // which ends `listening` and does nothing else.
   bool said = false;
   bool empty = false;
-  int syllables = 0;  // 0: no mumble
-  const char* word = nullptr;
-  int at = 0;         // the word's place among the syllables, 0..syllables
-  uint32_t ms = 120;  // per syllable, 60–400
+  int take = -1;  // the line: its take's index (voice/player.h), -1 for none
   // The expression: this mood's version of the look while the moment
   // plays. Only a known mood sets it.
   bool expr = false;
@@ -107,7 +104,7 @@ class Behaviour {
  public:
   // Timings (BEHAVIORS.md). Proposed values are marked there.
   static constexpr uint32_t kNoAppMs = 30000;
-  static constexpr uint32_t kBubbleReadMs = 1200;  // the word stays up after the mumble
+  static constexpr uint32_t kBubbleReadMs = 1200;  // the text stays up after the take
   static constexpr uint32_t kPressEaseMs = 60;     // a press draws at once this long (DEVICE.md §6)
   static constexpr int kPressPx = 2;                // a press dips the face this far
   static constexpr uint32_t kBlinkMs = 180;
@@ -135,7 +132,7 @@ class Behaviour {
 
   // Messages from the Mac, at time t.
   void onState(const Model& m, uint32_t t);
-  // True when the moment carries a mumble that will play: not while
+  // True when the moment carries a line that will play: not while
   // something needs you, or with no app.
   bool onMoment(const MomentIn& m, uint32_t t);
   // Which variation (from 0) of animation `a` to play in `mood`: `wanted`
@@ -156,7 +153,7 @@ class Behaviour {
   void overrideBacklight(uint8_t level) { blOverride_ = true, blSet_ = level; }
 
   // Moves to time t, handling every time-based change on the way at its
-  // exact millisecond (a moment or mumble ends, a blink, the no-app timeout).
+  // exact millisecond (a moment or line ends, a blink, the no-app timeout).
   void advance(uint32_t t, Rng& rng);
 
   // Queries at t (after advance).
@@ -175,9 +172,9 @@ class Behaviour {
   uint32_t led(uint32_t t) const;
   uint8_t backlight(uint32_t t) const;
   render::Strip strip(uint32_t t) const;
-  // The mumble in the bubble, or null: from its line's start, which can
-  // wait for its animation's voice window, to its bubble's end.
-  const render::Mumble* mumble(uint32_t t) const;
+  // The line's text in the bubble, or null: from its line's start, which
+  // can wait for its animation's voice window, to its bubble's end.
+  const char* bubble(uint32_t t) const;
   // A line has arrived that waits for its animation's voice window
   // (VOICE.md §10): it starts later, if nothing replaces it first.
   bool lineAhead(uint32_t t) const;
@@ -188,8 +185,9 @@ class Behaviour {
   // The expression the face borrows while its moment plays (PROTOCOL.md
   // §3): true, with its mood, until the moment ends or another replaces it.
   bool expression(uint32_t t, render::Mood& mood) const;
-  int syllables() const { return say_.say.syllables; }
-  // Counts moments and mumbles started, local ones included, so a line can
+  // The line's take, while it plays or waits to (-1 for none).
+  int take() const { return say_.take; }
+  // Counts moments and lines started, local ones included, so a line can
   // tell it was replaced.
   uint32_t momentSeq() const { return momentSeq_; }
   // The next moment the Mac waits on that has ended, oldest first, each
@@ -215,7 +213,7 @@ class Behaviour {
   int taps() const { return taps_; }
 
  private:
-  // Each part of a moment (the animation, the mumble, the expression)
+  // Each part of a moment (the animation, the line, the expression)
   // carries its moment's id, 0 when the Mac doesn't wait on it.
   struct Moment {
     render::Anim anim = render::Anim::kNone;
@@ -229,19 +227,17 @@ class Behaviour {
     char agent[12] = "";  // the finish's `who`; empty for none
     char thread[24] = "";
   };
-  // A mumble: the bubble, and the mouth following the syllables. It plays
-  // over whatever face is showing, from `at`, which with an animation is
-  // its design's voice window.
+  // A line: its take, the bubble with its text, and the mouth following
+  // the take's loudness. It plays over whatever face is showing, from `at`,
+  // which with an animation is its design's voice window.
   struct Say {
-    render::Mumble say;
-    char word[24] = "";
+    int take = -1;  // -1: no line
     uint32_t at = 0, ms = 0;
-    uint32_t speakMs = 0;  // the mouth moves this long
-    uint32_t sylMs = 120;
+    uint32_t speakMs = 0;  // the take plays this long
     uint32_t id = 0;
   };
   // A moment the Mac waits on, while any part of it plays: where it came
-  // from, and what first cut its animation or its mumble short, if
+  // from, and what first cut its animation or its line short, if
   // anything.
   struct Waiting {
     uint32_t id = 0;
@@ -355,7 +351,7 @@ class Behaviour {
   Say say_;
   // The moment's expression: its mood from exprAt_ for exprMs_: as long as
   // the animation with it plays, or its loops; and at least as long as the
-  // mumble with it.
+  // line with it.
   bool expr_ = false;
   render::Mood exprMood_ = render::Mood::kHappy;
   uint32_t exprAt_ = 0, exprMs_ = 0;

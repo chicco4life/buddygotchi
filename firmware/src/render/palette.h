@@ -24,8 +24,8 @@ struct Rgb {
 // The Warm Terminal colours.
 constexpr Rgb kGlass = {0, 0, 0};          // the backlit black
 constexpr Rgb kEyeRgb = {246, 244, 238};   // warm white: whose turn it was, the finish's mark
-constexpr Rgb kAmberRgb = {255, 176, 0};   // the one accent: needs you, the word
-constexpr Rgb kGreyRgb = {140, 132, 121};  // secondary text, the squiggles
+constexpr Rgb kAmberRgb = {255, 176, 0};   // the one accent: needs you, the bubble's text
+constexpr Rgb kGreyRgb = {140, 132, 121};  // secondary text
 constexpr Rgb kDimRgb = {74, 68, 62};      // faint text, dividers, rings, the bubble's box
 
 // Fixed entries: the bring-up pattern's colours.

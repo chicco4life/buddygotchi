@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from boopctl_lib.common import RULE_ONE_SHOTS
+from boopctl_lib.common import RULE_ONE_SHOTS, take
 
 Line = dict[str, Any]
 
@@ -21,7 +21,7 @@ STALE_S = 15
 # A view event written this soon after a reflex's `sent` line is what set it
 # off: the app sends to the device first, then records the view event.
 TRIGGER_MS = 1000
-# A rule's one-shot, a tap's poke or a mumble counts as what's showing for
+# A rule's one-shot, a tap's poke or a line counts as what's showing for
 # this long.
 SHOWING_MS = 4000
 
@@ -204,7 +204,7 @@ class Board:
                     loops = f", loops {msg['loops']}" if msg.get("loops") else ""
                     self.reflexes.append({"at": at, "what": msg["anim"] + loops, "anim": True, "trigger": None})
                 elif msg.get("say"):
-                    self.reflexes.append({"at": at, "what": "working chatter " + mumble(msg["say"]),
+                    self.reflexes.append({"at": at, "what": "working chatter " + say_text(msg["say"]),
                                           "trigger": "an agent is working"})
                 self._reflex = (at, self.reflexes[-1]["what"])
             parts = ([msg["anim"]] if msg.get("anim") else []) + (["say " + say_text(msg["say"])] if msg.get("say") else [])
@@ -462,10 +462,6 @@ def brain_name(brain: str | None) -> str:
     return "Jev" if name == "jev" else name
 
 
-def mumble(say: Line) -> str:
-    return f"“{say.get('syl', '')}”" + (f" + {say['word']}" if say.get("word") else "")
-
-
 def state_text(s: Line) -> str:
     attn = s.get("attn")
     more = f" +{attn['more']}" if attn and attn.get("more") else ""
@@ -475,8 +471,9 @@ def state_text(s: Line) -> str:
 
 
 def say_text(say: Line) -> str:
-    word = f" + {say['word']} (at {say.get('at')})" if say.get("word") else ""
-    return f"“{say.get('syl', '')}”{word} · {say.get('tune')} · {say.get('ms')} ms/syl"
+    """A line as the board plays it: its take's text, and its id."""
+    t = take(say.get("take") or "")
+    return f"“{t.text}” ({t.id})" if t else "no take"
 
 
 def answers(p: Line) -> list[tuple[str, Line]]:

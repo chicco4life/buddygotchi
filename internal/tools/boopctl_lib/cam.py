@@ -200,11 +200,11 @@ CLIPS = {
     "idle": [(0.0, {"t": "state", "v": 1, "base": "idle"})],
     "needs_you": [(0.0, _WORKING), (2.0, _ATTN), (5.0, _ATTN)],
     # A finish, by its older name (`cheer`: task_complete's success), then
-    # the brain's mumble on its own over the working face (the mumble is
+    # the brain's line on its own over the working face (the line is
     # PROTOCOL.md §3's example).
     "cheer": [(0.0, _WORKING), (1.5, {"t": "moment", "anim": "cheer"}),
               (4.0, {"t": "moment",
-                     "say": {"syl": "bi-do ba-na", "word": "done", "at": 4, "tune": "up", "ms": 120}}),
+                     "say": {"take": "previous.done"}}),
               (5.0, _WORKING)],
     "tap": [(0.0, {"t": "state", "v": 1, "base": "idle"}), (1.0, {"t": "dbg.press", "ms": 100}),
             (3.0, {"t": "dbg.touch", "x": 160, "y": 100, "ms": 100}), (5.0, {"t": "dbg.press", "ms": 100})],

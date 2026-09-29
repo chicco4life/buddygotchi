@@ -96,8 +96,8 @@ commands go through the bridge.
 | `state` | Prints `dbg.state`, the device's own view of itself |
 | `shot [--out FILE]` | Saves a screenshot of the canvas as a PNG (default `/tmp/boop-shot.png`) |
 | `send '<json>'` | Sends one message as the Mac would; for a `dbg.*` request it prints the reply |
-| `play ANIM\|needs\|pattern` | Makes the board do one thing the Mac can, and checks it took. An animation (`task_complete`, `reply_ready`, `starting`, `stopped`, `error`, `helper_return`, `poked` or `tap_spam`, or the older `cheer` and `wiggle`) plays over `--base` (idle) in `--mood` (happy) at `--vol` (1–10, 6), and `--loops N` (1–6) sends that many loops (without it the moment has none, which plays once); `--variant N`, `--outcome success\|failure` (task_complete) and `--ctx new_task\|session\|continuation` (starting) pick its variation, and it prints the one playing; `--say FEELING` adds a mumble, from the design's voice window, with `--word` and `--seed`. `needs` holds a fake "needs you" for `--seconds` (10) from `--agent` (claude) on `--project` (boopctl) with `--more` (0), and reports whether its performance started and its ding was sent. `pattern` shows the test pattern |
-| `mumble [feeling…]` | Plays the Mac's Voice lines for each feeling (all eight by default), without and with a word, and checks each in `audio.out`: syllables, word, and the DAC's time within 10% of beats × `ms`; then that a muted line moves the mouth silently. `--word W` or `--no-word`, `--count N` lines each, `--vol`, `--seed N` to replay a run, `--gap S` between lines (0.8), `--json`. For listening: `--board-volume` plays one line at the volume the board already has; `--levels L…` plays one line at each level, `--rounds N` times (6) |
+| `play ANIM\|needs\|pattern` | Makes the board do one thing the Mac can, and checks it took. An animation (`task_complete`, `reply_ready`, `starting`, `stopped`, `error`, `helper_return`, `poked` or `tap_spam`, or the older `cheer` and `wiggle`) plays over `--base` (idle) in `--mood` (happy) at `--vol` (1–10, 6), and `--loops N` (1–6) sends that many loops (without it the moment has none, which plays once); `--variant N`, `--outcome success\|failure` (task_complete) and `--ctx new_task\|session\|continuation` (starting) pick its variation, and it prints the one playing; `--take ID` adds that take, from the design's voice window. `needs` holds a fake "needs you" for `--seconds` (10) from `--agent` (claude) on `--project` (boopctl) with `--more` (0), and reports whether its performance started and its ding was sent. `pattern` shows the test pattern |
+| `takes [--only TEXT]` | Plays every take on the board on its own, one after another (or those whose id starts with `--only`, or whose text is it or has it as a word, any case), printing each id and text, and checks each in `audio.out`: the take, and the DAC's time within 10% of its length; then that a muted line moves the mouth silently. `--vol`, `--gap S` between takes (0.8), `--json`. For listening: `--board-volume` plays the first take at the volume the board already has; `--levels L…` plays the first take at each level, `--rounds N` times (6) |
 | `sim [scenario…] [--accept]` | Plays scenarios (all by default) in the simulator into `/tmp/boop-sim/<scenario>/` and compares them with the goldens (L1); `--accept` copies the pictures in |
 | `run [scenario…]` | Plays scenarios on the board and diffs each screenshot against the simulator's, threshold 0 (L2), then lets the clock run again |
 | `perf [--seconds N] [--motion]` | Samples fps, frame time and heap once a second for N s (30); `--motion` keeps the face moving (L2) |
@@ -319,7 +319,7 @@ if authorised (§6):
    until it passes and record them in [DEVICE.md](DEVICE.md) §4.
 3. **Clips:** `internal/tools/boopctl cam clip <name>` records up to 10 s
    of a live preset with the clock running (`idle`, `needs_you`, `cheer`
-   then a mumble, or `tap`) and saves a contact sheet of cropped frames.
+   then a line, or `tap`) and saves a contact sheet of cropped frames.
    Compare it with the simulator's pictures: recognisably the same,
    readable, the right colours, and moving smoothly with no tearing, stuck
    frames or flicker. `internal/tools/boopctl e2e --clip` films a short
@@ -395,8 +395,8 @@ slowest pass is under the 1.5 s deadline; and the sample reads well.
 ### L6: the owner
 
 Only a person can check Bluetooth (`make run`), real touches and
-calibration (`boopctl calibrate`), sound by ear (`boopctl mumble`,
-`mumble --board-volume`, `mumble --levels`, `play needs`), real Claude
+calibration (`boopctl calibrate`), sound by ear (`boopctl takes`,
+`takes --board-volume`, `takes --levels`, `play needs`), real Claude
 Code and Codex sessions, the Mac app in the real menu bar, and how Boop
 feels. A day of real use under `make debug` reads back with `make day`:
 what Boop did each hour and why, relaunches included.

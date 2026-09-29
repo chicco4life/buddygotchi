@@ -112,7 +112,7 @@ enum Policy : uint8_t { kSilent, kLoop, kEntry, kSparse };
 struct Event {
   uint16_t atMs;   // into the design's loop
   uint8_t clip;
-  uint8_t gain;    // 1–255: 255 plays the clip as loud as a syllable
+  uint8_t gain;    // 1–255: 255 plays the clip as loud as the voice
   uint16_t pitch;  // permille: 1000 plays the clip as made
 };
 
@@ -125,10 +125,10 @@ struct List {
 struct Score {
   Policy policy;
   uint8_t every;     // sparse: the loops that sound are 0, every, 2 × every…
-  bool duck;         // a mumble turns it down: all but needs you's, the finish's and an error's
+  bool duck;         // a line turns it down: all but needs you's, the finish's and an error's
   uint8_t lists;     // its loops' event lists: 1, or kLoops for a routine design
   uint16_t loop0;    // into kLoopList
-  uint16_t voiceMs;  // its voice window's start: a mumble over it starts no sooner
+  uint16_t voiceMs;  // its voice window's start: a line over it starts no sooner
 };
 
 // Every design's timeline, by mood, then state, then variation.

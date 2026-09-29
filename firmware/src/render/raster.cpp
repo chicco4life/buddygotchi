@@ -17,30 +17,6 @@ uint32_t isqrt(uint32_t v) {
   return r;
 }
 
-namespace {
-// sin(i/64 of a quarter turn) × 1024, for i = 0..64.
-constexpr int16_t kQuarterSin[65] = {
-    0,    25,   50,   75,   100,  125,  150,  175,  200,  224,  249,  273,  297,
-    321,  345,  369,  392,  415,  438,  460,  483,  505,  526,  548,  569,  590,
-    610,  630,  650,  669,  688,  706,  724,  742,  759,  775,  792,  807,  822,
-    837,  851,  865,  878,  891,  903,  915,  926,  936,  946,  955,  964,  972,
-    980,  987,  993,  999,  1004, 1009, 1013, 1016, 1019, 1021, 1023, 1024, 1024,
-};
-}  // namespace
-
-int isin(int turn) {
-  turn &= 1023;
-  int quadrant = turn >> 8, i = (turn & 255) >> 2, frac = turn & 3;
-  auto at = [](int k) { return int(kQuarterSin[k]); };
-  int v;
-  if (quadrant == 0 || quadrant == 2) {
-    v = at(i) + (at(i + 1) - at(i)) * frac / 4;
-  } else {
-    v = at(64 - i) + (at(63 - i < 0 ? 0 : 63 - i) - at(64 - i)) * frac / 4;
-  }
-  return quadrant < 2 ? v : -v;
-}
-
 int ease(int t, int dur) {
   if (dur <= 0 || t >= dur) return 1024;
   if (t <= 0) return 0;

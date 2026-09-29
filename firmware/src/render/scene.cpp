@@ -25,7 +25,7 @@ const char* const kOutcomes[] = {"", "success", "failure"};
 const char* const kCtxs[] = {"", "new_task", "session", "continuation"};
 constexpr uint16_t kNone = 0xFFFF;
 
-// The small "o" the mouth becomes on a syllable, from the old curious
+// The small "o" the mouth becomes while a take is loud, from the old curious
 // design asking for you, where it was the mouth: 14 × 12 px, on the mouth
 // that shows, in its colour. Its middle sits on the mouth's, a pixel lower,
 // which puts it where the first pack's mouth is.
