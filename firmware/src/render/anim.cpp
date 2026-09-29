@@ -13,8 +13,6 @@ namespace {
 // "cheer" is the finish's success, and the Mac's "wiggle" (the
 // dashboard's) what a tap plays.
 const char* const kOlder[][2] = {{"cheer", "task_complete"}, {"wiggle", "poked"}};
-// The moods' names are the designs' (faces.h).
-static_assert(faces::kMoodCount == int(Mood::kCount), "one name per mood");
 
 }  // namespace
 

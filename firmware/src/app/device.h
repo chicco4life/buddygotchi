@@ -122,12 +122,12 @@ class Device {
   // again after kNoAppMs of silence.
   void connected();
   void disconnected();
-  // True when the Mac has sent no line on `link`, while connected over
-  // Bluetooth, for kNoAppMs of real time: a link left over from a killed
-  // app, which Ble lets go (PROTOCOL.md §2, "Reconnecting"). Then true
-  // again only after another kNoAppMs, in case letting go didn't take.
-  // Always false for USB, which has no connection to let go.
-  bool shouldDrop(Link link);
+  // True when the Mac, connected over Bluetooth, has sent no line on it for
+  // kNoAppMs of real time: a link left over from a killed app, which Ble
+  // lets go (PROTOCOL.md §2, "Reconnecting"). Then true again only after
+  // another kNoAppMs, in case letting go didn't take. USB has no connection
+  // to let go.
+  bool shouldDropBle();
   // Reads inputs, advances state, and redraws the canvas if needed.
   void tick();
   // True once after each redraw.
@@ -186,10 +186,12 @@ class Device {
   Out* outs_[3] = {nullptr, nullptr, nullptr};
   Link link_ = Link::kNone;  // the link the Mac last spoke on
   bool bleUp_ = false;       // a Mac is connected over Bluetooth
-  // Per link: the Mac has spoken on it (or connected, for Bluetooth), last
-  // at heardReal_, in real time.
-  bool heard_[3] = {false, false, false};
-  uint32_t heardReal_[3] = {0, 0, 0};
+  bool usbHeard_ = false;      // the Mac has spoken over USB
+  uint32_t usbHeardReal_ = 0;  // real time it last did
+  uint32_t bleHeardReal_ = 0;  // real time the Mac last spoke (or connected) over Bluetooth
+  // The Mac spoke at `heardReal` less than kNoAppMs before `real`: the app
+  // is still there.
+  static bool heardLately(uint32_t heardReal, uint32_t real) { return real - heardReal < Behaviour::kNoAppMs; }
   uint32_t statusReal_ = 0;  // real time of the last status
   uint32_t dbgReal_ = 0;     // real time of the last dbg.* message
   bool toolFrozen_ = false;  // a dbg.* message froze the clock (not the simulator's start)

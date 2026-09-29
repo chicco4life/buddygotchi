@@ -354,37 +354,34 @@ static void test_usb_status_when_the_mac_first_speaks() {
 
 // PROTOCOL.md §2, "Reconnecting": a Bluetooth link with no line from the
 // Mac for 30 s is dropped, and if that didn't take, dropped again 30 s
-// later. USB is never dropped; there's no connection to let go.
+// later. USB has no connection to let go, so only Bluetooth is checked.
 static void test_a_quiet_link_is_dropped_after_30_s() {
   TEST_ASSERT_EQUAL_UINT32(30000, app::Behaviour::kNoAppMs);
   Rig r;
-  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kBle));  // not connected
+  TEST_ASSERT_FALSE(r.dev.shouldDropBle());  // not connected
   r.hal.real = 1000;
   r.dev.connected();
   r.hal.real = 30999;
-  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kBle));
+  TEST_ASSERT_FALSE(r.dev.shouldDropBle());
   r.hal.real = 20000;
   r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);  // the Mac's 10 s keepalive
   r.hal.real = 49999;
-  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kBle));
+  TEST_ASSERT_FALSE(r.dev.shouldDropBle());
   r.hal.real = 50000;
-  TEST_ASSERT_TRUE(r.dev.shouldDrop(app::Link::kBle));
+  TEST_ASSERT_TRUE(r.dev.shouldDropBle());
   r.hal.real = 50001;
-  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kBle));
+  TEST_ASSERT_FALSE(r.dev.shouldDropBle());
   r.hal.real = 80000;
-  TEST_ASSERT_TRUE(r.dev.shouldDrop(app::Link::kBle));
+  TEST_ASSERT_TRUE(r.dev.shouldDropBle());
   r.dev.disconnected();
   r.hal.real = 200000;
-  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kBle));
+  TEST_ASSERT_FALSE(r.dev.shouldDropBle());
   r.hal.real = 0xFFFFF000u;  // millis() wraps
   r.dev.connected();
   r.hal.real = 0x00001000u;
-  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kBle));
+  TEST_ASSERT_FALSE(r.dev.shouldDropBle());
   r.hal.real = 0xFFFFF000u + 30000;
-  TEST_ASSERT_TRUE(r.dev.shouldDrop(app::Link::kBle));
-  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.hal.real += 100000;
-  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kUsb));
+  TEST_ASSERT_TRUE(r.dev.shouldDropBle());
 }
 
 static void test_pattern_until_next_state() {

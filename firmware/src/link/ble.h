@@ -2,7 +2,7 @@
 // security in v1 (plan/PROTOCOL.md §2, plan/DEVICE.md §4). Received bytes
 // cross from the Bluetooth task to the main loop through a ring, and the
 // main loop does everything else, so the device core stays single-threaded.
-// A link the Mac has gone quiet on is dropped (Device::shouldDrop), so a
+// A link the Mac has gone quiet on is dropped (Device::shouldDropBle), so a
 // killed app's leftover link can't stop the device advertising.
 #pragma once
 #include <cstddef>

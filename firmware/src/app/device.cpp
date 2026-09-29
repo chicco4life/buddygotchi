@@ -93,9 +93,7 @@ void Device::emit(const char* k, bool injected) {
   int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"input\",\"k\":\"%s\"}", k);
   if (injected) return reply(Link::kUsb, buf, size_t(n));
   if (bleUp_) reply(Link::kBle, buf, size_t(n));
-  if (heard_[int(Link::kUsb)] && hal_.realMs() - heardReal_[int(Link::kUsb)] < Behaviour::kNoAppMs) {
-    reply(Link::kUsb, buf, size_t(n));
-  }
+  if (usbHeard_ && heardLately(usbHeardReal_, hal_.realMs())) reply(Link::kUsb, buf, size_t(n));
 }
 
 void Device::input(const char* k, uint32_t t, int x, int y) {
@@ -112,10 +110,10 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
   if (debug && from != Link::kUsb) return false;  // the debug channel is USB only
   uint32_t real = hal_.realMs();
   // USB's "connect": the Mac's first word, or its first after a silence.
-  bool hello = !debug && from == Link::kUsb &&
-               (link_ != Link::kUsb || real - heardReal_[int(Link::kUsb)] >= Behaviour::kNoAppMs);
-  if (!debug) link_ = from, heard_[int(from)] = true, heardReal_[int(from)] = real;
-  else dbgReal_ = real;
+  bool hello = !debug && from == Link::kUsb && (link_ != Link::kUsb || !heardLately(usbHeardReal_, real));
+  if (debug) dbgReal_ = real;
+  else if (from == Link::kUsb) link_ = from, usbHeard_ = true, usbHeardReal_ = real;
+  else link_ = from, bleHeardReal_ = real;
   uint32_t at = now();
   b_.advance(at, rng_);
 
@@ -312,22 +310,19 @@ void Device::cardCopy(const CardOp& o, Link from) {
 void Device::connected() {
   link_ = Link::kBle;
   bleUp_ = true;
-  heard_[int(Link::kBle)] = true, heardReal_[int(Link::kBle)] = hal_.realMs();
+  bleHeardReal_ = hal_.realMs();
   sendStatus(Link::kBle);
 }
 
 void Device::disconnected() {
   if (link_ == Link::kBle) link_ = Link::kNone;
   bleUp_ = false;
-  heard_[int(Link::kBle)] = false;
 }
 
-bool Device::shouldDrop(Link link) {
-  if (link != Link::kBle || !bleUp_) return false;  // USB has no connection to let go
+bool Device::shouldDropBle() {
   uint32_t real = hal_.realMs();
-  uint32_t& heard = heardReal_[int(link)];
-  if (real - heard < Behaviour::kNoAppMs) return false;
-  heard = real;
+  if (!bleUp_ || heardLately(bleHeardReal_, real)) return false;
+  bleHeardReal_ = real;
   return true;
 }
 
@@ -393,8 +388,8 @@ void Device::readInputs(uint32_t t) {
 void Device::tick() {
   uint32_t real = hal_.realMs();
   if (real - fpsSinceReal_ >= 1000) fps_ = frames_ * 1000 / (real - fpsSinceReal_), frames_ = 0, fpsSinceReal_ = real;
-  if (link_ != Link::kNone && hal_.realMs() - statusReal_ >= kStatusMs) sendStatus(link_);
-  if (toolFrozen_ && hal_.realMs() - dbgReal_ >= kThawMs) clock_.run(hal_.realMs()), toolFrozen_ = false;
+  if (link_ != Link::kNone && real - statusReal_ >= kStatusMs) sendStatus(link_);
+  if (toolFrozen_ && real - dbgReal_ >= kThawMs) clock_.run(real), toolFrozen_ = false;
   uint32_t t = now();
   b_.advance(t, rng_);
   readInputs(t);
