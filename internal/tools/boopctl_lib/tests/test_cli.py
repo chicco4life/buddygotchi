@@ -56,8 +56,10 @@ class CLITests(unittest.TestCase):
         self.assertEqual(parse(["cam", "clip", "cheer", "--camera", "X"]).camera, "X")
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             parse(["takes", "--levels", "1", "--board-volume"])
-        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-            parse(["play", "cheer", "--take", "banana"])
+        # A take the pack lacks is refused before the board is touched,
+        # not by argparse, so --help works with no pack.
+        with self.assertRaisesRegex(cli.DeviceError, "no take 'banana'"):
+            cli.cmd_play(parse(["play", "cheer", "--take", "banana"]))
 
 
 class PlayTests(unittest.TestCase):

@@ -612,6 +612,10 @@ def cmd_play(args: argparse.Namespace) -> int:
     `wiggle` are the older names of task_complete's success and poked."""
     if (args.take or args.loops or args.outcome or args.ctx or args.variant) and args.what in ("needs", "pattern"):
         raise DeviceError(f"play {args.what} takes no --take, --loops, --outcome, --ctx or --variant")
+    # Checked here, not by argparse: reading the voice pack to list the
+    # choices would stop every command, --help included, without one.
+    if args.take and take(args.take) is None:
+        raise DeviceError(f"no take {args.take!r} in the voice pack (`boopctl takes` lists them)")
     if args.what == "pattern":
         with Device(args.port) as dev:
             dev.request({"t": "dbg.pattern"})
@@ -690,7 +694,7 @@ def build_parser() -> argparse.ArgumentParser:
                                     "with its ding, or the bring-up pattern")
     p.add_argument("what", choices=ANIMS + list(OLD_ANIMS) + ["needs", "pattern"],
                    help=", ".join(ANIMS + list(OLD_ANIMS)) + "; needs; pattern")
-    p.add_argument("--take", choices=[t.id for t in takes()], metavar="ID",
+    p.add_argument("--take", metavar="ID",
                    help="a take over it, by id (`boopctl takes` lists them)")
     p.add_argument("--loops", type=int, choices=range(1, 7), metavar="1-6",
                    help="how many times the animation's design plays (PROTOCOL.md §3; the device reads none as 1)")
