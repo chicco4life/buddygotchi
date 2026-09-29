@@ -458,9 +458,9 @@ its `debug.jsonl`:
 ```
 ▸ 1 turn start: claude started turn 1 on "jetpack".
     You asked: "PRIVATE_PROMPT_7001 fix the flaky test"
-  pass scripted 0 ms: mood calm 1.00 · react.animation none 1.00 · react.loops once 1.00 · react.mood excited 1.00 · word.about none 1.00 · word.feeling yay 1.00
+  pass scripted 0 ms: mood calm 1.00 · react.animation none 1.00 · react.loops once 1.00 · react.mood excited 1.00 · say.kind word 1.00 · say.meaning begin 1.00
     │ <the whole state for the first pass, then only its HISTORY and NOW>
-  … react: Boop made an excited face, held once, and mumbled "…yay!"
+  … react: Boop made an excited face, held once, and said "Go".
   ✗ react (3) didn't happen: no device connected
   … needs_you (rule): Boop showed that claude needs you.
 ▸ 2 tool wait (no pass): claude needs you on "jetpack".
@@ -504,7 +504,7 @@ line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 | Line | Does |
 | --- | --- |
 | `{"dev":"advance","ms":N}` | Headless only: moves the app's clock forward N ms, then ticks |
-| `{"dev":"answer","answers":{"react.mood":"grumpy","word.feeling":"again"}}` | A **forced pass**: each choice at probability 1, handed to the actions exactly as Jev's answers would be. It runs at once on `home`, needs no brain or key, and leaves a running or waiting pass alone. A choice that isn't one of its question's options is left out. The actions keep their own rules. Logged as a `pass` line, and its actions recorded `by` `dashboard`, for no event; no `brain` line in `boop.log` |
+| `{"dev":"answer","answers":{"react.mood":"grumpy","say.meaning":"effort"}}` | A **forced pass**: each choice at probability 1, handed to the actions exactly as Jev's answers would be. It runs at once on `home`, needs no brain or key, and leaves a running or waiting pass alone. A choice that isn't one of its question's options is left out. The actions keep their own rules. Logged as a `pass` line, and its actions recorded `by` `dashboard`, for no event; no `brain` line in `boop.log` |
 | `{"dev":"mood","mood":"grumpy"}` | Sets the mood at once through the mood action, device included ([DECISIONS.md](DECISIONS.md) §4). Recorded as an `action` named `mood`, for no event, `by` `dashboard`, refusals included |
 | `{"dev":"listen","on":true}` | The popover's Talk button: the mic on (`true`) or off, as clicking it does ([BEHAVIORS.md](../BEHAVIORS.md) §3.3). With no mic (headless) turning it off hears nothing |
 | `{"dev":"said","words":"are the tests passing?","by":"device"}` | What push-to-talk heard, with no mic: recorded as a `talk` event after `by`'s button (`app` unless it says), whose pass replies or ends `listening` ([EVENTS.md](EVENTS.md) §2) |
@@ -515,9 +515,9 @@ from a headless run with no device (`--link none`), so the reaction
 never played ([DECISIONS.md](DECISIONS.md) §5):
 
 ```jsonl
-{"pass":{"answers":{"react.animation":{"choice":"success","p":{"success":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"react.mood":{"choice":"proud","p":{"proud":1}},"word.feeling":{"choice":"finally","p":{"finally":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react.mood","react.animation","react.loops","word.feeling"]},"received_at_ms":1790599915988}
-{"event":{"seq":16,"ts":1790599915989,"source":"boop","type":"action","phase":"start","specific_type":"react","data":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop played a success in a proud face, held twice, and mumbled \"…finally!\"","ok":true}},"received_at_ms":1790599915989}
-{"event":{"seq":17,"ts":1790599915989,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"dashboard","for":16,"outcome":"failed","why":"no device connected"}},"received_at_ms":1790599915989}
+{"pass":{"answers":{"react.animation":{"choice":"success","p":{"success":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"react.mood":{"choice":"proud","p":{"proud":1}},"say.kind":{"choice":"phrase","p":{"phrase":1}},"say.meaning":{"choice":"pride","p":{"pride":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react.mood","react.animation","react.loops","say.meaning","say.kind"]},"received_at_ms":1790659290066}
+{"event":{"seq":5,"ts":1790659290067,"source":"boop","type":"action","phase":"start","specific_type":"react","data":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop played a success in a proud face, held twice, and said \"Tiny genius\".","ok":true}},"received_at_ms":1790659290067}
+{"event":{"seq":6,"ts":1790659290067,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"dashboard","for":5,"outcome":"failed","why":"no device connected"}},"received_at_ms":1790659290067}
 ```
 
 **A bug report.** The ladybug button in the popover's footer (⌘B)

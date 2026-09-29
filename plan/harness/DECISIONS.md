@@ -510,18 +510,15 @@ still calls for it (§2.1). The evals have no device, so
 their queue ends each handle at once, `done` unless a scenario's step
 says otherwise ([EVALS.md](../EVALS.md) §1, §3).
 [HARNESS.md](HARNESS.md) §9 has a reaction and its end in `debug.jsonl`,
-from a headless run with no device. With the board on USB and Boop
-asleep, a forced proud reaction held twice: its moment, its action and
-the end the device's `ended` (`done`) brought 14.0 s later, at the
-second loop boundary of the asleep design's 8 s clock, long after its
-1.9 s mumble (recorded before the raw transcript, and rewritten into
-today's lines by
-`plan/evidence/2026-09-28-raw-transcript-view/convert_fixtures.py`):
+from a headless run with no device. With the board on USB (firmware
+`6a1cc990`), a forced proud reaction meaning delight, held twice: its
+moment, with the take Voice picked (proud's "Mwahaha", 2.43 s), its
+action, and the end the device's `ended` (`done`) brought 3.6 s later:
 
 ```jsonl
-{"sent":{"t":"moment","say":{"syl":"da-to-lon","word":"finally","at":3,"tune":"lift","ms":135},"mood":"proud","loops":2,"id":1710758195},"received_at_ms":1790531820132}
-{"event":{"seq":2,"ts":1790531820132,"source":"boop","type":"action","phase":"start","specific_type":"react","data":{"by":"dashboard","for":null,"latency_ms":1,"message":"Boop made a proud face, held twice, and mumbled \"…finally!\"","ok":true}},"received_at_ms":1790531820132}
-{"event":{"seq":3,"ts":1790531834106,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"dashboard","for":2,"outcome":"done"}},"received_at_ms":1790531834106}
+{"sent":{"t":"moment","say":{"take":"new.d20"},"mood":"proud","loops":2,"id":1588780972},"received_at_ms":1790659325407}
+{"event":{"seq":1,"ts":1790659325407,"source":"boop","type":"action","phase":"start","specific_type":"react","data":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a proud face, held twice, and said \"Mwahaha...\".","ok":true}},"received_at_ms":1790659325407}
+{"event":{"seq":2,"ts":1790659329047,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"dashboard","for":1,"outcome":"done"}},"received_at_ms":1790659329047}
 ```
 
 ## 6. An example
