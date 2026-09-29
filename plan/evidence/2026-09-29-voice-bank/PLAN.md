@@ -3,8 +3,8 @@
 Updated 2026-09-29. How Federico's recorded voice bank on
 `codex/boop-mood-spectrum-v4` (`5b2d7cc7`,
 `internal/boop-design/assets/boop-voice-v1/`) could become Boop's voice
-on the board. It's a work plan, not a spec, and nothing here is built
-yet. The package's own guide is its
+on the board. It's a work plan, not a spec. **Status:** built as option B
+on 2026-09-29, with the decisions and results in [README.md](README.md). The package's own guide is its
 [README](../../../internal/boop-design/assets/boop-voice-v1/README.md)
 once it's merged.
 
