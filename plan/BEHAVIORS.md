@@ -173,8 +173,8 @@ sounds is in [VOICE.md](VOICE.md).
 The summary above is the model. The rest of this section is how the
 layers meet.
 
-**Attention wins.** While something needs you, no animation or mumble
-plays but `listening`, so push-to-talk still works; one already playing
+**Attention wins.** While something needs you, no animation, line or
+face plays but `listening`, so push-to-talk still works; one already playing
 is cut short (`listening` plays on), a tap only dips the face, the rules
 send no one-shot, and no view event but a poke or what you say wakes the
 brain ([harness/EVENTS.md](harness/EVENTS.md) §6).
@@ -346,7 +346,7 @@ moment later, if it answers within its deadline
 [harness/EVENTS.md](harness/EVENTS.md) §4.
 
 **Moments take turns.** A tap's poke plays at once on the device and
-replaces whatever is playing, mumble included. So does a rule's
+replaces whatever is playing, a line included. So does a rule's
 one-shot (§3.1), except that none is sent while a brain reaction's line
 plays, which it would cut, and it's dropped then rather than sent late.
 A brain reaction waits
@@ -427,7 +427,7 @@ until nothing needs you.
 | When | What Boop does |
 | --- | --- |
 | You press BOOT or touch the screen | The face dips 2 px at once, until you let go |
-| You let go within 400 ms, or lift your finger: a tap | The mood's `poked` design, once, from its start, replacing whatever is playing, a mumble included; asleep too. From the third tap in a row on, `tap_spam` instead (below). The Mac records it as a poke, with the rule's `wiggle` action under it, and the brain hears of it, but not while it's answering the pokes before ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| You let go within 400 ms, or lift your finger: a tap | The mood's `poked` design, once, from its start, replacing whatever is playing, a line included; asleep too. From the third tap in a row on, `tap_spam` instead (below). The Mac records it as a poke, with the rule's `wiggle` action under it, and the brain hears of it, but not while it's answering the pokes before ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | Pokes in a row | Each within 3 s of the last (`TranscriptView.Config.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. The device counts them too, every tap, those that only dip the face included: from the third in a row (`answersRunFrom`), it plays the mood's `tap_spam` design instead of `poked` (`Behaviour::kTapRunMs` 3000 and `kTapSpamFrom` 3, the same numbers). How Boop reacts is the steering's: curious or glad at one poke; a little miffed at two in a row, turning annoyed; fed up at three or more, irritated and then grumpy, for a couple of minutes ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). The device plays its own tap animations, so no reaction plays one. From the third poke on, while the brain's reaction to them is in progress, a tap-cut one included, the pokes after it don't wake the brain, unless the mood changed since, so a barrage gets one "nope" ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | A tap while something needs you | The press dip only, with no poke: there a tap means "I saw it". The brain still hears of the poke ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | Hold BOOT 400 ms, or click Talk in the popover | Push-to-talk, below: `listening` shows at once, the device sends `talk_on` at 400 ms and `talk_off` on release, or by itself after 30 s ([DEVICE.md](DEVICE.md) §4). No tap |
@@ -497,8 +497,8 @@ short-term memory fresh ([ARCHITECTURE.md](ARCHITECTURE.md) §4.3).
 | Amber light | Something needs you: amber at half (`#805800`) | Any other time, or with no app |
 | Backlight | Full (255) awake; 60/255 asleep and with no app; eases with each switch of design | Dimmed while something needs you |
 
-Mute (volume 0) silences all sound, effects included, but mumbles still
-show in the bubble and the light is unchanged. A `state` that brings "needs you" or volume 0
+Mute (volume 0) silences all sound, effects included, but lines still
+show in the bubble, their text and the talking mouth, and the light is unchanged. A `state` that brings "needs you" or volume 0
 stops a line that's playing.
 
 ## 5. Animation set

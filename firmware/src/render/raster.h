@@ -22,9 +22,6 @@ constexpr int px(int pixels) { return pixels * kSub; }
 // Integer square root, rounded down.
 uint32_t isqrt(uint32_t v);
 
-// sin of `turn` (1024 per full turn), scaled to ±1024.
-int isin(int turn);
-
 // Smoothstep ease-in-out: t of `dur` → 0..1024.
 int ease(int t, int dur);
 
@@ -82,40 +79,6 @@ void fillShape(int y0, int y1, Shape shape, Plot plot) {
     for (int x = minX; x <= maxX; ++x) {
       int level = (acc[x] * 8 + 32) / (kSub * kSubRows);
       if (level > 0) plot(x, y, level);
-    }
-  }
-}
-
-// Fills a shape that is one vertical band per x: `band(sx, top, bottom)`
-// gives the band [top, bottom) at sample column sx, or false for none. Tests
-// 4×4 samples per pixel, asking for each column once, which is what makes
-// the bubble's squiggles cheap on the board. `plot(x, y, level)` as above.
-template <class Band, class Plot>
-void fillBands(int x0, int x1, Band band, Plot plot) {
-  if (x0 < 0) x0 = 0;
-  if (x1 > kWidth) x1 = kWidth;
-  for (int x = x0; x < x1; ++x) {
-    int top[4], bottom[4], lo = 1 << 30, hi = -(1 << 30);
-    bool any = false;
-    for (int i = 0; i < 4; ++i) {
-      if (!band(px(x) + 2 + 4 * i, top[i], bottom[i])) top[i] = bottom[i] = 0;
-      if (bottom[i] > top[i]) {
-        any = true;
-        if (top[i] < lo) lo = top[i];
-        if (bottom[i] > hi) hi = bottom[i];
-      }
-    }
-    if (!any) continue;
-    int y0 = lo / kSub - 1, y1 = hi / kSub + 1;
-    if (y0 < 0) y0 = 0;
-    if (y1 > kHeight) y1 = kHeight;
-    for (int y = y0; y < y1; ++y) {
-      int n = 0;
-      for (int j = 0; j < 4; ++j) {
-        int sy = px(y) + 2 + 4 * j;
-        for (int i = 0; i < 4; ++i) n += sy >= top[i] && sy < bottom[i];
-      }
-      if (n) plot(x, y, (n + 1) / 2);
     }
   }
 }

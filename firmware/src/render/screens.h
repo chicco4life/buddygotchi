@@ -1,5 +1,5 @@
 // The screen: the face, drawn as its mood design, and in the bottom lane
-// the status strip, or the bubble while there's a mumble. The same drawing
+// the status strip, or the bubble while a line plays. The same drawing
 // serves the face, needs-you and no-app screens; only what it shows differs.
 // Pure drawing: the device core decides what to show and passes it in.
 #pragma once
@@ -36,20 +36,12 @@ struct Strip {
   bool noApp = false;
 };
 
-// A mumble in the bubble: squiggles for the gibberish, and the one real
-// word in amber at its place among the syllables.
-struct Mumble {
-  int syllables = 0;
-  int at = -1;          // index of the word among the syllables; -1 for none
-  const char* word = nullptr;
-};
-
-// The face as its design shows it, and the bubble when there's a mumble,
-// else the strip. The face is a frame sceneFrame made, or a show for the
-// tests, as drawScene takes it.
-void drawFaceScreen(Canvas& c, const SceneFrame& face, const Mumble* mumble, const Strip& s);
-inline void drawFaceScreen(Canvas& c, const SceneShow& face, const Mumble* mumble, const Strip& s) {
-  drawFaceScreen(c, sceneFrame(face), mumble, s);
+// The face as its design shows it, and the bubble with the line's text
+// (its take's, in amber) when there's one, else the strip. The face is a
+// frame sceneFrame made, or a show for the tests, as drawScene takes it.
+void drawFaceScreen(Canvas& c, const SceneFrame& face, const char* bubble, const Strip& s);
+inline void drawFaceScreen(Canvas& c, const SceneShow& face, const char* bubble, const Strip& s) {
+  drawFaceScreen(c, sceneFrame(face), bubble, s);
 }
 void drawStrip(Canvas& c, const Strip& s);
 

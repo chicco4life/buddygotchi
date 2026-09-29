@@ -253,7 +253,7 @@ static void test_status_on_connect_and_every_minute() {
 }
 
 // PROTOCOL.md §4: a real press goes to every live Mac link. A tool's
-// moment over USB while the app is on Bluetooth (boopctl mumble) doesn't
+// moment over USB while the app is on Bluetooth (boopctl takes) doesn't
 // take the taps away from the app; USB gets a copy while
 // the Mac spoke there in the last 30 s.
 static void test_input_reaches_every_live_link() {
@@ -276,7 +276,7 @@ static void test_input_reaches_every_live_link() {
   r.dev.connected();
   r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);
   r.hal.real = 1000;
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");
   press(100, 100);  // a tap
   press(800, 500);  // a hold: push-to-talk, and no tap
   for (const std::string* out : {&r.ble.text, &r.usb.text}) {
@@ -463,12 +463,12 @@ static void test_a_physical_hold_is_push_to_talk() {
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"listening\",\"left_ms\":8000,"));
-  // The reply, a mumble, ends it and plays.
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"proud\"}");
+  // The reply, a line, ends it and plays.
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\"}");
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"syllables\":2"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"take\":\"previous.go\""));
   TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":\"proud\""));
 }
 
@@ -777,8 +777,8 @@ static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
     TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
   }
   TEST_ASSERT_EQUAL(0, int(r.hal.said.size()));
-  // An unknown animation with a mumble: the mumble plays on its own.
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"oops\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
+  // An unknown animation with a line: the line plays on its own.
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"oops\",\"say\":{\"take\":\"previous.go\"}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
 }
 
@@ -822,37 +822,61 @@ static void test_reset_forgets_the_mac_and_freezes_at_0() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"attn\":null"));
 }
 
-// F5: a moment's mumble reaches the player with its syllables, word, tune
-// and tempo, and the player follows volume and needs you.
+// PROTOCOL.md §3: a moment's `say` names a take by id, which reaches the
+// player with the volume; dbg.state reports it (§5). `{}`, an id the
+// device doesn't have and the old syllable fields are still a `say`, but
+// play nothing.
 static void test_say_reaches_the_player() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":7}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"bi-do ba zz\",\"word\":\"done\",\"at\":4,\"tune\":\"up\",\"ms\":110}}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"new.d14\"}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   const voice::Line& l = r.hal.said[0];
-  TEST_ASSERT_EQUAL(4, l.n);
-  TEST_ASSERT_EQUAL(voice::syllableIndex("bi", 2), l.syl[0]);
-  TEST_ASSERT_EQUAL(voice::syllableIndex("ba", 2), l.syl[2]);
-  TEST_ASSERT_EQUAL(voice::kSilent, l.syl[3]);  // not a syllable Boop knows: a silent beat
-  TEST_ASSERT_EQUAL(voice::wordIndex("done"), l.word);
-  TEST_ASSERT_EQUAL(4, l.at);
-  TEST_ASSERT_TRUE(l.tune == voice::Tune::kUp);
-  TEST_ASSERT_EQUAL(110, l.ms);
+  TEST_ASSERT_EQUAL(voice::takeIndex("new.d14"), l.take);
   TEST_ASSERT_EQUAL(7, l.vol);
   r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"syllables\":4,\"out\":{"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"take\":\"new.d14\",\"out\":{"));
   // A tap's poke replaces the moment, and with it the line.
   r.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
   TEST_ASSERT_EQUAL(1, r.hal.hushes);
+  for (const char* none : {"{}", "{\"take\":\"banana\"}", "{\"take\":7}", "{\"syl\":\"ba po\",\"word\":\"done\"}"}) {
+    Rig q;
+    q.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+    q.usbLine("{\"t\":\"moment\",\"anim\":\"listening\"}");
+    q.usbLine((std::string("{\"t\":\"moment\",\"say\":") + none + "}").c_str());
+    TEST_ASSERT_EQUAL_MESSAGE(0, int(q.hal.said.size()), none);
+    q.usb.text.clear();
+    q.usbLine("{\"t\":\"dbg.state\"}");
+    TEST_ASSERT_TRUE_MESSAGE(has(q.usb.text, "\"moment\":null"), none);  // the reply: it ends listening
+    TEST_ASSERT_TRUE_MESSAGE(has(q.usb.text, "\"audio\":{\"playing\":false,\"take\":null,"), none);
+  }
 }
 
-// PROTOCOL.md §3: a moment with only `say` plays the mumble, bubble and
+// PROTOCOL.md §3: a face on its own (a `mood`, no `anim`, no line) plays
+// that face for its `loops` and is answered `done` when it's over.
+static void test_a_face_on_its_own_plays_and_ends() {
+  Rig r;
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":0}");
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
+  r.usbLine("{\"t\":\"moment\",\"mood\":\"grumpy\",\"loops\":2,\"id\":4}");
+  TEST_ASSERT_EQUAL(0, int(r.hal.said.size()));
+  const uint32_t loop = render::loopMs(render::Mood::kGrumpy, render::SceneState::kWorking);
+  r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(2 * loop - 1) + "}").c_str());
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":\"grumpy\""));
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"ended\""));
+  r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(2 * loop) + "}").c_str());
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":4,\"how\":\"done\"}\n"));
+}
+
+// PROTOCOL.md §3: a moment with only `say` plays the line, bubble and
 // voice, over the face showing; no animation starts. The line stops when
 // the bubble goes.
 // PROTOCOL.md §3 and §5: a moment's `mood` is its expression, which
 // dbg.state reports as `expr` while it plays; an unknown one is ignored,
-// and the mumble plays as usual.
+// and the line plays as usual.
 static void test_a_moment_carries_its_expression() {
   Rig r;
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":0}");
@@ -860,12 +884,12 @@ static void test_a_moment_carries_its_expression() {
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":null"));
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"grumpy\"}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.dai\"},\"mood\":\"grumpy\"}");
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"mood\":\"happy\""));  // the state's mood is kept
   TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":\"grumpy\""));
-  // The mumble is over at 2 × 100 ms + 1.2 s; the face holds a loop of
+  // The line (Dai, 460 ms) is over at 1660 ms; the face holds a loop of
   // the working design in grumpy, whose clock started with the state at 0.
   const uint32_t loop = render::loopMs(render::Mood::kGrumpy, render::SceneState::kWorking);
   auto exprAt = [&](uint32_t t) {
@@ -874,22 +898,23 @@ static void test_a_moment_carries_its_expression() {
     r.usbLine("{\"t\":\"dbg.state\"}");
     return has(r.usb.text, "\"expr\":\"grumpy\"");
   };
+  TEST_ASSERT_TRUE(460 + app::Behaviour::kBubbleReadMs < loop);
   TEST_ASSERT_TRUE(exprAt(1400));
   TEST_ASSERT_TRUE(exprAt(loop - 1));
   TEST_ASSERT_FALSE(exprAt(loop));
   TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":null"));
   // `loops`: two, from a boundary, end at the second one after it; over
   // 6 holds 6.
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"grumpy\",\"loops\":2}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"mood\":\"grumpy\",\"loops\":2}");
   TEST_ASSERT_TRUE(exprAt(3 * loop - 1));
   TEST_ASSERT_FALSE(exprAt(3 * loop));
   r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"mood\":\"happy\"}");  // no "no app" meanwhile
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"grumpy\",\"loops\":9}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"mood\":\"grumpy\",\"loops\":9}");
   TEST_ASSERT_TRUE(exprAt(9 * loop - 1));
   TEST_ASSERT_FALSE(exprAt(9 * loop));
-  // Unknown: no expression, and the mumble still plays.
+  // Unknown: no expression, and the line still plays.
   size_t said = r.hal.said.size();
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"cheerful\"}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"mood\":\"cheerful\"}");
   TEST_ASSERT_EQUAL(int(said + 1), int(r.hal.said.size()));
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
@@ -897,20 +922,20 @@ static void test_a_moment_carries_its_expression() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true"));
 }
 
-static void test_a_say_on_its_own_plays_the_mumble() {
+static void test_a_say_on_its_own_plays_the_line() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"syllables\":2"));
-  // (2 syllables × 100 ms) + 1.2 s: the bubble goes, and the line with it.
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1399}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"take\":\"previous.go\""));
+  // "Go"'s 640 ms + 1.2 s: the bubble goes, and the line with it.
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1839}");
   TEST_ASSERT_EQUAL(0, r.hal.hushes);
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1400}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1840}");
   TEST_ASSERT_EQUAL(1, r.hal.hushes);
-  // With no mumble and no animation, nothing happens.
+  // With no line and no animation, nothing happens.
   r.usbLine("{\"t\":\"moment\"}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
 }
@@ -921,8 +946,8 @@ static void test_mute_and_needs_you_keep_it_silent() {
       "{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}",
   };
   for (const char* st : states) {
-    for (const char* mo : {"{\"t\":\"moment\",\"anim\":\"cheer\",\"say\":{\"syl\":\"ba\",\"ms\":100}}",
-                           "{\"t\":\"moment\",\"say\":{\"syl\":\"ba\",\"ms\":100}}"}) {
+    for (const char* mo : {"{\"t\":\"moment\",\"anim\":\"cheer\",\"say\":{\"take\":\"previous.go\"}}",
+                           "{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}"}) {
       Rig r;
       r.usbLine(st);
       r.usbLine(mo);
@@ -932,16 +957,16 @@ static void test_mute_and_needs_you_keep_it_silent() {
   // Muted, the mouth still moves, at its voice window: only the sound goes.
   Rig r;
   r.usbLine(states[0]);
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"variant\":1,\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"variant\":1,\"say\":{\"take\":\"previous.go\"}}");
   const uint32_t voice = voice::score(int(render::Mood::kHappy), int(render::SceneState::kTaskComplete), 0).voiceMs;
   r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(voice) + "}").c_str());
   r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"syllables\":2"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"take\":\"previous.go\""));
   TEST_ASSERT_EQUAL(0, int(r.hal.said.size()));
   // A line stops when mute arrives mid-line.
   Rig q;
   q.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  q.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
+  q.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");
   TEST_ASSERT_EQUAL(1, int(q.hal.said.size()));
   q.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}");
   TEST_ASSERT_EQUAL(1, q.hal.hushes);
@@ -952,7 +977,7 @@ static void test_mute_and_needs_you_keep_it_silent() {
 static void test_needs_you_hushes_a_line_for_its_alert() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":100}");
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
@@ -960,7 +985,7 @@ static void test_needs_you_hushes_a_line_for_its_alert() {
   r.hal.effects.clear();
   runClock(r, 110, 8000);
   TEST_ASSERT_TRUE(played(r.hal, "alertDing"));
-  for (const voice::Effect& e : r.hal.effects) TEST_ASSERT_FALSE(e.duck);  // no mumble turns it down
+  for (const voice::Effect& e : r.hal.effects) TEST_ASSERT_FALSE(e.duck);  // no line turns it down
 }
 
 // PROTOCOL.md §4: a moment with an `id` gets one `ended` once all of it
@@ -970,9 +995,9 @@ static void test_a_moment_with_an_id_is_answered_when_it_ends() {
   Rig r;
   // Idle's second variation, a long loop (PROTOCOL.md §3 `variant`).
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"variant\":2}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"proud\",\"id\":5}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\",\"id\":5}");
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"variant\":2,\"vol\":0}");  // hushed, but it plays on
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1400}");  // the mumble is over: 2 × 100 ms + 1.2 s
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1840}");  // the line is over: 640 ms + 1.2 s
   // The face holds a loop of the idle design in proud.
   const uint32_t loop = render::loopMs(render::Mood::kProud, render::SceneState::kIdle, 1);
   r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(loop - 1) + "}").c_str());
@@ -980,22 +1005,22 @@ static void test_a_moment_with_an_id_is_answered_when_it_ends() {
   r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(loop) + "}").c_str());
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":5,\"how\":\"done\"}\n"));
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"id\":6}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":6}");
   r.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":6,\"how\":\"cut\",\"why\":\"tap\"}\n"));
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":10000}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"id\":7}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":7}");
   r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":7,\"how\":\"cut\",\"why\":\"moment\"}\n"));
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"id\":8}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":8}");
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":8,\"how\":\"cut\",\"why\":\"needs_you\"}\n"));
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"id\":9}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":9}");
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":9,\"how\":\"skipped\"}\n"));
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"id\":10}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":10}");
   r.usbLine("{\"t\":\"dbg.reset\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":10,\"how\":\"cut\",\"why\":\"reset\"}\n"));
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":60000}");
@@ -1005,10 +1030,10 @@ static void test_a_moment_with_an_id_is_answered_when_it_ends() {
   Rig b;
   b.dev.connected();
   const char* state = "{\"t\":\"state\",\"base\":\"idle\"}";
-  const char* moment = "{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"id\":3}";
+  const char* moment = "{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":3}";
   b.dev.handleLine(state, std::strlen(state), app::Link::kBle);
   b.dev.handleLine(moment, std::strlen(moment), app::Link::kBle);
-  b.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1400}");
+  b.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1840}");
   TEST_ASSERT_TRUE(has(b.ble.text, "{\"t\":\"ended\",\"id\":3,\"how\":\"done\"}\n"));
   TEST_ASSERT_FALSE(has(b.usb.text, "\"ended\""));
 }
@@ -1047,34 +1072,17 @@ static void test_lines_over_512_bytes_are_dropped() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"base\":\"asleep\""));
 }
 
-// VOICE.md §8, PROTOCOL.md §3: numbers out of range are held in range once,
-// as they arrive, so the mouth and the voice agree: `ms` to 60–400, the
-// word's `at` to the syllables, and `vol` to 0–10. However far out (past
-// an int's range too), and a fraction as its whole part; anything but a
-// number reads as the default.
-static void test_say_and_volume_are_held_in_range() {
+// PROTOCOL.md §3: `vol` is held to 0–10 once, as it arrives, and a line
+// plays at it. However far out (past an int's range too), and a fraction
+// as its whole part; anything but a number reads as the default.
+static void test_volume_is_held_in_range() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":15}");
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"vol\":10,"));
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"word\":\"done\",\"at\":9,\"ms\":1000}}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
-  TEST_ASSERT_EQUAL(400, r.hal.said[0].ms);
-  TEST_ASSERT_EQUAL(2, r.hal.said[0].at);
   TEST_ASSERT_EQUAL(10, r.hal.said[0].vol);
-  // The mouth keeps the same beat: (2 syllables + 2 for the word) × 400 ms.
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1599}");
-  r.usb.text.clear();
-  r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,"));
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1600}");
-  r.usb.text.clear();
-  r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":false,"));
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"word\":\"done\",\"at\":-3,\"ms\":20}}");
-  TEST_ASSERT_EQUAL(2, int(r.hal.said.size()));
-  TEST_ASSERT_EQUAL(60, r.hal.said[1].ms);
-  TEST_ASSERT_EQUAL(0, r.hal.said[1].at);
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":-3}");
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
@@ -1088,20 +1096,6 @@ static void test_say_and_volume_are_held_in_range() {
     r.usb.text.clear();
     r.usbLine("{\"t\":\"dbg.state\"}");
     TEST_ASSERT_TRUE_MESSAGE(has(r.usb.text, v.reads), v.vol);
-  }
-  const struct {
-    const char* ms;
-    const char* at;
-    int msReads, atReads;
-  } says[] = {{"-1", "1.5", 60, 1}, {"4294967296", "-1e10", 400, 0}, {"150.7", "1e10", 150, 2}, {"true", "\"1\"", 120, 2}};
-  for (const auto& c : says) {
-    const size_t n = r.hal.said.size();
-    r.usbLine((std::string("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"word\":\"done\",\"at\":") + c.at +
-               ",\"ms\":" + c.ms + "}}")
-                  .c_str());
-    TEST_ASSERT_EQUAL_MESSAGE(int(n + 1), int(r.hal.said.size()), c.ms);
-    TEST_ASSERT_EQUAL_MESSAGE(c.msReads, int(r.hal.said.back().ms), c.ms);
-    TEST_ASSERT_EQUAL_MESSAGE(c.atReads, int(r.hal.said.back().at), c.at);
   }
 }
 
@@ -1184,7 +1178,7 @@ static void test_needs_you_plays_its_ding_and_asleep_is_quiet() {
   TEST_ASSERT_TRUE(r.hal.effectStops > stops);
   runClock(r, 510, 8000);
   TEST_ASSERT_TRUE(played(r.hal, "alertDing"));
-  for (const voice::Effect& e : r.hal.effects) TEST_ASSERT_FALSE(e.duck);  // no mumble turns it down
+  for (const voice::Effect& e : r.hal.effects) TEST_ASSERT_FALSE(e.duck);  // no line turns it down
   Rig a;
   a.usbLine("{\"t\":\"state\",\"base\":\"asleep\"}");
   runClock(a, 0, 20000);
@@ -1282,7 +1276,7 @@ static void test_only_the_reply_ends_the_macs_listening() {
     TEST_ASSERT_TRUE_MESSAGE(has(r.usb.text, "\"moment\":{\"anim\":\"listening\""), other);
   }
   TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":null"));
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"proud\"}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\"}");
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
@@ -1297,30 +1291,30 @@ static void test_a_finishs_line_starts_at_its_voice_window() {
   const uint32_t voice = voice::score(int(render::Mood::kHappy), int(render::SceneState::kTaskComplete), 0).voiceMs;
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":5}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");  // a line playing
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");  // a line playing
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   r.usbLine("{\"t\":\"moment\",\"anim\":\"task_complete\",\"outcome\":\"success\",\"variant\":1,"
-            "\"say\":{\"syl\":\"bi-do ba\",\"word\":\"yay\",\"ms\":120},\"id\":3}");
+            "\"say\":{\"take\":\"new.d14\"},\"id\":3}");
   TEST_ASSERT_EQUAL(1, r.hal.hushes);  // it replaces the line playing
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":false,\"syllables\":0,"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":false,\"take\":null,"));
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":7}");
   runClock(r, 10, voice - 10);
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(voice) + "}").c_str());
   TEST_ASSERT_EQUAL(2, int(r.hal.said.size()));
-  TEST_ASSERT_EQUAL(3, r.hal.said[1].n);
+  TEST_ASSERT_EQUAL(voice::takeIndex("new.d14"), r.hal.said[1].take);
   TEST_ASSERT_EQUAL(7, r.hal.said[1].vol);  // the volume when it starts
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"syllables\":3,"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"take\":\"new.d14\","));
   // Cut before its window, by a tap or by needs you: it never plays.
   for (const char* stop : {"tap", "needs"}) {
     Rig q;
     q.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-    q.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"variant\":1,\"say\":{\"syl\":\"bi-do\",\"ms\":120}}");
+    q.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"variant\":1,\"say\":{\"take\":\"previous.go\"}}");
     if (!std::strcmp(stop, "tap")) {
       q.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");
     } else {
@@ -1467,12 +1461,13 @@ int main() {
   RUN_TEST(test_a_strip_touch_is_a_tap);
   RUN_TEST(test_reset_forgets_the_mac_and_freezes_at_0);
   RUN_TEST(test_say_reaches_the_player);
-  RUN_TEST(test_a_say_on_its_own_plays_the_mumble);
+  RUN_TEST(test_a_say_on_its_own_plays_the_line);
+  RUN_TEST(test_a_face_on_its_own_plays_and_ends);
   RUN_TEST(test_mute_and_needs_you_keep_it_silent);
   RUN_TEST(test_needs_you_hushes_a_line_for_its_alert);
   RUN_TEST(test_state_carries_the_mood);
   RUN_TEST(test_lines_over_512_bytes_are_dropped);
-  RUN_TEST(test_say_and_volume_are_held_in_range);
+  RUN_TEST(test_volume_is_held_in_range);
   RUN_TEST(test_a_moment_with_an_id_is_answered_when_it_ends);
   return UNITY_END();
 }

@@ -50,7 +50,7 @@
 {"clock":65075}
 {"shot":"listening-stopped-75ms"}
 {"t":"state","v":1,"base":"idle"}
-// An unknown animation with no mumble is ignored, the removed ones too.
+// An unknown animation with no line is ignored, the removed ones too.
 {"clock":70000}
 {"t":"moment","anim":"oops"}
 {"expect":{"moment":null}}

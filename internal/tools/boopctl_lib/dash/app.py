@@ -5,7 +5,6 @@ timeline a key away; and keys that force a mood, a reaction or an
 animation, or preview any look on the dashboard's own sim."""
 from __future__ import annotations
 
-import asyncio
 import time
 from pathlib import Path
 from typing import Any, Callable, Protocol
@@ -297,7 +296,7 @@ class Dash(App[None]):
             return
         if self.look:
             # Preview: any reaction, its face, its animation, how long it
-            # holds and a mumble, straight to the dashboard's sim.
+            # holds and its word's take, straight to the dashboard's sim.
             face = await self.pick("Preview a reaction: the face", [o for o in controls.options(asked[0]) if o != "none"])
             anims = [o for q in asked if q["key"] == "react.animation" for o in controls.options(q)]
             anim = face and (await self.pick("…its animation", anims) if anims else "none")
@@ -307,9 +306,9 @@ class Dash(App[None]):
             word = hold and await self.pick("…and its word", ["none"] + words)
             if word and self.face:
                 loops = holds.index(hold) + 1 if hold in holds else 1
-                try:  # boopdev runs off the event loop, so the face keeps moving
-                    line = await asyncio.to_thread(controls.preview_mumble, face, None if word == "none" else word, loops,
-                                                   None if anim == "none" else anim)
+                try:
+                    line = controls.preview_reaction(face, None if word == "none" else word, loops,
+                                                     None if anim == "none" else anim)
                     self.face.send(line)
                 except DeviceError as exc:
                     self.notify(str(exc), severity="error")

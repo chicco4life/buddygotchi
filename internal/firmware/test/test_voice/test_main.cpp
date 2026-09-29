@@ -1,11 +1,13 @@
-// The voice player: the asset tables, the line's timeline, and resampling
-// for pitch, tempo and volume (the v1 build plan's F5, L0).
+// The voice player: the take tables, a take played whole at its recorded
+// pitch (11.025 kHz resampled 2× to 22.05 kHz), volume, the cut's fade, and
+// the mouth (plan/VOICE.md, plan/DEVICE.md §4–5).
 #include <unity.h>
 
 #include <cstdlib>
 #include <cstring>
 #include <vector>
 
+#include "voice.h"
 #include "voice/player.h"
 
 void setUp() {}
@@ -13,12 +15,10 @@ void tearDown() {}
 
 namespace {
 
-voice::Line line(const char* const* syl, int n, int word = -1, int at = 0) {
+voice::Line line(const char* id, uint8_t vol = 6) {
   voice::Line l;
-  for (int i = 0; i < n; ++i) l.syl[i] = uint8_t(voice::syllableIndex(syl[i], std::strlen(syl[i])));
-  l.n = n;
-  l.word = word;
-  l.at = at;
+  l.take = voice::takeIndex(id);
+  l.vol = vol;
   return l;
 }
 
@@ -29,122 +29,87 @@ std::vector<uint8_t> renderAll(voice::Player& p, size_t extra = 0) {
   return out;
 }
 
-int sounding(const std::vector<uint8_t>& v) {
-  int n = 0;
-  for (uint8_t s : v) n += s != 128;
-  return n;
-}
-
 int peak(const std::vector<uint8_t>& v) {
   int m = 0;
   for (uint8_t s : v) m = std::abs(int(s) - 128) > m ? std::abs(int(s) - 128) : m;
   return m;
 }
 
-const char* const kFour[] = {"bi", "do", "ba", "na"};
-
 }  // namespace
 
-void test_assets_match_sounds_swift() {
-  TEST_ASSERT_EQUAL(64, voice::syllableCount());
-  TEST_ASSERT_EQUAL(42, voice::wordCount());
-  TEST_ASSERT_EQUAL(0, voice::syllableIndex("ba", 2));
-  TEST_ASSERT_TRUE(voice::syllableIndex("mm", 2) >= 0);
-  TEST_ASSERT_TRUE(voice::syllableIndex("pum", 3) >= 0);
-  TEST_ASSERT_EQUAL(-1, voice::syllableIndex("sha", 3));
-  TEST_ASSERT_EQUAL(0, voice::wordIndex("tests"));
-  TEST_ASSERT_TRUE(voice::wordIndex("done") >= 0);
-  TEST_ASSERT_TRUE(voice::wordIndex("claude") >= 0);
-  TEST_ASSERT_TRUE(voice::wordIndex("codex") >= 0);
-  TEST_ASSERT_EQUAL(-1, voice::wordIndex("banana"));
-  // About 360 KB was budgeted (VOICE.md §8).
-  TEST_ASSERT_TRUE(voice::assetsBytes() < 360u * 1024);
-}
-
-void test_line_length_is_beats_times_ms() {
-  voice::Line l = line(kFour, 4);
-  l.ms = 120;
-  TEST_ASSERT_EQUAL_UINT32(4 * 120 * 22050 / 1000, voice::lineSamples(l));
-  l.word = voice::wordIndex("done");
-  l.at = 4;
-  TEST_ASSERT_EQUAL_UINT32(6 * 120 * 22050 / 1000, voice::lineSamples(l));  // a word is two beats
-}
-
-void test_timing_jitter_keeps_the_total_exact() {
-  for (uint32_t seed = 1; seed < 40; ++seed) {
-    for (int n = 1; n <= 8; ++n) {
-      voice::Line l = line(kFour, n > 4 ? 4 : n);
-      l.n = n;
-      for (int i = 4; i < n; ++i) l.syl[i] = l.syl[i - 4];
-      l.word = seed % 2 ? voice::wordIndex("tests") : -1;
-      l.at = int(seed % uint32_t(n + 1));
-      l.seed = seed;
-      voice::Player p;
-      p.start(l);
-      TEST_ASSERT_EQUAL_UINT32(voice::lineSamples(l), p.total());
-      TEST_ASSERT_EQUAL(n + (l.word >= 0 ? 1 : 0), p.slots());
-      renderAll(p);
-      TEST_ASSERT_FALSE(p.playing());
-      TEST_ASSERT_EQUAL(p.slots(), p.slotsStarted());
-    }
+// The Mac's Takes.swift comes from the same voicegen run: the same takes by
+// the same ids. The voice's flash budget is 480,000 bytes (DEVICE.md §5).
+void test_the_takes_and_their_budget() {
+  TEST_ASSERT_EQUAL(40, voice::takeCount());
+  TEST_ASSERT_EQUAL(0, voice::takeIndex("previous.go"));
+  TEST_ASSERT_EQUAL_STRING("Go", voice::takeText(0));
+  TEST_ASSERT_EQUAL_STRING("previous.go", voice::takeId(0));
+  int boom = voice::takeIndex("new.d15");
+  TEST_ASSERT_TRUE(boom >= 0);
+  TEST_ASSERT_EQUAL_STRING("Bada bing bada boom", voice::takeText(boom));
+  TEST_ASSERT_EQUAL(-1, voice::takeIndex("banana"));
+  TEST_ASSERT_EQUAL(-1, voice::takeIndex(nullptr));
+  TEST_ASSERT_NULL(voice::takeText(-1));
+  TEST_ASSERT_NULL(voice::takeId(40));
+  TEST_ASSERT_EQUAL_UINT32(0, voice::takeMs(-1));
+  TEST_ASSERT_TRUE(voice::assetsBytes() <= 480000u);
+  uint32_t samples = 0;
+  for (int i = 0; i < voice::takeCount(); ++i) {
+    samples += voice_assets::kTake[i].len;
+    // The bubble's font has printable ASCII only (DEVICE.md §4).
+    for (const char* c = voice::takeText(i); *c; ++c) TEST_ASSERT_TRUE(*c >= 0x20 && *c <= 0x7E);
   }
+  TEST_ASSERT_EQUAL_UINT32(voice_assets::kBytes, samples);
 }
 
-void test_render_pads_with_silence_after_the_line() {
-  voice::Line l = line(kFour, 2);
+// A take plays whole: two output samples for each of its own, so its
+// length in ms is the recording's (640 ms for "Go", 7056 samples).
+void test_a_take_plays_whole_at_its_pitch() {
+  voice::Line l = line("previous.go");
+  TEST_ASSERT_EQUAL_UINT32(2 * 7056, voice::lineSamples(l));
+  TEST_ASSERT_EQUAL_UINT32(640, voice::takeMs(l.take));
   voice::Player p;
   p.start(l);
-  std::vector<uint8_t> out(p.total() + 500);
-  TEST_ASSERT_EQUAL_UINT32(p.total(), p.render(out.data(), out.size()));
-  for (size_t i = p.total(); i < out.size(); ++i) TEST_ASSERT_EQUAL_UINT8(128, out[i]);
+  TEST_ASSERT_TRUE(p.playing());
+  TEST_ASSERT_EQUAL(l.take, p.take());
+  TEST_ASSERT_EQUAL_UINT32(2 * 7056, p.total());
+  l.vol = 10;
+  p.start(l);
+  std::vector<uint8_t> out = renderAll(p, 500);
+  TEST_ASSERT_FALSE(p.playing());
+  // Even samples are the recording's; odd ones the midpoint of two.
+  const uint8_t* d = voice_assets::kSamples + voice_assets::kTake[l.take].at;
+  for (uint32_t i = 0; i + 2 < p.total(); i += 2) {
+    TEST_ASSERT_INT_WITHIN(1, d[i / 2], out[i]);
+    TEST_ASSERT_INT_WITHIN(1, (int(d[i / 2]) + d[i / 2 + 1]) / 2, out[i + 1]);
+  }
+  for (size_t i = p.total(); i < out.size(); ++i) TEST_ASSERT_EQUAL_UINT8(128, out[i]);  // then silence
   TEST_ASSERT_EQUAL_UINT32(0, p.render(out.data(), 10));
 }
 
-void test_a_higher_tune_plays_the_clip_faster() {
-  // A long beat, so the whole clip fits. A lone syllable is 0.98× flat and
-  // 1.25× with the lift (VOICE.md §5), so lifted it's done in 0.784 the time.
-  const char* const one[] = {"ba"};
-  voice::Line l = line(one, 1);
-  l.ms = 400;
-  l.seed = 7;
+void test_an_unknown_take_plays_nothing() {
   voice::Player p;
-  l.tune = voice::Tune::kFlat;
-  p.start(l);
-  int slow = sounding(renderAll(p));
-  l.tune = voice::Tune::kLift;
-  p.start(l);
-  int fast = sounding(renderAll(p));
-  int ratio = fast * 1000 / slow;
-  TEST_ASSERT_INT_WITHIN(60, 784, ratio);
+  p.start(line("banana"));
+  TEST_ASSERT_FALSE(p.playing());
+  TEST_ASSERT_EQUAL(-1, p.take());
+  TEST_ASSERT_EQUAL_UINT32(0, voice::lineSamples(line("banana")));
+  uint8_t s[16];
+  TEST_ASSERT_EQUAL_UINT32(0, p.render(s, sizeof(s)));
+  for (uint8_t v : s) TEST_ASSERT_EQUAL_UINT8(128, v);
 }
 
-void test_short_beats_cut_the_clip_with_a_fade() {
-  const char* const one[] = {"pum"};
-  voice::Line l = line(one, 1);
-  l.ms = 60;  // shorter than the clip
-  voice::Player p;
-  p.start(l);
-  std::vector<uint8_t> out = renderAll(p);
-  // The last sample of the beat has faded to (almost) silence.
-  TEST_ASSERT_INT_WITHIN(2, 128, out.back());
-}
-
-// VOICE.md §8: a line cut short, hushed or replaced by another line,
-// fades from where it was over 4 ms instead of stepping to silence in one
+// VOICE.md: a line cut short, hushed or replaced by another line, fades
+// from where it was over 4 ms instead of stepping to silence in one
 // sample, which clicks.
 void test_a_cut_fades_instead_of_clicking() {
   for (int how = 0; how < 2; ++how) {
-    voice::Line l = line(kFour, 4);
-    l.vol = 10;
     voice::Player p;
-    p.start(l);
+    p.start(line("new.d14", 10));
     uint8_t s = 128;
     for (uint32_t i = 0; i < p.total() && std::abs(int(s) - 128) < 60; ++i) p.render(&s, 1);
     TEST_ASSERT_TRUE(std::abs(int(s) - 128) >= 60);  // cut at a loud sample
-    voice::Line silent = line(kFour, 2);
-    silent.syl[0] = silent.syl[1] = voice::kSilent;
     if (how == 0) p.stop();
-    else p.start(silent);
+    else p.start(line("banana"));  // replaced by a line that plays nothing
     std::vector<uint8_t> out(200);
     p.render(out.data(), out.size());
     TEST_ASSERT_INT_WITHIN(2, s, out[0]);
@@ -154,67 +119,48 @@ void test_a_cut_fades_instead_of_clicking() {
 }
 
 void test_volume_scales_and_zero_mutes() {
-  voice::Line l = line(kFour, 4);
   voice::Player p;
-  l.vol = 10;
-  p.start(l);
+  p.start(line("new.d14", 10));
   int loud = peak(renderAll(p));
-  l.vol = 5;
-  p.start(l);
+  p.start(line("new.d14", 5));
   int half = peak(renderAll(p));
   TEST_ASSERT_TRUE(loud > 90);
   TEST_ASSERT_INT_WITHIN(3, loud / 2, half);
-  l.vol = 0;
-  p.start(l);
+  p.start(line("new.d14", 0));
   TEST_ASSERT_FALSE(p.playing());
   TEST_ASSERT_EQUAL_UINT32(0, p.total());
 }
 
-void test_same_seed_same_sound() {
-  voice::Line l = line(kFour, 4, voice::wordIndex("done"), 4);
-  l.tune = voice::Tune::kBounce;
-  voice::Player p;
-  l.seed = 42;
-  p.start(l);
-  std::vector<uint8_t> a = renderAll(p);
-  p.start(l);
-  std::vector<uint8_t> b = renderAll(p);
-  TEST_ASSERT_TRUE(a == b);
-  l.seed = 43;
-  p.start(l);
-  std::vector<uint8_t> c = renderAll(p);
-  TEST_ASSERT_FALSE(a == c);
-}
-
-void test_unknown_syllables_keep_their_beat_silent() {
-  voice::Line l = line(kFour, 2);
-  l.syl[0] = voice::kSilent;
-  l.syl[1] = voice::kSilent;
-  voice::Player p;
-  p.start(l);
-  std::vector<uint8_t> out = renderAll(p);
-  TEST_ASSERT_EQUAL_UINT32(voice::lineSamples(l), out.size());
-  TEST_ASSERT_EQUAL(0, sounding(out));
-}
-
-void test_names() {
-  TEST_ASSERT_TRUE(voice::tuneFromName("up") == voice::Tune::kUp);
-  TEST_ASSERT_TRUE(voice::tuneFromName("lift") == voice::Tune::kLift);
-  TEST_ASSERT_TRUE(voice::tuneFromName(nullptr) == voice::Tune::kFlat);
+// The mouth follows the take's loud frames, one per 20 ms (220 samples at
+// 11.025 kHz), and is shut before, after and with no take.
+void test_the_mouth_follows_the_take() {
+  int go = voice::takeIndex("previous.go");
+  const uint8_t* m = voice_assets::kMouth + voice_assets::kTake[go].mouth;
+  int open = 0;
+  for (uint32_t ms = 0; ms < voice::takeMs(go); ++ms) {
+    uint32_t frame = ms * 11025 / 1000 / 220;
+    TEST_ASSERT_EQUAL(m[frame] != 0, voice::mouthOpen(go, ms));
+    open += voice::mouthOpen(go, ms);
+  }
+  TEST_ASSERT_TRUE(open > 0);
+  TEST_ASSERT_FALSE(voice::mouthOpen(go, 0));  // "Go" starts quiet (kMouth's first frame)
+  TEST_ASSERT_FALSE(voice::mouthOpen(go, 100000));
+  TEST_ASSERT_FALSE(voice::mouthOpen(-1, 100));
+  // Every take opens the mouth somewhere.
+  for (int i = 0; i < voice::takeCount(); ++i) {
+    bool any = false;
+    for (uint32_t ms = 0; ms < voice::takeMs(i) && !any; ms += 10) any = voice::mouthOpen(i, ms);
+    TEST_ASSERT_TRUE(any);
+  }
 }
 
 int main() {
   UNITY_BEGIN();
-  RUN_TEST(test_assets_match_sounds_swift);
-  RUN_TEST(test_line_length_is_beats_times_ms);
-  RUN_TEST(test_timing_jitter_keeps_the_total_exact);
-  RUN_TEST(test_render_pads_with_silence_after_the_line);
-  RUN_TEST(test_a_higher_tune_plays_the_clip_faster);
-  RUN_TEST(test_short_beats_cut_the_clip_with_a_fade);
+  RUN_TEST(test_the_takes_and_their_budget);
+  RUN_TEST(test_a_take_plays_whole_at_its_pitch);
+  RUN_TEST(test_an_unknown_take_plays_nothing);
   RUN_TEST(test_a_cut_fades_instead_of_clicking);
   RUN_TEST(test_volume_scales_and_zero_mutes);
-  RUN_TEST(test_same_seed_same_sound);
-  RUN_TEST(test_unknown_syllables_keep_their_beat_silent);
-  RUN_TEST(test_names);
+  RUN_TEST(test_the_mouth_follows_the_take);
   return UNITY_END();
 }

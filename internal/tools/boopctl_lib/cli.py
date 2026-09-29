@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 from boopctl_lib import scenario
-from boopctl_lib.common import ANIMS, CTXS, MOODS, OLD_ANIMS, OUTCOMES, REPO, boopdev_voice, restarted, syllables
+from boopctl_lib.common import ANIMS, CTXS, MOODS, OLD_ANIMS, OUTCOMES, REPO, Take, restarted, take, takes
 from boopctl_lib.device import Device, DeviceError, Sim
 from boopctl_lib.image import diff, save_shot
 
@@ -217,12 +217,6 @@ def cmd_perf(args: argparse.Namespace) -> int:
     return 0 if result["ok"] else 1
 
 
-# The feelings `mumble` plays, each with its usual word. A mumble
-# goes on its own, with no animation, as the Mac sends one (PROTOCOL.md §3).
-VOICE_LINES = [("happy", "yay"), ("excited", "done"), ("proud", "ship"), ("curious", "tests"),
-               ("hopeful", "food"), ("annoyed", "build"), ("sad", "oops"), ("sleepy", "nap")]
-
-
 SOAK_PROJECTS = ["landing", "jetpack", "buddygotchi", "a-very-long-project-name", "notes"]
 
 
@@ -245,14 +239,12 @@ def soak_state(rng: random.Random, vol: int = 6) -> dict:
 
 
 def soak_say(rng: random.Random) -> dict:
-    n = rng.randint(1, 8)
-    return {"syl": " ".join(rng.choice(["ba", "na", "po", "ti", "ka", "mi"]) for _ in range(n)),
-            "word": rng.choice(["", "done", "tests", "finally", "hmm"]), "at": rng.randint(0, n),
-            "tune": "up", "ms": rng.randint(80, 200)}
+    """A take by its id, now and then none (`{}`, which plays nothing)."""
+    return {} if rng.random() < 0.1 else {"take": rng.choice(takes()).id}
 
 
 def soak_moment(rng: random.Random) -> dict:
-    """An animation, a mumble, or both, as the rules and the dashboard send
+    """An animation, a line, or both, as the rules and the dashboard send
     them: a finish with its outcome and loops (1–3), a one-shot, a poke,
     chatter."""
     msg: dict = {"t": "moment"}
@@ -269,7 +261,7 @@ def soak_moment(rng: random.Random) -> dict:
 
 
 def soak_reaction(rng: random.Random, moment_id: int) -> dict:
-    """A brain reaction, which the Mac waits on: a mumble in a mood's face,
+    """A brain reaction, which the Mac waits on: a line in a mood's face,
     held for its loops (1–6, as the device takes them), with an `id` the
     board answers with one `ended` (PROTOCOL.md §3–4)."""
     return {"t": "moment", "say": soak_say(rng), "mood": rng.choice(MOODS), "loops": rng.randint(1, 6),
@@ -446,11 +438,10 @@ def cmd_bridge(args: argparse.Namespace) -> int:
     return serve(args.port, args.socket or bridge_path(), quiet=args.quiet)
 
 
-# Hearing and watching Boop by hand: mumble and play drive the board over
-# USB the way the Mac would, and read dbg.state to say whether it happened. The Mac app, if it's connected over Bluetooth, keeps
-# sending its own `state` and can override these.
-
-FEELINGS = [f for f, _ in VOICE_LINES]
+# Hearing and watching Boop by hand: takes and play drive the board over
+# USB the way the Mac would, and read dbg.state to say whether it happened.
+# The Mac app, if it's connected over Bluetooth, keeps sending its own
+# `state` and can override these.
 
 
 def show_begin(dev: Device, warn: bool = True) -> dict:
@@ -477,9 +468,9 @@ def show_state(dev: Device, vol: int, base: str = "idle", attn: dict | None = No
 
 
 def play_line(dev: Device, say: dict) -> tuple[int, dict, bool]:
-    """Plays one mumble and waits up to 6 s for the board to finish it.
-    Returns how many lines finished meanwhile (1 when it played), the last
-    dbg.state, and whether the amp was on at any point."""
+    """Plays one line on its own and waits up to 6 s for the board to
+    finish it. Returns how many lines finished meanwhile (1 when it played),
+    the last dbg.state, and whether the amp was on at any point."""
     before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
     dev.send({"t": "moment", "say": say})
     deadline = time.monotonic() + 6
@@ -492,26 +483,24 @@ def play_line(dev: Device, say: dict) -> tuple[int, dict, bool]:
         time.sleep(0.05)
 
 
-def check_line(dev: Device, say: dict) -> dict:
-    """Plays one mumble and checks `audio.out` in dbg.state against it: the
-    syllable count, the word, and the duration the DAC took within 10% of
-    beats × ms (F5's L2 check). Waits up to 6 s for the line to finish."""
-    finished, st, amp_seen = play_line(dev, say)
+def check_take(dev: Device, t: Take) -> dict:
+    """Plays one take and checks `audio.out` in dbg.state against it: the
+    take, and the time the DAC took within 10% of the take's length (L2).
+    Waits up to 6 s for it to finish."""
+    finished, st, amp_seen = play_line(dev, {"take": t.id})
     out = st["audio"]["out"]
     played = finished > 0
-    syl = syllables(say)
-    plan = (syl + (2 if say.get("word") else 0)) * say["ms"]
-    r = {"syl": say["syl"], "word": say.get("word"), "ms": say["ms"], "plan_ms": plan, "played": played,
-         "got": {k: out[k] for k in ("syl", "word", "plan_ms", "out_ms", "wall_ms", "cut")} if played else None,
+    r = {"take": t.id, "text": t.text, "plan_ms": t.ms, "played": played,
+         "got": {k: out[k] for k in ("take", "plan_ms", "out_ms", "wall_ms", "cut")} if played else None,
          "amp_on": amp_seen, "vol": st.get("vol")}
-    r["ok"] = (finished == 1 and out["syl"] == syl and out["word"] == bool(say.get("word"))
-               and abs(out["plan_ms"] - plan) <= 1 and abs(out["out_ms"] - plan) <= 1
-               and abs(out["wall_ms"] - plan) <= plan // 10 and not out["cut"] and amp_seen)
+    r["ok"] = (finished == 1 and out["take"] == t.id
+               and abs(out["plan_ms"] - t.ms) <= 1 and abs(out["out_ms"] - t.ms) <= 1
+               and abs(out["wall_ms"] - t.ms) <= t.ms // 10 and not out["cut"] and amp_seen)
     return r
 
 
 def line_row(r: dict) -> str:
-    head = f"{'ok ' if r['ok'] else 'BAD'} {r['syl']!r:30} {r['word'] or '':7}"
+    head = f"{'ok ' if r['ok'] else 'BAD'} {r['take']:16} {r['text']!r:22}"
     if not r["played"]:
         return f"{head} didn't play"
     wall = r["got"]["wall_ms"]
@@ -519,57 +508,62 @@ def line_row(r: dict) -> str:
             f"  amp {'on' if r['amp_on'] else 'OFF'}" + (", cut short" if r["got"]["cut"] else ""))
 
 
-def cmd_mumble(args: argparse.Namespace) -> int:
-    """F5's L2 check, and for hearing Boop by hand: lines built by the Mac's
-    Voice for every feeling (or the ones named), without and then with its
-    usual word, each checked with check_line. Then checks that a muted line
-    moves the mouth and plays nothing. --board-volume and --levels play one
-    line instead (mumble_at_board_volume, mumble_levels)."""
+def chosen_takes(only: str | None) -> list[Take]:
+    """Every take, or with `only` those whose id starts with it, or whose
+    text is it or has it as a word, in any case and without its dots and
+    marks ("again", "mamma mia", "previous.", "new.d15")."""
+    if not only:
+        return list(takes())
+    want = only.lower().strip(".?! ")
+    picked = [t for t in takes() if t.id.startswith(only) or want == t.text.lower().strip(".?! ")
+              or want in t.text.lower().replace(".", " ").replace("?", " ").split()]
+    if not picked:
+        raise DeviceError(f"no take's id or text matches {only!r}")
+    return picked
+
+
+def cmd_takes(args: argparse.Namespace) -> int:
+    """For hearing Boop by hand, and L2's voice check: every take (or those
+    --only picks) in turn on its own, each checked with check_take. Then
+    checks that a muted line moves the mouth and plays nothing.
+    --board-volume and --levels play one take instead (take_at_board_volume,
+    take_levels)."""
+    chosen = chosen_takes(args.only)
     if args.levels:
-        return mumble_levels(args)
+        return take_levels(args, chosen[0])
     if args.board_volume:
-        return mumble_at_board_volume(args)
-    words = dict(VOICE_LINES)
-    seed = args.seed if args.seed is not None else random.randrange(10_000)
-    if not args.json:
-        print(f"seed {seed} (--seed {seed} plays these lines again)")
+        return take_at_board_volume(args, chosen[0])
     results = []
     with Device(args.port) as dev:
         show_begin(dev)
-        for i, feeling in enumerate(args.feeling or FEELINGS):
-            variants = [args.word] if args.word else [None] if args.no_word else [None, words[feeling]]
-            for word in variants:
-                for say in boopdev_voice(feeling, word, args.count, seed + i):
-                    show_state(dev, args.vol)
-                    r = check_line(dev, say)
-                    results.append({"feeling": feeling, **r})
-                    if not args.json:
-                        print(f"{feeling:8} {line_row(r)}", flush=True)
-                    time.sleep(args.gap)
+        for t in chosen:
+            show_state(dev, args.vol)
+            r = check_take(dev, t)
+            results.append(r)
+            if not args.json:
+                print(line_row(r), flush=True)
+            time.sleep(args.gap)
         # Muted: the mouth still moves, the DAC stays off.
         show_state(dev, 0)
         before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
-        dev.send({"t": "moment", "say": boopdev_voice("happy", None, 1, seed)[0]})
+        dev.send({"t": "moment", "say": {"take": chosen[0].id}})
         mouth = dev.request({"t": "dbg.state"})["audio"]["playing"]
-        time.sleep(2.5)
+        time.sleep(chosen[0].ms / 1000 + 1.5)
         st = dev.request({"t": "dbg.state"})
         muted = {"mouth_moved": mouth, "lines_played": st["audio"]["out"]["lines"] - before, "amp": st["amp"]}
         show_state(dev, args.vol)
     walls = [abs(r["got"]["wall_ms"] - r["plan_ms"]) * 100 / r["plan_ms"] for r in results if r["played"]]
-    summary = {"seed": seed, "lines": len(results), "passed": sum(r["ok"] for r in results),
+    summary = {"takes": len(results), "passed": sum(r["ok"] for r in results),
                "worst_wall_error_pct": round(max(walls), 1) if walls else None, "muted": muted,
                "ok": all(r["ok"] for r in results) and muted["mouth_moved"] and not muted["lines_played"]}
     emit({"results": results, **summary} if args.json else summary)
     return 0 if summary["ok"] else 1
 
 
-def mumble_at_board_volume(args: argparse.Namespace) -> int:
-    """One mumble with its word at the end. It sends no `state`, so the line
-    plays at whatever volume the board already has: the Mac app's, when it's
-    connected, for trying the app's volume setting."""
-    feeling = (args.feeling or ["happy"])[0]
-    say = boopdev_voice(feeling, args.word or dict(VOICE_LINES)[feeling], 1, args.seed)[0]
-    say["at"] = syllables(say)
+def take_at_board_volume(args: argparse.Namespace, t: Take) -> int:
+    """One take. It sends no `state`, so it plays at whatever volume the
+    board already has: the Mac app's, when it's connected, for trying the
+    app's volume setting."""
     with Device(args.port) as dev:
         mac = show_begin(dev, warn=False).get("ble") == "conn"
         st = dev.request({"t": "dbg.state"})
@@ -579,29 +573,24 @@ def mumble_at_board_volume(args: argparse.Namespace) -> int:
         if why:
             print(f"not playing: the board is {why}, so it won't speak")
             return 1
-        r = check_line(dev, say)
-    print(f"{feeling:8} {line_row(r)}")
+        r = check_take(dev, t)
+    print(line_row(r))
     return 0 if r["ok"] else 1
 
 
-# One fixed line for comparing volumes, so only the level changes between
-# plays: a proud mumble with a long real word.
-VOLUME_LINE = {"syl": "mo-la-gom la-pa pa go-gom", "word": "finally", "at": 8, "tune": "lift", "ms": 135}
-
-
-def mumble_levels(args: argparse.Namespace) -> int:
-    """The same line at each level in turn, round after round, for comparing
-    by ear, and whether the board played each one in full."""
+def take_levels(args: argparse.Namespace, t: Take) -> int:
+    """The same take at each level in turn, round after round, for
+    comparing by ear, and whether the board played each one in full."""
     missed = 0
     with Device(args.port) as dev:
         show_begin(dev)
         for i in range(args.rounds):
             for vol in args.levels:
                 show_state(dev, vol)
-                finished, st, _ = play_line(dev, VOLUME_LINE)
+                finished, st, _ = play_line(dev, {"take": t.id})
                 out = st["audio"]["out"] if finished else None
                 missed += out is None or out["cut"]
-                print(f"round {i + 1} vol {vol:2}: "
+                print(f"round {i + 1} vol {vol:2} {t.text!r}: "
                       + (f"played {out['out_ms']} ms" + (", cut short" if out["cut"] else "") if out else "didn't play"),
                       flush=True)
                 time.sleep(args.gap)
@@ -610,12 +599,12 @@ def mumble_levels(args: argparse.Namespace) -> int:
 
 def cmd_play(args: argparse.Namespace) -> int:
     """One thing the Mac can make the board do, checked through dbg.state:
-    an animation from the set (BEHAVIORS.md §5), --loops times, with --say
-    a mumble over it (from the design's voice window); `needs`, a fake
+    an animation from the set (BEHAVIORS.md §5), --loops times, with --take
+    a take over it (from the design's voice window); `needs`, a fake
     "needs you" (play_needs); or the bring-up `pattern`. `cheer` and
     `wiggle` are the older names of task_complete's success and poked."""
-    if (args.say or args.loops or args.outcome or args.ctx or args.variant) and args.what in ("needs", "pattern"):
-        raise DeviceError(f"play {args.what} takes no --say, --loops, --outcome, --ctx or --variant")
+    if (args.take or args.loops or args.outcome or args.ctx or args.variant) and args.what in ("needs", "pattern"):
+        raise DeviceError(f"play {args.what} takes no --take, --loops, --outcome, --ctx or --variant")
     if args.what == "pattern":
         with Device(args.port) as dev:
             dev.request({"t": "dbg.pattern"})
@@ -630,14 +619,14 @@ def cmd_play(args: argparse.Namespace) -> int:
         for key in ("loops", "variant", "outcome", "ctx"):
             if getattr(args, key):
                 msg[key] = getattr(args, key)
-        if args.say:
-            msg["say"] = boopdev_voice(args.say, args.word, 1, args.seed)[0]
+        if args.take:
+            msg["say"] = {"take": args.take}
         dev.send(msg)
         moment = dev.request({"t": "dbg.state"}).get("moment")
     ok = bool(moment) and moment.get("anim") == OLD_ANIMS.get(args.what, args.what)
     print(f"{args.what}: " + (f"playing variation {moment.get('variant')}, {moment['left_ms']} ms" if ok
                               else f"not playing ({moment})")
-          + (f", saying {msg['say']['syl']!r} {msg['say'].get('word') or ''}" if args.say else ""))
+          + (f", saying {take(args.take).text!r}" if args.take else ""))
     return 0 if ok else 1
 
 
@@ -690,13 +679,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("message", help="""JSON, e.g. '{"t":"dbg.press","ms":100}' or '{"t":"dbg.clock","run":true}'""")
     p.set_defaults(func=cmd_send)
     vol = {"type": int, "choices": range(1, 11), "default": 6, "metavar": "1-10", "help": "volume (default 6)"}
-    p = sub.add_parser("play", help="play an animation (with --say, a mumble over it), a fake needs-you "
+    p = sub.add_parser("play", help="play an animation (with --take, a take over it), a fake needs-you "
                                     "with its ding, or the bring-up pattern")
     p.add_argument("what", choices=ANIMS + list(OLD_ANIMS) + ["needs", "pattern"],
                    help=", ".join(ANIMS + list(OLD_ANIMS)) + "; needs; pattern")
-    p.add_argument("--say", choices=FEELINGS, metavar="FEELING", help=f"a mumble with this feeling: {', '.join(FEELINGS)}")
-    p.add_argument("--word", help="the mumble's word")
-    p.add_argument("--seed", type=int)
+    p.add_argument("--take", choices=[t.id for t in takes()], metavar="ID",
+                   help="a take over it, by id (`boopctl takes` lists them)")
     p.add_argument("--loops", type=int, choices=range(1, 7), metavar="1-6",
                    help="how many times the animation's design plays (PROTOCOL.md §3; the device reads none as 1)")
     p.add_argument("--variant", type=int, choices=range(1, 10), metavar="1-9",
@@ -711,25 +699,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--project", default="boopctl", help="needs: the project shown")
     p.add_argument("--more", type=int, default=0, help="needs: how many more are waiting")
     p.set_defaults(func=cmd_play)
-    p = sub.add_parser("mumble", help="play and check mumbles: every feeling, or the ones named, without and "
-                                      "with a word; then check mute (F5, L2)")
-    p.add_argument("feeling", nargs="*", choices=FEELINGS, metavar="feeling",
-                   help=f"any of {', '.join(FEELINGS)} (default: all)")
-    words = p.add_mutually_exclusive_group()
-    words.add_argument("--word", help="say this word in every line (one from the vocabulary, VOICE.md §6)")
-    words.add_argument("--no-word", action="store_true", help="only lines without a word")
-    p.add_argument("--count", type=int, default=1, help="lines per feeling, with and without a word (default 1)")
+    p = sub.add_parser("takes", help="play and check every take, or those --only picks, one after another; "
+                                     "then check mute (L2)")
+    p.add_argument("--only", metavar="TEXT", help="takes whose id starts with this, or whose text has it (any case)")
     p.add_argument("--vol", **vol)
-    p.add_argument("--seed", type=int, help="replay the lines of an earlier run (default: new lines)")
-    p.add_argument("--gap", type=float, default=0.8, help="seconds between lines (default 0.8)")
-    p.add_argument("--json", action="store_true", help="every line's result as JSON")
+    p.add_argument("--gap", type=float, default=0.8, help="seconds between takes (default 0.8)")
+    p.add_argument("--json", action="store_true", help="every take's result as JSON")
     how = p.add_mutually_exclusive_group()
     how.add_argument("--board-volume", action="store_true",
-                     help="one line with its word at the volume the board has (the Mac app's), sending no state")
+                     help="the first take at the volume the board has (the Mac app's), sending no state")
     how.add_argument("--levels", nargs="+", type=int, choices=range(1, 11), metavar="LEVEL",
-                     help="compare volumes by ear: one fixed line at each level in turn, --rounds times")
+                     help="compare volumes by ear: the first take at each level in turn, --rounds times")
     p.add_argument("--rounds", type=int, default=6, help="with --levels (default 6)")
-    p.set_defaults(func=cmd_mumble)
+    p.set_defaults(func=cmd_takes)
     p = sub.add_parser("sim", help="play scenarios in the simulator and compare with the goldens (L1)")
     p.add_argument("scenario", nargs="*", help="names or paths (default: all)")
     p.add_argument("--accept", action="store_true", help="copy the pictures into the goldens (after looking!)")

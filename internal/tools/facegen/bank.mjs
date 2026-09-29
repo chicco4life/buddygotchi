@@ -24,7 +24,7 @@ fs.rmSync(path.join(out, 'svg'), {recursive: true, force: true});
 // older moods' newer states; V4, the new moods' flip-books.
 const dialects = {undefined: 'v2', 'state-v3': 'v3', 'mood-v4': 'v4'};
 
-// A design's voice window: when a mumble over it may start, in ms, by the
+// A design's voice window: when a line over it may start, in ms, by the
 // bank's rule (mood-art.mjs voiceStart). The bank's own voiceWindows gives
 // it for the new moods' designs; the older ones follow the same rule on
 // their own timelines.

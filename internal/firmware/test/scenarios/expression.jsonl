@@ -1,21 +1,20 @@
 // A reaction's face (PROTOCOL.md §3): a moment's `mood` draws the look in
 // that mood for its `loops` of the design, ending on a loop boundary, and
-// at least while its mumble plays; then the face blinks back to the
+// at least while its line plays; then the face blinks back to the
 // state's mood. The lines are Voice's (`boopdev voice`).
-// Happy and working, the tests fail: grumpy, once, with the mumble.
+// Happy and working, the tests fail: grumpy, once, with "Hrr...".
 {"clock":0}
 {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"variant":3}
 {"clock":1000}
-{"t":"moment","say":{"syl":"pi-to ta-pi","word":"ugh","at":4,"tune":"flat","ms":125},"mood":"grumpy","loops":1}
-{"expect":{"mood":"happy","expr":"grumpy","audio":{"playing":true,"syllables":4}}}
+{"t":"moment","say":{"take":"new.d12"},"mood":"grumpy","loops":1}
+{"expect":{"mood":"happy","expr":"grumpy","audio":{"playing":true,"take":"new.d12"}}}
 {"clock":1400}
 {"shot":"working-grumpy"}
-// The mumble is over after (4 syllables + 2 beats for the word) × 125 ms
-// and 1.2 s to read it, at 2950. The face holds to the end of the loop of
-// grumpy's working design (the third variation's 4.4 s) that the working
-// clock, from 0, is in.
-{"clock":2950}
-{"expect":{"expr":"grumpy","audio":{"syllables":0}}}
+// The line is over after its take's 900 ms and 1.2 s to read it, at
+// 3100. The face holds to the end of the loop of grumpy's working design
+// (the third variation's 4.4 s) that the working clock, from 0, is in.
+{"clock":3100}
+{"expect":{"expr":"grumpy","audio":{"take":null}}}
 {"clock":4399}
 {"expect":{"expr":"grumpy"}}
 {"clock":4400}
@@ -23,7 +22,7 @@
 {"clock":4750}
 {"shot":"working-happy-again"}
 // Curious: a finish with no face (the dashboard's `cheer`), in curious, then
-// a proud mumble over it borrows proud's finish.
+// a proud line over it borrows proud's finish.
 {"clock":10000}
 {"t":"state","v":1,"base":"idle","mood":"curious"}
 {"t":"moment","anim":"cheer","variant":1}
@@ -31,29 +30,41 @@
 {"expect":{"moment":{"anim":"task_complete","variant":1},"expr":null}}
 {"shot":"cheer-curious"}
 {"clock":10200}
-{"t":"moment","say":{"syl":"lo-pa gom-gom","word":"finally","at":0,"tune":"lift","ms":135},"mood":"proud","loops":1}
+{"t":"moment","say":{"take":"previous.finish"},"mood":"proud","loops":1}
 {"expect":{"moment":{"anim":"task_complete","left_ms":6200},"expr":"proud"}}
 {"clock":10800}
 {"shot":"cheer-proud"}
-// The bubble goes at 10200 + (4 + 2) × 135 + 1200 = 12210, and the face
-// holds a loop of proud's finish design (6.4 s) on the finish's clock, to
-// 16400, when the finish ends too: a finish's variation loops alike in
-// every mood.
-{"clock":12210}
-{"expect":{"moment":{"anim":"task_complete"},"expr":"proud","audio":{"syllables":0}}}
+// The bubble goes at 10200 + 1020 + 1200 = 12420, and the face holds a
+// loop of proud's finish design (6.4 s) on the finish's clock, to 16400,
+// when the finish ends too: a finish's variation loops alike in every
+// mood.
+{"clock":12420}
+{"expect":{"moment":{"anim":"task_complete"},"expr":"proud","audio":{"take":null}}}
 {"clock":16399}
 {"expect":{"moment":{"anim":"task_complete","left_ms":1},"expr":"proud"}}
 {"clock":16400}
 {"expect":{"moment":null,"expr":null,"mood":"curious"}}
 {"clock":16560}
 {"shot":"idle-curious"}
-// An unknown mood is ignored: the state's mood, and the mumble plays.
+// An unknown mood is ignored: the state's mood, and the line plays.
 {"clock":20000}
 {"t":"state","v":1,"base":"idle","mood":"curious"}
-{"t":"moment","say":{"syl":"ba po","ms":120},"mood":"cheerful"}
-{"expect":{"expr":null,"mood":"curious","audio":{"playing":true}}}
+{"t":"moment","say":{"take":"previous.oi"},"mood":"cheerful"}
+{"expect":{"expr":null,"mood":"curious","audio":{"playing":true,"take":"previous.oi"}}}
 // Needs you: nothing plays, and no face is borrowed.
 {"t":"state","v":1,"base":"idle","mood":"curious","attn":{"agent":"claude","project":"x","more":0}}
 {"clock":30000}
-{"t":"moment","say":{"syl":"ba po","ms":120},"mood":"grumpy"}
-{"expect":{"screen":"needs_you","expr":null,"audio":{"syllables":0}}}
+{"t":"moment","say":{"take":"previous.go"},"mood":"grumpy"}
+{"expect":{"screen":"needs_you","expr":null,"audio":{"take":null}}}
+// A face on its own, no line: proud for its two loops of the idle design
+// it's drawn in (proud's first, 1 s), from the look's start at 40000.
+{"clock":40000}
+{"t":"state","v":1,"base":"idle","mood":"curious"}
+{"t":"moment","mood":"proud","loops":2,"id":14}
+{"expect":{"moment":null,"expr":"proud","audio":{"playing":false,"take":null}}}
+{"clock":40500}
+{"shot":"face-alone"}
+{"clock":41999}
+{"expect":{"expr":"proud"}}
+{"clock":42000}
+{"expect":{"expr":null,"mood":"curious"}}

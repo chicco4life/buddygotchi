@@ -16,7 +16,7 @@ struct Font {
 };
 
 extern const Font& kSmall;  // 8 × 18 cells, for the strip
-extern const Font& kLarge;  // 13 × 30 cells, for the mumble's word
+extern const Font& kLarge;  // 13 × 30 cells, for the bubble's text
 
 // Draws `text` with its cell's top-left at (x, y). Returns the x after it.
 int drawString(Canvas& c, const Font& f, int x, int y, const char* text, int ink);

@@ -2,144 +2,66 @@
 
 #include <cstring>
 
-#include "app/clock.h"
 #include "voice.h"  // assets/voice.h: included here only
 
 namespace voice {
 
 namespace {
 
-using voice_assets::Clip;
+using voice_assets::Take;
 
-constexpr uint32_t kFadeOut = kOutRate * 5 / 1000;  // a clip cut short fades over 5 ms
 // A line cut short (hushed, or replaced) fades from where it was to
 // silence over 4 ms, under whatever comes next: a step in one sample clicks.
 constexpr uint32_t kCutFade = kOutRate * 4 / 1000;
+// The mouth's frames are this many source samples (voicegen's MOUTH_MS).
+constexpr uint32_t kMouthSamples = voice_assets::kRate * voice_assets::kMouthMs / 1000;
+static_assert(kOutRate == 2 * voice_assets::kRate, "the takes play at half a source sample per output sample");
 
-const Clip& clipAt(int i) {
-  return i < voice_assets::kSyllables ? voice_assets::kSyllable[i] : voice_assets::kWord[i - voice_assets::kSyllables];
-}
-
-// The tune's pitch at slot i of n, in permille (VOICE.md §5).
-int contour(Tune t, int i, int n) {
-  int u = n > 1 ? i * 1000 / (n - 1) : 0;
-  bool last = i == n - 1;
-  switch (t) {
-    case Tune::kUp: return 1000 + 250 * u / 1000 + (last ? 100 : 0);
-    case Tune::kDown: return 1100 - 300 * u / 1000;
-    case Tune::kBounce: return i % 2 ? 950 : 1100;
-    case Tune::kLift: return last ? 1250 : 1000;
-    case Tune::kFlat: break;
-  }
-  return 980;
-}
+bool valid(int i) { return i >= 0 && i < voice_assets::kTakes; }
 
 }  // namespace
 
-Tune tuneFromName(const char* s) {
-  if (!s) return Tune::kFlat;
-  if (!std::strcmp(s, "up")) return Tune::kUp;
-  if (!std::strcmp(s, "down")) return Tune::kDown;
-  if (!std::strcmp(s, "bounce")) return Tune::kBounce;
-  if (!std::strcmp(s, "lift")) return Tune::kLift;
-  return Tune::kFlat;
-}
-
-int syllableIndex(const char* s, size_t n) {
-  for (int i = 0; i < voice_assets::kSyllables; ++i) {
-    const char* name = voice_assets::kSyllable[i].name;
-    if (std::strlen(name) == n && !std::strncmp(name, s, n)) return i;
-  }
+int takeIndex(const char* id) {
+  if (!id) return -1;
+  for (int i = 0; i < voice_assets::kTakes; ++i)
+    if (!std::strcmp(voice_assets::kTake[i].id, id)) return i;
   return -1;
 }
 
-int wordIndex(const char* s) {
-  if (!s) return -1;
-  for (int i = 0; i < voice_assets::kWords; ++i)
-    if (!std::strcmp(voice_assets::kWord[i].name, s)) return i;
-  return -1;
+int takeCount() { return voice_assets::kTakes; }
+const char* takeId(int i) { return valid(i) ? voice_assets::kTake[i].id : nullptr; }
+const char* takeText(int i) { return valid(i) ? voice_assets::kTake[i].text : nullptr; }
+
+uint32_t takeMs(int i) {
+  if (!valid(i)) return 0;
+  return uint32_t(voice_assets::kTake[i].len) * 1000 / voice_assets::kRate;  // as the Mac's Take.ms
 }
 
-int syllableCount() { return voice_assets::kSyllables; }
-int wordCount() { return voice_assets::kWords; }
+bool mouthOpen(int i, uint32_t ms) {
+  if (!valid(i)) return false;
+  const Take& k = voice_assets::kTake[i];
+  uint32_t frame = uint32_t(uint64_t(ms) * voice_assets::kRate / 1000) / kMouthSamples;
+  uint32_t frames = (k.len + kMouthSamples - 1) / kMouthSamples;
+  return frame < frames && voice_assets::kMouth[k.mouth + frame];
+}
+
 const char* assetsVersion() { return voice_assets::kVersion; }
 uint32_t assetsBytes() { return voice_assets::kBytes; }
 
-uint32_t lineSamples(const Line& l) {
-  int beats = l.n + (l.word >= 0 ? 2 : 0);
-  return uint32_t(beats) * l.ms * kOutRate / 1000;
-}
-
-void Player::plan(const Line& l) {
-  app::Rng rng;
-  rng.seed(l.seed ? l.seed : 1);
-  uint32_t beat = uint32_t(l.ms) * kOutRate / 1000;
-  int n = l.n < 0 ? 0 : l.n > kMaxSyllables ? kMaxSyllables : l.n;
-  int at = l.word >= 0 ? (l.at < 0 ? 0 : l.at > n ? n : l.at) : -1;
-  nSlots_ = 0;
-  bool wordSlot[kMaxSyllables + 1] = {};
-  for (int i = 0; i <= n; ++i) {
-    if (i == at) {
-      wordSlot[nSlots_] = true;
-      slots_[nSlots_++] = Slot{voice_assets::kSyllables + l.word, 0, 2 * beat, 0};
-    }
-    if (i < n) slots_[nSlots_++] = Slot{l.syl[i] == kSilent ? -1 : int(l.syl[i]), 0, beat, 0};
-  }
-  // Timing: ±10% per beat, moved within pairs so the line's length is exact.
-  for (int i = 0; i + 1 < nSlots_; i += 2) {
-    uint32_t shorter = slots_[i].len < slots_[i + 1].len ? slots_[i].len : slots_[i + 1].len;
-    int d = rng.range(-int(shorter / 10), int(shorter / 10));
-    slots_[i].len = uint32_t(int(slots_[i].len) + d);
-    slots_[i + 1].len = uint32_t(int(slots_[i + 1].len) - d);
-  }
-  uint32_t start = 0;
-  for (int i = 0; i < nSlots_; ++i) {
-    Slot& s = slots_[i];
-    s.start = start;
-    start += s.len;
-    int c = contour(l.tune, i, nSlots_);
-    if (wordSlot[i]) c = 1000 + (c - 1000) / 2;  // the word keeps closer to its own voice
-    int rate = c * (1000 + rng.range(-50, 50)) / 1000;  // permille, ±5%
-    // Clips are 11.025 kHz and the output 22.05 kHz: half a source sample per step.
-    s.step = uint32_t(rate) * 32768u / 1000u;
-    if (wordSlot[i] && s.clip >= 0) {  // a long word speeds up to fit, up to 1.6×
-      uint32_t fit = uint32_t((uint64_t(clipAt(s.clip).len) << 16) / (s.len ? s.len : 1));
-      uint32_t most = s.step * 16 / 10;
-      if (fit > s.step) s.step = fit < most ? fit : most;
-    }
-  }
-  total_ = start;
-}
+uint32_t lineSamples(const Line& l) { return valid(l.take) ? 2u * voice_assets::kTake[l.take].len : 0; }
 
 void Player::start(const Line& l) {
   stop();
-  plan(l);
   gain_ = l.vol * 256 / 10;
-  if (gain_ == 0) total_ = 0;  // muted: nothing to play
+  take_ = valid(l.take) && gain_ ? l.take : -1;  // muted, or no take: nothing to play
+  total_ = take_ >= 0 ? lineSamples(l) : 0;
 }
 
 void Player::stop() {
   fadeFrom_ = playing() || fade_ ? last_ : 0;
   fade_ = fadeFrom_ ? kCutFade : 0;
-  nSlots_ = slotAt_ = 0;
-  pos_ = total_ = src_ = 0;
-}
-
-int16_t Player::lineSample(uint32_t i) {
-  // slotAt_ counts slots begun, so slots_[slotAt_] is the next one.
-  while (slotAt_ < nSlots_ && i >= slots_[slotAt_].start) ++slotAt_, src_ = 0;
-  const Slot& s = slots_[slotAt_ - 1];
-  if (s.clip < 0) return 0;
-  const Clip& c = clipAt(s.clip);
-  uint32_t k = src_ >> 16, f = src_ & 0xFFFF;
-  src_ += s.step;
-  if (k + 1 >= c.len) return 0;
-  const uint8_t* d = voice_assets::kSamples + c.at;
-  int a = int(d[k]) - 128, b = int(d[k + 1]) - 128;
-  int v = a + int((int64_t(b - a) * f) >> 16);
-  uint32_t left = s.start + s.len - i;  // cut short at the slot's end: fade
-  if (left < kFadeOut) v = v * int(left) / int(kFadeOut);
-  return int16_t(v);
+  take_ = -1;
+  pos_ = total_ = 0;
 }
 
 size_t Player::render(uint8_t* out, size_t n) {
@@ -147,7 +69,14 @@ size_t Player::render(uint8_t* out, size_t n) {
   for (size_t j = 0; j < n; ++j) {
     int v = 0;
     if (pos_ < total_) {
-      v = lineSample(pos_);
+      // Half a source sample per output sample: every other one is the
+      // midpoint of two neighbours (linear interpolation, 16.16 step 32768).
+      const Take& k = voice_assets::kTake[take_];
+      const uint8_t* d = voice_assets::kSamples + k.at;
+      uint32_t s = pos_ >> 1;
+      int a = int(d[s]) - 128;
+      int b = s + 1 < k.len ? int(d[s + 1]) - 128 : 0;
+      v = pos_ & 1 ? (a + b) / 2 : a;
       ++pos_;
       ++made;
     }

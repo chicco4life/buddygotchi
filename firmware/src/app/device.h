@@ -37,9 +37,8 @@ struct AudioOut {
   bool ready = false;   // there's a DAC and it started
   bool playing = false;
   uint32_t lines = 0;
-  int syl = 0;          // syllables in the last line
-  bool word = false;
-  uint32_t planMs = 0;  // from `say`: beats × ms
+  int take = -1;        // the last line's take (voice/player.h)
+  uint32_t planMs = 0;  // the take's length
   uint32_t outMs = 0;   // samples rendered, at 22.05 kHz
   uint32_t wallMs = 0;  // time the DAC took to play them; 0 where there's no DAC
   bool cut = false;     // stopped early (hushed or replaced)

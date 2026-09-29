@@ -68,11 +68,11 @@
 {"expect":{"screen":"needs_you","moment":{"anim":"listening"},"last_input":{"k":"talk_on","at":29600}}}
 {"clock":29760}
 {"shot":"needs-you-listening"}
-// A mumble can't show while something needs you, but as the reply it
+// A line can't play while something needs you, but as the reply it
 // ends listening.
 {"clock":29900}
-{"t":"moment","say":{"syl":"ba po","ms":120}}
-{"expect":{"screen":"needs_you","moment":null,"audio":{"syllables":0}}}
+{"t":"moment","say":{"take":"previous.go"}}
+{"expect":{"screen":"needs_you","moment":null,"audio":{"take":null}}}
 // Answered on the Mac: the face blinks back to working.
 {"clock":30000}
 {"t":"state","v":1,"base":"working","busy":2}

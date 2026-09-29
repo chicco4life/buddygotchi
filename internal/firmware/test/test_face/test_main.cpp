@@ -12,6 +12,7 @@
 #include "render/raster.h"
 #include "render/scene.h"
 #include "render/screens.h"
+#include "voice/player.h"
 
 using namespace render;
 
@@ -37,14 +38,6 @@ static void test_isqrt_is_exact() {
     TEST_ASSERT_TRUE(r * r <= v);
     TEST_ASSERT_TRUE((r + 1) * (r + 1) > v);
   }
-}
-
-static void test_isin_hits_the_quadrants() {
-  TEST_ASSERT_EQUAL_INT(0, isin(0));
-  TEST_ASSERT_EQUAL_INT(1024, isin(256));
-  TEST_ASSERT_EQUAL_INT(0, isin(512));
-  TEST_ASSERT_EQUAL_INT(-1024, isin(768));
-  TEST_ASSERT_EQUAL_INT(724, isin(128));  // sin 45°
 }
 
 static void test_ease_is_monotonic_from_0_to_1024() {
@@ -213,29 +206,37 @@ static void test_the_strip_says_who_needs_you() {
   TEST_ASSERT_EQUAL_MEMORY(asProject.c.pixels(), asName.c.pixels(), kWidth * kHeight);
 }
 
-static void test_squiggles_make_room_for_the_word() {
-  // The mumble's word is never cut while squiggles keep their room:
-  // with six syllables around it, "refactoring" shows whole, as it
-  // does alone; only a word too long for the bubble by itself ends "..".
-  auto amber = [](const Mumble& m) {
+// DEVICE.md §4: the bubble shows the take's text, in amber, centred;
+// every take's text fits whole inside the margins ("Bada bing bada boom" is
+// the longest), and only text too long for the bubble ends "..".
+static void test_the_bubble_fits_every_take() {
+  auto draw = [](const char* text, int& left, int& right) {
     Buf b;
-    drawFaceScreen(b.c, SceneShow{}, &m, Strip{});
+    drawFaceScreen(b.c, SceneShow{}, text, Strip{});
     int n = 0;
+    left = kWidth, right = -1;
     for (int y = kLaneTop; y < kHeight; ++y) {
-      for (int x = 0; x < kWidth; ++x) n += b.c.get(x, y) == inkAt(kInkAmber, kLevels);
+      for (int x = 0; x < kWidth; ++x) {
+        if (b.c.get(x, y) != inkAt(kInkAmber, kLevels)) continue;
+        ++n;
+        if (x < left) left = x;
+        if (x > right) right = x;
+      }
+      for (int x : {0, 11, kWidth - 12, kWidth - 1}) TEST_ASSERT_EQUAL_INT(kBlack, b.c.get(x, y));
     }
     return n;
   };
-  Mumble many, alone, longest;
-  many.syllables = 6, many.at = 3, many.word = "refactoring";
-  alone.syllables = 0, alone.at = 0, alone.word = "refactoring";
-  TEST_ASSERT_EQUAL_INT(amber(alone), amber(many));
-  longest.syllables = 2, longest.at = 1, longest.word = "a-very-long-mumbled-word";
-  Buf b;
-  drawFaceScreen(b.c, SceneShow{}, &longest, Strip{});
-  for (int y = kLaneTop; y < kHeight; ++y) {  // cut, but inside the margins
-    for (int x : {0, 11, kWidth - 12, kWidth - 1}) TEST_ASSERT_EQUAL_INT(kBlack, b.c.get(x, y));
+  for (int i = 0; i < voice::takeCount(); ++i) {
+    const char* text = voice::takeText(i);
+    TEST_ASSERT_TRUE(std::strlen(text) <= 20);
+    int left, right;
+    TEST_ASSERT_TRUE(draw(text, left, right) > 0);
+    TEST_ASSERT_INT_WITHIN(kLarge.w, kWidth - 1 - right, left);  // centred
+    // Whole: its last letter is drawn where the fitted width puts it.
+    TEST_ASSERT_INT_WITHIN(kLarge.w, stringWidth(kLarge, text), right - left + 1);
   }
+  int left, right;
+  draw("a very long line that cannot fit", left, right);  // cut, but inside the margins
 }
 
 // DEVICE.md §4, decision D10: the bubble sits in the bottom lane, below
@@ -244,15 +245,14 @@ static void test_squiggles_make_room_for_the_word() {
 // a design that draws to the bottom (the first pack's success), it blanks the
 // lane first.
 static void test_the_bubble_takes_the_lane() {
-  Mumble m;
-  m.syllables = 4, m.at = 2, m.word = "yay";
+  const char* m = "Yay";
   Strip s;
   s.busy = 2, s.doneAgent = "codex", s.doneThread = "landing", s.doneOutcome = Outcome::kSuccess;
   for (SceneState st : {SceneState::kIdle, SceneState::kTaskComplete}) {
     SceneShow face;
     face.state = st;
     Buf with, without, face0;
-    drawFaceScreen(with.c, face, &m, s);
+    drawFaceScreen(with.c, face, m, s);
     drawFaceScreen(without.c, face, nullptr, s);
     drawFaceScreen(face0.c, face, nullptr, Strip{});
     for (int y = 0; y < kLaneTop; ++y) {  // the design, as it was
@@ -327,8 +327,7 @@ static void test_fonts_are_monospaced_and_utf8_aware() {
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_isqrt_is_exact);
-  RUN_TEST(test_isin_hits_the_quadrants);
-  RUN_TEST(test_ease_is_monotonic_from_0_to_1024);
+    RUN_TEST(test_ease_is_monotonic_from_0_to_1024);
   RUN_TEST(test_spans_cut);
   RUN_TEST(test_fill_shape_antialiases_only_the_edges);
   RUN_TEST(test_palette_ramps_run_from_black_to_the_ink);
@@ -337,7 +336,7 @@ int main(int, char**) {
   RUN_TEST(test_every_state_has_a_name);
   RUN_TEST(test_an_empty_strip_is_bare_glass);
   RUN_TEST(test_the_strip_says_who_needs_you);
-  RUN_TEST(test_squiggles_make_room_for_the_word);
+  RUN_TEST(test_the_bubble_fits_every_take);
   RUN_TEST(test_the_bubble_takes_the_lane);
   RUN_TEST(test_the_strip_marks_the_finish);
   RUN_TEST(test_fonts_are_monospaced_and_utf8_aware);
