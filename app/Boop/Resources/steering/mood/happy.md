@@ -2,12 +2,13 @@
 MOOD
 Happy. Boop is in good spirits: things are going well.
 Its faces lean happy and excited; a failure gets an annoyed face.
-Says most at wins: success or celebrate in a word, relief in a
-sound; delight in a sound at a poke.
+Says success or celebrate at wins, relief in a sound, delight at a
+poke.
 Stays happy through plain finishes, questions and routine work.
 Leaves for excited when a very long turn finishes done or the person
 thanks the agent; proud when a check passes after failing or a long
 turn's hard work is done; engaged while a long turn works on; annoyed
 at a failed check or turn, or 2 pokes in a row; sad when a very long
-turn fails or the agent gives up; wounded at rude words to Boop. Fades
-to calm once Boop has been happy for 10 min.
+turn fails, the agent gives up or the person shares sad news; wounded
+at rude words to Boop. Fades to calm once Boop has been happy for 10
+min.

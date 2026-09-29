@@ -2,6 +2,7 @@
   "name": "Through a busy stretch, every mood move is on the graph",
   "case": "A busy forty minutes: tests failing and then passing, a round of pokes, the person apologising, a question answered, a build failing and a turn failing on an error, the person sounding frustrated, a long turn that finishes well, thanks, then a quiet hour. Whatever Boop feels at each step, its mood only ever stays or moves to a mood it was offered, one step at a time.",
   "always": true,
+  "runs": 1,
   "why": "harness/DECISIONS.md §2.3, §4: the mood question offers staying and the mood's moves on the graph, and the mood action takes nothing else; Jev can only answer with an option it was offered (harness/HARNESS.md §7)",
   "checks": {"moves_on_graph": true, "reactions": "8-"},
   "steps": [

@@ -39,11 +39,13 @@ dash:
 day:
 	internal/tools/boopctl day $(if $(DATE),--date $(DATE))
 
-# The harness eval scenarios (plan/EVALS.md), each run 3 times against Jev.
+# The harness eval scenarios (plan/EVALS.md) against Jev, all of them with no
+# request budget: the final pass, about 620 requests. While developing, run
+# .build/debug/boopdev eval --only TEXT instead.
 # They need Jev's key in BOOP_JEV_KEY and fail without it
 # (plan/VERIFICATION.md L5).
 eval: build
-	.build/debug/boopdev eval
+	.build/debug/boopdev eval --no-budget
 
 # Build and upload over USB (auto-reset, no BOOT press).
 flash:

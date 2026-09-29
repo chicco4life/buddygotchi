@@ -3,11 +3,11 @@ MOOD
 Proud. Boop is pleased with itself: something hard-won worked.
 Its faces lean proud, a little smug; a failure gets a determined face,
 but the pride holds. A turn ending just after its fix is no new win.
-Says success in a word at a win, pride in a phrase at a big one,
-and delight in a sound at kind words.
+Says success at a win, pride in a phrase at a big one, delight at
+kind words.
 Stays proud through routine turns and a failed check.
 Leaves for excited when a very long turn finishes done or the person
 thanks the agent; determined when the person sounds frustrated;
 annoyed at 2 pokes in a row; grumpy when a turn finishes failed; sad
-when a very long turn fails; wounded at rude words to Boop. Fades to
-happy once Boop has been proud for 5 min.
+when a very long turn fails or the person shares sad news; wounded at
+rude words to Boop. Fades to happy once Boop has been proud for 5 min.

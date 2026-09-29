@@ -27,15 +27,18 @@ let usages: [(command: String, text: String)] = [
         (VOICE.md §4). --kind defaults to sound.
     """),
     ("eval", """
-    boopdev eval [--runs N] [--only TEXT] [--always] [--timeline] [--scenarios DIR] [--steering DIR]
+    boopdev eval [--runs N] [--only TEXT] [--always] [--budget N | --no-budget] [--timeline] [--scenarios DIR] [--steering DIR]
     boopdev eval --list [--always] [--only TEXT] [--scenarios DIR]
         Runs the harness eval scenarios (plan/EVALS.md): hook-level steps on a virtual clock through a fresh
         pipeline, the real harness and actions, and Jev, each pass checked against what it should come to (the
         reaction, what it says, how long the face holds and the mood), and each run against its whole-run
         checks. Needs Jev's key in BOOP_JEV_KEY and fails without it. --runs runs each scenario N times
-        (default 5 for an always scenario, 3 for the rest); it passes only if every run does. --always runs
-        only the always scenarios, Boop's character. --timeline prints every pass of every run. --list
-        prints each scenario's case and runs nothing. A scenario with a known gap is reported GAP when it
+        (default the scenario's own runs, else 3 for an always scenario and 1 for the rest); it passes only
+        if every run does. Before asking Jev anything it counts the requests the runs will send (each run's
+        passes with the scripted brain) and stops if that's over --budget (default 100); --no-budget is for
+        the final pass (make eval). --always runs only the always scenarios, Boop's character. --timeline
+        prints every pass of every run. --list prints each scenario's case, runs and requests, and runs
+        nothing. A scenario with a known gap is reported GAP when it
         fails, and doesn't fail the eval. Every event, view event and pass goes to the run's own file in
         /tmp/boop-eval (boopdev watch FILE prints it). Exits 1 if any fails. The scenarios and steering
         default to the Boop repo's, found from the working directory or from boopdev's own place.
@@ -206,9 +209,14 @@ func findRepo() -> URL? {
     return nil
 }
 
+/// How many Jev requests `boopdev eval` may send unless `--budget` or
+/// `--no-budget` says (plan/EVALS.md §2): enough for a handful of
+/// scenarios while developing, not the whole eval, which is the final pass.
+let evalBudget = 100
+
 func eval(_ raw: [String]) async {
-    let args = arguments("eval", raw, options: ["--runs", "--only", "--scenarios", "--steering"],
-                         flags: ["--always", "--list", "--timeline"])
+    let args = arguments("eval", raw, options: ["--runs", "--only", "--budget", "--scenarios", "--steering"],
+                         flags: ["--always", "--list", "--timeline", "--no-budget"])
     let repo = findRepo()
     func path(_ option: String, _ inRepo: String) -> URL {
         if let given = args[option] { return URL(fileURLWithPath: given) }
@@ -223,32 +231,54 @@ func eval(_ raw: [String]) async {
     }
     if args.has("--always") { list = list.filter(\.always) }
     guard !list.isEmpty else { fail("no scenarios in \(scenarios.path)") }
-    if args.has("--list") {
-        for s in list {
-            print("\(s.file)\(s.always ? "  [always]" : s.gap != nil ? "  [gap]" : "")  \(s.name)")
-            print("    \(s.story)")
-            if let gap = s.gap { print("    gap: \(gap)") }
-        }
-        exit(0)
-    }
-    guard let key = JevKey.environment() else {
-        fail("boopdev eval asks Jev, and needs its API key in \(JevKey.variable)")
-    }
     let steering: Steering
     do { steering = try Steering(directory: path("--steering", "plan/steering")) } catch { fail("\(error)") }
     let given = args["--runs"].map { Int($0) }
     if let given, (given ?? 0) < 1 { fail("--runs is a count, 1 or more") }
+    let budget = args["--budget"].map { Int($0) }
+    if let budget, (budget ?? 0) < 1 { fail("--budget is a count of Jev requests, 1 or more") }
+    if budget != nil, args.has("--no-budget") { fail("--budget or --no-budget, not both") }
+    // What the eval will cost before it asks Jev anything (EVALS.md §2):
+    // each scenario's passes with the scripted brain, times its runs.
+    var plan: [(scenario: Scenario, runs: Int, requests: Int)] = []
+    for scenario in list {
+        let requests: Int
+        do { requests = try await Eval.requests(scenario, steering: steering) } catch { fail("\(error)") }
+        plan.append((scenario, given.flatMap { $0 } ?? Eval.runs(scenario), requests))
+    }
+    let total = plan.reduce(0) { $0 + $1.runs * $1.requests }
+    if args.has("--list") {
+        for p in plan {
+            let s = p.scenario
+            print("\(s.file)\(s.always ? "  [always]" : s.gap != nil ? "  [gap]" : "")  \(s.name)")
+            print("    \(p.runs) run\(p.runs == 1 ? "" : "s") × about \(p.requests) requests")
+            print("    \(s.story)")
+            if let gap = s.gap { print("    gap: \(gap)") }
+        }
+        print("\(plan.count) scenario\(plan.count == 1 ? "" : "s"), about \(total) Jev requests")
+        exit(0)
+    }
+    let limit = args.has("--no-budget") ? Int.max : budget.flatMap { $0 } ?? evalBudget
+    if total > limit {
+        let costliest = plan.sorted { $0.runs * $0.requests > $1.runs * $1.requests }.prefix(5)
+            .map { "  \($0.scenario.file): \($0.runs) × \($0.requests)" }
+        fail((["boopdev eval: about \(total) Jev requests, over the budget of \(limit); narrow it with --only or --runs 1, "
+               + "raise --budget, or pass --no-budget for the final pass. The costliest:"] + costliest).joined(separator: "\n"))
+    }
+    guard let key = JevKey.environment() else {
+        fail("boopdev eval asks Jev, and needs its API key in \(JevKey.variable)")
+    }
     let brain = JevBrain(key: key)
     var runner = Eval(brain: brain, steering: steering)
     let log = evalDebugLog()
     DebugLog.start(log)
     runner.debugLog = log
+    print("\(plan.count) scenario\(plan.count == 1 ? "" : "s"), about \(total) Jev requests")
     print("every event, view event and pass goes to \(log.path)")
     var results: [[Eval.Result]] = []
     var gapsFailed = 0
     var failed = false
-    for scenario in list {
-        let runs = given.flatMap { $0 } ?? (scenario.always ? 5 : 3)
+    for (scenario, runs, _) in plan {
         var rs: [Eval.Result] = []
         for _ in 1...runs {
             do { rs.append(try await runner.run(scenario)) } catch { fail("\(error)") }

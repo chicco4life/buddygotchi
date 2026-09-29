@@ -49,13 +49,13 @@ public final class MoodAction: Action {
                notFor: "A turn that has ended."),
         Option("grumpy", "Fed up: a turn failed on top of other trouble, or pokes kept coming. The angriest, past irritated.",
                notFor: "A check failing, the person's frustration, or an agent giving up."),
-        Option("sad", "Deflated: the agent says it couldn't do it or is stuck, or a very long turn finished failed.",
+        Option("sad", "Deflated: the agent says it couldn't do it or is stuck, a very long turn finished failed, or the person shared sad news.",
                notFor: "A shorter turn that finished failed with an error."),
-        Option("calm", "Settled, the resting mood: nothing much is going on, or a mood cooling down once its minutes are up."),
+        Option("calm", "Settled, the resting mood: nothing much is going on, a mood cooling down once its minutes are up, or the person took back what upset Boop."),
         Option("engaged", "In the flow: following steady work that goes well, or determined easing off. At ease, unlike determined: nothing has failed."),
-        Option("annoyed", "Mildly put out: a failure, the person's frustration, or pokes; or grumpy or irritated cooling down. Milder than irritated, and not yet rooting for a retry like determined.",
+        Option("annoyed", "Mildly put out: a failure, the person's frustration, or pokes; or grumpy or irritated cooling down or softening at an apology. Milder than irritated, and not yet rooting for a retry like determined.",
                notFor: "The agent saying it couldn't do it or is stuck, or a very long turn failing: those make Boop sad."),
-        Option("irritated", "Patience fraying: failures or pokes keep coming. More than annoyed, short of grumpy."),
+        Option("irritated", "Patience fraying: failures or pokes keep coming; or grumpy softening at an apology. More than annoyed, short of grumpy."),
         Option("whiny", "Sorry for itself, asking for sympathy: things keep going wrong. It complains, unlike wounded."),
         Option("wounded", "Hurt: rude words to Boop, or a big failure after a lot of work. It withdraws quietly, unlike whiny."),
     ]
@@ -66,7 +66,7 @@ public final class MoodAction: Action {
 
     /// A dramatic move's "not for" (harness/DECISIONS.md §2.3): it's a jump
     /// only a fresh, big event earns.
-    public static let jump = "A check failing or passing, routine work, or a fade: this jump needs a fresh, big event in NOW, such as a turn that finished failed, the agent giving up, a barrage of pokes, a long turn finishing, thanks or rude words."
+    public static let jump = "A check failing or passing, routine work, or a fade: this jump needs a fresh, big event in NOW, such as a turn that finished failed, the agent giving up, a barrage of pokes, a long turn finishing, thanks, rude words or sad news."
 
     /// The `mood` question's options for `mood`: stay, then each of its
     /// neighbours with its meaning, the dramatic ones also saying they're a

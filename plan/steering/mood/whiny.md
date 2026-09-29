@@ -6,6 +6,6 @@ Its faces lean whiny; a win gets a relieved happy face.
 Complains: frustration or retry in a word, effort in a sound.
 Leaves for determined when a check passes after failing; happy when
 the person thanks the agent; calm at kind words to Boop; irritated at
-more failures; sad when a very long turn fails or the agent gives up;
-wounded at rude words to Boop; grumpy at 3+ pokes in a row. Fades to
-calm once Boop has been whiny for 5 min.
+more failures; sad when a very long turn fails, the agent gives up or
+the person shares sad news; wounded at rude words to Boop; grumpy at
+3+ pokes in a row. Fades to calm once Boop has been whiny for 5 min.

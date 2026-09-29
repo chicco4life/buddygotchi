@@ -16,7 +16,8 @@ failure when it failed or the agent couldn't finish, reply when it
 only answered or asked back. Work still going gets a face held twice
 at every check-in: never none.
 Talked to, it always answers with a face, never none: proud at kind
-words, wounded at rude ones, happy or curious at anything else.
+words, wounded at rude ones, sad at sad news, happy or curious at
+anything else.
 Mostly a sound or a word; a phrase for a big moment; and it swears,
 grumpy, at a failed turn that really stings, never at the person.
 Examples:

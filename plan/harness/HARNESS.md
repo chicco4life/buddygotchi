@@ -340,8 +340,8 @@ How to read HISTORY and NOW:
 ### 6.2 Sizes
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
-bytes ÷ 4, which overestimates English: the guide 300 (now 294), a
-personality 700 (`boop` 698, `chatter` 381), raised from 600 when `boop` took what you say to it and its Examples ([BEHAVIORS.md](../BEHAVIORS.md) §3.3), and a mood 175 (the 13 files 112–168), raised from 150 when the moods took four reasons from the notes ([DECISIONS.md](DECISIONS.md) §2.3): Jev reads only the current mood's file, so it costs at most 25 tokens a request.
+bytes ÷ 4, which overestimates English: the guide 300 (now 297), a
+personality 700 (`boop` 693, `chatter` 381), raised from 600 when `boop` took what you say to it and its Examples ([BEHAVIORS.md](../BEHAVIORS.md) §3.3), and a mood 175 (the 13 files 123–175), raised from 150 when the moods took four reasons from the notes ([DECISIONS.md](DECISIONS.md) §2.3): Jev reads only the current mood's file, so it costs at most 25 tokens a request.
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
 about 200 tokens and HISTORY's 40 view events about 1,200, and each
@@ -416,7 +416,7 @@ from the next event.
 | Brain | `id` | Used by |
 | --- | --- | --- |
 | `JevBrain` | `jev:jev-latest` | The app with a key, and the evals |
-| `ScriptedBrain` | `scripted` | Tests: a script sees the state and questions and returns answers. `Boop --headless --brain scripted` uses `pipelineCheck`, which answers every pass with the mood kept (the `mood` question's first option), `react.mood: excited`, `react.loops: once`, `word.feeling: yay`, `word.about: none`, and `react.animation: success` when NOW is a turn finished done, `failure` when one finished failed, else `none`; an answer a question doesn't offer is its first option |
+| `ScriptedBrain` | `scripted` | Tests: a script sees the state and questions and returns answers. `Boop --headless --brain scripted` uses `pipelineCheck`, which answers every pass with the mood kept (the `mood` question's first option), `react.mood: excited`, `react.loops: once`, `say.meaning: begin`, `say.kind: word` (an excited "Go"), and `react.animation: success` when NOW is a turn finished done, `failure` when one finished failed, else `none`; an answer a question doesn't offer is its first option |
 
 ## 8. Designing for Jev
 

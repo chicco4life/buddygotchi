@@ -8,5 +8,5 @@ Leaves for curious or happy at a poke; happy at kind words to Boop or
 a long turn's hard work done; engaged while a long turn works on;
 annoyed at a failed check or turn, frustration, or 2 pokes in a row;
 excited when a very long turn finishes done or the person thanks the
-agent; sad when a very long turn fails or the agent gives up; wounded
-at rude words to Boop.
+agent; sad when a very long turn fails, the agent gives up or the
+person shares sad news; wounded at rude words to Boop.

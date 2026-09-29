@@ -55,9 +55,9 @@ moods:
 > The mood is the backdrop and moves a step at a time: to a mood on
 > offer when NOW is MOOD's reason to leave, but never for a routine
 > turn alone, and not while HISTORY ends "for under a minute" unless a
-> turn failed, a very long turn ended or Boop was poked. After the
-> minutes MOOD gives, or an hour of nothing, it fades one step, to the
-> mood MOOD names.
+> turn failed, a very long turn ended, or Boop was poked or talked to.
+> After the minutes MOOD gives, or an hour of nothing, it fades one
+> step, to the mood MOOD names, at whatever NOW is.
 >
 > When NOW moves the mood, react with the new mood's face.
 
@@ -94,7 +94,7 @@ event. It has two parts:
 
 | Personality | For | Its text |
 | --- | --- | --- |
-| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted, a little smug and lively: it never sits still for long, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments, and almost always says something, with a face that can say it: mostly a sound or a word, a phrase for a big moment, and a swear, grumpy, at a failed turn that really stings, never at the person. A failed check is annoyed with a frustrated sound, held once; a check passing after failing proud, twice, saying nothing (no proud take fits a check); a very long turn done excited, a success, celebrating in a phrase, three times; a failed turn grumpy, a failure, with a swear, once; an agent giving up sad, a failure, saying nothing. A stopped turn has no Example: the device shows the stop on its own. Every turn that finishes done or failed gets a face and its outcome: a success when the work is done and working, a failure when it failed or the agent couldn't finish, a reply when it only answered or asked back (curious, pondering in a sound). A turn start gets nothing, unless the person sounds frustrated (determined, retry in a word) or thanks the agent (excited, begin in a word). Work still going gets an engaged face held twice at every working heartbeat, never none, with work in a word or effort in a sound. Poked, it's curious, then miffed: a single poke gets a curious ponder, two in a row an annoyed huff, four a grumpy phrase. Talked to, it always answers with a face, never none: proud with a delighted sound at kind words, wounded and silent at rude ones |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted, a little smug and lively: it never sits still for long, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments, and almost always says something, with a face that can say it: mostly a sound or a word, a phrase for a big moment, and a swear, grumpy, at a failed turn that really stings, never at the person. A failed check is annoyed with a frustrated sound, held once; a check passing after failing proud, twice, saying nothing (no proud take fits a check); a very long turn done excited, a success, celebrating in a phrase, three times; a failed turn grumpy, a failure, with a swear, once; an agent giving up sad, a failure, saying nothing. A stopped turn has no Example: the device shows the stop on its own. Every turn that finishes done or failed gets a face and its outcome: a success when the work is done and working, a failure when it failed or the agent couldn't finish, a reply when it only answered or asked back (curious, pondering in a sound). A turn start gets nothing, unless the person sounds frustrated (determined, retry in a word) or thanks the agent (excited, begin in a word). Work still going gets an engaged face held twice at every working heartbeat, never none, with work in a word or effort in a sound. Poked, it's curious, then miffed: a single poke gets a curious ponder, two in a row an annoyed huff, four a grumpy phrase. Talked to, it always answers with a face, never none: proud with a delighted sound at kind words, wounded and silent at rude ones, sad at sad news |
 | [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses, heartbeats and what you say included, always says something, a phrase whenever it can, swears at every failed turn, and holds its faces long: twice for routine lines, up to four times for a fix or a very long turn done, a success |
 
 "Never stays quiet" is still Jev's call: `none` stays an option, and the
@@ -144,7 +144,8 @@ how long a mood lasts, and which move fits NOW, is the steering's. A
 dramatic option says so in its "not for" (`MoodAction.jump`): a check
 failing or passing, routine work or a fade isn't enough, only a fresh,
 big event in NOW, such as a turn that finished failed, the agent giving
-up, a barrage of pokes, a long turn finishing, thanks or rude words.
+up, a barrage of pokes, a long turn finishing, thanks, rude words or sad
+news.
 
 **Each file** says which faces Boop makes in its reactions while in that
 mood (a grumpy Boop gives a win a grudging proud, never a grumpy face),
@@ -175,7 +176,7 @@ question judges by. The rules read only what the lines say
   three to irritated, four or more to grumpy, and more keep Boop grumpy
   whatever their count.
 
-And five from the words in the lines' notes ([EVENTS.md](EVENTS.md)
+And seven from the words in the lines' notes ([EVENTS.md](EVENTS.md)
 §8): what the person asked on a turn start, the agent's last message on
 a finish, and what the person said to Boop. No code looks for keywords:
 Jev reads the note and judges it against the mood file's words.
@@ -192,7 +193,18 @@ Jev reads the note and judges it against the mood file's words.
 - the agent gives up: says it couldn't do it, or is stuck: sad (a jump
   from calm and most moods), or whiny from annoyed, irritated or grumpy;
 - the person is rude to Boop ("you're useless"): wounded, a jump from
-  most moods; kind words to Boop: happy.
+  most moods; kind words to Boop: happy;
+- the person says sorry to Boop: a step toward calm at once, grumpy to
+  irritated or annoyed, irritated to annoyed, annoyed to calm, so one
+  apology does; poking again undoes it (`56`, `57`);
+- the person shares sad news ("my dog died"): sad, a jump from most
+  moods, and more of it keeps Boop sad; taking it back ("just
+  kidding") or cheering Boop up leaves sad at once, for calm or happy
+  (`58`).
+
+Talk moves the mood within its first minute, as a poke does (the
+guide's rule above), since the person is right there; but a plain
+question to Boop moves nothing (`59`).
 
 A plain request and a matter-of-fact finish still move nothing
 (`28-plain-words-leave-mood`, `52-routine-work-holds-calm`), nor does a
@@ -213,19 +225,19 @@ determined.
 
 | Mood | Its meaning (the `mood` option) | Fades to, after |
 | --- | --- | --- |
-| `calm` | Settled, the resting mood: nothing much is going on, or a mood cooling down once its minutes are up | — |
+| `calm` | Settled, the resting mood: nothing much is going on, a mood cooling down once its minutes are up, or the person took back what upset Boop | — |
 | `happy` | Good spirits: work is going well, or a win just came; or excited or proud cooling down | calm, 10 min |
 | `excited` | Thrilled: a very long turn finished done, or the person thanked the agent. Not for: A shorter turn finishing, or work still going | happy, 5 min |
 | `proud` | Something hard-won worked: a check passed after failing, or a long turn's last message says hard work is done and working. Not for: A short turn finishing | happy, 5 min |
 | `curious` | Intrigued: a poke, or something new or puzzling said to Boop. Not for: A failure, or routine work: a turn starting or finishing, even one asking or answering a question | calm, 2 min |
 | `engaged` | In the flow: following steady work that goes well, or determined easing off. At ease, unlike determined: nothing has failed | calm, 5 min, at anything but work going on |
 | `determined` | Rooting for a retry: a check failed again while the agent works on, the person sounds frustrated, or a very long turn works on. Straining, unlike engaged. Not for: A turn that has ended | engaged, 5 min, unless a very long turn works on |
-| `annoyed` | Mildly put out: a failure, the person's frustration, or pokes; or grumpy or irritated cooling down. Milder than irritated, and not yet rooting for a retry like determined. Not for: The agent saying it couldn't do it or is stuck, or a very long turn failing: those make Boop sad | calm, 3 min, unless NOW is a failure |
-| `irritated` | Patience fraying: failures or pokes keep coming. More than annoyed, short of grumpy | annoyed, 3 min |
+| `annoyed` | Mildly put out: a failure, the person's frustration, or pokes; or grumpy or irritated cooling down or softening at an apology. Milder than irritated, and not yet rooting for a retry like determined. Not for: The agent saying it couldn't do it or is stuck, or a very long turn failing: those make Boop sad | calm, 3 min, unless NOW is a failure |
+| `irritated` | Patience fraying: failures or pokes keep coming; or grumpy softening at an apology. More than annoyed, short of grumpy | annoyed, 3 min |
 | `grumpy` | Fed up: a turn failed on top of other trouble, or pokes kept coming. The angriest, past irritated. Not for: A check failing, the person's frustration, or an agent giving up | annoyed, 2 min, unless NOW is a poke |
 | `whiny` | Sorry for itself, asking for sympathy: things keep going wrong. It complains, unlike wounded | calm, 5 min |
 | `wounded` | Hurt: rude words to Boop, or a big failure after a lot of work. It withdraws quietly, unlike whiny | calm, 10 min |
-| `sad` | Deflated: the agent says it couldn't do it or is stuck, or a very long turn finished failed. Not for: A shorter turn that finished failed with an error | calm, 10 min |
+| `sad` | Deflated: the agent says it couldn't do it or is stuck, a very long turn finished failed, or the person shared sad news. Not for: A shorter turn that finished failed with an error | calm, 10 min |
 
 Each "after N minutes" counts from Boop's mood changing to it, or ends
 sooner if the change has dropped out of HISTORY.
