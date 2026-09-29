@@ -418,9 +418,9 @@ Boop only tells you. You approve on the Mac, in the agent's own prompt.
 
 | When | What Boop does |
 | --- | --- |
-| An agent needs approval | The needs-you look and its amber sign, the amber light, the strip naming the agent and the thread (its name, else its project), and the alert: the needs-you performance with its knocks and ding, once ([VOICE.md](VOICE.md) §10). A moment or mumble playing stops |
-| More than one needs you | The strip shows the one waiting longest, with "+N" for the rest |
-| A different request becomes the one shown | The alert again, the performance starting over behind a blink: another session's, even in the same project, or another subagent's in the same session once the first is answered |
+| An agent needs approval | Boop holds up an amber sign naming the agent and the thread (its name, else its project) in large type, and peeks over its top edge, hopping between the corners and the middle ([DEVICE.md](DEVICE.md) §6); the amber light; and the alert: the needs-you performance with its knocks and ding, once ([VOICE.md](VOICE.md) §10). A moment or mumble playing stops |
+| More than one needs you | The sign shows the one waiting longest, with "+N more" for the rest |
+| A different request becomes the one shown | The alert again, the performance starting over behind a blink and the sign rising again: another session's, even in the same project, or another subagent's in the same session once the first is answered |
 | You poke Boop | The press dip only; it stays amber. The brain still hears of the poke (§3.3) |
 | You answer on the Mac | The agent carries on; once nothing needs you, Boop blinks back to its base look. A long command you approved keeps "needs you" up until it finishes ([ADAPTERS.md](ADAPTERS.md) §4) |
 | You deny with Esc | Claude sends nothing, so Boop stays amber until Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §4) |
@@ -429,8 +429,8 @@ Boop only tells you. You approve on the Mac, in the agent's own prompt.
 The light stays steady and nothing repeats. The brain never shows or
 clears it, and nothing but a poke or what you say wakes it meanwhile
 (push-to-talk still works, §3.3). A poke's pass can
-change the mood, which the amber look then shows, but no reaction plays
-until nothing needs you.
+change the mood, which shows once nothing needs you (the sign is the
+same in every mood), and no reaction plays until then.
 
 ### 3.3 You and Boop
 

@@ -14,6 +14,7 @@
 #include "render/anim.h"
 #include "render/canvas.h"
 #include "render/screens.h"
+#include "render/sign.h"
 #include "voice/effects.h"
 #include "voice/player.h"
 
@@ -178,6 +179,9 @@ class Device {
   uint32_t drawnReal_ = 0;  // and the real time it was drawn
   render::SceneFrame drawnFrame_{};  // everything its face's pixels depend on
   bool drawnBubble_ = false;  // and whether the bubble was up
+  // Or, while needs you's own design would show, the sign's pose instead.
+  bool drawnSign_ = false;
+  render::SignPose drawnPose_{};
   bool dirty_ = true;
   bool frame_ = false;
   const char* labelDrawn_ = nullptr;  // the debug label on screen, or null

@@ -13,11 +13,11 @@ void drawPattern(Canvas& c) {
 
   for (const PatternBlock& b : kPatternBlocks) c.fillRect(b.x, b.y, b.w, b.h, b.color);
 
-  // The USB-C side: a black bar down the right edge, and a label pointing at it.
-  c.fillRect(kWidth - kPatternUsbW, kPatternUsbTop, kPatternUsbW, kPatternUsbBottom - kPatternUsbTop, kBlack);
-  const int tipX = kWidth - kPatternUsbW - 4, ty = 42;
-  c.fillTriangle(tipX, ty + 7, tipX - 8, ty, tipX - 8, ty + 14, kBlack);
-  c.drawText(tipX - 12 - Canvas::textWidth("USB-C", 2), ty, "USB-C", kBlack, 2);
+  // The USB-C side: a black bar down the left edge, and a label pointing at it.
+  c.fillRect(0, kPatternUsbTop, kPatternUsbW, kPatternUsbBottom - kPatternUsbTop, kBlack);
+  const int tipX = kPatternUsbW + 4, ty = 42;
+  c.fillTriangle(tipX, ty + 7, tipX + 8, ty, tipX + 8, ty + 14, kBlack);
+  c.drawText(tipX + 12, ty, "USB-C", kBlack, 2);
 
   // Labelled corners.
   c.drawText(3, 3, "TL", kBlack);

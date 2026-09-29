@@ -27,18 +27,26 @@ public struct StateSnapshot: Equatable, Sendable {
     public static let version = 1
     /// A protocol line is at most 512 bytes (PROTOCOL.md §2).
     public static let maxLine = 512
-    /// The device keeps names in 24-byte fields.
+    /// The device keeps names in 24-byte fields, and what needs you's sign
+    /// shows (`attn.project` and `attn.name`) in 48-byte ones: three lines
+    /// of 16 on the sign (DEVICE.md §6).
     public static let maxNameBytes = 23
+    public static let maxSignBytes = 47
 
-    /// `text` precomposed (NFC) and cut to at most `maxNameBytes` of UTF-8,
-    /// on a character boundary. Finder names folders decomposed (e and
+    /// `text` precomposed (NFC) and cut to at most `max` bytes of UTF-8, on
+    /// a character boundary. Finder names folders decomposed (e and
     /// U+0301), which the device would draw as "e?"; precomposed, é shows as
-    /// e. With `marked`, a cut text ends in "..", within those bytes, so the
-    /// device shows it was cut (PROTOCOL.md §3).
-    public static func clip(_ text: String, marked: Bool = false) -> String {
-        let text = text.precomposedStringWithCanonicalMapping
-        guard text.utf8.count > maxNameBytes else { return text }
-        let room = marked ? maxNameBytes - 2 : maxNameBytes
+    /// e. Control characters, which the device can't draw and JSON escapes
+    /// to six bytes each, become spaces. With `marked`, a cut text ends in
+    /// "..", within those bytes, so the device shows it was cut
+    /// (PROTOCOL.md §3).
+    public static func clip(_ text: String, marked: Bool = false, max: Int = maxNameBytes) -> String {
+        var text = text.precomposedStringWithCanonicalMapping
+        if text.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) {
+            text = String(String.UnicodeScalarView(text.unicodeScalars.map { $0.value < 0x20 || $0.value == 0x7F ? " " : $0 }))
+        }
+        guard text.utf8.count > max else { return text }
+        let room = marked ? max - 2 : max
         var out = ""
         for ch in text {
             if out.utf8.count + String(ch).utf8.count > room { break }

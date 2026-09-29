@@ -23,9 +23,9 @@ first 4 KB took 13 ms on average and 19 ms at worst. Boop's firmware
 | `make build` after regenerating `Takes.swift` | 6 s. The first `Takes.swift`, one array literal, ran each `swift-frontend` to about 63 GB before the owner stopped it; written as one `append` per take in functions of 400, the compiler peaked at about 1.6 GB |
 | `make -C internal test` (with `BOOP_JEV_KEY` unset in the shell) | 312 of 312 |
 | `make -C internal fw-test` | All 8 suites passed |
-| `make -C internal sim` | 14 scenarios, no expect failures; `bubble` has 3 new or changed goldens: `bubble-gone` (the look's next variation, since "Bada bing bada boom" is now 1,845 ms), and the new `two-takes` and `small-text` |
+| `make -C internal sim` | 14 scenarios, no expect failures; `bubble` has 3 new or changed goldens: `bubble-gone` (the look's next variation, since "Bada bing bada boom" is now 1,845 ms), and the new `two-takes` and `small-text`. After merging main, `pattern` too: main's `ceb48772` turned the screen (USB-C on the left) without updating that golden |
 | `make -C internal tools-test` | Passed |
-| `make -C internal fw` | 2,320,171 bytes, 73.8% of app0 (2,725,851 before: the voice left flash) |
+| `make -C internal fw` | 2,320,171 bytes, 73.8% of app0 (2,725,851 before: the voice left flash); 2,356,355 once merged with main's needs-you sign (2,761,867 on main) |
 | The changed eval scenarios, once each against `jev:jev-latest` ([eval.txt](eval.txt)) | 15 of 15: 03, 04, 05, 09, 11, 12, 15, 16, 27, 29, 35, 54, 60, 61, 62. Before the last steering changes 12 of 15: 15 (upset at quiet work, fixed by putting back the very-long-work Example and telling `upset` it's not for work going on), 54 (a tickled "Yep" to "how's it going?", now allowed) and 03 (sad, which passed 3 of 3 on a rerun) |
 | Scenario 04 alone, for [harness/EXAMPLE.md](../../harness/EXAMPLE.md) | Passed; its log is [eval-04-debug.jsonl](eval-04-debug.jsonl) |
 

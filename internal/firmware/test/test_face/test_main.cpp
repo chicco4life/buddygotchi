@@ -12,6 +12,7 @@
 #include "render/raster.h"
 #include "render/scene.h"
 #include "render/screens.h"
+#include "render/sign.h"
 #include "voice/player.h"
 
 using namespace render;
@@ -324,6 +325,94 @@ static void test_fonts_are_monospaced_and_utf8_aware() {
   TEST_ASSERT_TRUE(other.px == marks.px);
 }
 
+// The needs-you sign (DEVICE.md §6): the whole face for kHoldMs, then the
+// sign rises over kRiseMs, bouncing past its place, as the head shrinks
+// behind it to peek over its top edge.
+void test_the_sign_rises_then_peeks() {
+  SignPose p = signPose(0);
+  TEST_ASSERT_TRUE(p.signY >= kHeight);
+  TEST_ASSERT_TRUE(p.whole);
+  TEST_ASSERT_FALSE(p.hands);
+  TEST_ASSERT_EQUAL_INT(64, p.scale);
+  TEST_ASSERT_EQUAL_INT(kWidth / 2, p.headX);
+  TEST_ASSERT_TRUE(signPose(Sign::kHoldMs).signY >= kHeight);
+  bool past = false;
+  for (uint32_t ms = Sign::kHoldMs; ms < Sign::kHoldMs + Sign::kRiseMs; ms += 10) past |= signPose(ms).signY < Sign::kTop;
+  TEST_ASSERT_TRUE(past);
+  p = signPose(Sign::kHoldMs + Sign::kRiseMs);
+  TEST_ASSERT_EQUAL_INT(Sign::kTop, p.signY);
+  TEST_ASSERT_EQUAL_INT(Sign::kHeadScale, p.scale);
+  TEST_ASSERT_EQUAL_INT(Sign::kHeadY, p.headY);
+  TEST_ASSERT_EQUAL_INT(Sign::kSpotX[0], p.headX);
+  TEST_ASSERT_FALSE(p.whole);
+  TEST_ASSERT_TRUE(p.hands);
+  TEST_ASSERT_EQUAL_INT(1, p.glance);  // toward the sign's middle
+  // The press dips the sign and the head together.
+  SignPose dipped = signPose(Sign::kHoldMs + Sign::kRiseMs, false, 2);
+  TEST_ASSERT_EQUAL_INT(p.signY + 2, dipped.signY);
+  TEST_ASSERT_EQUAL_INT(p.headY + 2, dipped.headY);
+}
+
+// Settled, the head spends kHopMs at each spot, left, right, the middle and
+// round again, ducking kDuckMs before it moves; the sign bumps up kNudgePx
+// every kNudgeEveryMs.
+void test_the_head_plays_peekaboo() {
+  const uint32_t at = Sign::kSettledMs + Sign::kPopMs + 100;
+  const int spots[] = {Sign::kSpotX[0], Sign::kSpotX[1], Sign::kSpotX[2], Sign::kSpotX[0]};
+  for (int i = 0; i < 4; ++i) {
+    SignPose p = signPose(at + i * Sign::kHopMs);
+    TEST_ASSERT_EQUAL_INT(spots[i], p.headX);
+    TEST_ASSERT_EQUAL_INT(spots[i], p.handX);
+  }
+  TEST_ASSERT_EQUAL_INT(-1, signPose(at + Sign::kHopMs).glance);  // right, looking left
+  TEST_ASSERT_EQUAL_INT(64, Sign::kSpotX[0]);
+  TEST_ASSERT_EQUAL_INT(256, Sign::kSpotX[1]);
+  TEST_ASSERT_EQUAL_INT(160, Sign::kSpotX[2]);
+  // Ducking: all the way behind the sign at the end of a spot.
+  SignPose duck = signPose(Sign::kSettledMs + Sign::kHopMs - 1);
+  TEST_ASSERT_TRUE(duck.headY - 26 * Sign::kHeadScale / 64 > duck.signY);
+  TEST_ASSERT_TRUE(signPose(Sign::kSettledMs + Sign::kHopMs - Sign::kDuckMs - 1).headY <= Sign::kHeadY);
+  // The nudge, at its top halfway through.
+  TEST_ASSERT_EQUAL_INT(Sign::kTop - Sign::kNudgePx, signPose(Sign::kSettledMs + Sign::kNudgeMs / 2).signY);
+  TEST_ASSERT_EQUAL_INT(Sign::kTop, signPose(Sign::kSettledMs + Sign::kNudgeMs + 1).signY);
+  TEST_ASSERT_EQUAL_INT(Sign::kTop - Sign::kNudgePx,
+                        signPose(Sign::kSettledMs + Sign::kNudgeEveryMs + Sign::kNudgeMs / 2).signY);
+  TEST_ASSERT_EQUAL_UINT32(3600, Sign::kNudgeEveryMs);
+  TEST_ASSERT_EQUAL_UINT32(4200, Sign::kHopMs);
+}
+
+// The sign: amber, with who's asking in black, the thread in the sign's
+// font, 16 columns wide.
+void test_the_sign_is_black_on_amber() {
+  TEST_ASSERT_EQUAL_UINT8(kAmber, textAt(kInkOnAmber, 0));
+  TEST_ASSERT_EQUAL_UINT16(0, paletteAt(textAt(kInkOnAmber, kLevels)));
+  TEST_ASSERT_EQUAL_UINT16(rgb565(kAmberRgb), paletteAt(kAmber));
+  TEST_ASSERT_EQUAL_INT(16, (Sign::kWidth - 2 * Sign::kPad) / kSign.w);
+  Buf b;
+  Strip s;
+  s.agent = "claude", s.project = "boop", s.name = "Fix the login test";
+  drawSignScreen(b.c, signPose(Sign::kSettledMs + Sign::kPopMs + 100), s);
+  TEST_ASSERT_TRUE(b.count(kAmber) > kWidth * kHeight / 2);
+  TEST_ASSERT_TRUE(b.count(textAt(kInkOnAmber, kLevels)) > 500);
+  TEST_ASSERT_TRUE(b.count(sceneInk(1)) > 100);  // the head and the mitts
+}
+
+void test_text_wraps_at_spaces() {
+  char lines[3][48];
+  TEST_ASSERT_EQUAL_INT(2, wrapText("Thread name on \"needs..", 16, 3, &lines[0][0], 48));
+  TEST_ASSERT_EQUAL_STRING("Thread name on", lines[0]);
+  TEST_ASSERT_EQUAL_STRING("\"needs..", lines[1]);
+  TEST_ASSERT_EQUAL_INT(2, wrapText("a-very-long-project-n..", 16, 3, &lines[0][0], 48));
+  TEST_ASSERT_EQUAL_STRING("a-very-long-proj", lines[0]);
+  TEST_ASSERT_EQUAL_STRING("ect-n..", lines[1]);
+  TEST_ASSERT_EQUAL_INT(2, wrapText("one two three four five six", 10, 2, &lines[0][0], 48));
+  TEST_ASSERT_EQUAL_STRING("one two", lines[0]);
+  TEST_ASSERT_EQUAL_STRING("three fo..", lines[1]);
+  TEST_ASSERT_EQUAL_INT(1, wrapText("caf\xC3\xA9 \xC2\xB7 ok", 16, 3, &lines[0][0], 48));
+  TEST_ASSERT_EQUAL_INT(9, glyphCount(lines[0]));
+  TEST_ASSERT_EQUAL_INT(0, wrapText("   ", 16, 3, &lines[0][0], 48));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_isqrt_is_exact);
@@ -340,5 +429,9 @@ int main(int, char**) {
   RUN_TEST(test_the_bubble_takes_the_lane);
   RUN_TEST(test_the_strip_marks_the_finish);
   RUN_TEST(test_fonts_are_monospaced_and_utf8_aware);
+  RUN_TEST(test_the_sign_rises_then_peeks);
+  RUN_TEST(test_the_head_plays_peekaboo);
+  RUN_TEST(test_the_sign_is_black_on_amber);
+  RUN_TEST(test_text_wraps_at_spaces);
   return UNITY_END();
 }

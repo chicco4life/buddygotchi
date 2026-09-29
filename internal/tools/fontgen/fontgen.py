@@ -1,4 +1,4 @@
-"""Builds the device's two fonts (the v1 build plan's F2) as C arrays.
+"""Builds the device's three fonts (the v1 build plan's F2) as C arrays.
 
 Renders Geist Mono (SIL Open Font License 1.1, copyright Vercel) with
 Pillow into 4-bit coverage cells: printable ASCII plus a middle dot. The
@@ -21,7 +21,8 @@ TTF_DIR = REPO / "landing" / "node_modules" / "geist" / "dist" / "fonts" / "geis
 # Drawn after '~' (0x7E), in this order; the renderer maps UTF-8 to them.
 EXTRAS = ["·"]
 # name, weight file, pixel size
-FONTS = [("kFontSmall", "GeistMono-Medium.ttf", 13), ("kFontLarge", "GeistMono-SemiBold.ttf", 22)]
+FONTS = [("kFontSmall", "GeistMono-Medium.ttf", 13), ("kFontLarge", "GeistMono-SemiBold.ttf", 22),
+         ("kFontSign", "GeistMono-SemiBold.ttf", 28)]
 
 
 def render(name: str, path: Path, size: int) -> str:

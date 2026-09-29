@@ -37,8 +37,9 @@ struct Model {
   uint8_t variant = 0;
   bool attn = false;
   char agent[12] = "";
-  char project[24] = "";
-  char name[24] = "";  // the thread's name; "" when the Mac sends none
+  // Both show on the needs-you sign, three lines of 16 (DEVICE.md §6).
+  char project[48] = "";
+  char name[48] = "";  // the thread's name; "" when the Mac sends none
   int more = 0;
   uint32_t attnId = 0;  // the request shown's number; 0 when the Mac sends none
   int busy = 0;

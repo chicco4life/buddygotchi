@@ -753,8 +753,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("action", choices=["frame", "pattern", "clip"])
     p.add_argument("name", nargs="?", help="clip: idle, needs_you, cheer or tap")
     p.add_argument("--seconds", type=int, default=8, help="clip length, at most 10")
-    p.add_argument("--usb", default="right", choices=["bottom", "right", "top", "left"],
-                   help="where USB-C is in the camera's view (frame only); right means upright")
+    p.add_argument("--usb", default="left", choices=["bottom", "right", "top", "left"],
+                   help="where USB-C is in the camera's view (frame only); left means upright")
     p.add_argument("--camera", help="the camera id, from internal/tools/webcam/webcam.sh list "
                                     "(default: $BOOP_CAMERA or the built-in one)")
     p.set_defaults(func=cmd_cam)

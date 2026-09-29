@@ -1,8 +1,8 @@
-// The two anti-aliased fonts (the v1 build plan's F2): Geist Mono, generated into
+// The three anti-aliased fonts (the v1 build plan's F2, and the sign's): Geist Mono, generated into
 // firmware/assets/fonts.h by internal/tools/fontgen. Monospaced, printable ASCII plus
 // "·" (UTF-8 C2 B7). Accented Latin letters (U+00C0 to U+00FF) show as their
 // plain letter and anything else as "?". Text is drawn over black with an
-// ink ramp.
+// ink ramp, or in black over the needs-you sign's amber (kInkOnAmber).
 #pragma once
 #include <cstdint>
 
@@ -17,6 +17,7 @@ struct Font {
 
 extern const Font& kSmall;  // 8 × 18 cells, for the strip
 extern const Font& kLarge;  // 13 × 30 cells, for the bubble's text
+extern const Font& kSign;   // 17 × 38 cells, for the thread on the needs-you sign
 
 // Draws `text` with its cell's top-left at (x, y). Returns the x after it.
 int drawString(Canvas& c, const Font& f, int x, int y, const char* text, int ink);
@@ -24,5 +25,13 @@ int drawString(Canvas& c, const Font& f, int x, int y, const char* text, int ink
 int stringWidth(const Font& f, const char* text);
 // Draws at most `maxWidth` pixels of text, ending with "…" as ".." if cut.
 int drawStringFit(Canvas& c, const Font& f, int x, int y, const char* text, int ink, int maxWidth);
+// Characters (glyphs, not bytes) in `text`.
+int glyphCount(const char* text);
+// Splits `text` into at most `maxLines` lines of at most `cols` glyphs,
+// breaking at spaces where it can and inside a word only when the word is
+// longer than a line; the last line ends ".." when the text doesn't fit.
+// Each line is written, NUL-terminated, into `out` (`lineBytes` per line).
+// Returns how many lines.
+int wrapText(const char* text, int cols, int maxLines, char* out, int lineBytes);
 
 }  // namespace render
