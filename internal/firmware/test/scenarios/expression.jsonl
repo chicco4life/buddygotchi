@@ -4,7 +4,7 @@
 // state's mood. The lines are Voice's (`boopdev voice`).
 // Happy and working, the tests fail: grumpy, once, with "Hrr...".
 {"clock":0}
-{"t":"state","v":1,"base":"working","mood":"happy","busy":1,"variant":3}
+{"t":"state","base":"working","mood":"happy","busy":1,"variant":3}
 {"clock":1000}
 {"t":"moment","say":{"take":"new.d12"},"mood":"grumpy","loops":1}
 {"expect":{"mood":"happy","expr":"grumpy","audio":{"playing":true,"take":"new.d12"}}}
@@ -24,7 +24,7 @@
 // Curious: a finish with no face (the dashboard's `cheer`), in curious, then
 // a proud line over it borrows proud's finish.
 {"clock":10000}
-{"t":"state","v":1,"base":"idle","mood":"curious"}
+{"t":"state","base":"idle","mood":"curious"}
 {"t":"moment","anim":"cheer","variant":1}
 {"clock":10180}
 {"expect":{"moment":{"anim":"task_complete","variant":1},"expr":null}}
@@ -48,18 +48,18 @@
 {"shot":"idle-curious"}
 // An unknown mood is ignored: the state's mood, and the line plays.
 {"clock":20000}
-{"t":"state","v":1,"base":"idle","mood":"curious"}
+{"t":"state","base":"idle","mood":"curious"}
 {"t":"moment","say":{"take":"previous.oi"},"mood":"cheerful"}
 {"expect":{"expr":null,"mood":"curious","audio":{"playing":true,"take":"previous.oi"}}}
 // Needs you: nothing plays, and no face is borrowed.
-{"t":"state","v":1,"base":"idle","mood":"curious","attn":{"agent":"claude","project":"x","more":0}}
+{"t":"state","base":"idle","mood":"curious","attn":{"agent":"claude","project":"x","more":0}}
 {"clock":30000}
 {"t":"moment","say":{"take":"previous.go"},"mood":"grumpy"}
 {"expect":{"screen":"needs_you","expr":null,"audio":{"take":null}}}
 // A face on its own, no line: proud for its two loops of the idle design
 // it's drawn in (proud's first, 1 s), from the look's start at 40000.
 {"clock":40000}
-{"t":"state","v":1,"base":"idle","mood":"curious"}
+{"t":"state","base":"idle","mood":"curious"}
 {"t":"moment","mood":"proud","loops":2,"id":14}
 {"expect":{"moment":null,"expr":"proud","audio":{"playing":false,"take":null}}}
 {"clock":40500}

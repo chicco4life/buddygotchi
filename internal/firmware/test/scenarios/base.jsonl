@@ -1,22 +1,22 @@
 // Base states (BEHAVIORS.md §2), and no app after 30 s of silence: the
 // no-app design whatever the base was, with the unplugged icon (§3.4).
 {"clock":0}
-{"t":"state","v":1,"base":"idle","busy":0}
+{"t":"state","base":"idle","busy":0}
 {"clock":300}
 {"expect":{"screen":"face","base":"idle","attn":null,"moment":null}}
 {"shot":"idle"}
-{"t":"state","v":1,"base":"working","busy":1}
+{"t":"state","base":"working","busy":1}
 {"clock":600}
 {"expect":{"base":"working"}}
 {"shot":"working"}
-{"t":"state","v":1,"base":"working","busy":3}
+{"t":"state","base":"working","busy":3}
 {"clock":900}
 {"shot":"working-busy"}
-{"t":"state","v":1,"base":"asleep","busy":0}
+{"t":"state","base":"asleep","busy":0}
 {"clock":1200}
 {"expect":{"base":"asleep"}}
 {"shot":"asleep"}
-{"t":"state","v":1,"base":"idle","busy":0}
+{"t":"state","base":"idle","busy":0}
 {"clock":31199}
 {"expect":{"screen":"face","bl":255}}
 {"clock":31200}
@@ -26,7 +26,7 @@
 {"clock":31500}
 {"shot":"no-app"}
 // Reconnect: the next state, its design behind a blink (100 ms of 150 in).
-{"t":"state","v":1,"base":"idle","busy":0}
+{"t":"state","base":"idle","busy":0}
 {"clock":31600}
 {"expect":{"screen":"face","life":null}}
 {"shot":"reconnect"}

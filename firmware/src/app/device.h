@@ -18,12 +18,6 @@
 #include "voice/effects.h"
 #include "voice/player.h"
 
-// A debug-only label: the face's state name in faint text at the top left.
-// Off unless a build sets it (firmware/platformio.ini).
-#ifndef BOOP_DEBUG_LABEL
-#define BOOP_DEBUG_LABEL 0
-#endif
-
 namespace app {
 
 enum class Link : uint8_t { kNone, kUsb, kBle };
@@ -70,9 +64,6 @@ struct Hal {
   virtual void setBacklight(uint8_t level) { (void)level; }
   virtual uint32_t heapFree() { return 0; }
   virtual uint32_t heapMin() { return 0; }
-  virtual uint32_t fps() { return 0; }
-  // The last frame's drawing and pushing time, in microseconds.
-  virtual void frameUs(uint32_t& draw, uint32_t& push) { draw = push = 0; }
   virtual bool ampOn() { return false; }
   // Sound (VOICE.md §8). The board plays on the DAC; the default drops it.
   virtual void say(const voice::Line& l) { (void)l; }
@@ -131,6 +122,12 @@ class Device {
   // again after kNoAppMs of silence.
   void connected();
   void disconnected();
+  // True when the Mac has sent no line on `link`, while connected over
+  // Bluetooth, for kNoAppMs of real time: a link left over from a killed
+  // app, which Ble lets go (PROTOCOL.md §2, "Reconnecting"). Then true
+  // again only after another kNoAppMs, in case letting go didn't take.
+  // Always false for USB, which has no connection to let go.
+  bool shouldDrop(Link link);
   // Reads inputs, advances state, and redraws the canvas if needed.
   void tick();
   // True once after each redraw.
@@ -139,6 +136,9 @@ class Device {
     frame_ = false;
     return f;
   }
+  // The board drew and pushed a frame, taking this many microseconds for
+  // each (dbg.ping `fps`, `draw_us`, `push_us`).
+  void noteFrame(uint32_t drawUs, uint32_t pushUs) { drawUs_ = drawUs, pushUs_ = pushUs, ++frames_; }
 
   render::Canvas& canvas() { return canvas_; }
   uint32_t now() const { return clock_.now(hal_.realMs()); }
@@ -176,7 +176,6 @@ class Device {
   bool startLine(uint32_t t);
   void followSound(uint32_t t);
   Screen screenAt(uint32_t t) const { return pattern_ ? Screen::kPattern : b_.screen(t); }
-  const char* debugLabel(uint32_t t) const;
 
   Hal& hal_;
   render::Canvas canvas_;
@@ -187,8 +186,10 @@ class Device {
   Out* outs_[3] = {nullptr, nullptr, nullptr};
   Link link_ = Link::kNone;  // the link the Mac last spoke on
   bool bleUp_ = false;       // a Mac is connected over Bluetooth
-  bool usbHeard_ = false;    // the Mac has spoken on USB, last at usbHeardReal_
-  uint32_t usbHeardReal_ = 0;
+  // Per link: the Mac has spoken on it (or connected, for Bluetooth), last
+  // at heardReal_, in real time.
+  bool heard_[3] = {false, false, false};
+  uint32_t heardReal_[3] = {0, 0, 0};
   uint32_t statusReal_ = 0;  // real time of the last status
   uint32_t dbgReal_ = 0;     // real time of the last dbg.* message
   bool toolFrozen_ = false;  // a dbg.* message froze the clock (not the simulator's start)
@@ -210,7 +211,9 @@ class Device {
   render::SignPose drawnPose_{};
   bool dirty_ = true;
   bool frame_ = false;
-  const char* labelDrawn_ = nullptr;  // the debug label on screen, or null
+  // Frames pushed (noteFrame): counted over each real second into fps_.
+  uint32_t frames_ = 0, fpsSinceReal_ = 0, fps_ = 0;
+  uint32_t drawUs_ = 0, pushUs_ = 0;
 
   // Injected input, held until the clock passes `until`.
   bool injPress_ = false;

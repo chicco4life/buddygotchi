@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "faces.h"
 #include "render/scene.h"
 
 namespace render {
@@ -12,9 +13,8 @@ namespace {
 // "cheer" is the finish's success, and the Mac's "wiggle" (the
 // dashboard's) what a tap plays.
 const char* const kOlder[][2] = {{"cheer", "task_complete"}, {"wiggle", "poked"}};
-const char* const kMoods[] = {"happy", "excited", "proud",     "curious", "determined", "grumpy", "sad",
-                              "calm",  "engaged", "annoyed", "irritated", "whiny",      "wounded"};
-static_assert(sizeof(kMoods) / sizeof(kMoods[0]) == size_t(Mood::kCount), "one name per mood");
+// The moods' names are the designs' (faces.h).
+static_assert(faces::kMoodCount == int(Mood::kCount), "one name per mood");
 
 }  // namespace
 
@@ -42,11 +42,11 @@ Mood moodFromName(const char* name) {
 bool parseMood(const char* name, Mood& out) {
   if (!name) return false;
   for (int i = 0; i < int(Mood::kCount); ++i) {
-    if (!std::strcmp(name, kMoods[i])) return out = Mood(i), true;
+    if (!std::strcmp(name, faces::kMoodNames[i])) return out = Mood(i), true;
   }
   return false;
 }
 
-const char* moodName(Mood m) { return kMoods[int(m) < int(Mood::kCount) ? int(m) : 0]; }
+const char* moodName(Mood m) { return faces::kMoodNames[int(m) < int(Mood::kCount) ? int(m) : 0]; }
 
 }  // namespace render

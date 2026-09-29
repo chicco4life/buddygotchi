@@ -4,7 +4,7 @@
 // say. With `who`, the strip names whose turn it was, after a tick. The
 // dashboard's `wiggle` is a tap's poke.
 {"clock":0}
-{"t":"state","v":1,"base":"idle"}
+{"t":"state","base":"idle"}
 {"clock":10000}
 {"t":"moment","anim":"cheer","variant":1}
 {"clock":10190}
@@ -14,20 +14,20 @@
 {"expect":{"moment":{"anim":"task_complete","left_ms":1}}}
 {"clock":16400}
 {"expect":{"moment":null}}
-{"t":"state","v":1,"base":"idle","busy":2}
+{"t":"state","base":"idle","busy":2}
 {"clock":20000}
 {"t":"moment","anim":"cheer","variant":1,"who":{"agent":"codex","thread":"landing-page-redesig.."}}
 {"clock":20190}
 {"shot":"cheer_who"}
 {"clock":26400}
 {"expect":{"moment":null}}
-{"t":"state","v":1,"base":"idle"}
+{"t":"state","base":"idle"}
 {"clock":30000}
 {"t":"moment","anim":"wiggle"}
 {"clock":30090}
 {"expect":{"moment":{"anim":"poked","left_ms":2710}}}
 {"shot":"poked"}
-{"t":"state","v":1,"base":"idle"}
+{"t":"state","base":"idle"}
 // The empty moment, with neither `anim`, `say` nor `mood`, never ends
 // another animation (PROTOCOL.md §3).
 {"clock":50000}
@@ -35,7 +35,7 @@
 {"clock":50500}
 {"t":"moment"}
 {"expect":{"moment":{"anim":"task_complete","left_ms":5900}}}
-{"t":"state","v":1,"base":"idle"}
+{"t":"state","base":"idle"}
 // The Mac's own listening (DEVICE.md §4) holds until the reply; the empty
 // moment ends it and does nothing else: the face blends back.
 {"clock":60000}
@@ -43,13 +43,13 @@
 {"clock":60400}
 {"expect":{"moment":{"anim":"listening","left_ms":37600}}}
 {"shot":"listening"}
-{"t":"state","v":1,"base":"idle"}
+{"t":"state","base":"idle"}
 {"clock":65000}
 {"t":"moment"}
 {"expect":{"moment":null,"audio":{"playing":false}}}
 {"clock":65075}
 {"shot":"listening-stopped-75ms"}
-{"t":"state","v":1,"base":"idle"}
+{"t":"state","base":"idle"}
 // An unknown animation with no line is ignored, the removed ones too.
 {"clock":70000}
 {"t":"moment","anim":"oops"}
@@ -61,13 +61,13 @@
 // Two loops: the design plays again from its start, so 190 ms into the
 // second loop looks as 190 ms into the first.
 {"clock":90000}
-{"t":"state","v":1,"base":"idle"}
+{"t":"state","base":"idle"}
 {"t":"moment","anim":"cheer","variant":1,"loops":2}
 {"expect":{"moment":{"anim":"task_complete","left_ms":12800}}}
 {"clock":96590}
 {"expect":{"moment":{"anim":"task_complete","left_ms":6210}}}
 {"shot":"cheer-second-loop"}
-{"t":"state","v":1,"base":"idle"}
+{"t":"state","base":"idle"}
 {"clock":102799}
 {"expect":{"moment":{"anim":"task_complete","left_ms":1}}}
 {"clock":102800}

@@ -7,7 +7,7 @@
 // A success, excited: happy's first task-complete design (6.4 s), whose
 // window opens 3.05 s in.
 {"clock":0}
-{"t":"state","v":1,"base":"idle","busy":1}
+{"t":"state","base":"idle","busy":1}
 {"clock":1000}
 {"t":"moment","anim":"task_complete","outcome":"success","variant":1,"say":{"take":"previous.yay"},"mood":"excited","loops":1,"id":11,"who":{"agent":"claude","thread":"fix-nav"}}
 {"expect":{"moment":{"anim":"task_complete","left_ms":6400,"variant":1},"expr":"excited","audio":{"playing":false,"take":null}}}
@@ -33,7 +33,7 @@
 // design rests on its last frame until the line and its bubble end, at
 // 5040 + 898 ("Hrr...") + 1200 = 7138 ms.
 {"clock":20000}
-{"t":"state","v":1,"base":"idle","mood":"grumpy","busy":1}
+{"t":"state","base":"idle","mood":"grumpy","busy":1}
 {"t":"moment","anim":"task_complete","outcome":"failure","say":{"take":"new.d12"},"mood":"grumpy","loops":1,"id":12,"who":{"agent":"claude","thread":"fix-nav"}}
 {"expect":{"moment":{"anim":"task_complete","left_ms":7138,"variant":5}}}
 {"clock":21000}
@@ -50,7 +50,7 @@
 {"expect":{"moment":null,"audio":{"take":null}}}
 // A reply, calm: three dots, and a line from 0.45 s in.
 {"clock":40000}
-{"t":"state","v":1,"base":"idle","mood":"calm","busy":1}
+{"t":"state","base":"idle","mood":"calm","busy":1}
 {"t":"moment","anim":"reply_ready","variant":1,"say":{"take":"new.d13"},"mood":"calm","loops":1,"id":13,"who":{"agent":"codex","thread":"landing"}}
 {"expect":{"moment":{"anim":"reply_ready","left_ms":6466,"variant":1}}}
 {"clock":40300}

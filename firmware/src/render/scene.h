@@ -23,10 +23,7 @@ enum class SceneState : uint8_t {
   kDelegating, kHelperReturn, kWaiting, kReplyReady, kError, kStopped, kPoked, kTapSpam,
   kCount
 };
-// "idle", "working", "needs_you", "task_complete", "asleep", "no_app",
-// "listening", "starting", "planning", "terminal", "tool_use", "searching",
-// "analyzing", "testing", "delegating", "helper_return", "waiting",
-// "reply_ready", "error", "stopped", "poked", "tap_spam".
+// The state's name, faces.h's kStateNames ("idle", "needs_you", ...).
 const char* stateName(SceneState s);
 SceneState stateFromName(const char* name);  // kIdle if missing or unknown
 // The design an animation plays: its own state's.

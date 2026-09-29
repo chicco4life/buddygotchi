@@ -18,6 +18,6 @@
 {"expect": {"moment":null}}
 {"clock": 2200}
 {"t":"dbg.pattern"}
-{"t":"state","v":1,"base":"working"}
+{"t":"state","base":"working"}
 {"expect": {"screen":"face","base":"working"}}
 {"shot": "face"}

@@ -2,8 +2,6 @@
 
 #include <cstring>
 
-#include "render/font5x7.h"
-
 namespace render {
 
 void Canvas::fill(uint8_t color) { std::memset(px_, color, size_t(kWidth) * kHeight); }
@@ -41,31 +39,6 @@ void Canvas::fillTriangle(int x0, int y0, int x1, int y1, int x2, int y2, uint8_
       }
     }
   }
-}
-
-int Canvas::drawText(int x, int y, const char* text, uint8_t color, int scale) {
-  for (const char* p = text; *p; ++p) {
-    unsigned char c = static_cast<unsigned char>(*p);
-    if (c < 0x20 || c > 0x7E) c = '?';
-    const uint8_t* glyph = kFont5x7[c - 0x20];
-    for (int col = 0; col < 5; ++col) {
-      for (int row = 0; row < 7; ++row) {
-        if (glyph[col] & (1 << row)) fillRect(x + col * scale, y + row * scale, scale, scale, color);
-      }
-    }
-    x += 6 * scale;
-  }
-  return x;
-}
-
-int Canvas::textWidth(const char* text, int scale) {
-  int n = int(std::strlen(text));
-  return n == 0 ? 0 : (6 * n - 1) * scale;
-}
-
-uint8_t Canvas::get(int x, int y) const {
-  if (x < 0 || y < 0 || x >= kWidth || y >= kHeight) return 0;
-  return px_[y * kWidth + x];
 }
 
 uint32_t Canvas::rowHash(int y) const {

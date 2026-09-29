@@ -36,14 +36,6 @@ const char* linkName(Link l) {
   }
 }
 
-bool parseHex(const char* s, uint32_t& out) {
-  if (!s || s[0] != '#' || std::strlen(s) != 7) return false;
-  unsigned v = 0;
-  if (std::sscanf(s + 1, "%6x", &v) != 1) return false;
-  out = v;
-  return true;
-}
-
 void sinkToOut(void* ctx, const char* text, size_t n) { static_cast<Out*>(ctx)->write(text, n); }
 
 // A number the device holds to lo–hi (PROTOCOL.md §3): any JSON number,
@@ -60,6 +52,7 @@ int heldTo(JsonVariantConst v, int lo, int hi, int missing) {
 Device::Device(Hal& hal, uint8_t* pixels, bool frozenClock) : hal_(hal), canvas_(pixels) {
   clock_.start(frozenClock, hal_.realMs());
   b_.reset(0, rng_);
+  fpsSinceReal_ = hal_.realMs();
 }
 
 // Forgets everything the Mac said and freezes the clock at 0, so a scenario
@@ -100,7 +93,9 @@ void Device::emit(const char* k, bool injected) {
   int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"input\",\"k\":\"%s\"}", k);
   if (injected) return reply(Link::kUsb, buf, size_t(n));
   if (bleUp_) reply(Link::kBle, buf, size_t(n));
-  if (usbHeard_ && hal_.realMs() - usbHeardReal_ < Behaviour::kNoAppMs) reply(Link::kUsb, buf, size_t(n));
+  if (heard_[int(Link::kUsb)] && hal_.realMs() - heardReal_[int(Link::kUsb)] < Behaviour::kNoAppMs) {
+    reply(Link::kUsb, buf, size_t(n));
+  }
 }
 
 void Device::input(const char* k, uint32_t t, int x, int y) {
@@ -118,10 +113,9 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
   uint32_t real = hal_.realMs();
   // USB's "connect": the Mac's first word, or its first after a silence.
   bool hello = !debug && from == Link::kUsb &&
-               (link_ != Link::kUsb || real - usbHeardReal_ >= Behaviour::kNoAppMs);
-  if (!debug) link_ = from;
+               (link_ != Link::kUsb || real - heardReal_[int(Link::kUsb)] >= Behaviour::kNoAppMs);
+  if (!debug) link_ = from, heard_[int(from)] = true, heardReal_[int(from)] = real;
   else dbgReal_ = real;
-  if (!debug && from == Link::kUsb) usbHeard_ = true, usbHeardReal_ = real;
   uint32_t at = now();
   b_.advance(at, rng_);
 
@@ -270,8 +264,6 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     cardCopy(o, from);
   } else if (!std::strcmp(t, "dbg.light")) {
     if (doc["bl"].is<int>()) b_.overrideBacklight(uint8_t(doc["bl"].as<int>()));
-    uint32_t rgb;
-    if (parseHex(doc["led"], rgb)) b_.overrideLed(rgb);
     reply(from, "{\"t\":\"dbg.light\"}", 17);
   }
   if (hello) sendStatus(from);
@@ -320,12 +312,23 @@ void Device::cardCopy(const CardOp& o, Link from) {
 void Device::connected() {
   link_ = Link::kBle;
   bleUp_ = true;
+  heard_[int(Link::kBle)] = true, heardReal_[int(Link::kBle)] = hal_.realMs();
   sendStatus(Link::kBle);
 }
 
 void Device::disconnected() {
   if (link_ == Link::kBle) link_ = Link::kNone;
   bleUp_ = false;
+  heard_[int(Link::kBle)] = false;
+}
+
+bool Device::shouldDrop(Link link) {
+  if (link != Link::kBle || !bleUp_) return false;  // USB has no connection to let go
+  uint32_t real = hal_.realMs();
+  uint32_t& heard = heardReal_[int(link)];
+  if (real - heard < Behaviour::kNoAppMs) return false;
+  heard = real;
+  return true;
 }
 
 void Device::tapped(uint32_t t, bool injected) {
@@ -388,6 +391,8 @@ void Device::readInputs(uint32_t t) {
 }
 
 void Device::tick() {
+  uint32_t real = hal_.realMs();
+  if (real - fpsSinceReal_ >= 1000) fps_ = frames_ * 1000 / (real - fpsSinceReal_), frames_ = 0, fpsSinceReal_ = real;
   if (link_ != Link::kNone && hal_.realMs() - statusReal_ >= kStatusMs) sendStatus(link_);
   if (toolFrozen_ && hal_.realMs() - dbgReal_ >= kThawMs) clock_.run(hal_.realMs()), toolFrozen_ = false;
   uint32_t t = now();
@@ -403,7 +408,6 @@ void Device::tick() {
 
   Screen screen = screenAt(t);
   if (screen != screen_) screen_ = screen, dirty_ = true;
-  if (debugLabel(t) != labelDrawn_) dirty_ = true;
   // The face may change without a message: its design moves on its own
   // clock (a breath, keys lighting, a blink), so on the face screens every
   // step is checked, and drawn only if its frame changed. A frozen clock
@@ -503,19 +507,8 @@ void Device::render(uint32_t t) {
     drawnBubble_ = bubble != nullptr;
     render::drawFaceScreen(canvas_, frame, bubble, b_.strip(t));
   }
-  labelDrawn_ = debugLabel(t);
-  if (labelDrawn_) canvas_.drawText(2, 2, labelDrawn_, render::inkAt(render::kInkDim, render::kLevels));
   dirty_ = false;
   frame_ = true;
-}
-
-// The face's state name, on the face screens, when BOOP_DEBUG_LABEL is on.
-// Frozen-clock frames (the simulator and scenario runs) leave it out, so
-// device screenshots still match the goldens pixel for pixel.
-const char* Device::debugLabel(uint32_t t) const {
-  if (!BOOP_DEBUG_LABEL || clock_.frozen()) return nullptr;
-  if (screen_ == Screen::kPattern) return nullptr;
-  return b_.faceName(t);
 }
 
 void Device::sendPing(Link to) {
@@ -526,11 +519,9 @@ void Device::sendPing(Link to) {
   d["up"] = hal_.realMs();
   d["heap"] = hal_.heapFree();
   d["heap_min"] = hal_.heapMin();
-  d["fps"] = hal_.fps();
-  uint32_t drawUs, pushUs;
-  hal_.frameUs(drawUs, pushUs);
-  d["draw_us"] = drawUs;
-  d["push_us"] = pushUs;
+  d["fps"] = fps_;
+  d["draw_us"] = drawUs_;
+  d["push_us"] = pushUs_;
   d["link"] = linkName(link_);
   d["ble"] = hal_.bleState();
   if (hal_.bleName()[0]) d["name"] = hal_.bleName();
@@ -562,7 +553,7 @@ void Device::sendEnded() {
 void Device::sendStatus(Link to) {
   statusReal_ = hal_.realMs();
   char buf[160];
-  int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"status\",\"v\":1,\"id\":\"%s\",\"fw\":\"%s\",\"voice\":\"%s\"}",
+  int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"status\",\"id\":\"%s\",\"fw\":\"%s\",\"voice\":\"%s\"}",
                         hal_.deviceId(), hal_.fwVersion(), voice::assetsVersion());
   reply(to, buf, size_t(n));
 }

@@ -97,7 +97,7 @@ replace the code that knows the hardware.
 | `src/main.cpp` | Start-up and the main loop (below) | Board |
 | `src/app/device.*` | The device core: parses each line, answers `dbg.*`, turns BOOT and touch into gestures, decides when to draw, and sends `status`, `input` and `ended` | Board and Mac |
 | `src/app/behaviour.*` | What Boop does ([BEHAVIORS.md](BEHAVIORS.md)): the last `state`, the moment and line playing and how each the Mac waits on ended, taps in a row, blinks, no app, and the light, backlight and sound cues they imply | Board and Mac |
-| `src/app/` (the rest) | The device clock and random numbers (`clock.h`), BOOT's taps and holds (`gesture.*`), touch calibration (`touch_cal.h`), line reassembly and Bluetooth packets (`line_reader.h`, `packets.h`), dropping a quiet link (`link_silence.h`), and the screenshot's CRC and base64 (`codec.*`) | Board and Mac |
+| `src/app/` (the rest) | The device clock and random numbers (`clock.h`), BOOT's taps and holds (`gesture.*`), touch calibration (`touch_cal.h`), line reassembly and Bluetooth packets (`line_reader.h`, `packets.h`), and the screenshot's CRC and base64 (`codec.*`) | Board and Mac |
 | `src/render/` | The 8-bit canvas, palette, anti-aliased shapes, fonts, the animation bank's player (`scene.*`), the face screen with its bottom lane, the bubble or the strip (`screens.*`), the needs-you sign (`sign.*`), the animation and mood names (`anim.*`) and the test pattern | Board and Mac |
 | `src/voice/player.*` | The voice pack: takes found by id, their text and mouth, and a line of one or two takes into samples, read from a `voice::Source` (the card, or a file on the Mac) ([VOICE.md](VOICE.md) §8) | Board and Mac |
 | `src/voice/effects.*`, `src/app/effect_track.*` | The sound effects' clips and timelines, the mixer that adds them to the voice, and when each event plays with the face ([VOICE.md](VOICE.md) §10) | Board and Mac |
@@ -396,7 +396,9 @@ The designs' 89 colours sit in the palette after the ramps
 bottom lane to the strip and the bubble (§4), but the first pack's
 looks, successes for the finish and listening, which draw to the bottom
 of the screen.
-`faces.h` also has each design's loop (`loopMs`), which a moment's
+`faces.h` also names the moods and states in facegen's order
+(`kMoodNames`, `kStateNames`), the only lists `render/anim.cpp` and
+`render/scene.cpp` keep. It has each design's loop (`loopMs`), which a moment's
 `loops` count ([PROTOCOL.md](PROTOCOL.md) §3), how many variations each
 mood and state has and what each is for; facegen writes the same numbers
 for the Mac, in `app/BoopKit/Core/FaceLoops.swift`, with each design's
@@ -482,8 +484,7 @@ internal/tools/boopctl ping  # firmware version and SHA, uptime, heap, fps, link
 The make targets run PlatformIO through `firmware/tools/pio.sh`, which
 keeps its packages in `firmware/.platformio-core`, inside the checkout.
 Each build bakes in the version from `VERSION` and the git SHA
-(`firmware/tools/version.py`); `-DBOOP_DEBUG_LABEL=1` in
-`firmware/platformio.ini` adds the debug label.
+(`firmware/tools/version.py`).
 
 The firmware talks over USB serial at **460800 baud**, and flashing uses
 the same rate. The board's CH340 on macOS's own driver can't do 921600:
@@ -502,7 +503,8 @@ the checks):
    means this pin was never driven high.
 2. **Test pattern** (`internal/tools/boopctl play pattern`): six colour
    blocks, labelled corners, a big UP arrow and a black bar down the USB-C
-   edge (the left). Upright, the arrow is at the top and the bar on the USB-C side;
+   edge (the left), on grey. The labels are in the strip's font, amber on
+   black plates. Upright, the arrow is at the top and the bar on the USB-C side;
    the colours confirm inversion and colour order (§4).
 3. **Screenshot:** `internal/tools/boopctl shot` matches the simulator
    pixel for pixel.

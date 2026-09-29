@@ -1,25 +1,25 @@
 // The bubble: the take's text in amber, centred in its box. A line on its
 // own plays over whatever face is showing (BEHAVIORS.md §5): here, working.
 {"clock":0}
-{"t":"state","v":1,"base":"working","busy":1}
+{"t":"state","base":"working","busy":1}
 {"clock":1000}
 {"t":"moment","say":{"take":"previous.go"}}
 {"expect":{"moment":null,"audio":{"playing":true,"take":"previous.go"}}}
 {"clock":1400}
 {"shot":"short"}
 {"clock":10000}
-{"t":"state","v":1,"base":"working","busy":1}
+{"t":"state","base":"working","busy":1}
 {"t":"moment","say":{"take":"previous.tsk"}}
 {"clock":10400}
 {"shot":"dots"}
 {"clock":20000}
-{"t":"state","v":1,"base":"working","busy":1}
+{"t":"state","base":"working","busy":1}
 {"t":"moment","say":{"take":"previous.eh"}}
 {"clock":20300}
 {"shot":"question"}
 // The longest text, whole inside the bubble.
 {"clock":30000}
-{"t":"state","v":1,"base":"working","busy":1}
+{"t":"state","base":"working","busy":1}
 {"t":"moment","say":{"take":"new.d15"}}
 {"clock":30400}
 {"shot":"longest"}
@@ -43,7 +43,7 @@
 {"shot":"small-text"}
 // Over an animation, a line leaves it playing, and plays at once; the
 // bubble blanks the lane, which the first pack's success fills with gold.
-{"t":"state","v":1,"base":"idle"}
+{"t":"state","base":"idle"}
 {"clock":40000}
 {"t":"moment","anim":"cheer","variant":1}
 {"clock":40300}
@@ -53,14 +53,14 @@
 {"shot":"over-cheer"}
 // A `say` with no take, or one the device doesn't have: nothing plays and
 // no bubble shows, and the face goes on.
-{"t":"state","v":1,"base":"idle"}
+{"t":"state","base":"idle"}
 {"clock":55000}
 {"t":"moment","say":{}}
 {"expect":{"moment":null,"audio":{"playing":false,"take":null}}}
 {"t":"moment","say":{"take":"banana"}}
 {"expect":{"moment":null,"audio":{"playing":false,"take":null}}}
 // The reply to push-to-talk ends listening's wait, and plays.
-{"t":"state","v":1,"base":"idle"}
+{"t":"state","base":"idle"}
 {"clock":57000}
 {"input":{"press":"hold","ms":600}}
 {"clock":57400}
@@ -73,7 +73,7 @@
 {"clock":58400}
 {"shot":"reply-after-talk"}
 // Needs you: nothing plays.
-{"t":"state","v":1,"base":"idle","attn":{"agent":"claude","project":"x","more":0}}
+{"t":"state","base":"idle","attn":{"agent":"claude","project":"x","more":0}}
 {"clock":60000}
 {"t":"moment","say":{"take":"previous.go"}}
 {"expect":{"moment":null,"audio":{"take":null}}}

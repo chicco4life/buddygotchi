@@ -16,11 +16,6 @@ static_assert(int(Mood::kCount) == kMoodCount && int(SceneState::kCount) == kSta
 static_assert(faces::kMaxVariants <= render::kMaxVariants, "a state's variations fit");
 static_assert(int(Outcome::kFailure) == 2 && int(StartCtx::kContinuation) == 3, "faces.h's host facts");
 
-const char* const kStates[] = {"idle",      "working",   "needs_you",  "task_complete", "asleep",        "no_app",
-                               "listening", "starting",  "planning",   "terminal",      "tool_use",      "searching",
-                               "analyzing", "testing",   "delegating", "helper_return", "waiting",       "reply_ready",
-                               "error",     "stopped",   "poked",      "tap_spam"};
-static_assert(sizeof(kStates) / sizeof(kStates[0]) == size_t(SceneState::kCount), "one name per state");
 const char* const kOutcomes[] = {"", "success", "failure"};
 const char* const kCtxs[] = {"", "new_task", "session", "continuation"};
 constexpr uint16_t kNone = 0xFFFF;
@@ -183,7 +178,7 @@ const Design& design(Mood m, SceneState s, int variant) {
 
 }  // namespace
 
-const char* stateName(SceneState s) { return kStates[int(s) < int(SceneState::kCount) ? int(s) : 0]; }
+const char* stateName(SceneState s) { return kStateNames[int(s) < int(SceneState::kCount) ? int(s) : 0]; }
 
 SceneState animState(Anim a) {
   switch (a) {
@@ -203,7 +198,7 @@ SceneState animState(Anim a) {
 SceneState stateFromName(const char* name) {
   if (!name) return SceneState::kIdle;
   for (int i = 0; i < int(SceneState::kCount); ++i) {
-    if (!std::strcmp(name, kStates[i])) return SceneState(i);
+    if (!std::strcmp(name, kStateNames[i])) return SceneState(i);
   }
   return SceneState::kIdle;
 }

@@ -24,9 +24,6 @@ app::LineReader usbLine;
 links::Ble ble;
 app::Device* device = nullptr;
 
-uint32_t frames = 0;
-uint32_t fpsSince = 0;
-
 // Lines are handled for at most this long before the next frame is drawn.
 constexpr uint32_t kLinesUs = 8000;
 
@@ -56,7 +53,6 @@ void setup() {
   // Bluetooth after the canvas, so the canvas got its contiguous block.
   if (ble.begin()) device->setOut(app::Link::kBle, &ble);
   hal.setBle(&ble);
-  fpsSince = millis();
 }
 
 void loop() {
@@ -81,14 +77,7 @@ void loop() {
   if (device->takeFrame()) {
     uint32_t t1 = micros();
     board::displayPush(device->canvas());
-    hal.setFrameUs(t1 - t0, micros() - t1);
-    ++frames;
-  }
-  uint32_t now = millis();
-  if (now - fpsSince >= 1000) {
-    hal.setFps(frames * 1000 / (now - fpsSince));
-    frames = 0;
-    fpsSince = now;
+    device->noteFrame(t1 - t0, micros() - t1);
   }
   if (!busy) delay(1);
 }

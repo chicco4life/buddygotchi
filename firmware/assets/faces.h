@@ -98,11 +98,12 @@ struct Scene {
 constexpr int kMaxGroups = 270;
 constexpr int kSceneCount = 704;
 
-// The moods and states, in render::Mood's and render::SceneState's order:
-// happy, excited, proud, curious, determined, grumpy, sad, calm, engaged, annoyed, irritated, whiny, wounded;
-// idle, working, needs_you, task_complete, asleep, no_app, listening, starting, planning, terminal, tool_use, searching, analyzing, testing, delegating, helper_return, waiting, reply_ready, error, stopped, poked, tap_spam.
+// The moods and states by name, in render::Mood's and render::SceneState's
+// order: the only lists the device keeps (render/anim.cpp, render/scene.cpp).
 constexpr int kMoodCount = 13;
+constexpr const char* kMoodNames[13] = {"happy", "excited", "proud", "curious", "determined", "grumpy", "sad", "calm", "engaged", "annoyed", "irritated", "whiny", "wounded"};
 constexpr int kStateCount = 22;
+constexpr const char* kStateNames[22] = {"idle", "working", "needs_you", "task_complete", "asleep", "no_app", "listening", "starting", "planning", "terminal", "tool_use", "searching", "analyzing", "testing", "delegating", "helper_return", "waiting", "reply_ready", "error", "stopped", "poked", "tap_spam"};
 constexpr int kMaxVariants = 9;
 constexpr int kDesignCount = 770;
 // A design: a mood and state's variation, the scene it draws, and the host

@@ -288,7 +288,7 @@ void Behaviour::onState(const Model& m, uint32_t t) {
     if (look) lookVariant_ = m.variant;
     lastState_ = t;
     stale_ = false;
-    ledOverride_ = blOverride_ = false;
+    blOverride_ = false;
     if (fresh) {  // a new request: its performance plays from the start, and attention wins
       alerted_ = true, alertAt_ = t;
       lookAt_ = t;
@@ -549,16 +549,10 @@ render::SceneShow Behaviour::show(uint32_t t) const {
 
 bool Behaviour::pressEasing(uint32_t t) const { return pressed_ && within(t, pressAt_, kPressEaseMs); }
 
-const char* Behaviour::faceName(uint32_t t) const {
-  Source s = sourceAt(t);
-  return s.anim != render::Anim::kNone ? render::animName(s.anim) : render::stateName(s.look);
-}
-
 bool Behaviour::blinking(uint32_t t) const { return blink_ && within(t, blinkAt_, kBlinkMs); }
 
 // Amber at half while something needs you; otherwise off (BEHAVIORS.md §3.2).
 uint32_t Behaviour::led(uint32_t t) const {
-  if (ledOverride_) return ledSet_;
   if (noApp(t)) return 0;
   return model_.attn ? kAmberDim : 0;
 }

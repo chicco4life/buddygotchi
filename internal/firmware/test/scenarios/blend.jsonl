@@ -1,9 +1,9 @@
 // Switching designs: the eyes shut for 150 ms to hide each cut, and a
 // switch mid-switch shuts them again from there.
 {"clock":0}
-{"t":"state","v":1,"base":"idle"}
+{"t":"state","base":"idle"}
 {"clock":1000}
-{"t":"state","v":1,"base":"working","busy":1}
+{"t":"state","base":"working","busy":1}
 {"clock":1050}
 {"shot":"idle-to-working-50ms"}
 {"clock":1100}

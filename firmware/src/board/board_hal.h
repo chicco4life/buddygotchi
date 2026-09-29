@@ -12,8 +12,6 @@ namespace board {
 class BoardHal : public app::Hal {
  public:
   void begin();
-  void setFps(uint32_t fps) { fps_ = fps; }
-  void setFrameUs(uint32_t draw, uint32_t push) { drawUs_ = draw, pushUs_ = push; }
   // Bluetooth, once it has started (or failed to): its state, name and the
   // device ID it took from the MAC.
   void setBle(const links::Ble* ble) { ble_ = ble; }
@@ -28,8 +26,6 @@ class BoardHal : public app::Hal {
   void setBacklight(uint8_t level) override;
   uint32_t heapFree() override;
   uint32_t heapMin() override;
-  uint32_t fps() override { return fps_; }
-  void frameUs(uint32_t& draw, uint32_t& push) override { draw = drawUs_, push = pushUs_; }
   bool ampOn() override;
   void say(const voice::Line& l) override;
   void hush() override;
@@ -49,8 +45,6 @@ class BoardHal : public app::Hal {
  private:
   app::TouchCal cal_;         // from NVS; invalid until `boopctl calibrate` has run on this rotation
   app::TouchCal defaultCal_;  // used until then: the raw range, turned by kRotation
-  uint32_t fps_ = 0;
-  uint32_t drawUs_ = 0, pushUs_ = 0;
   const links::Ble* ble_ = nullptr;
 };
 

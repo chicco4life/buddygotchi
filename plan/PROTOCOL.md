@@ -101,11 +101,14 @@ The device, over Bluetooth:
 - **It advertises whenever it isn't connected.** It restarts advertising
   on every disconnect, and checks once a second in case that didn't take.
 - **A quiet link is dropped.** The Mac sends a `state` at least every
-  10 s (§3), so a link with no bytes from the Mac for 30 s is left over
-  from an app that's gone. The device drops it and advertises again, so
-  a restarted app can find it even if macOS held on to the old link.
-  Anything that connects without sending, such as nRF Connect, is dropped
-  after 30 s too.
+  10 s (§3), so a link with no whole message from the Mac for 30 s is
+  left over from an app that's gone. The device drops it and advertises
+  again, so a restarted app can find it even if macOS held on to the old
+  link, and tries again every 30 s if the drop didn't take. Anything that
+  connects without sending lines, such as nRF Connect, is dropped after
+  30 s too. The device keeps this clock in real time, apart from the
+  face's no-app look, which counts from the last `state` on the device's
+  own clock ([BEHAVIORS.md](BEHAVIORS.md) §3.4).
 
 Over USB:
 
@@ -134,19 +137,18 @@ real line, from `boopdev replay` of the Codex approval fixture
 (`codex/synthetic/approval-asked.jsonl`):
 
 ```json
-{"t":"state","v":1,"base":"idle","mood":"calm","attn":{"agent":"codex","project":"landing","more":0,"id":1},"busy":0,"vol":6,"variant":1}
+{"t":"state","base":"idle","mood":"calm","attn":{"agent":"codex","project":"landing","more":0,"id":1},"busy":0,"vol":6,"variant":1}
 ```
 
 And one while Claude runs a command, from the replay of
 `claude-code/synthetic/permission.jsonl` before it asks:
 
 ```json
-{"t":"state","v":1,"base":"working","act":"terminal","mood":"calm","busy":1,"vol":6,"variant":3}
+{"t":"state","base":"working","act":"terminal","mood":"calm","busy":1,"vol":6,"variant":3}
 ```
 
 | Field | Type | The Mac sends | The device reads it as |
 | --- | --- | --- | --- |
-| `v` | int | Always 1 | Not checked |
 | `base` | `asleep`, `idle` or `working` | `working` while any session works, `asleep` with no sessions, otherwise `idle` ([BEHAVIORS.md](BEHAVIORS.md) §2) | The look. Missing or unknown reads as `idle` |
 | `act` | `testing`, `delegating`, `terminal`, `searching`, `analyzing`, `tool_use`, `waiting` or `planning`, or absent | Only while `base` is `working` and there's no `attn`: what the agents are doing, by the core's rules, held at least 1.5 s ([BEHAVIORS.md](BEHAVIORS.md) §2) | The look while `base` is `working`: that state's design, in the mood, in working's place, its variations taking turns as working's do. Missing or unknown reads as none: working's. Ignored with `attn`, or when `base` isn't `working` |
 | `mood` | `happy`, `excited`, `proud`, `curious`, `determined`, `grumpy`, `sad`, `calm`, `engaged`, `annoyed`, `irritated`, `whiny` or `wounded` | Boop's mood ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3), `calm` until the brain moves it | The set of faces every look and animation is drawn in: it draws all 13 (`render::Mood`, in this order; `boopctl play --mood` any of them). Missing or unknown reads as `happy` |
@@ -281,12 +283,11 @@ in `FaceLoops`.
 ### `status`: who the device is
 
 ```json
-{"t":"status","v":1,"id":"b00p-54fe","fw":"1.0.0","voice":"1aace295d219"}
+{"t":"status","id":"b00p-54fe","fw":"1.0.0","voice":"1aace295d219"}
 ```
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `v` | int | 1 |
 | `id` | string | The device's permanent ID: `b00p-` and the same 4 hex digits as its advertised name, in lower case (`b00p-0000` in the simulator and tests). The Mac logs it, and ignores a `status` without one |
 | `fw` | string | The firmware version, from the repo's `VERSION` file (`sim` in the simulator). Shown in the popover's footer |
 | `voice` | string | The version of the voice pack on its microSD card ([VOICE.md](VOICE.md) §8), `none` with no card or no pack. The Mac sends takes only while it's its own `Take.packVersion`, and logs when they differ. Older firmware leaves it out, and the Mac then sends takes as before |
@@ -382,7 +383,7 @@ the same `t`; an unknown `dbg.*` gets none.
 | `{"t":"dbg.press","ms":N}` | Holds BOOT for N ms of device time (100 by default), through the same code as a real press: 400 ms or more is push-to-talk | `{"t":"dbg.press"}` |
 | `{"t":"dbg.touch","x":X,"y":Y,"ms":N}` | Touches the screen at (X, Y) for N ms (100 by default) | `{"t":"dbg.touch"}` |
 | `{"t":"dbg.pattern"}` | Shows the test pattern ([DEVICE.md](DEVICE.md) §7) until the next `state`. With `"fill":N`, a solid screen of palette index N instead; with `"target":[x,y]`, an amber cross at (x, y) on black. Touches don't tap while it shows | `{"t":"dbg.pattern"}` |
-| `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Holds the backlight, the LED or both until the next `state` | `{"t":"dbg.light"}` |
+| `{"t":"dbg.light","bl":0-255}` | Holds the backlight until the next `state` | `{"t":"dbg.light"}` |
 | `{"t":"dbg.touchcal"}` | Reads the touch calibration. With `"set":[ax,bx,cx,ay,by,cy]` stores one, and with `"clear":true` forgets it ([DEVICE.md](DEVICE.md) §4) | `{"t":"dbg.touchcal","cal":[…]}`, or `"cal":null` when uncalibrated |
 | `{"t":"dbg.card","op":"begin","keep":true}`, then `{"t":"dbg.card","op":"put","at":N,"c":CRC,"d":"<base64>"}`, then `{"t":"dbg.card","op":"end","size":N,"crc":CRC}` | Copies a voice pack onto the card over USB (`boopctl card`, [VOICE.md](VOICE.md) §8). `begin` opens `/boop/voice.tmp`, afresh or, with `keep`, where an earlier copy stopped, and closes the pack, so Boop has no voice while it goes on (`card` `copying`). Each `put` carries up to 360 bytes, appended only when `at` is where the file ends and `c` is their CRC-32. `end` reads the file back, and when its size and CRC-32 match, swaps it in for the pack and reopens it; when they don't, the old pack plays again | `{"t":"dbg.card","op":…,"ok":true,"have":N,"why":""}`, `have` what the file holds; a refused `put` says `why` (`wrong crc`, `not where the card is`, `not base64`, `can't write`). `end`'s reply has `voice`, the pack now playing. With no card, `ok` is false and `why` `no card` |
 | `{"t":"dbg.reset"}` | Forgets everything the Mac said, the moment, the line, any pattern, light or injected input, and the last input, then freezes the clock at 0 and reseeds. A moment the Mac waits on still gets its `ended`, `cut` by `reset` (§4). Every scenario starts with it | `{"t":"dbg.reset"}` |
@@ -452,7 +453,7 @@ advertise again. The next connect starts from the top.
 | No app | 30 s without a `state` ([BEHAVIORS.md](BEHAVIORS.md) §3.4) | Device |
 | Push-to-talk | BOOT held 400 ms; `talk_off` by itself 30 s after `talk_on` ([DEVICE.md](DEVICE.md) §4) | Device |
 | `listening` | At most 30 s, then 8 s for the reply; `talk_off` cuts that to 8 s from then ([DEVICE.md](DEVICE.md) §4) | Device |
-| A quiet Bluetooth link | Dropped after 30 s with no bytes from the Mac, and again 30 s later if that didn't take | Device |
+| A quiet Bluetooth link | Dropped after 30 s with no message from the Mac, and again 30 s later if that didn't take | Device |
 | USB counts as live | For 30 s after the Mac last spoke there | Device |
 | `status` | On connect, then every 60 s | Device |
 | Connect attempt | Up (subscribed to TX) within 10 s, or retried | Mac |

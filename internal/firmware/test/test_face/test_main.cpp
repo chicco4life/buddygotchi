@@ -24,6 +24,7 @@ namespace {
 struct Buf {
   std::vector<uint8_t> px = std::vector<uint8_t>(size_t(kWidth) * kHeight, 0);
   Canvas c{px.data()};
+  uint8_t at(int x, int y) const { return px[size_t(y) * kWidth + x]; }
   int count(uint8_t v) const {
     int n = 0;
     for (uint8_t p : px) n += p == v;
@@ -70,11 +71,11 @@ static void test_fill_shape_antialiases_only_the_edges() {
     (void)sy;
     return s;
   }, [&](int x, int y, int level) { b.px[y * kWidth + x] = uint8_t(level); });
-  TEST_ASSERT_EQUAL_INT(4, b.c.get(10, 7));
-  TEST_ASSERT_EQUAL_INT(8, b.c.get(11, 7));
-  TEST_ASSERT_EQUAL_INT(8, b.c.get(19, 7));
-  TEST_ASSERT_EQUAL_INT(0, b.c.get(20, 7));
-  TEST_ASSERT_EQUAL_INT(0, b.c.get(15, 10));
+  TEST_ASSERT_EQUAL_INT(4, b.at(10, 7));
+  TEST_ASSERT_EQUAL_INT(8, b.at(11, 7));
+  TEST_ASSERT_EQUAL_INT(8, b.at(19, 7));
+  TEST_ASSERT_EQUAL_INT(0, b.at(20, 7));
+  TEST_ASSERT_EQUAL_INT(0, b.at(15, 10));
 }
 
 static void test_palette_ramps_run_from_black_to_the_ink() {
@@ -163,7 +164,7 @@ static void test_an_empty_strip_is_bare_glass() {
   for (const Strip& s : {busy, noApp, needsYou}) {
     Buf b;
     drawStrip(b.c, s);
-    TEST_ASSERT_EQUAL_INT(inkAt(kInkDim, kLevels), b.c.get(kWidth / 2, kStripTop));
+    TEST_ASSERT_EQUAL_INT(inkAt(kInkDim, kLevels), b.at(kWidth / 2, kStripTop));
   }
 }
 
@@ -177,7 +178,7 @@ static void test_the_strip_says_who_needs_you() {
     last = -1;
     for (int x = 0; x < kWidth; ++x) {
       bool lit = false;
-      for (int y = kStripTop + 1; y < kHeight; ++y) lit = lit || b.c.get(x, y) == inkAt(kInkAmber, kLevels);
+      for (int y = kStripTop + 1; y < kHeight; ++y) lit = lit || b.at(x, y) == inkAt(kInkAmber, kLevels);
       if (lit) ++n, last = x;
     }
     return n;
@@ -193,7 +194,7 @@ static void test_the_strip_says_who_needs_you() {
   drawStrip(b.c, longWho);
   bool grey = false;  // the working count still shows, in grey, at the right of the cut name
   for (int x = lastLong + 1; x < kWidth - 12; ++x) {
-    for (int y = kStripTop + 1; y < kHeight; ++y) grey = grey || b.c.get(x, y) == inkAt(kInkGrey, kLevels);
+    for (int y = kStripTop + 1; y < kHeight; ++y) grey = grey || b.at(x, y) == inkAt(kInkGrey, kLevels);
   }
   TEST_ASSERT_TRUE(grey);
   TEST_ASSERT_TRUE(lastLong < kWidth - 12);
@@ -218,12 +219,12 @@ static void test_the_bubble_fits_every_take() {
     left = kWidth, right = -1;
     for (int y = kLaneTop; y < kHeight; ++y) {
       for (int x = 0; x < kWidth; ++x) {
-        if (b.c.get(x, y) != inkAt(kInkAmber, kLevels)) continue;
+        if (b.at(x, y) != inkAt(kInkAmber, kLevels)) continue;
         ++n;
         if (x < left) left = x;
         if (x > right) right = x;
       }
-      for (int x : {0, 11, kWidth - 12, kWidth - 1}) TEST_ASSERT_EQUAL_INT(kBlack, b.c.get(x, y));
+      for (int x : {0, 11, kWidth - 12, kWidth - 1}) TEST_ASSERT_EQUAL_INT(kBlack, b.at(x, y));
     }
     return n;
   };
@@ -257,12 +258,12 @@ static void test_the_bubble_takes_the_lane() {
     drawFaceScreen(without.c, face, nullptr, s);
     drawFaceScreen(face0.c, face, nullptr, Strip{});
     for (int y = 0; y < kLaneTop; ++y) {  // the design, as it was
-      for (int x = 0; x < kWidth; ++x) TEST_ASSERT_EQUAL(face0.c.get(x, y), with.c.get(x, y));
+      for (int x = 0; x < kWidth; ++x) TEST_ASSERT_EQUAL(face0.at(x, y), with.at(x, y));
     }
     int amber = 0, eye = 0;
     for (int y = kLaneTop; y < kHeight; ++y) {
       for (int x = 0; x < kWidth; ++x) {
-        uint8_t v = with.c.get(x, y);
+        uint8_t v = with.at(x, y);
         amber += v == inkAt(kInkAmber, kLevels);
         eye += v == inkAt(kInkEye, kLevels);
         TEST_ASSERT_TRUE(v < faces::kSceneBase);  // the design's colours are gone from the lane
@@ -272,7 +273,7 @@ static void test_the_bubble_takes_the_lane() {
     TEST_ASSERT_EQUAL_INT(0, eye);  // not the strip's names, which show without it
     int names = 0;
     for (int y = kStripTop; y < kHeight; ++y) {
-      for (int x = 0; x < kWidth; ++x) names += without.c.get(x, y) == inkAt(kInkEye, kLevels);
+      for (int x = 0; x < kWidth; ++x) names += without.at(x, y) == inkAt(kInkEye, kLevels);
     }
     TEST_ASSERT_TRUE(names > 20);
   }
@@ -289,7 +290,7 @@ static void test_the_strip_marks_the_finish() {
     drawStrip(b.c, s);
     std::vector<uint8_t> icon;
     for (int y = kStripTop + 1; y < kHeight; ++y) {
-      for (int x = 0; x < 28; ++x) icon.push_back(b.c.get(x, y));
+      for (int x = 0; x < 28; ++x) icon.push_back(b.at(x, y));
     }
     return icon;
   };

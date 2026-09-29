@@ -1,7 +1,7 @@
 // Device behaviour (BEHAVIORS.md §3): press feedback, gestures, and the
 // needs-you tap. Shots are the rows' goldens.
 {"clock":0}
-{"t":"state","v":1,"base":"idle","busy":0}
+{"t":"state","base":"idle","busy":0}
 {"clock":500}
 {"input":{"press":"tap"}}
 {"clock":516}
@@ -24,7 +24,7 @@
 // blends back with nothing else.
 {"clock":3500}
 {"expect":{"moment":{"anim":"listening","left_ms":8000},"boot":false,"last_input":{"k":"talk_off","at":3500}}}
-{"t":"state","v":1,"base":"idle","busy":0}
+{"t":"state","base":"idle","busy":0}
 // A finish (`cheer`) meanwhile doesn't replace it.
 {"clock":4000}
 {"t":"moment","anim":"cheer"}
@@ -35,7 +35,7 @@
 {"expect":{"moment":null}}
 {"clock":11575}
 {"shot":"no-reply-75ms"}
-{"t":"state","v":1,"base":"idle","busy":0}
+{"t":"state","base":"idle","busy":0}
 // A touch held however long is a tap, sent on release.
 {"clock":14000}
 {"input":{"touch":[160,100],"ms":900}}
@@ -43,9 +43,9 @@
 {"expect":{"moment":null,"touch":{"down":true},"last_input":{"k":"touch","at":14000}}}
 {"clock":14900}
 {"expect":{"moment":{"anim":"poked"},"last_input":{"k":"tap","at":14900}}}
-{"t":"state","v":1,"base":"working","busy":1}
+{"t":"state","base":"working","busy":1}
 {"clock":27000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1}
+{"t":"state","base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1}
 {"expect":{"screen":"needs_you","led":"#805800","bl":255,"alert":27000}}
 {"t":"moment","anim":"task_complete","outcome":"success","variant":1}
 {"expect":{"moment":null}}
@@ -75,7 +75,7 @@
 {"expect":{"screen":"needs_you","moment":null,"audio":{"take":null}}}
 // Answered on the Mac: the face blinks back to working.
 {"clock":30000}
-{"t":"state","v":1,"base":"working","busy":2}
+{"t":"state","base":"working","busy":2}
 {"clock":30075}
 {"expect":{"screen":"face","attn":null,"moment":null,"led":"#000000"}}
 {"shot":"answered-75ms"}

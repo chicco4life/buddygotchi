@@ -256,7 +256,7 @@ static void test_answering_on_the_mac_blinks_back() {
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
   TEST_ASSERT_EQUAL(Screen::kFace, r.b.screen(r.t));
   TEST_ASSERT_EQUAL_HEX32(0, r.b.led(r.t));
-  TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
+  TEST_ASSERT_TRUE(r.b.show(r.t).state == SceneState::kWorking);
   TEST_ASSERT_TRUE(r.b.show(r.t).eyesShut);  // a blink hides the switch
   TEST_ASSERT_TRUE(r.b.show(r.t).state == SceneState::kWorking);
   TEST_ASSERT_EQUAL(0u, r.b.momentSeq());
@@ -592,23 +592,6 @@ static void test_no_app_holds_for_weeks() {
   TEST_ASSERT_EQUAL(Screen::kFace, r.b.screen(r.t));
 }
 
-// The debug label's name: the animation playing, else the look.
-static void test_face_name_is_the_moment_or_the_look() {
-  Rig r;
-  r.state(base("working"));
-  TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
-  r.moment(Anim::kTaskComplete);
-  TEST_ASSERT_EQUAL_STRING("task_complete", r.b.faceName(r.t));
-  r.at(loopMs(render::Mood::kHappy, SceneState::kTaskComplete));
-  TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
-  r.say();  // a line doesn't change the face
-  TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
-  r.state(base("idle"));
-  TEST_ASSERT_EQUAL_STRING("idle", r.b.faceName(r.t));
-  r.state(attn());
-  TEST_ASSERT_EQUAL_STRING("needs_you", r.b.faceName(r.t));
-}
-
 // ---- Push-to-talk (DEVICE.md §4) ------------------------------------------
 
 // DEVICE.md §4: push-to-talk shows listening at once, in the mood's
@@ -621,7 +604,7 @@ static void test_push_to_talk_listens_then_waits() {
   r.state(m);
   r.talkOn();
   TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
-  TEST_ASSERT_EQUAL_STRING("listening", r.b.faceName(r.t));
+  TEST_ASSERT_TRUE(r.b.show(r.t).state == SceneState::kListening);
   SceneShow s = r.b.show(r.t);
   TEST_ASSERT_TRUE(s.state == SceneState::kListening);
   TEST_ASSERT_TRUE(s.mood == render::Mood::kGrumpy);
@@ -689,7 +672,7 @@ static void test_listening_holds_until_the_reply() {
   TEST_ASSERT_TRUE(s.say());
   TEST_ASSERT_EQUAL(Anim::kNone, s.anim());
   TEST_ASSERT_NOT_NULL(s.b.bubble(s.t));
-  TEST_ASSERT_EQUAL_STRING("idle", s.b.faceName(s.t));
+  TEST_ASSERT_TRUE(s.b.show(s.t).state == SceneState::kIdle);
 }
 
 // BEHAVIORS.md §1: while something needs you, listening is the one moment
@@ -782,7 +765,7 @@ static void test_push_to_talk_timeouts() {
   TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
   r.at(3000 + 8000);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());  // no reply came
-  TEST_ASSERT_EQUAL_STRING("idle", r.b.faceName(r.t));
+  TEST_ASSERT_TRUE(r.b.show(r.t).state == SceneState::kIdle);
   TEST_ASSERT_TRUE(r.b.show(r.t).eyesShut);
   // BOOT's own 30 s cap is a release: 8 s more for the reply.
   Rig c;
@@ -962,7 +945,7 @@ static void test_a_line_alone_plays_over_the_face() {
   r.at(1000);
   TEST_ASSERT_TRUE(r.say());
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
-  TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
+  TEST_ASSERT_TRUE(r.b.show(r.t).state == SceneState::kWorking);
   TEST_ASSERT_TRUE(r.b.speaking(1000 + kGoMs - 1));
   TEST_ASSERT_FALSE(r.b.speaking(1000 + kGoMs));
   TEST_ASSERT_TRUE(r.b.show(1000 + firstOpen(kGo)).mouthOpen);
@@ -1703,7 +1686,7 @@ static void test_no_app_at_30s_and_reconnect_blinks_back() {
   TEST_ASSERT_EQUAL_STRING("codex", r.b.strip(r.t).agent);
   r.at(31000);
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
-  TEST_ASSERT_EQUAL_STRING("no_app", r.b.faceName(r.t));
+  TEST_ASSERT_TRUE(r.b.show(r.t).state == SceneState::kNoApp);
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t));  // dimming over kBlendMs
   TEST_ASSERT_TRUE(r.b.backlight(r.t + render::kBlendMs / 2) < 255);
   TEST_ASSERT_EQUAL_HEX32(0, r.b.led(r.t));
@@ -1812,7 +1795,7 @@ static void test_an_act_shows_in_workings_place() {
   TEST_ASSERT_TRUE(s.state == SceneState::kTerminal && s.mood == Mood::kCalm);
   TEST_ASSERT_EQUAL_INT(2, s.variant);
   TEST_ASSERT_EQUAL_UINT32(700, s.t);
-  TEST_ASSERT_EQUAL_STRING("terminal", r.b.faceName(r.t));
+  TEST_ASSERT_TRUE(r.b.show(r.t).state == SceneState::kTerminal);
   // Another activity: its design from its start, behind a blink.
   m.act = SceneState::kAnalyzing, m.variant = 0;
   r.state(m);
@@ -2202,6 +2185,12 @@ struct DevRig {
     line(s.c_str());
   }
   bool has(const char* needle) const { return usb.text.find(needle) != std::string::npos; }
+  // What's on the screen, as dbg.state says.
+  std::string screen() {
+    line("{\"t\":\"dbg.state\"}");
+    size_t i = usb.text.rfind("\"screen\":\"") + 10;
+    return usb.text.substr(i, usb.text.find('"', i) - i);
+  }
   int count(const char* needle) const {
     int n = 0;
     for (size_t at = usb.text.find(needle); at != std::string::npos; at = usb.text.find(needle, at + 1)) ++n;
@@ -2235,7 +2224,7 @@ static void test_gestures_send_the_right_inputs() {
   r.line("{\"t\":\"dbg.touch\",\"x\":160,\"y\":222,\"ms\":800}");  // hold the strip
   r.clock(3000);
   TEST_ASSERT_EQUAL(3, r.count(kTap));
-  TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+  TEST_ASSERT_EQUAL_STRING("face", r.screen().c_str());
 
   r.line("{\"t\":\"dbg.press\",\"ms\":100}");  // BOOT tap
   r.clock(3200);
@@ -2281,7 +2270,6 @@ int main() {
   RUN_TEST(test_no_app_holds_for_weeks);
   RUN_TEST(test_no_change_ever_cuts_hard);
   RUN_TEST(test_nothing_cuts_hard_as_it_plays_out);
-  RUN_TEST(test_face_name_is_the_moment_or_the_look);
   RUN_TEST(test_push_to_talk_listens_then_waits);
   RUN_TEST(test_listening_holds_until_the_reply);
   RUN_TEST(test_listening_plays_while_something_needs_you);

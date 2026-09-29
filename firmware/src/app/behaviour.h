@@ -151,8 +151,7 @@ class Behaviour {
   // Push-to-talk: BOOT held (talk_on) and let go, or capped (talk_off).
   void talkOn(uint32_t t, Rng& rng);
   void talkOff(uint32_t t);
-  // dbg.light: holds the LED and backlight until the next state.
-  void overrideLed(uint32_t rgb) { ledOverride_ = true, ledSet_ = rgb; }
+  // dbg.light: holds the backlight until the next state.
   void overrideBacklight(uint8_t level) { blOverride_ = true, blSet_ = level; }
 
   // Moves to time t, handling every time-based change on the way at its
@@ -198,10 +197,6 @@ class Behaviour {
   bool takeEnded(Ended& e);
   // A blink, Boop's idle life (BEHAVIORS.md §2), is showing.
   bool blinking(uint32_t t) const;
-  // What the face is following at t: the animation ("task_complete",
-  // "poked", "listening"…), or the look ("idle", "working", "terminal",
-  // "asleep", "needs_you", "no_app"…).
-  const char* faceName(uint32_t t) const;
   // When needs you's performance, with its knocks and ding, last started
   // for a new request (BEHAVIORS.md §3.2); false before any.
   bool alerted(uint32_t& at) const {
@@ -346,8 +341,7 @@ class Behaviour {
   // Latched once the Mac has been silent kNoAppMs, so "no app" holds
   // however long the silence (the clock's differences wrap after 24 days).
   bool stale_ = false;
-  bool ledOverride_ = false, blOverride_ = false;  // dbg.light, until the next state
-  uint32_t ledSet_ = 0;
+  bool blOverride_ = false;  // dbg.light, until the next state
   uint8_t blSet_ = 255;
   // The level the state asked for at the last change, like src_ for the
   // face, easing from blFrom_ since blAt_, over kBlendMs.

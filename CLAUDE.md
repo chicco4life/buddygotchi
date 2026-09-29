@@ -158,7 +158,7 @@ unpushed local `main`.
 | `app/BoopKit/Actions/`, `plan/steering/` | `harness/DECISIONS.md` (and the app's copy of `plan/steering/`) |
 | `app/BoopKit/Memory/`, `app/BoopKit/App/` | `ARCHITECTURE.md` §3–4 |
 | `app/BoopKit/Voice/`, `firmware/src/voice/`, `firmware/src/app/effect_track.*`, `internal/tools/voicegen/`, `internal/tools/sfxgen/` | `VOICE.md` |
-| `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/{device.cpp,packets.h,link_silence.h}`, `internal/tools/boopctl_lib/` | `PROTOCOL.md` |
+| `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/{device.cpp,packets.h}`, `internal/tools/boopctl_lib/` | `PROTOCOL.md` |
 | `firmware/src/board/`, `firmware/platformio.ini`, `internal/tools/fontgen/` | `DEVICE.md` |
 | `internal/tools/facegen/` (and its designs), `firmware/src/render/scene.*` | `DEVICE.md` §6 |
 | `internal/boop-design/boop-sound-bank-v4/` (the designs and their sounds) | `DEVICE.md` §6, `VOICE.md` §10 |

@@ -59,7 +59,8 @@ NS = "{http://www.w3.org/2000/svg}"
 W, H = 320, 240
 
 # The order of render::Mood and render::SceneState (plan/PROTOCOL.md §3): the
-# first seven of each keep the numbers they had before the rest came.
+# first seven of each keep the numbers they had before the rest came. faces.h
+# carries these names for the device (kMoodNames, kStateNames).
 MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad",
          "calm", "engaged", "annoyed", "irritated", "whiny", "wounded"]
 STATES = ["idle", "working", "needs_you", "task_complete", "asleep", "no_app", "listening",
@@ -906,11 +907,12 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict
         f"constexpr int kMaxGroups = {max_groups};",
         f"constexpr int kSceneCount = {len(scenes)};",
         "",
-        f"// The moods and states, in render::Mood's and render::SceneState's order:",
-        f"// {', '.join(MOODS)};",
-        f"// {', '.join(STATES)}.",
+        "// The moods and states by name, in render::Mood's and render::SceneState's",
+        "// order: the only lists the device keeps (render/anim.cpp, render/scene.cpp).",
         f"constexpr int kMoodCount = {len(MOODS)};",
+        f"constexpr const char* kMoodNames[{len(MOODS)}] = {{" + ", ".join(f'"{m}"' for m in MOODS) + "};",
         f"constexpr int kStateCount = {len(STATES)};",
+        f"constexpr const char* kStateNames[{len(STATES)}] = {{" + ", ".join(f'"{s}"' for s in STATES) + "};",
         f"constexpr int kMaxVariants = {maxv};",
         f"constexpr int kDesignCount = {len(table)};",
         "// A design: a mood and state's variation, the scene it draws, and the host",

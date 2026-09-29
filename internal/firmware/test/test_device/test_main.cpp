@@ -67,6 +67,14 @@ struct Rig {
     dev.handleLine(s, std::strlen(s), app::Link::kUsb);
     dev.tick();
   }
+  // A pixel of the frame the board would push.
+  uint8_t at(int x, int y) const { return px[size_t(y) * render::kWidth + x]; }
+  // What's on the screen, as dbg.state says.
+  std::string screen() {
+    usbLine("{\"t\":\"dbg.state\"}");
+    size_t i = usb.text.rfind("\"screen\":\"") + 10;
+    return usb.text.substr(i, usb.text.find('"', i) - i);
+  }
 };
 
 bool has(const std::string& s, const char* needle) { return s.find(needle) != std::string::npos; }
@@ -198,18 +206,18 @@ static void test_touchcal_sets_reads_and_clears() {
 static void test_pattern_target_draws_a_cross() {
   Rig r;
   r.usbLine("{\"t\":\"dbg.pattern\",\"target\":[20,220]}");  // bottom left, as boopctl calibrate puts it
-  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(20, 220));
-  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(29, 220));
-  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(20, 211));
-  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(20, 229));
-  TEST_ASSERT_EQUAL(render::kBlack, r.dev.canvas().get(40, 200));
-  TEST_ASSERT_EQUAL(render::kBlack, r.dev.canvas().get(160, 120));
+  TEST_ASSERT_EQUAL(render::kAmber, r.at(20, 220));
+  TEST_ASSERT_EQUAL(render::kAmber, r.at(29, 220));
+  TEST_ASSERT_EQUAL(render::kAmber, r.at(20, 211));
+  TEST_ASSERT_EQUAL(render::kAmber, r.at(20, 229));
+  TEST_ASSERT_EQUAL(render::kBlack, r.at(40, 200));
+  TEST_ASSERT_EQUAL(render::kBlack, r.at(160, 120));
   r.usbLine("{\"t\":\"dbg.pattern\",\"target\":[300,20]}");  // top right
-  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(300, 20));
-  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(310, 20));
-  TEST_ASSERT_EQUAL(render::kBlack, r.dev.canvas().get(20, 220));
+  TEST_ASSERT_EQUAL(render::kAmber, r.at(300, 20));
+  TEST_ASSERT_EQUAL(render::kAmber, r.at(310, 20));
+  TEST_ASSERT_EQUAL(render::kBlack, r.at(20, 220));
   r.usbLine("{\"t\":\"dbg.pattern\",\"target\":[2147483647,-9]}");  // off the screen: kept on it
-  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(319, 0));
+  TEST_ASSERT_EQUAL(render::kAmber, r.at(319, 0));
 }
 
 static void test_debug_is_ignored_over_ble() {
@@ -230,7 +238,7 @@ static void test_status_on_connect_and_every_minute() {
   r.hal.real = 1000;
   r.dev.connected();
   // It names the voice pack on its card, which the Mac checks (VOICE.md §8).
-  std::string status = std::string("{\"t\":\"status\",\"v\":1,\"id\":\"b00p-0000\",\"fw\":\"t\",\"voice\":\"") +
+  std::string status = std::string("{\"t\":\"status\",\"id\":\"b00p-0000\",\"fw\":\"t\",\"voice\":\"") +
                        voice::assetsVersion() + "\"}\n";
   TEST_ASSERT_EQUAL(12, int(std::strlen(voice::assetsVersion())));
   TEST_ASSERT_TRUE(has(r.ble.text, status.c_str()));
@@ -344,13 +352,48 @@ static void test_usb_status_when_the_mac_first_speaks() {
   TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "\"status\""));
 }
 
+// PROTOCOL.md §2, "Reconnecting": a Bluetooth link with no line from the
+// Mac for 30 s is dropped, and if that didn't take, dropped again 30 s
+// later. USB is never dropped; there's no connection to let go.
+static void test_a_quiet_link_is_dropped_after_30_s() {
+  TEST_ASSERT_EQUAL_UINT32(30000, app::Behaviour::kNoAppMs);
+  Rig r;
+  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kBle));  // not connected
+  r.hal.real = 1000;
+  r.dev.connected();
+  r.hal.real = 30999;
+  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kBle));
+  r.hal.real = 20000;
+  r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);  // the Mac's 10 s keepalive
+  r.hal.real = 49999;
+  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kBle));
+  r.hal.real = 50000;
+  TEST_ASSERT_TRUE(r.dev.shouldDrop(app::Link::kBle));
+  r.hal.real = 50001;
+  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kBle));
+  r.hal.real = 80000;
+  TEST_ASSERT_TRUE(r.dev.shouldDrop(app::Link::kBle));
+  r.dev.disconnected();
+  r.hal.real = 200000;
+  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kBle));
+  r.hal.real = 0xFFFFF000u;  // millis() wraps
+  r.dev.connected();
+  r.hal.real = 0x00001000u;
+  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kBle));
+  r.hal.real = 0xFFFFF000u + 30000;
+  TEST_ASSERT_TRUE(r.dev.shouldDrop(app::Link::kBle));
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.hal.real += 100000;
+  TEST_ASSERT_FALSE(r.dev.shouldDrop(app::Link::kUsb));
+}
+
 static void test_pattern_until_next_state() {
   Rig r;
   r.usbLine("{\"t\":\"dbg.pattern\"}");
-  TEST_ASSERT_EQUAL(app::Screen::kPattern, r.dev.screen());
+  TEST_ASSERT_EQUAL_STRING("pattern", r.screen().c_str());
   TEST_ASSERT_TRUE(r.dev.takeFrame());
   r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
-  TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+  TEST_ASSERT_EQUAL_STRING("face", r.screen().c_str());
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"base\":\"working\""));
 }
@@ -544,12 +587,16 @@ static void test_shot_is_header_then_base64() {
   TEST_ASSERT_EQUAL_UINT32(77312 / 3 * 4 + 4 + 1, body.size());  // padded, plus the newline
 }
 
-static void test_light_sets_the_led() {
+// PROTOCOL.md §5: dbg.light holds the backlight until the next state.
+static void test_light_holds_the_backlight_until_the_next_state() {
   Rig r;
-  r.usbLine("{\"t\":\"dbg.light\",\"led\":\"#FFB000\"}");
-  TEST_ASSERT_EQUAL_UINT32(0xFFB000, r.hal.led);
+  r.usbLine("{\"t\":\"dbg.light\",\"bl\":40}");
+  TEST_ASSERT_EQUAL(40, r.hal.bl);
   r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"led\":\"#FFB000\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"bl\":40"));
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1000}");  // eased back over the blend
+  TEST_ASSERT_EQUAL(255, r.hal.bl);
 }
 
 // DEVICE.md §6: with the clock running, motion redraws at most every
@@ -686,7 +733,7 @@ static void test_attention_shows_needs_you_and_alerts_once() {
   TEST_ASSERT_EQUAL_STRING("null", alertOf(r).c_str());
   const char* landing = "{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"landing\"}}";
   r.usbLine(landing);
-  TEST_ASSERT_EQUAL(app::Screen::kNeedsYou, r.dev.screen());
+  TEST_ASSERT_EQUAL_STRING("needs_you", r.screen().c_str());
   TEST_ASSERT_EQUAL_UINT32(0x805800, r.hal.led);
   TEST_ASSERT_EQUAL_STRING("0", alertOf(r).c_str());
   for (uint32_t t : {20000u, 40000u, 60000u, 80000u, 100000u, 120000u, 140000u}) {
@@ -714,7 +761,7 @@ static void test_attention_shows_needs_you_and_alerts_once() {
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"project\":\"site\",\"name\":\"Fix the hero\""));
   r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
-  TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+  TEST_ASSERT_EQUAL_STRING("face", r.screen().c_str());
   TEST_ASSERT_EQUAL_UINT32(0, r.hal.led);
   // Muted, nothing sounds.
   Rig m;
@@ -729,9 +776,9 @@ static void test_no_app_after_30s_of_silence() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":29999}");
-  TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+  TEST_ASSERT_EQUAL_STRING("face", r.screen().c_str());
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":30000}");
-  TEST_ASSERT_EQUAL(app::Screen::kNoApp, r.dev.screen());
+  TEST_ASSERT_EQUAL_STRING("no_app", r.screen().c_str());
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":30150}");  // dimmed over the blend
   TEST_ASSERT_EQUAL(60, r.hal.bl);
   r.usb.text.clear();
@@ -739,7 +786,7 @@ static void test_no_app_after_30s_of_silence() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"screen\":\"no_app\""));
   TEST_ASSERT_TRUE(has(r.usb.text, "\"bl\":60"));
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+  TEST_ASSERT_EQUAL_STRING("face", r.screen().c_str());
 }
 
 static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
@@ -809,7 +856,7 @@ static void test_a_strip_touch_is_a_tap() {
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":222,\"ms\":100}");
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":200}");
-  TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+  TEST_ASSERT_EQUAL_STRING("face", r.screen().c_str());
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"anim\":\"poked\""));
@@ -821,7 +868,7 @@ static void test_reset_forgets_the_mac_and_freezes_at_0() {
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":5000}");
   r.usbLine("{\"t\":\"dbg.reset\"}");
   TEST_ASSERT_EQUAL(0u, r.dev.now());
-  TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+  TEST_ASSERT_EQUAL_STRING("face", r.screen().c_str());
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"base\":\"idle\""));
@@ -1458,6 +1505,7 @@ int main() {
   RUN_TEST(test_pattern_target_draws_a_cross);
   RUN_TEST(test_status_on_connect_and_every_minute);
   RUN_TEST(test_usb_status_when_the_mac_first_speaks);
+  RUN_TEST(test_a_quiet_link_is_dropped_after_30_s);
   RUN_TEST(test_input_reaches_every_live_link);
   RUN_TEST(test_injected_input_stays_on_usb);
   RUN_TEST(test_pattern_until_next_state);
@@ -1469,7 +1517,7 @@ int main() {
   RUN_TEST(test_a_touch_ends_while_the_clock_is_frozen);
   RUN_TEST(test_a_frozen_clock_runs_again_after_60s_without_debug);
   RUN_TEST(test_shot_is_header_then_base64);
-  RUN_TEST(test_light_sets_the_led);
+  RUN_TEST(test_light_holds_the_backlight_until_the_next_state);
   RUN_TEST(test_motion_redraws_at_most_every_16ms);
   RUN_TEST(test_a_still_picture_isnt_redrawn);
   RUN_TEST(test_the_redraw_cap_doesnt_delay_a_press);

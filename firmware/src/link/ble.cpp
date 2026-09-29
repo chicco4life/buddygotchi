@@ -99,7 +99,6 @@ bool Ble::poll(app::Device& device) {
     out_.clear();
     if (up) {
       connected_ = true;
-      silence_.heard(millis());
       device.connected();  // sends status
     }
   }
@@ -107,7 +106,7 @@ bool Ble::poll(app::Device& device) {
     uint16_t m = mtu.load();
     out_.setPayload(m > 3 ? m - 3 : 20);
     // A Mac that's gone quiet: let go, so advertising starts again.
-    if (silence_.drop(millis())) NimBLEDevice::getServer()->disconnect(connHandle.load());
+    if (device.shouldDrop(app::Link::kBle)) NimBLEDevice::getServer()->disconnect(connHandle.load());
   } else if (!linkUp.load() && millis() - advCheckedAt_ >= 1000) {
     // Not connected and not advertising would leave the device unfindable
     // until it's reset, so check once a second and start it again.
@@ -117,7 +116,6 @@ bool Ble::poll(app::Device& device) {
   }
   uint8_t b;
   while (rxRing.take(b)) {
-    silence_.heard(millis());
     if (line_.feed(char(b))) {
       device.handleLine(line_.line(), line_.length(), app::Link::kBle);
       return true;
