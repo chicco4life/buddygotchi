@@ -13,7 +13,7 @@ export function choices(bank,context,{audition=false,explicit=false,phrases=fals
  const recordings=new Map(bank.manifest.recordings.map(r=>[r.id,r])), entries=new Map(bank.dictionary.entries.map(e=>[e.id,e]));
  const candidates=stateIds.filter(id=>moodIds.has(id)).map(id=>recordings.get(id)).filter(r=>{
   const e=entries.get(r.entryId);
-  return e.moods.includes(context.mood)&&facts.has(e.requires)&&(!e.topic||e.topic===context.topic)
+  return !!r.files[texture]&&e.moods.includes(context.mood)&&facts.has(e.requires)&&(!e.topic||e.topic===context.topic)
    &&(!e.explicit||explicit)&&(!e.explicit||context.state!=='needs_you')
    &&(e.category!=='phrase'||phrases)&&(e.tier!=='rare'||rare)
    &&(r.reviewStatus==='approved'||audition)&&r.routineDurationEligible

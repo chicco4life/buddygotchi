@@ -1,8 +1,9 @@
 {
   "summary": {
-    "selected": 2702,
-    "ready": 2702,
-    "entries": 387
+    "selected": 2732,
+    "ready": 2732,
+    "entries": 387,
+    "supplementalSwearTakes": 30
   },
   "recorded": [
     {
@@ -71587,6 +71588,726 @@
       "routineDurationEligible": true,
       "master_sha256": "a97bf00434082f8107431ec74e96a92b5cdd9d98ad7c9c675faecc6ab4f6bcee",
       "matched_rms": 0.0632721495142598
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shit__sad__contained",
+      "entry": "explicit.shit",
+      "mood": "sad",
+      "script": "[sad] [softly] Shit.",
+      "keyword": "Shit",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 1.4106122448979592,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.shit__sad__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.shit__sad__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "b58ef414463e70fde4a62fa295e7801e4786a5fe7fea3234decf7f77a4cfc74a"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shit__sad__trailing",
+      "entry": "explicit.shit",
+      "mood": "sad",
+      "script": "[sad] [softly] [sighs] Shit....",
+      "keyword": "Shit",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.1942857142857144,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.shit__sad__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.shit__sad__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "6678c1d841f57072ed032fe1502a86b5ea6361c13d7fd3d0047530c05b78a3bf"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shit__wounded__contained",
+      "entry": "explicit.shit",
+      "mood": "wounded",
+      "script": "[sad] [whispering] Shit.",
+      "keyword": "Shit",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 1.6457142857142857,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.shit__wounded__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.shit__wounded__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "5d44a83ef990fbbaaf953813a7812a5dac69126a31fa2ac7d81f0c8c4fe93266"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shit__wounded__trailing",
+      "entry": "explicit.shit",
+      "mood": "wounded",
+      "script": "[sad] [whispering] [sighs] Shit....",
+      "keyword": "Shit",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.3510204081632655,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.shit__wounded__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.shit__wounded__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "38010568783c887edb7f0558baf581bdaca627ac5d17f946ec55bfb2daf8aa9d"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shit__whiny__contained",
+      "entry": "explicit.shit",
+      "mood": "whiny",
+      "script": "[whining] [softly] Shit.",
+      "keyword": "Shit",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.507755102040816,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.shit__whiny__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.shit__whiny__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "240344655217befe2062ae6417aedad13d03f9e7b94b28e84fabe39f35053695"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shit__whiny__trailing",
+      "entry": "explicit.shit",
+      "mood": "whiny",
+      "script": "[whining] [softly] [sighs] Shit....",
+      "keyword": "Shit",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.507755102040816,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.shit__whiny__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.shit__whiny__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "a8d318108cebfa75c46aeaf0c40e7ef253969cbb3dd4caad7ca282a301a8c00c"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.fuck__sad__contained",
+      "entry": "explicit.fuck",
+      "mood": "sad",
+      "script": "[sad] [softly] Fuck.",
+      "keyword": "Fuck",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 1.4889795918367348,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.fuck__sad__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.fuck__sad__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "ca8058cdf69f8e62888bfe01b2cd4ead29e52866717b6f8b32160305551c368c"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.fuck__sad__trailing",
+      "entry": "explicit.fuck",
+      "mood": "sad",
+      "script": "[sad] [softly] [sighs] Fuck....",
+      "keyword": "Fuck",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.3510204081632655,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.fuck__sad__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.fuck__sad__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "77c6bac66d8bebff331b073ae9a2ad019db2f8509036ec6105d41ebe3d631472"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.fuck__wounded__contained",
+      "entry": "explicit.fuck",
+      "mood": "wounded",
+      "script": "[sad] [whispering] Fuck.",
+      "keyword": "Fuck",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.690612244897959,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.fuck__wounded__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.fuck__wounded__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "b6285291ae1001769292208c6ba91efdcbb7790ea5393f2f2c6647bcc0b13a10"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.fuck__wounded__trailing",
+      "entry": "explicit.fuck",
+      "mood": "wounded",
+      "script": "[sad] [whispering] [sighs] Fuck....",
+      "keyword": "Fuck",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 3.474285714285714,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.fuck__wounded__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.fuck__wounded__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": false,
+      "master_sha256": "159b5f6608120fa4aac5f602e37078309bfa298c758ead525059b2f9d27175af"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.fuck__whiny__contained",
+      "entry": "explicit.fuck",
+      "mood": "whiny",
+      "script": "[whining] [softly] Fuck.",
+      "keyword": "Fuck",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.4293877551020406,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.fuck__whiny__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.fuck__whiny__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "a902acbc710844c4d0f03f60ae71a238e88bfcebfae987b7658e0ecdba7095aa"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.fuck__whiny__trailing",
+      "entry": "explicit.fuck",
+      "mood": "whiny",
+      "script": "[whining] [softly] [sighs] Fuck....",
+      "keyword": "Fuck",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.84734693877551,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.fuck__whiny__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.fuck__whiny__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": false,
+      "master_sha256": "9035b516e92b59792a6e343e27e8e43b4ddf75a864951dec115ca0f9388caeb8"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.damn__sad__contained",
+      "entry": "explicit.damn",
+      "mood": "sad",
+      "script": "[sad] [softly] Damn.",
+      "keyword": "Damn",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 1.3061224489795917,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.damn__sad__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.damn__sad__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "5353c146ed461a6df4b505c734f72ccca9a98e2e8a3a470c9af2b5c46e95cacb"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.damn__sad__trailing",
+      "entry": "explicit.damn",
+      "mood": "sad",
+      "script": "[sad] [softly] [sighs] Damn....",
+      "keyword": "Damn",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 3.239183673469388,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.damn__sad__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.damn__sad__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": false,
+      "master_sha256": "692728e7388c6c4c0a9a1920741e1b07e03dc54d006928eca55e86d250de7507"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.damn__wounded__contained",
+      "entry": "explicit.damn",
+      "mood": "wounded",
+      "script": "[sad] [whispering] Damn.",
+      "keyword": "Damn",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 1.4106122448979592,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.damn__wounded__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.damn__wounded__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "97b0e7d52d05c28a9c420f21c7517532f30532dd3ee5df970766c6a9cf7b3809"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.damn__wounded__trailing",
+      "entry": "explicit.damn",
+      "mood": "wounded",
+      "script": "[sad] [whispering] [sighs] Damn....",
+      "keyword": "Damn",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.4293877551020406,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.damn__wounded__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.damn__wounded__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "f5f8e432511315d35d465c6853a5838a29c3de3e5cc9a1d444d19d9541e077a1"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.damn__whiny__contained",
+      "entry": "explicit.damn",
+      "mood": "whiny",
+      "script": "[whining] [softly] Damn.",
+      "keyword": "Damn",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.4293877551020406,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.damn__whiny__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.damn__whiny__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "3d7d73e3215393053d6ca3126df3f7b7e0c6e1505137e99c8d9713d99fef4c08"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.damn__whiny__trailing",
+      "entry": "explicit.damn",
+      "mood": "whiny",
+      "script": "[whining] [softly] [sighs] Damn....",
+      "keyword": "Damn",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 3.317551020408163,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.damn__whiny__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.damn__whiny__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": false,
+      "master_sha256": "e5db0adf38ce7eb1aaaaaeaaa3c28836488fecf38e2c1a2cf00216399aa71627"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.crap__sad__contained",
+      "entry": "explicit.crap",
+      "mood": "sad",
+      "script": "[sad] [softly] Crap.",
+      "keyword": "Crap",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 1.4106122448979592,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.crap__sad__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.crap__sad__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "e021da57b256fa12aef3cc494743493236bce738e7899600512363aee0722af3"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.crap__sad__trailing",
+      "entry": "explicit.crap",
+      "mood": "sad",
+      "script": "[sad] [softly] [sighs] Crap....",
+      "keyword": "Crap",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.3510204081632655,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.crap__sad__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.crap__sad__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "eba8ceb668d2beb42c4fed7f94e825fd4bb0cc0366c79f07446f27922e27a49d"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.crap__wounded__contained",
+      "entry": "explicit.crap",
+      "mood": "wounded",
+      "script": "[sad] [whispering] Crap.",
+      "keyword": "Crap",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 1.6457142857142857,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.crap__wounded__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.crap__wounded__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "e98f5a60c1a1e64e597b9478ed770030545d01e1f0df8941dcd0331917387d1e"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.crap__wounded__trailing",
+      "entry": "explicit.crap",
+      "mood": "wounded",
+      "script": "[sad] [whispering] [sighs] Crap....",
+      "keyword": "Crap",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.3510204081632655,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.crap__wounded__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.crap__wounded__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "bcf4f9557acb10d5d257bb7861078f35fbfc082ae760bfaaca70e24f11162df1"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.crap__whiny__contained",
+      "entry": "explicit.crap",
+      "mood": "whiny",
+      "script": "[whining] [softly] Crap.",
+      "keyword": "Crap",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.4293877551020406,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.crap__whiny__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.crap__whiny__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "4cf09cf4d4710e8b495a0325a7526bd7e2c1c76c3b38c9aebeb0b3f76172df55"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.crap__whiny__trailing",
+      "entry": "explicit.crap",
+      "mood": "whiny",
+      "script": "[whining] [softly] [sighs] Crap....",
+      "keyword": "Crap",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 3.082448979591837,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.crap__whiny__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.crap__whiny__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": false,
+      "master_sha256": "011a024a2bdea460bcb27d8248abab64600e5abad195b25e135697789ecf900b"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shiba__sad__contained",
+      "entry": "explicit.shiba",
+      "mood": "sad",
+      "script": "[sad] [softly] Shiba.",
+      "keyword": "Shiba",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 1.6457142857142857,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.shiba__sad__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.shiba__sad__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "6f34668ac17c8d2b904c04b627514b8a3be1bf894aae251f128ac287037b4361"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shiba__sad__trailing",
+      "entry": "explicit.shiba",
+      "mood": "sad",
+      "script": "[sad] [softly] [sighs] Shiba....",
+      "keyword": "Shiba",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.27265306122449,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.shiba__sad__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.shiba__sad__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "320266b39ee7b0373229f54d097f1808a80fedf56e134dd57697759844487c08"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shiba__wounded__contained",
+      "entry": "explicit.shiba",
+      "mood": "wounded",
+      "script": "[sad] [whispering] Shiba.",
+      "keyword": "Shiba",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 1.7240816326530612,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.shiba__wounded__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.shiba__wounded__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "b2c8558e143606a4a32bbf97a47ada5808bf6e852b4e4bbb7a3fa71a8a63fec2"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shiba__wounded__trailing",
+      "entry": "explicit.shiba",
+      "mood": "wounded",
+      "script": "[sad] [whispering] [sighs] Shiba....",
+      "keyword": "Shiba",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.507755102040816,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.shiba__wounded__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.shiba__wounded__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "d24a91daa917e1594dd2f8e4b8210e5632519e0586f59fcb2b1b6dac12e8de72"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shiba__whiny__contained",
+      "entry": "explicit.shiba",
+      "mood": "whiny",
+      "script": "[whining] [softly] Shiba.",
+      "keyword": "Shiba",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 2.5861224489795918,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.shiba__whiny__contained.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "contained",
+      "performance": "explicit.shiba__whiny__contained",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": true,
+      "master_sha256": "f085de89829c6cd974c51d4060279d111e93a30fc20fdd542aa2992e89c78c4d"
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shiba__whiny__trailing",
+      "entry": "explicit.shiba",
+      "mood": "whiny",
+      "script": "[whining] [softly] [sighs] Shiba....",
+      "keyword": "Shiba",
+      "states": [
+        "error",
+        "task_complete"
+      ],
+      "category": "word",
+      "explicit": true,
+      "seconds": 3.082448979591837,
+      "files": {
+        "robot-soft": "../audio-pcm8/robot-soft/swear-expansion-v1.explicit.shiba__whiny__trailing.wav"
+      },
+      "bank": "swear-expansion-v1",
+      "variant": "trailing",
+      "performance": "explicit.shiba__whiny__trailing",
+      "reviewStatus": "unreviewed-by-ear",
+      "moodStatus": "intended; listening review pending",
+      "routineDurationEligible": false,
+      "master_sha256": "34e5a465cd574fc361381fa09d9b706d68f0ed72fcef548fb0df4231664eb956"
     }
   ]
 }

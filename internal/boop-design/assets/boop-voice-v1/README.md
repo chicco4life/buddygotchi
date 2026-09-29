@@ -8,18 +8,21 @@ mood graph, generic harness, or approval rules. Publication is not listening app
 ## Start here: find an actual recording in seconds
 
 Read [manifest.json](manifest.json) and [index.json](index.json), not every proposed
-dictionary performance. The manifest lists **2,722 actual recordings** with
-**8,166 unsigned 8-bit PCM WAV files** (three local DSP treatments).
-All original 16-bit renders and **2,722 MP3 masters** are preserved in a verified
-local archive outside this checkout, not included in the compact distribution.
+dictionary performance. The manifest lists **2,752 actual recordings** with
+**8,196 unsigned 8-bit PCM WAV files** (2,722 original takes × three treatments,
+plus 30 new **robot-soft-only** takes).
+Original 16-bit renders and paid MP3 masters are preserved in local archives
+outside this checkout, not included in the compact distribution.
 Their hashes remain in the manifest for provenance and recording-slot deduplication.
 The completed first pass has **2,702 slots: 2,682 newly generated + 20 reused pilot
 takes**. Another 20 historical short-language takes are preserved outside that
 first-pass slot count. Six superseded early Robot Minion experiments remain excluded.
 
 All **387 entries** are represented. Words and nonverbals have one take per
-compatible mood; phrases have one selected mood. The full design has **7,123 slots**:
-2,702 completed and **4,421 deferred**, not 7,123 recorded files. Never fabricate
+compatible mood; phrases have one selected mood. The original design has **7,123 slots**:
+2,702 completed and **4,421 deferred**. The supplemental swear batch adds 30 new
+slots, giving **7,153 planned / 2,732 completed slots**, plus 20 historical takes.
+Never fabricate
 a path or silently substitute a mood when no suitable recorded take exists.
 
 ## Listen to the bank
@@ -31,11 +34,14 @@ python3 -m http.server 4177 --bind 127.0.0.1 --directory internal/boop-design/as
 ```
 
 Open <http://127.0.0.1:4177/review/>. No dependencies, API key or generation calls.
-The continuous audition plays all first-pass clips with on-screen state/mood/keyword
+The continuous audition plays first-pass and supplemental clips with on-screen state/mood/keyword
 labels. Filter into chapters, skip/replay, mark Keep/Rework and export the review JSON.
 Adult expressions are off by default. Review marks stay in the browser and include
 the exact master hash; they do not automatically change the package manifest.
-The first-pass audio totals 64.22 minutes (about 80 minutes with default gaps).
+The original first-pass audio totals 64.22 minutes (about 80 minutes with default gaps).
+For the new takes: choose **Batch → NEW · 30 sad / wounded / whiny swears**,
+**Texture → Soft circuit**, and enable **Include adult expressions**. Other textures
+exclude unavailable takes; neither the player nor selector silently substitutes a profile.
 This portable voice-only page does not depend on the original author's localhost
 or audition checkout. Animation/SFX previews remain in the sibling V4 review bank.
 
@@ -44,7 +50,7 @@ or audition checkout. Animation/SFX previews remain in the sibling V4 review ban
 | `manifest.json` | Recorded IDs, entry ID, intended mood, duration, review status, original script, voice/model, encoding, paths and SHA-256 hashes |
 | `index.json` | Recorded IDs indexed by state, mood, intent and dictionary entry; cheap shortlist lookup |
 | `dictionary.json` | 387 meanings, context guards, compatible moods, variation directions, audience/rarity and proposed pacing policy; no massive Cartesian matrix |
-| `audio-pcm8/robot-soft/` | Recommended quiet electronic texture; 2,722 mono 8-bit/11.025 kHz WAVs |
+| `audio-pcm8/robot-soft/` | Recommended quiet electronic texture; 2,752 mono 8-bit/11.025 kHz WAVs |
 | `audio-pcm8/original/` | Dry, quiet-level-matched 8-bit comparison; not untouched provider output |
 | `audio-pcm8/robot-grain/` | More electronic alternative; same takes, not extra performances |
 | `manifest.json → recordings[].master` | Archived paid-take identity/hash; not a playable path or a shipped file |
@@ -55,6 +61,8 @@ or audition checkout. Animation/SFX previews remain in the sibling V4 review ban
 | `storage-report.json` | Exact logical bytes, durations, category counts and recorded mood coverage |
 | `plans/phase1.json` | Completed slot IDs mapped to actual recording IDs; includes reused pilot mappings |
 | `plans/deferred.json` | Disjoint remaining 4,421 slots; not authorized for automatic generation |
+| `plans/swear-expansion-v1.json` | 30 supplemental slots, scripts, seeds and acting intentions; disjoint from both old plans |
+| `tools/swear_expansion.py` | Explicitly invoked, bounded batch generator and offline importer; private cache required |
 | `review/` | Self-contained continuous audition; serve the package root as above |
 
 All paths in the manifest are relative to **this directory**, not the repository
@@ -233,8 +241,10 @@ not guarantee zero latency: the existing DAC pipeline has four 512-sample buffer
 about 93 ms of total capacity. Actual onset latency depends on queue occupancy,
 SD reads, scheduling and prefetching; it has not been measured for this new bank.
 
-All **2,722 takes** occupy about **43 MB per treatment**, or **129 MB for all three**
-audio alternatives—approximately 87.5% smaller than corresponding 16-bit WAVs.
+The original **2,722 takes** occupy about **43 MB per treatment**, or **129 MB for
+all three** audio alternatives—approximately 87.5% smaller than corresponding
+16-bit WAVs. The 30 supplemental takes add only their robot-soft WAVs; see the
+storage report for the current exact total. Do not assume every take has three profiles.
 Deploy only the chosen treatment, normally robot-soft. Metadata is additional;
 [storage-report.json](storage-report.json) gives exact file lengths. Do not put
 the archived originals or unused comparisons on the SD card.
@@ -293,12 +303,13 @@ Tests check every audio hash/format/level, index consistency, state/fact/mood/to
 guards, silence fallback, review and explicit gating, recency and composition
 limits. They do not claim subjective listening quality or device compatibility.
 
-For a deliberate rebuild from the verified **original 16-bit bank archive**
-(macOS `afconvert` and Python's standard library; not a fresh clone without masters):
+The historical converter targets only the original 2,722-take bank, from the
+verified **original 16-bit archive** (macOS `afconvert`, Python standard library).
+It now refuses an expanded manifest to prevent dropping supplemental takes.
+Its help remains available; do not run its old `--finalize` migration on this release:
 
 ```sh
-python3 internal/boop-design/assets/boop-voice-v1/tools/compress.py --archive /absolute/path/to/original-bank-archive --jobs 6 --finalize
-node internal/boop-design/assets/boop-voice-v1/tools/check.mjs
+python3 internal/boop-design/assets/boop-voice-v1/tools/compress.py --help
 ```
 
 The converter validates all archived master/PCM hashes first, caches by source hash
@@ -319,7 +330,8 @@ Unit test the conversion boundaries with:
 Use `performanceId` as the stable recording-slot key, not a guessed filename or
 script string. `plans/phase1.json` maps all completed slots to their actual recording
 IDs, including the 20 reused pilot takes. `plans/deferred.json` is the disjoint
-complement; checks prove the union equals the full 7,123-slot design. Before any
+complement of the original 7,123-slot design. The supplemental plan adds 30 disjoint
+slots; checks prove all three plans match the 7,153-slot dictionary. Before any
 future paid request, subtract **all** manifest performance IDs from the requested
 slot IDs. An existing saved recording is reused, never automatically regenerated.
 Similar wording in two deliberately different performance slots is not evidence
@@ -335,3 +347,35 @@ the published completed-slot manifest suffices to avoid regenerating this batch.
 
 Publication was explicitly authorized for this asset package on the V4 branch.
 It does not authorize a PR, merge, new paid generation, or production policy changes.
+
+### Supplemental sad / wounded / whiny swears
+
+Five existing entries (`explicit.shit`, `.fuck`, `.damn`, `.crap`, `.shiba`) each
+add sad, wounded and whiny × contained/trailing. Keep `explicit: true`, adult
+opt-in, `requires: failure_confirmed`, error/task_complete eligibility and the
+never-at-the-person rule. A sad face alone is not evidence of failure. No
+approval nudge swears. Shiba remains a user-proposed truncation, not a verified
+Korean translation. All new takes are `unreviewed-by-ear`; listen before shipping.
+
+Contained takes ask for small, quiet delivery; trailing takes add a sigh and a
+settling tail. Emotion tags are requests, not guarantees. Sad asks for deflation,
+wounded a hushed wince, whiny soft self-pity rather than angry emphasis. There is
+no new pitch effect or extra DSP: the accepted robot-soft chain and phase1 shared
+normalization feed the same `tools/compress.py` resampling/quantization helpers.
+The 2.8-second routine guard still applies; longer takes remain manual auditions.
+
+`tools/swear_expansion.py plan` is offline. `import --cache /absolute/private/cache`
+is offline, verifies the frozen plan/audio hashes, and refuses conflicting existing
+performances. `generate` requires explicit `--execute`, an external `--cache` and
+`--audition-tools` pointing to the existing author's audition pipeline (`audition.py`).
+It is not a self-contained TTS client for fresh clones. Generation uses a private
+pre-request journal and 2,500-credit stop guard, skips saved audio, never retries
+uncertain paid requests, and keeps all MP3/intermediates outside Git. The completed
+30-slot request text totals 851 characters; actual billing is checked separately.
+No startup/background code invokes it. Never rerun merely because a take is disliked.
+
+The optional grudging-good-news batch is **not generated**. “Fine.” and “Hmph, okay.”
+can be acknowledgement with an appropriate event guard; “Finally.” and “About time.”
+need an observed resolution/delay context. Do not label all four unconditional
+`celebrate` clips: mood does not establish success and the selector fails closed
+when a required fact is absent. Define those meanings before adding recordings.

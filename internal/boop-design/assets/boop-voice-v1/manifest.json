@@ -280369,6 +280369,1656 @@
         },
         "storage": "local-archive-not-distributed"
       }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shit__sad__contained",
+      "entryId": "explicit.shit",
+      "mood": "sad",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[sad] [softly] Shit.",
+      "seconds": 1.4106122448979592,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.shit__sad__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 435205064,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.shit__sad__contained.wav",
+          "bytes": 15596,
+          "sha256": "8bd954bacec3b95708463028b23f1e2c0b78f2ed1255252d30bce1ad9751891c",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "177bca8937cfefc95ce44a3b1ae1234472c2d84e546fedb7cb195784070f4b4f",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 15552,
+            "seconds": 1.4106122448979592,
+            "peak": 0.2890625,
+            "rms": 0.022414323751116724
+          }
+        }
+      },
+      "master": {
+        "bytes": 23031,
+        "sha256": "b58ef414463e70fde4a62fa295e7801e4786a5fe7fea3234decf7f77a4cfc74a",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shit__sad__trailing",
+      "entryId": "explicit.shit",
+      "mood": "sad",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[sad] [softly] [sighs] Shit....",
+      "seconds": 2.1942857142857144,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.shit__sad__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1659820774,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.shit__sad__trailing.wav",
+          "bytes": 24236,
+          "sha256": "1acd8f7e9b2f4ef0e62ec2ced62d7bf2e8f656f91a674462b848f77596fd2061",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "a77c70ab8337535c8c17643b7e0b0a7ee6408c4d74d2a47f1dcf054c42caecf8",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 24192,
+            "seconds": 2.1942857142857144,
+            "peak": 0.328125,
+            "rms": 0.02323918480295371
+          }
+        }
+      },
+      "master": {
+        "bytes": 35570,
+        "sha256": "6678c1d841f57072ed032fe1502a86b5ea6361c13d7fd3d0047530c05b78a3bf",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shit__wounded__contained",
+      "entryId": "explicit.shit",
+      "mood": "wounded",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[sad] [whispering] Shit.",
+      "seconds": 1.6457142857142857,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.shit__wounded__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 652096907,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.shit__wounded__contained.wav",
+          "bytes": 18188,
+          "sha256": "a4a998688b302daac5e613c868d08d9a077cfeb097f42d170c31d9fe5ee36185",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "23bb0d63455eb7cfdad474b9f215dbf7f9324a32ca0c40f71fce3e80fbfdb763",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 18144,
+            "seconds": 1.6457142857142857,
+            "peak": 0.21875,
+            "rms": 0.030726438546115332
+          }
+        }
+      },
+      "master": {
+        "bytes": 26793,
+        "sha256": "5d44a83ef990fbbaaf953813a7812a5dac69126a31fa2ac7d81f0c8c4fe93266",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shit__wounded__trailing",
+      "entryId": "explicit.shit",
+      "mood": "wounded",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[sad] [whispering] [sighs] Shit....",
+      "seconds": 2.3510204081632655,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.shit__wounded__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 102238300,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.shit__wounded__trailing.wav",
+          "bytes": 25964,
+          "sha256": "8d835f6fce95511bbb478bb8261211def6e0563c2e6f9b1023fd5b956acf8b7a",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "8d0128c526bd900a376aa06ae788b5d2ab02df4617a4c5b27e0c696c225730aa",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 25920,
+            "seconds": 2.3510204081632655,
+            "peak": 0.40625,
+            "rms": 0.0215437525609638
+          }
+        }
+      },
+      "master": {
+        "bytes": 38078,
+        "sha256": "38010568783c887edb7f0558baf581bdaca627ac5d17f946ec55bfb2daf8aa9d",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shit__whiny__contained",
+      "entryId": "explicit.shit",
+      "mood": "whiny",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[whining] [softly] Shit.",
+      "seconds": 2.507755102040816,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.shit__whiny__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1011702257,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.shit__whiny__contained.wav",
+          "bytes": 27692,
+          "sha256": "4e994e2a89449f1e75fb66bda2c03613306454bb1f96129f01cb5308bfa44d28",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "eb9cce3d3fc580784536709b339a124d7e2c513e4e8fc8a8417620b4ac2ebad7",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 27648,
+            "seconds": 2.507755102040816,
+            "peak": 0.2734375,
+            "rms": 0.02629433025578271
+          }
+        }
+      },
+      "master": {
+        "bytes": 40586,
+        "sha256": "240344655217befe2062ae6417aedad13d03f9e7b94b28e84fabe39f35053695",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shit__whiny__trailing",
+      "entryId": "explicit.shit",
+      "mood": "whiny",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[whining] [softly] [sighs] Shit....",
+      "seconds": 2.507755102040816,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.shit__whiny__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1139213234,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.shit__whiny__trailing.wav",
+          "bytes": 27692,
+          "sha256": "a053469f1983b22c821bd8ab61e6d3530d79dcc1c5194a0dc5bc6a717e1f2950",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "1beee1d7c35a93a38fc725cf573a2da3e677c69b07d7762fba5fa136d19ef9e0",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 27648,
+            "seconds": 2.507755102040816,
+            "peak": 0.2421875,
+            "rms": 0.024759251322248738
+          }
+        }
+      },
+      "master": {
+        "bytes": 40586,
+        "sha256": "a8d318108cebfa75c46aeaf0c40e7ef253969cbb3dd4caad7ca282a301a8c00c",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.fuck__sad__contained",
+      "entryId": "explicit.fuck",
+      "mood": "sad",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[sad] [softly] Fuck.",
+      "seconds": 1.4889795918367348,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.fuck__sad__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 124682461,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.fuck__sad__contained.wav",
+          "bytes": 16460,
+          "sha256": "f559147048104735923186ee3afd67318a71329b1562e4eeec4a8615225aeb3b",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "df6685e8f5f2ca067f3f1c4bdc8d8615cb2a77642e439f27fef87de9eda1653b",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 16416,
+            "seconds": 1.4889795918367348,
+            "peak": 0.5078125,
+            "rms": 0.03047659780473909
+          }
+        }
+      },
+      "master": {
+        "bytes": 24285,
+        "sha256": "ca8058cdf69f8e62888bfe01b2cd4ead29e52866717b6f8b32160305551c368c",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.fuck__sad__trailing",
+      "entryId": "explicit.fuck",
+      "mood": "sad",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[sad] [softly] [sighs] Fuck....",
+      "seconds": 2.3510204081632655,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.fuck__sad__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1868462380,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.fuck__sad__trailing.wav",
+          "bytes": 25964,
+          "sha256": "bb30674524dec20e6db750873bf1029e76c117e7c591069d2900211e950bb021",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "29ccca9d8fc95fed05551000b6706aa6c622acd646ca912aae24392682e23263",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 25920,
+            "seconds": 2.3510204081632655,
+            "peak": 0.46875,
+            "rms": 0.02310352120929356
+          }
+        }
+      },
+      "master": {
+        "bytes": 38078,
+        "sha256": "77c6bac66d8bebff331b073ae9a2ad019db2f8509036ec6105d41ebe3d631472",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.fuck__wounded__contained",
+      "entryId": "explicit.fuck",
+      "mood": "wounded",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[sad] [whispering] Fuck.",
+      "seconds": 2.690612244897959,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.fuck__wounded__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1670200181,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.fuck__wounded__contained.wav",
+          "bytes": 29708,
+          "sha256": "47c4858156c4bd7418b5fc9b70727dd1eb378bea7cdfbe9a54177dcd82aa6ff6",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "859ead778e473da0b04d4d0d4e546641f9ba7e1a4383e1e9eb652dde595d6d1e",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 29664,
+            "seconds": 2.690612244897959,
+            "peak": 0.4765625,
+            "rms": 0.025460139598755416
+          }
+        }
+      },
+      "master": {
+        "bytes": 43511,
+        "sha256": "b6285291ae1001769292208c6ba91efdcbb7790ea5393f2f2c6647bcc0b13a10",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.fuck__wounded__trailing",
+      "entryId": "explicit.fuck",
+      "mood": "wounded",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[sad] [whispering] [sighs] Fuck....",
+      "seconds": 3.474285714285714,
+      "routineDurationEligible": false,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.fuck__wounded__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 602966040,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.fuck__wounded__trailing.wav",
+          "bytes": 38348,
+          "sha256": "c072fc7022753f548c9f456f03e18f62794a20c2c665a6d7de9f03bd042c8466",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "6e468a385d548ed4111f69341dc95fe3ba7e71cb53b4c278dc4a477e302f34a3",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 38304,
+            "seconds": 3.474285714285714,
+            "peak": 0.40625,
+            "rms": 0.029584084774310283
+          }
+        }
+      },
+      "master": {
+        "bytes": 56050,
+        "sha256": "159b5f6608120fa4aac5f602e37078309bfa298c758ead525059b2f9d27175af",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.fuck__whiny__contained",
+      "entryId": "explicit.fuck",
+      "mood": "whiny",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[whining] [softly] Fuck.",
+      "seconds": 2.4293877551020406,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.fuck__whiny__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1270920372,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.fuck__whiny__contained.wav",
+          "bytes": 26828,
+          "sha256": "b9b63ddca58dc8f42662afc820ac7c9570e242607c4a4a5589afad56dde6ad9a",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "b1d27a74608a730137ebf0ba8e735af3d5a261001432980e24cb6c7aa783c68f",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 26784,
+            "seconds": 2.4293877551020406,
+            "peak": 0.265625,
+            "rms": 0.01511452498489648
+          }
+        }
+      },
+      "master": {
+        "bytes": 39332,
+        "sha256": "a902acbc710844c4d0f03f60ae71a238e88bfcebfae987b7658e0ecdba7095aa",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.fuck__whiny__trailing",
+      "entryId": "explicit.fuck",
+      "mood": "whiny",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[whining] [softly] [sighs] Fuck....",
+      "seconds": 2.84734693877551,
+      "routineDurationEligible": false,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.fuck__whiny__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 870779690,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.fuck__whiny__trailing.wav",
+          "bytes": 31436,
+          "sha256": "563e20867f56c6d2c0d80f77149693b88b999d73b528709eb3bd7f2415babe3f",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "f0c0b51c15faf959f900ac6e831091896e3a9391e43f565717a548785b7538d1",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 31392,
+            "seconds": 2.84734693877551,
+            "peak": 0.3515625,
+            "rms": 0.017439817996842428
+          }
+        }
+      },
+      "master": {
+        "bytes": 46019,
+        "sha256": "9035b516e92b59792a6e343e27e8e43b4ddf75a864951dec115ca0f9388caeb8",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.damn__sad__contained",
+      "entryId": "explicit.damn",
+      "mood": "sad",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[sad] [softly] Damn.",
+      "seconds": 1.3061224489795917,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.damn__sad__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1548725995,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.damn__sad__contained.wav",
+          "bytes": 14444,
+          "sha256": "625657433541bb7cea36209640c49c73aaa71f826bc09cc5974188da2cd23c4e",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "34fb040b7f8d696e54033a8a10816272bca164b853601698877916e01a8d6017",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 14400,
+            "seconds": 1.3061224489795917,
+            "peak": 0.2421875,
+            "rms": 0.027869906763684966
+          }
+        }
+      },
+      "master": {
+        "bytes": 21359,
+        "sha256": "5353c146ed461a6df4b505c734f72ccca9a98e2e8a3a470c9af2b5c46e95cacb",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.damn__sad__trailing",
+      "entryId": "explicit.damn",
+      "mood": "sad",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[sad] [softly] [sighs] Damn....",
+      "seconds": 3.239183673469388,
+      "routineDurationEligible": false,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.damn__sad__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 987419667,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.damn__sad__trailing.wav",
+          "bytes": 35756,
+          "sha256": "fb25f35b131fd2daccdd0e414ad78f05c79a9d0179f5abf4b8985df20e3a494e",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "37bd3d14938f6b302900946c248c06d56b240cb7359e93489608af6f4a649d27",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 35712,
+            "seconds": 3.239183673469388,
+            "peak": 0.359375,
+            "rms": 0.02742871718405387
+          }
+        }
+      },
+      "master": {
+        "bytes": 52288,
+        "sha256": "692728e7388c6c4c0a9a1920741e1b07e03dc54d006928eca55e86d250de7507",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.damn__wounded__contained",
+      "entryId": "explicit.damn",
+      "mood": "wounded",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[sad] [whispering] Damn.",
+      "seconds": 1.4106122448979592,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.damn__wounded__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1304564359,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.damn__wounded__contained.wav",
+          "bytes": 15596,
+          "sha256": "b0862217b6ab95ee91e76107eb8b545144e4d8e34a0fecbd75333ff504b59406",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "8ce5bf6a2dc40976f0a1c4717d2880a5d02a4eacd54f8e04b1e8527c094d6047",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 15552,
+            "seconds": 1.4106122448979592,
+            "peak": 0.5,
+            "rms": 0.028899604679263103
+          }
+        }
+      },
+      "master": {
+        "bytes": 23031,
+        "sha256": "97b0e7d52d05c28a9c420f21c7517532f30532dd3ee5df970766c6a9cf7b3809",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.damn__wounded__trailing",
+      "entryId": "explicit.damn",
+      "mood": "wounded",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[sad] [whispering] [sighs] Damn....",
+      "seconds": 2.4293877551020406,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.damn__wounded__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 807131561,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.damn__wounded__trailing.wav",
+          "bytes": 26828,
+          "sha256": "3c123674c66935b4930423a9a359e182d66653c9ee8bbc5bfe47420a47d2bcc5",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "49b8cdf715b8c79fed930de07089739bcb2b385e4ecbc39a5aea2c338aaede56",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 26784,
+            "seconds": 2.4293877551020406,
+            "peak": 0.359375,
+            "rms": 0.03329845504236283
+          }
+        }
+      },
+      "master": {
+        "bytes": 39332,
+        "sha256": "f5f8e432511315d35d465c6853a5838a29c3de3e5cc9a1d444d19d9541e077a1",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.damn__whiny__contained",
+      "entryId": "explicit.damn",
+      "mood": "whiny",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[whining] [softly] Damn.",
+      "seconds": 2.4293877551020406,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.damn__whiny__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1678328124,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.damn__whiny__contained.wav",
+          "bytes": 26828,
+          "sha256": "c262cd0df11064403262dd3761e46ada2f54a36b062b7579c8e6265bbb9eb268",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "07d16d86cb8c5fc3e6d04e26ebdec73838b93f61f088fe4aaec4bdc09d3d4f95",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 26784,
+            "seconds": 2.4293877551020406,
+            "peak": 0.2109375,
+            "rms": 0.015507519606952591
+          }
+        }
+      },
+      "master": {
+        "bytes": 39332,
+        "sha256": "3d7d73e3215393053d6ca3126df3f7b7e0c6e1505137e99c8d9713d99fef4c08",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.damn__whiny__trailing",
+      "entryId": "explicit.damn",
+      "mood": "whiny",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[whining] [softly] [sighs] Damn....",
+      "seconds": 3.317551020408163,
+      "routineDurationEligible": false,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.damn__whiny__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1604422629,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.damn__whiny__trailing.wav",
+          "bytes": 36620,
+          "sha256": "7416b6c1822c4bee46a7532f50e465812cf68c80af07331a851fe4831f523364",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "99f4cf4776314fa1fc142bed32d5261ce2ff059a74498a735cd80347a9d3f64d",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 36576,
+            "seconds": 3.317551020408163,
+            "peak": 0.34375,
+            "rms": 0.02582727323866821
+          }
+        }
+      },
+      "master": {
+        "bytes": 53542,
+        "sha256": "e5db0adf38ce7eb1aaaaaeaaa3c28836488fecf38e2c1a2cf00216399aa71627",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.crap__sad__contained",
+      "entryId": "explicit.crap",
+      "mood": "sad",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[sad] [softly] Crap.",
+      "seconds": 1.4106122448979592,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.crap__sad__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 692880599,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.crap__sad__contained.wav",
+          "bytes": 15596,
+          "sha256": "0df84307b2a8c560812be84453c5d0a3bd5dda2f1079b9dc080a70aab465c2f2",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "46993aaedd151fbe86eff1e4eeff51556181801725eaa502dd2a63aeca35f354",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 15552,
+            "seconds": 1.4106122448979592,
+            "peak": 0.3984375,
+            "rms": 0.034449089402505434
+          }
+        }
+      },
+      "master": {
+        "bytes": 23031,
+        "sha256": "e021da57b256fa12aef3cc494743493236bce738e7899600512363aee0722af3",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.crap__sad__trailing",
+      "entryId": "explicit.crap",
+      "mood": "sad",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[sad] [softly] [sighs] Crap....",
+      "seconds": 2.3510204081632655,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.crap__sad__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1901594698,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.crap__sad__trailing.wav",
+          "bytes": 25964,
+          "sha256": "2c97500ba136742da1f29d103849f6a2b6fc8e6550ebb11ed65bcb283b2645bf",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "a86a0f4fc773c3594d2d8aa2eef861a100af37bbc906eef9374eb8fc6ba4b99a",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 25920,
+            "seconds": 2.3510204081632655,
+            "peak": 0.4375,
+            "rms": 0.02936611705568334
+          }
+        }
+      },
+      "master": {
+        "bytes": 38078,
+        "sha256": "eba8ceb668d2beb42c4fed7f94e825fd4bb0cc0366c79f07446f27922e27a49d",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.crap__wounded__contained",
+      "entryId": "explicit.crap",
+      "mood": "wounded",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[sad] [whispering] Crap.",
+      "seconds": 1.6457142857142857,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.crap__wounded__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1856169897,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.crap__wounded__contained.wav",
+          "bytes": 18188,
+          "sha256": "6340459a6feae381530b9d0cbe2a2aa8f46c23defffacacb9794bb1dfcf72e93",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "c567e27bcdeab2ac16bc823abfc7d3c15e81b7548db4641c5355903017bc1ba0",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 18144,
+            "seconds": 1.6457142857142857,
+            "peak": 0.53125,
+            "rms": 0.051706360678926
+          }
+        }
+      },
+      "master": {
+        "bytes": 26793,
+        "sha256": "e98f5a60c1a1e64e597b9478ed770030545d01e1f0df8941dcd0331917387d1e",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.crap__wounded__trailing",
+      "entryId": "explicit.crap",
+      "mood": "wounded",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[sad] [whispering] [sighs] Crap....",
+      "seconds": 2.3510204081632655,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.crap__wounded__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 994475076,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.crap__wounded__trailing.wav",
+          "bytes": 25964,
+          "sha256": "1c169d3e963a5e7add8bcbbc26298bb7a7fd5ccebfaea38a806566b44b7ee5d3",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "a4492bd2c3698e696692e0ed30a2502d5098ea6329980ca50ba88848538be616",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 25920,
+            "seconds": 2.3510204081632655,
+            "peak": 0.46875,
+            "rms": 0.03864690790760765
+          }
+        }
+      },
+      "master": {
+        "bytes": 38078,
+        "sha256": "bcf4f9557acb10d5d257bb7861078f35fbfc082ae760bfaaca70e24f11162df1",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.crap__whiny__contained",
+      "entryId": "explicit.crap",
+      "mood": "whiny",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[whining] [softly] Crap.",
+      "seconds": 2.4293877551020406,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.crap__whiny__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 392938465,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.crap__whiny__contained.wav",
+          "bytes": 26828,
+          "sha256": "571aaaa317ba2a2f4ce86ed17b0efb489c4c230de9c24dd0803a9f9e7488b55c",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "31719981f0d501c149af37fbb8126c8e580167f597e328c687929a96e4aec027",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 26784,
+            "seconds": 2.4293877551020406,
+            "peak": 0.40625,
+            "rms": 0.03617455457548882
+          }
+        }
+      },
+      "master": {
+        "bytes": 39332,
+        "sha256": "4cf09cf4d4710e8b495a0325a7526bd7e2c1c76c3b38c9aebeb0b3f76172df55",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.crap__whiny__trailing",
+      "entryId": "explicit.crap",
+      "mood": "whiny",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[whining] [softly] [sighs] Crap....",
+      "seconds": 3.082448979591837,
+      "routineDurationEligible": false,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.crap__whiny__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1896882234,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.crap__whiny__trailing.wav",
+          "bytes": 34028,
+          "sha256": "45e2ccf46d313f0c96ec58fcfa4ed978ad434676ca4cabe194934ad20aff6d2c",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "af0e212419f34899b17525f7d85a4390ee2f2e3fe76b69178a5c233cc2b5dfee",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 33984,
+            "seconds": 3.082448979591837,
+            "peak": 0.3125,
+            "rms": 0.031096373565238464
+          }
+        }
+      },
+      "master": {
+        "bytes": 49781,
+        "sha256": "011a024a2bdea460bcb27d8248abab64600e5abad195b25e135697789ecf900b",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shiba__sad__contained",
+      "entryId": "explicit.shiba",
+      "mood": "sad",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[sad] [softly] Shiba.",
+      "seconds": 1.6457142857142857,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.shiba__sad__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1166384977,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.shiba__sad__contained.wav",
+          "bytes": 18188,
+          "sha256": "1bf5ebc0d63134599b7fe9705a11351acb235ec175eda1229dcac338d4ffddf4",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "71856a88f43c49d2f0f5562df1864dda80db4614ad71a5896ba9b1a2b852485b",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 18144,
+            "seconds": 1.6457142857142857,
+            "peak": 0.5078125,
+            "rms": 0.028585586202272355
+          }
+        }
+      },
+      "master": {
+        "bytes": 26793,
+        "sha256": "6f34668ac17c8d2b904c04b627514b8a3be1bf894aae251f128ac287037b4361",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shiba__sad__trailing",
+      "entryId": "explicit.shiba",
+      "mood": "sad",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[sad] [softly] [sighs] Shiba....",
+      "seconds": 2.27265306122449,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.shiba__sad__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 2095067074,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.shiba__sad__trailing.wav",
+          "bytes": 25100,
+          "sha256": "6d252993294f1713d9df46e1db8c61c0e6f0ec988c734b7cdaaaa4746e75ab14",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "ad6d2c394b740ebbab7927e3f978f98e8abb5c3237aa760d14a56658246b5bc7",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 25056,
+            "seconds": 2.27265306122449,
+            "peak": 0.515625,
+            "rms": 0.028771666518267687
+          }
+        }
+      },
+      "master": {
+        "bytes": 36824,
+        "sha256": "320266b39ee7b0373229f54d097f1808a80fedf56e134dd57697759844487c08",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shiba__wounded__contained",
+      "entryId": "explicit.shiba",
+      "mood": "wounded",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[sad] [whispering] Shiba.",
+      "seconds": 1.7240816326530612,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.shiba__wounded__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 71332142,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.shiba__wounded__contained.wav",
+          "bytes": 19052,
+          "sha256": "5a226697b41364938251f7d7e36d58a19b5cb36f4a40e82f623f0312d74e63db",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "7ab6673c079b1cab633e9932865ff746460bdc81a49ff3304d0cc1a3510aa9bb",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 19008,
+            "seconds": 1.7240816326530612,
+            "peak": 0.3671875,
+            "rms": 0.04223362676877972
+          }
+        }
+      },
+      "master": {
+        "bytes": 28047,
+        "sha256": "b2c8558e143606a4a32bbf97a47ada5808bf6e852b4e4bbb7a3fa71a8a63fec2",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shiba__wounded__trailing",
+      "entryId": "explicit.shiba",
+      "mood": "wounded",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[sad] [whispering] [sighs] Shiba....",
+      "seconds": 2.507755102040816,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.shiba__wounded__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1903360696,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.shiba__wounded__trailing.wav",
+          "bytes": 27692,
+          "sha256": "f17e4b01f2c00d7edba0f2732dfdfb80c7518a20296c5b4784036642cccbf895",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "96b21c2ffdea687df2e0b7686cabb74eae5d659a16ccc2df6521ae98961e7cba",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 27648,
+            "seconds": 2.507755102040816,
+            "peak": 0.40625,
+            "rms": 0.031375808372176364
+          }
+        }
+      },
+      "master": {
+        "bytes": 40586,
+        "sha256": "d24a91daa917e1594dd2f8e4b8210e5632519e0586f59fcb2b1b6dac12e8de72",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shiba__whiny__contained",
+      "entryId": "explicit.shiba",
+      "mood": "whiny",
+      "moodStatus": "intended; listening review pending",
+      "variant": "contained",
+      "script": "[whining] [softly] Shiba.",
+      "seconds": 2.5861224489795918,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.shiba__whiny__contained",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 507845172,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.shiba__whiny__contained.wav",
+          "bytes": 28556,
+          "sha256": "e4cf3f43b92529920b8a808190f049d8e533e9f7b149f515729317fcdf20bb9c",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "5a6f71b14697e784e78e9b70e32efcc36b37d566cbefe1735ac4d649f2f75c1d",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 28512,
+            "seconds": 2.5861224489795918,
+            "peak": 0.203125,
+            "rms": 0.024206535026954773
+          }
+        }
+      },
+      "master": {
+        "bytes": 41839,
+        "sha256": "f085de89829c6cd974c51d4060279d111e93a30fc20fdd542aa2992e89c78c4d",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
+    },
+    {
+      "id": "swear-expansion-v1.explicit.shiba__whiny__trailing",
+      "entryId": "explicit.shiba",
+      "mood": "whiny",
+      "moodStatus": "intended; listening review pending",
+      "variant": "trailing",
+      "script": "[whining] [softly] [sighs] Shiba....",
+      "seconds": 3.082448979591837,
+      "routineDurationEligible": false,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "explicit.shiba__whiny__trailing",
+      "sourceBatch": "swear-expansion-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 1962952842,
+        "language": "auto"
+      },
+      "files": {
+        "robot-soft": {
+          "path": "audio-pcm8/robot-soft/swear-expansion-v1.explicit.shiba__whiny__trailing.wav",
+          "bytes": 34028,
+          "sha256": "1a9437c30bc43a3991fd28c986eef33ab47e95d4aee50fcf9b90b893de317048",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_u8",
+            "bitsPerSample": 8,
+            "sampleRate": 11025,
+            "channels": 1,
+            "silence": 128
+          },
+          "sourceSha256": "24728eece818c6fb81d2c0add63eede5b461f1f0e612575d1011be80d73fcb7e",
+          "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+          "decoded": {
+            "sampleRate": 11025,
+            "bitsPerSample": 8,
+            "channels": 1,
+            "frames": 33984,
+            "seconds": 3.082448979591837,
+            "peak": 0.1796875,
+            "rms": 0.015911739975124663
+          }
+        }
+      },
+      "master": {
+        "bytes": 49781,
+        "sha256": "34e5a465cd574fc361381fa09d9b706d68f0ed72fcef548fb0df4231664eb956",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        },
+        "storage": "local-archive-not-distributed"
+      }
     }
   ],
   "scope": {
@@ -280376,7 +282026,8 @@
     "newPhase1Takes": 2682,
     "reusedPilotTakes": 20,
     "additionalLegacyTakes": 20,
-    "deferredSlots": 4421
+    "deferredSlots": 4421,
+    "supplementalSwearTakes": 30
   },
   "distribution": {
     "codec": "pcm_u8",

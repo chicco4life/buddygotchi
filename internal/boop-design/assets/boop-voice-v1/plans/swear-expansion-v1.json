@@ -1,0 +1,314 @@
+{
+  "version": 1,
+  "batch": "swear-expansion-v1",
+  "voiceId": "rErOatUrNIU3vfNcLl6Z",
+  "modelId": "eleven_v4",
+  "profiles": [
+    "robot-soft"
+  ],
+  "creditCap": 2500,
+  "inputCharacters": 851,
+  "slots": [
+    {
+      "performanceId": "explicit.shit__sad__contained",
+      "recordingId": "swear-expansion-v1.explicit.shit__sad__contained",
+      "entryId": "explicit.shit",
+      "mood": "sad",
+      "variant": "contained",
+      "script": "[sad] [softly] Shit.",
+      "direction": "Deflated and quiet after a long effort; a small falling sigh, never a shout.",
+      "seed": 435205064
+    },
+    {
+      "performanceId": "explicit.shit__sad__trailing",
+      "recordingId": "swear-expansion-v1.explicit.shit__sad__trailing",
+      "entryId": "explicit.shit",
+      "mood": "sad",
+      "variant": "trailing",
+      "script": "[sad] [softly] [sighs] Shit....",
+      "direction": "Deflated and quiet after a long effort; a small falling sigh, never a shout.",
+      "seed": 1659820774
+    },
+    {
+      "performanceId": "explicit.shit__wounded__contained",
+      "recordingId": "swear-expansion-v1.explicit.shit__wounded__contained",
+      "entryId": "explicit.shit",
+      "mood": "wounded",
+      "variant": "contained",
+      "script": "[sad] [whispering] Shit.",
+      "direction": "Hurt and small: a short wince rather than an angry curse.",
+      "seed": 652096907
+    },
+    {
+      "performanceId": "explicit.shit__wounded__trailing",
+      "recordingId": "swear-expansion-v1.explicit.shit__wounded__trailing",
+      "entryId": "explicit.shit",
+      "mood": "wounded",
+      "variant": "trailing",
+      "script": "[sad] [whispering] [sighs] Shit....",
+      "direction": "Hurt and small: a short wince rather than an angry curse.",
+      "seed": 102238300
+    },
+    {
+      "performanceId": "explicit.shit__whiny__contained",
+      "recordingId": "swear-expansion-v1.explicit.shit__whiny__contained",
+      "entryId": "explicit.shit",
+      "mood": "whiny",
+      "variant": "contained",
+      "script": "[whining] [softly] Shit.",
+      "direction": "Sorry for itself, lightly stretched, soft and not piercing.",
+      "seed": 1011702257
+    },
+    {
+      "performanceId": "explicit.shit__whiny__trailing",
+      "recordingId": "swear-expansion-v1.explicit.shit__whiny__trailing",
+      "entryId": "explicit.shit",
+      "mood": "whiny",
+      "variant": "trailing",
+      "script": "[whining] [softly] [sighs] Shit....",
+      "direction": "Sorry for itself, lightly stretched, soft and not piercing.",
+      "seed": 1139213234
+    },
+    {
+      "performanceId": "explicit.fuck__sad__contained",
+      "recordingId": "swear-expansion-v1.explicit.fuck__sad__contained",
+      "entryId": "explicit.fuck",
+      "mood": "sad",
+      "variant": "contained",
+      "script": "[sad] [softly] Fuck.",
+      "direction": "Deflated and quiet after a long effort; a small falling sigh, never a shout.",
+      "seed": 124682461
+    },
+    {
+      "performanceId": "explicit.fuck__sad__trailing",
+      "recordingId": "swear-expansion-v1.explicit.fuck__sad__trailing",
+      "entryId": "explicit.fuck",
+      "mood": "sad",
+      "variant": "trailing",
+      "script": "[sad] [softly] [sighs] Fuck....",
+      "direction": "Deflated and quiet after a long effort; a small falling sigh, never a shout.",
+      "seed": 1868462380
+    },
+    {
+      "performanceId": "explicit.fuck__wounded__contained",
+      "recordingId": "swear-expansion-v1.explicit.fuck__wounded__contained",
+      "entryId": "explicit.fuck",
+      "mood": "wounded",
+      "variant": "contained",
+      "script": "[sad] [whispering] Fuck.",
+      "direction": "Hurt and small: a short wince rather than an angry curse.",
+      "seed": 1670200181
+    },
+    {
+      "performanceId": "explicit.fuck__wounded__trailing",
+      "recordingId": "swear-expansion-v1.explicit.fuck__wounded__trailing",
+      "entryId": "explicit.fuck",
+      "mood": "wounded",
+      "variant": "trailing",
+      "script": "[sad] [whispering] [sighs] Fuck....",
+      "direction": "Hurt and small: a short wince rather than an angry curse.",
+      "seed": 602966040
+    },
+    {
+      "performanceId": "explicit.fuck__whiny__contained",
+      "recordingId": "swear-expansion-v1.explicit.fuck__whiny__contained",
+      "entryId": "explicit.fuck",
+      "mood": "whiny",
+      "variant": "contained",
+      "script": "[whining] [softly] Fuck.",
+      "direction": "Sorry for itself, lightly stretched, soft and not piercing.",
+      "seed": 1270920372
+    },
+    {
+      "performanceId": "explicit.fuck__whiny__trailing",
+      "recordingId": "swear-expansion-v1.explicit.fuck__whiny__trailing",
+      "entryId": "explicit.fuck",
+      "mood": "whiny",
+      "variant": "trailing",
+      "script": "[whining] [softly] [sighs] Fuck....",
+      "direction": "Sorry for itself, lightly stretched, soft and not piercing.",
+      "seed": 870779690
+    },
+    {
+      "performanceId": "explicit.damn__sad__contained",
+      "recordingId": "swear-expansion-v1.explicit.damn__sad__contained",
+      "entryId": "explicit.damn",
+      "mood": "sad",
+      "variant": "contained",
+      "script": "[sad] [softly] Damn.",
+      "direction": "Deflated and quiet after a long effort; a small falling sigh, never a shout.",
+      "seed": 1548725995
+    },
+    {
+      "performanceId": "explicit.damn__sad__trailing",
+      "recordingId": "swear-expansion-v1.explicit.damn__sad__trailing",
+      "entryId": "explicit.damn",
+      "mood": "sad",
+      "variant": "trailing",
+      "script": "[sad] [softly] [sighs] Damn....",
+      "direction": "Deflated and quiet after a long effort; a small falling sigh, never a shout.",
+      "seed": 987419667
+    },
+    {
+      "performanceId": "explicit.damn__wounded__contained",
+      "recordingId": "swear-expansion-v1.explicit.damn__wounded__contained",
+      "entryId": "explicit.damn",
+      "mood": "wounded",
+      "variant": "contained",
+      "script": "[sad] [whispering] Damn.",
+      "direction": "Hurt and small: a short wince rather than an angry curse.",
+      "seed": 1304564359
+    },
+    {
+      "performanceId": "explicit.damn__wounded__trailing",
+      "recordingId": "swear-expansion-v1.explicit.damn__wounded__trailing",
+      "entryId": "explicit.damn",
+      "mood": "wounded",
+      "variant": "trailing",
+      "script": "[sad] [whispering] [sighs] Damn....",
+      "direction": "Hurt and small: a short wince rather than an angry curse.",
+      "seed": 807131561
+    },
+    {
+      "performanceId": "explicit.damn__whiny__contained",
+      "recordingId": "swear-expansion-v1.explicit.damn__whiny__contained",
+      "entryId": "explicit.damn",
+      "mood": "whiny",
+      "variant": "contained",
+      "script": "[whining] [softly] Damn.",
+      "direction": "Sorry for itself, lightly stretched, soft and not piercing.",
+      "seed": 1678328124
+    },
+    {
+      "performanceId": "explicit.damn__whiny__trailing",
+      "recordingId": "swear-expansion-v1.explicit.damn__whiny__trailing",
+      "entryId": "explicit.damn",
+      "mood": "whiny",
+      "variant": "trailing",
+      "script": "[whining] [softly] [sighs] Damn....",
+      "direction": "Sorry for itself, lightly stretched, soft and not piercing.",
+      "seed": 1604422629
+    },
+    {
+      "performanceId": "explicit.crap__sad__contained",
+      "recordingId": "swear-expansion-v1.explicit.crap__sad__contained",
+      "entryId": "explicit.crap",
+      "mood": "sad",
+      "variant": "contained",
+      "script": "[sad] [softly] Crap.",
+      "direction": "Deflated and quiet after a long effort; a small falling sigh, never a shout.",
+      "seed": 692880599
+    },
+    {
+      "performanceId": "explicit.crap__sad__trailing",
+      "recordingId": "swear-expansion-v1.explicit.crap__sad__trailing",
+      "entryId": "explicit.crap",
+      "mood": "sad",
+      "variant": "trailing",
+      "script": "[sad] [softly] [sighs] Crap....",
+      "direction": "Deflated and quiet after a long effort; a small falling sigh, never a shout.",
+      "seed": 1901594698
+    },
+    {
+      "performanceId": "explicit.crap__wounded__contained",
+      "recordingId": "swear-expansion-v1.explicit.crap__wounded__contained",
+      "entryId": "explicit.crap",
+      "mood": "wounded",
+      "variant": "contained",
+      "script": "[sad] [whispering] Crap.",
+      "direction": "Hurt and small: a short wince rather than an angry curse.",
+      "seed": 1856169897
+    },
+    {
+      "performanceId": "explicit.crap__wounded__trailing",
+      "recordingId": "swear-expansion-v1.explicit.crap__wounded__trailing",
+      "entryId": "explicit.crap",
+      "mood": "wounded",
+      "variant": "trailing",
+      "script": "[sad] [whispering] [sighs] Crap....",
+      "direction": "Hurt and small: a short wince rather than an angry curse.",
+      "seed": 994475076
+    },
+    {
+      "performanceId": "explicit.crap__whiny__contained",
+      "recordingId": "swear-expansion-v1.explicit.crap__whiny__contained",
+      "entryId": "explicit.crap",
+      "mood": "whiny",
+      "variant": "contained",
+      "script": "[whining] [softly] Crap.",
+      "direction": "Sorry for itself, lightly stretched, soft and not piercing.",
+      "seed": 392938465
+    },
+    {
+      "performanceId": "explicit.crap__whiny__trailing",
+      "recordingId": "swear-expansion-v1.explicit.crap__whiny__trailing",
+      "entryId": "explicit.crap",
+      "mood": "whiny",
+      "variant": "trailing",
+      "script": "[whining] [softly] [sighs] Crap....",
+      "direction": "Sorry for itself, lightly stretched, soft and not piercing.",
+      "seed": 1896882234
+    },
+    {
+      "performanceId": "explicit.shiba__sad__contained",
+      "recordingId": "swear-expansion-v1.explicit.shiba__sad__contained",
+      "entryId": "explicit.shiba",
+      "mood": "sad",
+      "variant": "contained",
+      "script": "[sad] [softly] Shiba.",
+      "direction": "Deflated and quiet after a long effort; a small falling sigh, never a shout.",
+      "seed": 1166384977
+    },
+    {
+      "performanceId": "explicit.shiba__sad__trailing",
+      "recordingId": "swear-expansion-v1.explicit.shiba__sad__trailing",
+      "entryId": "explicit.shiba",
+      "mood": "sad",
+      "variant": "trailing",
+      "script": "[sad] [softly] [sighs] Shiba....",
+      "direction": "Deflated and quiet after a long effort; a small falling sigh, never a shout.",
+      "seed": 2095067074
+    },
+    {
+      "performanceId": "explicit.shiba__wounded__contained",
+      "recordingId": "swear-expansion-v1.explicit.shiba__wounded__contained",
+      "entryId": "explicit.shiba",
+      "mood": "wounded",
+      "variant": "contained",
+      "script": "[sad] [whispering] Shiba.",
+      "direction": "Hurt and small: a short wince rather than an angry curse.",
+      "seed": 71332142
+    },
+    {
+      "performanceId": "explicit.shiba__wounded__trailing",
+      "recordingId": "swear-expansion-v1.explicit.shiba__wounded__trailing",
+      "entryId": "explicit.shiba",
+      "mood": "wounded",
+      "variant": "trailing",
+      "script": "[sad] [whispering] [sighs] Shiba....",
+      "direction": "Hurt and small: a short wince rather than an angry curse.",
+      "seed": 1903360696
+    },
+    {
+      "performanceId": "explicit.shiba__whiny__contained",
+      "recordingId": "swear-expansion-v1.explicit.shiba__whiny__contained",
+      "entryId": "explicit.shiba",
+      "mood": "whiny",
+      "variant": "contained",
+      "script": "[whining] [softly] Shiba.",
+      "direction": "Sorry for itself, lightly stretched, soft and not piercing.",
+      "seed": 507845172
+    },
+    {
+      "performanceId": "explicit.shiba__whiny__trailing",
+      "recordingId": "swear-expansion-v1.explicit.shiba__whiny__trailing",
+      "entryId": "explicit.shiba",
+      "mood": "whiny",
+      "variant": "trailing",
+      "script": "[whining] [softly] [sighs] Shiba....",
+      "direction": "Sorry for itself, lightly stretched, soft and not piercing.",
+      "seed": 1962952842
+    }
+  ],
+  "note": "Supplemental slots, disjoint from frozen phase1 and deferred plans. Tags are performance requests, not guaranteed emotion presets. All takes require listening review."
+}

@@ -38,4 +38,12 @@ class Compression(unittest.TestCase):
         self.assertIn('outside the repository',result.stderr)
         self.assertFalse(target.exists())
 
+    def test_historical_migration_refuses_expanded_bank(self):
+        with tempfile.TemporaryDirectory() as d:
+            target=Path(d)/'untouched'
+            result=subprocess.run([sys.executable,str(Path(c.__file__)),'--archive',str(target)],capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('refusing to overwrite an expanded bank',result.stderr)
+            self.assertFalse(target.exists())
+
 if __name__=='__main__':unittest.main()

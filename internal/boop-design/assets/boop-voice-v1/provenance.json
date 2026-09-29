@@ -17,10 +17,18 @@
       "reusedPilotSlots": 20
     }
   ],
+  "supplemental": {
+    "batch": "swear-expansion-v1",
+    "takes": 30,
+    "profiles": ["robot-soft"],
+    "plan": "plans/swear-expansion-v1.json",
+    "processing": "Same phase1 three-profile shared normalization computed in memory; persist only robot-soft, then tools/compress.py quantize and wav_stats helpers.",
+    "review": "unreviewed-by-ear"
+  },
   "excluded": "Other voices, six superseded early Robot Minion auditions, raw accounting ledgers, API keys, execution logs and decoded intermediates.",
   "review": "All takes unreviewed by ear at export. Intended mood labels are not listening guarantees.",
   "textures": {
-    "original": "Decoded and quiet-level-matched; untouched provider MP3 is in masters.",
+    "original": "Decoded and quiet-level-matched; untouched provider MP3 is locally archived, not distributed. Only the original 2722 takes have this profile.",
     "robot-soft": "150 Hz high-pass; 8% mild saturation; 8% 12-bit/sample-hold texture; 12% 92 Hz ring modulation; 4.2 kHz low-pass.",
     "robot-grain": "Same chain with 16% sample-hold texture and 22% ring modulation."
   },

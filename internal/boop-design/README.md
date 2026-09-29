@@ -17,6 +17,10 @@ changes the shipped app, firmware enums, steering or hardware assets.
   indexes and a tested host-side selector. Audition assets,
   not automatic production playback.
 
+The [voice guide](assets/boop-voice-v1/README.md#supplemental-sad--wounded--whiny-swears)
+also documents the supplemental failure-only swear takes, which ship in robot-soft
+only. The review's Batch filter isolates them; adult expressions remain opt-in.
+
 The compact voice release preserves originals in a verified local archive, with
 master hashes retained in the manifest. The latest checkout is smaller; old large
 audio remains in Git history (normal commit, no rewrite). The voice README explains

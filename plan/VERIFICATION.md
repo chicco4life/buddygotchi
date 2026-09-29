@@ -74,6 +74,15 @@ and rejects leftover MP3/AAC assets. The handoff lists SD streaming and whole-cl
 playback requirements, not claims of hardware integration or measured onset latency.
 Evidence: [8-bit asset distribution](evidence/2026-09-29-voice-pcm8/README.md).
 
+**Supplemental voice batch.** `tools/swear_expansion.py --help` under the bank
+documents the fixed 30-slot plan, explicit paid-generation guard and offline import.
+Private external caches prevent masters/account ledgers entering the package.
+The voice checker verifies supplemental plan disjointness, robot-soft-only assets,
+failure/adult/review gates, and missing-profile selection. The historical PCM
+migrator refuses expanded manifests. Browser review tests cover the new batch
+filter, explicit opt-in and unavailable textures. Evidence:
+[sad / wounded / whiny swears](evidence/2026-09-29-swear-expansion/README.md).
+
 Every tool prints its flags with `--help` (`internal/tools/boopctl
 <command> --help`, `.build/debug/boopdev <command> --help`,
 `.build/debug/Boop --help`). `Boop` and `boopdev` stop with their usage on

@@ -58,6 +58,8 @@ def main():
     repo = ROOT.parents[3]
     if not args.archive.is_absolute() or archive == repo or repo in archive.parents:
         raise ValueError('Archive must be an absolute path outside the repository')
+    current = json.loads((ROOT/'manifest.json').read_text())
+    assert len(current['recordings']) == 2722, 'Historical converter is fixed to the original 2722 takes; refusing to overwrite an expanded bank. Use the supplemental importer for newer takes.'
     if not archive.exists():
         archive.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(ROOT, archive)

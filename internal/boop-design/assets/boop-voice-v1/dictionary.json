@@ -92,8 +92,8 @@
       "nonverbal": 46
     },
     "moods": 13,
-    "plannedPerformances": 7123,
-    "inputCharacters": 133970,
+    "plannedPerformances": 7153,
+    "inputCharacters": 134821,
     "pilotRequests": 20,
     "pilotCharacters": 356,
     "explicitEntries": 5
@@ -5868,7 +5868,7 @@
     },
     {
       "id": "word.reply.voila",
-      "text": "Voilà",
+      "text": "Voil\u00e0",
       "category": "word",
       "intent": "reply",
       "states": [
@@ -5891,7 +5891,7 @@
         "curious"
       ],
       "tier": "occasional",
-      "origin": "French voilà",
+      "origin": "French voil\u00e0",
       "gloss": "There it is; here is the reply",
       "explicit": false,
       "assembly": "anchor",
@@ -13608,7 +13608,7 @@
       "id": "borrowed.vamos",
       "text": "Vamos",
       "origin": "Spanish",
-      "gloss": "Let’s go",
+      "gloss": "Let\u2019s go",
       "intent": "begin",
       "states": [
         "starting"
@@ -13674,7 +13674,7 @@
       "id": "borrowed.andiamo",
       "text": "Andiamo",
       "origin": "Italian",
-      "gloss": "Let’s go",
+      "gloss": "Let\u2019s go",
       "intent": "begin",
       "states": [
         "starting"
@@ -13778,7 +13778,7 @@
     {
       "id": "borrowed.yatta",
       "text": "Yatta",
-      "origin": "Japanese やった",
+      "origin": "Japanese \u3084\u3063\u305f",
       "gloss": "Did it!",
       "intent": "celebrate",
       "states": [
@@ -13843,7 +13843,7 @@
     },
     {
       "id": "borrowed.ole",
-      "text": "Olé",
+      "text": "Ol\u00e9",
       "origin": "Spanish interjection",
       "gloss": "A cheer",
       "intent": "celebrate",
@@ -13942,7 +13942,7 @@
     {
       "id": "borrowed.aigo",
       "text": "Aigo",
-      "origin": "Korean 아이고",
+      "origin": "Korean \uc544\uc774\uace0",
       "gloss": "Oh dear / oh my; context dependent",
       "intent": "frustration",
       "states": [
@@ -14006,7 +14006,7 @@
     {
       "id": "borrowed.yare-yare",
       "text": "Yare yare",
-      "origin": "Japanese やれやれ",
+      "origin": "Japanese \u3084\u308c\u3084\u308c",
       "gloss": "Weary well, well / good grief",
       "intent": "frustration",
       "states": [
@@ -14115,7 +14115,7 @@
     {
       "id": "borrowed.chotto",
       "text": "Chotto",
-      "origin": "Japanese ちょっと",
+      "origin": "Japanese \u3061\u3087\u3063\u3068",
       "gloss": "A little / a moment; used as a wait reaction here",
       "intent": "wait",
       "states": [
@@ -14258,7 +14258,7 @@
     },
     {
       "id": "borrowed.allo",
-      "text": "Allô",
+      "text": "All\u00f4",
       "origin": "French",
       "gloss": "Hello on the telephone; playful attention call",
       "intent": "attention",
@@ -14337,8 +14337,8 @@
     {
       "id": "borrowed.tadaima",
       "text": "Tadaima",
-      "origin": "Japanese ただいま",
-      "gloss": "I’m back",
+      "origin": "Japanese \u305f\u3060\u3044\u307e",
+      "gloss": "I\u2019m back",
       "intent": "return",
       "states": [
         "helper_return"
@@ -14448,7 +14448,10 @@
       "moods": [
         "annoyed",
         "irritated",
-        "grumpy"
+        "grumpy",
+        "sad",
+        "wounded",
+        "whiny"
       ],
       "tier": "rare",
       "origin": "English profanity",
@@ -14478,7 +14481,10 @@
       "moods": [
         "annoyed",
         "irritated",
-        "grumpy"
+        "grumpy",
+        "sad",
+        "wounded",
+        "whiny"
       ],
       "tier": "rare",
       "origin": "English profanity",
@@ -14508,7 +14514,10 @@
       "moods": [
         "annoyed",
         "irritated",
-        "grumpy"
+        "grumpy",
+        "sad",
+        "wounded",
+        "whiny"
       ],
       "tier": "rare",
       "origin": "English profanity",
@@ -14538,7 +14547,10 @@
       "moods": [
         "annoyed",
         "irritated",
-        "grumpy"
+        "grumpy",
+        "sad",
+        "wounded",
+        "whiny"
       ],
       "tier": "rare",
       "origin": "English profanity",
@@ -14568,7 +14580,10 @@
       "moods": [
         "annoyed",
         "irritated",
-        "grumpy"
+        "grumpy",
+        "sad",
+        "wounded",
+        "whiny"
       ],
       "tier": "rare",
       "origin": "User-proposed truncation; may evoke strong Korean profanity",
@@ -14612,5 +14627,5 @@
       "why": "Avoid ambiguous commands or claims in a casual bank; add only with independently verified operation facts."
     }
   ],
-  "performanceMatrix": "Not copied: planned performance slots can be enumerated from entries[].moods × entries[].variants. Planned slots are not audio files."
+  "performanceMatrix": "Not copied: planned performance slots can be enumerated from entries[].moods \u00d7 entries[].variants. Planned slots are not audio files."
 }

@@ -10,6 +10,13 @@ section.innerHTML=`<div class="reel-head"><div><span class="eyebrow">PHASE 1 / C
 <div class="actions"><button id="reel-export">Export review marks ↓</button><button id="reel-refresh">Refresh generated clips</button><a href="../plans/phase1.json" download>First-pass manifest ↓</a><a href="../plans/deferred.json" download>Deferred slots ↓</a></div>
 <details><summary>Jump to a recording</summary><div id="reel-list"></div></details><audio id="reel-audio" preload="none"></audio>`;
 document.querySelector('.hero').after(section);
+section.querySelector('.eyebrow').textContent='VOICE BANK / CONTINUOUS AUDITION';
+const batchLabel=document.createElement('label');batchLabel.textContent='Batch';
+const batchSelect=document.createElement('select');batchSelect.id='reel-batch';
+for(const [value,label] of [['','All recorded batches'],['swear-expansion-v1','NEW · 30 sad / wounded / whiny swears']]){
+ const option=document.createElement('option');option.value=value;option.textContent=label;batchSelect.append(option);
+}
+batchLabel.append(batchSelect);section.querySelector('.reel-filters').prepend(batchLabel);
 const $=id=>document.getElementById('reel-'+id);
 const audio=$('audio');audio.volume=.32;
 let bank=[],queue=[],index=0,playing=false,timer,serial=0,marks={},summary;
@@ -50,7 +57,7 @@ function mark(verdict){
 }
 function rebuild(restore=false){
  pause('Ready');const q=$('search').value.trim().toLowerCase(),state=$('state').value,mood=$('mood').value,category=$('category').value,review=$('review').value;
- queue=bank.filter(r=>(!state||r.states.includes(state))&&(!mood||r.mood===mood)&&(!category||r.category===category)&&($('explicit').checked||!r.explicit)&&(!q||[r.keyword,r.script,r.entry].join(' ').toLowerCase().includes(q))&&(!review||(review==='unreviewed'?!marks[r.performance]:marks[r.performance]?.verdict===review)));
+ queue=bank.filter(r=>r.files[$('texture').value]&&(!$('batch').value||r.bank===$('batch').value)&&(!state||r.states.includes(state))&&(!mood||r.mood===mood)&&(!category||r.category===category)&&($('explicit').checked||!r.explicit)&&(!q||[r.keyword,r.script,r.entry].join(' ').toLowerCase().includes(q))&&(!review||(review==='unreviewed'?!marks[r.performance]:marks[r.performance]?.verdict===review)));
  queue.sort((a,b)=>(a.states[0]+'|'+a.mood+'|'+a.keyword).localeCompare(b.states[0]+'|'+b.mood+'|'+b.keyword));
  let last;try{last=localStorage.getItem('boop-phase1-last-slot');}catch{}
  index=restore?Math.max(0,queue.findIndex(r=>r.performance===last)):0;audio.removeAttribute('src');audio.load();
@@ -71,7 +78,7 @@ audio.addEventListener('ended',()=>{if(!playing)return;if(index+1>=queue.length)
 audio.addEventListener('error',()=>{if(audio.getAttribute('src'))pause('Audio file could not be loaded. Refresh clips or skip this recording.');});
 $('play').addEventListener('click',()=>playing?pause():play());$('prev').addEventListener('click',()=>jump(index-1,true));$('next').addEventListener('click',()=>jump(index+1,true));$('replay').addEventListener('click',()=>play(true));
 $('keep').addEventListener('click',()=>mark('Keep'));$('rework').addEventListener('click',()=>mark('Rework'));$('clear').addEventListener('click',()=>mark(null));
-$('volume').oninput=()=>{audio.volume=Number($('volume').value)/100;};$('texture').onchange=()=>jump(index,false);$('seek').oninput=()=>jump(Number($('seek').value),playing);
+$('volume').oninput=()=>{audio.volume=Number($('volume').value)/100;};$('texture').onchange=()=>rebuild(true);$('batch').onchange=()=>rebuild();$('seek').oninput=()=>jump(Number($('seek').value),playing);
 for(const id of ['state','mood','category','review','explicit','gap'])$(id).onchange=()=>rebuild();$('search').oninput=()=>rebuild();$('refresh').addEventListener('click',load);
 $('export').addEventListener('click',()=>{const blob=new Blob([JSON.stringify({version:1,voice_id:'rErOatUrNIU3vfNcLl6Z',phase:'phase1',marks},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='boop-phase1-review.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 document.addEventListener('keydown',e=>{if(e.target.closest('input,select,textarea')||!section.matches(':hover')&&!playing)return;
