@@ -439,8 +439,18 @@ void Device::render(uint32_t t) {
     } else {
       render::drawPattern(canvas_);
     }
-  } else {  // the face, needs you and no app: what differs is in the show and the strip
-    render::SceneFrame frame = render::sceneFrame(b_.show(t));
+  } else if (render::SceneShow show = b_.show(t); screen_ == Screen::kNeedsYou && show.state == render::SceneState::kNeedsYou) {
+    // Needs you holds up the sign in its design's place (DEVICE.md §6);
+    // listening, which plays over it, shows as the face.
+    render::SignPose pose = render::signPose(b_.designMs(t), show.eyesShut, show.dy);
+    if (!dirty_ && drawnSign_ && pose == drawnPose_) return;
+    drawnSign_ = true;
+    drawnPose_ = pose;
+    drawnFrame_ = render::SceneFrame{};
+    render::drawSignScreen(canvas_, pose, b_.strip(t));
+  } else {  // the face, needs you's listening and no app: what differs is in the show and the strip
+    drawnSign_ = false;
+    render::SceneFrame frame = render::sceneFrame(show);
     const char* bubble = b_.bubble(t);
     if (!dirty_ && frame == drawnFrame_ && (bubble != nullptr) == drawnBubble_) return;
     drawnFrame_ = frame;

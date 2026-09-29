@@ -39,3 +39,14 @@
 {"clock":123000}
 {"expect":{"screen":"needs_you","attn":{"name":"Thread name on \"needs.."},"alert":122200}}
 {"shot":"thread-name"}
+// The sign (DEVICE.md §6): settled, the head peeks over its top-left corner,
+// ducks at the end of each 4.2 s, then peeks over the top-right, then the
+// middle.
+{"clock":124200}
+{"shot":"sign-left"}
+{"clock":127500}
+{"shot":"sign-ducking"}
+{"clock":128200}
+{"shot":"sign-right"}
+{"clock":132600}
+{"shot":"sign-middle"}
