@@ -75,12 +75,11 @@ public final class Harness: @unchecked Sendable {
     let parts: (ViewEvent) -> StateText.Parts
     let home: DispatchQueue
     let clock: @Sendable () -> Int64
-    let debugLog: URL?
     let log: (String) -> Void
 
     /// Called on `home` after every pass, dropped ones included.
     public var onRecord: ((Record) -> Void)?
-    /// Called on `home` with every pass's `debug.jsonl` line, file or not.
+    /// Called on `home` with every pass's `debug.jsonl` line.
     public var onDebugLine: ((String) -> Void)?
     /// Why a waiting view event's pass may not start now, or nil if it
     /// may: the pipeline's gate, asked again (EVENTS.md §6).
@@ -118,14 +117,13 @@ public final class Harness: @unchecked Sendable {
 
     public init(brain: (any Brain)?, actions: [any Action], pipeline: Pipeline,
                 parts: @escaping (ViewEvent) -> StateText.Parts, home: DispatchQueue,
-                clock: @escaping @Sendable () -> Int64, debugLog: URL? = nil, log: @escaping (String) -> Void = { _ in }) {
+                clock: @escaping @Sendable () -> Int64, log: @escaping (String) -> Void = { _ in }) {
         self.brain = brain
         self.actions = actions
         self.pipeline = pipeline
         self.parts = parts
         self.home = home
         self.clock = clock
-        self.debugLog = debugLog
         self.log = log
         let keys = actions.flatMap { $0.questions().map(\.key) }
         precondition(Set(keys).count == keys.count, "question keys must be unique across actions: \(keys)")
@@ -364,10 +362,8 @@ public final class Harness: @unchecked Sendable {
 
     /// A pass's `debug.jsonl` line (§9).
     func logPass(_ pass: Pass, extra: [String: Any]) {
-        guard debugLog != nil || onDebugLine != nil else { return }
-        let line = DebugLog.pass(pass, extra: extra, at: clock())
-        if let debugLog { LineFile.append(line, to: debugLog) }
-        onDebugLine?(line)
+        guard let onDebugLine else { return }
+        onDebugLine(DebugLog.pass(pass, extra: extra, at: clock()))
     }
 
     /// One view event straight through, without the queue: for the evals.

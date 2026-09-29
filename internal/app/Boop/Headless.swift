@@ -37,14 +37,13 @@ enum Headless {
             }
         }
 
-        var options = runtimeOptions(stateDir: stateDir, socketPath: socketPath, link: link, debug: args.has("--debug"),
-                                     log: log)
         // Headless always takes the dashboard's lines.
-        options.devLines = true
+        var options = runtimeOptions(stateDir: stateDir, socketPath: socketPath, link: link, debug: args.has("--debug"),
+                                     devLines: true, log: log)
         // Jev's key only from BOOP_JEV_KEY, as boopdev: a run from an agent
         // shell must never use the owner's key from the Keychain
         // (harness/HARNESS.md §7).
-        options.readJevKey = { JevKey.environment() }
+        options.readJevKey = { _ in JevKey.environment() }
         if brain == "scripted" { options.brain = { _ in ScriptedBrain.pipelineCheck } }
         // The clock can be moved forward with `{"dev":"advance","ms":N}`, so
         // the pipeline check can finish a 6-minute turn without waiting it out.

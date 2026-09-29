@@ -377,13 +377,13 @@ public final class Core {
                     shot = DeviceMoment(anim: Core.helperReturn)
                 }
             } else if let tool {
-                s.callStarted(event, topic: event["topic"]?.string)
+                s.callStarted(event)
                 s.calledSinceClear = true
                 startCall(&s, event, tool: tool)
             }
             if !late {
                 s.working = true
-                _ = s.openTurn(at: now)
+                s.openTurn(at: now)
             }
             sessions[key] = s
         case .turnEnd, .turnFailed, .turnStopped:

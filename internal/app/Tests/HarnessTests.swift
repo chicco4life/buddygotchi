@@ -775,11 +775,11 @@ final class HarnessTests: XCTestCase {
             let result = react.run(answers)
             XCTAssertEqual(queued.count, before + 1, "one moment queued", line: line)
             // `SAID` stands for the line the take picked at random says.
-            // EVENTS.md §2: the start carries the takes' ids and the face.
+            // EVENTS.md §2: the start carries the takes' ids.
             let said = queued.last?.moment.say?.text ?? "?"
             XCTAssertEqual(result, queued.last.map { q in
                 .started(message.replacingOccurrences(of: "SAID", with: said), q.pending,
-                         facts: ["takes": .array((q.moment.say?.takes ?? []).map { .string($0.id) }), "face": .string(q.moment.mood!)])
+                         facts: ["takes": .array((q.moment.say?.takes ?? []).map { .string($0.id) })])
             }, line: line)
         }
         XCTAssertNil(react.run(["react.mood": a("none")]))

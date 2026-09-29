@@ -497,8 +497,8 @@ gate, which says when something needs you.
    `Boop played a success in a proud face, held twice, and said "Tiny genius".`
    (a failure and a reply read the same way), or
    `Boop made a proud face, held once.` when it says nothing. Its
-   `action` start also carries `takes`, the queued takes' ids, and
-   `face` ([EVENTS.md](EVENTS.md) §2), for the tools.
+   `action` start also carries `takes`, the queued takes' ids
+   ([EVENTS.md](EVENTS.md) §2), for the tools to say what it said.
 
 **No last-reaction line.** HISTORY no longer closes with Boop's last
 reaction: what Boop did is only under the lines it answered. The line
@@ -522,7 +522,7 @@ how it ended ([PROTOCOL.md](../PROTOCOL.md) §4):
 | `failed`, `cut short` | The device says something else stopped it (`dbg.reset`), or doesn't say what | The same |
 | `failed`, `something needed you` | The device says none of it played: something needed you when it arrived | The same |
 | `failed`, `waited too long` | It waited too long for its turn and was dropped, face and all | The moment schedule |
-| `failed`, `no device connected` | Its turn came with no device connected, so nothing played it | The runtime |
+| `failed`, `no device connected` | Its turn came with no device connected, so nothing played it | The moment schedule |
 | `failed`, `the device disconnected` | The device dropped before saying how it ended | The runtime |
 | `failed`, `the device never said it ended` | No `ended` came by the moment's longest length, its face's loops of the design showing or its line, plus a grace ([PROTOCOL.md](../PROTOCOL.md) §6): the line was lost, or the firmware is older | The runtime |
 

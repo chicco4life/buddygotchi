@@ -407,7 +407,8 @@ never its text: `harness: jev:jev-latest answered what couldn't be used
 the Keychain, which Boop reads through `/usr/bin/security`
 ([ARCHITECTURE.md](../ARCHITECTURE.md) §11). `Boop --headless` and
 `boopdev` read only the variable, so a run from an agent shell never
-uses the owner's key. The runtime reads it off `home` and the main
+uses the owner's key. Every read, Settings' included, goes through the
+runtime's `readJevKey` option, so tests and headless runs decide it. The runtime reads it off `home` and the main
 thread, since a Keychain prompt would stall both. Until it's read, and
 without one, there's no brain: no view event wakes it
 ([EVENTS.md](EVENTS.md) §6), and nothing reacts to what agents do. A key saved in Settings takes effect
@@ -493,7 +494,7 @@ which headless `advance` moves:
 | `view` | Every view event, as the pipeline gates it | `id`, `type`, `phase`, `from`, `line`, `notes`, `wakes_brain` and `facts` |
 | `pass` | Every pass (§5.2), dropped ones included | A Jev pass also has `state` (the whole state sent), `questions` (the keys asked, in order), `brain` (its `id`) and `seen` (the transcript's last `seq` when its state was built, so a rebuild folds the events up to it, §5.3). A forced pass has `questions` (the keys it answered) and `by`, and no `state` or `brain`. Either has `options`, the option names it asked by key, for the questions whose options differ from the `questions` line's (`Harness.changedOptions`) |
 | `questions` | As the file's first line, before the socket or the link can add one: the questions as they stand at launch. A pass that asked other options, such as the mood's moves once it has moved, names them itself (`options`, below) | Every action's questions in order: `action`, `key`, `text`, and each option's `name`, `what` and `not_for` |
-| `sent` | Every line sent to the device, whatever the link, none included | The line, verbatim ([PROTOCOL.md](../PROTOCOL.md) §3) |
+| `sent` | Every line sent to the device, whatever the link, none included | The line, verbatim ([PROTOCOL.md](../PROTOCOL.md) §3), and beside it `by`: `brain` for the brain's moments (a forced pass's included), `rule` for everything else, states included. `boop.log`'s `link brain →` and `link rules →` in debug mode say the same. `{"sent":{"t":"moment","say":{"take":"phase1.borrowed.andiamo__excited__contained"},"mood":"excited","loops":1},"by":"brain","received_at_ms":1790676431390}` |
 | `status` | When the personality, the brain, the sessions or the connection changes | `personality`, `brain` (an `id`, or `none`), `sessions` (`agent`, `project`, `status`) and `connected`; the mood is in `sent`'s `state` |
 
 The last three are for the dashboard (`internal/tools/boopctl dash`);
@@ -521,9 +522,9 @@ from a headless run with no device (`--link none`), so the reaction
 never played ([DECISIONS.md](DECISIONS.md) §5):
 
 ```jsonl
-{"pass":{"answers":{"react.animation":{"choice":"success","p":{"success":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"react.mood":{"choice":"proud","p":{"proud":1}},"say.feeling":{"choice":"glad","p":{"glad":1}},"say.kind":{"choice":"phrase","p":{"phrase":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react.mood","react.animation","react.loops","say.feeling","say.kind"]},"received_at_ms":1790670948360}
-{"event":{"seq":5,"ts":1790670948368,"source":"boop","type":"action","phase":"start","specific_type":"react","data":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop played a success in a proud face, held twice, and said \"Nailed it\".","ok":true}},"received_at_ms":1790670948368}
-{"event":{"seq":6,"ts":1790670948369,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"dashboard","for":5,"outcome":"failed","why":"no device connected"}},"received_at_ms":1790670948369}
+{"pass":{"answers":{"react.animation":{"choice":"success","p":{"success":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"react.mood":{"choice":"proud","p":{"proud":1}},"say.feeling":{"choice":"glad","p":{"glad":1}},"say.kind":{"choice":"phrase","p":{"phrase":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react.mood","react.animation","react.loops","say.feeling","say.kind"]},"received_at_ms":1790676534950}
+{"event":{"seq":1,"ts":1790676534958,"source":"boop","type":"action","phase":"start","specific_type":"react","data":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop played a success in a proud face, held twice, and said \"Smooth operator\".","ok":true,"takes":["phase1.phrase.pride.smooth-operator__proud__contained"]}},"received_at_ms":1790676534958}
+{"event":{"seq":2,"ts":1790676534958,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"dashboard","for":1,"outcome":"failed","why":"no device connected"}},"received_at_ms":1790676534958}
 ```
 
 **A bug report.** The ladybug button in the popover's footer (⌘B)
@@ -550,7 +551,7 @@ the lines alone:
 
 | It counts | From |
 | --- | --- |
-| Finishes, and working chatter in older logs | A `sent` moment with `anim` `task_complete` or `reply_ready`, the brain's since 2026-09-29, or `cheer`, as older logs have it (the brain's from 2026-09-28; older logs also have ones the dashboard played, which only their `sent` line records); and a `say` without a `mood`, the rules' chatter before then |
+| Finishes, and working chatter in older logs | A `sent` moment with `anim` `task_complete` or `reply_ready`, the brain's since 2026-09-29, or `cheer`, as older logs have it (the brain's from 2026-09-28; older logs also have ones the dashboard played, which only their `sent` line records); and the rules' chatter: a `sent` moment with a `say` whose `by` is `rule`, or, in logs from before `by`, a `say` without a `mood` |
 | The brain's reactions, and their faces | A `react` action for a Jev pass, started or refused, in the face its pass's `react.mood` answer chose (`react` in older logs). Those `by` the dashboard were forced, and are counted apart |
 | Alerts, and each time something needed you | A `sent` state whose `attn` is new, or has a different `id`, agent or project ([PROTOCOL.md](../PROTOCOL.md) §3; a missing `id` reads as 0). Needing you lasts from the `state` that brings `attn` to the first without it, or to the end of its launch |
 | Mood changes, and what made each | A `sent` state's `mood`, and the `mood` action right after it: its view event, or `by` the dashboard. A launch's first `state` in a mood other than the last launch's changed between launches |

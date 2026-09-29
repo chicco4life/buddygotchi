@@ -52,6 +52,10 @@ public enum Adapter {
         ("SessionEnd", (.session, .end)),
     ]
 
+    /// The same, by hook, for looking one up.
+    static let claudeByHook = Dictionary(uniqueKeysWithValues: claude.map { ($0.hook, $0.mapping) })
+    static let codexByHook = Dictionary(uniqueKeysWithValues: codex.map { ($0.hook, $0.mapping) })
+
     /// Every hook of `agent`'s that Boop maps, in the installer's order.
     static func hooks(_ agent: Agent) -> [String] {
         switch agent {
@@ -71,9 +75,9 @@ public enum Adapter {
             }
             // Esc: Claude sends no `Stop` for a turn you interrupt.
             if line.interrupt { return (.turn, .end) }
-            return claude.first { $0.hook == line.hook }?.mapping
+            return claudeByHook[line.hook] ?? nil
         case .codex:
-            return codex.first { $0.hook == line.hook }?.mapping
+            return codexByHook[line.hook]
         }
     }
 

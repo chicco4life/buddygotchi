@@ -29,7 +29,7 @@ final class RuntimeTests: XCTestCase {
 
     /// A runtime whose brain is `brain` once the key reads, or none.
     func options(_ transport: FakeTransport?, brain: ScriptedBrain = .pipelineCheck,
-                 readJevKey: @escaping @Sendable () -> String? = { "k" }) throws -> Runtime.Options {
+                 readJevKey: @escaping @Sendable (() -> String?) -> String? = { _ in "k" }) throws -> Runtime.Options {
         try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet)
         var options = Runtime.Options(stateDir: dir, socketPath: socketPath, link: transport, steering: Self.steering)
         options.devLines = true
@@ -41,7 +41,7 @@ final class RuntimeTests: XCTestCase {
     }
 
     func makeRuntime(_ transport: FakeTransport, brain: ScriptedBrain = .pipelineCheck,
-                     readJevKey: @escaping @Sendable () -> String? = { "k" }) throws -> Runtime {
+                     readJevKey: @escaping @Sendable (() -> String?) -> String? = { _ in "k" }) throws -> Runtime {
         try Runtime(options(transport, brain: brain, readJevKey: readJevKey))
     }
 
@@ -53,8 +53,11 @@ final class RuntimeTests: XCTestCase {
     func testJevsKeyIsReadOffHome() throws {
         let prompt = DispatchSemaphore(value: 0)
         let reads = Lines()
-        let runtime = try makeRuntime(FakeTransport(), brain: ScriptedBrain(id: "jev-test", always: [:])) {
+        // The first read is the start's, whose `saved` is the Keychain's;
+        // Settings' come after, with the key it saved.
+        let runtime = try makeRuntime(FakeTransport(), brain: ScriptedBrain(id: "jev-test", always: [:])) { saved in
             reads.add("read")
+            guard reads.all.count == 1 else { return saved() }
             prompt.wait()  // as a Keychain prompt waits for an answer
             return "k"
         }
@@ -322,7 +325,8 @@ final class RuntimeTests: XCTestCase {
     /// dashboard's lines, with no `seq`: every action's questions first at
     /// launch, and again only when they change (not here: the scripted
     /// brain keeps the mood, whose options would change with it), every
-    /// line sent to the device verbatim (with no transport too), and a
+    /// line sent to the device verbatim (with no transport too) with who
+    /// sent it (`brain` for the brain's moments, `rule` for the rest), and a
     /// status line whenever the mood, personality, brain, sessions or
     /// connection change.
     func testDebugModeWritesTheDashboardsLines() throws {
@@ -354,13 +358,20 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(none["not_for"] as? String, "Anything PERSONALITY's Examples react to that Boop isn't already doing.")
         XCTAssertTrue((questions[0]["options"] as? [[String: Any]])?.first?["not_for"] is NSNull)
 
-        // Sent: every line the link sent, verbatim and in order.
-        let sent = raw.filter { $0.hasPrefix(#"{"sent":"#) }.map { line in
-            String(line.dropFirst(#"{"sent":"#.count)).replacingOccurrences(
-                of: #",\"received_at_ms\":\d+\}$"#, with: "", options: .regularExpression)
+        // Sent: every line the link sent, verbatim and in order, and by whom.
+        let sentBy = raw.filter { $0.hasPrefix(#"{"sent":"#) }.map { line in
+            let by = line.range(of: #",\"by\":\"(brain|rule)\",\"received_at_ms\":\d+\}$"#, options: .regularExpression)
+            return (line: String(line[line.index(line.startIndex, offsetBy: #"{"sent":"#.count)..<(by?.lowerBound ?? line.endIndex)]),
+                    by: by.map { String(line[$0]).contains(#""brain""#) ? "brain" : "rule" })
         }
+        let sent = sentBy.map(\.line)
         XCTAssertEqual(sent, runtime.home.sync { runtime.link.sentLines! })
         XCTAssertTrue(sent.contains { $0.hasPrefix(#"{"t":"state""#) } && sent.contains { $0.hasPrefix(#"{"t":"moment""#) })
+        // The scripted brain's reactions carry a mood; the rules' lines don't.
+        for (line, by) in sentBy {
+            XCTAssertEqual(by, line.hasPrefix(#"{"t":"moment""#) && line.contains(#""mood":"#) ? "brain" : "rule", line)
+        }
+        XCTAssertTrue(sentBy.contains { $0.by == "brain" }, "the brain's reaction")
 
         // Status: only the facts the device lines don't carry, and only changes.
         let statuses = lines.compactMap { $0["status"] as? [String: Any] }
@@ -372,7 +383,8 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(sessions, [["agent": "claude", "project": "jetpack", "status": "working"]])
         for (a, b) in zip(statuses, statuses.dropFirst()) { XCTAssertFalse(NSDictionary(dictionary: a).isEqual(to: b), "only changes") }
         for line in lines where line["seq"] == nil {
-            XCTAssertEqual(Set(line.keys).subtracting(["received_at_ms"]).count, 1, "one kind, and no seq: \(line)")
+            let extra: Set<String> = line["sent"] != nil ? ["received_at_ms", "by"] : ["received_at_ms"]
+            XCTAssertEqual(Set(line.keys).subtracting(extra).count, 1, "one kind, and no seq: \(line)")
             XCTAssertNotNil(line["received_at_ms"] as? Int64)
         }
     }
@@ -409,7 +421,7 @@ final class RuntimeTests: XCTestCase {
     /// dashboard.
     func testTheDashboardsDevLines() throws {
         let transport = FakeTransport()
-        var options = try options(transport, readJevKey: { nil })
+        var options = try options(transport, readJevKey: { _ in nil })
         options.debug = true
         let runtime = try Runtime(options)
         try runtime.start()
@@ -1281,6 +1293,34 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(due.dropped, [face], "dropped while the line is still busy")
         XCTAssertEqual(ends, [.failed("waited too long")])
         XCTAssertNil(due.next)
+    }
+
+    /// harness/DECISIONS.md §5: the schedule hands the pump a brain moment
+    /// ready to send. With no device connected its handle ends at once and
+    /// nothing holds the line; with one it goes with the next id, and it
+    /// and its handle wait for the device's `ended`.
+    func testTheScheduleSendsOrFailsTheMomentDue() {
+        let face = DeviceMoment(say: .test(ms: 240), mood: "grumpy")
+        var alone = MomentSchedule(lastId: 7)
+        let lost = Pending()
+        var ends: [Pending.End] = []
+        lost.bind { ends.append($0) }
+        alone.brain(face, lost, now: 0)
+        let unsent = alone.due(now: 0, connected: false)
+        XCTAssertEqual(unsent.play, face, "sent all the same, with no id")
+        XCTAssertEqual(ends, [.failed("no device connected")])
+        XCTAssertTrue(alone.idle(now: 0), "the line is free")
+        XCTAssertEqual(alone.lastId, 7)
+
+        var linked = MomentSchedule(lastId: 7)
+        let open = Pending()
+        open.bind { ends.append($0) }
+        linked.brain(face, open, now: 0)
+        let sent = linked.due(now: 0, connected: true)
+        XCTAssertEqual(sent.play?.id, 8)
+        XCTAssertEqual(linked.playing.map(\.id), [8])
+        XCTAssertEqual(ends.count, 1, "its handle waits for the device")
+        XCTAssertFalse(linked.idle(now: 0))
     }
 
     /// ARCHITECTURE.md §3.2, PROTOCOL.md §4: whatever frees the line sends

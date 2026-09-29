@@ -41,9 +41,12 @@ public final class Runtime: @unchecked Sendable {
         /// Where debug mode prints (the terminal). Never the log file: it
         /// carries Jev's whole state.
         public var debugPrint: @Sendable (String) -> Void = { _ in }
-        /// Reads Jev's key, off `home` and the main thread: the Keychain may
-        /// stop to ask for access.
-        public var readJevKey: @Sendable () -> String? = { JevKey.read() }
+        /// Jev's key, given the one Boop keeps (`saved`): at start, off
+        /// `home` and the main thread, `saved` reads the Keychain, which
+        /// may stop to ask for access; after, it's what Settings saved.
+        /// Every read of the key goes through here, so tests and headless
+        /// runs decide what it is.
+        public var readJevKey: @Sendable (_ saved: () -> String?) -> String? = { JevKey.read(else: $0()) }
         public var log: @Sendable (String) -> Void = { _ in }
         /// Opens a thread on the Mac (`ThreadLink`): a tap while something
         /// needs you, or a click in the popover. Tests pass their own.
@@ -202,11 +205,9 @@ public final class Runtime: @unchecked Sendable {
         }
         self.emit = emit
         let clock = options.clock
-        link.onSend = { line in
-            emit(DebugLog.line("sent", line, at: clock()))
-            // Only the brain's moments carry a mood (PROTOCOL.md §3).
-            let brain = line.hasPrefix(#"{"t":"moment""#) && line.contains(#""mood":"#)
-            if debugLog != nil { log("link \(brain ? "brain" : "rules") → " + line) }
+        link.onSend = { line, sender in
+            emit(DebugLog.sent(line, by: sender, at: clock()))
+            if debugLog != nil { log("link \(sender == .brain ? "brain" : "rules") → " + line) }
         }
 
         let now = options.clock()
@@ -238,12 +239,7 @@ public final class Runtime: @unchecked Sendable {
             brain: nil, pipeline: pipeline, mood: mood, voice: voice, steering: options.steering,
             personality: { personalityNow() }, time: options.time, clock: clock, wall: options.wallClock,
             queue: { queued($0, $1) }, moodChanged: { moodSaved($0) }, speaks: { link.status?.hasTheVoice ?? true },
-            home: home, log: log)
-        harness.onDebugLine = emit
-        // Every event and view event too, as it happens; kept for a bug
-        // report all the same (harness/HARNESS.md §9).
-        pipeline.onRecord = { emit(DebugLog.event($0)) }
-        pipeline.onView = { emit(DebugLog.view($0)) }
+            home: home, emit: emit, log: log)
         // The view picks up where the last launch left it.
         let loaded = transcript.load(now: now)
         pipeline.replay(loaded, now: now)
@@ -271,13 +267,16 @@ public final class Runtime: @unchecked Sendable {
     /// is built at each pass (harness/HARNESS.md §6) from the steering
     /// files, `personality()`, the line that closes HISTORY (the mood's
     /// time in the mood), the oldest working turn at `clock()` and the
-    /// time of day at wall-clock time `wall()`.
+    /// time of day at wall-clock time `wall()`. `emit` gets the
+    /// `debug.jsonl` lines (harness/HARNESS.md §9): every pass's, and every
+    /// event's and view event's as it happens; nil writes none.
     public static func harness(brain: (any Brain)?, pipeline: Pipeline, mood: MoodStore, voice: Voice, steering: Steering,
                                personality: @escaping () -> Personality, time: LocalTime,
                                clock: @escaping @Sendable () -> Int64, wall: @escaping () -> Int64,
                                queue: @escaping (DeviceMoment, Pending) -> Void,
                                moodChanged: @escaping (String) -> Void = { _ in }, speaks: @escaping () -> Bool = { true },
-                               home: DispatchQueue, debugLog: URL? = nil, log: @escaping (String) -> Void = { _ in })
+                               home: DispatchQueue, emit: ((String) -> Void)? = nil,
+                               log: @escaping (String) -> Void = { _ in })
         -> (harness: Harness, mood: MoodAction) {
         let core = pipeline.core
         let view = pipeline.view
@@ -296,8 +295,13 @@ public final class Runtime: @unchecked Sendable {
                                    mood: steering.mood(mood.current), closing: moodAction.sinceLine(at: now),
                                    workingSince: view.workingSince(at: now),
                                    clock: "\(time.clock(wall)), \(time.weekday(wall))")
-        }, home: home, clock: clock, debugLog: debugLog, log: log)
+        }, home: home, clock: clock, log: log)
         acting = { [weak harness] in harness?.acting }
+        if let emit {
+            harness.onDebugLine = emit
+            pipeline.onRecord = { emit(DebugLog.event($0)) }
+            pipeline.onView = { emit(DebugLog.view($0)) }
+        }
         return (harness, moodAction)
     }
 
@@ -613,26 +617,15 @@ public final class Runtime: @unchecked Sendable {
     /// for when to look again, unless one is set for no later that the
     /// clock hasn't passed yet. Whatever frees the line sooner (a rule's
     /// animation, a tap, the device's `ended`, "needs you") pumps again at
-    /// once. A moment sent with no device connected ends its handle at
-    /// once, as failed, and leaves the line free; one sent to the device
-    /// goes with an id, and it and its handle wait for the device's
-    /// `ended`. On `home`.
+    /// once. The schedule ends a moment's handle when no device is
+    /// connected, and gives one sent to the device its id. On `home`.
     func pump() {
         let now = options.clock()
-        let due = schedule.due(now: now)
+        let due = schedule.due(now: now, connected: link.connected)
         for moment in due.dropped {
             options.log("react: dropped a brain moment that waited over \(MomentSchedule.maxWaitMs / 1000) s: \(moment.jsonLine)")
         }
-        if var moment = due.play {
-            let alone = !link.connected
-            if alone {
-                schedule.stop(now: now)
-            } else if let pending = due.pending {
-                schedule.send(&moment, pending, now: now)
-            }
-            link.play(moment)
-            if alone { due.pending?.finish(.failed("no device connected")) }
-        }
+        if let moment = due.play { link.play(moment, by: .brain) }
         guard let next = schedule.next else { return }
         // One set for no later will do, unless the clock has passed it: a
         // timer counts the Mac's uptime, which stops while it sleeps, and
@@ -762,7 +755,7 @@ public final class Runtime: @unchecked Sendable {
     /// `BOOP_JEV_KEY` still wins. Used from the next event.
     public func reloadBrain(jevKey key: String?) {
         home.async { [self] in
-            jevKey = .some(JevKey.read(else: key))
+            jevKey = .some(options.readJevKey { key })
             useBrain()
             changed()
         }
@@ -784,7 +777,7 @@ public final class Runtime: @unchecked Sendable {
         readingJevKey = true
         let read = options.readJevKey
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let key = read()
+            let key = read { Keychain.key(.jev) }
             self?.home.async { [weak self] in
                 guard let self else { return }
                 readingJevKey = false

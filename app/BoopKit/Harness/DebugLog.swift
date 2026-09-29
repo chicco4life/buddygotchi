@@ -16,6 +16,12 @@ public enum DebugLog {
         "{\"\(kind)\":\(json),\"received_at_ms\":\(ms)}"
     }
 
+    /// A line sent to the device, verbatim, and who sent it: `brain` for
+    /// the brain's moments, `rule` for everything else.
+    public static func sent(_ json: String, by sender: DeviceLink.Sender, at ms: Int64) -> String {
+        "{\"sent\":\(json),\"by\":\"\(sender.rawValue)\",\"received_at_ms\":\(ms)}"
+    }
+
     /// An event as the transcript recorded it, as its line there.
     public static func event(_ e: Event) -> String { line("event", e.jsonLine, at: e.ts) }
 

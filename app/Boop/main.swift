@@ -47,10 +47,11 @@ func bundledSteering() -> Steering {
 }
 
 /// The runtime's options on `stateDir`: the device over `link`, the log in
-/// `log`, and in debug mode everything printed to the terminal and the
-/// dashboard's `{"dev":…}` lines taken (harness/HARNESS.md §9). The
-/// menu-bar app and `--headless` both start from these.
-func runtimeOptions(stateDir: URL, socketPath: String, link: LinkSetting, debug: Bool, log: LogFile) -> Runtime.Options {
+/// `log`, in debug mode everything printed to the terminal, and with
+/// `devLines` the dashboard's `{"dev":…}` lines taken (harness/HARNESS.md
+/// §9). The menu-bar app and `--headless` both start from these.
+func runtimeOptions(stateDir: URL, socketPath: String, link: LinkSetting, debug: Bool, devLines: Bool,
+                    log: LogFile) -> Runtime.Options {
     let transport: DeviceTransport? = switch link {
     case .bluetooth: BLETransport(log: { log.write($0) })
     case .usb(let path): USBTransport(path: path)
@@ -60,7 +61,7 @@ func runtimeOptions(stateDir: URL, socketPath: String, link: LinkSetting, debug:
     options.log = { log.write($0) }
     options.debug = debug
     options.debugPrint = { log.echo($0) }
-    options.devLines = debug
+    options.devLines = devLines
     return options
 }
 

@@ -261,9 +261,9 @@ public final class ReactAction: Action {
         // the device says how the moment ended.
         let did = pick.map { "Boop played \(Self.article($0)) \($0) in \(Self.article(choice)) \(choice) face" }
             ?? "Boop made \(Self.article(choice)) \(choice) face"
-        // What it queued, for the tools to find its moment among those
-        // sent (harness/EVENTS.md §2): the takes' ids in order, and the face.
+        // The takes' ids in order, for the tools to say what it said
+        // (harness/EVENTS.md §2).
         return .started(did + ", held \(Self.holds[loops - 1].name)" + (say.text.map { ", and said \"\($0)\"." } ?? "."), pending,
-                        facts: ["takes": .array(line.map { .string($0.id) }), "face": .string(choice)])
+                        facts: ["takes": .array(line.map { .string($0.id) })])
     }
 }

@@ -132,8 +132,8 @@ extension AgentSession {
     }
 
     /// A tool call starting, with its topic, kept for its result.
-    mutating func callStarted(_ e: Event, topic: String?) {
-        let start = (at: e.ts, topic: topic)
+    mutating func callStarted(_ e: Event) {
+        let start = (at: e.ts, topic: e["topic"]?.string)
         if let id = e["tool_use_id"]?.string { toolStarts[id] = start }
         lastToolStart = start
     }
@@ -151,6 +151,7 @@ extension AgentSession {
     /// A call with no turn open opens one at `now`, with no prompt (a
     /// background subagent's after the main agent's `Stop`, say). Whether
     /// it did.
+    @discardableResult
     mutating func openTurn(at now: Int64) -> Bool {
         guard turnStartedAt == nil else { return false }
         turnStartedAt = now

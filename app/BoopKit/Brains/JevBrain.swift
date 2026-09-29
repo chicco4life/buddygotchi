@@ -101,10 +101,6 @@ public enum JevKey {
     /// The only place `boopdev` and `Boop --headless` read it from.
     public static let variable = "BOOP_JEV_KEY"
 
-    /// `BOOP_JEV_KEY`, else the Keychain. May block on a Keychain prompt:
-    /// never call it on the main thread or the app's queue.
-    public static func read() -> String? { read(else: Keychain.key(.jev)) }
-
     /// `BOOP_JEV_KEY`, else the one Boop keeps (`saved`).
     public static func read(else saved: @autoclosure () -> String?) -> String? {
         environment() ?? saved()

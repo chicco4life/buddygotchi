@@ -230,9 +230,14 @@ public struct MomentSchedule {
     /// Gives up on each moment whose `ended` hasn't come by its deadline:
     /// the device lost the line, or its firmware doesn't send one.
     public mutating func overdue(now: Int64) {
-        let late = playing.filter { now >= $0.deadline }
-        playing.removeAll { now >= $0.deadline }
-        for moment in late { moment.pending.finish(.failed("the device never said it ended")) }
+        guard !playing.isEmpty else { return }
+        var late: [Pending] = []
+        playing.removeAll { moment in
+            guard now >= moment.deadline else { return false }
+            late.append(moment.pending)
+            return true
+        }
+        for pending in late { pending.finish(.failed("the device never said it ended")) }
     }
 
     /// Ends every moment on the device as failed, with why. The line stays
@@ -259,6 +264,23 @@ public struct MomentSchedule {
     /// first; nil when nothing waits.
     public var next: Int64? {
         waiting.first.map { min(brainFree, $0.at + Self.maxWaitMs + 1) }
+    }
+
+    /// The brain moment to send to the device now, if one's turn has
+    /// come, and the ones `due` dropped. With no device connected nothing
+    /// holds the line and its handle ends at once, as failed; one for the
+    /// device goes with the next id, and it and its handle wait for the
+    /// device's `ended` (`send`).
+    public mutating func due(now: Int64, connected: Bool) -> (play: DeviceMoment?, dropped: [DeviceMoment]) {
+        let due = due(now: now)
+        guard var moment = due.play else { return (nil, due.dropped) }
+        if !connected {
+            stop(now: now)
+            due.pending?.finish(.failed("no device connected"))
+        } else if let pending = due.pending {
+            send(&moment, pending, now: now)
+        }
+        return (moment, due.dropped)
     }
 
     /// The brain moment to play now, if one's turn has come (at most one),

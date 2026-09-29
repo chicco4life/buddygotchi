@@ -36,8 +36,15 @@ public final class DeviceLink {
     public private(set) var connected = false
     /// Every line sent, for tests; nil keeps nothing.
     public var sentLines: [String]?
-    /// Called with every line sent (headless tracing); nil does nothing.
-    public var onSend: ((String) -> Void)?
+    /// Called with every line sent and who sent it (debug mode's
+    /// tracing); nil does nothing.
+    public var onSend: ((String, Sender) -> Void)?
+
+    /// Who asked for a line, passed through to `onSend` as it is: the link
+    /// makes nothing of it. Every `state` is the rules'.
+    public enum Sender: String, Sendable {
+        case rule, brain
+    }
 
     public init(transport: DeviceTransport?, log: @escaping (String) -> Void = { _ in }) {
         self.transport = transport
@@ -57,8 +64,8 @@ public final class DeviceLink {
         sendState(latest, now: now)
     }
 
-    public func play(_ moment: DeviceMoment) {
-        send(moment.jsonLine)
+    public func play(_ moment: DeviceMoment, by sender: Sender = .rule) {
+        send(moment.jsonLine, by: sender)
     }
 
     /// A line from the device. Replies to `status` with the latest `state`
@@ -92,12 +99,12 @@ public final class DeviceLink {
     func sendState(_ snapshot: StateSnapshot, now: Int64) {
         lastSent = snapshot
         lastSentAt = now
-        send(snapshot.jsonLine)
+        send(snapshot.jsonLine, by: .rule)
     }
 
-    func send(_ line: String) {
+    func send(_ line: String, by sender: Sender) {
         sentLines?.append(line)
-        onSend?(line)
+        onSend?(line, sender)
         transport?.send(line)
     }
 }

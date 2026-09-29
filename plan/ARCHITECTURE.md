@@ -235,8 +235,8 @@ jump can't leave one waiting for the harness's ceiling. Each carries its
 reaction's handle. It goes to the device with an `id`, and the device's
 `ended` says how it went: played out, cut short or skipped
 ([PROTOCOL.md](PROTOCOL.md) §4). The schedule ends the handle from
-that, or when the moment can't have played (the runtime, for one whose
-turn came with no device connected)
+that, or when the moment can't have played (one whose turn came with
+no device connected)
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5).
 
 The app reckons how long each moment plays at most, as the device times

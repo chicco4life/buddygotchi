@@ -461,13 +461,9 @@ public struct Eval {
                 ending.said = moment.say?.text
                 ending.takes = moment.say?.takes.map(\.text) ?? []
                 if let end = ending.end { pending.finish(end) } else { ending.open.append(pending) }
-            }, home: home, debugLog: debugLog)
+            }, home: home, emit: debugLog.map { url in { LineFile.append($0, to: url) } })
         // The mood it starts in, as the dashboard would set it just before.
         if scenario.mood != mood.current { _ = moodAction.change(to: scenario.mood) }
-        if let debugLog {
-            pipeline.onRecord = { LineFile.append(DebugLog.event($0), to: debugLog) }
-            pipeline.onView = { LineFile.append(DebugLog.view($0), to: debugLog) }
-        }
 
         var checks: [Check] = []
         var timeline: [Pass] = []

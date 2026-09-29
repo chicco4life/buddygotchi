@@ -318,7 +318,7 @@ public final class TranscriptView {
                 if topic == nil { topic = started?.topic }
                 toolDone(&t, e, tool: tool, topic: topic, started: started?.at)
             } else if tool != nil {
-                t.callStarted(e, topic: topic)
+                t.callStarted(e)
             }
             // A turn a call opens has counts of its own (EVENTS.md §4.1).
             if !late && t.openTurn(at: now) { resetCounts(&t) }

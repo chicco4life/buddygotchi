@@ -298,7 +298,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // In debug mode the dashboard can drive `make debug`; plain `make
         // run` stays deaf to it.
         let options = runtimeOptions(stateDir: stateDir, socketPath: stateDir.appendingPathComponent("boop.sock").path,
-                                     link: model.link, debug: debug, log: log)
+                                     link: model.link, debug: debug, devLines: debug, log: log)
         do {
             let runtime = try Runtime(options)
             runtime.onChange = { [weak self] status in Task { @MainActor in self?.show(status) } }
