@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from boopctl_lib.common import RULE_ONE_SHOTS, take
+from boopctl_lib.device import DeviceError
 
 Line = dict[str, Any]
 
@@ -98,6 +99,59 @@ def action_end(event: Line) -> Line | None:
             "by": None if by == "brain" else by}
 
 
+class Played:
+    """Pairs each reaction with the moment it sent the device, whose `say`
+    is what Boop said (VOICE.md §4). A reaction's moment is `sent` at once,
+    just before its action starts, or waits behind the brain's line
+    playing and is sent later, in order; one never sent (dropped, or no
+    device) has its action end first. The log names no action on the
+    moment, so they're paired in order, by the reaction's face, which is
+    the moment's `mood`."""
+
+    def __init__(self) -> None:
+        self.waiting: list[tuple[int, str | None]] = []  # started actions with no moment yet: (seq, face)
+        self.loose: Line | None = None  # a reaction's moment sent before its action's start
+        self.moments: dict[int, Line] = {}  # each react action's moment, by its seq
+
+    def sent(self, msg: Line) -> None:
+        """A `sent` line; only a reaction's moment, which has its face, counts."""
+        if msg.get("t") != "moment" or not msg.get("mood"):
+            return
+        i = next((i for i, (_, face) in enumerate(self.waiting) if face in (None, msg["mood"])), None)
+        if i is None:
+            self.loose = msg
+        else:
+            self.moments[self.waiting.pop(i)[0]] = msg
+
+    def started(self, seq: int, face: str | None) -> None:
+        """A react action that started, with its pass's face."""
+        if self.loose is not None and face in (None, self.loose["mood"]):
+            self.moments[seq], self.loose = self.loose, None
+        else:
+            self.waiting.append((seq, face))
+
+    def ended(self, seq: int | None) -> None:
+        """An action's end: a reaction still waiting for its moment never
+        sent one."""
+        self.waiting = [w for w in self.waiting if w[0] != seq]
+
+    def moment(self, seq: int) -> Line | None:
+        return self.moments.get(seq)
+
+
+def said(say: Line | None) -> str | None:
+    """What a moment's line said: its takes' texts, the feeling's then the
+    topic's (VOICE.md §4), or their ids with no voice pack here; None for
+    no line."""
+    ids = [say[k] for k in ("take", "then") if say and say.get(k)]
+    if not ids:
+        return None
+    try:
+        return " ".join(t.text if (t := take(i)) else i for i in ids)
+    except DeviceError:
+        return " ".join(ids)
+
+
 def clock(ms: int) -> str:
     return time.strftime("%H:%M:%S", time.localtime(ms / 1000))
 
@@ -121,6 +175,7 @@ class Board:
         self.decided: list[Line] = []
         self._pass_for: dict[int | None, Line] = {}  # the latest decided row by its event (None: forced)
         self._decided_by_action: dict[int, Line] = {}  # a decided row by its react action's seq
+        self.played = Played()  # each reaction's moment, for what it said
         self._reflex: tuple[int, str] | None = None  # the latest one-shot, poke or chatter: (time, what)
 
     def apply(self, line: Line) -> tuple[str, str] | None:
@@ -166,6 +221,9 @@ class Board:
             if a["name"] == "needs_you":
                 return None  # the state's strip shows it, and the view its line
             self.names[seq] = a["name"]
+            if a["name"] == "react" and a["pending"]:
+                row = self._pass_for.get(a["for"])
+                self.played.started(seq, choice(row["pass"], FACE) if row else None)
             if a["by"] == "rule":
                 self._rule(a, at)
             else:
@@ -174,6 +232,7 @@ class Board:
             style, mark = ("fail", "✗") if not a["ok"] else ("dim", "…") if a.get("pending") else ("ok", "✓")
             return style, f"  {mark} {a['name']}{by}: {a['message']}"
         if end := action_end(event):
+            self.played.ended(end["for"])
             if end["name"] == "needs_you":
                 return None
             if row := self._decided_by_action.get(end["for"]):
@@ -187,6 +246,7 @@ class Board:
     # Sorting lines into the columns.
 
     def _sent(self, msg: Line, at: int) -> tuple[str, str] | None:
+        self.played.sent(msg)
         if msg.get("t") == "state":
             unchanged = msg == self.state
             before, self.state = self.state, msg
@@ -271,6 +331,7 @@ class Board:
             row = self._pass_for.get(body.get("for"))
             if row and (row["pass"].get("by") or None) == (body.get("by") or None) and row["react"] is None:
                 row["react"] = body
+                row["react_seq"] = seq
                 self._decided_by_action[seq] = row
         elif body["name"] == "mood":
             if not body["ok"]:
@@ -324,7 +385,7 @@ class Board:
         reflex just sent, or the look."""
         playing = next((r for r in reversed(self.decided) if r["react"]), None)
         if playing and playing["react"]["ok"] and playing["react"].get("pending") and not playing["settle"]:
-            return reaction_text(playing)
+            return reaction_text(playing, self.played.moment(playing.get("react_seq", -1)))
         if self._reflex and now_ms - self._reflex[0] <= SHOWING_MS:
             return self._reflex[1]
         s = self.state or {}
@@ -403,7 +464,7 @@ def fate(row: Line) -> tuple[str, str]:
     return "ok", "  ✓ played"
 
 
-# The reaction's face is `react.mood`, and its animation `react.animation`.
+# The reaction's face is `react.mood`, and its finish `react.animation`.
 # Older logs name the face `react`, and for a while it carried the cheer
 # too (`proud-cheer`); `answer` reads either.
 FACE = "react.mood"
@@ -425,36 +486,45 @@ def prob(p: Line, key: str) -> float:
     return a.get("p", {}).get(a.get("choice"), 0.0)
 
 
+def finish(p: Line) -> str | None:
+    """The finish a reaction played (success, failure or reply), its
+    `react.animation`; None for a face alone."""
+    pick = choice(p, "react.animation")
+    return None if pick in (None, "none") else pick
+
+
 def word_keys(p: Line) -> list[str]:
-    return [k for k in p.get("questions") or p.get("answers", {}) if k.startswith("word.")]
+    """A pass's line questions: `say.feeling` and `say.about` (VOICE.md
+    §4); older logs asked for words, `word.feeling` and `word.about`."""
+    return [k for k in p.get("questions") or p.get("answers", {}) if k.startswith(("word.", "say.")) and k != "say.kind"]
 
 
 def picks_text(p: Line) -> str:
-    """The face, its animation, its word and its hold, each with its
-    probability: `proud 0.82 · success 0.90 · "finally" 0.71 · three times 0.64`."""
+    """The face, its finish, what its line means (an older log's words in
+    quotes) and its hold, each with its probability: `proud 0.82 · success
+    0.90 · glad 0.71 · three times 0.64`. What the line said is the
+    moment's (`said`): Voice picks a take of that meaning."""
     parts = [f"{choice(p, FACE)} {prob(p, FACE):.2f}"]
-    if choice(p, "react.animation") not in (None, "none"):
-        parts.append(f"{choice(p, 'react.animation')} {prob(p, 'react.animation'):.2f}")
-    words = [(choice(p, k), prob(p, k)) for k in word_keys(p) if choice(p, k) not in (None, "none")]
-    parts += [f"“{w}” {v:.2f}" for w, v in words] or ["no word"]
+    if finish(p):
+        parts.append(f"{finish(p)} {prob(p, 'react.animation'):.2f}")
+    words = [(k, choice(p, k), prob(p, k)) for k in word_keys(p) if choice(p, k) not in (None, "none")]
+    parts += [(f"“{w}”" if k.startswith("word.") else w) + f" {v:.2f}" for k, w, v in words] or ["no word"]
     if choice(p, "react.loops"):
         parts.append(f"{choice(p, 'react.loops')} {prob(p, 'react.loops'):.2f}")
     return " · ".join(parts)
 
 
-def reaction_text(row: Line) -> str:
-    """A playing reaction: `a proud reaction face, three times, "…finally!"`,
-    or `a success in a proud face, …`."""
+def reaction_text(row: Line, moment: Line | None = None) -> str:
+    """A playing reaction: `a proud reaction face, three times, “Done”`, or
+    `a success in a proud face, …`, saying what its moment said."""
     p = row["pass"]
-    words = [choice(p, k) for k in word_keys(p) if choice(p, k) not in (None, "none")]
     loops = choice(p, "react.loops")
     face, _, anim = (choice(p, FACE) or "?").partition("-")
-    if choice(p, "react.animation") not in (None, "none"):
-        anim = choice(p, "react.animation")
+    anim = finish(p) or anim
     what = (f"a {anim} in " if anim else "") + f"{'an' if face[0] in 'aeiou' else 'a'} {face}"
     what += " face" if anim else " reaction face"
-    return (what + (f", {loops}" if loops else "")
-            + (f", “…{words[0]}!”" if words else ""))
+    words = said((moment or {}).get("say"))
+    return what + (f", {loops}" if loops else "") + (f", “{words}”" if words else "")
 
 
 def brain_name(brain: str | None) -> str:

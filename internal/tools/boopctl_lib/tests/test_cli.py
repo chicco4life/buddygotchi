@@ -14,8 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from boopctl_lib import cli  # noqa: E402
 from fake_board import FakeBoard  # noqa: E402
 
-COMMANDS = ["ping", "state", "shot", "send", "play", "takes", "sim", "run", "perf", "soak", "e2e", "bridge",
-            "cam", "dash", "day", "calibrate"]
+COMMANDS = ["ping", "state", "shot", "send", "play", "takes", "card", "sim", "run", "perf", "soak", "e2e", "bridge",
+            "cam", "dash", "day", "workday", "calibrate"]
 
 
 def firmware_names(path: str, start: str, item: str = r'"(\w+)"', end: str = "};") -> list:

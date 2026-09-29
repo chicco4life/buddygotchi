@@ -5,12 +5,15 @@ from __future__ import annotations
 import binascii
 import os
 import struct
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from boopctl_lib import card, cli
-from boopctl_lib.device import Sim
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from boopctl_lib import card, cli  # noqa: E402
+from boopctl_lib.device import Sim  # noqa: E402
 
 
 def tiny_pack(version: str, samples: bytes = bytes(range(256)) * 20) -> bytes:

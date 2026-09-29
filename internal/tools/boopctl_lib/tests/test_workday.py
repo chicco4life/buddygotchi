@@ -1,18 +1,21 @@
-"""The scripted working day's own tests: the day is the same for a seed,
-well formed, and tells the story it says; the report counts what it says
-(plan/EVALS.md §5). No app, no brain."""
+"""boopctl workday (plan/EVALS.md §5): the day is the same for a seed,
+well formed, and tells the story it says; the report counts what it says,
+from the passes' answers and the moments sent, never an action's message.
+No app, no brain."""
 from __future__ import annotations
 
 import json
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from collections import Counter
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import workday  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from boopctl_lib import workday  # noqa: E402
 
 
 class DayTests(unittest.TestCase):
@@ -62,13 +65,15 @@ def entry(seq: int, at_min: int, view: dict | None = None, action: dict | None =
           **body) -> str:
     """A debug.jsonl line: a view event made by the raw event `seq`, an
     action (a raw `action` event, its start if pending) or a started one's
-    end, or a pass as given."""
+    end, or a pass or a `sent` line as given. An action's message is
+    nonsense: the report must not read it."""
     base = 1_791_990_000_000  # any time; the report reads local hours
     at = base + at_min * 60_000
     if view is not None:
         body = {"view": {"id": seq, "from": [seq], "notes": [], **view}}
     elif action is not None:
-        data = {"for": action["for"], "ok": action["ok"], "message": action["message"], "by": "brain"}
+        data = {"for": action["for"], "ok": action["ok"], "message": "not a fact → sad held four times, said \"Nope\".",
+                "by": action.get("by", "brain")}
         body = {"event": {"seq": seq, "ts": at, "source": "boop", "type": "action",
                           **({"phase": "start"} if action.get("pending") else {}), "specific_type": action["name"],
                           "data": data}}
@@ -78,6 +83,26 @@ def entry(seq: int, at_min: int, view: dict | None = None, action: dict | None =
     return json.dumps({"received_at_ms": at, **body})
 
 
+def picks(event: int, at_min: int, mood: str = "calm", face: str = "none", held: str = "once",
+          finish: str = "none") -> str:
+    """The brain's pass for `event`, with its answers."""
+    answers = {"mood": mood, "react.mood": face, "react.animation": finish, "react.loops": held,
+               "say.feeling": "none", "say.about": "none", "say.kind": "sound"}
+    return entry(0, at_min, **{"pass": {"for": event, "dropped": None, "brain": "scripted",
+                                        "questions": list(answers),
+                                        "answers": {k: {"choice": v, "p": {v: 1}} for k, v in answers.items()}}})
+
+
+def moment(at_min: int, face: str, *takes: str) -> str:
+    """A reaction's moment sent to the device, saying `takes`."""
+    say = dict(zip(("take", "then"), takes))
+    return entry(0, at_min, sent={"t": "moment", "mood": face, "loops": 1, **({"say": say} if say else {})})
+
+
+def state(at_min: int, mood: str = "calm") -> str:
+    return entry(0, at_min, sent={"t": "state", "mood": mood})
+
+
 class ReportTests(unittest.TestCase):
     def test_counts_by_kind_of_line(self) -> None:
         start = {"type": "turn", "phase": "start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True, "facts": {}}
@@ -85,17 +110,18 @@ class ReportTests(unittest.TestCase):
                  "wakes_brain": True, "facts": {"outcome": "done", "length_ms": 8000, "tools_failed": 0}}
         fail = {"type": "tool", "phase": "end", "line": "claude's tests failed on \"api\".", "wakes_brain": True, "facts": {}}
         lines = [
+            state(0),
             entry(1, 0, view=start),
-            entry(2, 0, **{"pass": {"for": 1, "dropped": None}}),
-            entry(3, 0, action={"for": 1, "name": "mood", "ok": True, "message": "Boop's mood changed: calm → excited."}),
+            picks(1, 0, mood="excited"),
+            entry(3, 0, action={"for": 1, "name": "mood", "ok": True}),
             entry(4, 1, view=short),
-            entry(5, 1, **{"pass": {"for": 4, "dropped": None}}),
+            picks(4, 1, mood="excited"),
             entry(6, 2, view=fail),
-            entry(7, 2, **{"pass": {"for": 6, "dropped": None}}),
-            entry(8, 2, action={"for": 6, "name": "react", "ok": True, "pending": True,
-                                "message": "Boop made a grumpy face, held twice, and said \"Tsk...\"."}),
+            picks(6, 2, mood="grumpy", face="grumpy", held="twice"),
+            moment(2, "grumpy", "no-such-take"),
+            entry(8, 2, action={"for": 6, "name": "react", "ok": True, "pending": True}),
             entry(9, 2, settle={"for": 8, "end": "done"}),
-            entry(10, 2, action={"for": 6, "name": "mood", "ok": True, "message": "Boop's mood changed: excited → grumpy."}),
+            entry(10, 2, action={"for": 6, "name": "mood", "ok": True}),
         ]
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "debug.jsonl"
@@ -111,44 +137,56 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(t["lines"], Counter({"start": 1, "short": 1, "notable": 1}))
         self.assertEqual(t["faces"], Counter({"grumpy": 1}))
         self.assertEqual(t["loops"], Counter({"twice": 1}))
-        self.assertEqual(t["words"], Counter({"Tsk...": 1}))
-        self.assertEqual(r["reactions"][0]["word"], "Tsk...")
+        self.assertEqual(t["words"], Counter({"no-such-take": 1}), "a take the pack doesn't have, by its id")
+        self.assertEqual(r["reactions"][0]["word"], "no-such-take")
         # Excited from the first event to the failure 2 minutes later, then
         # grumpy to the last event, the same failure.
         self.assertEqual(r["mood_minutes"], {"excited": 2, "calm": 0, "grumpy": 0})
 
-    def test_a_finish_is_read_from_the_reactions_message(self) -> None:
-        """ReactAction's line for a finish names it: success, failure or reply
-        (harness/DECISIONS.md §5); a face alone has none."""
-        self.assertEqual(workday.finish("Boop played a success in a calm face, held once."), "success")
-        self.assertEqual(workday.finish("Boop played a failure in an annoyed face, held twice."), "failure")
-        self.assertEqual(workday.finish("Boop played a reply in a curious face, held once."), "reply")
-        self.assertIsNone(workday.finish("Boop made a happy face, held once."))
+    def test_a_finish_is_its_passs_animation(self) -> None:
+        """A reaction's finish is `react.animation`'s pick: success, failure
+        or reply (harness/DECISIONS.md §5); a face alone has none."""
+        end = {"type": "turn", "phase": "end", "line": "claude finished turn 1 on \"api\": done, a short turn.",
+               "wakes_brain": True, "facts": {"outcome": "done", "length_ms": 50_000, "tools_failed": 0}}
+        lines = [entry(1, 0, view=end), picks(1, 0, face="calm", finish="success"), moment(0, "calm"),
+                 entry(2, 0, action={"for": 1, "name": "react", "ok": True, "pending": True}),
+                 entry(3, 1, view=end), picks(3, 1, face="happy"), moment(1, "happy"),
+                 entry(4, 1, action={"for": 3, "name": "react", "ok": True, "pending": True})]
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "debug.jsonl"
+            path.write_text("\n".join(lines) + "\n")
+            self.assertEqual([r["finish"] for r in workday.summarize(path)["reactions"]], ["success", None])
 
-    def test_the_takes_count_a_reaction_that_said_nothing_as_none(self) -> None:
+    def test_the_takes_are_the_moments_and_a_reaction_that_said_nothing_is_none(self) -> None:
+        """What a reaction said is the takes its moment carried (VOICE.md
+        §4): Voice picks a take for the meaning, so the answers can't say
+        which. A moment waiting behind the line playing goes after its
+        action's start, and still belongs to it."""
         end = {"type": "turn", "phase": "end", "line": "claude finished turn 1 on \"api\": done, a short turn.",
                "wakes_brain": True, "facts": {"outcome": "done", "length_ms": 50_000, "tools_failed": 0}}
         lines = [
-            entry(1, 0, view=end),
-            entry(2, 0, action={"for": 1, "name": "react", "ok": True, "pending": True,
-                                "message": "Boop made a happy face, held once."}),
-            entry(3, 1, view=end),
-            entry(4, 1, action={"for": 3, "name": "react", "ok": True, "pending": True,
-                                "message": "Boop made an excited face, held once, and said \"Go\"."}),
+            entry(1, 0, view=end), picks(1, 0, face="happy"), moment(0, "happy"),
+            entry(2, 0, action={"for": 1, "name": "react", "ok": True, "pending": True}),
+            entry(3, 1, view=end), picks(3, 1, face="excited"),
+            entry(4, 1, action={"for": 3, "name": "react", "ok": True, "pending": True}),
+            moment(1, "excited", "new.d03"),
         ]
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "debug.jsonl"
             path.write_text("\n".join(lines) + "\n")
-            self.assertEqual(workday.total(workday.summarize(path))["words"], Counter({"none": 1, "Go": 1}))
-            self.assertIn("Takes said (none: a reaction that said nothing): none 1, Go 1", workday.report([path]))
+            self.assertEqual(workday.total(workday.summarize(path))["words"], Counter({"none": 1, "Done": 1}))
+            self.assertIn("Takes said (none: a reaction that said nothing): none 1, Done 1", workday.report([path]))
 
     def test_a_mood_fading_on_a_routine_line_is_counted_apart(self) -> None:
         start = {"type": "turn", "phase": "start", "line": "claude started turn 2 on \"api\".", "wakes_brain": True, "facts": {}}
         lines = [
+            state(0, mood="proud"),
             entry(1, 0, view=start),
-            entry(2, 0, action={"for": 1, "name": "mood", "ok": True, "message": "Boop's mood changed: proud → calm."}),
+            picks(1, 0, mood="calm"),
+            entry(2, 0, action={"for": 1, "name": "mood", "ok": True}),
             entry(3, 5, view=start),
-            entry(4, 5, action={"for": 3, "name": "mood", "ok": True, "message": "Boop's mood changed: calm → proud."}),
+            picks(3, 5, mood="proud"),
+            entry(4, 5, action={"for": 3, "name": "mood", "ok": True}),
         ]
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "debug.jsonl"
@@ -168,15 +206,18 @@ class ReportTests(unittest.TestCase):
                 "facts": {"thread": thread}}
         end = {"type": "turn", "phase": "end", "line": "claude finished turn 1 on \"api\": done, a very long turn.",
                "wakes_brain": True, "facts": {"thread": thread, "outcome": "done", "length_ms": 1_200_000}}
-        happy = "Boop made a happy face, held once."
         lines = [
             entry(1, 0, view=start),
             entry(2, 1, view=beat),
-            entry(3, 1, action={"for": 2, "name": "react", "ok": True, "pending": True, "message": happy}),
+            picks(2, 1, face="happy"), moment(1, "happy"),
+            entry(3, 1, action={"for": 2, "name": "react", "ok": True, "pending": True}),
             entry(4, 3, view=beat),
-            entry(5, 3, action={"for": 4, "name": "react", "ok": True, "pending": True, "message": happy}),
-            entry(6, 3, action={"for": 4, "name": "mood", "ok": True, "message": "Boop's mood changed: calm → grumpy."}),
-            entry(7, 3, action={"for": 4, "name": "mood", "ok": True, "message": "Boop's mood changed: grumpy → calm."}),
+            picks(4, 3, mood="grumpy", face="happy"), moment(3, "happy"),
+            entry(5, 3, action={"for": 4, "name": "react", "ok": True, "pending": True}),
+            entry(6, 3, action={"for": 4, "name": "mood", "ok": True}),
+            entry(9, 3, view=beat),
+            picks(9, 3, mood="calm"),
+            entry(7, 3, action={"for": 9, "name": "mood", "ok": True}),
             entry(8, 20, view=end),
         ]
         with tempfile.TemporaryDirectory() as d:
@@ -224,15 +265,14 @@ class SettleTests(unittest.TestCase):
         wakes = {"type": "tool", "phase": "end", "line": "claude's tests failed on \"api\".", "wakes_brain": True, "facts": {}}
         with tempfile.TemporaryDirectory() as d:
             run = workday.Run(Path(d), "scripted", None, False)
-            run.debug.write_text(entry(1, 0, view=wakes) + "\n" + entry(2, 0, **{"pass": {"for": 1, "dropped": None}}) + "\n")
+            run.debug.write_text(entry(1, 0, view=wakes) + "\n" + picks(1, 0) + "\n")
             barriers: list[int] = []
             ended = threading.Event()
 
             def advance(ms: int) -> None:
                 barriers.append(ms)
                 with open(run.debug, "a") as f:
-                    f.write(entry(3, 0, action={"for": 1, "name": "react", "ok": True, "pending": True,
-                                                "message": "Boop made a determined face, held once."}) + "\n")
+                    f.write(entry(3, 0, action={"for": 1, "name": "react", "ok": True, "pending": True}) + "\n")
 
                 def device_says_ended() -> None:
                     with open(run.debug, "a") as f:
@@ -248,6 +288,20 @@ class SettleTests(unittest.TestCase):
             # Nothing new since: no second barrier.
             run.settle()
             self.assertEqual(barriers, [1])
+
+    def test_a_rules_needs_you_isnt_waited_for(self) -> None:
+        """A rule's needs-you stays started until the day answers the
+        request, steps later: `settle` waits only for the brain's."""
+        wait = {"type": "tool", "phase": "wait", "line": "claude needs you on \"api\".", "wakes_brain": False, "facts": {}}
+        with tempfile.TemporaryDirectory() as d:
+            run = workday.Run(Path(d), "scripted", None, False)
+            run.debug.write_text(entry(1, 0, view=wait) + "\n"
+                                 + entry(2, 0, action={"for": 1, "name": "needs_you", "ok": True, "pending": True,
+                                                       "by": "rule"}) + "\n")
+            began = time.monotonic()
+            run.settle()
+            self.assertLess(time.monotonic() - began, 1)
+            self.assertEqual(run.waiting_settles, set())
 
     def test_a_dropped_pass_needs_no_barrier(self) -> None:
         wakes = {"type": "turn", "phase": "start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True, "facts": {}}

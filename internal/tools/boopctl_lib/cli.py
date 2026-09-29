@@ -11,7 +11,7 @@ import sys
 import time
 from pathlib import Path
 
-from boopctl_lib import scenario
+from boopctl_lib import scenario, workday
 from boopctl_lib.common import ANIMS, CTXS, MOODS, OLD_ANIMS, OUTCOMES, PACK, REPO, Take, restarted, take, takes
 from boopctl_lib.device import Device, DeviceError, Sim
 from boopctl_lib.image import diff, save_shot
@@ -785,6 +785,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--date", type=a_date, help="the local day, YYYY-MM-DD (default: the newest line's)")
     p.add_argument("file", nargs="*", help="read these debug logs instead, oldest launch first")
     p.set_defaults(func=cmd_day)
+    workday.add_parser(sub)
     p = sub.add_parser("calibrate", help="touch calibration: tap 4 crosses (needs a person); kept in NVS")
     p.add_argument("--show", action="store_true", help="print the stored calibration instead")
     p.add_argument("--clear", action="store_true", help="with --show: forget it (back to the default raw range)")

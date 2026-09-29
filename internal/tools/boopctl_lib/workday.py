@@ -1,17 +1,13 @@
-#!/usr/bin/env python3
-"""A scripted working day through the headless app and its brain
-(plan/EVALS.md §5).
+"""`boopctl workday` (plan/EVALS.md §5): a scripted working day through the
+headless app and its brain.
 
 `plan` prints the day, `run` replays it through `Boop --headless` on a
-compressed clock, and `report` sums up what Boop did, hour by hour: how
-often its mood changed (and whether after one routine turn), how often it
-reacted, with which faces and what they said. The same seed always gives the same day, so a
-run before a steering change and one after it can be compared; Jev itself
+compressed clock, `report` sums up what Boop did, hour by hour: how often
+its mood changed (and whether after one routine turn), how often it
+reacted, with which faces and what they said; and `check` holds a run to
+the liveliness limits. The same seed always gives the same day, so a run
+before a steering change and one after it can be compared; Jev itself
 isn't deterministic, so run each at least twice.
-
-    python3 internal/tools/workday/workday.py plan [--seed N]
-    BOOP_JEV_KEY=… python3 internal/tools/workday/workday.py run --state /tmp/tn-1 [--seed N] [--out DIR]
-    python3 internal/tools/workday/workday.py report DEBUG.jsonl [DEBUG.jsonl…] [--json]
 
 `run` needs `make build` first. It starts the headless app with its own
 state directory (keep it short and under /tmp: a Unix socket's path has
@@ -22,20 +18,20 @@ the app's clock to 09:00 the next morning, then sends each hook line
 straight to the app's socket in the wire form `boop-hook` sends, moving the
 clock between them with `{"dev":"advance"}`, and waits for every brain
 pass and every reaction to finish before moving on, so no event is
-replaced while Jev thinks. Stdlib only.
-"""
+replaced while Jev thinks.
+
+The report reads debug.jsonl as `boopctl day` and the dashboard do
+(dash/feed.py): a mood change's new mood, and a reaction's face, finish
+and hold, from the answers of the pass whose action it is; what it said
+from the takes of the moment it sent; never from an action's message."""
 from __future__ import annotations
 
-import argparse
 import datetime as dt
 import json
 import os
 import random
-import re
 import shutil
-import signal
 import socket
-import subprocess
 import sys
 import threading
 import time
@@ -44,8 +40,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-REPO = Path(__file__).resolve().parents[3]
-BIN = REPO / ".build" / "debug"
+from boopctl_lib import day as daylog
+from boopctl_lib.dash import feed
+from boopctl_lib.device import DeviceError
+from boopctl_lib.headless import Headless
+
 # The resting mood: a new Boop starts in it and moods fade back toward it
 # (plan/harness/DECISIONS.md §2.3, `MoodAction.initial`).
 REST = "calm"
@@ -313,6 +312,7 @@ def plan(seed: int) -> str:
     return "\n".join(lines)
 
 
+
 # ---------------------------------------------------------------- the run
 
 
@@ -381,17 +381,17 @@ class FakeDevice:
                 self.conn.close()
 
 
+
+
 class Run:
     def __init__(self, state: Path, brain: str, personality: str | None, verbose: bool) -> None:
         self.state = state
-        self.brain = brain
-        self.personality = personality
         self.verbose = verbose
-        self.sock = str(state / "b.sock")
         self.dev_sock = str(state / "d.sock")
-        self.debug = state / "debug.jsonl"
-        self.log = state / "boop.log"
-        self.proc: subprocess.Popen | None = None
+        self.app = Headless(state, str(state / "b.sock"), f"usb:{self.dev_sock}", brain,
+                            ["--personality", personality] if personality else [])
+        self.debug = self.app.debug
+        self.log = self.app.log
         self.device: FakeDevice | None = None
         self.log_pos = 0
         self.debug_pos = 0
@@ -406,27 +406,15 @@ class Run:
         self.passes_unchecked = False
 
     def start(self) -> None:
-        if len(self.sock) > 100:
-            raise SystemExit(f"{self.sock} is too long for a Unix socket; use a shorter --state")
+        if self.app.brain == "jev" and not os.environ.get("BOOP_JEV_KEY"):
+            raise DeviceError("--brain jev needs BOOP_JEV_KEY")
         if self.state.exists():
             shutil.rmtree(self.state)
         self.state.mkdir(parents=True)
-        if not (BIN / "Boop").exists():
-            raise SystemExit(f"no {BIN / 'Boop'}; run make build")
-        if self.brain == "jev" and not os.environ.get("BOOP_JEV_KEY"):
-            raise SystemExit("--brain jev needs BOOP_JEV_KEY")
         self.device = FakeDevice(self.dev_sock)
-        cmd = [str(BIN / "Boop"), "--headless", "--state-dir", str(self.state), "--socket", self.sock,
-               "--link", f"usb:{self.dev_sock}", "--brain", self.brain, "--name", "Pip", "--no-open", "--debug"]
-        if self.personality:
-            cmd += ["--personality", self.personality]
-        out = open(self.state / "stdout.txt", "wb")
-        self.proc = subprocess.Popen(cmd, stdout=out, stderr=subprocess.STDOUT)
-        self._until(lambda: self._log_has("device link: connected"), 15, "the app to reach the fake device")
-        self._until(self._brain_ready, 15, "the app to read its brain")
-
-    def _log_has(self, text: str) -> bool:
-        return self.log.exists() and text in self.log.read_text(errors="replace")
+        with open(self.state / "stdout.txt", "wb") as out:
+            self.app.start(stdout=out, seconds=15, poll=0.02)
+        self.app.wait_for(self._brain_ready, 15, "the app to read its brain", poll=0.02)
 
     def _brain_ready(self) -> bool:
         """debug.jsonl's `status` lines name the brain once it's set."""
@@ -451,43 +439,22 @@ class Run:
             self.log_advances += data[:end].count(b"dev: clock advanced")
         return self.log_advances
 
-    def _until(self, ok, seconds: float, what: str) -> None:
-        end = time.monotonic() + seconds
-        while time.monotonic() < end:
-            if self.proc and self.proc.poll() is not None:
-                raise SystemExit(f"the app exited ({self.proc.returncode}) waiting for {what}")
-            if ok():
-                return
-            time.sleep(0.02)
-        raise SystemExit(f"timed out waiting for {what}")
-
     def stop(self) -> None:
-        if self.proc and self.proc.poll() is None:
-            self.proc.send_signal(signal.SIGTERM)
-            try:
-                self.proc.wait(10)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
+        self.app.stop()
         if self.device:
             self.device.close()
-
-    def send(self, line: dict[str, Any]) -> None:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-            s.settimeout(2)
-            s.connect(self.sock)
-            s.sendall(json.dumps(line, separators=(",", ":")).encode() + b"\n")
 
     def advance(self, ms: int) -> None:
         """Moves the app's clock and waits until the app has done so: its
         log says so, after everything sent before it."""
-        self.send({"dev": "advance", "ms": max(1, int(ms))})
+        self.app.send({"dev": "advance", "ms": max(1, int(ms))})
         self.advances += 1
         want = self.advances
-        self._until(lambda: self._advanced() >= want, 10, "the clock to move")
+        self.app.wait_for(lambda: self._advanced() >= want, 10, "the clock to move", poll=0.02)
 
     def settle(self) -> None:
         """Waits for every pass the new events woke, and every reaction
-        started, to finish. The app writes a pass before its actions, so
+        the brain started, to finish. The app writes a pass before its actions, so
         after a pass nothing waiting isn't enough: a clock move of 1 ms,
         which the app takes up only once the pass's actions are written,
         is a barrier, and the look after it counts. Without it the next
@@ -522,28 +489,31 @@ class Run:
         self.debug_pos += end + 1
         for raw in data[:end].splitlines():
             try:
-                e = json.loads(raw)
+                line = json.loads(raw)
             except ValueError:
                 continue
-            raw = e.get("event") or {}
-            if "view" in e and e["view"].get("wakes_brain"):
-                self.waiting_passes.add(e["view"]["from"][-1])
-            elif "pass" in e:
+            k = feed.kind(line)
+            body = line.get(k)
+            if k == "view" and body.get("wakes_brain"):
+                self.waiting_passes.add(body["from"][-1])
+            elif k == "pass":
                 self.passes += 1
-                if e["pass"].get("dropped"):
+                if body.get("dropped"):
                     self.dropped += 1
                 else:
                     self.passes_unchecked = True
-                self.waiting_passes.discard(e["pass"].get("for"))
-            elif raw.get("type") == "action" and raw.get("phase") == "start":
-                self.waiting_settles.add(raw["seq"])
-            elif raw.get("type") == "action" and raw.get("phase") == "end":
-                self.waiting_settles.discard(raw.get("data", {}).get("for"))
+                self.waiting_passes.discard(body.get("for"))
+            elif k == "event" and (act := feed.action(body)) and act["pending"] and act["by"] is None:
+                # The brain's reactions only: a rule's needs-you lasts
+                # until the day answers the request, steps later.
+                self.waiting_settles.add(body["seq"])
+            elif k == "event" and (ended := feed.action_end(body)):
+                self.waiting_settles.discard(ended["for"])
             if self.verbose:
-                if "view" in e:
-                    print(f"  {name(e['view'])}: {e['view']['line']}")
-                elif raw.get("type") == "action" and raw.get("phase") != "end":
-                    print(f"    {raw['specific_type']}: {raw.get('data', {}).get('message')}")
+                if k == "view":
+                    print(f"  {feed.view_name(body)}: {body['line']}")
+                elif k == "event" and (act := feed.action(body)):
+                    print(f"    {act['name']}: {act['message']}")
 
     def replay(self, steps: list[Step]) -> None:
         # 09:00 tomorrow, local time, on the app's clock.
@@ -564,7 +534,7 @@ class Run:
             if step.kind == "hook":
                 line = dict(step.line)
                 line["ts"] = int(time.time() * 1000)
-                self.send(line)
+                self.app.send(line)
             else:
                 for _ in range(step.taps):
                     assert self.device
@@ -582,17 +552,16 @@ class Run:
             self.settle()
 
 
-def run(args: argparse.Namespace) -> int:
-    steps = build_day(args.seed).steps()
-    r = Run(Path(args.state), args.brain, args.personality, args.verbose)
-    print(plan(args.seed).splitlines()[0])
+def run(state: Path, seed: int, brain: str, personality: str | None, out: Path | None, verbose: bool) -> int:
+    steps = build_day(seed).steps()
+    r = Run(state, brain, personality, verbose)
+    print(plan(seed).splitlines()[0])
     try:
         r.start()
         r.replay(steps)
     finally:
         r.stop()
     print(f"done: {r.passes} passes, {r.dropped} dropped, {r.device.moments if r.device else 0} moments played")
-    out = Path(args.out) if args.out else None
     if out:
         out.mkdir(parents=True, exist_ok=True)
         shutil.copy(r.debug, out / "debug.jsonl")
@@ -613,13 +582,8 @@ CLASSES = ["notable", "minutes", "short", "start", "quiet"]
 ROUTINE = {"start", "short", "minutes"}
 
 
-def name(view: dict[str, Any]) -> str:
-    """A view event's type and phase: `turn end`, `tool wait`, `poke`."""
-    return view.get("type", "?") + (f" {view['phase']}" if view.get("phase") else "")
-
-
 def classify(event: dict[str, Any]) -> str | None:
-    kind, f = name(event), event.get("facts", {})
+    kind, f = feed.view_name(event), event.get("facts", {})
     if kind == "turn start":
         return "start"
     if kind == "heartbeat":
@@ -637,102 +601,109 @@ def classify(event: dict[str, Any]) -> str | None:
     return None  # tool wait: never a pass
 
 
-def routine(event: dict[str, Any]) -> bool:
-    """A turn starting, or a turn done under 5 minutes: the kind of line
-    the mood shouldn't move for."""
-    return classify(event) in ROUTINE
-
-
-def finish(message: str) -> str | None:
-    """The finish a reaction played, from its action's message ("Boop played
-    a success in a calm face, …"): success, failure or reply; None for a
-    face alone."""
-    m = re.match(r"Boop played an? (\w+) in ", message)
-    return m.group(1) if m else None
-
-
 def new_hour() -> dict[str, Any]:
     return {"turns": 0, "passes": 0, "dropped": 0, "reactions": 0, "mood_changes": 0, "mood_after_routine": 0,
             "back_to_rest": 0, "lines": Counter(), "reacted": Counter(), "faces": Counter(), "loops": Counter(),
             "words": Counter()}
 
 
+def reaction(p: dict[str, Any]) -> dict[str, Any]:
+    """A reaction's face, finish (success, failure or reply; None for a
+    face alone) and hold, from its pass's answers as the dashboard reads
+    them (dash/feed.py). What it said is its moment's, once sent."""
+    return {"face": feed.choice(p, feed.FACE) or "?", "finish": feed.finish(p),
+            "held": feed.choice(p, "react.loops") or "once"}
+
+
 def summarize(path: Path) -> dict[str, Any]:
     """One run's debug.jsonl, by the hour of each event's time on the app's
     clock (local time): what woke the brain, what Boop did about it."""
     events: dict[int, dict[str, Any]] = {}
+    passes: dict[int, dict[str, Any]] = {}  # the latest pass for each event
     hours: dict[int, dict[str, Any]] = defaultdict(new_hour)
     changes: list[dict[str, Any]] = []
     reactions: list[dict[str, Any]] = []
+    # Boop's mood: the first `state` sent says it, and each mood action
+    # changes it to its pass's answer.
+    mood: str | None = None
+    played = feed.Played()  # each reaction's moment
     # When any agent works: [start, end] spans, from turn starts and ends.
     open_turns: dict[str, int] = {}
     working: list[list[int]] = []
-    for raw in path.read_text().splitlines():
-        try:
-            e = json.loads(raw)
-        except ValueError:
-            continue
-        raw = e.get("event") or {}
-        if "view" in e:
-            ev = e["view"]
-            ev["at"] = e["received_at_ms"]
-            ev["class"] = classify(ev)
+    lines = [line for launch in daylog.read_launches([path]) for line in launch.lines]
+    for line in lines:
+        k, at = feed.kind(line), line["received_at_ms"]
+        body = line.get(k)
+        if k == "sent" and body.get("t") == "state" and mood is None:
+            mood = body.get("mood")
+        elif k == "sent":
+            played.sent(body)
+        elif k == "view":
+            ev = {**body, "at": at, "class": classify(body)}
             events[ev["from"][-1]] = ev
-            hr = hours[hour(ev["at"])]
+            hr = hours[daylog.hour_of(at)]
+            name = feed.view_name(ev)
             session = (ev.get("facts", {}).get("thread") or {}).get("session")
-            if name(ev) == "turn start" and session:
+            if name == "turn start" and session:
                 if not open_turns:
-                    working.append([ev["at"], ev["at"]])
-                open_turns[session] = ev["at"]
-            if name(ev) == "turn end" and session and open_turns.pop(session, None) is not None and not open_turns:
-                working[-1][1] = ev["at"]
-            if name(ev) == "turn end":
+                    working.append([at, at])
+                open_turns[session] = at
+            if name == "turn end" and session and open_turns.pop(session, None) is not None and not open_turns:
+                working[-1][1] = at
+            if name == "turn end":
                 hr["turns"] += 1
             if ev.get("wakes_brain") and ev["class"]:
                 hr["lines"][ev["class"]] += 1
-        elif "pass" in e and e["pass"].get("for") in events:
-            hr = hours[hour(events[e["pass"]["for"]]["at"])]
+        elif k == "pass" and body.get("for") in events:
+            passes[body["for"]] = body
+            hr = hours[daylog.hour_of(events[body["for"]]["at"])]
             hr["passes"] += 1
-            if e["pass"].get("dropped"):
+            if body.get("dropped"):
                 hr["dropped"] += 1
-        elif raw.get("type") == "action" and raw.get("phase") != "end" and raw.get("data", {}).get("by") != "rule":
-            a = {**raw["data"], "name": raw["specific_type"]}
-            ev = events.get(a.get("for"))
-            if ev is None or not a.get("ok"):
+        elif k == "event" and (ended := feed.action_end(body)):
+            played.ended(ended["for"])
+        elif k == "event" and (act := feed.action(body)) and act["name"] == "react" and act["pending"]:
+            played.started(body["seq"], feed.choice(passes.get(act["for"], {}), feed.FACE))
+        if k == "event" and (act := feed.action(body)) and act["by"] is None and act["ok"]:
+            ev = events.get(act["for"])
+            if ev is None:
                 continue
-            hr = hours[hour(ev["at"])]
-            if a["name"] == "mood":
+            hr = hours[daylog.hour_of(ev["at"])]
+            routine = ev["class"] in ROUTINE
+            if act["name"] == "mood":
+                before, mood = mood or REST, feed.choice(passes.get(act["for"], {}), "mood") or "?"
                 hr["mood_changes"] += 1
                 # On a routine line, going back to the resting mood is a
                 # mood fading (the guide); any other change is one the line
                 # shouldn't have caused.
-                if routine(ev) and a["message"].rstrip(".").endswith(f"→ {REST}"):
+                if routine and mood == REST:
                     hr["back_to_rest"] += 1
-                elif routine(ev):
+                elif routine:
                     hr["mood_after_routine"] += 1
-                changes.append({"at": clock_of(ev["at"]), "ms": ev["at"],
-                                "change": a["message"].split(": ", 1)[-1].rstrip("."),
+                changes.append({"at": daylog.clock(ev["at"]), "ms": ev["at"], "from": before, "to": mood,
                                 "after": ev["line"], "class": ev["class"]})
-            elif a["name"] == "react":
-                msg = a["message"]
-                face = msg.split(" face")[0].split()[-1]
-                held = msg.split("held ")[1].split(",")[0].rstrip(".") if "held " in msg else "once"
-                word = msg.split('said "')[1].split('"')[0] if 'said "' in msg else None
+            elif act["name"] == "react":
+                r = reaction(passes.get(act["for"], {}))
                 hr["reactions"] += 1
                 hr["reacted"][ev["class"]] += 1
-                hr["faces"][face] += 1
-                hr["loops"][held] += 1
-                hr["words"][word or "none"] += 1
-                reactions.append({"at": clock_of(ev["at"]), "ms": ev["at"], "class": ev["class"], "face": face,
-                                  "finish": finish(msg), "held": held, "word": word, "after": ev["line"]})
+                hr["faces"][r["face"]] += 1
+                hr["loops"][r["held"]] += 1
+                reactions.append({"at": daylog.clock(ev["at"]), "ms": ev["at"], "class": ev["class"], **r,
+                                  "after": ev["line"], "seq": body["seq"]})
+    # What each reaction said: its moment may go after its action's start,
+    # waiting behind the line playing.
+    for r in reactions:
+        moment = played.moment(r.pop("seq")) or {}
+        r["word"] = feed.said(moment.get("say"))
+        hours[daylog.hour_of(r["ms"])]["words"][r["word"] or "none"] += 1
     # How long each mood lasted, from the first event to the last.
     spans: Counter = Counter()
     if events:
-        at, mood = min(ev["at"] for ev in events.values()), REST
+        at, now = min(ev["at"] for ev in events.values()), changes[0]["from"] if changes else mood or REST
         for c in changes:
-            spans[mood] += c["ms"] - at
-            at, mood = c["ms"], c["change"].split(" → ")[-1]
-        spans[mood] += max(ev["at"] for ev in events.values()) - at
+            spans[now] += c["ms"] - at
+            at, now = c["ms"], c["to"]
+        spans[now] += max(ev["at"] for ev in events.values()) - at
     if open_turns and working and events:
         working[-1][1] = max(ev["at"] for ev in events.values())
     return {"hours": {k: hours[k] for k in sorted(hours)}, "changes": changes, "reactions": reactions,
@@ -775,11 +746,11 @@ def liveliness(working: list[list[int]], reactions: list[dict[str, Any]],
         run = run + 1 if again else 1
         if run > best:
             best, best_what = run, r["face"] + (f" {r['finish']}" if r["finish"] else "") + (f' "{r["word"]}"' if r["word"] else "")
-    bounces = [f'{a["at"]} {a["change"]}, back at {b["at"]}' for a, b in zip(changes, changes[1:])
-               if b["change"].split(" → ")[-1] == a["change"].split(" → ")[0] and b["ms"] - a["ms"] < 60_000]
+    bounces = [f'{a["at"]} {a["from"]} → {a["to"]}, back at {b["at"]}' for a, b in zip(changes, changes[1:])
+               if b["to"] == a["from"] and b["ms"] - a["ms"] < 60_000]
     # The longest stretch of work with Boop in the resting mood all through.
     rest: list[tuple[int, int]] = []
-    mood_at = [(c["ms"], c["change"].split(" → ")[-1]) for c in changes]
+    mood_at = [(c["ms"], c["to"]) for c in changes]
     for a, b in working:
         mood = REST
         for t, m in mood_at:
@@ -794,13 +765,13 @@ def liveliness(working: list[list[int]], reactions: list[dict[str, Any]],
                 start = t
     longest_rest = max(rest, default=(0, 0))
     return {
-        "longest_quiet_min": round(longest[0] / 60_000, 1), "longest_quiet_at": clock_of(longest[1]) if gaps else "–",
+        "longest_quiet_min": round(longest[0] / 60_000, 1), "longest_quiet_at": daylog.clock(longest[1]) if gaps else "–",
         "quiet_over_6_min": sum(1 for g, _ in gaps if g > 6 * 60_000),
         "longest_same_run": best, "longest_same_what": best_what,
         "repeat_pct": round(100 * repeats / max(1, len(reactions) - 1)),
         "mood_bounces": len(bounces), "bounces": bounces, "min_mood_changes": len(changes),
         "longest_rest_working_min": round(longest_rest[0] / 60_000, 1),
-        "longest_rest_working_at": clock_of(longest_rest[1]) if rest else "–",
+        "longest_rest_working_at": daylog.clock(longest_rest[1]) if rest else "–",
     }
 
 
@@ -815,21 +786,12 @@ def check(paths: list[Path]) -> tuple[str, bool]:
             held = got >= limit if key.startswith("min_") else got <= limit
             ok &= held
             note = {"longest_quiet_min": f' (from {lv["longest_quiet_at"]})',
-                    "longest_same_run": f' ({lv["longest_same_what"]})' if lv["longest_same_what"] else "",
                     "mood_bounces": "".join(f"; {b}" for b in lv["bounces"]),
                     "longest_rest_working_min": f' (from {lv["longest_rest_working_at"]})'}.get(key, "")
             out.append(f'{"ok  " if held else "FAIL"}  {key} {"≥" if key.startswith("min_") else "≤"} {limit}: {got}{note}')
         out.append(f'      (repeats, not held to a limit: {lv["repeat_pct"]}% the same as the one before, '
                    f'at most {lv["longest_same_run"]} in a row)')
     return "\n".join(out), ok
-
-
-def hour(ms: int) -> int:
-    return dt.datetime.fromtimestamp(ms / 1000).hour
-
-
-def clock_of(ms: int) -> str:
-    return dt.datetime.fromtimestamp(ms / 1000).strftime("%H:%M")
 
 
 def total(r: dict[str, Any]) -> dict[str, Any]:
@@ -868,11 +830,12 @@ def report(paths: list[Path], as_json: bool = False) -> str:
                 f'at most {lv["longest_same_run"]} in a row ({lv["longest_same_what"] or "–"}); '
                 f'{lv["mood_bounces"]} mood bounces; longest stretch of work {REST} all through '
                 f'{lv["longest_rest_working_min"]} min (from {lv["longest_rest_working_at"]})']
-        out += ["", "Takes said (none: a reaction that said nothing): " + fmt(total(r)["words"]),
+        out += ["", "Holds: " + fmt(total(r)["loops"]),
+                "", "Takes said (none: a reaction that said nothing): " + fmt(total(r)["words"]),
                 "", "Time in each mood: " + ", ".join(f"{k} {v} min" for k, v in r["mood_minutes"].items()),
                 "", "Mood changes:"]
         for c in r["changes"]:
-            out.append(f"- {c['at']} {c['change']} ({c['class']}): {c['after']}")
+            out.append(f"- {c['at']} {c['from']} → {c['to']} ({c['class']}): {c['after']}")
         out.append("")
     return "\n".join(out)
 
@@ -881,36 +844,42 @@ def fmt(c: Counter) -> str:
     return ", ".join(f"{k} {n}" for k, n in c.most_common()) or "–"
 
 
-def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="workday.py", description=__doc__.split("\n\n")[0])
-    sub = ap.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("plan", help="print the day's story")
-    p.add_argument("--seed", type=int, default=1)
-    p = sub.add_parser("run", help="replay the day through Boop --headless")
-    p.add_argument("--state", required=True, help="a fresh state directory, short, under /tmp (it's deleted first)")
-    p.add_argument("--seed", type=int, default=1)
-    p.add_argument("--brain", choices=["jev", "scripted"], default="jev")
-    p.add_argument("--personality", choices=["boop", "chatter"])
-    p.add_argument("--out", help="copy debug.jsonl and boop.log here")
-    p.add_argument("--verbose", action="store_true", help="print every event and action")
-    p = sub.add_parser("report", help="sum up one or more runs' debug.jsonl")
-    p.add_argument("files", nargs="+")
-    p.add_argument("--json", action="store_true")
-    p = sub.add_parser("check", help="hold one or more runs' debug.jsonl to the liveliness limits; exits 1 if any fails")
-    p.add_argument("files", nargs="+")
-    args = ap.parse_args(argv)
-    if args.cmd == "plan":
+# ---------------------------------------------------------------- the command
+
+
+def add_parser(sub: Any) -> None:
+    """`boopctl workday` and its own subcommands."""
+    p = sub.add_parser("workday", help="a scripted working day through the headless app and its brain, and "
+                                       "what Boop did in it (EVALS.md §5)")
+    days = p.add_subparsers(dest="workday", required=True, metavar="step")
+    q = days.add_parser("plan", help="print the day's story")
+    q.add_argument("--seed", type=int, default=1)
+    q = days.add_parser("run", help="replay the day through Boop --headless, then report")
+    q.add_argument("--state", required=True, help="a fresh state directory, short, under /tmp (it's deleted first)")
+    q.add_argument("--seed", type=int, default=1)
+    q.add_argument("--brain", choices=["jev", "scripted"], default="jev",
+                   help="jev (the default) needs BOOP_JEV_KEY; scripted needs nothing")
+    q.add_argument("--personality", choices=["boop", "chatter"])
+    q.add_argument("--out", help="copy debug.jsonl and boop.log here")
+    q.add_argument("--verbose", action="store_true", help="print every event and action")
+    q = days.add_parser("report", help="sum up one or more runs' debug.jsonl, hour by hour")
+    q.add_argument("files", nargs="+")
+    q.add_argument("--json", action="store_true")
+    q = days.add_parser("check", help="hold one or more runs' debug.jsonl to the liveliness limits; exits 1 if any fails")
+    q.add_argument("files", nargs="+")
+    p.set_defaults(func=main)
+
+
+def main(args: Any) -> int:
+    if args.workday == "plan":
         print(plan(args.seed))
-    elif args.cmd == "run":
-        return run(args)
-    elif args.cmd == "check":
+    elif args.workday == "run":
+        return run(Path(args.state), args.seed, args.brain, args.personality, Path(args.out) if args.out else None,
+                   args.verbose)
+    elif args.workday == "check":
         text, ok = check([Path(f) for f in args.files])
         print(text)
         return 0 if ok else 1
     else:
         print(report([Path(f) for f in args.files], args.json))
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

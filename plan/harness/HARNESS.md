@@ -497,7 +497,13 @@ which headless `advance` moves:
 | `status` | When the personality, the brain, the sessions or the connection changes | `personality`, `brain` (an `id`, or `none`), `sessions` (`agent`, `project`, `status`) and `connected`; the mood is in `sent`'s `state` |
 
 The last three are for the dashboard (`internal/tools/boopctl dash`);
-the terminal and `boopdev watch` skip them.
+the terminal and `boopdev watch` skip them. What a reaction said is its
+moment's `say`, the takes Voice picked ([VOICE.md](../VOICE.md) §4);
+no line names the action a moment is for, so the dashboard and
+`boopctl workday` pair them in order (`feed.Played`): a reaction's
+moment is sent just before its action starts, or later, in turn, when
+it waits behind the line playing, and one never sent ends its action
+first.
 
 **Dev lines.** Headless, or in debug mode, the hook socket also takes
 `{"dev":…}` lines; plain `make run` ignores them. Nothing replies: what a

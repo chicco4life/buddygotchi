@@ -25,13 +25,15 @@ $(ROOT)/.build/voice/voice.bin: boop-design/assets/boop-voice-v1/manifest.json b
 	cd $(ROOT) && python3 internal/tools/voicegen/voicegen.py
 
 # internal/tools/.venv with pyserial, Pillow and Textual, for boopctl.
-# internal/tools/boopctl makes it by itself when it's missing; this also
-# refreshes it after internal/tools/requirements.txt changes.
+# internal/tools/boopctl makes it through this when it's missing; this also
+# refreshes it after internal/tools/requirements.txt changes. A venv that
+# already works (a worktree's may be a link to the main checkout's) is
+# kept, and only its packages brought up to date.
 tools: tools/.venv/.ok
 
 tools/.venv/.ok: tools/requirements.txt
-	cd $(ROOT) && python3 -m venv internal/tools/.venv
-	cd $(ROOT) && internal/tools/.venv/bin/pip install --quiet --upgrade pip
+	cd $(ROOT) && test -x internal/tools/.venv/bin/python || { python3 -m venv internal/tools/.venv \
+	  && internal/tools/.venv/bin/pip install --quiet --upgrade pip; }
 	cd $(ROOT) && internal/tools/.venv/bin/pip install --quiet -r internal/tools/requirements.txt
 	touch $@
 
@@ -61,9 +63,9 @@ e2e:
 	$(MAKE) -C $(ROOT) build
 	cd $(ROOT) && internal/tools/boopctl e2e
 
-# The tools' own tests, with no board or camera: boopctl's commands, the
-# working day's script, and the webcam recorder on synthetic video.
-tools-test: tools
+# The tools' own tests, with no board or camera: boopctl's commands (the
+# working day's script and report among them, and the takes they read from
+# the voice pack), and the webcam recorder on synthetic video.
+tools-test: tools voice
 	cd $(ROOT) && internal/tools/.venv/bin/python -m unittest discover -s internal/tools/boopctl_lib/tests
-	cd $(ROOT) && python3 -m unittest discover -s internal/tools/workday/tests
 	cd $(ROOT) && python3 -m unittest discover -s internal/tools/webcam/tests

@@ -25,12 +25,12 @@ import time
 from pathlib import Path
 from typing import Any
 
-from boopctl_lib.common import REPO, restarted, send_line, take
+from boopctl_lib.common import REPO, restarted
 from boopctl_lib.device import Device, DeviceError
+from boopctl_lib.headless import BIN, Headless
 from boopctl_lib.image import save_shot
 from boopctl_lib.scenario import matches
 
-BIN = REPO / ".build" / "debug"
 FIXTURES = REPO / "internal" / "app" / "Tests" / "Fixtures" / "hooks" / "e2e"
 RUN_ORDER = ["claude/session.jsonl", "codex/quick.jsonl", "codex/slow.jsonl"]
 # How long a hook's `state` may take before it counts as "no new state". A
@@ -59,7 +59,8 @@ class Run:
         self.log: list[str] = []
         self.failures: list[str] = []
         self.hooks: list[dict[str, Any]] = []
-        self.procs: list[subprocess.Popen] = []
+        self.bridge: subprocess.Popen | None = None
+        self.app = Headless(self.state, self.hook_sock, f"usb:{self.bridge_sock}", brain)
         self.last_hook = time.monotonic()
 
     def say(self, line: str) -> None:
@@ -82,12 +83,9 @@ class Run:
                 raise DeviceError(f"no {BIN / name}; run make build")
         bridge = [str(REPO / "internal" / "tools" / "boopctl")] + (["--port", self.port] if self.port else [])
         bridge += ["bridge", "--socket", self.bridge_sock, "--quiet"]
-        self.procs.append(subprocess.Popen(bridge, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
-        self._wait_for(lambda: os.path.exists(self.bridge_sock), 10, "the bridge's socket")
-        app = [str(BIN / "Boop"), "--headless", "--state-dir", str(self.state), "--link", f"usb:{self.bridge_sock}",
-               "--socket", self.hook_sock, "--brain", self.brain, "--name", "Pip", "--no-open", "--debug"]
-        self.procs.append(subprocess.Popen(app, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
-        self._wait_for(lambda: "device link: connected" in self.app_log(), 10, "the app to reach the bridge")
+        self.bridge = subprocess.Popen(bridge, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.app.wait_for(lambda: os.path.exists(self.bridge_sock), 10, "the bridge's socket")
+        self.app.start()
         # The first launch of a freshly built boop-hook is slow (~270 ms) while
         # macOS checks the new binary; agents run it hundreds of times a day.
         # Warm it once, against a socket nobody listens on.
@@ -96,28 +94,17 @@ class Run:
         self.say(f"bridge and headless app up (brain {self.brain}, state {self.state})")
 
     def stop(self) -> None:
-        for proc in reversed(self.procs):
-            if proc.poll() is None:
-                proc.send_signal(signal.SIGTERM)
-                try:
-                    code = proc.wait(10)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    code = "killed"
-                self.say(f"{Path(proc.args[0]).name} exit {code}")
-        self.procs = []
-
-    def _wait_for(self, ok, seconds: float, what: str) -> None:
-        end = time.monotonic() + seconds
-        while time.monotonic() < end:
-            if ok():
-                return
-            time.sleep(0.05)
-        raise DeviceError(f"timed out waiting for {what}")
-
-    def app_log(self) -> str:
-        path = self.state / "boop.log"
-        return path.read_text() if path.exists() else ""
+        if (code := self.app.stop()) is not None:
+            self.say(f"Boop exit {code}")
+        if self.bridge and self.bridge.poll() is None:
+            self.bridge.send_signal(signal.SIGTERM)
+            try:
+                code = self.bridge.wait(10)
+            except subprocess.TimeoutExpired:
+                self.bridge.kill()
+                code = "killed"
+            self.say(f"boopctl exit {code}")
+        self.bridge = None
 
     # Steps
 
@@ -142,8 +129,7 @@ class Run:
                  (f"state on the device after {latency:.0f} ms" if latency is not None else "no new state"))
 
     def advance(self, ms: int) -> None:
-        if why := send_line(self.hook_sock, {"dev": "advance", "ms": ms}):
-            raise DeviceError(why)
+        self.app.send({"dev": "advance", "ms": ms})
         time.sleep(0.3)
         self.say(f"  app clock +{ms / 1000:.0f} s")
 
@@ -220,35 +206,21 @@ def check_after(run: Run, expected: dict[str, Any]) -> None:
 KEPT_WORDS = {"PRIVATE_PROMPT", "PRIVATE_CLOSING"}
 
 
-def line_ms(say: dict[str, Any]) -> int:
-    """How long a line plays on the device: its take's length, then 1200 ms
-    for the bubble (firmware/src/app/behaviour.cpp startSay); 0 for none."""
-    t = take(say.get("take") or "")
-    return t.ms + 1200 if t else 0
-
-
-def check_order(run: Run) -> dict[str, Any]:
-    """The brain's moments come after the rules' reaction and never cut a
-    rule's line short (ARCHITECTURE.md §3.2), and the device says how each
-    one ended (PROTOCOL.md §4).
+def order(log: str) -> list[dict[str, Any]]:
+    """Every brain moment in an app log, in order: when it was sent, how
+    long after the rules' reaction to the last hook, how the device said it
+    ended, and whether the next moment sent was the brain's or a rule's.
 
     With --debug the app logs `hook: …` for each hook and `link rules → …` or
     `link brain → …` for each line sent to the device, and always
-    `device: moment N ended …` for the device's `ended`. For every brain
-    moment: the rules' reaction to the last hook came first, and the last
-    rule line (chatter) had finished playing. A brain line may play over a
-    rule's one-shot, such as starting, which it doesn't cut; an animation
-    stops the line playing. Each fixture ends with seconds to spare, so
-    every brain moment sent with an `id` has its `ended` by then, and it
-    says whether a newer moment cut the moment's line short."""
+    `device: moment N ended …` for the device's `ended`."""
     stamp = re.compile(r"^(\d\d):(\d\d):(\d\d)\.(\d\d\d) (.*)$")
     ended_line = re.compile(r"^device: moment (\d+) ended (\w+)(?: \((\w+)\))?$")
     how_ended: dict[int, str] = {}  # how each moment ended, by id: "done", "cut (tap)"
-    answers = []
+    moments: list[dict[str, Any]] = []
     last_hook: str | None = None
-    reaction: int | None = None
-    rule_moment: tuple[int, str, int] | None = None  # sent, anim, when its line ends
-    for raw in run.app_log().splitlines():
+    reaction: tuple[int, str] | None = None
+    for raw in log.splitlines():
         m = stamp.match(raw)
         if not m:
             continue
@@ -258,48 +230,55 @@ def check_order(run: Run) -> dict[str, Any]:
             last_hook = text[6:]
         elif e := ended_line.match(text):
             how_ended[int(e.group(1))] = e.group(2) + (f" ({e.group(3)})" if e.group(3) else "")
-        elif text.startswith("link rules → "):
-            if last_hook and (reaction is None or reaction[1] != last_hook):
-                reaction = (t, last_hook)
+        elif text.startswith(("link rules → ", "link brain → ")):
+            by = text[5:10]
             line = json.loads(text[len("link rules → "):])
-            if line.get("t") == "moment":
-                anim = line.get("anim") or "line"  # chatter: a line on its own
-                # A line plays to its end; an animation alone stops any line.
-                ends = t + line_ms(line["say"]) if line.get("say") else min(rule_moment[2] if rule_moment else t, t)
-                rule_moment = (t, anim, ends)
-        elif text.startswith("link brain → "):
-            brain_line = json.loads(text[len("link brain → "):])
-            if brain_line.get("t") != "moment":
+            if by == "rules" and last_hook and (reaction is None or reaction[1] != last_hook):
+                reaction = (t, last_hook)
+            if line.get("t") != "moment":
                 continue
-            anim = brain_line.get("anim") or "line"  # the brain's `say`: a line on its own
-            answers.append({
-                "moment": anim, "at": raw[:12], "id": brain_line.get("id"),
-                "after_reaction_ms": None if reaction is None else t - reaction[0],
-                "reaction_to": None if reaction is None else reaction[1],
-                "last_rule_moment": None if rule_moment is None else rule_moment[1],
-                "after_rule_line_ended_ms": None if rule_moment is None else t - rule_moment[2],
-            })
+            if moments and moments[-1]["next_by"] is None:
+                moments[-1]["next_by"] = by
+            if by == "brain":
+                moments.append({
+                    "moment": line.get("anim") or "line",  # the brain's `say`: a line on its own
+                    "at": raw[:12], "id": line.get("id"), "next_by": None,
+                    "after_reaction_ms": None if reaction is None else t - reaction[0],
+                    "reaction_to": None if reaction is None else reaction[1],
+                })
+    for a in moments:
+        a["ended"] = how_ended.get(a["id"]) if a["id"] is not None else None
+    return moments
+
+
+def check_order(run: Any) -> dict[str, Any]:
+    """The brain's moments come after the rules' reaction, and none cuts
+    the brain's moment before it short (ARCHITECTURE.md §3.2: the next waits
+    until the line has played), as the device's `ended` for each says
+    (PROTOCOL.md §4). `cut (moment)` with a rule's one-shot next is fine: a
+    one-shot replaces the animation playing. Each fixture ends with seconds
+    to spare, so every brain moment sent with an `id` has its `ended` by
+    then."""
+    answers = order(run.app.log_text())
     # The log is written in order, so a brain line after the rules' line came
     # after it, even in the same millisecond: the scripted brain answers an
     # agent start at once (harness/HARNESS.md §7).
-    bad = [a for a in answers if a["after_reaction_ms"] is None or a["after_reaction_ms"] < 0
-           or (a["after_rule_line_ended_ms"] is not None and a["after_rule_line_ended_ms"] < 0)]
-    for a in answers:
-        a["ended"] = how_ended.get(a["id"]) if a["id"] is not None else None
+    early = [a for a in answers if a["after_reaction_ms"] is None or a["after_reaction_ms"] < 0]
     unended = [a for a in answers if a["id"] is not None and a["ended"] is None]
-    # For the record: a new hook's rule moment may cut a brain moment short.
-    cut = [f"{a['at']} {a['moment']} ({a['id']})" for a in answers if a["ended"] == "cut (moment)"]
+    cut = [f"{a['at']} {a['moment']} ({a['id']}) by {a['next_by']}" for a in answers if a["ended"] == "cut (moment)"]
+    cut_by_brain = [c for c in cut if c.endswith("by brain")]
     for a in answers:
         run.say(f"  {a['at']} brain {a['moment']}: {a['after_reaction_ms']} ms after the rules' reaction to "
-                f"{a['reaction_to']}; last rule moment {a['last_rule_moment']}, its line ended "
-                f"{a['after_rule_line_ended_ms']} ms before; the device said it ended {a['ended']}")
-    run.say(f"brain moments: {len(answers)}, early: {len(bad)}, cut short by a newer moment: {cut or 'none'}, "
+                f"{a['reaction_to']}; the device said it ended {a['ended']}")
+    run.say(f"brain moments: {len(answers)}, early: {len(early)}, cut short by a newer moment: {cut or 'none'}, "
             f"with no `ended` from the device: {len(unended)}")
-    if bad:
-        run.fail(f"{len(bad)} brain moments came before the rules' reaction or cut a rule's line short")
+    if early:
+        run.fail(f"{len(early)} brain moments came before the rules' reaction")
+    if cut_by_brain:
+        run.fail(f"{len(cut_by_brain)} brain moments were cut short by the brain's next one: {cut_by_brain}")
     if unended:
         run.fail(f"{len(unended)} brain moments never got the device's `ended`: {[a['id'] for a in unended]}")
-    return {"brain_moments": len(answers), "early": len(bad), "cut_by_newer": cut, "unended": len(unended),
+    return {"brain_moments": len(answers), "early": len(early), "cut_by_newer": cut, "unended": len(unended),
             "answers": answers}
 
 
@@ -374,7 +353,8 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
     def sample(dev: Device) -> None:
         vitals = dev.vitals()
         st = dev.request({"t": "dbg.state"})
-        app = run.procs[1]
+        app = run.app.proc
+        assert app
         rss = subprocess.run(["ps", "-o", "rss=", "-p", str(app.pid)], capture_output=True, text=True).stdout.strip()
         samples.append({"t": round(time.monotonic() - t0, 1), **vitals,
                         "audio_errors": st.get("audio", {}).get("out", {}).get("errors"),

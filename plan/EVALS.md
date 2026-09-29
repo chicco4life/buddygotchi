@@ -253,16 +253,16 @@ shows it. Run the scenarios it touches with `--only` while you work, and
 The scenarios check single decisions; the working day checks how they
 add up over a day: how often Boop's mood changes, whether a routine
 line changes it, and how often, and with which faces, Boop reacts.
-`internal/tools/workday/workday.py` replays a scripted 8-hour day
+`boopctl workday` replays a scripted 8-hour day
 through the whole headless app and Jev on a compressed clock, in about
 five minutes:
 
 ```sh
 make build
-BOOP_JEV_KEY=… python3 internal/tools/workday/workday.py run --state /tmp/tn-1 --out /tmp/tn-out/1
-python3 internal/tools/workday/workday.py report /tmp/tn-out/1/debug.jsonl /tmp/tn-out/2/debug.jsonl
-python3 internal/tools/workday/workday.py check /tmp/tn-out/1/debug.jsonl
-python3 internal/tools/workday/workday.py plan    # the day's story
+BOOP_JEV_KEY=… internal/tools/boopctl workday run --state /tmp/tn-1 --out /tmp/tn-out/1
+internal/tools/boopctl workday report /tmp/tn-out/1/debug.jsonl /tmp/tn-out/2/debug.jsonl
+internal/tools/boopctl workday check /tmp/tn-out/1/debug.jsonl
+internal/tools/boopctl workday plan    # the day's story
 ```
 
 **The day** (`--seed 1` by default; the seed only moves lengths and
@@ -286,12 +286,18 @@ it would with a board, and whose taps make the pokes. It moves
 the app's clock to 09:00 the next morning, sends each hook line straight
 to the app's socket in `boop-hook`'s wire form, moves the clock between
 them with `{"dev":"advance"}` (a minute at a time over a long gap, so the
-heartbeat comes when it would), and waits for every pass and reaction to
-end before the next line, so no view event waits behind Jev. `--brain
+heartbeat comes when it would), and waits for every pass and the brain's
+reactions to end before the next line, so no view event waits behind
+Jev (a rule's needs-you, which lasts until the day answers the request
+steps later, isn't waited for). `--brain
 scripted` runs it without a key, and `--personality chatter` with the
 other text.
 
-**The report** gives, for each hour of the app's clock: turns ended,
+**The report** reads `debug.jsonl` as `boopctl day` and the dashboard
+do: a mood change's new mood and a reaction's face, finish and hold from
+the answers of the pass it ran for, and what it said from the takes of
+the moment it sent ([harness/HARNESS.md](harness/HARNESS.md) §9), never
+from an action's message. It gives, for each hour of the app's clock: turns ended,
 passes (and how many dropped), mood changes, with those on a routine
 line (a turn start, or a finish done under 5 minutes) split into back
 to calm, the resting mood (a mood fading, as the guide says), and any
@@ -299,8 +305,9 @@ other (which a routine line shouldn't cause); and reactions, as reacted/all for 
 kind of line that woke the brain: notable (a failure, a fix, a failed or
 stopped turn, a turn of 5 minutes or more, a poke), a finish
 done in 1 to 5 minutes, one under a minute, a turn start, and a
-heartbeat; and the faces used. Then the takes the reactions said over
-the day (`none` for a reaction that said nothing), how long each mood
+heartbeat; and the faces used. Then how long the reactions held and
+the takes they said over the day (`none` for a reaction that said
+nothing), how long each mood
 lasted, and every mood change with the line that brought it. `--json`
 gives all that and every reaction.
 
@@ -310,8 +317,8 @@ of work (any agent in a turn) with no reaction, and how many went over
 as the one before, and the longest run of the same (reported, with no
 limit: repeats are fine); mood bounces (a mood changing back to the one
 it left within a minute); and the longest stretch of work with Boop
-calm, the resting mood, all through. `workday.py check FILE…` holds each run to loose
-limits (`LIMITS` in `workday.py`) and exits 1 if one fails:
+calm, the resting mood, all through. `boopctl workday check FILE…` holds each run to loose
+limits (`LIMITS` in `internal/tools/boopctl_lib/workday.py`) and exits 1 if one fails:
 
 | Limit | Holds |
 | --- | --- |
@@ -323,7 +330,7 @@ limits (`LIMITS` in `workday.py`) and exits 1 if one fails:
 | `longest_rest_working_min` | 45 at most |
 
 ```sh
-python3 internal/tools/workday/workday.py check /tmp/tn-out/1/debug.jsonl
+internal/tools/boopctl workday check /tmp/tn-out/1/debug.jsonl
 ```
 
 Jev is stochastic, so run each side of a change at least twice. Warm it
@@ -337,5 +344,5 @@ numbers the mood is tuned to today; the reactions' are in
 warm too (2 and 8 in [the check's reruns](evidence/2026-09-28-tonight/tune-check/README.md)),
 so compare runs by their dropped passes as well.
 
-`internal/tools/workday/tests/` checks the day and the report without
-the app (`make -C internal tools-test`).
+`internal/tools/boopctl_lib/tests/test_workday.py` checks the day and
+the report without the app (`make -C internal tools-test`).

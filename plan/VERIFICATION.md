@@ -85,8 +85,8 @@ launch the menu-bar app or run the whole eval.
 | `make -C internal sim` | Every scenario in the simulator, against the goldens (L1) |
 | `make -C internal e2e` | Builds, then runs the pipeline check (L4) |
 | `make -C internal faces` | Regenerates the faces (`firmware/assets/faces.h`, the popover's `app/Boop/Views/FaceDesigns.swift`, the designs' loops for the Mac in `app/BoopKit/Core/FaceLoops.swift`, the frames `fw-test` checks, and the designs' list in `internal/tools/facegen/design/manifest.json`) from the animation bank (`internal/boop-design/boop-sound-bank-v4/`), whose generator it runs with node. It stops if an older mood's design doesn't come out as it was captured, then draws each design at a dozen moments in Google Chrome and fails unless facegen's own drawing matches pixel for pixel in RGB565, a blended pixel within one step (7,970 frames of 704 scenes, 7 minutes or so). Then rerun sfxgen (below) |
-| `make -C internal tools` | Makes or refreshes `internal/tools/.venv` (pyserial, Pillow, Textual). `internal/tools/boopctl` makes it on first run |
-| `make -C internal tools-test` | The tools' own tests, with no board or camera: `boopctl`'s commands and link, the dashboard (`test_dash.py`), the day's summary (`test_day.py`), the working day's script (`test_workday.py`) and the webcam recorder on synthetic video |
+| `make -C internal tools` | Makes or refreshes `internal/tools/.venv` (pyserial, Pillow, Textual); a venv that already works, such as a worktree's link to the main checkout's, is kept and its packages brought up to date. `internal/tools/boopctl` runs it on first run |
+| `make -C internal tools-test` | The tools' own tests, with no board or camera: `boopctl`'s commands and link, the card copy (`test_card.py`), the dashboard (`test_dash.py`), the day's summary (`test_day.py`), the working day's script and report (`test_workday.py`), the pipeline check's order check (`test_e2e.py`) and the webcam recorder on synthetic video. It makes the voice pack first, since boopctl reads the takes from it |
 
 **`internal/tools/boopctl`**, the board over USB, the simulator, the
 dashboard and the day's summary. `--port PORT` picks the serial port (default `$BOOP_PORT` or
@@ -110,6 +110,7 @@ commands go through the bridge.
 | `cam frame\|pattern\|clip [name]` | The webcam helpers (L3). `--seconds N` for a clip (8, at most 10), `--usb bottom\|right\|top\|left` for framing, `--camera ID` (default `$BOOP_CAMERA` or the built-in camera) |
 | `dash [--state-dir DIR] [--socket PATH]` | The live dashboard |
 | `day [--state-dir DIR] [--date YYYY-MM-DD] [file…]` | What Boop did in a day, and why, from debug mode's logs: the state directory's `debug.jsonl` and the earlier launches' kept beside it, oldest first (the everyday app's by default), or the files named, oldest launch first. A table by the hour (finishes: task_complete, reply_ready and older logs' cheers; chatter, the brain's reactions and their faces, alerts (a new or different request shown), mood changes, passes, dropped passes, the brain's reactions that didn't happen, pokes and minutes needing you), then the brain's passes and what the dashboard forced, each mood change and what made it, each time something needed you and how long it took to clear, and why reactions didn't happen ([harness/HARNESS.md](harness/HARNESS.md) §9). `--date` defaults to the newest line's day; it exits 1 when that day has no lines |
+| `workday plan\|run\|report\|check` | A scripted 8-hour working day through `Boop --headless` and its brain on a compressed clock, and a report of what Boop did hour by hour: mood changes, reactions by kind of line, faces, holds, and the takes they said (L5, [EVALS.md](EVALS.md) §5). `plan` prints the day's story; `run --state DIR` (short, under `/tmp`; it's deleted first), `--seed N` (1), `--brain jev\|scripted` (jev, with `BOOP_JEV_KEY`), `--personality`, `--out DIR`, `--verbose`; `report FILE…` takes `debug.jsonl` files, `--json`; `check FILE…` holds each to the liveliness limits and exits 1 if one fails |
 | `calibrate` | Touch calibration: a person taps crosses on the screen (L6). `--show` prints the stored map, `--show --clear` forgets it |
 | `card [--pack FILE] [--force] [--fresh]` | Copies the voice pack (`.build/voice/voice.bin`) onto the board's microSD card over USB with `dbg.card`, unless the board already plays that version; goes on where a cut-off copy stopped, and resyncs after a lost line. Slow: about 0.7 KB/s on the bench board (2026-09-29), hours for the whole pack, so copying it with a card reader (`voicegen.py --card`) comes first ([VOICE.md](VOICE.md) §8) |
 
@@ -129,7 +130,7 @@ commands go through the bridge.
 | Way | What it does |
 | --- | --- |
 | `Boop [--state-dir DIR] [--link ble\|usb:SOCKET\|none] [--debug]` | The menu-bar app, with Bluetooth by default. The owner's. With a state directory other than the everyday one, it never installs or repairs the hooks |
-| `Boop --headless --state-dir DIR` | The whole runtime with no UI and no Bluetooth (L4). `--link usb:SOCKET\|none` (none), `--socket PATH` (`DIR/boop.sock`), `--personality boop\|chatter` for this run, `--brain jev\|scripted` (jev, only with `BOOP_JEV_KEY`; scripted answers every pass with an excited "yay", no network), `--name NAME` and `--nature sweet\|cheeky` for a new state directory, `--debug`. `--no-open` only logs where a tap would open a thread, instead of opening it on this Mac ([BEHAVIORS.md](BEHAVIORS.md) §3.2): `boopctl e2e` and `workday` pass it. On its socket `{"dev":"advance","ms":N}` moves its clock, `{"dev":"tap"}` stands in for a tap on the board, and `{"dev":"listen","on":true}` and `{"dev":"said","words":"…"}` stand in for push-to-talk's button and mic ([harness/HARNESS.md](harness/HARNESS.md) §9). It keeps its transcript in `DIR/transcript/` and reads it back at launch ([harness/HARNESS.md](harness/HARNESS.md) §5) |
+| `Boop --headless --state-dir DIR` | The whole runtime with no UI and no Bluetooth (L4). `--link usb:SOCKET\|none` (none), `--socket PATH` (`DIR/boop.sock`), `--personality boop\|chatter` for this run, `--brain jev\|scripted` (jev, only with `BOOP_JEV_KEY`; scripted answers every pass with an excited "yay", no network), `--name NAME` and `--nature sweet\|cheeky` for a new state directory, `--debug`. `--no-open` only logs where a tap would open a thread, instead of opening it on this Mac ([BEHAVIORS.md](BEHAVIORS.md) §3.2): `boopctl e2e`, `soak --pipeline` and `workday` pass it (`boopctl_lib/headless.py`). On its socket `{"dev":"advance","ms":N}` moves its clock, `{"dev":"tap"}` stands in for a tap on the board, and `{"dev":"listen","on":true}` and `{"dev":"said","words":"…"}` stand in for push-to-talk's button and mic ([harness/HARNESS.md](harness/HARNESS.md) §9). It keeps its transcript in `DIR/transcript/` and reads it back at launch ([harness/HARNESS.md](harness/HARNESS.md) §5) |
 | `--debug`, either way | Prints every hook, view event, action, device line and brain pass as it happens, and writes `DIR/debug.jsonl` for `boopdev watch` and `boopctl dash`; the socket then also takes the dashboard's dev lines ([harness/HARNESS.md](harness/HARNESS.md) §9) |
 | `Boop --snapshots DIR` | Renders the popover's panes and the menu-bar icons to PNGs, light and dark, from fixtures, and fails on low contrast (L0). No runtime, no Bluetooth |
 
@@ -141,7 +142,6 @@ commands go through the bridge.
 | `node internal/tools/sfxgen/sfxgen.mjs [--wav-dir DIR]` | Rebuilds the sound effects, `firmware/assets/sfx.h`, from the animation bank's synthesiser and timelines, for the designs facegen lists, so after `make -C internal faces` ([VOICE.md](VOICE.md) §10); `--wav-dir` also writes every clip as a WAV |
 | `internal/tools/.venv/bin/python internal/tools/fontgen/fontgen.py [--ttf-dir DIR]` | Rebuilds the device's fonts, `firmware/assets/fonts.h`, from Geist Mono ([DEVICE.md](DEVICE.md) §6); the `.ttf` files are in `landing/node_modules` after `npm ci` there, by default |
 | `internal/tools/.venv/bin/python internal/tools/facegen/facegen.py [--check]` | What `make -C internal faces` runs; without `--check` it skips the comparison with Chrome |
-| `python3 internal/tools/workday/workday.py plan\|run\|report` | A scripted 8-hour working day through `Boop --headless` and its brain on a compressed clock, and a report of what Boop did hour by hour: mood changes, reactions by kind of line, faces, and the day's words (L5, [EVALS.md](EVALS.md) §5). `run --state DIR` (short, under `/tmp`; it's deleted first), `--seed N` (1), `--brain jev\|scripted` (jev, with `BOOP_JEV_KEY`), `--personality`, `--out DIR`, `--verbose`; `report FILE…` takes `debug.jsonl` files, `--json`; `check FILE…` holds each to the liveliness limits and exits 1 if one fails |
 | `internal/tools/webcam/webcam.sh list\|record\|analyze` | The camera recorder ([its README](../internal/tools/webcam/README.md)); `boopctl cam` wraps it |
 | `internal/skills/doctor/doctor.sh` | Checks from inside an agent that its hooks reach Boop; `--headless` against a throwaway app ([ADAPTERS.md](ADAPTERS.md) §6) |
 
@@ -358,11 +358,12 @@ does all of it:
    fixtures reached any app file (`debug.jsonl` and the transcript
    included) but `PRIVATE_PROMPT` and `PRIVATE_CLOSING`, which mark your
    prompt and the agent's last message ([ADAPTERS.md](ADAPTERS.md) §2), and, from `boop.log`, that every
-   brain moment came after the rules' reaction and didn't cut a rule's
-   line short (it may play over an animation, [ARCHITECTURE.md](ARCHITECTURE.md) §3.2),
-   and that the board said how every brain moment it was sent ended
-   (`ended`, [PROTOCOL.md](PROTOCOL.md) §4). It lists, for the record,
-   the ones the board said a newer moment cut short.
+   brain moment came after the rules' reaction, that the board said how
+   every brain moment it was sent ended (`ended`, [PROTOCOL.md](PROTOCOL.md) §4),
+   and that none it said a newer moment cut short was cut by the brain's
+   next one, which waits for the line to play ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
+   It lists the ones a rule's one-shot cut short, which may replace the
+   animation playing.
 
 **Pass:** every checkpoint matches, and p95 latency from hook to board is
 under 200 ms.
@@ -386,11 +387,11 @@ retried once and counted as a link glitch.
    mood changes in character and never nagging, and the words and how
    long each face holds right for what happened?
 3. After a change to the steering files or the questions, the working
-   day ([EVALS.md](EVALS.md) §5): `workday.py run` twice before the
-   change and twice after, same seed, and `workday.py report` and
-   `workday.py check` on each.
+   day ([EVALS.md](EVALS.md) §5): `boopctl workday run` twice before the
+   change and twice after, same seed, and `boopctl workday report` and
+   `boopctl workday check` on each.
    How often the mood changes per hour, whether a routine line changed
-   it, and how often, with which faces and which words Boop reacts,
+   it, and how often, with which faces and which takes Boop reacts,
    before against after.
 
 **Pass:** every scenario passes in every run, but for known gaps
