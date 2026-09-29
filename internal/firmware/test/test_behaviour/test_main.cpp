@@ -961,11 +961,11 @@ static void test_a_line_alone_plays_over_the_face() {
   TEST_ASSERT_EQUAL(Anim::kTaskComplete, r.b.moment(r.t, left));
   TEST_ASSERT_EQUAL_UINT32(loopMs(render::Mood::kHappy, SceneState::kTaskComplete) - 500, left);
   TEST_ASSERT_NOT_NULL(r.b.bubble(r.t));
-  // A tap's poke replaces the moment, and the line with it.
+  // A tap's poke replaces the moment's animation; the line plays on.
   r.at(10600);
   r.b.tap(r.t, r.rng);
   TEST_ASSERT_EQUAL(Anim::kPoked, r.anim());
-  TEST_ASSERT_NULL(r.b.bubble(r.t));
+  TEST_ASSERT_NOT_NULL(r.b.bubble(r.t));
 
   // A `say` with no take is nothing.
   Rig e;
@@ -1217,13 +1217,13 @@ static void test_an_expression_ends_with_its_moment() {
   r.say();
   TEST_ASSERT_FALSE(r.b.expression(r.t, e));
   TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kHappy);
-  // A tap's poke does too.
+  // A tap's poke doesn't: the poke is drawn in the reaction's mood.
   r.at(5000);
   r.b.onMoment(expressive(render::Mood::kSad), r.t);
   r.at(5100);
   r.b.tap(r.t, r.rng);
-  TEST_ASSERT_FALSE(r.b.expression(r.t, e));
-  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kHappy);
+  TEST_ASSERT_TRUE(r.b.expression(r.t, e) && e == render::Mood::kSad);
+  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kSad);
   // "Needs you" stops the line, and the expression with it.
   r.at(9000);
   r.b.onMoment(expressive(render::Mood::kExcited), r.t);
@@ -1317,14 +1317,23 @@ static void test_a_waited_moment_says_how_it_ended() {
   r.at(cheered);
   TEST_ASSERT_EQUAL_STRING("9 done", ended(r).c_str());
 
-  // Cut short: by a tap's poke, by a newer moment (a finish, a
-  // line, the Mac's next), and by "needs you".
+  // A tap's poke doesn't cut its line or face (BEHAVIORS.md §3.3): it
+  // plays out, done.
+  {
+    Rig p;
+    p.state(base("idle"));
+    p.at(1000);
+    p.b.onMoment(waited(10), p.t);
+    p.at(1100);
+    p.b.tap(p.t, p.rng);
+    TEST_ASSERT_EQUAL_STRING("", ended(p).c_str());
+    p.at(1000 + 2 * look + kGoMs + Behaviour::kBubbleReadMs);
+    TEST_ASSERT_EQUAL_STRING("10 done", ended(p).c_str());
+  }
+  // Cut short: by a newer moment (a finish, a line, the Mac's next), and
+  // by "needs you".
   r.at(30000);
   r.state(base("idle"));  // no app would skip them
-  r.b.onMoment(waited(10), r.t);
-  r.at(30100);
-  r.b.tap(r.t, r.rng);
-  TEST_ASSERT_EQUAL_STRING("10 cut by tap", ended(r).c_str());
   r.at(31000);
   r.b.onMoment(waited(11), r.t);
   r.moment(Anim::kTaskComplete);
@@ -1345,25 +1354,30 @@ static void test_a_waited_moment_says_how_it_ended() {
   TEST_ASSERT_FALSE(r.b.onMoment(waited(15), r.t));
   TEST_ASSERT_EQUAL_STRING("15 skipped", ended(r).c_str());
 
-  // Its face holds on after its line is over (PROTOCOL.md §3). A tap, a
-  // newer moment or "needs you" then ends it at once, but doesn't cut the
-  // moment: it was seen and heard, so it's done.
+  // Its face holds on after its line is over (PROTOCOL.md §3). A newer
+  // moment or "needs you" then ends it at once, but doesn't cut the
+  // moment: it was seen and heard, so it's done. A tap's poke plays in it.
   Rig h;
   Model hm = base("idle");
   hm.variant = 1;  // the idle design's second variation, a long loop, its clock from 0
   h.state(hm);
   const uint32_t idle = loopMs(render::Mood::kProud, SceneState::kIdle, 1);
   render::Mood face;
-  h.at(1000);
-  h.b.onMoment(waited(17), h.t);
-  h.at(1000 + kGoMs + Behaviour::kBubbleReadMs + 100);
-  TEST_ASSERT_TRUE(h.t < idle);
-  TEST_ASSERT_NULL(h.b.bubble(h.t));
-  TEST_ASSERT_TRUE(h.b.expression(h.t, face));
-  TEST_ASSERT_EQUAL_STRING("", ended(h).c_str());
-  h.b.tap(h.t, h.rng);
-  TEST_ASSERT_FALSE(h.b.expression(h.t, face));
-  TEST_ASSERT_EQUAL_STRING("17 done", ended(h).c_str());
+  {
+    Rig p;
+    p.state(hm);
+    p.at(1000);
+    p.b.onMoment(waited(17), p.t);
+    p.at(1000 + kGoMs + Behaviour::kBubbleReadMs + 100);
+    TEST_ASSERT_TRUE(p.t < idle);
+    TEST_ASSERT_NULL(p.b.bubble(p.t));
+    TEST_ASSERT_TRUE(p.b.expression(p.t, face));
+    p.b.tap(p.t, p.rng);
+    TEST_ASSERT_TRUE(p.b.expression(p.t, face) && face == render::Mood::kProud);
+    TEST_ASSERT_EQUAL_STRING("", ended(p).c_str());
+    p.at(idle);
+    TEST_ASSERT_EQUAL_STRING("17 done", ended(p).c_str());
+  }
   h.at(2 * idle + 1000);
   h.state(hm);
   h.b.onMoment(waited(18), h.t);
@@ -1384,14 +1398,18 @@ static void test_a_waited_moment_says_how_it_ended() {
   h.at(6 * idle + 1000 + kGoMs + Behaviour::kBubbleReadMs + 100);
   h.say();  // a newer line
   TEST_ASSERT_EQUAL_STRING("20 done", ended(h).c_str());
-  // During its bubble, after the take, it's still its line.
+  // During its bubble, after the take, it's still its line, which a tap
+  // doesn't cut.
   h.at(8 * idle + 1000);
   h.state(hm);
   h.b.onMoment(waited(21), h.t);
   h.at(8 * idle + 1000 + kGoMs + Behaviour::kBubbleReadMs - 1);
   TEST_ASSERT_NOT_NULL(h.b.bubble(h.t));
   h.b.tap(h.t, h.rng);
-  TEST_ASSERT_EQUAL_STRING("21 cut by tap", ended(h).c_str());
+  TEST_ASSERT_NOT_NULL(h.b.bubble(h.t));
+  TEST_ASSERT_EQUAL_STRING("", ended(h).c_str());
+  h.at(9 * idle + 1000);
+  TEST_ASSERT_EQUAL_STRING("21 done", ended(h).c_str());
   // The Mac's next reaction, sent once this one's line has played
   // (ARCHITECTURE.md §3.2): it replaces the face held for its loops, and
   // this one is done.
@@ -2091,14 +2109,21 @@ static void test_a_finishs_line_waits_for_its_voice_window() {
   TEST_ASSERT_EQUAL_STRING("codex", r.b.strip(r.t).doneAgent);
   r.at(at + replyLoop);
   TEST_ASSERT_EQUAL_STRING("6 done", ended(r).c_str());
-  // Tapped before its line: the line never plays, and the moment was cut.
+  // Tapped before its line: the poke replaces the finish, which was cut,
+  // but the line still plays at its window, over the poke.
   r.at(at + replyLoop + 1000);
   r.state(m);
   in.id = 7;
   r.b.onMoment(in, r.t);
+  const uint32_t tapped = r.t;
   r.at(r.t + 100);
   r.b.tap(r.t, r.rng);
-  TEST_ASSERT_FALSE(r.b.lineAhead(r.t));
+  TEST_ASSERT_EQUAL(Anim::kPoked, r.anim());
+  TEST_ASSERT_TRUE(r.b.lineAhead(r.t));
+  r.at(tapped + reply);
+  TEST_ASSERT_NOT_NULL(r.b.bubble(r.t));
+  TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
+  r.at(tapped + replyLoop);  // its face holds for the finish's loop
   TEST_ASSERT_EQUAL_STRING("7 cut by tap", ended(r).c_str());
 }
 

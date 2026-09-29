@@ -392,7 +392,7 @@ bool Device::startLine(uint32_t t) {
   return true;
 }
 
-// Stops a line whose bubble ended or was replaced (a tap's poke, say), and
+// Stops a line whose bubble ended or was replaced (a newer moment, say), and
 // starts one that waited for its voice window, then plays the face's sound
 // effects (VOICE.md §10): its design's events as its clock reaches them,
 // and silence for the last design's when it changes or starts over (needs

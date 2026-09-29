@@ -17,11 +17,12 @@ import Foundation
 /// The app reckons how long each moment plays at most, as the device times
 /// it (PROTOCOL.md §3). A brain moment sent with an `id` holds the line
 /// until the device's `ended` says it's over, which is usually sooner (a
-/// face ends on a loop boundary, or a tap cuts it), and at most until the
+/// face ends on a loop boundary), and at most until the
 /// app stops waiting for that `ended`, whatever the Mac hears meanwhile of
 /// a tap or the link dropping. For the brain's next moment it holds the line
 /// only until its take has played (`brainFree`). The schedule also hears what the device
-/// does on its own or leaves out: a tap's poke cuts whatever else plays,
+/// does on its own or leaves out: a tap's poke replaces the animation
+/// playing, though a line plays on over it,
 /// "needs you" starting stops everything, and while something needs you
 /// no moment plays.
 ///
@@ -109,20 +110,16 @@ public struct MomentSchedule {
     }
 
     /// The device's own poke, at a tap: poked in Boop's mood, or tap_spam
-    /// from the run's third tap, which replaces the animation playing and
-    /// cuts the line, unless something needs you or `listening` shows,
-    /// when the tap only dips the face (BEHAVIORS.md §3.3). Every tap counts
-    /// in the run, as on the device. Not a brain moment that holds the
-    /// line, though: the app hears the tap after sending what it thought
-    /// was playing, so the moment may have reached the device after the tap
-    /// and play on. Its `ended` frees the line, which the device sends at
-    /// once for a moment its tap cut.
+    /// from the run's third tap, which replaces the animation playing,
+    /// unless something needs you or `listening` shows, when the tap only
+    /// dips the face (BEHAVIORS.md §3.3). Every tap counts in the run, as
+    /// on the device. The line plays on over the poke, so it stays busy
+    /// until it would have ended anyway.
     public mutating func tapped(now: Int64, listening: Bool = false) {
         taps = lastTap.map { now - $0 < Self.tapRunMs } == true ? taps + 1 : 1
         lastTap = now
         guard !attn && !listening else { return }
         animUntil = now + DeviceMoment.tapMs(mood: mood, run: taps)
-        lineUntil = now
     }
 
     /// A `state` sent: its look and mood time what plays next, and "needs

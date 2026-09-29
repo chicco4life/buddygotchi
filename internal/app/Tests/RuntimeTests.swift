@@ -665,8 +665,8 @@ final class RuntimeTests: XCTestCase {
 
     /// ARCHITECTURE.md §3.2: the brain's moments play one at a time, each
     /// after any line playing, so none cuts off a line or another of the
-    /// brain's mumbles; a mumble plays over a poke, which doesn't cut
-    /// it, and a tap's poke stops the line. One sent to the device holds
+    /// brain's mumbles; a mumble plays over a poke, and a tap's poke
+    /// doesn't stop the line either (BEHAVIORS.md §3.3). One sent to the device holds
     /// the line until the device says it ended, and for the brain's next
     /// until its mumble has played, or its `ended` if sooner.
     func testBrainMomentsTakeTurns() {
@@ -689,15 +689,17 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(due.play, mumble, "then the second, once the device says the first is over")
         XCTAssertNil(due.next, "nothing left")
 
-        // Sent with no id, as with no device, it holds the line as reckoned,
-        // until a tap's poke stops it.
+        // Sent with no id, as with no device, it holds the line as
+        // reckoned, a tap's poke or not.
         var cut = MomentSchedule()
         cut.brain(mumble, now: 0)
         XCTAssertEqual(cut.due(now: 0).play, mumble)
         cut.brain(mumble, now: 1000)
         XCTAssertNil(cut.due(now: 1500).play, "a line is playing")
+        let free = cut.lineFree
         cut.tapped(now: 1500)
-        XCTAssertEqual(cut.due(now: 1500).play, mumble)
+        XCTAssertEqual(cut.lineFree, free, "the poke doesn't stop the line")
+        XCTAssertNil(cut.due(now: 1500).play)
     }
 
     /// harness/DECISIONS.md §5: a brain moment's handle goes through the
@@ -974,8 +976,8 @@ final class RuntimeTests: XCTestCase {
 
     /// ARCHITECTURE.md §3.2: the schedule times a moment by the design
     /// showing: the look and mood of the last `state`. A reaction's face
-    /// holds the brain's next one back. A tap's poke ends the line and
-    /// the face.
+    /// holds the brain's next one back, and a tap's poke plays in it
+    /// without ending it.
     func testTheScheduleTimesAMomentByTheDesignShowing() {
         let line = DeviceMoment.Say.test(ms: 100)
         let proud = DeviceMoment(say: line, mood: "proud", loops: 2)
@@ -997,8 +999,8 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(schedule.lineUntil, 100 + loop("proud", "idle"), "the next waits for its face")
         XCTAssertEqual(due.next, 100 + MomentSchedule.maxWaitMs + 1, "or until the next has waited too long")
         schedule.tapped(now: 200)
-        XCTAssertEqual(schedule.lineUntil, 200, "a tap's poke ends the face")
-        XCTAssertEqual(schedule.busyUntil, 200 + DeviceMoment.tapMs(mood: schedule.mood, run: 1), "while it plays")
+        XCTAssertEqual(schedule.lineUntil, 100 + loop("proud", "idle"), "a tap's poke plays in the face")
+        XCTAssertEqual(schedule.busyUntil, max(schedule.lineUntil, 200 + DeviceMoment.tapMs(mood: schedule.mood, run: 1)))
     }
 
     /// BEHAVIORS.md §3.3: the schedule counts taps in a row as the device
@@ -1122,7 +1124,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(silent.idle(now: deadline))
 
         // "Needs you" frees it. A tap leaves it to the moment's `ended`,
-        // which the device sends at once for a moment its tap cut.
+        // since the line plays on over the poke.
         for free in ["tap", "needs you"] {
             var cut = MomentSchedule()
             cut.brain(face, now: 0)
@@ -1244,7 +1246,7 @@ final class RuntimeTests: XCTestCase {
     /// ARCHITECTURE.md §3.2, PROTOCOL.md §4: whatever frees the line sends
     /// the brain's next moment at once, rather than when the app's own
     /// reckoning of the last one runs out: the device's `ended` for the one
-    /// playing, which a tap's poke cuts, or "needs you" starting, which
+    /// playing, or "needs you" starting, which
     /// stops everything there. With no device connected a reaction doesn't
     /// happen and leaves the line free for the next.
     func testWhatFreesTheLineSendsTheNextAtOnce() throws {
@@ -1477,8 +1479,7 @@ final class RuntimeTests: XCTestCase {
     /// thought was playing then, so a reaction it sent just before may
     /// have reached the device after the tap, and plays on there. A tap
     /// leaves a reaction sent with an id holding the line: the device's
-    /// `ended` for it frees the line, sent at once when its tap cut it, or
-    /// when it ends. Before, the tap freed the line, and the next reaction
+    /// `ended` for it frees the line when it ends. Before, the tap freed the line, and the next reaction
     /// cut the one the device had only just started.
     func testATapLeavesTheLineToTheDevicesEnded() throws {
         let transport = FakeTransport()

@@ -507,11 +507,12 @@ public final class Runtime: @unchecked Sendable {
         switch link.receive(line, now: now) {
         case .input(let input):
             options.log("device: input \(input.rawValue)")
-            // The device has already poked, cutting whatever played.
+            // The device has already poked, cutting the animation playing
+            // but not a reaction's line or face.
             switch input {
             case .tap:
                 // While `listening` shows, the device only squashes: no
-                // poke cuts anything, though the tap counts in the run
+                // poke plays, though the tap counts in the run
                 // (BEHAVIORS.md §3.3).
                 moments.schedule.tapped(now: now, listening: core.showsListening(at: now))
                 run(pipeline.poke(at: now))

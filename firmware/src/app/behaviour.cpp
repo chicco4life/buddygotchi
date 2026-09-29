@@ -344,6 +344,7 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
       moment_.ms = (t - moment_.at) + kListenMs + kReplyWaitMs;
       moment_.id = in.id;
     } else if (anim) {
+      endLine(t, CutBy::kMoment);
       play(in.anim, t, CutBy::kMoment, in.loops, mood, in.variant);
       moment_.id = in.id;
       bool finish = in.anim == render::Anim::kTaskComplete || in.anim == render::Anim::kReplyReady;
@@ -388,12 +389,11 @@ uint8_t Behaviour::pick(render::Anim a, render::Mood mood, int wanted, render::O
   return others[rng.range(0, k - 1)];
 }
 
-// Whatever of the moment playing still plays is cut short, by `by`.
+// The animation playing is cut short, by `by`; the line and the
+// expression play on (endLine ends them).
 void Behaviour::play(render::Anim a, uint32_t t, CutBy by, int loops, render::Mood mood, uint8_t variant) {
   if (momentOn(t)) cut(moment_.id, by);
-  if (sayDue(t)) cut(say_.id, by);
   moment_ = Moment{};
-  ++momentSeq_;
   moment_.anim = a;
   moment_.variant = variant;
   moment_.at = t;
@@ -406,9 +406,16 @@ void Behaviour::play(render::Anim a, uint32_t t, CutBy by, int loops, render::Mo
   }
   moment_.outcome = render::variantOutcome(mood, s, variant);
   last_[int(s)] = uint8_t(variant + 1);
-  say_ = Say{};  // a new moment replaces the line, and its expression
-  expr_ = false;
   blink_ = false;
+}
+
+// A new moment replaces the line playing, cut short by `by`, and its
+// expression.
+void Behaviour::endLine(uint32_t t, CutBy by) {
+  if (sayDue(t)) cut(say_.id, by);
+  say_ = Say{};
+  expr_ = false;
+  ++momentSeq_;
 }
 
 // The design is the animation's while one plays, on its clock, else the
@@ -446,7 +453,9 @@ void Behaviour::pressUp() { pressed_ = false; }
 // Every tap counts in the run, those that only dip the face too, as the
 // Mac counts pokes; while the face is held, a tap shows the press dip only.
 // Otherwise it plays poked in Boop's mood, or tap_spam from the run's
-// third tap on, cutting whatever plays.
+// third tap on, cutting the animation playing. A brain reaction's line and
+// expression play on over it, so a barrage doesn't cut short the one
+// answer it gets.
 void Behaviour::tap(uint32_t t, Rng& rng) {
   bool inRun = taps_ > 0 && int32_t(t - lastTap_) < int32_t(kTapRunMs);
   taps_ = inRun ? std::min(taps_ + 1, 1000) : 1;
@@ -466,6 +475,7 @@ void Behaviour::talkOn(uint32_t t, Rng& rng) {
       moment_.ms = (t - moment_.at) + kListenMs + kReplyWaitMs;
     } else {
       uint8_t v = pick(render::Anim::kListening, model_.mood, 0, render::Outcome::kNone, render::StartCtx::kNone, rng);
+      endLine(t, CutBy::kTap);
       play(render::Anim::kListening, t, CutBy::kTap, 1, model_.mood, v);
     }
   });

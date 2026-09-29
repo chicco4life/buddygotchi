@@ -197,7 +197,8 @@ And a rule's one-shot, from the replay of
 | `who.thread` | string, at most 23 bytes of UTF-8 | The thread's name: as its agent's app shows it once an event brought one (`attn.name`'s), else its workspace (a linked worktree's folder, else the branch), else its project, cut as `attn.project` is | Kept in 23 bytes |
 | `id` | int 1–2147483647, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Each time the app starts, its ids start at a random number and count up (back to 1 after 2147483647), so a moment an earlier launch left playing can't share an id with a new one | Answered with one `ended` carrying this `id` (§4). Missing, or anything but an integer from 1 to 4,294,967,295 (a fraction too): no `ended` |
 
-A tap's poke plays at once, and so does a rule's one-shot, except
+A tap's poke plays at once, replacing the animation but not a brain
+line or face, which play on over it. A rule's one-shot plays at once too, except
 that the Mac sends none while a brain moment's line plays, which it
 would cut (a face held on after the line may be replaced). A brain
 line waits its turn behind any line or reaction's face playing (not a
@@ -336,7 +337,7 @@ while something needed you:
 | --- | --- | --- |
 | `id` | int | The moment's `id` (§3) |
 | `how` | `done`, `cut` or `skipped` | `done`: its animation and its line with its bubble played to the end. The face it holds after them counts too, but ending that early (below) leaves it `done`: the reaction was seen and heard. `cut`: something stopped its animation or its line early. `skipped`: none of it played: something needed you, `listening` held the face or the device showed no app when it arrived (or it had nothing the device can play, which the Mac never sends) |
-| `why` | `tap`, `moment`, `needs_you` or `reset`, only with `cut` | What stopped it first: a tap's poke or push-to-talk's `listening`, a newer moment (an animation, or any line, which replaces the line playing), "needs you" starting, or `dbg.reset` |
+| `why` | `tap`, `moment`, `needs_you` or `reset`, only with `cut` | What stopped it first: a tap's poke (which replaces a finish's animation; a line plays on) or push-to-talk's `listening`, a newer moment (an animation, or any line, which replaces the line playing), "needs you" starting, or `dbg.reset` |
 
 The device sends one for every moment with an `id`, exactly once, on the
 link the moment came in on, when none of it plays any more: the

@@ -274,8 +274,11 @@ class Behaviour {
   };
 
   // An animation plays `loops` times in `mood`'s design (listening until
-  // the reply).
+  // the reply), cutting the one playing but not the line or expression.
   void play(render::Anim a, uint32_t t, CutBy by, int loops, render::Mood mood, uint8_t variant);
+  // The line and the expression end, the line cut short by `by`: a new
+  // moment's animation, or listening, replaces them; a tap's poke doesn't.
+  void endLine(uint32_t t, CutBy by);
   // How long a borrowed face in `mood` holds from t: `loops` loops of the
   // design it's drawn in, ending on a loop boundary of that design's clock.
   uint32_t holdMs(render::Mood mood, int loops, uint32_t t) const;

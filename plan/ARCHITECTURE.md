@@ -195,8 +195,9 @@ transcript, the time the Mac slept included: a lid closed overnight
 between a turn's two minutes makes it a very long one.
 
 **Moments.** A tap's poke, which the device plays on its own, plays at
-once, replacing whatever is playing ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
-So does a rule's one-shot, which the runtime sends right after the
+once, replacing the animation playing but not a brain reaction's line or
+face, which play on over it ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
+A rule's one-shot plays at once too, which the runtime sends right after the
 `state` of the same input, except while a brain moment's line plays,
 which it would cut: then it's dropped (`MomentSchedule.rulePlays`), since
 a late one-shot is worse than none. A face held on after its line may be
@@ -209,9 +210,8 @@ holds up the brain's next only until that take has played, or for one
 that said nothing until its face has shown for 1.2 s (with the
 link's 0.5 s, below): the next goes then and replaces the face, which the
 device counts as done ([PROTOCOL.md](PROTOCOL.md) §4). One with no
-animation plays over a poke without cutting it, and a poke
-stops any line on the device, so a tap lets one waiting behind a line
-play at once, over it. One that has waited longer
+animation plays over a poke without cutting it, and a poke doesn't stop
+a line, so one waiting behind a line still waits for it. One that has waited longer
 than 5 s for its turn is dropped, since a late reaction is worse than
 none: at once if it's still waiting then, whether or not a face still
 holds the turn, and otherwise when its turn comes. The wait is counted
@@ -247,12 +247,9 @@ moment on the device holds the schedule's line until the device's
 it (its reckoning plus `endGraceMs`). The
 brain's next moment waits only until its take has played, or a silent
 face has shown for 1.2 s (`MomentSchedule.brainFree`), or its `ended` if that comes first. The schedule also hears what the device does on its own: a tap's
-poke stops whatever plays, "needs you" starting stops everything, and
+poke replaces the animation playing, "needs you" starting stops everything, and
 while something needs you, or `listening` shows, a tap plays nothing
-but still counts in the run. A tap leaves a brain moment's line to its `ended`,
-though: the app hears the tap after sending the moment, which may have
-reached the device after the tap and play on, and the device sends
-`ended` at once for one its tap cut. A reaction whose turn comes with no
+but still counts in the run. A tap leaves a brain moment's line to its `ended`, since the line plays on over the poke. A reaction whose turn comes with no
 device connected plays nowhere and holds nothing. But a link that drops
 doesn't stop what the device plays (the USB bridge reconnecting, or a
 Bluetooth blip), so a moment sent before the drop still holds the line
@@ -675,3 +672,4 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-29 | Evals cost fewer Jev requests: an `always` scenario runs 3 times (was 5) and the rest once (was 3), a scenario can set its own `runs` (`53` runs once), and `boopdev eval` counts a run's requests with the scripted brain first and stops over a budget of 100 unless `--budget N` or `--no-budget` (`make eval`, the final pass) says. A full eval goes from about 1,340 requests to about 620 | The owner's call: evals ran too often against a limited API budget (Jev ran out of credit the same day). While developing, run only the scenarios a change touches; the whole eval is the final pass | [EVALS.md](EVALS.md) §1–3, [VERIFICATION.md](VERIFICATION.md) L5 |
 | 2026-09-29 | What the person says to Boop moves its mood at once: the guide lets talk move the mood in its first minute, as a poke does; saying sorry moves grumpy to irritated or annoyed, irritated to annoyed and annoyed to calm; sad news moves most moods to sad and keeps Boop there, and taking it back or cheering it up leaves sad for calm or happy. The mood question's meanings (`MoodAction.moods`) and a dramatic move's "not for" say the same, and PERSONALITY answers sad news with a sad face | The owner's brief: the mood should change faster while the person talks to Boop, and one apology should do. Before, the first-minute hold and grumpy's rules (it cooled only after 2 min or at thanks) meant saying sorry twice. Scenarios `56`–`59` check it; all passed, and `make eval` passed but for the known gap `20` ([evidence](evidence/2026-09-29-talk-moves-mood/README.md)) | [harness/DECISIONS.md](harness/DECISIONS.md) §2.1, §2.3, [EVALS.md](EVALS.md) §4 |
 | 2026-09-29 | Boop says recorded takes, not gibberish: Jev picks a meaning (the takes' intents, each naming the faces that can say it) and a kind (sound, word, phrase, swear), and Voice finds a take of that meaning performed in the face's mood, fit for the finish (success takes only on a success, swears only on a failure), stepping down to a plainer kind, never the last take again while another fits; with none, the face plays in silence. All 40 of the bank's takes go on the board unreviewed; the six in moods Boop lacks are mapped to the nearest. The gibberish, dialects, unintelligibility check and one-real-word rule go | The owner's choice (2026-09-29) of option B: Jev picks from a dozen meanings and four kinds, however many recordings there are; silence rather than another mood's voice, with the steering asking for a face that can speak; swears by personality | [VOICE.md](VOICE.md), [harness/DECISIONS.md](harness/DECISIONS.md) §3, §5 |
+| 2026-09-29 | A tap's poke replaces only the animation playing: a brain reaction's line, bubble and face play on over it, the poke drawn in the reaction's mood, where before the poke cut the whole reaction. A finish's animation is still replaced, and reported `cut` by `tap`; "needs you", a newer moment and push-to-talk still cut the line | In a barrage the brain answers once (EVENTS.md §6), and that answer usually landed mid-barrage, so the next tap cut it and you never heard it. The taps still get their animation at once | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |

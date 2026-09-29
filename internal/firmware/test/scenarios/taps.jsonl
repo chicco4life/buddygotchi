@@ -61,3 +61,33 @@
 {"input":{"press":"tap"}}
 {"clock":30100}
 {"expect":{"screen":"needs_you","moment":null,"last_input":{"k":"tap","at":30100}}}
+// A barrage gets one answer, and the taps after it don't cut it short
+// (BEHAVIORS.md §3.3): each tap still plays its poke, drawn in the
+// reaction's mood, while the reaction's line plays on over it.
+{"clock":40000}
+{"t":"state","v":1,"base":"idle"}
+{"input":{"press":"tap"}}
+{"clock":40100}
+{"clock":40600}
+{"input":{"press":"tap"}}
+{"clock":40700}
+{"clock":41200}
+{"input":{"press":"tap"}}
+{"clock":41300}
+{"expect":{"moment":{"anim":"tap_spam"},"expr":null}}
+{"t":"moment","say":{"take":"new.d12"},"mood":"grumpy","loops":1,"id":40}
+{"expect":{"moment":{"anim":"tap_spam"},"expr":"grumpy","audio":{"playing":true,"take":"new.d12"}}}
+{"clock":41500}
+{"input":{"press":"tap"}}
+{"clock":41600}
+{"expect":{"moment":{"anim":"tap_spam","left_ms":3800},"expr":"grumpy","audio":{"playing":true,"take":"new.d12"}}}
+{"clock":41900}
+{"shot":"tap-spam-over-reaction"}
+{"input":{"press":"tap"}}
+{"clock":42000}
+{"expect":{"moment":{"anim":"tap_spam"},"expr":"grumpy","audio":{"take":"new.d12"}}}
+// Its line is over after the take's 900 ms and 1.2 s to read it.
+{"clock":43399}
+{"expect":{"expr":"grumpy","audio":{"take":"new.d12"}}}
+{"clock":43400}
+{"expect":{"audio":{"take":null}}}

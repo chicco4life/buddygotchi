@@ -152,7 +152,7 @@ knows nothing until the next `state`. Only the touch calibration survives
 | --- | --- | --- |
 | The model: `base`, `act`, `mood`, `attn` (agent, project, more), `busy` and `vol` from the last `state` ([PROTOCOL.md](PROTOCOL.md) §3) | Each `state` | The next `state` |
 | The moment: an animation (the finish, a one-shot, a poke, `listening`), its variation, start and length | A `moment`'s `anim`, a tap (`poked` or `tap_spam`), or BOOT held (`listening`) | Its end, a new moment, or a new "needs you". `listening` only by its end, the reply or the empty moment (below) |
-| The line: its take, whose text, length and mouth frames drive the bubble and the mouth, and when it starts: at once, or at its animation's voice window ([VOICE.md](VOICE.md)) | A `moment`'s `say` with a take the device has | Its end, a new moment, or a new "needs you". A `state` with `attn` or volume 0 also stops its sound |
+| The line: its take, whose text, length and mouth frames drive the bubble and the mouth, and when it starts: at once, or at its animation's voice window ([VOICE.md](VOICE.md)) | A `moment`'s `say` with a take the device has | Its end, a new moment (not a tap's poke, which plays under it), or a new "needs you". A `state` with `attn` or volume 0 also stops its sound |
 | Taps in a row: how many, and when the last came | Every tap ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | A tap 3 s or more after the last starts a new run |
 | The variation of each animation's design shown last | Each animation that plays | `dbg.reset` |
 | A blink | The device's own timer ([BEHAVIORS.md](BEHAVIORS.md) §2), not on a flip-book | Its end, or an animation |

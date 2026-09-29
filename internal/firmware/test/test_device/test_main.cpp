@@ -836,10 +836,10 @@ static void test_say_reaches_the_player() {
   TEST_ASSERT_EQUAL(7, l.vol);
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"take\":\"new.d14\",\"out\":{"));
-  // A tap's poke replaces the moment, and with it the line.
+  // A tap's poke plays, and the line plays on under it (BEHAVIORS.md §3.3).
   r.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
-  TEST_ASSERT_EQUAL(1, r.hal.hushes);
+  TEST_ASSERT_EQUAL(0, r.hal.hushes);
   for (const char* none : {"{}", "{\"take\":\"banana\"}", "{\"take\":7}", "{\"syl\":\"ba po\",\"word\":\"done\"}"}) {
     Rig q;
     q.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
@@ -1006,10 +1006,11 @@ static void test_a_moment_with_an_id_is_answered_when_it_ends() {
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":5,\"how\":\"done\"}\n"));
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":6}");
-  r.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");
+  r.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");  // a tap's poke doesn't cut it
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":6,\"how\":\"cut\",\"why\":\"tap\"}\n"));
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":10000}");
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"id\":6,"));
+  r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(loop + 3000) + "}").c_str());
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":6,\"how\":\"done\"}\n"));
   r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":7}");
   r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":7,\"how\":\"cut\",\"why\":\"moment\"}\n"));
@@ -1310,18 +1311,20 @@ static void test_a_finishs_line_starts_at_its_voice_window() {
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"take\":\"new.d14\","));
-  // Cut before its window, by a tap or by needs you: it never plays.
+  // Tapped before its window, the line still plays over the poke; cut by
+  // needs you, it never plays.
   for (const char* stop : {"tap", "needs"}) {
     Rig q;
     q.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
     q.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"variant\":1,\"say\":{\"take\":\"previous.go\"}}");
-    if (!std::strcmp(stop, "tap")) {
+    const bool tap = !std::strcmp(stop, "tap");
+    if (tap) {
       q.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");
     } else {
       q.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
     }
     runClock(q, 100, voice + 500);
-    TEST_ASSERT_EQUAL_MESSAGE(0, int(q.hal.said.size()), stop);
+    TEST_ASSERT_EQUAL_MESSAGE(tap ? 1 : 0, int(q.hal.said.size()), stop);
   }
 }
 
