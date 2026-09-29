@@ -39,15 +39,22 @@ public struct Scenario: Sendable {
     }
 
     /// What a pass should come to: each a set of acceptable values, `none`
-    /// included where staying quiet or no word is fine.
+    /// included where staying quiet or saying nothing is fine.
     public struct Expectation: Sendable, Equatable {
         /// Jev's `react.mood` pick: `none` or a mood's face.
         public var react: Set<String>?
         /// The animation the reaction played (`react.animation`'s pick), or
         /// `none` when it played none or Boop didn't react.
         public var animation: Set<String>?
-        /// The word the mumble used, or `none`.
-        public var word: Set<String>?
+        /// What the reaction meant (`say.meaning`'s pick, when it reached
+        /// the floor), or `none`.
+        public var meaning: Set<String>?
+        /// How it asked to say it (`say.kind`'s pick), or `none` when Boop
+        /// didn't react.
+        public var kind: Set<String>?
+        /// The text of the take Boop said, as the bubble shows it (`Tsk...`),
+        /// or `none` when it said nothing.
+        public var said: Set<String>?
         /// How long the face held (`react.loops`' pick), or `none` when
         /// Boop didn't react.
         public var loops: Set<String>?
@@ -57,11 +64,14 @@ public struct Scenario: Sendable {
         /// in the mood it had, and its moves on the graph.
         public var offered: Set<String>?
 
-        public init(react: Set<String>? = nil, animation: Set<String>? = nil, word: Set<String>? = nil,
-                    loops: Set<String>? = nil, mood: Set<String>? = nil, offered: Set<String>? = nil) {
+        public init(react: Set<String>? = nil, animation: Set<String>? = nil, meaning: Set<String>? = nil,
+                    kind: Set<String>? = nil, said: Set<String>? = nil, loops: Set<String>? = nil,
+                    mood: Set<String>? = nil, offered: Set<String>? = nil) {
             self.react = react
             self.animation = animation
-            self.word = word
+            self.meaning = meaning
+            self.kind = kind
+            self.said = said
             self.loops = loops
             self.mood = mood
             self.offered = offered
@@ -76,7 +86,7 @@ public struct Scenario: Sendable {
         /// played, counted from the turn's start or the last reaction.
         public var quietWorkingMs: Int64?
         /// `max_same_in_a_row`: how many reactions in a row may be the same
-        /// face, animation and word.
+        /// face, animation and what it said.
         public var sameInARow: Int?
         /// `mood_changes`: how many times the mood may change in the run.
         public var moodChanges: ClosedRange<Int>?
@@ -86,7 +96,7 @@ public struct Scenario: Sendable {
         /// `reactions`: how many reactions the run may play.
         public var reactions: ClosedRange<Int>?
         /// `min_variety`: the fewest different reactions (face, animation
-        /// and word) the run must play.
+        /// and what it said) the run must play.
         public var variety: Int?
         /// `moves_on_graph`: every pass's mood answer was one of the
         /// options it offered, and every mood change was a move on the
@@ -216,10 +226,20 @@ public struct Scenario: Sendable {
                     guard let text = v as? String else { throw badStep("expect.\(key) is like \"proud|excited\"") }
                     return Set(text.split(separator: "|").map { $0.trimmingCharacters(in: .whitespaces) })
                 }
-                let unknown = Set(e.keys).subtracting(["react", "animation", "word", "loops", "mood", "offered"])
-                guard unknown.isEmpty else { throw badStep("expect has only react, animation, word, loops, mood and offered") }
-                step.expect = Expectation(react: try set("react"), animation: try set("animation"), word: try set("word"),
-                                          loops: try set("loops"), mood: try set("mood"), offered: try set("offered"))
+                let keys = ["react", "animation", "meaning", "kind", "said", "loops", "mood", "offered"]
+                let unknown = Set(e.keys).subtracting(keys)
+                guard unknown.isEmpty else { throw badStep("expect has only \(keys.joined(separator: ", "))") }
+                step.expect = Expectation(react: try set("react"), animation: try set("animation"), meaning: try set("meaning"),
+                                          kind: try set("kind"), said: try set("said"), loops: try set("loops"),
+                                          mood: try set("mood"), offered: try set("offered"))
+                for (key, values, known) in [("meaning", step.expect?.meaning, ReactAction.meanings.map(\.name)),
+                                             ("kind", step.expect?.kind, ReactAction.kinds.map(\.name))] {
+                    let unknown = (values ?? []).subtracting(known + ["none"])
+                    guard unknown.isEmpty else { throw badStep("expect.\(key) has \(unknown.sorted().joined(separator: ", ")), not one of \(known.joined(separator: ", "))") }
+                }
+                let texts = Set(Take.all.map(\.text))
+                let unsaid = (step.expect?.said ?? []).subtracting(texts.union(["none"]))
+                guard unsaid.isEmpty else { throw badStep("expect.said has \(unsaid.sorted().joined(separator: ", ")), not a take's text") }
                 for (key, values) in [("react", step.expect?.react), ("mood", step.expect?.mood), ("offered", step.expect?.offered)] {
                     let unknown = (values ?? []).subtracting(MoodGraph.moods + (key == "react" ? ["none"] : []))
                     guard unknown.isEmpty else { throw badStep("expect.\(key) has \(unknown.sorted().joined(separator: ", ")), not a mood") }
@@ -282,10 +302,13 @@ public struct Eval {
         public var line: String
         public var expected: Scenario.Expectation
         /// What happened: the react.mood pick, the animation played, the
-        /// word used, how long the face held, the mood after.
+        /// meaning and kind picked, the take said, how long the face held,
+        /// the mood after.
         public var react: String?
         public var animation: String?
-        public var word: String?
+        public var meaning: String?
+        public var kind: String?
+        public var said: String?
         public var loops: String?
         public var mood: String
         /// What the pass's mood question offered.
@@ -297,7 +320,9 @@ public struct Eval {
             guard dropped == nil else { return false }
             if let r = expected.react, !r.contains(react ?? "none") { return false }
             if let a = expected.animation, !a.contains(animation ?? "none") { return false }
-            if let w = expected.word, !w.contains(word ?? "none") { return false }
+            if let m = expected.meaning, !m.contains(meaning ?? "none") { return false }
+            if let k = expected.kind, !k.contains(kind ?? "none") { return false }
+            if let s = expected.said, !s.contains(said ?? "none") { return false }
             if let l = expected.loops, !l.contains(loops ?? "none") { return false }
             if let m = expected.mood, !m.contains(mood) { return false }
             if let o = expected.offered, o != Set(offered) { return false }
@@ -307,12 +332,14 @@ public struct Eval {
         public var summary: String {
             let want = [expected.react.map { "react \($0.sorted().joined(separator: "|"))" },
                         expected.animation.map { "animation \($0.sorted().joined(separator: "|"))" },
-                        expected.word.map { "word \($0.sorted().joined(separator: "|"))" },
+                        expected.meaning.map { "meaning \($0.sorted().joined(separator: "|"))" },
+                        expected.kind.map { "kind \($0.sorted().joined(separator: "|"))" },
+                        expected.said.map { "said \($0.sorted().joined(separator: "|"))" },
                         expected.loops.map { "loops \($0.sorted().joined(separator: "|"))" },
                         expected.mood.map { "mood \($0.sorted().joined(separator: "|"))" },
                         expected.offered.map { "offered \($0.sorted().joined(separator: "|"))" }].compactMap { $0 }
             let got = dropped.map { "dropped: \($0)" }
-                ?? "react \(react ?? "none"), animation \(animation ?? "none"), word \(word ?? "none"), loops \(loops ?? "none"), mood \(mood)"
+                ?? "react \(react ?? "none"), animation \(animation ?? "none"), meaning \(meaning ?? "none"), kind \(kind ?? "none"), said \(said ?? "none"), loops \(loops ?? "none"), mood \(mood)"
                 + (expected.offered == nil ? "" : ", offered \(offered.sorted().joined(separator: "|"))")
             return "  step \(step): \(line)\n    wanted \(want.joined(separator: ", ")); got \(got)"
         }
@@ -323,9 +350,10 @@ public struct Eval {
     public struct Reaction: Sendable, Hashable {
         public var face: String
         public var animation: String
-        public var word: String
+        /// The take's text, or `none`.
+        public var said: String
         public var text: String {
-            face + (animation == "none" ? "" : " \(animation)") + (word == "none" ? "" : " \"\(word)\"")
+            face + (animation == "none" ? "" : " \(animation)") + (said == "none" ? "" : " \"\(said)\"")
         }
     }
 
@@ -394,10 +422,11 @@ public struct Eval {
         // says, played at once by default, so HISTORY reads as the app's
         // does once it has; one left in progress stays so.
         let ending = Ending()
-        let react = ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, pending in
+        let react = ReactAction(voice: Voice(), queue: { moment, pending in
             view.reacted()
+            ending.said = moment.say?.take?.text
             if let end = ending.end { pending.finish(end) } else { ending.open.append(pending) }
-        }, blocked: { core.mumbleBlock })
+        }, blocked: { core.reactionBlock })
         let moodAction = MoodAction(store: mood, clock: { clock.now })
         // The mood it starts in, as the dashboard would set it just before.
         if scenario.mood != mood.current { _ = moodAction.change(to: scenario.mood) }
@@ -423,9 +452,12 @@ public struct Eval {
             // Time passes a second at a time, as the app ticks, and what a
             // tick brings (a heartbeat) is answered then, as in the app.
             var last: Harness.Record?
+            var lastSaid: String?  // the take its reaction said
             func respond(_ views: [ViewEvent]) async {
                 for view in views {
+                    ending.said = nil
                     guard let record = await harness.respond(to: view) else { continue }
+                    lastSaid = ending.said
                     last = record
                     let ran = record.actions.contains { $0.name == "react" && $0.result.ok }
                     let answers = record.pass.answers
@@ -433,7 +465,7 @@ public struct Eval {
                         atMs: clock.now - start, line: record.now.line,
                         reaction: ran ? Reaction(face: answers["react.mood"]?.choice ?? "none",
                                                  animation: ReactAction.animation(answers) ?? "none",
-                                                 word: ReactAction.word(answers) ?? "none") : nil,
+                                                 said: ending.said ?? "none") : nil,
                         loops: ran ? ReactAction.holds[ReactAction.loops(answers) - 1].name : nil,
                         mood: mood.current, dropped: record.pass.dropped,
                         offered: record.questions.first { $0.key == MoodAction.actionName }?.options.map(\.name) ?? [],
@@ -469,7 +501,9 @@ public struct Eval {
             let ran = record.actions.contains { $0.name == "react" && $0.result.ok }
             checks.append(Check(step: i + 1, line: record.now.line, expected: expect, react: react,
                                 animation: ran ? ReactAction.animation(record.pass.answers) : nil,
-                                word: ran ? ReactAction.word(record.pass.answers) : nil,
+                                meaning: ran ? ReactAction.meaning(record.pass.answers) : nil,
+                                kind: ran ? ReactAction.kind(record.pass.answers).rawValue : nil,
+                                said: ran ? lastSaid : nil,
                                 loops: ran ? ReactAction.holds[ReactAction.loops(record.pass.answers) - 1].name : nil,
                                 mood: mood.current, offered: timeline.last?.offered ?? [], dropped: record.pass.dropped,
                                 latencyMs: record.pass.latencyMs))
@@ -569,6 +603,8 @@ public struct Eval {
     final class Ending: @unchecked Sendable {
         var end: Pending.End? = .done
         var open: [Pending] = []
+        /// The text of the take the last pass's reaction said, if any.
+        var said: String?
     }
 
     /// A step as it reaches the pipeline: the hook events or pokes it

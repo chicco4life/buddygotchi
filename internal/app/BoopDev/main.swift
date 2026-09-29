@@ -3,7 +3,7 @@ import BoopKit
 import Foundation
 import HookWire
 
-// Developer CLI (VERIFICATION.md §2): replay, voice, eval, watch and hooks,
+// Developer CLI (VERIFICATION.md §2): replay, say, eval, watch and hooks,
 // as `usage` describes.
 
 /// Each subcommand's usage, in the order `boopdev --help` lists them.
@@ -19,17 +19,19 @@ let usages: [(command: String, text: String)] = [
         prints how long each boop-hook took: {"wait_ms":N} waits, and {"advance_ms":N} jumps a headless
         app's clock.
     """),
-    ("voice", """
-    boopdev voice <feeling|expression> [word] [--dialect HEX] [--seed N] [--count N] [--json]
-        Prints Minion lines as the react action would build them: in a Voice feeling, or in the one a
-        mood's face mumbles in (VOICE.md §4), so grumpy sounds annoyed.
+    ("say", """
+    boopdev say [--meaning M] [--face MOOD] [--kind K] [--finish success|failure]
+        Prints the recorded takes the board has (VOICE.md §3), those that fit: id, text, meaning, kind,
+        mood, the finish it needs and its length. With --meaning, --face and --kind, it also says which
+        the react action would pick from, stepping down to a plainer kind when there's none of that one
+        (VOICE.md §4). --kind defaults to sound.
     """),
     ("eval", """
     boopdev eval [--runs N] [--only TEXT] [--always] [--timeline] [--scenarios DIR] [--steering DIR]
     boopdev eval --list [--always] [--only TEXT] [--scenarios DIR]
         Runs the harness eval scenarios (plan/EVALS.md): hook-level steps on a virtual clock through a fresh
         pipeline, the real harness and actions, and Jev, each pass checked against what it should come to (the
-        reaction, the word, how long the face holds and the mood), and each run against its whole-run
+        reaction, what it says, how long the face holds and the mood), and each run against its whole-run
         checks. Needs Jev's key in BOOP_JEV_KEY and fails without it. --runs runs each scenario N times
         (default 5 for an always scenario, 3 for the rest); it passes only if every run does. --always runs
         only the always scenarios, Boop's character. --timeline prints every pass of every run. --list
@@ -162,26 +164,30 @@ func spawn(_ path: String, _ args: [String], stdin: Data, environment: [String: 
     return (ms, status & 0x7f == 0 ? (status >> 8) & 0xff : -1)
 }
 
-func voice(_ raw: [String]) {
-    let args = arguments("voice", raw, options: ["--dialect", "--seed", "--count"], flags: ["--json"], words: 2)
-    let words = args.words
-    let isMood = { (name: String) in MoodAction.moods.contains { $0.name == name } }
-    guard let feeling = words.first.flatMap({ Feeling(rawValue: $0) ?? (isMood($0) ? Voice.feeling(forMood: $0) : nil) }) else {
-        fail("feelings: " + Feeling.allCases.map(\.rawValue).joined(separator: ", ")
-             + "; moods: " + MoodAction.moods.map(\.name).joined(separator: ", "))
+func say(_ raw: [String]) {
+    let args = arguments("say", raw, options: ["--meaning", "--face", "--kind", "--finish"])
+    let voice = Voice()
+    let moods = MoodAction.moods.map(\.name)
+    if let m = args["--meaning"], !voice.meanings.contains(m) { fail("meanings: " + voice.meanings.sorted().joined(separator: ", ")) }
+    if let f = args["--face"], !moods.contains(f) { fail("faces: " + moods.joined(separator: ", ")) }
+    guard let kind = Take.Kind(rawValue: args["--kind"] ?? "sound") else {
+        fail("kinds: " + Take.Kind.allCases.map(\.rawValue).joined(separator: ", "))
     }
-    let word = words.count > 1 ? words[1] : nil
-    if let word, !Sounds.vocabulary.contains(word) { fail("words: " + Sounds.vocabulary.joined(separator: ", ")) }
-    guard let dialectSeed = UInt64(args["--dialect"] ?? "7f3a", radix: 16) else { fail("--dialect is a hex seed, such as 7f3a") }
-    let dialect = Dialect(seed: dialectSeed)
-    let v = Voice(dialect: dialect)
-    guard let first = UInt64(args["--seed"] ?? "1"), let count = UInt64(args["--count"] ?? "1") else {
-        fail("--seed and --count are whole numbers")
+    let finish = args["--finish"]
+    if let finish, !["success", "failure"].contains(finish) { fail("--finish is success or failure") }
+    let fit = voice.takes.filter { t in
+        args["--meaning"].map { $0 == t.meaning } ?? true && args["--face"].map { $0 == t.mood } ?? true
+            && (t.finish == nil || finish == nil || t.finish == finish)
     }
-    if !args.has("--json") { print("dialect \(String(dialect.seed, radix: 16)): \(dialect.favourites.joined(separator: " "))") }
-    for seed in first..<(first + count) {
-        let line = v.line(feeling, word: word, seed: seed)
-        print(args.has("--json") ? line.json : "\(seed)\t\(line.text)\t\(line.tune.rawValue) \(line.ms) ms")
+    for t in fit {
+        print("\(t.id)\t\"\(t.text)\"\t\(t.meaning)\t\(t.kind.rawValue)\t\(t.mood)\t\(t.finish ?? "any")\t\(t.ms) ms")
+    }
+    if let meaning = args["--meaning"], let face = args["--face"] {
+        var rng = SplitMix64(seed: 1)
+        let pick = voice.take(meaning: meaning, kind: kind, face: face, finish: finish, avoiding: nil, rng: &rng)
+        let from = pick.map { p in fit.filter { $0.kind == p.kind && ($0.finish == nil || $0.finish == finish) } } ?? []
+        print(pick.map { "react says a \($0.kind.rawValue), one of: " + from.map { "\"\($0.text)\" (\($0.id))" }.joined(separator: ", ") }
+              ?? "react says nothing: no take of \(meaning) in \(face)'s mood fits")
     }
 }
 
@@ -363,8 +369,8 @@ let args = Array(CommandLine.arguments.dropFirst())
 switch args.first {
 case "replay":
     replay(Array(args.dropFirst()))
-case "voice":
-    voice(Array(args.dropFirst()))
+case "say":
+    say(Array(args.dropFirst()))
 case "eval":
     await eval(Array(args.dropFirst()))
 case "watch":

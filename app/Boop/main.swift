@@ -17,7 +17,7 @@ let usage = """
                is set up with --name (default Boop). --personality overrides the saved one for this run only.
                --brain jev (the default) asks Jev only when BOOP_JEV_KEY holds its key, since headless never
                reads the Keychain; without it Boop does only its rule reactions. --brain scripted answers
-               every pass the same way without a network: an excited mumble with "yay", for pipeline checks.
+               every pass the same way without a network: an excited "Go", for pipeline checks.
                Stops cleanly on SIGINT or SIGTERM. {"dev":"advance","ms":N} on the socket moves the clock forward.
                Every event goes to DIR/transcript/<date>.jsonl, read back at the next launch.
            --debug prints everything to this terminal as it happens: each hook and the raw event Boop made

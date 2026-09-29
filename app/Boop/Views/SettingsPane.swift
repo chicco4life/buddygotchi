@@ -37,7 +37,7 @@ struct SettingsPane: View {
         let s = model.status?.snapshot
         return Card(padding: 0) {
             SettingRow(icon: s?.vol == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill", title: "Volume",
-                       detail: "How loud \(model.name) mumbles.") {
+                       detail: "How loud \(model.name) talks.") {
                 HStack(spacing: 6) {
                     Slider(value: Binding(get: { Double(s?.vol ?? 6) },
                                           set: { model.setVolume(Int($0.rounded())) }),

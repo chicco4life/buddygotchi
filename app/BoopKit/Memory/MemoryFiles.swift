@@ -12,7 +12,7 @@ public struct LongTerm: Equatable, Sendable {
     public var name: String
     public var hatched: String
     public var nature: Nature
-    /// Picks the voice dialect. Written as hex.
+    /// Seeds Boop's randomness (the core's and the view's). Written as hex.
     public var seed: UInt64
 
     public init(name: String, hatched: String, nature: Nature, seed: UInt64) {

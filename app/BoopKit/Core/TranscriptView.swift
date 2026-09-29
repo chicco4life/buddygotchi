@@ -838,7 +838,7 @@ public enum EventLine {
         - Turns are short (under a minute), long (under 5 minutes) or very
           long (5 minutes or more).
         - "You said to Boop" quotes the person talking to Boop. It can't talk
-          back: it answers with a face and a mumble.
+          back: it answers with a face, and maybe a word or a sound.
         """
 
     public static func needsYou(agent: String, thread: String) -> String {

@@ -4,7 +4,7 @@ import Foundation
 /// it out: snapshots and the rules' one-shots to the device link, what it
 /// did by rule to the transcript, and a new day to the memory store. The
 /// core itself never builds speech, writes files or talks to the device:
-/// every mumble, and every face but the look and the rules' one-shots, is
+/// everything Boop says, and every face but the look and the rules' one-shots, is
 /// the brain's (BEHAVIORS.md §1, §3.1).
 public enum CoreEffect: Equatable, Sendable {
     /// A new snapshot, sent because something on it changed.

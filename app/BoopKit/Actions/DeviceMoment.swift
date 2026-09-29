@@ -1,10 +1,9 @@
 import Foundation
 
 /// A `moment` message: something for the device to play (PROTOCOL.md §3).
-/// A rule moment has an `anim`; a mumble has only `say`, which plays over
-/// whatever face is showing. A brain mumble also has `mood`, its
-/// expression: the device draws that mood's version of the look while the
-/// moment plays. The rules' moments never carry one. Whoever plays an
+/// A rule moment has an `anim`; a brain reaction has a `say` and a `mood`,
+/// its expression: the device draws that mood's version of the look while
+/// the moment plays, and says the take in `say`, if there is one, over it. The rules' moments never carry one. Whoever plays an
 /// animation or a face says how many `loops` of its design. A moment the
 /// app waits on has an `id`, which the device's `ended` gives back (§4). The
 /// finish for a thread's turn says `who`: the device names it in the strip
@@ -23,8 +22,22 @@ public struct DeviceMoment: Equatable, Sendable {
         }
     }
 
+    /// What a brain reaction says: a recorded take, or nothing. A reaction
+    /// always has one, even with no take: it's the reply that ends
+    /// push-to-talk's `listening` (PROTOCOL.md §3).
+    public struct Say: Equatable, Sendable {
+        public var take: Take?
+
+        public init(take: Take?) {
+            self.take = take
+        }
+
+        /// The `say` object: `{"take":"new.d02"}`, or `{}`.
+        public var json: String { take.map { "{\"take\":\(Event.quote($0.id))}" } ?? "{}" }
+    }
+
     public var anim: String?
-    public var say: VoiceLine?
+    public var say: Say?
     public var mood: String?
     /// With an animation, how many times its design plays; with a `mood`
     /// and no animation, how many loops of the design it's drawn in the
@@ -43,7 +56,7 @@ public struct DeviceMoment: Equatable, Sendable {
     /// `continuation`. Nil sends none.
     public var ctx: String?
 
-    public init(anim: String? = nil, say: VoiceLine? = nil, mood: String? = nil, loops: Int? = nil,
+    public init(anim: String? = nil, say: Say? = nil, mood: String? = nil, loops: Int? = nil,
                 variant: Int? = nil, who: Who? = nil, id: Int? = nil, outcome: String? = nil, ctx: String? = nil) {
         self.anim = anim
         self.say = say
@@ -68,7 +81,7 @@ public struct DeviceMoment: Equatable, Sendable {
     /// The most `loops` the device plays (firmware `Behaviour::kMaxLoops`).
     public static let maxLoops = 6
 
-    /// Bubble time after the last syllable (firmware `kBubbleReadMs`).
+    /// Bubble time after the take (firmware `kBubbleReadMs`).
     static let bubbleReadMs: Int64 = 1200
 
     /// Its animation's design, in the mood it's drawn in, and the
@@ -94,9 +107,8 @@ public struct DeviceMoment: Equatable, Sendable {
     /// bubble end (`lineStartMs`). A face with no animation holds its loops
     /// of the look's design, which ends on a loop boundary, so this long or
     /// less, timed by the look's longest variation, since the device's
-    /// variations take turns (BEHAVIORS.md §2); and a mumble lasts its
-    /// syllables, plus two beats for a word, at 60–400 ms each, then 1.2 s
-    /// for the bubble, when that's longer.
+    /// variations take turns (BEHAVIORS.md §2); and a take lasts its
+    /// length, then 1.2 s for the bubble, when that's longer.
     public func playMs(look: String, mood: String) -> Int64 {
         let loops = Int64(Swift.max(1, Swift.min(Self.maxLoops, self.loops ?? 1)))
         var ms: Int64 = 0
@@ -125,13 +137,17 @@ public struct DeviceMoment: Equatable, Sendable {
         DeviceMoment(anim: run >= MomentSchedule.tapSpamFrom ? "tap_spam" : "poked").playMs(look: "idle", mood: mood)
     }
 
-    /// How long its mumble plays: its syllables, plus two beats for a word,
-    /// at 60–400 ms each, then 1.2 s for the bubble; 0 with none.
+    /// How long its take plays, then 1.2 s for the bubble; 0 with none.
     public var sayMs: Int64 {
-        guard let say, say.syllableCount > 0 else { return 0 }
-        let beats = Int64(say.syllableCount + (say.word?.isEmpty == false ? 2 : 0))
-        return beats * Int64(Swift.max(60, Swift.min(400, say.ms))) + DeviceMoment.bubbleReadMs
+        guard let take = say?.take else { return 0 }
+        return Int64(take.ms) + DeviceMoment.bubbleReadMs
     }
+
+    /// How long a brain reaction with no animation keeps the next one from
+    /// replacing its face (ARCHITECTURE.md §3.2): its take and bubble, or
+    /// for one that says nothing, as long as a bubble shows, so a silent
+    /// face is seen before the next replaces it.
+    public var faceFirstMs: Int64 { say?.take == nil ? DeviceMoment.bubbleReadMs : sayMs }
 
     public var jsonLine: String {
         var parts = ["\"t\":\"moment\""]

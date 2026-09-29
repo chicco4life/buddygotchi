@@ -93,7 +93,7 @@ final class MemoryTests: XCTestCase {
         XCTAssertTrue(rig.file("history/2026-10-02/long-term.md").contains("name: Pip"))
         try XCTAssertThrowsError(try rig.store.setUp(name: "Bo", nature: .sweet, seed: 1, today: "2026-10-14"))
         XCTAssertEqual(rig.store.lastActiveDay, "2026-10-14")
-        XCTAssertEqual(Dialect(seed: rig.store.longTerm!.seed), Dialect(seed: 0x7f3a))
+        XCTAssertEqual(rig.store.longTerm!.seed, 0x7f3a)
     }
 
     func testNamesThatBreakTheBoopLineAreRefused() throws {

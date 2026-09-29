@@ -6,7 +6,7 @@ import Foundation
 /// line, though. The brain's moments wait
 /// their turn: one at a time, each once the line playing has finished, and
 /// a reaction's face too unless it's the brain's own, held on for its
-/// loops after its mumble: the next reaction replaces that, so none cuts
+/// loops after its take: the next reaction replaces that, so none cuts
 /// off a line and a held face doesn't hold up the next reaction. A
 /// reaction that plays an animation (the finish) holds the line until it
 /// ends, since the next would cut it. One with no animation plays over a
@@ -20,7 +20,7 @@ import Foundation
 /// face ends on a loop boundary, or a tap cuts it), and at most until the
 /// app stops waiting for that `ended`, whatever the Mac hears meanwhile of
 /// a tap or the link dropping. For the brain's next moment it holds the line
-/// only until its mumble has played (`brainFree`). The schedule also hears what the device
+/// only until its take has played (`brainFree`). The schedule also hears what the device
 /// does on its own or leaves out: a tap's poke cuts whatever else plays,
 /// "needs you" starting stops everything, and while something needs you
 /// no moment plays.
@@ -36,7 +36,7 @@ public struct MomentSchedule {
     /// count its wait to when the turn came. Later than that, the wait is
     /// counted to now, so a moment held up by a Mac asleep is dropped.
     public static let lateMs: Int64 = 1000
-    /// How long past a mumble's reckoned end it may still be playing on
+    /// How long past a take's reckoned end it may still be playing on
     /// the device, since every line reaches it a little after it's sent.
     public static let linkSlackMs: Int64 = 500
     /// Taps in a row, as the device counts them (BEHAVIORS.md §3.3): a tap
@@ -56,7 +56,7 @@ public struct MomentSchedule {
     public private(set) var lineUntil: Int64 = 0
     /// The brain's moment on the device that holds the line until its
     /// `ended` comes: its id, when the app stops waiting for it, and when
-    /// its mumble has played, from which the next brain moment may replace
+    /// its take has played, from which the next brain moment may replace
     /// its face.
     public private(set) var holder: (id: Int, until: Int64, sayUntil: Int64)?
     /// The look and mood of the last `state` sent.
@@ -79,7 +79,7 @@ public struct MomentSchedule {
     public var lineFree: Int64 { holder?.until ?? lineUntil }
 
     /// When the line is free for the brain's next moment: once its holder's
-    /// mumble has played on the device, give or take the link
+    /// take has played on the device, give or take the link
     /// (`linkSlackMs`), or at its `ended` if that's sooner; with no holder,
     /// at `lineUntil` (harness/DECISIONS.md §5).
     public var brainFree: Int64 { holder?.sayUntil ?? lineUntil }
@@ -144,10 +144,11 @@ public struct MomentSchedule {
 
     /// The brain moment `due` just handed out at `now` went to the device
     /// as `id`: the line waits for its `ended` until `until` at the latest,
-    /// and the next brain moment until its mumble has played, or, when it
+    /// and the next brain moment until its take has played (a silent
+    /// face, as long as a bubble would show), or, when it
     /// plays an animation, which the next would cut, until its `ended` too.
     public mutating func hold(id: Int, _ moment: DeviceMoment, now: Int64, until: Int64) {
-        let free = moment.anim == nil ? min(until, now + moment.sayMs + Self.linkSlackMs) : until
+        let free = moment.anim == nil ? min(until, now + moment.faceFirstMs + Self.linkSlackMs) : until
         holder = (id, until, free)
     }
 
@@ -160,7 +161,7 @@ public struct MomentSchedule {
     }
 
     /// Drops every brain moment waiting, ending each handle as failed: the
-    /// mic went on, and a mumble would end `listening` (BEHAVIORS.md §3.3).
+    /// mic went on, and a reaction would end `listening` (BEHAVIORS.md §3.3).
     public mutating func dropWaiting() -> [DeviceMoment] {
         let dropped = waiting
         waiting = []
@@ -191,7 +192,7 @@ public struct MomentSchedule {
     /// on the way, whose handles end here; and when to ask again (nil when
     /// nothing waits). Its turn comes when the line is free for it
     /// (`brainFree`): it replaces a brain moment's face held on after its
-    /// mumble, which the device counts as done (PROTOCOL.md §4). A
+    /// take, which the device counts as done (PROTOCOL.md §4). A
     /// moment's wait is counted to when its turn came:
     /// when the line was free, or when it arrived if that was later. One
     /// still waiting that has already waited too long is dropped at once.

@@ -302,7 +302,7 @@ public final class Runtime: @unchecked Sendable {
                                     time: options.time, log: log)
         pipeline = Pipeline(core: core, transcript: transcript, view: view)
         pipeline.brain = false  // until Jev's key is read
-        voice = Voice(dialect: Dialect(seed: longTerm.seed))
+        voice = Voice()
         for over in options.steering.overBudget() { log("steering: over budget: \(over)") }
 
         // The actions (harness/DECISIONS.md), in the order they run. Their
@@ -319,10 +319,10 @@ public final class Runtime: @unchecked Sendable {
         moodAction = moodChanges
         let react = ReactAction(voice: voice, queue: { moment, pending in
             view.reacted()  // the working heartbeat waits from here (EVENTS.md §4)
-            core.listeningEnded()  // a mumble ends `listening`: it's the reply (BEHAVIORS.md §3.3)
+            core.listeningEnded()  // a reaction ends `listening`: it's the reply (BEHAVIORS.md §3.3)
             moments.schedule.brain(moment, pending, now: clock())
             Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
-        }, blocked: { core.mumbleBlock }, who: {
+        }, blocked: { core.reactionBlock }, who: {
             // The thread's name as its agent's app shows it, once an event
             // brought one, else the view's: its workspace, else its project.
             guard let key = acting()?.about, let who = view.who(about: key) else { return nil }

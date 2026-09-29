@@ -112,7 +112,7 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// harness/HARNESS.md §3–5: an event that wakes the brain gets a pass;
-    /// the answers become a mumble on the device, and the mood action's
+    /// the answers become a reaction on the device, and the mood action's
     /// change reaches the mood file, the status, and the next pass's MOOD.
     func testAPassMumblesAndChangesTheMood() throws {
         let transport = FakeTransport()
@@ -120,7 +120,7 @@ final class RuntimeTests: XCTestCase {
         var options = try options(transport, brain: ScriptedBrain(id: "scripted", always: [
             "mood": Answer(choice: "annoyed", probabilities: ["annoyed": 0.7]),
             "react.mood": Answer(choice: "grumpy", probabilities: ["grumpy": 0.6]),
-            "word.feeling": Answer(choice: "again", probabilities: ["again": 0.5]),
+            "say.meaning": Answer(choice: "effort", probabilities: ["effort": 0.5]),
         ]))
         options.debug = true
         options.log = { line in lines.lock.withLock { lines.log.append(line) } }
@@ -145,7 +145,7 @@ final class RuntimeTests: XCTestCase {
         eventually("the second pass") { passes().count == 2 }
         XCTAssertTrue(passes()[0].contains("Calm. Boop is settled"), "the first pass read calm")
         XCTAssertTrue(passes()[1].contains("Annoyed. Boop is mildly put out"), "the next reads the new mood's file")
-        XCTAssertTrue(passes()[1].contains(#"Boop made a grumpy face, held once, and mumbled \"…again!\""#), "HISTORY shows what the actions did")
+        XCTAssertTrue(passes()[1].contains(#"Boop made a grumpy face, held once, and said \"Hrr...\"."#), "HISTORY shows what the actions did")
         XCTAssertFalse(lines.lock.withLock { lines.log.contains { $0.contains("PERSONALITY") } }, "the state stays out of boop.log")
     }
 
@@ -235,12 +235,12 @@ final class RuntimeTests: XCTestCase {
         let pass = try XCTUnwrap(printed.first { $0.hasPrefix("  pass scripted") })
         XCTAssertTrue(pass.contains("react.mood excited 1.00"), pass)
         XCTAssertTrue(pass.contains("    │ You are the mind of Boop"), "the first state in full")
-        XCTAssertTrue(printed.contains("  … react: Boop made an excited face, held once, and mumbled \"…yay!\""), "started: \(printed)")
+        XCTAssertTrue(printed.contains("  … react: Boop made an excited face, held once, and said \"Go\"."), "started: \(printed)")
         XCTAssertTrue(printed.contains { $0.hasPrefix("  ✗ react (") && $0.hasSuffix(") didn't happen: no device connected") },
                       "the fake device never connected: \(printed)")
         let p = try XCTUnwrap(debugLines().compactMap { $0["pass"] as? [String: Any] }.first)
         XCTAssertTrue((p["state"] as? String)?.hasPrefix("You are the mind of Boop") == true)
-        XCTAssertEqual(p["questions"] as? [String], ["mood", "react.mood", "react.animation", "react.loops", "word.feeling", "word.about"])
+        XCTAssertEqual(p["questions"] as? [String], ["mood", "react.mood", "react.animation", "react.loops", "say.meaning", "say.kind"])
     }
 
     /// harness/HARNESS.md §9: each launch keeps the last one's lines as
@@ -306,12 +306,12 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(lines.filter { $0["questions"] != nil }.count, 1, "once: nothing changed them")
         XCTAssertEqual((questions[0]["options"] as? [[String: Any]])?.compactMap { $0["name"] as? String },
                        ["calm"] + MoodGraph.neighbours(of: "calm"), "staying calm, then calm's moves")
-        XCTAssertEqual(questions.map { $0["key"] as? String }, ["mood", "react.mood", "react.animation", "react.loops", "word.feeling", "word.about"])
+        XCTAssertEqual(questions.map { $0["key"] as? String }, ["mood", "react.mood", "react.animation", "react.loops", "say.meaning", "say.kind"])
         XCTAssertEqual(questions.map { $0["action"] as? String }, ["mood", "react", "react", "react", "react", "react"])
-        XCTAssertEqual(questions[1]["text"] as? String, "How should Boop react to NOW, if at all? It makes this mood's face for a moment, with a mumble.")
+        XCTAssertEqual(questions[1]["text"] as? String, "How should Boop react to NOW, if at all? It makes this mood's face for a moment, and may say something.")
         let none = try XCTUnwrap((questions[1]["options"] as? [[String: Any]])?.first)
         XCTAssertEqual(none["name"] as? String, "none")
-        XCTAssertEqual(none["what"] as? String, "Stay quiet: nothing in NOW is worth a face and a mumble, "
+        XCTAssertEqual(none["what"] as? String, "Stay quiet: nothing in NOW is worth a face, "
                        + "or HISTORY shows Boop still making the one it calls for (in progress).")
         XCTAssertEqual(none["not_for"] as? String, "Anything PERSONALITY's Examples react to that Boop isn't already doing.")
         XCTAssertTrue((questions[0]["options"] as? [[String: Any]])?.first?["not_for"] is NSNull)
@@ -366,7 +366,7 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// The dashboard's dev lines. A forced pass needs no
-    /// brain and mumbles as Jev's would; a forced mood changes as Jev's
+    /// brain and reacts as Jev's would; a forced mood changes as Jev's
     /// does, device included; each is recorded for no event, by the
     /// dashboard.
     func testTheDashboardsDevLines() throws {
@@ -380,8 +380,8 @@ final class RuntimeTests: XCTestCase {
         eventually("no brain") { runtime.home.sync { !runtime.readingJevKey && runtime.jevKey != nil } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
 
-        dev(#"{"dev":"answer","answers":{"react.mood":"grumpy","word.feeling":"again"}}"#)
-        eventually("a mumble with no brain") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) && $0.contains(#""word":"again""#) } }
+        dev(#"{"dev":"answer","answers":{"react.mood":"grumpy","say.meaning":"effort"}}"#)
+        eventually("a take with no brain") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":{"take":"#) && $0.contains(#""mood":"grumpy""#) } }
         dev(#"{"dev":"mood","mood":"grumpy"}"#)
         eventually("grumpy") { runtime.home.sync { runtime.mood.current == "grumpy" } }
         dev(#"{"dev":"mood","mood":"happy"}"#)
@@ -393,10 +393,10 @@ final class RuntimeTests: XCTestCase {
         let pass = try XCTUnwrap(lines.compactMap { $0["pass"] as? [String: Any] }.first)
         XCTAssertTrue(pass["for"] is NSNull)
         XCTAssertEqual(pass["by"] as? String, "dashboard")
-        XCTAssertEqual(pass["questions"] as? [String], ["react.mood", "word.feeling"])
+        XCTAssertEqual(pass["questions"] as? [String], ["react.mood", "say.meaning"])
         XCTAssertEqual((pass["answers"] as? [String: [String: Any]])?["react.mood"]?["p"] as? [String: Double], ["grumpy": 1])
         let actions = debugActions().filter { $0.phase != .end && $0["by"] == "dashboard" }
-        XCTAssertEqual(actions.map { $0["message"]?.string }, [#"Boop made a grumpy face, held once, and mumbled "…again!""#,
+        XCTAssertEqual(actions.map { $0["message"]?.string }, [#"Boop made a grumpy face, held once, and said "Hrr..."."#,
                                                               "Boop's mood changed: calm → grumpy.",
                                                               "Boop's mood changed: grumpy → happy.",
                                                               "Boop's mood changed: happy → excited."])
@@ -418,7 +418,7 @@ final class RuntimeTests: XCTestCase {
     /// BEHAVIORS.md §3.3: BOOT held and let go turns the mic on and off; with
     /// no mic (headless) it hears nothing, so `listening` ends at once with
     /// the empty moment. What the mic heard is recorded and wakes the brain:
-    /// a mumble is the reply, and a pass that reacts with none ends
+    /// a reaction is the reply, and a pass that reacts with none ends
     /// `listening` too. The app's button tells the device to show it.
     func testWhatYouSayGetsAReplyOrEndsListening() throws {
         for (brain, replies) in [(ScriptedBrain.pipelineCheck, true), (ScriptedBrain(always: [:]), false)] {
@@ -444,7 +444,7 @@ final class RuntimeTests: XCTestCase {
             let after = Array(transport.sent.dropFirst(before)).filter { $0.hasPrefix(#"{"t":"moment""#) }
             if replies {
                 XCTAssertEqual(after.count, 1, "\(after)")
-                XCTAssertTrue(after.first?.contains(#""say":"#) == true, "the mumble is the reply")
+                XCTAssertTrue(after.first?.contains(#""say":"#) == true, "the reaction is the reply")
             } else {
                 XCTAssertEqual(after, [empty], "no reply: listening ends")
             }
@@ -621,7 +621,7 @@ final class RuntimeTests: XCTestCase {
 
     /// A long turn, finished after moving the clock with `{"dev":"advance"}`:
     /// no rule plays its finish; the brain's reaction does, as one moment
-    /// with the finish, its outcome, its face and its mumble (BEHAVIORS.md
+    /// with the finish, its outcome, its face and what it says (BEHAVIORS.md
     /// §3.1, §5).
     func testTheBrainJudgesAFinish() throws {
         let transport = FakeTransport()
@@ -637,14 +637,14 @@ final class RuntimeTests: XCTestCase {
         eventually("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
         eventually("working") { transport.sent.contains { $0.contains("\"base\":\"working\"") } }
-        eventually("the start's mumble") { transport.sent.contains { $0.contains("\"say\"") } }
+        eventually("the start's reaction") { transport.sent.contains { $0.contains("\"say\"") } }
         let moments = { transport.sent.filter { $0.contains("\"t\":\"moment\"") } }
         XCTAssertFalse(moments().contains { $0.contains(#""anim":"task_complete""#) || $0.contains(#""anim":"reply_ready""#) },
                        "a start gets no finish")
         XCTAssertEqual(moments().filter { $0.contains("\"anim\"") }.count, 1, "only the rule's one-shot")
         XCTAssertTrue(moments()[0].hasPrefix(#"{"t":"moment","anim":"starting","variant":"#), moments()[0])
         transport.endMoments()  // the device says it has played
-        eventually("the start's mumble has played") {
+        eventually("the start's reaction has played") {
             runtime.home.sync {
                 let schedule = runtime.moments.schedule
                 return schedule.lineFree <= runtime.options.clock() && schedule.waiting.isEmpty
@@ -670,7 +670,7 @@ final class RuntimeTests: XCTestCase {
     /// the line until the device says it ended, and for the brain's next
     /// until its mumble has played, or its `ended` if sooner.
     func testBrainMomentsTakeTurns() {
-        let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
+        let line = DeviceMoment.Say.test(ms: 720)
         let mumble = DeviceMoment(say: line, mood: "proud")  // its line is 1920 ms
         var schedule = MomentSchedule()
         schedule.tapped(now: 0)
@@ -705,7 +705,7 @@ final class RuntimeTests: XCTestCase {
     /// failed, `waited too long`; one whose turn comes is handed on with
     /// its handle, for whoever plays it to end.
     func testADroppedMomentDidntHappen() {
-        let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
+        let line = DeviceMoment.Say.test(ms: 720)
         let mumble = DeviceMoment(say: line, mood: "proud")
         let cheer = DeviceMoment(anim: "task_complete", say: line, mood: "proud", outcome: "success")
         var ends: [String: Pending.End] = [:]
@@ -848,7 +848,7 @@ final class RuntimeTests: XCTestCase {
     /// wait and grace are added.
     func testAReactionEndsBeforeTheHarnessCeiling() {
         XCTAssertEqual(MoodAction.moods.count, 13)
-        let slow = VoiceLine(groups: [Array(repeating: "zzz", count: 8)], word: "finally", at: 8, tune: .bounce, ms: 400)
+        let slow = DeviceMoment.Say(take: Take.all.max { $0.ms < $1.ms })
         let held = ReactAction.holds.count
         let longest = MoodAction.moods.map(\.name).flatMap { mood in
             FaceLoops.states.map { look in
@@ -935,21 +935,15 @@ final class RuntimeTests: XCTestCase {
         // A poke: its loops of poked's design.
         XCTAssertEqual(idle(DeviceMoment(anim: "poked", loops: 3)), 3 * FaceLoops.ms(mood: "happy", state: "poked"))
 
-        // A mumble lasts its syllables plus two beats for a word, at 60–400
-        // ms a beat, then 1.2 s of bubble, when that's longer than the face.
+        // A take lasts its length, then 1.2 s of bubble, when that's longer
+        // than the face; a reaction that says nothing, only its face.
         let working = { (m: DeviceMoment) in m.playMs(look: "working", mood: "happy") }
-        let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
+        let line = DeviceMoment.Say.test(ms: 720)
         XCTAssertEqual(working(DeviceMoment(say: line)), 1920)
         XCTAssertEqual(DeviceMoment(say: line).lineStartMs(mood: "happy"), 0, "at once on its own")
-        var plain = line
-        plain.word = nil
-        XCTAssertEqual(working(DeviceMoment(say: plain)), 1680)
-        var slow = line
-        slow.ms = 500
-        XCTAssertEqual(working(DeviceMoment(say: slow)), 3600)
-        var quick = line
-        quick.ms = 20
-        XCTAssertEqual(working(DeviceMoment(say: quick)), 1560, "6 × 60 + 1200")
+        XCTAssertEqual(working(DeviceMoment(say: .init(take: nil))), 0)
+        XCTAssertEqual(DeviceMoment(say: .init(take: nil)).sayMs, 0)
+        let quick = DeviceMoment.Say.test(ms: 360)
         XCTAssertEqual(working(DeviceMoment(anim: "task_complete", say: quick, variant: 1, outcome: "success")), cheer, "the finish is longer")
 
         // With an animation the line starts at the design's voice window,
@@ -975,9 +969,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(working(DeviceMoment(say: quick, mood: "grumpy", loops: 2)), 2 * grumpy)
         XCTAssertEqual(DeviceMoment(say: quick, mood: "grumpy").playMs(look: "task_complete", mood: "happy"),
                        7200, "over the cheer, the cheer's design, its longest")
-        var slower = slow
-        slower.groups = [["bi", "do", "ba"], ["na", "po", "li"]]
-        XCTAssertEqual(working(DeviceMoment(say: slower, mood: "excited")), 4400, "a longer line holds it longer")
+        XCTAssertEqual(working(DeviceMoment(say: .test(ms: 3200), mood: "excited")), 4400, "a longer take holds it longer")
     }
 
     /// ARCHITECTURE.md §3.2: the schedule times a moment by the design
@@ -985,7 +977,7 @@ final class RuntimeTests: XCTestCase {
     /// holds the brain's next one back. A tap's poke ends the line and
     /// the face.
     func testTheScheduleTimesAMomentByTheDesignShowing() {
-        let line = VoiceLine(groups: [["bi"]], word: nil, at: 1, tune: .up, ms: 100)
+        let line = DeviceMoment.Say.test(ms: 100)
         let proud = DeviceMoment(say: line, mood: "proud", loops: 2)
         // Two loops of a design's longest variation.
         let loop = { (mood: String, state: String) in
@@ -1060,7 +1052,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(schedule.rulePlays(now: 100))
         schedule.rule(shot, now: 100)
         XCTAssertEqual(schedule.animUntil, 100 + FaceLoops.ms(mood: schedule.mood, state: "starting", variant: 1))
-        let line = VoiceLine(groups: [["bi", "do"]], word: nil, at: 2, tune: .up, ms: 120)
+        let line = DeviceMoment.Say.test(ms: 240)
         let face = DeviceMoment(say: line, mood: "grumpy")
         schedule.brain(face, now: 200)
         let due = schedule.due(now: 200)
@@ -1103,7 +1095,7 @@ final class RuntimeTests: XCTestCase {
     /// you" starting stops everything; while something needs you, a tap
     /// plays no poke.
     func testTheDeviceSaysWhenTheLineIsFree() {
-        let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
+        let line = DeviceMoment.Say.test(ms: 720)
         let face = DeviceMoment(say: line, mood: "proud")
         func sent(_ schedule: inout MomentSchedule, at now: Int64, id: Int) -> Int64 {
             XCTAssertEqual(schedule.due(now: now).play, face)
@@ -1173,7 +1165,7 @@ final class RuntimeTests: XCTestCase {
     /// replaces the face; the device says the first was done, and it
     /// settles done. The line itself waits for the face's `ended`.
     func testTheNextReactionReplacesAHeldFace() {
-        let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
+        let line = DeviceMoment.Say.test(ms: 720)
         let held = DeviceMoment(say: line, mood: "proud", loops: 4)  // its line is 1920 ms
         let next = DeviceMoment(say: line, mood: "grumpy")
         XCTAssertEqual(MomentSchedule.linkSlackMs, 500)
@@ -1214,7 +1206,7 @@ final class RuntimeTests: XCTestCase {
     /// 5 s is dropped at once, not when the line frees, and the pump is
     /// asked back for that.
     func testAWaitIsCountedToItsTurn() {
-        let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
+        let line = DeviceMoment.Say.test(ms: 720)
         let face = DeviceMoment(say: line, mood: "proud")
         let cheer = DeviceMoment(anim: "task_complete", say: line, mood: "proud", outcome: "success")
         XCTAssertEqual(MomentSchedule.lateMs, 1000)
@@ -1324,7 +1316,7 @@ final class RuntimeTests: XCTestCase {
     /// the schedule stops timing them: a reaction after it doesn't wait
     /// for a line that was cut, and is timed on the new look's design.
     func testNeedsYouEndsWhatTheScheduleThoughtWasPlaying() {
-        let line = VoiceLine(groups: [["bi"]], word: nil, at: 1, tune: .up, ms: 100)
+        let line = DeviceMoment.Say.test(ms: 100)
         let face = DeviceMoment(say: line, mood: "proud", loops: 2)
         var schedule = MomentSchedule()
         schedule.tapped(now: 0)
@@ -1342,7 +1334,7 @@ final class RuntimeTests: XCTestCase {
     /// turn, and the schedule asks again when the first waiting one's 5 s
     /// run out.
     func testAWaitingMomentIsDroppedAtFiveSecondsWhateverPlays() {
-        let line = VoiceLine(groups: [["bi"]], word: nil, at: 1, tune: .up, ms: 100)
+        let line = DeviceMoment.Say.test(ms: 100)
         let long = DeviceMoment(say: line, mood: "proud", loops: 4)
         let next = DeviceMoment(say: line, mood: "happy")
         var ends: [Pending.End] = []
@@ -1379,7 +1371,7 @@ final class RuntimeTests: XCTestCase {
         defer { runtime.stop() }
         transport.onConnection?(true)
         runtime.home.sync {}
-        let line = VoiceLine(groups: [["bi"]], word: nil, at: 1, tune: .up, ms: 100)
+        let line = DeviceMoment.Say.test(ms: 100)
 
         transport.onLine?(#"{"t":"input","k":"tap"}"#)
         runtime.home.sync {}
@@ -1418,7 +1410,7 @@ final class RuntimeTests: XCTestCase {
         defer { runtime.stop() }
         transport.onConnection?(true)
         runtime.home.sync {}
-        let line = VoiceLine(groups: [["bi"]], word: nil, at: 1, tune: .up, ms: 100)
+        let line = DeviceMoment.Say.test(ms: 100)
         let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) } }
         runtime.home.sync {
             runtime.moments.schedule.brain(DeviceMoment(say: line, mood: "proud", loops: 4), Pending(), now: clock.now)

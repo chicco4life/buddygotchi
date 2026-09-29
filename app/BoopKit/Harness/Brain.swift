@@ -53,8 +53,8 @@ public struct ScriptedBrain: Brain {
 
 extension ScriptedBrain {
     /// For pipeline checks with no network (`Boop --headless --brain
-    /// scripted`): every pass, an excited mumble with "yay", its face held
-    /// once, and the mood kept (the mood question's first option); and a
+    /// scripted`): every pass, an excited face that says "Go" (the take for
+    /// `begin`, a word, in excited), held once, and the mood kept (the mood question's first option); and a
     /// turn's finish in it when NOW is a turn that ended, success when done
     /// and failure when failed, since no rule plays one (BEHAVIORS.md §5).
     /// An answer a question doesn't offer is its first option, as Jev can
@@ -67,8 +67,8 @@ extension ScriptedBrain {
             "react.mood": Answer(choice: "excited", probabilities: ["excited": 1]),
             "react.animation": Answer(choice: finish, probabilities: [finish: 1]),
             "react.loops": Answer(choice: "once", probabilities: ["once": 1]),
-            "word.feeling": Answer(choice: "yay", probabilities: ["yay": 1]),
-            "word.about": Answer(choice: "none", probabilities: ["none": 1]),
+            "say.meaning": Answer(choice: "begin", probabilities: ["begin": 1]),
+            "say.kind": Answer(choice: "word", probabilities: ["word": 1]),
         ]
         var out: Answers = [:]
         for q in questions {

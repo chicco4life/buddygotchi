@@ -636,10 +636,10 @@ public final class Core {
             + idle.map { SessionSummary($0, .idle) }
     }
 
-    /// Why a mumble can't play now, or nil: something needs you
-    /// (BEHAVIORS.md §1), or the mic is on, since a mumble would end
+    /// Why a reaction can't play now, or nil: something needs you
+    /// (BEHAVIORS.md §1), or the mic is on, since a reaction would end
     /// `listening` before you've finished (§3.3).
-    public var mumbleBlock: String? {
+    public var reactionBlock: String? {
         if needsYouShowing { return "something needs you" }
         if listening != nil { return "the mic is on" }
         return nil
