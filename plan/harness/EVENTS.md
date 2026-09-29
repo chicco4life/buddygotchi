@@ -251,7 +251,7 @@ notice stops after you pressed Esc on its prompt. The harness checks
 again when a view event that waited behind a running pass would start
 its own ([HARNESS.md](HARNESS.md) §2): a poke that came during the pass
 whose reaction now answers its run is dropped. There's no cooldown: Jev decides
-every time whether Boop mumbles, and a view event that wakes it starts
+every time whether Boop reacts, and a view event that wakes it starts
 the working heartbeat's wait again.
 
 **Pokes can make Boop grumpy.** A poke's pass asks every question, the
@@ -325,7 +325,7 @@ other:
 - Turns are short (under a minute), long (under 5 minutes) or very
   long (5 minutes or more).
 - "You said to Boop" quotes the person talking to Boop. It can't talk
-  back: it answers with a face and a mumble.
+  back: it answers with a face, and maybe a word or a sound.
 ```
 
 ## 9. Privacy

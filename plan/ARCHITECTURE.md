@@ -57,13 +57,14 @@ approve on the Mac as you normally would.
    on "landing": done, a very long turn, 40 tool calls.`, and the last
    message as a note. It wakes the brain, so the **harness** asks
    **Jev** every action's questions about it in one request, and Jev answers, say,
-   `react.mood: proud`, `react.animation: success`, `react.loops: twice` and
-   `word.feeling: yay`.
-5. The **`react` action** asks **Voice** for Minion speech in proud's
-   voice (*"ma-po li… yay!"*) and queues it as the finish, a success, in
-   proud's face, held twice. No line is playing, so the **device link**
-   sends it at once, and the device plays proud's task_complete scene for
-   a success while Boop mumbles. When the face and the mumble are over, the device says so
+   `react.mood: proud`, `react.animation: success`, `react.loops: twice`,
+   `say.meaning: pride` and `say.kind: phrase`.
+5. The **`react` action** asks **Voice** for a take of pride in proud's
+   mood, fit for a success (*"Tiny genius"*), and queues it as the
+   finish, a success, in proud's face, held twice. No line is playing, so
+   the **device link** sends it at once, and the device plays proud's
+   task_complete scene for a success and says the take at its voice
+   window. When the face and the take are over, the device says so
    (`ended`), and HISTORY stops showing the reaction as in progress.
 
 Rules keep the screen true at once: the look (working, idle, asleep),
@@ -79,13 +80,13 @@ needed, but it doesn't celebrate or react (decision log, 2026-09-28).
 | --- | --- | --- | --- | --- |
 | Reflex | Device | < 20 ms | Tap feedback, blinks, playing moments, the needs-you alert and light | Wait for the Mac |
 | Reactive | Core → device link | < 200 ms p95 | Hook → rule → `state` or moment | Wait for the brain |
-| Deliberative | Harness + Jev → actions | A pass has 1.5 s; its mumble then waits up to 5 s for its turn | A change of mood, every reaction (a face and a mumble), a finished turn's included | Block the reactive loop |
+| Deliberative | Harness + Jev → actions | A pass has 1.5 s; its reaction then waits up to 5 s for its turn | A change of mood, every reaction (a face and what Boop says), a finished turn's included | Block the reactive loop |
 
 ## 3. Components and boundaries
 
 Each part has one job and knows as little as possible about the others.
 The core and the brain decide *what* should happen, and actions make it
-happen. Nothing that decides ever builds Minion speech, touches a file or
+happen. Nothing that decides ever picks a recording, touches a file or
 talks to the device.
 
 | Part | Code | Does | Doesn't know about |
@@ -101,7 +102,7 @@ talks to the device.
 | Brain | `Brains/JevBrain.swift` | Jev: answers multiple-choice questions about a plain-text state, with probabilities | Everything else |
 | Actions | `Actions/` | `mood` and `react`: carry out one call each, checking their own rules | Whether a rule or the brain called them |
 | Moment schedule | `App/MomentSchedule.swift` | Decides when each brain moment plays: after any line playing, over an animation, or not at all | What's in it |
-| Voice | `Voice/` | Turns a feeling and an optional word into Minion speech in this Boop's dialect | Who asked, or why |
+| Voice | `Voice/` | Turns a meaning, a kind and a face into one of the recorded takes the board has, or none | Who asked, or why |
 | Memory store | `Memory/` | Reads and writes `long-term.md`, `short-term.md` and their snapshots | Models, the device |
 | Mood store | `MoodStore` in `Actions/MoodAction.swift` | Reads and writes the `mood` file | Who changes it |
 | Device link | `DeviceLink/` | Sends `state` and moments, receives taps and status, over Bluetooth or USB | What any of it means |
@@ -203,8 +204,9 @@ replaced, which the device counts as done. A brain moment plays over a
 rule's one-shot as over a poke, without waiting for it.
 The brain's moments wait in the
 moment schedule, one at a time, until no line or reaction's face plays,
-except that a reaction's face held on for its loops after its mumble
-holds up the brain's next only until that mumble has played (with the
+except that a reaction's face held on for its loops after its take
+holds up the brain's next only until that take has played, or for one
+that said nothing until its face has shown for 1.2 s (with the
 link's 0.5 s, below): the next goes then and replaces the face, which the
 device counts as done ([PROTOCOL.md](PROTOCOL.md) §4). One with no
 animation plays over a poke without cutting it, and a poke
@@ -229,8 +231,8 @@ row, tap_spam's (`MomentSchedule` counts taps as the device does,
 [BEHAVIORS.md](BEHAVIORS.md) §3.3), its longest variation; or a
 reaction's loops of its design (the animation's when it has one, the
 longest of the variations the device may play for its facts, else the
-look's), and the mumble's syllables plus two beats for a word, at the
-line's pace, then 1.2 s to read the bubble, when that's longer; a line
+look's), and the take's length, then 1.2 s to read the bubble, when
+that's longer; a take
 that comes with an animation counts from the design's voice window
 (`FaceLoops.voiceMs`, [VOICE.md](VOICE.md) §9). The look is the last `state`'s, drawn in the
 reaction's mood; while an agent works it's what the agents are doing
@@ -243,8 +245,8 @@ end up to a loop sooner than the app reckons, never later. So a brain
 moment on the device holds the schedule's line until the device's
 `ended` for it, and only if that never comes until the app gives up on
 it (its reckoning plus `endGraceMs`). The
-brain's next moment waits only until its mumble has played
-(`MomentSchedule.brainFree`), or its `ended` if that comes first. The schedule also hears what the device does on its own: a tap's
+brain's next moment waits only until its take has played, or a silent
+face has shown for 1.2 s (`MomentSchedule.brainFree`), or its `ended` if that comes first. The schedule also hears what the device does on its own: a tap's
 poke stops whatever plays, "needs you" starting stops everything, and
 while something needs you, or `listening` shows, a tap plays nothing
 but still counts in the run. A tap leaves a brain moment's line to its `ended`,
@@ -266,7 +268,7 @@ its answers. One pass runs at a time, and a newer event that wakes the
 brain replaces one waiting. An action that started something is shown in
 progress until it reports how it ended, or the harness gives up waiting.
 Without Jev's key no pass runs: Boop shows its looks, "needs you",
-its one-shots and pokes, and nothing reacts or mumbles
+its one-shots and pokes, and nothing reacts or speaks
 ([harness/HARNESS.md](harness/HARNESS.md)).
 
 ### 3.4 Actions
@@ -280,15 +282,16 @@ order:
 | Action | Effect | Its own rules |
 | --- | --- | --- |
 | `mood` | Saves the new mood to the `mood` file; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the current mood's moves on the mood graph, and only a change |
-| `react` | Queues a moment in the moment schedule: the chosen mood as its face, with the finish Jev judged if NOW is a turn that finished (task_complete for a success or a failure, reply_ready for a reply), held for the loops Jev picked, and Voice's mumble in that mood's feeling, with the chosen word if Jev is sure enough. It's started, not done, until the device says how the moment ended | Nothing while something needs you |
+| `react` | Queues a moment in the moment schedule: the chosen mood as its face, with the finish Jev judged if NOW is a turn that finished (task_complete for a success or a failure, reply_ready for a reply), held for the loops Jev picked, and the take Voice finds for the meaning and kind Jev picked in that mood, if Jev is sure enough and there is one. It's started, not done, until the device says how the moment ended | Nothing while something needs you |
 
-No rule makes a moment on the Mac: every mumble and face comes through them.
+No rule makes a moment on the Mac: every face and take comes through them.
 
 ### 3.5 Voice
 
-Voice turns `feeling + word` into a Minion line in this Boop's dialect,
-picked by the seed in `long-term.md`, and checks it isn't accidentally
-English ([VOICE.md](VOICE.md)).
+Voice picks what Boop says: of the recorded takes the board has
+(`Take.all`, which voicegen writes), one of the meaning Jev picked,
+performed in the face's mood, fit for the finish, of the kind asked or a
+plainer one, or none ([VOICE.md](VOICE.md) §4).
 
 ### 3.6 Memory store
 
@@ -385,7 +388,7 @@ name: Pip · hatched: 2026-10-02 · nature: cheeky · seed: 7f3a
 The app writes it at setup and never changes it. The name is 1–23
 characters without `·` or `:`; `nature` is the person's one answer (sweet
 or cheeky), kept and not yet used; `seed` is random, 1 to `ffff` in hex,
-and picks Boop's voice dialect. It lives only on the Mac, so reflashing or
+and seeds the core's and the view's randomness. It lives only on the Mac, so reflashing or
 replacing the device doesn't change it, and the app has no reset button.
 
 ### 4.3 `short-term.md`
@@ -452,7 +455,7 @@ What crosses each boundary, in the order an event travels:
 | Harness → Jev | The state as text, and every action's questions | One HTTPS request | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | Jev → actions | Each question's choice and probabilities, only to the action that asked | `Answers` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
 | Actions → harness | `(ok, message)`; a successful message goes into HISTORY. A started one also hands over a handle, and its end comes later | `ActionResult`, `Pending` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
-| `react` → moment schedule → device link | A mumble and its face (`mood`) with its `loops`, and its handle, which the schedule or the runtime ends; it goes out with an `id` | `DeviceMoment`, `Pending` | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
+| `react` → moment schedule → device link | A face (`mood`) with its `loops` and what it says (`say`, a take or nothing), and its handle, which the schedule or the runtime ends; it goes out with an `id` | `DeviceMoment`, `Pending` | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
 | `mood` → mood store → core | The new mood | A word | [harness/DECISIONS.md](harness/DECISIONS.md) §4 |
 | Device link ↔ device | `state` and `moment` out; `input`, `ended` and `status` in | JSON lines | [PROTOCOL.md](PROTOCOL.md) |
 | Runtime → Mac app | Name, snapshot, sessions, link, device, personality, brain | `Runtime.Status` | `app/Boop/` |
@@ -669,3 +672,4 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-29 | The rules' action for a poke keeps its name, `wiggle`, and its words, `Boop wiggled on its own.`, which Jev reads, though the device now plays a poke | Jev ran out of credit before new words could be checked; the poke evals pass with these | [harness/EVENTS.md](harness/EVENTS.md) §2 |
 | 2026-09-29 | A line that comes with an animation starts in the design's voice window (after its attention cue, about 5 s into a finish) and the animation holds until the line and its bubble end; the Mac reckons the same from `FaceLoops.voiceMs`. A brain moment that has waited over 5 s is still dropped, so a reaction just after a finish can be | The bank's handover: the voice enters after the cue, never sped up to fit | [VOICE.md](VOICE.md) §9, §3.2 |
 | 2026-09-29 | The bubble takes the bottom lane (y ≥ 192) in place of the strip while a line plays, and props are no longer hidden under it; only a `say` or the empty moment ends `listening` | The new designs keep that lane free and their props are the action (D10); a rule's one-shot must not end push-to-talk | [DEVICE.md](DEVICE.md) §4, [PROTOCOL.md](PROTOCOL.md) §3 |
+| 2026-09-29 | Boop says recorded takes, not gibberish: Jev picks a meaning (the takes' intents, each naming the faces that can say it) and a kind (sound, word, phrase, swear), and Voice finds a take of that meaning performed in the face's mood, fit for the finish (success takes only on a success, swears only on a failure), stepping down to a plainer kind, never the last take again while another fits; with none, the face plays in silence. All 40 of the bank's takes go on the board unreviewed; the six in moods Boop lacks are mapped to the nearest. The gibberish, dialects, unintelligibility check and one-real-word rule go | The owner's choice (2026-09-29) of option B: Jev picks from a dozen meanings and four kinds, however many recordings there are; silence rather than another mood's voice, with the steering asking for a face that can speak; swears by personality | [VOICE.md](VOICE.md), [harness/DECISIONS.md](harness/DECISIONS.md) §3, §5 |

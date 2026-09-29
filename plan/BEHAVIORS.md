@@ -78,12 +78,14 @@ JEV  (the brain; decides everything expressive)
                                  failure | reply    judged from its text
                 react.loops      once … 4 times     how long it holds
   ─────────────────────────────────────────────────────────────────────
-  SAY           word.feeling     none | yay, oops, again, finally, …
-                word.about       none | tests, build, deploy, docs
-                → at most one real word, inside Minion gibberish
+  SAY           say.meaning      none | success,         what it means
+                                 frustration, …    (faces that can say it)
+                say.kind         sound | word |     how, stepping down
+                                 phrase | swear     when there's none
+                → one recorded take in the face's mood, or silence
 
-  e.g. tests pass after failing:
-       mood → proud;  react: proud, twice, "…finally!"
+  e.g. a failed turn that stings:
+       mood → grumpy;  react: grumpy, failure, once, "Shit"
   e.g. a 5 s routine turn:  nothing
 
 
@@ -107,7 +109,7 @@ WHAT JEV SEES  (built fresh for every ask; Jev keeps no memory)
       Its last message: "All 212 tests pass now."
       Boop's mood changed: determined → excited.
       Boop played a success in an excited face, held three times, and
-        mumbled "…yay!" (in progress)
+        said "Bada bing bada boom". (in progress)
 
     piece                       what it is                   added by
     just now                    when, relative to now        harness
@@ -195,7 +197,7 @@ hook events ──┐                 ┌─► core rules ─┬─► state �
 device pokes ─┤                 │               ├─► one-shot ──► device
               │                 │               └─► new day ───► memory
 what you say ─┼─► transcript ───┤
-heartbeats ───┘                 └─► view ─► harness ─► brain ─┬─► mumble ─► device
+heartbeats ───┘                 └─► view ─► harness ─► brain ─┬─► react ──► device
 1 s tick: core timers, the view's heartbeats                  └─► mood ───► core
 ```
 
@@ -327,20 +329,20 @@ change comes with a reaction in the new mood's face. The next `state`
 carries it and the device blinks into the new set of faces. No rule
 depends on the mood.
 
-### Mumbling while agents work
+### Reacting while agents work
 
-No rule mumbles. While agents work, the view sends the brain a working
+No rule reacts. While agents work, the view sends the brain a working
 heartbeat as often as the personality says (§6), each wait drawn at
 random from its range and started again whenever Boop reacts, so it
 comes after a stretch of work with no reaction, however busy other
 threads are
 ([harness/EVENTS.md](harness/EVENTS.md) §4). Jev decides whether Boop
-mumbles then, with which face and word, as for any other event. With no
-brain, Boop works silently.
+reacts then, with which face and what it says, as for any other event.
+With no brain, Boop works silently.
 
 ## 3. What happens and what Boop does
 
-The rules react at once. The brain may add a mumble or a mood change a
+The rules react at once. The brain may add a reaction or a mood change a
 moment later, if it answers within its deadline
 ([harness/HARNESS.md](harness/HARNESS.md) §7). Which events wake it is in
 [harness/EVENTS.md](harness/EVENTS.md) §4.
@@ -354,8 +356,9 @@ until no line or reaction's face is playing (it plays over a poke or
 a rule's one-shot, which it doesn't cut: the one-shot's design, drawn in
 the reaction's mood), which the device's word that
 the last one ended settles. A reaction's face held on
-for its loops after its mumble doesn't hold up the next reaction, which
-replaces it once the mumble has played. One is dropped once it
+for its loops after its take doesn't hold up the next reaction, which
+replaces it once the take has played, or, if it said nothing, once its
+face has shown for 1.2 s. One is dropped once it
 has waited 5 s for its turn (`MomentSchedule.maxWaitMs`,
 [ARCHITECTURE.md](ARCHITECTURE.md) §3.2). The device tells the Mac how each
 brain reaction ended: played out, cut short by a tap, "needs you" or a
@@ -445,16 +448,16 @@ on the Mac; the device has no mic.
    limit), or if the link drops while BOOT is held.
 3. What it heard is recorded as what you said
    ([harness/EVENTS.md](harness/EVENTS.md) §2), and always wakes the
-   brain, even while something needs you. A mumble is the reply, and
-   ends `listening` as it plays. If the brain's pass on it (or on
+   brain, even while something needs you. A reaction is the reply, and
+   ends `listening` as it plays, even one that says nothing. If the brain's pass on it (or on
    anything newer) makes no reaction, if there's no brain, if the mic
    heard nothing or couldn't start, the Mac ends `listening` at once with
    the empty `moment` ([PROTOCOL.md](PROTOCOL.md) §3). The device gives
    up waiting 8 s after the mic went off (`Core.replyWaitMs`).
 
 While the mic is on nothing else speaks: the brain's reactions are
-refused (`Core.mumbleBlock`) and any waiting their turn are dropped,
-since a mumble would end `listening` before you've finished. How Boop
+refused (`Core.reactionBlock`) and any waiting their turn are dropped,
+since a reaction would end `listening` before you've finished. How Boop
 answers is the personality's: it can't talk back, only react, and
 `boop` always answers with a face ([harness/DECISIONS.md](harness/DECISIONS.md) §2.2).
 
@@ -533,14 +536,14 @@ design is colour to the edges. It goes with the finish: when it ends,
 or a tap's poke or needs you cuts it. While its line's bubble shows, the
 bubble has the lane ([DEVICE.md](DEVICE.md) §4).
 
-The brain's reaction is a mumble with a face:
+The brain's reaction is a face, and what Boop says in it:
 whatever look is showing is drawn in the reaction's
-mood for the loops of its design that Jev picked, at least while the
-mumble plays, then Boop's own mood comes back
+mood for the loops of its design that Jev picked, at least while its
+take plays, then Boop's own mood comes back
 ([PROTOCOL.md](PROTOCOL.md) §3). Happy and working, a failing test gets
-a loop of working × grumpy with "…ugh!", then working × happy again;
+a loop of working × annoyed with "Tsk...", then working × happy again;
 determined when a long turn finishes, Boop plays the finish, a success,
-in proud's face while it mumbles "…finally!", held three times. The brain has no animations
+in proud's face while it says "Tiny genius", held three times. The brain has no animations
 of its own: a reaction is all it can add, and to stay quiet it doesn't
 react at all.
 

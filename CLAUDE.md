@@ -6,7 +6,7 @@ are the same file: edit `CLAUDE.md`, then copy it over `AGENTS.md`.
 ## What Boop is
 
 Boop is a small desk creature with a personality of its own that watches
-your Claude Code and Codex agents. It mumbles in Minion-like gibberish,
+your Claude Code and Codex agents. It grunts, huffs and says the odd word,
 tells you when an agent needs your approval on the Mac, and celebrates
 work that earns it. It never approves anything. A Mac app does the thinking; a
 cheap ESP32 board with a screen is the body. Start with
@@ -114,9 +114,9 @@ rules that are easy to break:
   Anything else is a log line.
 - **The harness is generic.** It takes view events, asks every action's
   questions in one request and hands each action its own answers. It
-  never reads a view event's facts, builds Minion speech or talks to the
+  never reads a view event's facts, picks what Boop says or talks to the
   device.
-- **Only Voice knows Minion speech.** Only the memory store reads and writes
+- **Only Voice knows what Boop can say.** Only the memory store reads and writes
   the memory files. Only the device link knows Bluetooth or USB.
 - **The brain is never on the screen's path.** Rules keep the screen true
   at once (the look, "needs you", the tap's poke, the rules' one-shots).

@@ -93,7 +93,7 @@ class ReportTests(unittest.TestCase):
             entry(6, 2, view=fail),
             entry(7, 2, **{"pass": {"for": 6, "dropped": None}}),
             entry(8, 2, action={"for": 6, "name": "react", "ok": True, "pending": True,
-                                "message": "Boop made a grumpy face, held twice, and mumbled \"…oops!\""}),
+                                "message": "Boop made a grumpy face, held twice, and said \"Tsk...\"."}),
             entry(9, 2, settle={"for": 8, "end": "done"}),
             entry(10, 2, action={"for": 6, "name": "mood", "ok": True, "message": "Boop's mood changed: excited → grumpy."}),
         ]
@@ -111,8 +111,8 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(t["lines"], Counter({"start": 1, "short": 1, "notable": 1}))
         self.assertEqual(t["faces"], Counter({"grumpy": 1}))
         self.assertEqual(t["loops"], Counter({"twice": 1}))
-        self.assertEqual(t["words"], Counter({"oops": 1}))
-        self.assertEqual(r["reactions"][0]["word"], "oops")
+        self.assertEqual(t["words"], Counter({"Tsk...": 1}))
+        self.assertEqual(r["reactions"][0]["word"], "Tsk...")
         # Excited from the first event to the failure 2 minutes later, then
         # grumpy to the last event, the same failure.
         self.assertEqual(r["mood_minutes"], {"excited": 2, "calm": 0, "grumpy": 0})
@@ -120,27 +120,27 @@ class ReportTests(unittest.TestCase):
     def test_a_finish_is_read_from_the_reactions_message(self) -> None:
         """ReactAction's line for a finish names it: success, failure or reply
         (harness/DECISIONS.md §5); a face alone has none."""
-        self.assertEqual(workday.finish("Boop played a success in a calm face, held once, and mumbled."), "success")
-        self.assertEqual(workday.finish("Boop played a failure in an annoyed face, held twice, and mumbled."), "failure")
-        self.assertEqual(workday.finish("Boop played a reply in a curious face, held once, and mumbled."), "reply")
-        self.assertIsNone(workday.finish("Boop made a happy face, held once, and mumbled."))
+        self.assertEqual(workday.finish("Boop played a success in a calm face, held once."), "success")
+        self.assertEqual(workday.finish("Boop played a failure in an annoyed face, held twice."), "failure")
+        self.assertEqual(workday.finish("Boop played a reply in a curious face, held once."), "reply")
+        self.assertIsNone(workday.finish("Boop made a happy face, held once."))
 
-    def test_the_words_count_a_mumble_with_no_word_as_none(self) -> None:
+    def test_the_takes_count_a_reaction_that_said_nothing_as_none(self) -> None:
         end = {"type": "turn", "phase": "end", "line": "claude finished turn 1 on \"api\": done, a short turn.",
                "wakes_brain": True, "facts": {"outcome": "done", "length_ms": 50_000, "tools_failed": 0}}
         lines = [
             entry(1, 0, view=end),
             entry(2, 0, action={"for": 1, "name": "react", "ok": True, "pending": True,
-                                "message": "Boop made a happy face, held once, and mumbled."}),
+                                "message": "Boop made a happy face, held once."}),
             entry(3, 1, view=end),
             entry(4, 1, action={"for": 3, "name": "react", "ok": True, "pending": True,
-                                "message": "Boop made an excited face, held once, and mumbled \"…yay!\""}),
+                                "message": "Boop made an excited face, held once, and said \"Go\"."}),
         ]
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "debug.jsonl"
             path.write_text("\n".join(lines) + "\n")
-            self.assertEqual(workday.total(workday.summarize(path))["words"], Counter({"none": 1, "yay": 1}))
-            self.assertIn("Words mumbled (none: a mumble with no real word): none 1, yay 1", workday.report([path]))
+            self.assertEqual(workday.total(workday.summarize(path))["words"], Counter({"none": 1, "Go": 1}))
+            self.assertIn("Takes said (none: a reaction that said nothing): none 1, Go 1", workday.report([path]))
 
     def test_a_mood_fading_on_a_routine_line_is_counted_apart(self) -> None:
         start = {"type": "turn", "phase": "start", "line": "claude started turn 2 on \"api\".", "wakes_brain": True, "facts": {}}
@@ -168,7 +168,7 @@ class ReportTests(unittest.TestCase):
                 "facts": {"thread": thread}}
         end = {"type": "turn", "phase": "end", "line": "claude finished turn 1 on \"api\": done, a very long turn.",
                "wakes_brain": True, "facts": {"thread": thread, "outcome": "done", "length_ms": 1_200_000}}
-        happy = "Boop made a happy face, held once, and mumbled."
+        happy = "Boop made a happy face, held once."
         lines = [
             entry(1, 0, view=start),
             entry(2, 1, view=beat),

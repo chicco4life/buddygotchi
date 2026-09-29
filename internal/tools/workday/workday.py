@@ -5,7 +5,7 @@
 `plan` prints the day, `run` replays it through `Boop --headless` on a
 compressed clock, and `report` sums up what Boop did, hour by hour: how
 often its mood changed (and whether after one routine turn), how often it
-reacted, with which faces and which words. The same seed always gives the same day, so a
+reacted, with which faces and what they said. The same seed always gives the same day, so a
 run before a steering change and one after it can be compared; Jev itself
 isn't deterministic, so run each at least twice.
 
@@ -716,8 +716,8 @@ def summarize(path: Path) -> dict[str, Any]:
             elif a["name"] == "react":
                 msg = a["message"]
                 face = msg.split(" face")[0].split()[-1]
-                held = msg.split("held ")[1].split(",")[0] if "held " in msg else "once"
-                word = msg.split('"…')[1].split("!")[0] if '"…' in msg else None
+                held = msg.split("held ")[1].split(",")[0].rstrip(".") if "held " in msg else "once"
+                word = msg.split('said "')[1].split('"')[0] if 'said "' in msg else None
                 hr["reactions"] += 1
                 hr["reacted"][ev["class"]] += 1
                 hr["faces"][face] += 1
@@ -868,7 +868,7 @@ def report(paths: list[Path], as_json: bool = False) -> str:
                 f'at most {lv["longest_same_run"]} in a row ({lv["longest_same_what"] or "–"}); '
                 f'{lv["mood_bounces"]} mood bounces; longest stretch of work {REST} all through '
                 f'{lv["longest_rest_working_min"]} min (from {lv["longest_rest_working_at"]})']
-        out += ["", "Words mumbled (none: a mumble with no real word): " + fmt(total(r)["words"]),
+        out += ["", "Takes said (none: a reaction that said nothing): " + fmt(total(r)["words"]),
                 "", "Time in each mood: " + ", ".join(f"{k} {v} min" for k, v in r["mood_minutes"].items()),
                 "", "Mood changes:"]
         for c in r["changes"]:

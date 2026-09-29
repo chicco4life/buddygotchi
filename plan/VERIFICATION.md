@@ -47,15 +47,14 @@ Evidence: [mood design publication](evidence/2026-09-28-mood-design-push/README.
 These checks are not physical audio tests or the owner's approval of the
 new art.
 
-**Recorded voice design assets (not production integration).**
-`node internal/boop-design/assets/boop-voice-v1/tools/check.mjs` validates all
-recorded hashes, PCM formats/levels, indexes, safe candidate selection and assembly,
-and writes an exact storage report. `select.mjs --help` in the same bank documents
-the dependency-free shortlist CLI. Both are offline and never play sound or call
-an API; unreviewed takes require explicit audition mode. The
-[agent handoff](../internal/boop-design/assets/boop-voice-v1/README.md) distinguishes
-actual recordings from the planned dictionary and documents encoding/timing limits.
-Evidence: [voice asset publication](evidence/2026-09-29-voice-asset-push/README.md).
+**The recorded voice bank.** Boop's voice comes from it
+([VOICE.md](VOICE.md) §3). `node internal/boop-design/assets/boop-voice-v1/tools/check.mjs`
+validates the bank itself: every recording's hash, PCM format and level,
+the indexes, and its own reference selector; it's offline and never plays
+sound or calls an API. `voicegen` turns the bank into the board's and the
+Mac's tables (below), and `VoiceTests` checks the two list the same takes.
+Evidence: [voice asset publication](evidence/2026-09-29-voice-asset-push/README.md),
+[voice bank integration](evidence/2026-09-29-voice-bank/PLAN.md).
 
 Every tool prints its flags with `--help` (`internal/tools/boopctl
 <command> --help`, `.build/debug/boopdev <command> --help`,
@@ -116,7 +115,7 @@ commands go through the bridge.
 | --- | --- |
 | `replay <hooks.jsonl> [--agent claude\|codex] [--gap-ms N] [--states]` | Runs recorded hook payloads through `boop-hook`'s field picking, the adapter and the pipeline (the core and the view) on a virtual clock, and prints each raw event, the core's decisions and the view events. `{"wait_ms":N}` and `{"advance_ms":N}` lines move the clock. `--states` prints only what goes to the device: each `state` and each rule `moment` |
 | `replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]` | Sends each payload through the real `boop-hook` to a running app, in real time, and times each `boop-hook` from launch to exit. `{"advance_ms":N}` moves a headless app's clock |
-| `voice <feeling\|mood> [word] [--dialect HEX] [--seed N] [--count N] [--json]` | Prints the lines `react` would build ([VOICE.md](VOICE.md) §4), in a feeling or in the one Voice gives a mood's face; dialect `7f3a` and seed 1 by default |
+| `say [--meaning M] [--face MOOD] [--kind K] [--finish success\|failure]` | Prints the takes the board has that fit ([VOICE.md](VOICE.md) §3), and with a meaning and a face, which `react` would pick from ([VOICE.md](VOICE.md) §4); `--kind` is `sound` by default |
 | `eval [--runs N] [--only TEXT] [--always] [--timeline] [--scenarios DIR] [--steering DIR]`, `eval --list` | The eval scenarios against Jev (L5, [EVALS.md](EVALS.md)); `--list` prints each one's case with no key |
 | `watch [FILE] [--new]` | Prints a `debug.jsonl`'s view events, passes and actions readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's. `--new` skips what's already there |
 | `hooks status\|install\|remove [claude\|codex] --home DIR [--hook PATH]` | The hook installer, against any HOME ([ADAPTERS.md](ADAPTERS.md)) |
@@ -134,7 +133,7 @@ commands go through the bridge.
 
 | Tool | What it does |
 | --- | --- |
-| `internal/tools/.venv/bin/python internal/tools/voicegen/voicegen.py [--out FILE] [--wav-dir DIR]` | Rebuilds the voice assets, `firmware/assets/voice.h`, with macOS `say` ([VOICE.md](VOICE.md) §8); `--wav-dir` also writes every clip as a WAV |
+| `python3 internal/tools/voicegen/voicegen.py [--out FILE] [--swift FILE] [--wav-dir DIR]` | Rebuilds the voice from the recorded bank: `firmware/assets/voice.h` and the Mac's `app/BoopKit/Voice/Takes.swift` ([VOICE.md](VOICE.md) §3); `--wav-dir` also writes every converted take as a WAV |
 | `node internal/tools/sfxgen/sfxgen.mjs [--wav-dir DIR]` | Rebuilds the sound effects, `firmware/assets/sfx.h`, from the animation bank's synthesiser and timelines, for the designs facegen lists, so after `make -C internal faces` ([VOICE.md](VOICE.md) §10); `--wav-dir` also writes every clip as a WAV |
 | `internal/tools/.venv/bin/python internal/tools/fontgen/fontgen.py [--ttf-dir DIR]` | Rebuilds the device's fonts, `firmware/assets/fonts.h`, from Geist Mono ([DEVICE.md](DEVICE.md) §6); the `.ttf` files are in `landing/node_modules` after `npm ci` there, by default |
 | `internal/tools/.venv/bin/python internal/tools/facegen/facegen.py [--check]` | What `make -C internal faces` runs; without `--check` it skips the comparison with Chrome |

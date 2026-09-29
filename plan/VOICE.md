@@ -1,287 +1,195 @@
 # Boop: voice
 
-Updated 2026-09-29. How Boop's gibberish is built on the Mac, kept
-unintelligible, and played on the device, and the sound effects that go
-with the face's designs (§10). The code is the source:
-`app/BoopKit/Voice/` on the Mac, `firmware/src/voice/`,
-`firmware/src/app/effect_track.*` and `firmware/src/board/audio.*` on the
-device, and `internal/tools/voicegen/` and `internal/tools/sfxgen/` for
-the sounds.
+Updated 2026-09-29. What Boop says, how the brain and Voice pick it, and
+how the device plays it, with the sound effects that go with the face's
+designs (§10). The code is the source: `app/BoopKit/Voice/` on the Mac,
+`firmware/src/voice/`, `firmware/src/app/effect_track.*` and
+`firmware/src/board/audio.*` on the device, and
+`internal/tools/voicegen/` and `internal/tools/sfxgen/` for the sounds.
 
 ## 1. What we're after
 
-Boop sounds like a Minion from the films: fast, bouncy and full of
-feeling, with not a word you can make out, except that now and then one
-real English word pops out and lands, like *"…tests?"*.
+Boop half-speaks. Now and then it huffs, grunts or gasps, says one word
+that lands ("Go", "Done", "Again"), and at a big moment a little
+catchphrase ("Mamma mia", "Tiny genius"). When a failure really stings
+it swears at it. It never talks in sentences.
 
-- **Emotion first.** You can tell happy, annoyed, sleepy or curious with
-  your eyes closed.
-- **Unintelligible.** Nothing but the one real word sounds like English,
-  or like any language you speak.
-- **Recognisably this Boop.** Each Boop has its own favourite sounds, so
-  two side by side sound related but not the same.
-
-We take the feel of Minion speech (open vowels, a bouncy rhythm, a
-pseudo-Romance lilt), never its words or catchphrases, which belong to
-the films.
+- **Emotion first.** Every take was performed in one of Boop's moods, so
+  you can tell happy, annoyed or whiny with your eyes closed.
+- **Always the face's mood.** A take plays only in the face it was
+  recorded for. When no take fits the face, Boop makes its face in
+  silence rather than borrow another mood's voice.
+- **One voice.** Every take is the same recorded voice, the bank's
+  "Robot Minion 1", in one texture, so Boop sounds like one creature.
 
 ## 2. Who does what
 
 | Step | Done by |
 | --- | --- |
-| Decide to mumble: a feeling and maybe one word | The brain, whose `react` action picks a mood's face and the word; Voice gives the face its feeling (§4, [harness/DECISIONS.md](harness/DECISIONS.md) §5) |
-| Build the line (syllables, where the word goes, tune and tempo) and check it isn't accidentally a word (§7) | Voice, on the Mac |
-| Send it | The device link, as a `moment`'s `say` ([PROTOCOL.md](PROTOCOL.md) §3) |
-| Play it, with the mouth in time | The device (§8) |
+| Decide what Boop means and how to say it: a meaning (`say.meaning`) and a kind (`say.kind`) | The brain, in the `react` action's questions ([harness/DECISIONS.md](harness/DECISIONS.md) §3, §5) |
+| Find a take of that meaning, in the face's mood, fit for the turn's finish, of that kind or a plainer one (§4) | Voice, on the Mac |
+| Send it | The device link, as a `moment`'s `say`, `{"take":"new.d02"}`, or `{}` for nothing ([PROTOCOL.md](PROTOCOL.md) §3) |
+| Play it whole, with the mouth and bubble in time | The device (§8) |
 
-Voice is the only code that knows what Minion speech is. The brain never
-writes syllables: it picks a face and at most one word from a fixed
-list. So the voice is the same whichever brain is in use, and no model
-can slip real words into the gibberish.
+Voice is the only code that knows what Boop can say. The brain never
+picks a recording: it picks from about a dozen meanings and four kinds,
+and Voice maps them onto however many takes there are. So the brain's
+questions stay the same size as the bank grows.
 
-Voice is made once per Boop, from its dialect (§3), and has one function,
-plus the feeling each mood's face mumbles in (§4):
+## 3. The takes
 
-```
-Voice(dialect)
-  line(feeling, word?, seed) -> { groups, word, at, tune, ms }
-Voice.feeling(forMood: mood) -> feeling
-```
+The takes come from Federico's recorded voice bank,
+[internal/boop-design/assets/boop-voice-v1/](../internal/boop-design/assets/boop-voice-v1/README.md):
+40 recordings of one ElevenLabs voice, each a word, a sound, a phrase or
+a swear, performed in one mood. None has been approved by ear yet: the
+owner chose to put all 40 on the board as they are (2026-09-29).
 
-`groups` are the gibberish words, each a list of syllables; `at` is where
-the word goes, as an index into the syllables; `ms` is milliseconds per
-syllable. The same inputs always give the same line. `react` counts its
-seeds up from 1, so a run is repeatable, and
-`boopdev voice FEELING|MOOD [WORD] --seed N` rebuilds any line
-([VERIFICATION.md](VERIFICATION.md) §2).
-
-## 3. The syllables
-
-Soft, rounded consonants and pure open vowels are where the bounce comes
-from: `b p m n d t l k g` (and `y`, `w` in glides), and `a e i o u`,
-always said as in Italian. There's no `s`, `sh`, `f`, `th`, `r` or `v`:
-they make gibberish sound like real speech and don't play cleanly on an
-8-bit speaker.
-
-The full set is 64 syllables, fixed in the firmware, with
-`app/BoopKit/Voice/Sounds.swift` as the source:
-
-- the 45 pairs of `b p m n d t l k g` with `a e i o u`;
-- the glides `ya yo yu wa we wo`;
-- the bare vowels `a e i o u`, for gasps and trailing off;
-- six closed syllables that aren't English words: `pum lon kun tem gom lun`;
-- two hums, `mm` and `nn`, for sleepy lines and the safe hum (§7).
-
-**Each Boop's dialect.** Boop's random seed, made at setup and kept in
-`long-term.md` ([ARCHITECTURE.md](ARCHITECTURE.md) §4.2), picks 16
-favourite syllables from the set (not the hums). About 70% of a line's
-syllables come from the favourites that suit the feeling, and the rest
-from all the syllables that suit it. The dialect never changes, so your
-Boop always sounds like itself.
-
-## 4. Building a line
-
-A line is 2–8 syllables, grouped into gibberish "words" of 1–3, plus at
-most one real word:
-
-```
- ma-po  li  bu-da…  tests?
- └─ gibberish ─────┘ └ real word
-```
-
-- **Length.** Short (2–4 syllables) or long (5–8); how often it's long
-  depends on the feeling (below).
-- **Grouping.** A quarter of the words have one syllable, half two and a
-  quarter three. A two-syllable word is often a double (`po-po`,
-  `ba-ba`), which sounds playful: 40% of the time for happy and excited,
-  15% otherwise.
-- **The real word.** At most one, from the vocabulary (§6). Usually at the
-  end, as a question or an exclamation; one time in five at the start, as
-  an announcement. Curious always asks, at the end. A word that isn't in
-  the vocabulary is left out.
-
-The feeling picks the syllables, how often the line is long, the tempo
-and the tune (§5). There are eight feelings:
-
-| Feeling | Syllables | Long lines | ms a syllable | Tune |
-| --- | --- | --- | --- | --- |
-| Happy | Bright `a` and `i`, lots of doubles | 45% | 125 | `bounce` |
-| Excited | Like happy | 80% | 115 | `bounce` |
-| Proud | Open `a` and `o`, ending on `lon`, `gom`, `a` or `o` | 50% | 135 | `lift` |
-| Curious | Any open syllable, ending in `i` or `e` | 30% | 135 | `up` |
-| Hopeful | Soft `o` and `u` after `m n l y w b` | 25% | 145 | `up` |
-| Annoyed | Clipped `t`, `k` and `p` | 20% | 125 | `flat` |
-| Sad | Rounded `u` and `o`, ending on a bare `u` or `o` | 30% | 160 | `down` |
-| Sleepy | The hums, and `mu mo nu no` | 10% | 170 | `down` |
-
-**The brain's reactions** are the 13 moods' faces
-([harness/DECISIONS.md](harness/DECISIONS.md) §3), and each mumbles in a
-feeling (`Voice.feeling(forMood:)`): happy, excited, proud, curious,
-annoyed and sad in the feeling of the same name. The moods with no
-voice of their own yet borrow the nearest one until their recorded
-voice arrives: calm mumbles in happy's, engaged in curious's, grumpy
-and irritated in annoyed's, whiny and wounded in sad's, and determined
-in the temporary default, happy's. The audio is still being tuned, and
-the face is what the reaction means. Only the tools use hopeful and
-sleepy (`boopctl mumble`, `boopdev voice`, which also takes a mood and
-plays its feeling).
-
-| Mood | Feeling |
+| Kind | Takes |
 | --- | --- |
-| happy, calm, determined | happy |
-| excited | excited |
-| proud | proud |
-| curious, engaged | curious |
-| annoyed, irritated, grumpy | annoyed |
-| sad, whiny, wounded | sad |
+| `sound` | 10: Eh?, Tsk..., Hrr... (two), Pfft, Krr..., Rrr... tik, Heh..., Phew..., Mwahaha... |
+| `word` | 23: Go (three), Work, Finish, Done (three), Yay, Yatta (two), Dai, Basta, Aigo (two), Again (four), Oi, Hello (three) |
+| `phrase` | 4: Mamma mia, Bada bing bada boom, Tiny genius, Knock knock |
+| `swear` | 3: Shit, Fuck, Shiba |
 
-Real lines, from `boopdev voice FEELING [WORD] --seed N` with its
-default dialect (`7f3a`): happy `done` (seed 2) *"la-la la… done!"*,
-curious `tests` (seed 3) *"bu lo-lo ki… tests?"*, annoyed `build`
-(seed 1) *"build! pi ko-ko…"*, hopeful `food` (seed 1) *"yo-lun… food?"*,
-and sleepy (seed 3) *"mu-nu-mu…"*.
+Each has a **meaning**, the bank's intent: `begin`, `work`, `effort`,
+`ponder`, `success`, `celebrate`, `relief`, `pride`, `delight`,
+`frustration`, `retry`, and `attention`, which is needs you's and never
+a reaction's (§7). A take the bank says needs a confirmed success
+(Finish, Done, Yay, Yatta, Phew, Bada bing bada boom, Tiny genius) plays
+only on a success, and the swears only on a failure.
 
-## 5. Delivery
+**Moods.** Six takes were recorded in moods Boop doesn't have; by the
+owner's word they're used in the nearest: relieved (Done) and amused
+(Heh) in happy, weary (Aigo, Krr) in whiny, and the two with none, Go in
+calm and Oi in curious. What each face can say:
 
-**Tempo** is 135 ms a syllable at the neutral pace, moved only by the
-feeling (§4) and kept within 90–180 ms. The personality and its nature
-(sweet or cheeky) don't change the voice.
-
-**Tune** is the feeling's pitch shape across the line, the word's beat
-included. The real word bends half as far, so it stays closer to its own
-voice.
-
-| Tune | Pitch across the line |
+| Face | Its takes |
 | --- | --- |
-| `up` | Rises from 1× to 1.25×, with the last beat 0.1× higher still |
-| `down` | Falls from 1.1× to 0.8× |
-| `bounce` | Alternates 1.1× and 0.95× |
-| `lift` | Level at 1×, then 1.25× on the last beat |
-| `flat` | Level at 0.98× |
+| calm | Go |
+| happy | Finish, Done, Yay, Yatta (two), Phew, Heh |
+| excited | Go, Bada bing bada boom |
+| proud | Done, Tiny genius, Mwahaha |
+| curious | Eh? |
+| engaged | Work, Rrr... tik, Go |
+| determined | Dai, Again |
+| annoyed | Basta, Tsk, Pfft, Again, Shiba |
+| irritated | Again |
+| grumpy | Hrr (two), Mamma mia, Shit, Fuck |
+| whiny | Aigo (two), Krr, Again |
+| wounded | nothing |
+| sad | Done |
 
-**Liveliness** is ±5% random pitch and ±10% timing on each beat, so it
-never sounds robotic, with the line's length kept exact (§8). The device
-seeds it per line.
+**The assets.** `internal/tools/voicegen/voicegen.py` converts every
+take in the bank's manifest from its robot-soft WAV (44.1 kHz, 16-bit):
+the near-silence around it trimmed (10 ms frames quieter than −45 dBFS,
+keeping 30 ms before the first sound and 80 ms after the last), cut to
+11.025 kHz with a box low-pass, saturated and normalised as the old
+voice's clips were so it's as loud on the small speaker, and stored as
+8-bit samples. The robot-soft texture is already low-passed at 4.2 kHz,
+so 11.025 kHz keeps all of it. It writes two files, both checked in:
+
+- `firmware/assets/voice.h`: each take's id, bubble text and samples,
+  and its mouth, open or shut every 20 ms (open while a frame is at
+  least a fifth as loud as the take's loudest), with a version that
+  `dbg.ping` reports ([PROTOCOL.md](PROTOCOL.md) §5).
+- `app/BoopKit/Voice/Takes.swift`: each take's id, text, meaning, kind,
+  mood, the finish it needs and its length, which Voice picks from. A
+  test holds the two to the same takes.
+
+The 40 are 0.46–2.43 s once trimmed, 42 s in all: 462,857 bytes of
+samples and 2,130 of mouth. Adding a take means adding it to the bank,
+rerunning voicegen, and reflashing.
+
+## 4. Picking a take
+
+`Voice.take(meaning:kind:face:finish:avoiding:)`:
+
+1. The takes of that meaning, performed in the face's mood, whose
+   finish fits: a success take only when `react.animation` is
+   `success`, a swear only when it's `failure`.
+2. Of those, the kind asked for; with none of that kind, the next
+   plainer one, in the order swear, phrase, word, sound. Never a fancier
+   kind than asked.
+3. At random among them, but not the take said last while another fits.
+4. None left: Boop says nothing, and the face plays on its own.
+
+Real picks, from `boopdev say`: frustration, a swear, in a grumpy face at
+a failed turn is Shit or Fuck; the same at a check failing mid-turn
+(no failure yet) steps down to the phrase, Mamma mia; celebrate, a
+phrase, in a happy face is a word, Yay or Yatta; ponder in a calm face
+is nothing.
+
+The brain's side is in [harness/DECISIONS.md](harness/DECISIONS.md) §3:
+`say.meaning` offers only the meanings that have a take, and each option
+names the faces that can say it, so Jev can pick a face and a meaning
+that go together. The steering asks Boop to say something almost always,
+which means picking such a face.
+
+## 5. Volume
 
 **Volume** is the app's setting, 0–10, sent in every `state`; 0 is
-silent.
+silent. Takes play at their recorded pitch and speed: nothing is
+retuned, hurried or cut to fit.
 
-## 6. The real word
+## 6. Words, phrases and swears
 
-The device can't synthesise speech, so the real word always comes from a
-fixed vocabulary of 42 English words (`Sounds.vocabulary`):
+Boop is no longer held to one English word in gibberish (the rule until
+2026-09-29). Borrowed words (Dai, Basta, Aigo, Yatta) and the phrases
+play like any take. Phrases are for moments worth remembering, and the
+steering keeps them rare. Swears are for a failed turn that really
+stings, said at the situation, never at the person; the code allows one
+only on a failure (§4), and each personality says how much Boop swears
+([harness/DECISIONS.md](harness/DECISIONS.md) §2.2): boop at a stinging
+failure, chatter at every failed turn.
 
-- **Topic words:** `tests build docs deploy` (the topic tags from
-  [ADAPTERS.md](ADAPTERS.md) §3), `bug fix ship code merge review`, and
-  the agents' names, `claude codex`.
-- **Interjections:** `yay oops hmm finally done food sleepy hi bye love
-  wow yes no nope okay again nice ugh boo whee hooray thanks hello more
-  snack nap play good oh what`.
+## 7. What Boop never says
 
-The brain's word questions offer seventeen of them, eight exclamations
-and nine topic words: the four tags; `bug`, `merge` and `review`, which
-Jev reads from your prompt and the agent's last message; and the agent's
-name, the filler when no other topic fits
-([harness/DECISIONS.md](harness/DECISIONS.md) §3), so
-it can't ask for a word Boop can't say. The vocabulary is English
-everywhere: the gibberish needs no translation, and a stray English word
-is part of the charm. Adding a word means adding it to `Sounds.swift`,
-regenerating the assets (§8) and reflashing.
-
-## 7. Staying unintelligible
-
-Voice checks every line before it's sent. A line fails if any gibberish
-word, or the whole line run together, is:
-
-- an English word of three or more letters in the Mac's word list
-  (`/usr/share/dict/words`);
-- on a short list of rude or sensitive words in the launch languages
-  (English, Korean, Japanese and romanised Chinese), which includes
-  nursery words for the toilet (`kaka`, `pipi`);
-- a Minion word or catchphrase;
-- a double people hear as a word (`mama`, `papa`, `nana`, `yoyo` and a
-  few more).
-
-Rude and Minion words of four or more letters also fail anywhere inside
-the line, across word breaks. A doubled syllable (`po-po`, `ki-ki`) is the
-Minion bounce, and the word list is full of obscure doubles, so doubles
-skip the word list, though not the other lists. Only words spelled with
-the letters of Boop's syllables can ever match, so the app keeps just
-those from the word list, about a tenth of it. Without the word list,
-only the fixed lists apply.
-
-While building a line, Voice re-rolls a gibberish word that fails, up to 4
-times, then checks the finished line. A line that fails is built again, up
-to 5 times, and then replaced with the safe hum, `mm-nn…`, tune `down`.
-The real word isn't checked: it's meant to be heard. `VoiceTests` builds
-10,000 lines across 25 dialects and checks them against the lists on its
-own: none may fail, and fewer than 50 may end as the safe hum.
+- Nothing while something needs you: the ding is needs you's only sound
+  (§9, [BEHAVIORS.md](BEHAVIORS.md) §3.2). The bank's needs-you takes
+  (Hello, Oi, Knock knock) are on the board but no reaction says them.
+- Nothing while the mic is on.
+- No take borrowed from another mood, and none made up: when the bank
+  has nothing for the face, Boop is silent.
 
 ## 8. Sound on the device
 
-**The assets.** Every syllable and word is synthesised offline and made
-to sound small and chiptune, into a fixed, versioned pack, so Boop's
-voice only changes when the pack is rebuilt and flashed.
-`internal/tools/voicegen/voicegen.py` reads the syllables and vocabulary
-from `Sounds.swift` and writes `firmware/assets/voice.h`, with a version
-that `dbg.ping` reports ([PROTOCOL.md](PROTOCOL.md) §5):
+**Playback.** The device looks a take up by id in `voice.h` and plays it
+whole, from its first sample to its last, at its recorded pitch: the
+11.025 kHz samples are interpolated to the DAC's 22.05 kHz, from an
+audio task of its own ([DEVICE.md](DEVICE.md) §4). A take it doesn't
+have plays nothing. A take cut short (hushed, or replaced by a new one)
+fades out over 4 ms under what comes next, so the cut doesn't click.
 
-- Syllables are spoken by macOS's Italian voice (Alice), so vowels stay
-  pure; some are respelled so Italian reads them as meant (`ki` → `chi`,
-  `ge` → `ghe`, `ya` → `ia`). Words use an English voice (Samantha).
-- Each clip is trimmed, pitched up (1.3× for syllables, 1.15× for words,
-  so the word stays clear), saturated and normalised, and stored as 8-bit
-  samples at 11.025 kHz.
-- `say` can't hum `mm` or `nn`, so the hums are synthesised as a nasal
-  tone.
-
-The pack is 235 KB: 64 syllables of 84–163 ms and 42 words of 125–481 ms.
-
-**Playback.** The device looks each clip up by name and resamples it as it
-plays, so pitch and tempo change without new assets (the trick Animal
-Crossing uses), then feeds the DAC at 22.05 kHz from a task of its own
-([DEVICE.md](DEVICE.md) §4).
-
-- Each syllable gets one beat of `ms` and the word two. A clip longer
-  than its beat is cut with a 5 ms fade, and a long word speeds up to fit,
-  by at most 1.6×.
-- The timing jitter (§5) moves within pairs of beats, so a line lasts
-  exactly beats × `ms`.
-- A syllable the device has no clip for keeps its beat, silent. A word it
-  has no clip for isn't played.
-- The device clamps `ms` to 60–400 and plays at most 12 syllables of a
-  line.
-- A line cut short (hushed, or replaced by a new line) fades
-  out over 4 ms under what comes next, so the cut doesn't click.
-
-**The mouth** opens for the first half of each beat for as long as the
-sound lasts, and the bubble shows the word among squiggles until 1.2 s
-after it, in the bottom lane in the status strip's place
-([DEVICE.md](DEVICE.md) §4). With the sound off, the mouth and bubble
-still play.
+**The mouth** follows the take's mouth frames: open while the take is
+loud, shut in its pauses. **The bubble** shows the take's text, from
+when it starts until 1.2 s after it ends, in the bottom lane in the
+status strip's place ([DEVICE.md](DEVICE.md) §4). With the sound off,
+the mouth and bubble still play.
 
 **Checking it.** Tests check the timeline through `dbg.state`'s `audio`
 ([PROTOCOL.md](PROTOCOL.md) §5). The sound itself is checked by ear on
 the bench board's speaker ([DEVICE.md](DEVICE.md) §3):
-`internal/tools/boopctl mumble` plays every feeling with and without a
-word (`--levels` compares volumes), and `internal/tools/boopctl play needs`
-plays needs you's alert ([VERIFICATION.md](VERIFICATION.md) §2).
+`internal/tools/boopctl takes` plays every take, and
+`internal/tools/boopctl play needs` plays needs you's alert
+([VERIFICATION.md](VERIFICATION.md) §2).
 
 ## 9. How often Boop talks
 
-When Boop mumbles, and when it mustn't, is in [BEHAVIORS.md](BEHAVIORS.md)
-§2, §4 and §6. On the device, a `state` with "needs you" or volume 0 stops
-a line that's playing.
+When Boop reacts, and when it mustn't, is in [BEHAVIORS.md](BEHAVIORS.md)
+§2, §4 and §6; whether it says something is the brain's and Voice's
+(§4). On the device, a `state` with "needs you" or volume 0 stops a take
+that's playing.
 
-**When a line starts.** A line on its own plays at once, over whatever
-face shows. A line that comes with an animation, as the brain's finish
+**When a take starts.** A take on its own plays at once, over whatever
+face shows. A take that comes with an animation, as the brain's finish
 sends one, starts at that design's voice window (§10), so it follows the
 design's attention cue rather than talking over it; its sound, mouth and
 bubble start together. The animation holds on, resting on its last
-frame, until the line and its bubble end: a line that doesn't fit is
-never hurried. A tap or "needs you" before the window drops the line
-unplayed. The Mac reckons the same length for the moment
-(`DeviceMoment.playMs`, from `FaceLoops.voiceMs`).
+frame, until the take and its bubble end. A tap or "needs you" before
+the window drops the take unplayed. The Mac reckons the same length for
+the moment (`DeviceMoment.playMs`, from `FaceLoops.voiceMs`). A reaction
+that says nothing keeps the next reaction from replacing its face for as
+long as a bubble would show, 1.2 s (`DeviceMoment.faceFirstMs`).
 
 ## 10. Sound effects
 
@@ -307,10 +215,10 @@ runs first). It writes `firmware/assets/sfx.h`, with a version that
   (stopped) and `failedAttempt` (a failed finish, an error).
 - An event's loudness is its clip's level times its gain in the bank.
   The bank spans about 40 dB, which an 8-bit speaker loses in its hiss, so
-  the tool takes the square root: the loudest event plays as loud as a
-  syllable, the quietest at about a tenth of that, and the order holds.
+  the tool takes the square root: the loudest event plays about as loud
+  as a take, the quietest at about a tenth of that, and the order holds.
 - The bank's pitch for an event (0.91–1.12) is kept, and the device
-  resamples the clip for it, as it does a syllable.
+  resamples the clip for it.
 
 **The voice-first mix.** The bank keeps its sounds sparse, so the voice
 comes first. Idle, asleep, no app, listening and waiting are silent. A
@@ -331,7 +239,7 @@ policy:
 | working, planning, terminal, tool_use, searching, analyzing, testing | Every loop, each loop its own picks | A few clicks and rustles, never the same loop over and over |
 | The same, with a loop under 3.5 s | Every other loop: loops 0, 2, 4… | Room between a short loop's accents |
 | needs_you | First loop only | Its knocks or taps, ending in the ding; its pose then holds, silent |
-| task_complete, error | First loop only | The fanfare, or a failure's sputter (never a trophy), then room for a mumble |
+| task_complete, error | First loop only | The fanfare, or a failure's sputter (never a trophy), then room for a take |
 | starting, delegating, helper_return, reply_ready, stopped, poked, tap_spam | First loop only | A few contacts as it starts |
 | idle, asleep, no_app, listening, waiting | Silent | |
 
@@ -346,19 +254,19 @@ policy:
 - A test pattern (`dbg.pattern`) is silent. Volume 0 stops the effects
   and sends none; volume sets their level as it does the voice's.
 
-**With a mumble.** Effects mix under the voice and don't stop it. While a
-line plays they are a quarter as loud, the bank's level, except needs
+**With a take.** Effects mix under the voice and don't stop it. While a
+take plays they are a quarter as loud, the bank's level, except needs
 you's, the finish's and an error's: the design decides, not the clip.
-No line plays while something needs you (§9), so the ding is always
+No take plays while something needs you (§7), so the ding is always
 heard. It is the only needs-you sound: a new request shown plays the
 performance again from its start ([BEHAVIORS.md](BEHAVIORS.md) §3.2).
 Each design also has a voice window, by the bank's `voiceStart`: when a
-mumble over it may start, 0.12 s after the last attention cue ends for
+take over it may start, 0.12 s after the last attention cue ends for
 needs you, the finish and an error, and 0.45 s in for the rest. facegen
 works it out for every design (`bank.mjs`; the bank's own `voiceWindows`
 gives it only for the new moods') and lists it in its manifest; sfxgen
 writes it into sfx.h (`voice::Score::voiceMs`), where the device starts
-a line that comes with an animation (§9), and facegen into the Mac's
+a take that comes with an animation (§9), and facegen into the Mac's
 `FaceLoops` (`voiceMs`).
 
 **Mixing.** Up to four effects play at once; a fifth replaces the oldest.

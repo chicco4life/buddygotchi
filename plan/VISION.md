@@ -40,9 +40,8 @@ relies on breaks. "An agent needs you" still has to be fast and reliable,
 but how Boop reacts to it is a question of character.
 
 - **Grown, not chosen.** At setup you name it and answer one question:
-  sweet or cheeky? Its voice gets a dialect of its own from a random seed
-  ([VOICE.md](VOICE.md) §3). There is no menu of traits. In v1 your answer
-  is kept, and nothing uses it yet.
+  sweet or cheeky? There is no menu of traits. In v1 your answer is kept,
+  and nothing uses it yet.
 - **Lasting.** Boop lives on your Mac, and the device is just its body.
   Reflash the device or replace it, and it's still the same Boop.
 - **Shown, never told.** Its feelings come out in how it moves, looks and
@@ -54,17 +53,19 @@ but how Boop reacts to it is a question of character.
 
 ## It doesn't talk like a human
 
-Boop speaks Minion: a stream of gibberish syllables, like the Minions from
-the films, that nobody is meant to understand. At most one real English
-word slips through, and it fits what's happening right now, such as
-*"…tests?"*, *"…finally!"* or *"…ugh."*
+Boop half-speaks: a huff, a grunt or a gasp, one word that lands
+(*"Done"*, *"Again"*, *"Yatta"*), now and then a little catchphrase
+(*"Mamma mia"*), and a swear when a failure really stings. Each is a real
+recording, performed in one of its moods, and it plays only with that
+mood's face.
 
 This is deliberate. The moment a creature speaks in full sentences,
 people judge it as a chatbot, and it loses that comparison, while a pet
-that half-speaks can be charming. Tone carries the feeling and the one
-word the context, which is all a glance from across the desk can take in.
+that half-speaks can be charming. The tone carries the feeling and the
+word the moment, which is all a glance from across the desk can take in.
 And it keeps Boop fast, private and cheap, since nothing has to write
-polished language in real time ([VOICE.md](VOICE.md)).
+language in real time: the brain picks what Boop means, never the words
+([VOICE.md](VOICE.md)).
 
 ## Hero moments
 
@@ -75,16 +76,16 @@ harness evals check the brain's part ([EVALS.md](EVALS.md)).
 
 1. **A turn finishes, and it's happy for you,** as much as the finish
    earns: a small face for a quick one, the finish played as a success
-   in its proud face with "…finally!" for a comeback. It judges each
+   in its excited face with *"Bada bing bada boom"* for a big one. It judges each
    finish from what the agent said: a success, a failure, or only a
    reply.
 2. **A turn fails, and it's grumpy for you.** Maybe a grumpy
-   face and a mumble that names what broke, *"…tests."*
+   face and a *"Mamma mia"*, or a swear when it really stings.
 3. **Yell at it, and it's sad.** This one waits for Boop to hear how
    you say things: v1's push-to-talk hears only the words.
 4. **Poke it too much, and it grumbles.** One poke gets a curious look and
    its tap animation. Keep poking and it gets annoyed, then irritated and
-   grumpy (*"…nope!"*), then calms down a step at a time.
+   grumpy (*"Mamma mia"*), then calms down a step at a time.
 
 ## Scope
 
@@ -101,7 +102,7 @@ harness evals check the brain's part ([EVALS.md](EVALS.md)).
   reading, searching, sending off helpers, waiting, planning), needs
   you, and a short scene when a task starts, stops, fails a command or
   a helper comes back; its own animation for every tap, a bigger one
-  for a barrage; with Jev, mumbles while agents work
+  for a barrage; with Jev, grunts and chatters while agents work
   ([BEHAVIORS.md](BEHAVIORS.md)).
 - **Has a personality and moods.** Two personalities: `boop`, its
   everyday self, and `chatter`, an over-the-top one for debugging. 13
@@ -109,17 +110,16 @@ harness evals check the brain's part ([EVALS.md](EVALS.md)).
   with its own face, and moving a step at a time along the owner's mood
   graph. With your own TypeSafe Jev key, Jev picks the mood and adds
   reactions with character: another mood's face for a moment, and a
-  mumble, a finished turn's included, which Jev judges a success, a
+  word or a sound in that mood, a finished turn's included, which Jev judges a success, a
   failure or only a reply; without one, Boop shows what its agents do
   and when you're needed, but doesn't react
   ([harness/HARNESS.md](harness/HARNESS.md)).
 - **Hears you.** Hold its button, or click Talk, and speak: the Mac's
   mic turns it into words on the Mac, and with Jev, Boop answers with a
-  face and a mumble. It can't talk back ([BEHAVIORS.md](BEHAVIORS.md)
+  face, and maybe a word or a sound. It can't talk back ([BEHAVIORS.md](BEHAVIORS.md)
   §3.3).
 
-Its name, its sweet or cheeky nature and its voice are set when it
-hatches. Nothing else about its character grows in v1. A character that
+Its name and its sweet or cheeky nature are set when it hatches. Nothing else about its character grows in v1. A character that
 grows with you, hearing how you say things, gentler nudges, a private
 record and more are parked, to come back one at a time.
 
@@ -139,8 +139,8 @@ changes.
 
 1. **Personality first, productivity second.** Nothing it needs to do for
    you breaks, but when the two compete, character wins.
-2. **It never talks like a human.** Minion mumble with at most one real
-   word, and that word fits what's happening.
+2. **It never talks like a human.** A sound, a word or a little phrase
+   at most, recorded in the mood it shows, and it fits what's happening.
 3. **Its inner state stays inner.** Feelings show only in behaviour, never
    as meters or scores.
 4. **Fast and rule-driven where it counts.** Anything that tells you an
@@ -153,7 +153,7 @@ changes.
    on the Mac.
 6. **No reset button.** Boop lives in files on your Mac, not in the device
    or the model, and it belongs to you. In v1 it keeps its name, nature,
-   voice seed, mood and which day it last saw
+   seed, mood and which day it last saw
    ([ARCHITECTURE.md](ARCHITECTURE.md) §4).
 7. **Private by construction.** There is no camera and no wake word, and
    the Mac's mic listens only while you hold Boop's button or after you

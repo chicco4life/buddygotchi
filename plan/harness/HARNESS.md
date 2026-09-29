@@ -22,7 +22,7 @@ around it. It knows three contracts and nothing else:
 | **Brain** (§7) | The harness ↔ Jev | `answer(state, questions, deadline) → Answers` |
 
 The harness never reads a view event's facts or an action's answers,
-never builds Minion speech or talks to the device. The brain is never on
+never picks what Boop says or talks to the device. The brain is never on
 the screen's path: by the time the harness sees a view event, the core
 has already updated the look and "needs you". Every reaction, a finished
 turn's included, is the brain's.

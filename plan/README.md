@@ -9,7 +9,7 @@ with the vision.
 | --- | --- |
 | [VISION.md](VISION.md) | Why Boop exists, its personality, the promises, and what's in v1 |
 | [BEHAVIORS.md](BEHAVIORS.md) | What Boop does when things happen, with its sound and light, and how each personality changes it |
-| [VOICE.md](VOICE.md) | The gibberish: how it's built, checked and played |
+| [VOICE.md](VOICE.md) | What Boop says: the recorded takes, how one is picked and played |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | The parts and their boundaries, the data flow, queues and timers, what Boop keeps on disk, budgets, and the decisions in force |
 | [ADAPTERS.md](ADAPTERS.md) | The hook client, the event each hook becomes, session states and "needs you", and installing the hooks |
 | [harness/HARNESS.md](harness/HARNESS.md) | The harness: how a view event becomes a question for Jev and an answer becomes an action; the transcript and the state |
