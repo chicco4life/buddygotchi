@@ -384,6 +384,7 @@ the same `t`; an unknown `dbg.*` gets none.
 | `{"t":"dbg.pattern"}` | Shows the test pattern ([DEVICE.md](DEVICE.md) §7) until the next `state`. With `"fill":N`, a solid screen of palette index N instead; with `"target":[x,y]`, an amber cross at (x, y) on black. Touches don't tap while it shows | `{"t":"dbg.pattern"}` |
 | `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Holds the backlight, the LED or both until the next `state` | `{"t":"dbg.light"}` |
 | `{"t":"dbg.touchcal"}` | Reads the touch calibration. With `"set":[ax,bx,cx,ay,by,cy]` stores one, and with `"clear":true` forgets it ([DEVICE.md](DEVICE.md) §4) | `{"t":"dbg.touchcal","cal":[…]}`, or `"cal":null` when uncalibrated |
+| `{"t":"dbg.card","op":"begin","keep":true}`, then `{"t":"dbg.card","op":"put","at":N,"c":CRC,"d":"<base64>"}`, then `{"t":"dbg.card","op":"end","size":N,"crc":CRC}` | Copies a voice pack onto the card over USB (`boopctl card`, [VOICE.md](VOICE.md) §8). `begin` opens `/boop/voice.tmp`, afresh or, with `keep`, where an earlier copy stopped, and closes the pack, so Boop has no voice while it goes on (`card` `copying`). Each `put` carries up to 360 bytes, appended only when `at` is where the file ends and `c` is their CRC-32. `end` reads the file back, and when its size and CRC-32 match, swaps it in for the pack and reopens it; when they don't, the old pack plays again | `{"t":"dbg.card","op":…,"ok":true,"have":N,"why":""}`, `have` what the file holds; a refused `put` says `why` (`wrong crc`, `not where the card is`, `not base64`, `can't write`). `end`'s reply has `voice`, the pack now playing. With no card, `ok` is false and `why` `no card` |
 | `{"t":"dbg.reset"}` | Forgets everything the Mac said, the moment, the line, any pattern, light or injected input, and the last input, then freezes the clock at 0 and reseeds. A moment the Mac waits on still gets its `ended`, `cut` by `reset` (§4). Every scenario starts with it | `{"t":"dbg.reset"}` |
 
 A clock a tool froze runs again by itself after 60 s with no `dbg.*`
@@ -405,7 +406,7 @@ instead of running.
 | `ble` | `off` (Bluetooth didn't start), `idle` (neither advertising nor connected, so no Mac can find it), `adv` or `conn` |
 | `name` | `Boop-XXXX`; left out in the simulator |
 | `voice` | The version of the voice pack on the card, as `status` gives it (§4) |
-| `card` | The microSD card: `ok`, `no card` or `no pack` ([VOICE.md](VOICE.md) §8); `none` in the tests, and in the simulator whether it found `.build/voice/voice.bin` |
+| `card` | The microSD card: `ok`, `no card`, `no pack` or `copying` ([VOICE.md](VOICE.md) §8); `none` in the tests, and in the simulator whether it found `.build/voice/voice.bin` |
 | `fx` | The sound effects' version ([VOICE.md](VOICE.md) §10) |
 | `w`, `h` | The screen as drawn: 320 and 240 |
 

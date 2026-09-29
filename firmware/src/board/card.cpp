@@ -4,6 +4,10 @@
 #include <FS.h>
 #include <SD.h>
 #include <SPI.h>
+#include <fcntl.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <unistd.h>
 
 #include "app/codec.h"
 #include "board/audio.h"
@@ -23,27 +27,44 @@ constexpr const char* kCopyPath = "/boop/voice.tmp";
 SPIClass cardSpi(VSPI);
 const char* state = "no card";
 
-// The pack's bytes from one open file: one for lookups on the main loop,
-// another for the audio task, since a File isn't shared between tasks.
+// The pack's bytes from one open file, shared by lookups on the main loop
+// and the audio task under a mutex. One file, and a plain POSIX
+// descriptor rather than Arduino's File: the mount reserves a FatFs file
+// (a 4 KB sector each) for every file it allows open, and a File adds a
+// stdio buffer, and the heap is the board's tightest limit (DEVICE.md §6).
 struct CardSource : voice::Source {
-  File f;
+  int fd = -1;
+  SemaphoreHandle_t lock = nullptr;
   bool read(uint32_t at, void* buf, uint32_t n) override {
-    return f && f.seek(at) && f.read(static_cast<uint8_t*>(buf), n) == n;
+    if (!lock || xSemaphoreTake(lock, pdMS_TO_TICKS(200)) != pdTRUE) return false;
+    bool ok = fd >= 0 && ::lseek(fd, off_t(at), SEEK_SET) == off_t(at) && ::read(fd, buf, n) == ssize_t(n);
+    xSemaphoreGive(lock);
+    return ok;
+  }
+  bool open() {
+    if (!lock) lock = xSemaphoreCreateMutex();
+    close();
+    fd = ::open("/sd/boop/voice.bin", O_RDONLY);
+    return fd >= 0;
+  }
+  void close() {
+    if (lock) xSemaphoreTake(lock, portMAX_DELAY);
+    if (fd >= 0) ::close(fd);
+    fd = -1;
+    if (lock) xSemaphoreGive(lock);
   }
 };
-CardSource lookups, samples;
+CardSource pack;
 bool mounted = false;
 File copy;  // the pack being copied on
 
 bool mount() {
-  if (!mounted) mounted = SD.begin(pins::kCardCs, cardSpi, kCardHz, "/sd", 4);
+  if (!mounted) mounted = SD.begin(pins::kCardCs, cardSpi, kCardHz, "/sd", 1);  // the pack, or a copy of one
   return mounted;
 }
 
 bool openPack() {
-  lookups.f = SD.open(kPackPath);
-  samples.f = SD.open(kPackPath);
-  if (!lookups.f || !samples.f || !voice::openPack(&lookups, &samples)) return false;
+  if (!pack.open() || !voice::openPack(&pack)) return false;
   state = "ok";
   return true;
 }
@@ -65,6 +86,13 @@ bool packBegin(bool keep, uint32_t& have, const char*& why) {
     return false;
   }
   SD.mkdir("/boop");
+  // Boop has no voice while a copy goes on: the one file the mount allows
+  // is the copy's.
+  audioHush();
+  delay(60);
+  voice::closePack();
+  pack.close();
+  state = "copying";
   if (!keep) SD.remove(kCopyPath);
   copy = SD.open(kCopyPath, FILE_APPEND);
   if (!copy) {
@@ -99,14 +127,15 @@ bool packEnd(uint32_t size, uint32_t crc, const char*& why) {
   if (f) f.close();
   if (got != size || sum != crc) {
     why = got != size ? "wrong size" : "wrong crc";
+    state = "no pack";
+    openPack();  // the old pack, if there is one, plays again
     return false;
   }
   // Swap it in: nothing plays while the old pack closes.
   audioHush();
   delay(60);
   voice::closePack();
-  lookups.f.close();
-  samples.f.close();
+  pack.close();
   SD.remove(kPackPath);
   state = "no pack";
   if (!SD.rename(kCopyPath, kPackPath) || !openPack()) {

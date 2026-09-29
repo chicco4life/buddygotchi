@@ -10,7 +10,7 @@ namespace board {
 // Mounts the card and opens /boop/voice.bin for voice::openPack. False
 // when there's no card or no pack; `cardState` says which.
 bool cardBegin();
-// `ok`, `no card` or `no pack`, for dbg.ping.
+// `ok`, `no card`, `no pack` or `copying`, for dbg.ping.
 const char* cardState();
 
 // A new pack copied on over USB (dbg.card): /boop/voice.tmp, begun afresh

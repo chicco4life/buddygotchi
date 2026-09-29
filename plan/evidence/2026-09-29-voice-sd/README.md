@@ -29,15 +29,18 @@ first 4 KB took 13 ms on average and 19 ms at worst. Boop's firmware
 | The changed eval scenarios, once each against `jev:jev-latest` ([eval.txt](eval.txt)) | 15 of 15: 03, 04, 05, 09, 11, 12, 15, 16, 27, 29, 35, 54, 60, 61, 62. Before the last steering changes 12 of 15: 15 (upset at quiet work, fixed by putting back the very-long-work Example and telling `upset` it's not for work going on), 54 (a tickled "Yep" to "how's it going?", now allowed) and 03 (sad, which passed 3 of 3 on a rerun) |
 | Scenario 04 alone, for [harness/EXAMPLE.md](../../harness/EXAMPLE.md) | Passed; its log is [eval-04-debug.jsonl](eval-04-debug.jsonl) |
 
-## Still to do on the board (Phase 4)
+## On the board (Phase 4)
 
-1. Copy the pack onto the card in a reader on the Mac:
-   `python3 internal/tools/voicegen/voicegen.py --card /Volumes/<card>`.
-2. Put the card back, flash (`make flash`), and check `ping`: `card`
-   `ok`, `voice` `1aace295d219`, and the free heap (the target is 50 KB
-   or more; 72 KB before).
-3. Touch is now bit-banged: a tap and `boopctl state`'s raw touch need a
-   person's finger.
-4. `internal/tools/boopctl takes --only <a few>`, then the soak (L2) and
-   the pipeline check (L4), and a failed turn, being told off, a poke and
-   a failing check on the board, heard.
+| Check | Result |
+| --- | --- |
+| The firmware's first mount of the card | `card` `no pack`, but free heap 38.8 KB (72 KB before): Arduino `File`s and four files allowed |
+| One POSIX descriptor under a mutex, one file allowed | 51.3 KB free with the pack open (51,184 at the least) |
+| `boopctl card`, the pack over USB | 217 KB in about 5 minutes, about 0.7 KB/s: hours for the whole pack. Stopped |
+| `voicegen.py --card` through a USB-C card reader | 30,536,987 bytes in seconds, `cmp` identical |
+| `ping` with the card back | `card` `ok`, `voice` `1aace295d219` |
+| `boopctl takes --only` six takes: Go, Bada bing bada boom, Fuck (irritated), Aww... (wounded), Technical difficulties, Test | All `ok`: the DAC took each take's planned length to the millisecond, amp on; the owner heard them |
+| A line of two takes, "Tsk... Test" | Planned, rendered and played 2,425 ms (1,377 + 180 + 868), not cut, no DAC errors |
+
+Still to do: a tap, for the bit-banged touch; the soak (L2) and the
+pipeline check (L4), which the owner runs tonight; and a failed turn,
+being told off and a poke through the app.

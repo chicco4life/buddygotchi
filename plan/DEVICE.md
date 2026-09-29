@@ -317,7 +317,8 @@ whole firmware is 2.36 MB, about 75% of app0.
 | NimBLE host and controller | ~75 KB, measured | |
 | Audio | ~15 KB | Four 1 KB DMA buffers, a 6 KB task stack (it reads the card as it plays), the player's 1 KB window of samples and the driver |
 | JSON and serial buffers | ~6 KB | 2 KB of received bytes each for USB and Bluetooth; a line is at most 512 bytes |
-| **Free heap** | **≥ 60 KB** | The target; measured below |
+| microSD | ~18 KB | The mount, with one file at a time (a FatFs file keeps a 4 KB sector), read through a plain POSIX descriptor shared under a mutex by lookups and the audio task |
+| **Free heap** | **≥ 50 KB** | The target, 60 KB before the card; measured below |
 
 **The DAC must never run dry.** If its DMA reaches the end of what it was
 given, ESP-IDF's DAC writes stop getting buffers back and time out for
@@ -457,6 +458,7 @@ frames stay exact) and a press draws at once for its first 60 ms. A screenshot a
 | Measure | Value | Source |
 | --- | --- | --- |
 | Firmware size | 2.36 MB (2,356,355 bytes), 74.9% of app0 | The board build that plays the takes from the card, with the needs-you sign (`make -C internal fw`), 2026-09-29 |
+| Free heap with the voice pack open on the card | 51.3 KB (51,332 bytes; least 51,184) | The bench board, firmware `1898f5c2` with the one-file mount, [2026-09-29](evidence/2026-09-29-voice-sd/README.md). The soak with it is still to run |
 | Minimum free heap, through a 10-minute soak with brain reactions | 71.5 KB (71,472 bytes), no drift from its first sample | The bench board, firmware `067c7d80`, [2026-09-29](evidence/2026-09-28-mood-spectrum/board/README.md) |
 | Frames a second through `perf --motion`'s finishes and pokes | 6.1 on average, 3 at the least: the wiggle now plays the stepped poke designs, not a continuous sway, so fewer frames change | The bench board, firmware `067c7d80`, 60 s, the same |
 | Drawing and pushing one changed frame (`draw_us`, `push_us`), through the soak | 1.5 ms and 11.7 ms typically; 3.0 ms and 27.0 ms at the most | The same |

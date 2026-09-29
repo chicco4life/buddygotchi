@@ -174,7 +174,10 @@ an agent giving up gets a sigh.
 
 **The card.** Every take is on the board's microSD card, as the voice
 pack at `/boop/voice.bin` ([DEVICE.md](DEVICE.md) §2), which
-`voicegen.py --card /Volumes/<card>` copies onto a card in the Mac. The
+`voicegen.py --card /Volumes/<card>` copies onto a card in the Mac, in
+seconds. With no card reader, `boopctl card` copies it over USB
+(`dbg.card`), resuming where it stopped, but at about 0.7 KB/s, hours for
+the whole pack. The
 board mounts it at boot and reports the pack's version in `status` and
 `dbg.ping` (`none` with no card or no pack), and whether the card is
 there as `dbg.ping`'s `card` ([PROTOCOL.md](PROTOCOL.md) §4–5). The Mac
