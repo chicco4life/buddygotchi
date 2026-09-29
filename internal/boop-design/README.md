@@ -12,8 +12,9 @@ changes the shipped app, firmware enums, steering or hardware assets.
   neighbor choices, dramatic-edge gating, migration and voice guidance.
 - [Machine-readable graph](boop-mood-spectrum-v2/mood-graph.json).
 - [Voice asset bank and agent selection guide](assets/boop-voice-v1/README.md):
-  40 recorded Robot Minion takes, three local DSP alternatives, original masters,
-  dictionary, lookup indexes and a tested host-side selector. Audition assets,
+  the completed first-pass Robot Minion dictionary, three local DSP alternatives,
+  original masters, portable continuous audition, deferred-slot manifest, lookup
+  indexes and a tested host-side selector. Audition assets,
   not automatic production playback.
 
 From the **repository root**, with Node.js:

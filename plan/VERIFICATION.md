@@ -55,6 +55,13 @@ an API; unreviewed takes require explicit audition mode. The
 actual recordings from the planned dictionary and documents encoding/timing limits.
 Evidence: [voice asset publication](evidence/2026-09-29-voice-asset-push/README.md).
 
+The completed dictionary extension also checks the disjoint first-pass/deferred
+slot partition, exact first-pass-to-recording mappings, portable review paths and
+expanded-bank selection. `tools/import-phase1.mjs --source PATH` is an allowlisted
+offline import, not a generator; it preserves matching existing recordings and
+refuses different audio. The package README documents the local review server.
+Evidence: [first-pass publication](evidence/2026-09-29-voice-phase1-push/README.md).
+
 Every tool prints its flags with `--help` (`internal/tools/boopctl
 <command> --help`, `.build/debug/boopdev <command> --help`,
 `.build/debug/Boop --help`). `Boop` and `boopdev` stop with their usage on

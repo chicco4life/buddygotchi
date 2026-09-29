@@ -10,7 +10,9 @@ if(!process.argv.includes('--source')||!source||!path.isAbsolute(source))throw E
 const read=p=>JSON.parse(fs.readFileSync(path.join(source,p),'utf8'));
 const dict=read('internal/voice-recording-plan/dictionary/dictionary.json');
 const audition=read('tmp/boop-scene-sampler/dictionary-audio.json');
+audition.recorded=audition.recorded.filter(t=>['new','previous'].includes(t.bank));
 if(dict.voice_id!=='rErOatUrNIU3vfNcLl6Z'||audition.recorded.length!==40)throw Error('Unexpected audition inventory');
+if(fs.existsSync(path.join(dest,'manifest.json'))&&JSON.parse(fs.readFileSync(path.join(dest,'manifest.json'))).recordings.length>40)throw Error('Expanded bank exists: use import-phase1.mjs; never downgrade its manifest to the pilot');
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const write=(name,obj)=>fs.writeFileSync(path.join(dest,name),JSON.stringify(obj,null,2)+'\n');
 function copy(src,relative){

@@ -8,30 +8,50 @@ mood graph, generic harness, or approval rules. Publication is not listening app
 ## Start here: find an actual recording in seconds
 
 Read [manifest.json](manifest.json) and [index.json](index.json), not every proposed
-dictionary performance. The manifest lists **40 actual recordings**. Their three
-local DSP versions are **120 WAV files**, not 120 distinct performances. Original
-provider audio is retained separately as **40 MP3 masters**. Only 20 takes were
-new in the latest dictionary audition; the other 20 were reused from the preceding
-short-language batch. Six older Robot Minion experiments are intentionally excluded.
+dictionary performance. The manifest lists **2,722 actual recordings** with
+**8,166 WAV files** (three local DSP treatments) and **2,722 original MP3 masters**.
+The completed first pass has **2,702 slots: 2,682 newly generated + 20 reused pilot
+takes**. Another 20 historical short-language takes are preserved outside that
+first-pass slot count. Six superseded early Robot Minion experiments remain excluded.
 
-The **387-entry dictionary and 7,123 planned performance slots are a design plan**,
-not 7,123 sound files. Never fabricate a path for an unrecorded entry or mood.
-If the current mood/context has no suitable recorded take, choose silence. The
-full 13-mood inventory is described, but this pilot is sparse across states.
+All **387 entries** are represented. Words and nonverbals have one take per
+compatible mood; phrases have one selected mood. The full design has **7,123 slots**:
+2,702 completed and **4,421 deferred**, not 7,123 recorded files. Never fabricate
+a path or silently substitute a mood when no suitable recorded take exists.
+
+## Listen to the bank
+
+From the repository root:
+
+```sh
+python3 -m http.server 4177 --bind 127.0.0.1 --directory internal/boop-design/assets/boop-voice-v1
+```
+
+Open <http://127.0.0.1:4177/review/>. No dependencies, API key or generation calls.
+The continuous audition plays all first-pass clips with on-screen state/mood/keyword
+labels. Filter into chapters, skip/replay, mark Keep/Rework and export the review JSON.
+Adult expressions are off by default. Review marks stay in the browser and include
+the exact master hash; they do not automatically change the package manifest.
+The first-pass audio totals 64.22 minutes (about 80 minutes with default gaps).
+This portable voice-only page does not depend on the original author's localhost
+or audition checkout. Animation/SFX previews remain in the sibling V4 review bank.
 
 | File/folder | Purpose |
 | --- | --- |
 | `manifest.json` | Recorded IDs, entry ID, intended mood, duration, review status, original script, voice/model, encoding, paths and SHA-256 hashes |
 | `index.json` | Recorded IDs indexed by state, mood, intent and dictionary entry; cheap shortlist lookup |
 | `dictionary.json` | 387 meanings, context guards, compatible moods, variation directions, audience/rarity and proposed pacing policy; no massive Cartesian matrix |
-| `audio/robot-soft/` | Recommended quiet electronic texture; 40 mono WAVs |
+| `audio/robot-soft/` | Recommended quiet electronic texture; 2,722 mono WAVs |
 | `audio/original/` | Dry, quiet-level-matched WAV comparison; not untouched provider output |
-| `audio/robot-grain/` | More electronic alternative; same 40 takes |
+| `audio/robot-grain/` | More electronic alternative; same takes, not extra performances |
 | `masters/` | Untouched provider MP3s, for future reprocessing; no API needed |
 | `select.mjs` | Dependency-free host-side reference selector and assembly guard; see commands below |
 | `tools/check.mjs` | Integrity, audio format/level, eligibility and assembly tests; writes exact storage report |
 | `provenance.json` | Batch/model/processing provenance, with no credentials or account data |
 | `storage-report.json` | Exact logical bytes, durations, category counts and recorded mood coverage |
+| `plans/phase1.json` | Completed slot IDs mapped to actual recording IDs; includes reused pilot mappings |
+| `plans/deferred.json` | Disjoint remaining 4,421 slots; not authorized for automatic generation |
+| `review/` | Self-contained continuous audition; serve the package root as above |
 
 All paths in the manifest are relative to **this directory**, not the repository
 root. Stable clip IDs such as `new.d02` and `previous.heh` are identifiers, not
@@ -73,7 +93,8 @@ From the repository root:
 node internal/boop-design/assets/boop-voice-v1/select.mjs --state starting --mood excited --facts task_started --audition
 ```
 
-This fixture offers `silence` and `new.d02` (“Go”, 1.149 seconds). `new.d02` resolves
+This offers `silence` and up to eight context-compatible meanings, including
+`new.d02` (“Go”, 1.149 seconds). `new.d02` resolves
 to `audio/robot-soft/new.d02.wav`. The JSON output is built from this package, not
 from invented example filenames.
 
@@ -154,8 +175,8 @@ their source facts. Unsupported or unavailable facts mean no corresponding candi
   randomized routine cooldown, per-hour caps, rare/explicit cooldowns, history depth,
   maximum unit count and duration. These still need real-workday tuning, not blind
   adherence as if already proven. An empty shortlist stays silent.
-- No promise of a month without recognizable repetition; this 40-take pilot is not
-  the full dictionary. Do not invoke TTS automatically to fill its missing slots.
+- No promise of a month without recognizable repetition; mood variants can still
+  sound similar. Do not invoke TTS automatically to fill deferred slots.
 
 The thirteen mood directions are in `dictionary.json.moods`; dictionary entries
 list compatible `moods`, `variants` and `variantCount`. A full planned matrix is
@@ -193,8 +214,11 @@ quiet-normalized (RMS ceiling .07, peak ceiling .55); begin at modest gain. Digi
 ceilings do not establish acoustic loudness through the actual speaker.
 
 The three texture folders have equal durations and are alternatives. A runtime
-using only soft circuit needs **40 WAVs**, not the other 80 comparison WAVs or the
-MP3 masters. [storage-report.json](storage-report.json) gives exact logical bytes
+using only soft circuit does not need the two comparison WAV folders or MP3 masters.
+The 2,702-slot first pass alone occupies approximately **340 MB** as soft-circuit
+WAVs; its original MP3 masters occupy approximately **63 MB**. All treatments and
+historical takes make this archival handover about **1.1 GB**; do not copy every
+treatment to an SD card. [storage-report.json](storage-report.json) gives exact logical bytes
 for each profile, all audio, metadata and the entire folder, plus duration totals.
 Git checkout block allocation and compressed Git pack size can differ.
 
@@ -220,18 +244,40 @@ Tests check every audio hash/format/level, index consistency, state/fact/mood/to
 guards, silence fallback, review and explicit gating, recency and composition
 limits. They do not claim subjective listening quality or device compatibility.
 
-For a deliberate re-import of these exact local batches only:
+For a deliberate re-import of the completed first pass from its preserved local
+generation checkout (not from a fresh repository clone without paid masters):
 
 ```sh
-node internal/boop-design/assets/boop-voice-v1/tools/import.mjs --source /absolute/path/to/audition-checkout
+node internal/boop-design/assets/boop-voice-v1/tools/import-phase1.mjs --source /absolute/path/to/audition-checkout
 node internal/boop-design/assets/boop-voice-v1/tools/check.mjs
 ```
 
 The importer reads a fixed allowlist under that source checkout, verifies provider
 master hashes, refuses to overwrite different audio and strips accounting/request
 IDs from provenance. It makes **no API calls** and never reads `.env` or credentials.
-Preserve audition approvals before a re-import: the source currently marks all
-takes unreviewed. Do not generate new recordings as part of normal app startup.
+The extension preserves existing recording IDs/review status, verifies matching
+slot/master hashes and never replaces different audio. The original `import.mjs`
+is pilot-only and refuses to downgrade an expanded manifest. Do not generate new
+recordings as part of normal app startup.
+
+### Expand later without duplicate generation
+
+Use `performanceId` as the stable recording-slot key, not a guessed filename or
+script string. `plans/phase1.json` maps all completed slots to their actual recording
+IDs, including the 20 reused pilot takes. `plans/deferred.json` is the disjoint
+complement; checks prove the union equals the full 7,123-slot design. Before any
+future paid request, subtract **all** manifest performance IDs from the requested
+slot IDs. An existing saved recording is reused, never automatically regenerated.
+Similar wording in two deliberately different performance slots is not evidence
+that their acting is interchangeable.
+
+New generation requires separate authorization and a budget. Journal the intended
+slot/request before sending it; save and hash the returned master before marking
+success. Never blindly retry a timeout or uncertain request: reconcile provider
+history first. A Rework mark is not retry authorization. Make a separately named
+replacement revision and preserve the prior master/approval hash. The author's
+private account/request ledger is intentionally excluded from this public handover;
+the published completed-slot manifest suffices to avoid regenerating this batch.
 
 Publication was explicitly authorized for this asset package on the V4 branch.
 It does not authorize a PR, merge, new paid generation, or production policy changes.
