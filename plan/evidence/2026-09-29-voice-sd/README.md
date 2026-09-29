@@ -41,6 +41,8 @@ first 4 KB took 13 ms on average and 19 ms at worst. Boop's firmware
 | `boopctl takes --only` six takes: Go, Bada bing bada boom, Fuck (irritated), Aww... (wounded), Technical difficulties, Test | All `ok`: the DAC took each take's planned length to the millisecond, amp on; the owner heard them |
 | A line of two takes, "Tsk... Test" | Planned, rendered and played 2,425 ms (1,377 + 180 + 868), not cut, no DAC errors |
 
-Still to do: a tap, for the bit-banged touch; the soak (L2) and the
+| A tap on the screen, the touch now bit-banged | The owner tapped; `state`'s `last_input` read `tap` |
+
+Still to do: the soak (L2) and the
 pipeline check (L4), which the owner runs tonight; and a failed turn,
 being told off and a poke through the app.
