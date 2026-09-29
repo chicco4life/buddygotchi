@@ -409,14 +409,14 @@ class ControlsTests(unittest.TestCase):
         self.assertEqual((needs["base"], needs["attn"]["agent"]), ("idle", "claude"))
         self.assertEqual(latest["base"], "working", "the app's state is left alone")
 
-    def test_a_preview_reaction_says_its_word(self):
-        line = controls.preview_reaction("grumpy", "again", 3)
+    def test_a_preview_reaction_says_its_take(self):
+        line = controls.preview_reaction("grumpy", "new.d14", 3)
         self.assertEqual((line["t"], line["mood"], line["loops"]), ("moment", "grumpy", 3))
-        self.assertIn(line["say"]["take"], {"new.d05", "new.d06", "new.d07", "new.d08"}, "a take of the word")
+        self.assertEqual(line["say"], {"take": "new.d14"})
         self.assertNotIn("anim", line)
         face = controls.preview_reaction("proud", None, 1, "cheer")
         self.assertEqual(face["anim"], "cheer", "an animation as react.animation picks it")
-        self.assertNotIn("say", face, "no word: the face on its own")
+        self.assertEqual(face["say"], {}, "saying nothing still sends a say, as react does")
 
     def test_confirmations(self):
         pending = controls.Pending()
@@ -585,13 +585,13 @@ class AppTests(unittest.TestCase):
                     f.write('{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":1790498700002}\n')
                 app.poll()
                 self.assertEqual(face.sent[-1]["mood"], "sad", "the app's lines wait")
-                await pick("r", 5, 0)  # grumpy's face, no word: a moment with its `mood`
+                await pick("r", 5, 0)  # grumpy's face, saying nothing: a moment with its `mood`
                 for _ in range(100):
                     if face.sent[-1]["t"] == "moment":
                         break
                     await pilot.pause(0.05)
                 self.assertEqual((face.sent[-1]["t"], face.sent[-1]["mood"]), ("moment", "grumpy"))
-                self.assertNotIn("say", face.sent[-1])
+                self.assertEqual(face.sent[-1]["say"], {}, "saying nothing, as react sends it")
                 # Resent well inside the device's 30 s no-app timeout.
                 self.assertEqual(PREVIEW_RESEND_S, 10)
                 app.keep_preview()

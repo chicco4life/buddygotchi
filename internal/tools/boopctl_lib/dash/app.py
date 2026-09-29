@@ -296,18 +296,18 @@ class Dash(App[None]):
             return
         if self.look:
             # Preview: any reaction, its face, its animation, how long it
-            # holds and its word's take, straight to the dashboard's sim.
+            # holds and the take it says, straight to the dashboard's sim.
             face = await self.pick("Preview a reaction: the face", [o for o in controls.options(asked[0]) if o != "none"])
             anims = [o for q in asked if q["key"] == "react.animation" for o in controls.options(q)]
             anim = face and (await self.pick("…its animation", anims) if anims else "none")
             holds = [o for q in asked if q["key"] == "react.loops" for o in controls.options(q)]
             hold = anim and (await self.pick("…how long it holds", holds) if holds else "once")
-            words = [o for q in asked if q["key"].startswith("word.") for o in controls.options(q) if o != "none"]
-            word = hold and await self.pick("…and its word", ["none"] + words)
-            if word and self.face:
+            said = {f"{t.text} ({t.id})": t.id for t in controls.takes()}
+            take = hold and await self.pick("…and what it says", ["nothing"] + list(said))
+            if take and self.face:
                 loops = holds.index(hold) + 1 if hold in holds else 1
                 try:
-                    line = controls.preview_reaction(face, None if word == "none" else word, loops,
+                    line = controls.preview_reaction(face, said.get(take), loops,
                                                      None if anim == "none" else anim)
                     self.face.send(line)
                 except DeviceError as exc:

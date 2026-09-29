@@ -17,7 +17,7 @@ struct Take {
   const char* text;  // the bubble's
   uint32_t at;       // offset into kSamples
   uint16_t len;      // samples
-  uint16_t mouth;    // offset into kMouth: one entry per kMouthMs, len * 1000 / kRate / kMouthMs rounded up
+  uint16_t mouth;    // offset into kMouth: one entry per kMouthMs (kRate * kMouthMs / 1000 samples), rounded up
 };
 
 static const Take kTake[] = {

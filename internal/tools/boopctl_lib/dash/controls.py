@@ -4,7 +4,6 @@ line, and Preview's own lines for its sim. The socket never replies, so a
 command counts as landed when its entry shows up in debug.jsonl."""
 from __future__ import annotations
 
-import random
 import time
 from typing import Any, Callable
 
@@ -74,15 +73,11 @@ def preview_state(latest: Line | None, look: str, mood: str | None = None) -> Li
     return state
 
 
-def preview_reaction(face: str, word: str | None, loops: int = 1, anim: str | None = None) -> Line:
+def preview_reaction(face: str, take: str | None, loops: int = 1, anim: str | None = None) -> Line:
     """A reaction as the react action sends it: the face as the moment's
-    `mood`, held `loops` times, `anim` if one was picked, and with `word`
-    a take whose text is that word (any case, its dots and marks aside),
-    else any take; with none, the face on its own (PROTOCOL.md §3)."""
-    line: Line = {"t": "moment", "mood": face, "loops": loops}
-    if word:
-        said = [t for t in takes() if t.text.lower().strip(".?! ") == word.lower()]
-        line["say"] = {"take": random.choice(said or takes()).id}
+    `mood`, held `loops` times, `anim` if one was picked, and the take
+    with id `take`, or `{}` for one that says nothing (PROTOCOL.md §3)."""
+    line: Line = {"t": "moment", "mood": face, "loops": loops, "say": {"take": take} if take else {}}
     if anim:
         line["anim"] = anim
     return line
