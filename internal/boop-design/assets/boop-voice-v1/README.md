@@ -9,7 +9,10 @@ mood graph, generic harness, or approval rules. Publication is not listening app
 
 Read [manifest.json](manifest.json) and [index.json](index.json), not every proposed
 dictionary performance. The manifest lists **2,722 actual recordings** with
-**8,166 WAV files** (three local DSP treatments) and **2,722 original MP3 masters**.
+**8,166 unsigned 8-bit PCM WAV files** (three local DSP treatments).
+All original 16-bit renders and **2,722 MP3 masters** are preserved in a verified
+local archive outside this checkout, not included in the compact distribution.
+Their hashes remain in the manifest for provenance and recording-slot deduplication.
 The completed first pass has **2,702 slots: 2,682 newly generated + 20 reused pilot
 takes**. Another 20 historical short-language takes are preserved outside that
 first-pass slot count. Six superseded early Robot Minion experiments remain excluded.
@@ -41,12 +44,13 @@ or audition checkout. Animation/SFX previews remain in the sibling V4 review ban
 | `manifest.json` | Recorded IDs, entry ID, intended mood, duration, review status, original script, voice/model, encoding, paths and SHA-256 hashes |
 | `index.json` | Recorded IDs indexed by state, mood, intent and dictionary entry; cheap shortlist lookup |
 | `dictionary.json` | 387 meanings, context guards, compatible moods, variation directions, audience/rarity and proposed pacing policy; no massive Cartesian matrix |
-| `audio/robot-soft/` | Recommended quiet electronic texture; 2,722 mono WAVs |
-| `audio/original/` | Dry, quiet-level-matched WAV comparison; not untouched provider output |
-| `audio/robot-grain/` | More electronic alternative; same takes, not extra performances |
-| `masters/` | Untouched provider MP3s, for future reprocessing; no API needed |
+| `audio-pcm8/robot-soft/` | Recommended quiet electronic texture; 2,722 mono 8-bit/11.025 kHz WAVs |
+| `audio-pcm8/original/` | Dry, quiet-level-matched 8-bit comparison; not untouched provider output |
+| `audio-pcm8/robot-grain/` | More electronic alternative; same takes, not extra performances |
+| `manifest.json → recordings[].master` | Archived paid-take identity/hash; not a playable path or a shipped file |
 | `select.mjs` | Dependency-free host-side reference selector and assembly guard; see commands below |
 | `tools/check.mjs` | Integrity, audio format/level, eligibility and assembly tests; writes exact storage report |
+| `tools/compress.py` | Offline, resumable conversion from the verified local 16-bit archive; never calls ElevenLabs |
 | `provenance.json` | Batch/model/processing provenance, with no credentials or account data |
 | `storage-report.json` | Exact logical bytes, durations, category counts and recorded mood coverage |
 | `plans/phase1.json` | Completed slot IDs mapped to actual recording IDs; includes reused pilot mappings |
@@ -95,7 +99,7 @@ node internal/boop-design/assets/boop-voice-v1/select.mjs --state starting --moo
 
 This offers `silence` and up to eight context-compatible meanings, including
 `new.d02` (“Go”, 1.149 seconds). `new.d02` resolves
-to `audio/robot-soft/new.d02.wav`. The JSON output is built from this package, not
+to `audio-pcm8/robot-soft/new.d02.wav`. The JSON output is built from this package, not
 from invented example filenames.
 
 ```js
@@ -206,29 +210,74 @@ No extra background music; let the soundscape breathe.
 
 ## 5. Encoding, playback and storage
 
-Recommended playback assets: `audio/robot-soft/*.wav` — RIFF WAV, signed 16-bit
-little-endian PCM, **44,100 Hz, mono**. These are complete speech snippets, not
-procedural sound effects. The WAV header must be parsed; do not send it as raw PCM.
-Browser/desktop playback can use a normal decoder or Web Audio. Files are already
-quiet-normalized (RMS ceiling .07, peak ceiling .55); begin at modest gain. Digital
-ceilings do not establish acoustic loudness through the actual speaker.
+Recommended playback assets: `audio-pcm8/robot-soft/*.wav` — **RIFF WAV, PCM
+format tag 1, unsigned 8-bit, 11,025 Hz, mono**. One sample is one byte; 128 is
+silence, 0 is the negative extreme, and 255 the positive extreme. This is reduced
+precision/rate PCM, not an AAC bitstream, not signed int8 and not procedural SFX.
+The sample rate must remain in the metadata; playing these bytes at 22.05 kHz
+without resampling would double both pitch and speed.
 
-The three texture folders have equal durations and are alternatives. A runtime
-using only soft circuit does not need the two comparison WAV folders or MP3 masters.
-The 2,702-slot first pass alone occupies approximately **340 MB** as soft-circuit
-WAVs; its original MP3 masters occupy approximately **63 MB**. All treatments and
-historical takes make this archival handover about **1.1 GB**; do not copy every
-treatment to an SD card. [storage-report.json](storage-report.json) gives exact logical bytes
-for each profile, all audio, metadata and the entire folder, plus duration totals.
-Git checkout block allocation and compressed Git pack size can differ.
+The conversion matches the accepted preview: high-quality anti-aliased resampling
+from the existing 16-bit treatment, then nearest-level 8-bit quantization, without
+extra effects, gain boosts, pitch changes or added dither. Source PCM hashes and
+measured output levels are in each file entry. Quantization/resampling can slightly
+change peaks and RMS; the checker measures actual bytes with limits of .59 peak
+and .073 RMS. Start playback quietly; digital limits do not prove acoustic safety.
+Format approval does not approve every individual take by ear.
 
-**ESP32 is not integrated here.** Existing firmware's short syllable/word format
-is not a drop-in container for these WAVs. A downstream implementation must choose
-its decoder/PCM sample rate, SD streaming/ring-buffer strategy, resampling, DAC/I²S
-format, cancellation and volume/limiting under the device contract. Decode MP3 to
-PCM on the host if the board lacks an MP3 decoder. Do not lower bit depth/pitch or
-truncate phonemes without re-auditioning on the speaker. Keep the masters for that
-future export; this publication does not modify the wire protocol or firmware.
+**Why not AAC?** The board has an 8-bit DAC and no PSRAM. Its current firmware
+already uses 8-bit/11.025 kHz source samples and a 22.05 kHz DAC stream, but has no
+AAC decoder. AAC can be supported through software, but adds codec/parser memory,
+CPU work and startup-buffering decisions. PCM avoids that additional work. It does
+not guarantee zero latency: the existing DAC pipeline has four 512-sample buffers,
+about 93 ms of total capacity. Actual onset latency depends on queue occupancy,
+SD reads, scheduling and prefetching; it has not been measured for this new bank.
+
+All **2,722 takes** occupy about **43 MB per treatment**, or **129 MB for all three**
+audio alternatives—approximately 87.5% smaller than corresponding 16-bit WAVs.
+Deploy only the chosen treatment, normally robot-soft. Metadata is additional;
+[storage-report.json](storage-report.json) gives exact file lengths. Do not put
+the archived originals or unused comparisons on the SD card.
+
+### Downstream device playback requirements — not implemented by this package
+
+1. **SD storage and whole-clip lookup:** add an SD/file reader and map stable take
+   IDs to paths or indexed offsets. The existing firmware plays small compiled-in
+   syllable/word arrays; it does not load these WAVs or use the SD slot. Its old
+   beat-based duration caps must not clip, accelerate or pitch-shift these full
+   performances. This bank exceeds the board's 4 MB flash, so do not bake all of
+   it into `voice.h`. Check SD/touch SPI bus ownership and pin routing against
+   `plan/DEVICE.md` before adding SD support.
+2. **Read the container correctly:** validate RIFF/WAVE and PCM format, walk chunks
+   to find `fmt ` and `data`, and honor odd-chunk padding. Never feed WAV headers
+   into the DAC or assume every future WAV has a 44-byte header. Reject a missing,
+   truncated or incompatible file safely rather than playing garbage.
+3. **Prefetch off the real-time audio task:** use a bounded ring/double buffer and
+   cache the beginning of likely next clips. No full-file allocation, file open,
+   blocking SD read or heap churn in the DAC feed loop. Keep feeding silence (128)
+   during gaps or underflow; do not starve DMA. Prefetch is a latency strategy,
+   not a measured latency guarantee.
+4. **Resample/mix:** interpolate 11.025 kHz mono PCM to the existing fixed 22.05 kHz
+   output. Widen and subtract 128 before gain, fades and mixing with SFX; saturate
+   safely and re-bias to 128 for the unsigned DAC buffer. Preserve short start/end
+   and cancellation fades, modest gain, and the protected notification cues.
+5. **Synchronize:** schedule from the shared animation/audio timeline; account for
+   queued output and do not repeat voice on every animation loop. Keep cancellation
+   and stale-event checks. Alert sounds remain independently available.
+6. **Verify on the board:** measure cold/warm onset and jitter, worst-case free heap,
+   underflows and animation/Bluetooth responsiveness; check end-of-clip, interruption,
+   missing SD/file behavior and real-speaker loudness. This release includes no such
+   hardware measurements or firmware/protocol changes.
+
+Normal desktop/browser WAV decoding already handles this format. The original paid
+MP3 identity stays in `master.sha256`; `master.storage` explicitly says local archive
+and has no path. Use `files[texture]`, never `master`, for runtime playback.
+
+**Git history:** this is a normal follow-up commit at the owner's request, not a
+history rewrite. The latest checkout/download is smaller, but old large blobs remain
+in repository history. A fresh `--depth 1 --branch codex/boop-mood-spectrum-v4` clone
+or a current-branch archive avoids fetching old revisions; existing full clones
+will not automatically shrink. Do not force-push or garbage-collect others' history.
 
 ## 6. Validation and regeneration
 
@@ -244,21 +293,26 @@ Tests check every audio hash/format/level, index consistency, state/fact/mood/to
 guards, silence fallback, review and explicit gating, recency and composition
 limits. They do not claim subjective listening quality or device compatibility.
 
-For a deliberate re-import of the completed first pass from its preserved local
-generation checkout (not from a fresh repository clone without paid masters):
+For a deliberate rebuild from the verified **original 16-bit bank archive**
+(macOS `afconvert` and Python's standard library; not a fresh clone without masters):
 
 ```sh
-node internal/boop-design/assets/boop-voice-v1/tools/import-phase1.mjs --source /absolute/path/to/audition-checkout
+python3 internal/boop-design/assets/boop-voice-v1/tools/compress.py --archive /absolute/path/to/original-bank-archive --jobs 6 --finalize
 node internal/boop-design/assets/boop-voice-v1/tools/check.mjs
 ```
 
-The importer reads a fixed allowlist under that source checkout, verifies provider
-master hashes, refuses to overwrite different audio and strips accounting/request
-IDs from provenance. It makes **no API calls** and never reads `.env` or credentials.
-The extension preserves existing recording IDs/review status, verifies matching
-slot/master hashes and never replaces different audio. The original `import.mjs`
-is pilot-only and refuses to downgrade an expanded manifest. Do not generate new
-recordings as part of normal app startup.
+The converter validates all archived master/PCM hashes first, caches by source hash
+and conversion recipe, and validates every output before finalization. Original
+recording IDs, scripts, paid-take hashes, slot partition and review status are
+preserved. `--finalize` removes only exact hash-verified archived originals from
+the active package. Its archive path stays local and is not embedded in the export.
+It makes **no API calls** and never reads `.env`, credentials or account logs.
+The legacy pilot importer refuses to downgrade an expanded manifest, and the
+phase-one importer refuses to overwrite this compact distribution with 16-bit files.
+Do not generate new recordings as part of normal app startup.
+
+Unit test the conversion boundaries with:
+`python3 -m unittest discover -s internal/boop-design/assets/boop-voice-v1/tools -p 'test_*.py'`.
 
 ### Expand later without duplicate generation
 

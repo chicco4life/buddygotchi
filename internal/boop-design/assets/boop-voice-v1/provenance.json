@@ -35,5 +35,13 @@
     "sourcePlanSha256": "6bca0a03665e6b688ac47766eced8083f4cba7f2b4d430107545a08b8075a7b9",
     "publicationAuthorizedOn": "2026-09-29",
     "listeningApproval": "Not inferred from publication consent; retain per-take review status."
+  },
+  "compression": {
+    "recipe": "pcm-u8-mono-11025-coreaudio-v1",
+    "date": "2026-09-29",
+    "newPaidGenerations": 0,
+    "review": "User approved the compression audition; individual take review statuses preserved.",
+    "masters": "Local verified archive; not distributed. Original hashes remain in manifest.",
+    "history": "Normal follow-up commit requested; previous large files remain in Git history."
   }
 }

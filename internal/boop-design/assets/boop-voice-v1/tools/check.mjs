@@ -9,7 +9,8 @@ if(process.argv.includes('--help')){console.log('node tools/check.mjs\nChecks th
 const b=loadBank(),records=b.manifest.recordings,entries=new Map(b.dictionary.entries.map(e=>[e.id,e]));
 assert.equal(records.length,2722);assert.equal(new Set(records.map(r=>r.id)).size,2722);assert.equal(entries.size,387);
 assert.equal(b.manifest.voiceId,'rErOatUrNIU3vfNcLl6Z');
-let peak=0,maxRms=0,wavCount=0,mp3Bytes=0;const profiles={original:0,'robot-soft':0,'robot-grain':0};
+assert.equal(b.manifest.distribution.codec,'pcm_u8');assert.equal(b.manifest.distribution.sampleRate,11025);
+let peak=0,maxRms=0,wavCount=0;const profiles={original:0,'robot-soft':0,'robot-grain':0};
 const expectedIndex={byState:{},byMood:{},byIntent:{},byEntry:{}};
 const add=(bucket,key,id)=>(bucket[key]??=[]).push(id);
 function checkedFile(file){
@@ -19,17 +20,22 @@ function checkedFile(file){
 for(const r of records){
  assert(entries.has(r.entryId));const e=entries.get(r.entryId);
  for(const s of e.states)add(expectedIndex.byState,s,r.id);add(expectedIndex.byMood,r.mood,r.id);add(expectedIndex.byIntent,e.intent,r.id);add(expectedIndex.byEntry,e.id,r.id);
- assert.equal(r.generation.voiceId,b.manifest.voiceId);assert.equal(r.generation.modelId,'eleven_v4');mp3Bytes+=checkedFile(r.master).length;
+ assert.equal(r.generation.voiceId,b.manifest.voiceId);assert.equal(r.generation.modelId,'eleven_v4');
+ assert.equal(r.master.storage,'local-archive-not-distributed');assert(!('path' in r.master));assert.match(r.master.sha256,/^[a-f0-9]{64}$/);
+ assert.deepEqual(Object.keys(r.files).sort(),Object.keys(profiles).sort());
  assert.equal(r.routineDurationEligible,r.seconds<=b.dictionary.policy.maxSeconds);
  for(const [profile,file] of Object.entries(r.files)){
   const bytes=checkedFile(file);assert.equal(bytes.toString('ascii',0,4),'RIFF');assert.equal(bytes.toString('ascii',8,12),'WAVE');
   let p=12,pcm,format;
   while(p+8<=bytes.length){const name=bytes.toString('ascii',p,p+4),n=bytes.readUInt32LE(p+4);if(name==='fmt ')format=bytes.subarray(p+8,p+8+n);if(name==='data')pcm=bytes.subarray(p+8,p+8+n);p+=8+n+n%2;}
-  assert(format&&pcm);assert.equal(format.readUInt16LE(0),1);assert.equal(format.readUInt16LE(2),1);assert.equal(format.readUInt32LE(4),44100);assert.equal(format.readUInt16LE(14),16);assert(Math.abs(pcm.length/2/44100-r.seconds)<1/44100);
-  let power=0;for(let i=0;i<pcm.length;i+=2){const x=pcm.readInt16LE(i)/32768;peak=Math.max(peak,Math.abs(x));power+=x*x;}maxRms=Math.max(maxRms,Math.sqrt(power/(pcm.length/2)));profiles[profile]+=bytes.length;wavCount++;
+  assert(format&&pcm);assert.equal(format.readUInt16LE(0),1);assert.equal(format.readUInt16LE(2),1);assert.equal(format.readUInt32LE(4),11025);assert.equal(format.readUInt16LE(14),8);assert.equal(format.readUInt16LE(12),1);assert.equal(format.readUInt32LE(8),11025);assert(Math.abs(pcm.length/11025-r.seconds)<=1/11025);
+  assert.equal(file.path,`audio-pcm8/${profile}/${r.id}.wav`);assert.equal(file.encoding.codec,'pcm_u8');assert.equal(file.encoding.silence,128);assert.equal(file.encoding.bitsPerSample,8);assert.equal(file.encoding.sampleRate,11025);
+  assert.match(file.sourceSha256,/^[a-f0-9]{64}$/);assert.equal(file.decoded.frames,pcm.length);
+  let power=0,clipPeak=0;for(const v of pcm){const x=(v-128)/128;clipPeak=Math.max(clipPeak,Math.abs(x));power+=x*x;}const rms=Math.sqrt(power/pcm.length);peak=Math.max(peak,clipPeak);maxRms=Math.max(maxRms,rms);
+  assert(Math.abs(file.decoded.rms-rms)<1e-12);assert.equal(file.decoded.peak,clipPeak);profiles[profile]+=bytes.length;wavCount++;
  }
 }
-assert.deepEqual(b.index,expectedIndex);assert.equal(wavCount,8166);assert(peak<=.551);assert(maxRms<=.0701);
+assert.deepEqual(b.index,expectedIndex);assert.equal(wavCount,8166);assert(peak<=.59);assert(maxRms<=.073);
 const phase=JSON.parse(fs.readFileSync(path.join(root,'plans/phase1.json'))),later=JSON.parse(fs.readFileSync(path.join(root,'plans/deferred.json')));
 const phaseIds=new Set(phase.slots.map(s=>s.performanceId)),laterIds=new Set(later.slots.map(s=>s.id));
 assert.equal(phaseIds.size,2702);assert.equal(laterIds.size,4421);assert.equal(new Set([...phaseIds,...laterIds]).size,7123);assert.equal(later.authorized,false);
@@ -67,10 +73,11 @@ assert.equal(choices(fixture,ctx,{audition:true}).length,1);assert(choices(fixtu
 }
 const plain=JSON.stringify({dictionary:b.dictionary,manifest:b.manifest,index:b.index});assert(!plain.includes('/Users/'));assert(!plain.includes('xi-api-key'));
 const walk=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(d=>{assert(!d.isSymbolicLink());const p=path.join(dir,d.name);return d.isDirectory()?walk(p):[p];});
-const report={version:2,generatedOn:'2026-09-29',distinctRecordedTakes:2722,latestBatchNewTakes:2682,phase1Slots:2702,reusedPilotSlots:20,additionalLegacyTakes:20,deferredSlots:4421,plannedDictionaryEntries:387,plannedPerformanceSlots:7123,
- wavFiles:8166,mp3Masters:2722,totalRecordedSeconds:records.reduce((n,r)=>n+r.seconds,0),audioBytesByProfile:profiles,defaultRuntimeWavBytes:profiles['robot-soft'],mp3MasterBytes:mp3Bytes,
- allAudioBytes:Object.values(profiles).reduce((n,v)=>n+v,0)+mp3Bytes,recordedMoodCounts:Object.fromEntries(Object.entries(b.index.byMood).map(([k,v])=>[k,v.length])),
- peak,maxRms,packagePayloadBytes:0,metadataAndCodeBytes:0,totalFiles:0,measure:'Sum of file lengths, including this report; excludes directory blocks and .git compression. One DSP profile suffices at runtime.',checks:'passed'};
+const allFiles=walk(root);assert.equal(allFiles.filter(p=>p.endsWith('.wav')).length,8166);assert(!allFiles.some(p=>/\.(mp3|m4a|tmp)$/.test(p)),'No archived masters, unused AAC or partial renders in release');
+const report={version:3,generatedOn:'2026-09-29',codec:'pcm_u8',sampleRate:11025,channels:1,bitsPerSample:8,distinctRecordedTakes:2722,latestBatchNewTakes:2682,phase1Slots:2702,reusedPilotSlots:20,additionalLegacyTakes:20,deferredSlots:4421,plannedDictionaryEntries:387,plannedPerformanceSlots:7123,
+ wavFiles:8166,distributedMp3Masters:0,locallyArchivedMasters:2722,totalRecordedSeconds:records.reduce((n,r)=>n+r.seconds,0),audioBytesByProfile:profiles,defaultRuntimeWavBytes:profiles['robot-soft'],
+ allAudioBytes:Object.values(profiles).reduce((n,v)=>n+v,0),recordedMoodCounts:Object.fromEntries(Object.entries(b.index.byMood).map(([k,v])=>[k,v.length])),
+ peak,maxRms,packagePayloadBytes:0,metadataAndCodeBytes:0,totalFiles:0,previousPackagePayloadBytes:1103619112,measure:'Sum of file lengths, including this report; excludes directory blocks and Git history. Original masters/WAVs are locally archived. One DSP profile suffices at runtime.',checks:'passed'};
 const reportPath=path.join(root,'storage-report.json');
 for(let pass=0;pass<5;pass++){
  fs.writeFileSync(reportPath,JSON.stringify(report,null,2)+'\n');const files=walk(root);report.packagePayloadBytes=files.reduce((n,p)=>n+fs.statSync(p).size,0);report.metadataAndCodeBytes=report.packagePayloadBytes-report.allAudioBytes;report.totalFiles=files.length;

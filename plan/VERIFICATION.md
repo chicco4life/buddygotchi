@@ -59,8 +59,20 @@ The completed dictionary extension also checks the disjoint first-pass/deferred
 slot partition, exact first-pass-to-recording mappings, portable review paths and
 expanded-bank selection. `tools/import-phase1.mjs --source PATH` is an allowlisted
 offline import, not a generator; it preserves matching existing recordings and
-refuses different audio. The package README documents the local review server.
+refuses different audio. It now also refuses to overwrite the compact distribution
+with original 16-bit files. The package README documents the local review server.
 Evidence: [first-pass publication](evidence/2026-09-29-voice-phase1-push/README.md).
+
+**Compact 8-bit voice distribution.**
+`python3 internal/boop-design/assets/boop-voice-v1/tools/compress.py --help`
+describes archive-first local conversion. Source hashes, 8-bit/11.025 kHz mono
+output, durations and levels are checked before manifest migration; paid masters
+and 16-bit renders remain in a verified local archive. Unit tests:
+`python3 -m unittest discover -s internal/boop-design/assets/boop-voice-v1/tools -p 'test_*.py'`.
+The Node checker independently reads every WAV sample, validates format/metadata,
+and rejects leftover MP3/AAC assets. The handoff lists SD streaming and whole-clip
+playback requirements, not claims of hardware integration or measured onset latency.
+Evidence: [8-bit asset distribution](evidence/2026-09-29-voice-pcm8/README.md).
 
 Every tool prints its flags with `--help` (`internal/tools/boopctl
 <command> --help`, `.build/debug/boopdev <command> --help`,

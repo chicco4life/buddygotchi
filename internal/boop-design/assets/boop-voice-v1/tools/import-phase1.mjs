@@ -19,6 +19,7 @@ function copy(src,relative){
 const author=path.join(source,'internal/voice-recording-plan/dictionary'),cache=path.join(source,'tmp/robot-dictionary-phase1');
 const plan=read(path.join(author,'phase1-plan.json')),later=read(path.join(author,'phase2-deferred.json')),preview=read(path.join(cache,'preview.json')),ledger=read(path.join(cache,'ledger.json'));
 const manifest=read(path.join(dest,'manifest.json')),dict=read(path.join(dest,'dictionary.json')),byEntry=new Map(dict.entries.map(e=>[e.id,e]));
+assert(!manifest.distribution,'Compact bank exists: do not re-import 16-bit WAVs. Preserve the compressed manifest and use the archived source with tools/compress.py.');
 assert.equal(plan.voice_id,manifest.voiceId);assert.equal(plan.model_id,'eleven_v4');assert.equal(ledger.plan_sha256,hash(fs.readFileSync(path.join(author,'phase1-plan.json'))));
 assert.equal(preview.recorded.length,2702);assert.equal(later.authorized,false);
 const jobs=new Map(plan.jobs.map(j=>[j.id,j])),deferred=new Set(later.performances.map(p=>p.id));

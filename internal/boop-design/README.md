@@ -13,9 +13,15 @@ changes the shipped app, firmware enums, steering or hardware assets.
 - [Machine-readable graph](boop-mood-spectrum-v2/mood-graph.json).
 - [Voice asset bank and agent selection guide](assets/boop-voice-v1/README.md):
   the completed first-pass Robot Minion dictionary, three local DSP alternatives,
-  original masters, portable continuous audition, deferred-slot manifest, lookup
+  compact 8-bit/11.025 kHz PCM assets, portable continuous audition, deferred-slot manifest, lookup
   indexes and a tested host-side selector. Audition assets,
   not automatic production playback.
+
+The compact voice release preserves originals in a verified local archive, with
+master hashes retained in the manifest. The latest checkout is smaller; old large
+audio remains in Git history (normal commit, no rewrite). The voice README explains
+the SD streaming and whole-clip playback work still required on ESP32. This asset
+update does not implement that work.
 
 From the **repository root**, with Node.js:
 
