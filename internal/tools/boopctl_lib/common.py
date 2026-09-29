@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from boopctl_lib.device import DeviceError
+from facegen.facegen import MOODS  # noqa: F401  Boop's moods, as `state` carries them, in the device's order
 
 REPO = Path(__file__).resolve().parents[3]
 
@@ -30,10 +31,6 @@ FINISHES |= {old for old, anim in OLD_ANIMS.items() if anim in FINISHES}
 # The facts that pick an animation's variations (PROTOCOL.md §3).
 OUTCOMES = ["success", "failure"]
 CTXS = ["new_task", "session", "continuation"]
-# Boop's moods, as `state` carries them, in the device's order (PROTOCOL.md §3,
-# harness/DECISIONS.md §2.3).
-MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad",
-         "calm", "engaged", "annoyed", "irritated", "whiny", "wounded"]
 
 
 PACK = REPO / ".build" / "voice" / "voice.bin"

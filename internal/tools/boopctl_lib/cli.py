@@ -194,7 +194,7 @@ def cmd_perf(args: argparse.Namespace) -> int:
     the board drew in every second, and draw_us + push_us says how fast it
     draws (DEVICE.md §6)."""
     samples = []
-    working = {"t": "state", "v": 1, "base": "working", "busy": 1}
+    working = {"t": "state", "base": "working", "busy": 1}
     with Device(args.port) as dev:
         dev.request({"t": "dbg.clock", "run": True})
         dev.send(working)
@@ -235,7 +235,7 @@ def soak_state(rng: random.Random, vol: int = 6) -> dict:
                 for _ in range(rng.randint(0, 8))]
     busy = sum(t[2] == "work" for t in sessions)
     wait = sum(t[2] == "wait" for t in sessions)
-    msg = {"t": "state", "v": 1,
+    msg = {"t": "state",
            "base": "working" if busy else rng.choice(["idle", "idle", "asleep"]),
            "mood": rng.choice(MOODS),
            "busy": busy, "vol": vol}
@@ -371,7 +371,7 @@ def cmd_soak(args: argparse.Namespace) -> int:
         # last press (held ≤ 3 s, then listening waits ≤ 8 s for a reply)
         # and moment are over: a reaction's face can hold 6 loops of a 9 s
         # design.
-        calm = {"t": "state", "v": 1, "base": "idle", "busy": 0, "vol": args.vol}
+        calm = {"t": "state", "base": "idle", "busy": 0, "vol": args.vol}
         settle_by = time.monotonic() + 75
         while True:
             send(calm)
@@ -468,7 +468,7 @@ def show_begin(dev: Device, warn: bool = True) -> dict:
 def show_state(dev: Device, vol: int, base: str = "idle", attn: dict | None = None, mood: str = "happy") -> None:
     """A minimal `state`. Resent at least every 10 s, since the board shows
     "no app" after 30 s without one (PROTOCOL.md §3)."""
-    msg = {"t": "state", "v": 1, "base": base, "mood": mood, "vol": vol}
+    msg = {"t": "state", "base": base, "mood": mood, "vol": vol}
     if attn:
         msg["attn"] = attn
     dev.send(msg)

@@ -194,10 +194,10 @@ def pattern(dev: Device, camera: str) -> dict:
 
 # Live clips (plan/VERIFICATION.md §5 L3): the clock runs, so the camera sees
 # real motion. Each is a list of (seconds after recording starts, message).
-_WORKING = {"t": "state", "v": 1, "base": "working", "busy": 1}
+_WORKING = {"t": "state", "base": "working", "busy": 1}
 _ATTN = {**_WORKING, "attn": {"agent": "codex", "project": "landing", "more": 0}}
 CLIPS = {
-    "idle": [(0.0, {"t": "state", "v": 1, "base": "idle"})],
+    "idle": [(0.0, {"t": "state", "base": "idle"})],
     "needs_you": [(0.0, _WORKING), (2.0, _ATTN), (5.0, _ATTN)],
     # A finish, by its older name (`cheer`: task_complete's success), then
     # the brain's line on its own over the working face (the line is
@@ -206,7 +206,7 @@ CLIPS = {
               (4.0, {"t": "moment",
                      "say": {"take": "previous.done"}}),
               (5.0, _WORKING)],
-    "tap": [(0.0, {"t": "state", "v": 1, "base": "idle"}), (1.0, {"t": "dbg.press", "ms": 100}),
+    "tap": [(0.0, {"t": "state", "base": "idle"}), (1.0, {"t": "dbg.press", "ms": 100}),
             (3.0, {"t": "dbg.touch", "x": 160, "y": 100, "ms": 100}), (5.0, {"t": "dbg.press", "ms": 100})],
 }
 
@@ -229,7 +229,7 @@ def clip(dev: Device, name: str, camera: str, seconds: int = 8, frames: int = 18
     dev.request({"t": "dbg.clock", "run": True})
     dev.request({"t": "dbg.light", "bl": 255})
     if play is None:
-        dev.send({"t": "state", "v": 1, "base": "idle"})
+        dev.send({"t": "state", "base": "idle"})
     run = [str(WEBCAM), "record", "--camera", camera, "--seconds", str(seconds), "--out", str(out)]
     rec = subprocess.Popen(run, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     time.sleep(1.0)  # the camera takes about a second to start

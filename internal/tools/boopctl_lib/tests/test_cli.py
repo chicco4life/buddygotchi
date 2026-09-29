@@ -84,8 +84,8 @@ class PlayTests(unittest.TestCase):
 
     def test_the_moods_are_the_devices(self):
         """PROTOCOL.md §3: the moods boopctl sends are the device's thirteen,
-        in its order (firmware/src/render/anim.cpp)."""
-        self.assertEqual(cli.MOODS, firmware_names("render/anim.cpp", "kMoods[] = {"))
+        in its order (facegen writes them into firmware/assets/faces.h)."""
+        self.assertEqual(cli.MOODS, firmware_names("../assets/faces.h", "kMoodNames[13] = {"))
         self.assertEqual(len(cli.MOODS), 13)
 
     def test_play_sends_just_the_animation(self):
@@ -111,9 +111,10 @@ class PlayTests(unittest.TestCase):
     def test_the_animations_are_the_devices(self):
         """BEHAVIORS.md §5: the names boopctl plays are the device's own, the
         names of the states whose designs they play (firmware/src/render/
-        scene.cpp animState), and the older two it still reads (anim.cpp)."""
+        scene.cpp animState; faces.h names them), and the older two it still
+        reads (anim.cpp)."""
         states = dict(zip(firmware_names("render/scene.h", "enum class SceneState", r"\bk\w+"),
-                          firmware_names("render/scene.cpp", "kStates[] = {")))
+                          firmware_names("../assets/faces.h", "kStateNames[22] = {")))
         plays = firmware_names("render/scene.cpp", "SceneState animState(Anim a) {",
                                r"case Anim::k\w+: return SceneState::(k\w+);", end="\n}\n")
         self.assertEqual(cli.ANIMS + ["listening"], [states[s] for s in plays])

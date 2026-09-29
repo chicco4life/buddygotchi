@@ -125,7 +125,7 @@ class FeedTests(unittest.TestCase):
                                      {"agent": "claude", "project": "c", "status": "working"},
                                      {"agent": "claude", "project": "d", "status": "idle"},
                                      {"agent": "codex", "project": "e", "status": "idle"}]}, "received_at_ms": 1},
-            {"sent": {"t": "state", "v": 1, "base": "working", "mood": "happy",
+            {"sent": {"t": "state", "base": "working", "mood": "happy",
                       "attn": {"agent": "claude", "project": "a", "more": 1}, "busy": 1, "vol": 6}, "received_at_ms": 1},
         ])
         self.assertEqual(dict(board.facts(1))["sessions"], "1 working, 2 idle, 2 waiting")
@@ -225,7 +225,7 @@ class ColumnsTests(unittest.TestCase):
         event recorded right after it, never "played from the dashboard",
         and the working look shows its activity (`act`)."""
         t = 1_790_550_800_000
-        state = {"t": "state", "v": 1, "base": "working", "act": "terminal", "mood": "calm", "busy": 1, "vol": 6}
+        state = {"t": "state", "base": "working", "act": "terminal", "mood": "calm", "busy": 1, "vol": 6}
         view = {"id": 9, "type": "turn", "from": [9], "line": 'claude started turn 2 on "jetpack".', "notes": [],
                 "wakes_brain": True, "facts": {}, "phase": "start"}
         board, rows = board_after([
@@ -401,10 +401,10 @@ class ControlsTests(unittest.TestCase):
         self.assertEqual(controls.options(react[0])[0], "none")
 
     def test_preview_lines(self):
-        latest = {"t": "state", "v": 1, "base": "working", "attn": {"agent": "codex", "project": "x", "more": 0},
+        latest = {"t": "state", "base": "working", "attn": {"agent": "codex", "project": "x", "more": 0},
                   "busy": 1, "vol": 3}
         self.assertEqual(controls.preview_state(latest, "asleep"),
-                         {"t": "state", "v": 1, "base": "asleep", "busy": 1, "vol": 3})
+                         {"t": "state", "base": "asleep", "busy": 1, "vol": 3})
         self.assertEqual(controls.preview_state(latest, "idle", "sad")["mood"], "sad")
         needs = controls.preview_state(None, "needs you")
         self.assertEqual((needs["base"], needs["attn"]["agent"]), ("idle", "claude"))
@@ -610,7 +610,7 @@ class AppTests(unittest.TestCase):
 
                 # The app starts again: the file is emptied in place.
                 log.write_text('{"questions":[],"received_at_ms":2}\n'
-                               '{"sent":{"t":"state","v":1,"base":"idle","busy":0,"vol":6},'
+                               '{"sent":{"t":"state","base":"idle","busy":0,"vol":6},'
                                '"received_at_ms":2}\n'
                                '{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":3}\n')
                 sent_before = len(face.sent)
