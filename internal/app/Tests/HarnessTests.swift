@@ -208,8 +208,7 @@ final class HarnessTests: XCTestCase {
     /// EVENTS.md §6, DECISIONS.md §4: a poke's pass asks the mood question
     /// like any other, so it can move Boop's mood: from calm, to annoyed.
     func testAPokeCanMoveBoopsMood() async throws {
-        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let dir = tempDir("boop-mood")
         defer { try? FileManager.default.removeItem(at: dir) }
         let store = MoodStore(stateDir: dir)
         let seen = Lines()
@@ -278,7 +277,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(third, BrainTrouble(kind: .failing, why: "jev: HTTP 503", inARow: 3))
         // A waiting pass that never asked Jev leaves it as it was.
         let waited = event(h, home, "x")
-        home.sync { h.finish(waited, nil, .failure(BrainError("something needs you")), latencyMs: 0) }
+        home.sync { _ = h.finish(waited, nil, .failure(BrainError("something needs you")), latencyMs: 0) }
         XCTAssertEqual(home.sync { h.trouble }?.inARow, 3)
         home.sync { h.use(brain) }
         XCTAssertNil(home.sync { h.trouble })
@@ -549,6 +548,15 @@ final class HarnessTests: XCTestCase {
             Boop has been grumpy for 2 min.
             """)
 
+        // An action's own facts join its event's data unread; the
+        // harness's keys win a clash.
+        let told = Recorder("b", keys: ["j"], result: .started("Boop said it.", Pending(),
+                                                               facts: ["takes": .array(["t1", "t2"]), "face": "happy", "ok": false]))
+        let (h2, home2) = harness(ScriptedBrain(always: [:]), [told])
+        _ = await h2.respond(to: event(h2, home2, "it spoke"))
+        try XCTAssertEqual(try XCTUnwrap(actions(h2, home2).last).jsonLine,
+                       #"{"seq":2,"ts":1790000000000,"source":"boop","type":"action","phase":"start","specific_type":"b","data":{"by":"brain","face":"happy","for":1,"latency_ms":0,"message":"Boop said it.","ok":true,"takes":["t1","t2"]}}"#)
+
         home.sync { first.finish(.done) }
         XCTAssertEqual(actions(h, home).last?.jsonLine,
                        #"{"seq":3,"ts":1790000000000,"source":"boop","type":"action","phase":"end","specific_type":"a","data":{"by":"brain","for":2,"outcome":"done"}}"#)
@@ -737,8 +745,7 @@ final class HarnessTests: XCTestCase {
     }
 
     static func realActions() -> [any Action] {
-        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let dir = tempDir("boop-mood")
         return [MoodAction(store: MoodStore(stateDir: dir)),
                 ReactAction(voice: Voice(), queue: { _, _ in }, blocked: { nil })]
     }
@@ -768,9 +775,12 @@ final class HarnessTests: XCTestCase {
             let result = react.run(answers)
             XCTAssertEqual(queued.count, before + 1, "one moment queued", line: line)
             // `SAID` stands for the line the take picked at random says.
+            // EVENTS.md §2: the start carries the takes' ids and the face.
             let said = queued.last?.moment.say?.text ?? "?"
-            XCTAssertEqual(result, queued.last.map { .started(message.replacingOccurrences(of: "SAID", with: said), $0.pending) },
-                           line: line)
+            XCTAssertEqual(result, queued.last.map { q in
+                .started(message.replacingOccurrences(of: "SAID", with: said), q.pending,
+                         facts: ["takes": .array((q.moment.say?.takes ?? []).map { .string($0.id) }), "face": .string(q.moment.mood!)])
+            }, line: line)
         }
         XCTAssertNil(react.run(["react.mood": a("none")]))
         starts(["react.mood": a("grumpy"), "say.feeling": a("upset", 0.57), "say.about": a("tests", 0.8), "say.kind": a("sound"),
@@ -906,8 +916,7 @@ final class HarnessTests: XCTestCase {
                                                       "calm", "engaged", "annoyed", "irritated", "whiny", "wounded"])
         XCTAssertEqual(MoodAction.moods.map(\.name), MoodGraph.moods)
         XCTAssertEqual(MoodAction.initial, "calm")
-        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let dir = tempDir("boop-mood")
         defer { try? FileManager.default.removeItem(at: dir) }
         let store = MoodStore(stateDir: dir)
         XCTAssertEqual(store.current, "calm", "a new state directory starts calm")
@@ -964,8 +973,7 @@ final class HarnessTests: XCTestCase {
     /// told why when it can't: the mood it already is, or one that isn't a
     /// mood.
     func testAForcedMoodChangesItAsJevsDoes() throws {
-        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let dir = tempDir("boop-mood")
         defer { try? FileManager.default.removeItem(at: dir) }
         var told: [String] = []
         let mood = MoodAction(store: MoodStore(stateDir: dir), changed: { told.append($0) })

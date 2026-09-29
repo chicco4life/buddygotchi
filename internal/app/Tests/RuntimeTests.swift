@@ -686,7 +686,7 @@ final class RuntimeTests: XCTestCase {
         transport.endMoments()  // the device says it has played
         eventually("the start's reaction has played") {
             runtime.home.sync {
-                let schedule = runtime.moments.schedule
+                let schedule = runtime.schedule
                 return schedule.lineFree <= runtime.options.clock() && schedule.waiting.isEmpty
             }
         }
@@ -718,7 +718,7 @@ final class RuntimeTests: XCTestCase {
         schedule.brain(mumble, now: 200)
         var due = schedule.due(now: 500)
         XCTAssertEqual(due.play, mumble, "over the poke, which a mumble doesn't cut")
-        schedule.hold(id: 1, mumble, now: 500, until: 500 + schedule.playMs(mumble) + Runtime.Moments.endGraceMs)
+        schedule.hold(id: 1, mumble, now: 500, until: 500 + schedule.playMs(mumble) + MomentSchedule.endGraceMs)
         XCTAssertEqual(schedule.next, 500 + 1920 + MomentSchedule.linkSlackMs, "the second waits for the first's mumble")
         XCTAssertFalse(schedule.idle(now: 2000), "the line is busy")
         XCTAssertNil(schedule.due(now: 2000).play)
@@ -800,7 +800,7 @@ final class RuntimeTests: XCTestCase {
         /// A forced reaction once the last one's line has played: its
         /// `action` entry's seq, and the moment sent for it.
         func react() throws -> (seq: Int, moment: String) {
-            clock.now = max(clock.now, runtime.home.sync { runtime.moments.schedule.lineUntil })
+            clock.now = max(clock.now, runtime.home.sync { runtime.schedule.lineUntil })
             return try runtime.home.sync {
                 XCTAssertEqual(runtime.harness.force(["react.mood": "happy"]).map(\.name), ["react"])
                 let seq = try XCTUnwrap(runtime.pipeline.transcript.events.last { $0.type == .action && $0.specificType == "react" && $0.phase != .end }?.seq)
@@ -816,20 +816,20 @@ final class RuntimeTests: XCTestCase {
         let alone = try react()
         XCTAssertEqual(end(of: alone.seq), .failed("no device connected"))
         XCTAssertFalse(alone.moment.contains(#""id""#), "sent all the same, and dropped, with nothing to wait on")
-        XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.look }, "asleep",
+        XCTAssertEqual(runtime.home.sync { runtime.schedule.look }, "asleep",
                        "the look of the last state, which times the face: no sessions")
 
         clock.now += 10_000
         connection(true)
-        let id = runtime.home.sync { runtime.moments.lastId }  // this launch's ids count up from here
+        let id = runtime.home.sync { runtime.schedule.lastId }  // this launch's ids count up from here
         let played = try react()
         XCTAssertTrue(played.moment.hasSuffix(#","mood":"happy","loops":1,"id":\#(id + 1)}"#), played.moment)
-        clock.now = runtime.home.sync { runtime.moments.schedule.lineUntil }
+        clock.now = runtime.home.sync { runtime.schedule.lineUntil }
         runtime.home.sync { runtime.tick() }
         XCTAssertNil(end(of: played.seq), "played by the app's reckoning, but the device hasn't said so")
         device(#"{"t":"ended","id":\#(id + 1),"how":"done"}"#)
         XCTAssertEqual(end(of: played.seq), .done)
-        XCTAssertTrue(runtime.home.sync { runtime.moments.playing.isEmpty })
+        XCTAssertTrue(runtime.home.sync { runtime.schedule.playing.isEmpty })
 
         let tapped = try react()
         XCTAssertTrue(tapped.moment.hasSuffix(#","id":\#(id + 2)}"#))
@@ -845,8 +845,8 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(end(of: skipped.seq), .failed("something needed you"))
 
         let silent = try react()
-        let deadline = try XCTUnwrap(runtime.home.sync { runtime.moments.playing.first?.deadline })
-        XCTAssertEqual(deadline, runtime.home.sync { runtime.moments.schedule.lineUntil } + Runtime.Moments.endGraceMs,
+        let deadline = try XCTUnwrap(runtime.home.sync { runtime.schedule.playing.first?.deadline })
+        XCTAssertEqual(deadline, runtime.home.sync { runtime.schedule.lineUntil } + MomentSchedule.endGraceMs,
                        "sent, plus its length, plus the grace")
         clock.now = deadline - 1
         runtime.home.sync { runtime.tick() }
@@ -861,15 +861,15 @@ final class RuntimeTests: XCTestCase {
         XCTAssertNil(end(of: dropped.seq), "playing")
         connection(false)
         XCTAssertEqual(end(of: dropped.seq), .failed("the device disconnected"))
-        XCTAssertTrue(runtime.home.sync { runtime.moments.playing.isEmpty })
+        XCTAssertTrue(runtime.home.sync { runtime.schedule.playing.isEmpty })
     }
 
     /// PROTOCOL.md §4, harness/DECISIONS.md §5: how each `ended` reads in
     /// HISTORY; and PROTOCOL.md §6: the grace the app gives a moment past
     /// its length.
     func testWhatTheDevicesEndedMeans() {
-        XCTAssertEqual(Runtime.Moments.endGraceMs, 3000)
-        let end = { (how: MomentEnded.How, why: String?) in Runtime.Moments.end(MomentEnded(id: 1, how: how, why: why)) }
+        XCTAssertEqual(MomentSchedule.endGraceMs, 3000)
+        let end = { (how: MomentEnded.How, why: String?) in MomentSchedule.end(MomentEnded(id: 1, how: how, why: why)) }
         XCTAssertEqual(end(.done, nil), .done)
         XCTAssertEqual(end(.cut, "tap"), .failed("cut short: you tapped Boop"))
         XCTAssertEqual(end(.cut, "moment"), .failed("cut short: something newer played"))
@@ -901,7 +901,7 @@ final class RuntimeTests: XCTestCase {
             FaceLoops.states.flatMap { state in (1...FaceLoops.count(mood: mood, state: state)).map { FaceLoops.ms(mood: mood, state: state, variant: $0) } }
         }.max() ?? 0
         XCTAssertGreaterThanOrEqual(longest, Int64(held) * longestLoop)
-        XCTAssertLessThan(MomentSchedule.maxWaitMs + MomentSchedule.lateMs + longest + Runtime.Moments.endGraceMs,
+        XCTAssertLessThan(MomentSchedule.maxWaitMs + MomentSchedule.lateMs + longest + MomentSchedule.endGraceMs,
                           Harness.pendingMaxMs)
     }
 
@@ -1099,7 +1099,7 @@ final class RuntimeTests: XCTestCase {
         schedule.brain(face, now: 200)
         let due = schedule.due(now: 200)
         XCTAssertEqual(due.play, face, "the brain's mumble plays over it")
-        let until = 200 + schedule.playMs(face) + Runtime.Moments.endGraceMs
+        let until = 200 + schedule.playMs(face) + MomentSchedule.endGraceMs
         schedule.hold(id: 1, face, now: 200, until: until)
         XCTAssertFalse(schedule.rulePlays(now: 300), "its line plays")
         let spoken = 200 + face.sayMs + MomentSchedule.linkSlackMs
@@ -1127,7 +1127,7 @@ final class RuntimeTests: XCTestCase {
                       "\(sent)")
         XCTAssertTrue(sent[start].hasPrefix(#"{"t":"moment","anim":"starting","variant":"#)
                       && sent[start].hasSuffix(#","ctx":"new_task"}"#), sent[start])
-        XCTAssertTrue(runtime.home.sync { runtime.moments.playing.isEmpty }, "no brain waits on it")
+        XCTAssertTrue(runtime.home.sync { runtime.schedule.playing.isEmpty }, "no brain waits on it")
     }
 
     /// PROTOCOL.md §3–4, ARCHITECTURE.md §3.2: a brain moment sent to the
@@ -1141,7 +1141,7 @@ final class RuntimeTests: XCTestCase {
         let face = DeviceMoment(say: line, mood: "proud")
         func sent(_ schedule: inout MomentSchedule, at now: Int64, id: Int) -> Int64 {
             XCTAssertEqual(schedule.due(now: now).play, face)
-            let until = now + schedule.playMs(face) + Runtime.Moments.endGraceMs
+            let until = now + schedule.playMs(face) + MomentSchedule.endGraceMs
             schedule.hold(id: id, face, now: now, until: until)
             return until
         }
@@ -1212,34 +1212,34 @@ final class RuntimeTests: XCTestCase {
         let next = DeviceMoment(say: line, mood: "grumpy")
         XCTAssertEqual(MomentSchedule.linkSlackMs, 500)
         XCTAssertEqual(held.sayMs, 1920)
-        let moments = Runtime.Moments()
+        var moments = MomentSchedule()
         var ends: [String: Pending.End] = [:]
         let first = Pending(), second = Pending()
         first.bind { ends["first"] = $0 }
         second.bind { ends["second"] = $0 }
-        moments.schedule.brain(held, first, now: 0)
-        var play = moments.schedule.due(now: 0)
+        moments.brain(held, first, now: 0)
+        var play = moments.due(now: 0)
         XCTAssertEqual(play.play, held, "the first plays at once")
         guard var sent = play.play else { return }
         moments.send(&sent, first, now: 0)
         let faceEnds = 4 * FaceLoops.ms(mood: "proud", state: "idle", variant: 2)
         XCTAssertGreaterThanOrEqual(faceEnds, 16_000, "a face held four times over the idle look")
-        XCTAssertEqual(moments.schedule.lineFree, faceEnds + Runtime.Moments.endGraceMs)
+        XCTAssertEqual(moments.lineFree, faceEnds + MomentSchedule.endGraceMs)
 
-        moments.schedule.brain(next, second, now: 1000)
-        XCTAssertEqual(moments.schedule.next, 1920 + 500, "asked back once the first's mumble has played")
-        XCTAssertNil(moments.schedule.due(now: 2419).play)
-        play = moments.schedule.due(now: 2420)
+        moments.brain(next, second, now: 1000)
+        XCTAssertEqual(moments.next, 1920 + 500, "asked back once the first's mumble has played")
+        XCTAssertNil(moments.due(now: 2419).play)
+        play = moments.due(now: 2420)
         XCTAssertEqual(play.play, next, "sent then, over the held face")
         XCTAssertEqual(play.dropped, [])
         guard var replacing = play.play else { return }
         moments.send(&replacing, second, now: 2420)
-        XCTAssertFalse(moments.schedule.idle(now: 2420 + 1920), "the line waits for the second's ended")
+        XCTAssertFalse(moments.idle(now: 2420 + 1920), "the line waits for the second's ended")
 
         // The device ends the first at once, done: its line had played.
         moments.ended(MomentEnded(id: sent.id!, how: .done, why: nil), now: 2450)
         XCTAssertEqual(ends, ["first": .done])
-        XCTAssertEqual(moments.schedule.holder?.id, replacing.id, "the second holds the line")
+        XCTAssertEqual(moments.holder?.id, replacing.id, "the second holds the line")
     }
 
     /// ARCHITECTURE.md §3.2: a brain moment's wait is counted to when its
@@ -1345,7 +1345,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(ends().count, 4, "the two it was waiting on didn't happen")
         // The fourth may play on the device, and holds the line until the
         // app gives up on it; after that nothing is playing.
-        clock.now = try XCTUnwrap(runtime.home.sync { runtime.moments.schedule.holder?.until })
+        clock.now = try XCTUnwrap(runtime.home.sync { runtime.schedule.holder?.until })
         runtime.home.sync { runtime.tick() }
         react("happy")
         react("sad")
@@ -1417,21 +1417,21 @@ final class RuntimeTests: XCTestCase {
 
         transport.onLine?(#"{"t":"input","k":"tap"}"#)
         runtime.home.sync {}
-        let mood = runtime.home.sync { runtime.moments.schedule.mood }
-        XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.animUntil }, clock.now + DeviceMoment.tapMs(mood: mood, run: 1),
+        let mood = runtime.home.sync { runtime.schedule.mood }
+        XCTAssertEqual(runtime.home.sync { runtime.schedule.animUntil }, clock.now + DeviceMoment.tapMs(mood: mood, run: 1),
                        "the device's poke")
         clock.now += 300
         let asking = StateSnapshot(base: "idle", mood: "happy", attn: .init(agent: "claude", project: "x", more: 0, id: 1),
                                    busy: 0, vol: 6)
         runtime.home.sync { runtime.run([.state(asking)]) }
-        XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.animUntil }, clock.now, "needs you stopped it")
+        XCTAssertEqual(runtime.home.sync { runtime.schedule.animUntil }, clock.now, "needs you stopped it")
         runtime.home.sync { runtime.run([.state(sampleSnapshot())]) }
 
         var ends: [Pending.End] = []
         let pending = Pending()
         pending.bind { ends.append($0) }
         runtime.home.sync {
-            runtime.moments.schedule.brain(DeviceMoment(say: line, mood: "sad"), pending, now: clock.now)
+            runtime.schedule.brain(DeviceMoment(say: line, mood: "sad"), pending, now: clock.now)
         }
         clock.now += 60_000  // the clock jumps; the pump's timer runs on uptime and hasn't fired
         runtime.home.sync { runtime.tick() }
@@ -1455,8 +1455,8 @@ final class RuntimeTests: XCTestCase {
         let line = DeviceMoment.Say.test(ms: 100)
         let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) } }
         runtime.home.sync {
-            runtime.moments.schedule.brain(DeviceMoment(say: line, mood: "proud", loops: 4), Pending(), now: clock.now)
-            runtime.moments.schedule.brain(DeviceMoment(say: line, mood: "happy"), Pending(), now: clock.now)
+            runtime.schedule.brain(DeviceMoment(say: line, mood: "proud", loops: 4), Pending(), now: clock.now)
+            runtime.schedule.brain(DeviceMoment(say: line, mood: "happy"), Pending(), now: clock.now)
             runtime.pump()
         }
         let first = try XCTUnwrap(transport.momentIds.first)
@@ -1546,7 +1546,7 @@ final class RuntimeTests: XCTestCase {
         clock.now += 20
         device(#"{"t":"input","k":"tap"}"#)  // on the device before the second arrived
         XCTAssertEqual(moments(), 2, "the second may be playing: the third waits for its ended")
-        XCTAssertGreaterThan(runtime.home.sync { runtime.moments.schedule.lineFree }, clock.now)
+        XCTAssertGreaterThan(runtime.home.sync { runtime.schedule.lineFree }, clock.now)
         clock.now += 1500
         device(#"{"t":"ended","id":\#(transport.momentIds[1]),"how":"done"}"#)
         XCTAssertEqual(moments(), 3)
@@ -1649,17 +1649,17 @@ final class RuntimeTests: XCTestCase {
         func react(_ mood: String) {
             runtime.home.sync { _ = runtime.harness.force(["react.mood": mood, "react.loops": "twice"]) }
         }
-        let pumpAt = { runtime.home.sync { runtime.moments.pumpAt } }
+        let pumpAt = { runtime.home.sync { runtime.pumpAt } }
 
         react("proud")
         clock.now += 1000
         react("happy")
-        let free = { runtime.home.sync { runtime.moments.schedule.brainFree } }
+        let free = { runtime.home.sync { runtime.schedule.brainFree } }
         XCTAssertEqual(pumpAt(), free(), "the second waits for the first's mumble")
         XCTAssertGreaterThan(free(), clock.now)
         clock.now += 60_000  // the Mac slept, and the timer with it
         react("grumpy")  // the second is dropped, and this one plays
-        XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.waiting.count }, 0)
+        XCTAssertEqual(runtime.home.sync { runtime.schedule.waiting.count }, 0)
         clock.now += 1000
         react("excited")
         XCTAssertEqual(pumpAt(), free(), "a timer of its own, not the late one")
@@ -1670,11 +1670,11 @@ final class RuntimeTests: XCTestCase {
     /// and count up, so an earlier launch's moment still on the device
     /// can't share one; they stay within 1...Int32.max for the device.
     func testMomentIdsDifferEachLaunch() {
-        let firsts = Set((0..<8).map { _ in Runtime.Moments.firstId() })
+        let firsts = Set((0..<8).map { _ in MomentSchedule().lastId })
         XCTAssertGreaterThan(firsts.count, 1, "random")
         XCTAssertTrue(firsts.allSatisfy { (0..<Int(Int32.max)).contains($0) })
-        XCTAssertEqual(Runtime.Moments.nextId(after: 41), 42)
-        XCTAssertEqual(Runtime.Moments.nextId(after: Int(Int32.max)), 1, "back to 1, never 0")
+        XCTAssertEqual(MomentSchedule.nextId(after: 41), 42)
+        XCTAssertEqual(MomentSchedule.nextId(after: Int(Int32.max)), 1, "back to 1, never 0")
     }
 
     /// PROTOCOL.md §3: a launch numbers its requests from somewhere random,
@@ -1705,28 +1705,28 @@ final class RuntimeTests: XCTestCase {
     /// other than calm, the resting mood (DECISIONS.md §4), and nothing
     /// else; the harness only places it.
     func testHistoryClosesWithTheMoodsTime() throws {
-        var now: Int64 = 1_790_000_000_000
-        let core = Core(config: .init())
-        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-since-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let clock = VirtualClock(1_790_000_000_000)
+        let dir = tempDir("boop-since")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let moodAction = MoodAction(store: MoodStore(stateDir: dir), clock: { now })
-        func closing() -> String? {
-            Runtime.stateParts(steering: Self.steering, personality: .boop, mood: "calm", view: TranscriptView(),
-                               moodAction: moodAction, time: LocalTime(timeZone: TimeZone(identifier: "UTC")!), now: now, wall: now).closing
-        }
+        let (harness, moodAction) = Runtime.harness(
+            brain: nil, pipeline: Pipeline(core: Core(config: .init()), view: TranscriptView()),
+            mood: MoodStore(stateDir: dir), voice: Voice(), steering: Self.steering,
+            personality: { .boop }, time: LocalTime(timeZone: TimeZone(identifier: "UTC")!),
+            clock: { clock.now }, wall: { clock.now }, queue: { _, _ in }, home: DispatchQueue(label: "boop.test"))
+        let poke = ViewEvent(id: 1, type: .poke, from: [1], ts: clock.now, line: "You poked Boop.", wakesBrain: true)
+        func closing() -> String? { harness.parts(poke).closing }
         XCTAssertNil(closing(), "calm says nothing")
         _ = moodAction.change(to: "grumpy")
-        now += 30_000
+        clock.now += 30_000
         XCTAssertEqual(closing(), "Boop has been grumpy for under a minute.")
-        now += 2 * 60_000
-        XCTAssertEqual(moodAction.sinceLine(at: now), "Boop has been grumpy for 2 min.", "whole minutes, as HISTORY's")
-        XCTAssertNil(MoodAction(store: MoodStore(stateDir: dir)).sinceLine(at: now),
+        clock.now += 2 * 60_000
+        XCTAssertEqual(moodAction.sinceLine(at: clock.now), "Boop has been grumpy for 2 min.", "whole minutes, as HISTORY's")
+        XCTAssertNil(MoodAction(store: MoodStore(stateDir: dir)).sinceLine(at: clock.now),
                      "grumpy on disk, but nothing before a change since launch")
         _ = moodAction.change(to: "happy")
-        XCTAssertEqual(moodAction.sinceLine(at: now), "Boop has been happy for under a minute.", "happy is a mood like any other")
+        XCTAssertEqual(moodAction.sinceLine(at: clock.now), "Boop has been happy for under a minute.", "happy is a mood like any other")
         _ = moodAction.change(to: "calm")
-        XCTAssertNil(moodAction.sinceLine(at: now), "back to calm")
+        XCTAssertNil(moodAction.sinceLine(at: clock.now), "back to calm")
     }
 }
 

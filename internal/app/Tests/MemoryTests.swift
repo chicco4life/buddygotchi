@@ -9,7 +9,7 @@ final class MemoryRig {
     var store: MemoryStore!
 
     init(setUp: Bool = true, day: String = "2026-10-14") throws {
-        dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-memory-\(UUID().uuidString)")
+        dir = tempDir("boop-memory")
         try reopen()
         if setUp {
             try store.setUp(name: "Pip", nature: .cheeky, seed: 0x7f3a, today: "2026-10-02")

@@ -8,23 +8,25 @@ public enum Adapter {
     /// A hook's generic type and phase.
     public typealias Mapping = (type: Event.Kind, phase: Event.Phase?)
 
-    /// Claude Code's hooks and what each becomes. `Notification` and an
-    /// interrupted `PostToolUseFailure` depend on what they carry
+    /// Claude Code's hooks, in the order the installer adds them
+    /// (ADAPTERS.md §5), and what each becomes. `Notification` (nil here)
+    /// and an interrupted `PostToolUseFailure` depend on what they carry
     /// (`mapping(_:)`).
-    static let claude: [String: Mapping] = [
-        "SessionStart": (.session, .start),
-        "UserPromptSubmit": (.turn, .start),
-        "PreToolUse": (.tool, .start),
-        "PostToolUse": (.tool, .end),
-        "PostToolUseFailure": (.tool, .end),
-        "PermissionRequest": (.tool, .wait),
-        "Elicitation": (.tool, .wait),
-        "ElicitationResult": (.tool, .end),
-        "Stop": (.turn, .end),
-        "StopFailure": (.turn, .end),
-        "SubagentStart": (.subagent, .start),
-        "SubagentStop": (.subagent, .end),
-        "SessionEnd": (.session, .end),
+    static let claude: [(hook: String, mapping: Mapping?)] = [
+        ("SessionStart", (.session, .start)),
+        ("UserPromptSubmit", (.turn, .start)),
+        ("PreToolUse", (.tool, .start)),
+        ("PostToolUse", (.tool, .end)),
+        ("PostToolUseFailure", (.tool, .end)),
+        ("PermissionRequest", (.tool, .wait)),
+        ("Notification", nil),
+        ("Elicitation", (.tool, .wait)),
+        ("ElicitationResult", (.tool, .end)),
+        ("Stop", (.turn, .end)),
+        ("StopFailure", (.turn, .end)),
+        ("SubagentStart", (.subagent, .start)),
+        ("SubagentStop", (.subagent, .end)),
+        ("SessionEnd", (.session, .end)),
     ]
 
     /// Claude's `Notification` types that mean a person is being asked.
@@ -37,45 +39,53 @@ public enum Adapter {
     /// other. A new order would make every install look outdated.
     static let notificationTypes = askingNotifications + [idleNotification]
 
-    /// Codex's hooks. Codex has no failure hook; `Interrupt` is you
-    /// pressing Esc.
-    static let codex: [String: Mapping] = [
-        "SessionStart": (.session, .start),
-        "UserPromptSubmit": (.turn, .start),
-        "PreToolUse": (.tool, .start),
-        "PostToolUse": (.tool, .end),
-        "PermissionRequest": (.tool, .wait),
-        "Stop": (.turn, .end),
-        "Interrupt": (.turn, .end),
-        "SessionEnd": (.session, .end),
+    /// Codex's hooks, in the order the installer adds them. Codex has no
+    /// failure hook; `Interrupt` is you pressing Esc.
+    static let codex: [(hook: String, mapping: Mapping)] = [
+        ("SessionStart", (.session, .start)),
+        ("UserPromptSubmit", (.turn, .start)),
+        ("PreToolUse", (.tool, .start)),
+        ("PostToolUse", (.tool, .end)),
+        ("PermissionRequest", (.tool, .wait)),
+        ("Stop", (.turn, .end)),
+        ("Interrupt", (.turn, .end)),
+        ("SessionEnd", (.session, .end)),
     ]
+
+    /// Every hook of `agent`'s that Boop maps, in the installer's order.
+    static func hooks(_ agent: Agent) -> [String] {
+        switch agent {
+        case .claude: claude.map(\.hook)
+        case .codex: codex.map(\.hook)
+        }
+    }
 
     /// What a hook line becomes, or nil for one Boop ignores.
     public static func mapping(_ line: HookLine) -> Mapping? {
-        guard let agent = Agent(hookName: line.agent) else { return nil }
+        guard let agent = Agent(rawValue: line.agent) else { return nil }
         switch agent {
-        case .claudeCode:
+        case .claude:
             if line.hook == "Notification" {
                 if line.kind.map(askingNotifications.contains) == true { return (.tool, .wait) }
                 return line.kind == idleNotification ? (.turn, .end) : nil
             }
             // Esc: Claude sends no `Stop` for a turn you interrupt.
             if line.interrupt { return (.turn, .end) }
-            return claude[line.hook]
+            return claude.first { $0.hook == line.hook }?.mapping
         case .codex:
-            return codex[line.hook]
+            return codex.first { $0.hook == line.hook }?.mapping
         }
     }
 
     /// The raw event for a hook line, or nil for hooks Boop ignores. `ts`
     /// is when the app received it, or the line's own time.
     public static func event(from line: HookLine, receivedAt: Int64? = nil) -> Event? {
-        guard let agent = Agent(hookName: line.agent), let (type, phase) = mapping(line) else { return nil }
+        guard let agent = Agent(rawValue: line.agent), let (type, phase) = mapping(line) else { return nil }
         // A subagent's start or end says which subagent by its `agent_id`;
         // one without it can't answer anyone's request or end a helper, and
         // mustn't pass for the main agent.
         if type == .subagent && line.agentID == nil { return nil }
-        let claude = agent == .claudeCode
+        let claude = agent == .claude
         var data: [String: JSONValue] = [:]
         func put(_ key: String, _ value: String?) { if let value { data[key] = .string(value) } }
         if claude {
@@ -129,7 +139,7 @@ public enum Adapter {
         // Where a tap opens the thread (BEHAVIORS.md §3.2).
         put("app", line.app)
         put("app_session", line.appSession)
-        return Event(ts: receivedAt ?? line.ts, source: Event.source(agent), type: type, phase: phase,
+        return Event(ts: receivedAt ?? line.ts, source: Event.Source(agent), type: type, phase: phase,
                      specificType: line.hook, session: line.session, subagent: claude ? line.agentID : nil,
                      cwd: line.cwd, data: data)
     }

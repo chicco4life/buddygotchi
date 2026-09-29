@@ -1,27 +1,13 @@
 import Foundation
 
-/// The agents Boop listens to.
-public enum Agent: String, Sendable {
-    case claudeCode = "claude_code"
-    case codex
+/// The agents Boop listens to, by the name `boop-hook` is called with,
+/// which is also their events' `source` and how lines and the device name
+/// them.
+public enum Agent: String, CaseIterable, Sendable {
+    case claude, codex
 
-    /// The short name used on the device, in lines and as an event's
-    /// `source`.
-    public var short: String {
-        switch self {
-        case .claudeCode: "claude"
-        case .codex: "codex"
-        }
-    }
-
-    /// The name `boop-hook` is called with.
-    public init?(hookName: String) {
-        switch hookName {
-        case "claude", "claude_code": self = .claudeCode
-        case "codex": self = .codex
-        default: return nil
-        }
-    }
+    /// For the menu bar: `Claude Code`, `Codex`.
+    public var displayName: String { self == .claude ? "Claude Code" : "Codex" }
 }
 
 /// One thing that happened, as the transcript keeps it (harness/EVENTS.md
@@ -35,6 +21,9 @@ public struct Event: Equatable, Sendable {
         case claude, codex, device, clock, boop
         /// The Mac's microphone: what you said to Boop.
         case mic
+
+        /// An agent's events' source: its own name.
+        public init(_ agent: Agent) { self.init(rawValue: agent.rawValue)! }
     }
 
     /// What it is, whatever agent it came from (EVENTS.md §2).
@@ -82,20 +71,9 @@ public struct Event: Equatable, Sendable {
     }
 
     /// The agent it came from, for an agent's event.
-    public var agent: Agent? {
-        switch source {
-        case .claude: .claudeCode
-        case .codex: .codex
-        default: nil
-        }
-    }
+    public var agent: Agent? { Agent(rawValue: source.rawValue) }
 
     public subscript(_ key: String) -> JSONValue? { data[key] }
-
-    /// The source for an agent's events.
-    public static func source(_ agent: Agent) -> Source {
-        agent == .claudeCode ? .claude : .codex
-    }
 
     // MARK: The transcript's line
 

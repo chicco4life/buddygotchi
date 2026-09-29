@@ -496,7 +496,9 @@ gate, which says when something needs you.
    `Boop made a grumpy face, held twice, and said "Hrr...".`,
    `Boop played a success in a proud face, held twice, and said "Tiny genius".`
    (a failure and a reply read the same way), or
-   `Boop made a proud face, held once.` when it says nothing.
+   `Boop made a proud face, held once.` when it says nothing. Its
+   `action` start also carries `takes`, the queued takes' ids, and
+   `face` ([EVENTS.md](EVENTS.md) §2), for the tools.
 
 **No last-reaction line.** HISTORY no longer closes with Boop's last
 reaction: what Boop did is only under the lines it answered. The line

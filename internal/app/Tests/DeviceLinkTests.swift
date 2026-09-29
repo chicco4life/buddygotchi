@@ -81,8 +81,8 @@ final class DeviceLinkTests: XCTestCase {
             while let chunk = box.next() { bytes.append(chunk) }
             return String(decoding: bytes, as: UTF8.self)
         }
-        let state1 = #"{"t":"state","v":1,"base":"working"}"#
-        let state2 = #"{"t":"state","v":1,"base":"idle"}"#
+        let state1 = #"{"t":"state","base":"working"}"#
+        let state2 = #"{"t":"state","base":"idle"}"#
         let cheer = #"{"t":"moment","anim":"cheer"}"#
         var box = BLEOutbox()
         box.add(state1, size: 8)
@@ -144,9 +144,9 @@ final class DeviceLinkTests: XCTestCase {
         // An older board's `bat` and `usb` are ignored.
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.3.1","bat":3910,"usb":1}"#),
                        .status(DeviceStatus(id: "b00p-7f3a", fw: "0.3.1")))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"tap"}"#), .input(.tap))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_on"}"#), .input(.talkOn))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_off"}"#), .input(.talkOff))
+        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"tap"}"#), .tap)
+        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_on"}"#), .talk(true))
+        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_off"}"#), .talk(false))
         // Focus and touch-and-hold were removed; an older board's are ignored.
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"focus"}"#), .other(#"{"t":"input","k":"focus"}"#))
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"feel"}"#), .other(#"{"t":"input","k":"feel"}"#))
@@ -237,14 +237,14 @@ final class DeviceLinkTests: XCTestCase {
                               busy: 999, vol: 10, variant: 5)
         XCTAssertLessThanOrEqual(s.jsonLine.utf8.count, StateSnapshot.maxLine)
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
-        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"determined","attn":{"agent":"claude","project":"\#(esc)","name":"\#(esc)","more":999,"id":2147483647},"busy":999,"vol":10,"variant":5}"#)
+        XCTAssertEqual(s.jsonLine, #"{"t":"state","base":"working","mood":"determined","attn":{"agent":"claude","project":"\#(esc)","name":"\#(esc)","more":999,"id":2147483647},"busy":999,"vol":10,"variant":5}"#)
     }
 
     /// PROTOCOL.md §3: `act` goes after `base`; the widest line that can
     /// carry it, with the longest names escaped, still fits in 512 bytes.
     func testTheActivityFitsTheLine() {
         let working = StateSnapshot(base: "working", act: "delegating", mood: "happy", attn: nil, busy: 2, vol: 6, variant: 3)
-        XCTAssertEqual(working.jsonLine, #"{"t":"state","v":1,"base":"working","act":"delegating","mood":"happy","busy":2,"vol":6,"variant":3}"#)
+        XCTAssertEqual(working.jsonLine, #"{"t":"state","base":"working","act":"delegating","mood":"happy","busy":2,"vol":6,"variant":3}"#)
         XCTAssertEqual(working.visual, "delegating")
         XCTAssertEqual(working.look, "delegating")
         let s = StateSnapshot(base: "working", act: "delegating", mood: "determined",

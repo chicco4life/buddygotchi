@@ -60,8 +60,7 @@ final class HookWireTests: XCTestCase {
     /// title in the transcript, yours over its own, and Codex's from its
     /// session index. Nothing else of either file leaves.
     func testEveryHookGetsTheThreadsName() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("threadname-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let dir = tempDir("threadname")
         defer { try? FileManager.default.removeItem(at: dir) }
         func jsonl(_ rows: [[String: Any]]) -> Data {
             Data(rows.map { String(decoding: payload($0), as: UTF8.self) + "\n" }.joined().utf8)

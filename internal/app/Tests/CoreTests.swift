@@ -66,7 +66,7 @@ final class CoreRig {
     }
 
     /// The raw event a hook of `kind` makes, as the adapter would.
-    func event(_ kind: Hook, _ agent: Agent = .claudeCode, session: String = "s1", subagent: String? = nil,
+    func event(_ kind: Hook, _ agent: Agent = .claude, session: String = "s1", subagent: String? = nil,
                project: String = "landing", workspace: String? = nil, tool: String? = nil, topic: String? = nil,
                failed: Bool? = nil, notice: Bool? = nil, kind noticeKind: String? = nil, id: String? = nil,
                done: Bool? = nil, error: String? = nil, message: String? = nil, prompt: String? = nil,
@@ -129,12 +129,12 @@ final class CoreRig {
         case .subagentEnd: (type, phase, specific) = (.subagent, .end, "SubagentStop")
         }
         let cwd = workspace.map { "/rig/\(project)/.worktrees/\($0)" } ?? "/rig/\(project)"
-        return Event(ts: now, source: Event.source(agent), type: type, phase: phase, specificType: specific,
+        return Event(ts: now, source: Event.Source(agent), type: type, phase: phase, specificType: specific,
                      session: session, subagent: subagent, cwd: cwd, data: data)
     }
 
     @discardableResult
-    func send(_ kind: Hook, _ agent: Agent = .claudeCode, session: String = "s1", subagent: String? = nil,
+    func send(_ kind: Hook, _ agent: Agent = .claude, session: String = "s1", subagent: String? = nil,
               project: String = "landing", workspace: String? = nil, tool: String? = nil, topic: String? = nil,
               failed: Bool? = nil, notice: Bool? = nil, kind noticeKind: String? = nil, id: String? = nil,
               done: Bool? = nil, error: String? = nil, message: String? = nil, prompt: String? = nil,
@@ -161,12 +161,19 @@ final class CoreRig {
     @discardableResult
     func said(_ words: String, by: Core.Talker = .device) -> Fx { note(Fx(pipeline.said(words, by: by, at: now))) }
 
-    /// An `input` from the device other than a tap: push-to-talk.
+    /// The device's BOOT button held for push-to-talk (`talk_on`), or let
+    /// go (`talk_off`).
     @discardableResult
-    func input(_ input: Core.DeviceInput) -> Fx {
+    func talk(_ on: Bool) -> Fx {
         var step = Pipeline.Step()
-        pipeline.run(core.input(input, at: now), &step)
+        pipeline.run(core.listen(on, by: .device, at: now), &step)
         return note(Fx(step))
+    }
+
+    /// Boop starts a reaction, as the harness records one.
+    func react() {
+        pipeline.record(Event(ts: now, source: .boop, type: .action, phase: .start, specificType: ReactAction.actionName,
+                              data: ["for": .null, "by": "brain", "ok": true, "message": "Boop made a happy face."]))
     }
 
     /// Moves the clock, ticking once a second like the app does.
@@ -189,7 +196,7 @@ final class CoreRig {
 
     /// A whole turn in one session: prompt, `ms` of work, finish.
     @discardableResult
-    func turn(_ ms: Int64, session: String = "s1", agent: Agent = .claudeCode) -> Fx {
+    func turn(_ ms: Int64, session: String = "s1", agent: Agent = .claude) -> Fx {
         send(.turnStart, agent, session: session)
         wait(ms)
         return send(.turnEnd, agent, session: session)
@@ -228,6 +235,14 @@ extension Personality.Rules {
 /// so this is how a quiet stretch of work reaches the brain.
 func workBeats(_ fx: Fx) -> [String] {
     events(fx).filter { $0.type == .heartbeat && $0.facts["working_ms"] != nil }.map(\.line)
+}
+
+/// A new, empty directory under the system's temporary one, named
+/// `<prefix>-<UUID>`. The test removes it.
+func tempDir(_ prefix: String) -> URL {
+    let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("\(prefix)-\(UUID().uuidString)")
+    try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    return dir
 }
 
 func states(_ fx: Fx) -> [StateSnapshot] { states(fx.effects) }
@@ -768,7 +783,7 @@ final class CoreNeedsYouTests: XCTestCase {
 
         rig.send(.activity, tool: "Bash", topic: "build")
         rig.send(.needsYou, tool: "Bash")
-        rig.wait(Core.Config().safetyNetMs)
+        rig.wait(SessionFold.safetyNetMs)
         XCTAssertNil(rig.state.attn, "the safety net")
         XCTAssertEqual(rig.state.base, "idle", "though the approved build still runs")
         XCTAssertEqual(states(rig.send(.activity, tool: "Bash", topic: "build", failed: false)).last?.base, "working")
@@ -1068,7 +1083,7 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"], ["claude", "landing", "idle"]])
 
         rig.send(.turnStart, session: "s3")
-        rig.wait(Core.Config().staleWorkMs)
+        rig.wait(SessionFold.staleWorkMs)
         XCTAssertEqual(rig.state.base, "idle", "an hour without events")
         XCTAssertEqual(states(rig.send(.subagentEnd, session: "s3", subagent: "a1")), [])
         XCTAssertEqual(rig.state.base, "idle", "still stale")
@@ -1129,7 +1144,7 @@ final class CoreNeedsYouTests: XCTestCase {
         prompt.data["name"] = "Fix the nav"
         rig.send(prompt)
         XCTAssertEqual(rig.core.sessionList(at: rig.now).first?.name, "Fix the nav")
-        XCTAssertEqual(rig.core.name(about: Core.key(.claudeCode, "s1")), "Fix the nav")
+        XCTAssertEqual(rig.core.name(about: SessionFold.key(.claude, "s1")), "Fix the nav")
         rig.send(.activity, tool: "Bash")  // an event with no name keeps it
         XCTAssertEqual(rig.core.sessionList(at: rig.now).first?.name, "Fix the nav")
         var renamed = rig.event(.activity, tool: "Edit")
@@ -1140,9 +1155,9 @@ final class CoreNeedsYouTests: XCTestCase {
 
     func testMoreThanOneShowsTheOldestWithACount() {
         let rig = CoreRig()
-        rig.send(.needsYou, .claudeCode, session: "a", project: "jetpack", tool: "Bash")
+        rig.send(.needsYou, .claude, session: "a", project: "jetpack", tool: "Bash")
         rig.wait(1000)
-        rig.send(.needsYou, .claudeCode, session: "b", project: "landing", tool: "Edit")
+        rig.send(.needsYou, .claude, session: "b", project: "landing", tool: "Edit")
         XCTAssertEqual(rig.state.attn, StateSnapshot.Attention(agent: "claude", project: "jetpack", more: 1, id: 1))
         rig.send(.activity, session: "a")
         XCTAssertEqual(rig.state.attn, StateSnapshot.Attention(agent: "claude", project: "landing", more: 0, id: 2))
@@ -1217,7 +1232,7 @@ final class CoreNeedsYouTests: XCTestCase {
     /// and the session goes idle rather than back to working: no sweat drop
     /// and no working heartbeat while the agent may still be waiting on its prompt.
     func testSafetyNetClearsAfterTenQuietMinutes() {
-        XCTAssertEqual(Core.Config().safetyNetMs, 600_000)
+        XCTAssertEqual(SessionFold.safetyNetMs, 600_000)
         let rig = CoreRig(rules: .chatty)
         rig.send(.turnStart)
         rig.send(.needsYou, tool: "Bash")
@@ -1239,7 +1254,7 @@ final class CoreNeedsYouTests: XCTestCase {
         rig.send(.turnStart, .codex)
         rig.send(.activity, .codex, tool: "shell", topic: "deploy")
         rig.send(.needsYou, .codex, tool: "shell")
-        rig.now += Core.Config().safetyNetMs  // one tick, on waking
+        rig.now += SessionFold.safetyNetMs  // one tick, on waking
         let fx = rig.note(Fx(rig.pipeline.tick(at: rig.now)))
         XCTAssertEqual(states(fx).last?.base, "idle")
         XCTAssertNil(rig.state.attn)
@@ -1361,7 +1376,7 @@ final class CoreYouAndBoopTests: XCTestCase {
         let rig = CoreRig()
         rig.send(.turnStart)
         rig.send(.needsYou, tool: "Bash")
-        rig.input(.talkOn)
+        rig.talk(true)
         XCTAssertEqual(opened(rig.poke()), [])
     }
 
@@ -1375,31 +1390,31 @@ final class CoreYouAndBoopTests: XCTestCase {
         let rig = CoreRig()
         XCTAssertEqual(Core.listenLimitMs, 30_000)
         XCTAssertEqual(Core.replyWaitMs, 8000)
-        XCTAssertTrue(rig.input(.talkOn).contains(.listen(true, by: .device)))
+        XCTAssertTrue(rig.talk(true).contains(.listen(true, by: .device)))
         XCTAssertEqual(rig.core.reactionBlock, "the mic is on")
-        XCTAssertEqual(rig.input(.talkOn), Fx(), "already on")
+        XCTAssertEqual(rig.talk(true), Fx(), "already on")
         rig.poke()
         XCTAssertEqual(rig.ruleActions, [], "no wiggle while listening")
         XCTAssertFalse(rig.wait(29_000).contains(where: { if case .listen = $0 { true } else { false } }))
         XCTAssertTrue(rig.wait(1000).contains(.listen(false, by: .device)), "off at 30 s")
         XCTAssertNil(rig.core.reactionBlock)
         XCTAssertTrue(rig.core.showsListening(at: rig.now), "held for the reply")
-        XCTAssertEqual(rig.input(.talkOff), Fx(), "the release after the limit does nothing")
+        XCTAssertEqual(rig.talk(false), Fx(), "the release after the limit does nothing")
         rig.wait(8000)
         XCTAssertFalse(rig.core.showsListening(at: rig.now), "8 s at most")
         rig.poke()
         XCTAssertEqual(rig.ruleActions, ["wiggle"])
 
-        rig.input(.talkOn)
+        rig.talk(true)
         rig.wait(2000)
-        XCTAssertTrue(rig.input(.talkOff).contains(.listen(false, by: .device)))
+        XCTAssertTrue(rig.talk(false).contains(.listen(false, by: .device)))
         rig.core.listeningEnded()
         XCTAssertFalse(rig.core.showsListening(at: rig.now), "the reply went out")
 
         XCTAssertEqual(rig.core.listen(true, at: rig.now), [.listen(true, by: .app)])
         XCTAssertEqual(rig.core.linkDown(at: rig.now), [], "the app's button carries on")
         XCTAssertEqual(rig.core.listen(false, at: rig.now), [.listen(false, by: .app)])
-        rig.input(.talkOn)
+        rig.talk(true)
         XCTAssertEqual(rig.core.linkDown(at: rig.now), [.listen(false, by: .device)], "its release can't arrive")
     }
 
@@ -1511,7 +1526,7 @@ final class CorePersonalityTests: XCTestCase {
                 rig.send(.turnStart, session: "quick")
                 n += workBeats(rig.wait(15_000)).count
                 rig.send(.turnEnd, session: "quick")
-                if reacting { rig.view.reacted() }
+                if reacting { rig.react() }
             }
             return n
         }
@@ -1597,7 +1612,7 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(workBeats(rig.wait(20_000)).count, 1, "60 s after work started, with no reaction")
         rig.wait(50_000)
         rig.send(.activity, tool: "Bash", topic: "tests", failed: true)
-        rig.view.reacted()
+        rig.react()
         XCTAssertEqual(workBeats(rig.wait(20_000)), [], "not 60 s after the last heartbeat: Boop reacted")
         XCTAssertEqual(workBeats(rig.wait(60_000)).count, 1, "60 s after the reaction")
     }
@@ -1612,15 +1627,15 @@ final class CoreRulesTests: XCTestCase {
     /// the oldest session that needs you; the list is the popover's.
     func testSnapshotShapeAndSessionList() {
         let rig = CoreRig()
-        rig.send(.sessionStart, .claudeCode, session: "a", project: "notes")
+        rig.send(.sessionStart, .claude, session: "a", project: "notes")
         rig.send(.turnStart, .codex, session: "b", project: "buddygotchi")
-        rig.send(.turnStart, .claudeCode, session: "c", project: "jetpack")
-        rig.send(.needsYou, .claudeCode, session: "d", project: "landing", tool: "Bash")
+        rig.send(.turnStart, .claude, session: "c", project: "jetpack")
+        rig.send(.needsYou, .claude, session: "d", project: "landing", tool: "Bash")
         let s = rig.state
         XCTAssertEqual(rig.sessions, [["claude", "landing", "waiting"], ["codex", "buddygotchi", "working"],
                                       ["claude", "jetpack", "working"], ["claude", "notes", "idle"]])
         XCTAssertEqual([s.busy, s.waiting], [2, 1])
-        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"calm","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":2,"vol":6,"variant":"# + "\(s.variant)}")
+        XCTAssertEqual(s.jsonLine, #"{"t":"state","base":"working","mood":"calm","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":2,"vol":6,"variant":"# + "\(s.variant)}")
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
     }
 
@@ -1808,7 +1823,7 @@ final class CoreFuzzTests: XCTestCase {
     func testRandomTrafficKeepsTheRecordAndTheScreenInStep() {
         var rng = SplitMix64(seed: 20260928)
         let rig = CoreRig()
-        let sessions: [(Agent, String, String)] = [(.claudeCode, "a", "landing"), (.claudeCode, "b", "landing"),
+        let sessions: [(Agent, String, String)] = [(.claude, "a", "landing"), (.claude, "b", "landing"),
                                                    (.codex, "c", "jetpack")]
         let tools = ["Bash", "Read", "Agent", "mcp__x__ask"]
         var lastAttn: StateSnapshot.Attention?
@@ -1827,7 +1842,7 @@ final class CoreFuzzTests: XCTestCase {
             } else {
                 rig.now += Int64(rng.int(in: 0...400))
                 let (agent, session, project) = sessions[rng.int(in: 0...2)]
-                let claude = agent == .claudeCode
+                let claude = agent == .claude
                 let subagent = claude && rng.chance(40) ? ["a1", "a2"][rng.int(in: 0...1)] : nil
                 let tool = tools[rng.int(in: 0...(claude ? 3 : 0))]
                 let id = "t\(rng.int(in: 0...5))"
@@ -1857,19 +1872,19 @@ final class CoreFuzzTests: XCTestCase {
             let why = trail.joined(separator: "\n")
             let now = rig.core.snapshot(at: rig.now)
             let showing = rig.core.needsYouShowing
-            if rig.sent.count > sentBefore, let e = rig.sent.last, Core.step(e) == .subagentStart, let agent = e.agent,
-               let session = e.session, let b = before[Core.key(agent, session)] {
-                let a = rig.core.sessions[Core.key(agent, session)]
+            if rig.sent.count > sentBefore, let e = rig.sent.last, SessionFold.step(e) == .subagentStart, let agent = e.agent,
+               let session = e.session, let b = before[SessionFold.key(agent, session)] {
+                let a = rig.core.sessions[SessionFold.key(agent, session)]
                 XCTAssertEqual(a?.lastEventAt, b.lastEventAt, "a subagent's start isn't activity\n\(why)")
                 XCTAssertEqual(a?.working, b.working, why)
                 XCTAssertEqual(a?.needsSince, b.needsSince, why)
                 XCTAssertEqual(a?.askers, b.askers, why)
             }
-            if rig.sent.count > sentBefore, let e = rig.sent.last, let id = e.subagent, let step = Core.step(e),
-               step == .subagentEnd || Core.turnLevel.contains(step), let agent = e.agent, let session = e.session {
-                let key = Core.key(agent, session)
+            if rig.sent.count > sentBefore, let e = rig.sent.last, let id = e.subagent, let step = SessionFold.step(e),
+               step == .subagentEnd || SessionFold.turnLevel.contains(step), let agent = e.agent, let session = e.session {
+                let key = SessionFold.key(agent, session)
                 // Only when no timer of the session's could have acted first.
-                if let b = before[key], rig.now - b.lastEventAt < rig.core.config.safetyNetMs, let a = rig.core.sessions[key] {
+                if let b = before[key], rig.now - b.lastEventAt < SessionFold.safetyNetMs, let a = rig.core.sessions[key] {
                     XCTAssertEqual(a.lastEventAt, b.lastEventAt, "a subagent's end isn't activity\n\(why)")
                     XCTAssertEqual(a.turnStartedAt, b.turnStartedAt, why)
                     XCTAssertEqual(a.askers, b.askers.filter { $0.key != id }, "it answers \(id) alone\n\(why)")

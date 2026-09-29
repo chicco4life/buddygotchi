@@ -146,7 +146,7 @@ struct Question { key, text, about, judgeBy: String; options: [Option] }
 struct Option   { name, what: String; notFor: String? }   // `what` is Jev's criterion
 struct Answer   { choice: String; probabilities: [String: Double] }
 typealias Answers = [String: Answer]                        // by question key
-struct ActionResult { ok: Bool; message: String; pending: Pending? } // ok: its line in HISTORY; not ok: why
+struct ActionResult { ok: Bool; message: String; pending: Pending?; facts: [String: JSONValue] } // ok: its line in HISTORY; not ok: why
 
 // .done(message), .failed(why), or .started(message, pending): begun, and ends later
 final class Pending {
@@ -172,7 +172,9 @@ final class Pending {
   everything behind it.
 - A result becomes an `action` event in the transcript
   ([EVENTS.md](EVENTS.md) §2), `for` the raw event its view event came
-  from, `by` `brain`; `nil` records nothing.
+  from, `by` `brain`; `nil` records nothing. The result's `facts`, for
+  the tools, join the event's data as they are (the harness's own keys
+  win a clash); the harness never reads them.
 - A successful result's message becomes its line in HISTORY, indented
   under the view event it answered. A failed one is logged but never shown to
   Jev, because Boop didn't do anything.
@@ -310,7 +312,7 @@ The guide and its generated part are joined by single line breaks; the
 other parts follow, each after a blank line. The runtime supplies
 everything but the view's events through one closure (`parts`): the
 steering text, the line that closes HISTORY (§5.3), the view's oldest
-working turn, and the time (`Runtime.stateParts`). The harness never reads them.
+working turn, and the time (`Runtime.harness`, which builds the actions and the harness for the app and the evals alike). The harness never reads them.
 
 **The steering files** are read once at launch from the app's bundled
 copy of `plan/steering/` (`Steering`), and never written. HTML comments

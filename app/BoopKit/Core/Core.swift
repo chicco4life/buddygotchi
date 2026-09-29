@@ -25,13 +25,6 @@ public final class Core {
         public var seed: UInt64
         /// Codex's grace period before "needs you" shows (ADAPTERS.md §4).
         public var codexGraceMs: Int64 = 2000
-        /// "Needs you" clears anyway after this long with no events, and
-        /// the session goes idle (ADAPTERS.md §4).
-        public var safetyNetMs: Int64 = 10 * 60 * 1000
-        /// A working session with no events for this long counts as idle.
-        public var staleWorkMs: Int64 = 60 * 60 * 1000
-        /// A session with no events for this long is forgotten.
-        public var forgetMs: Int64 = 24 * 60 * 60 * 1000
         /// Where this launch's request numbers start: the first request
         /// shown gets the one after it (`Core.nextAsk`). The app starts each
         /// launch somewhere random (`Core.randomFirstAsk`), so a request can't
@@ -46,7 +39,9 @@ public final class Core {
         }
     }
 
-    struct Session {
+    /// A session: its turn as the view keeps it too (`AgentSession`), and
+    /// what the rules add.
+    struct Session: AgentSession {
         var agent: Agent
         var id: String
         var project: String
@@ -63,13 +58,8 @@ public final class Core {
         var appSession: String?
         /// Working on a turn: not idle, and not waiting on "needs you".
         var working = false
-        /// When the turn now open started, and when the last one ended: a
-        /// call's result from before the end landed late (ADAPTERS.md §4).
         var turnStartedAt: Int64?
         var lastTurnEndedAt: Int64?
-        /// When you last sent a prompt (a `turn` start), for a stale idle
-        /// notice: a turn a call started (a background subagent's, after
-        /// the main agent stopped) had no prompt to race.
         var promptedAt: Int64?
         var lastEventAt: Int64
         /// When "needs you" started showing.
@@ -98,10 +88,8 @@ public final class Core {
         /// (ADAPTERS.md §4).
         var askers: [String: String] = [:]
         let order: Int
-        /// Each running tool call's start, by `tool_use_id`, and the last
-        /// one's, for a result that carries no ID.
-        var toolStarts: [String: Int64] = [:]
-        var lastToolStart: Int64?
+        var toolStarts: [String: ToolStart] = [:]
+        var lastToolStart: ToolStart?
         /// The tool calls running this turn, for the look, by
         /// `tool_use_id` or a key of their own (BEHAVIORS.md §2).
         var calls: [String: Call] = [:]
@@ -113,17 +101,14 @@ public final class Core {
         /// Its activity as it shows, held (`Core.settle`).
         var held: Timed?
 
-        var key: String { Core.key(agent, id) }
+        var key: String { SessionFold.key(agent, id) }
     }
 
     public private(set) var config: Config
 
     var sessions: [String: Session] = [:]
-    /// When each session that ended (`session_end`) did, until it starts
-    /// again or a day passes: a hook of its that lands later landed late,
-    /// and doesn't bring it back (ADAPTERS.md §4).
-    var ended: [String: Int64] = [:]
-    var nextOrder = 0
+    /// Which sessions ended, and the order sessions were first seen in.
+    var fold = SessionFold()
     /// The last request's number: they count up from `config.firstAsk`.
     var lastAsk: Int
     var rng: SplitMix64
@@ -182,8 +167,6 @@ public final class Core {
         rng = SplitMix64(seed: config.seed)
     }
 
-    static func key(_ agent: Agent, _ id: String) -> String { agent.rawValue + "/" + id }
-
     /// The thread's name as its agent's app shows it, for the session `key`
     /// names (the view's keys are the same), or nil.
     public func name(about key: String) -> String? { sessions[key]?.name }
@@ -191,39 +174,6 @@ public final class Core {
     /// The asker of a request that came as a `Notification` alone, which
     /// doesn't say who asked: any event from the session answers it.
     static let anyone = "*"
-
-    /// What an agent's event means to the rules.
-    enum Step: Equatable {
-        case sessionStart, turnStart, activity, needsYou, turnEnd, turnFailed, turnStopped, subagentStart, subagentEnd,
-             sessionEnd
-    }
-
-    static func step(_ e: Event) -> Step? {
-        switch (e.type, e.phase) {
-        case (.session, .start?): .sessionStart
-        case (.session, .end?): .sessionEnd
-        case (.turn, .start?): .turnStart
-        case (.turn, .end?):
-            switch e["outcome"]?.string {
-            case "failed": .turnFailed
-            case "stopped": .turnStopped
-            default: .turnEnd
-            }
-        case (.tool, .wait?): .needsYou
-        case (.tool, _): .activity
-        case (.subagent, .start?): .subagentStart
-        case (.subagent, .end?): .subagentEnd
-        default: nil
-        }
-    }
-
-    /// The steps that start or end a turn or a session: from inside a
-    /// subagent, only that subagent's.
-    static let turnLevel: Set<Step> = [.sessionStart, .turnStart, .turnEnd, .turnFailed, .sessionEnd]
-
-    /// Claude's idle notice comes after a minute at its prompt, so one
-    /// sooner than this after you sent a prompt is from before it.
-    static let idleNoticeMinMs: Int64 = 30_000
 
     /// How far apart a request's own hook and its `Notification` may land,
     /// either way round (ADAPTERS.md §4).
@@ -243,9 +193,9 @@ public final class Core {
     /// ignored. Its time is now.
     @discardableResult
     public func handle(_ event: Event) -> [CoreEffect] {
-        guard let agent = event.agent, let session = event.session, let step = Core.step(event) else { return [] }
+        guard let agent = event.agent, let session = event.session, let step = SessionFold.step(event) else { return [] }
         let now = event.ts
-        let key = Core.key(agent, session)
+        let key = SessionFold.key(agent, session)
         var fx: [CoreEffect] = []
         // The event's own session is left until after the event: a Codex
         // request past its grace that the event answers was never shown,
@@ -264,31 +214,18 @@ public final class Core {
 
     /// The event's changes to its session, before the snapshot goes out,
     /// and the one-shot it plays, if any (BEHAVIORS.md §3.1).
-    private func apply(_ event: Event, _ step: Step, _ agent: Agent, _ session: String, _ key: String, _ now: Int64,
+    private func apply(_ event: Event, _ step: SessionFold.Step, _ agent: Agent, _ session: String, _ key: String, _ now: Int64,
                        _ fx: inout [CoreEffect]) -> DeviceMoment? {
         let tool = event["tool"]?.string
         let notice = event["notice"]?.string
         // A finished call: a result with a tool (an `ElicitationResult` has none).
         let done = event.type == .tool && event.phase == .end && tool != nil
-        // A session that ended is back only when it starts again: resumed,
-        // or a new prompt. Anything else of its came from before the end (a
-        // Notification as you quit at the prompt, a background subagent's
-        // result, the command Codex's Interrupt aborted).
-        if sessions[key] == nil, ended[key] != nil {
-            guard event.subagent == nil, step == .sessionStart || step == .turnStart else { return nil }
-            ended[key] = nil
-        }
+        guard fold.admits(event, step, key: key, known: sessions[key] != nil) else { return nil }
         let place = event.cwd.map(self.place)
         var s = sessions[key] ?? Session(agent: agent, id: session, project: place?.project ?? "unknown",
-                                         lastEventAt: now, order: takeOrder())
+                                         lastEventAt: now, order: fold.takeOrder())
         let waiting = s.needsSince != nil || s.pendingSince != nil
-        // Claude's idle notice means it has sat at its prompt for a minute,
-        // so one within 30 s of your last prompt is from before it: a new
-        // prompt typed just as the minute ran out (ADAPTERS.md §4).
-        if step == .turnStopped, notice != nil, let prompted = s.promptedAt,
-           now - prompted < Core.idleNoticeMinMs {
-            return nil
-        }
+        if s.isStaleNotice(event, step) { return nil }
         // A session is where its events come from, except while a request
         // waits: the strip names where that was made, whatever folder a
         // sibling subagent works in meanwhile (BEHAVIORS.md §3.2).
@@ -349,7 +286,7 @@ public final class Core {
             return nil
         }
 
-        if step == .subagentEnd || (event.subagent != nil && Core.turnLevel.contains(step)) {
+        if SessionFold.subagentsOwn(event, step) {
             // A subagent that has finished can't be waiting on a prompt, so
             // its end answers its own request: denied, it carried on and
             // ended without another tool call. It answers nobody else, not
@@ -419,20 +356,15 @@ public final class Core {
             sessions[key] = s
         case .turnStart:
             s.working = true
-            s.turnStartedAt = now
-            s.promptedAt = now
+            s.prompted(at: now)
             clearWork(&s)
             shot = DeviceMoment(anim: Core.starting, ctx: "new_task")
             sessions[key] = s
         case .activity:
+            // A result that landed late leaves the turn over (ADAPTERS.md §4).
             var late = false
             if done {
-                // The result of a call that started before the turn ended
-                // or stopped landed late (Esc as it finished, or a
-                // subagent's racing the interrupt): the turn stays over
-                // (ADAPTERS.md §4).
-                let started = event["tool_use_id"]?.string.flatMap { s.toolStarts.removeValue(forKey: $0) } ?? s.lastToolStart
-                if s.turnStartedAt == nil, let at = started, let ended = s.lastTurnEndedAt, at <= ended { late = true }
+                late = s.callEnded(event).late
                 let call = endCall(&s, event, now)
                 let failed = event["failed"]?.bool == true
                 if !late, failed, event["error"]?.string.map(Core.errorClasses.contains) == true {
@@ -445,16 +377,13 @@ public final class Core {
                     shot = DeviceMoment(anim: Core.helperReturn)
                 }
             } else if let tool {
-                if let id = event["tool_use_id"]?.string { s.toolStarts[id] = now }
-                s.lastToolStart = now
+                s.callStarted(event, topic: event["topic"]?.string)
                 s.calledSinceClear = true
                 startCall(&s, event, tool: tool)
             }
             if !late {
                 s.working = true
-                // A call opens a turn with no prompt (a background
-                // subagent's after the main agent's `Stop`, say).
-                if s.turnStartedAt == nil { s.turnStartedAt = now }
+                _ = s.openTurn(at: now)
             }
             sessions[key] = s
         case .turnEnd, .turnFailed, .turnStopped:
@@ -465,16 +394,12 @@ public final class Core {
             // a stop that ends a turn plays its one-shot: Claude's idle
             // notice after a turn that finished doesn't.
             s.working = false
-            if s.turnStartedAt != nil {
-                if step == .turnStopped { shot = DeviceMoment(anim: Core.stopped) }
-                s.turnStartedAt = nil
-                s.lastTurnEndedAt = now
-            }
+            if s.endTurn(at: now) != nil, step == .turnStopped { shot = DeviceMoment(anim: Core.stopped) }
             clearWork(&s)
             sessions[key] = s
         case .sessionEnd:
             sessions[key] = nil
-            ended[key] = now
+            fold.end(key, at: now)
         case .needsYou, .subagentStart, .subagentEnd:
             break
         }
@@ -499,39 +424,27 @@ public final class Core {
         fx.append(.moment(moment))
     }
 
-    /// An `input` message's `k` (PROTOCOL.md §4).
-    public enum DeviceInput: String, Sendable {
-        case tap, talkOn = "talk_on", talkOff = "talk_off"
-    }
-
-    /// An `input` message from the device, recorded as the event `seq`.
-    /// The device has already reacted.
+    /// A tap on the device, recorded as the poke `seq`. The device has
+    /// already reacted.
     @discardableResult
-    public func input(_ input: DeviceInput, at now: Int64, seq: Int? = nil) -> [CoreEffect] {
+    public func poke(at now: Int64, seq: Int? = nil) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
         startDayIfNew(now, &fx)
-        switch input {
-        case .tap:
-            poked(now, seq: seq, &fx)
-        case .talkOn:
-            // The device already shows `listening`.
-            startListening(by: .device, now, &fx)
-        case .talkOff:
-            stopListening(now, &fx)
-        }
+        poked(now, seq: seq, &fx)
         publish(now, &fx)
         return fx
     }
 
-    /// The app's mic button: start or stop listening. The runtime has the
-    /// device show `listening` for it.
+    /// Push-to-talk: start or stop listening, after the device's BOOT
+    /// button (`talk_on`, `talk_off`), which already shows `listening`, or
+    /// the app's mic button, for which the runtime has the device show it.
     @discardableResult
-    public func listen(_ on: Bool, at now: Int64) -> [CoreEffect] {
+    public func listen(_ on: Bool, by talker: Talker = .app, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
         startDayIfNew(now, &fx)
-        if on { startListening(by: .app, now, &fx) } else { stopListening(now, &fx) }
+        if on { startListening(by: talker, now, &fx) } else { stopListening(now, &fx) }
         publish(now, &fx)
         return fx
     }
@@ -611,7 +524,7 @@ public final class Core {
         let base = !working.isEmpty ? "working" : sessions.isEmpty ? "asleep" : "idle"
         let attn = waiting.first.map {
             StateSnapshot.Attention(
-                agent: $0.agent.short, project: StateSnapshot.clip($0.project, marked: true, max: StateSnapshot.maxSignBytes),
+                agent: $0.agent.rawValue, project: StateSnapshot.clip($0.project, marked: true, max: StateSnapshot.maxSignBytes),
                 name: $0.name.map { StateSnapshot.clip($0, marked: true, max: StateSnapshot.maxSignBytes) } ?? "",
                 more: waiting.count - 1, id: $0.ask)
         }
@@ -644,13 +557,18 @@ public final class Core {
             + idle.map { SessionSummary($0, .idle) }
     }
 
-    /// Why a reaction can't play now, or nil: something needs you
-    /// (BEHAVIORS.md §1), or the mic is on, since a reaction would end
-    /// `listening` before you've finished (§3.3).
+    /// Why nothing but what you said wakes the brain (a tap then opens the
+    /// thread), and no reaction plays, or nil: something needs you
+    /// (BEHAVIORS.md §1, harness/EVENTS.md §6).
+    public var needsYouBlock: String? {
+        needsYouShowing ? "something needs you" : nil
+    }
+
+    /// Why a reaction can't play now, or nil: something needs you, or the
+    /// mic is on, since a reaction would end `listening` before you've
+    /// finished (BEHAVIORS.md §3.3).
     public var reactionBlock: String? {
-        if needsYouShowing { return "something needs you" }
-        if listening != nil { return "the mic is on" }
-        return nil
+        needsYouBlock ?? (listening != nil ? "the mic is on" : nil)
     }
 
     // MARK: - Rules
@@ -662,13 +580,8 @@ public final class Core {
     /// sees steady time.
     private func day(_ now: Int64) -> String { config.time.day(wall(now)) }
 
-    func takeOrder() -> Int {
-        nextOrder += 1
-        return nextOrder
-    }
-
     func isWorking(_ s: Session, _ now: Int64) -> Bool {
-        s.working && now - s.lastEventAt < config.staleWorkMs
+        s.working && now - s.lastEventAt < SessionFold.staleWorkMs
     }
 
     /// Whether "needs you" shows: then no event's pass starts
@@ -781,7 +694,7 @@ public final class Core {
     /// of `sparing`'s session: its event comes first.
     func advance(to now: Int64, sparing: String? = nil, _ fx: inout [CoreEffect]) {
         for (key, var s) in sessions {
-            let silent = now - s.lastEventAt >= config.safetyNetMs
+            let silent = now - s.lastEventAt >= SessionFold.safetyNetMs
             if !silent && key != sparing { promote(&s, now, &fx) }
             if silent && (s.needsSince != nil || s.pendingSince != nil) {
                 // Ten silent minutes, even for a Codex request no tick saw
@@ -792,14 +705,14 @@ public final class Core {
                 clearRequest(&s, now, why: "nothing for 10 minutes")
                 s.working = false
             }
-            if now - s.lastEventAt >= config.forgetMs {
+            if s.forgotten(at: now) {
                 if s.needsSince != nil { clearedWhy[key] = "forgotten" }
                 sessions[key] = nil
             } else {
                 sessions[key] = s
             }
         }
-        ended = ended.filter { now - $0.value < config.forgetMs }
+        fold.forgetEnds(at: now)
     }
 
     /// "Needs you" starting or clearing for a session, as a rule action:
@@ -815,13 +728,13 @@ public final class Core {
             fx.append(.record(Event(ts: now, source: .boop, type: .action, phase: .start, specificType: Core.needsYou,
                                     session: s.id,
                                     data: ["for": s.askSeq.map { .int(Int64($0)) } ?? .null, "by": "rule",
-                                           "agent": .string(s.agent.short), "ok": true,
-                                           "message": .string("Boop showed that \(s.agent.short) needs you.")])))
+                                           "agent": .string(s.agent.rawValue), "ok": true,
+                                           "message": .string("Boop showed that \(s.agent.rawValue) needs you.")])))
         }
         for (key, was) in shownNeeds.sorted(by: { $0.key < $1.key }) where showing[key] == nil {
             shownNeeds[key] = nil
             let why = clearedWhy.removeValue(forKey: key) ?? (sessions[key] == nil ? "the session ended" : nil)
-            var data: [String: JSONValue] = ["by": "rule", "agent": .string(was.agent.short),
+            var data: [String: JSONValue] = ["by": "rule", "agent": .string(was.agent.rawValue),
                                              "outcome": why == nil ? "done" : "failed"]
             if let why { data["why"] = .string(why) }
             fx.append(.record(Event(ts: now, source: .boop, type: .action, phase: .end, specificType: Core.needsYou,
@@ -880,7 +793,7 @@ public struct SessionSummary: Equatable, Sendable {
     }
 
     init(_ s: Core.Session, _ status: Status) {
-        self.init(agent: s.agent.short, project: s.project, name: s.name, workspace: s.workspace, status: status,
+        self.init(agent: s.agent.rawValue, project: s.project, name: s.name, workspace: s.workspace, status: status,
                   thread: ThreadRef(s))
     }
 }
@@ -905,6 +818,6 @@ public struct ThreadRef: Equatable, Sendable {
     }
 
     init(_ s: Core.Session) {
-        self.init(agent: s.agent.short, session: s.id, app: s.app, appSession: s.appSession)
+        self.init(agent: s.agent.rawValue, session: s.id, app: s.app, appSession: s.appSession)
     }
 }

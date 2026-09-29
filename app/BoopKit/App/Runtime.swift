@@ -103,15 +103,8 @@ public final class Runtime: @unchecked Sendable {
         }
     }
 
-    /// While this file exists in the state directory, every hook is logged.
-    public static let doctorArm = "doctor-armed"
-    /// How long an arm lasts (ADAPTERS.md §6): one the doctor never
-    /// confirms is removed, so hooks aren't logged from then on.
-    public static let doctorArmSeconds: TimeInterval = 10 * 60
     /// Debug mode's log of every event, view event and pass, in the state directory.
     public let debugLogURL: URL
-    /// The doctor's arm (`doctorArm`), in the state directory.
-    let doctorArmPath: String
 
     public let home = DispatchQueue(label: "boop.home", qos: .userInitiated)
     public let options: Options
@@ -142,92 +135,13 @@ public final class Runtime: @unchecked Sendable {
     var readingJevKey = false
     /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): the
     /// tap's poke plays at once, and the brain's moments wait their turn
-    /// in `schedule` behind the brain's earlier ones. Each of the
-    /// brain's goes to the device with an id, holds the schedule's line
-    /// until the device says how it ended, and ends its handle then, or
-    /// when it can't have played (harness/DECISIONS.md §5).
-    final class Moments {
-        /// How long past a moment's expected end the app waits for the
-        /// device's `ended` before giving up on it (PROTOCOL.md §6).
-        static let endGraceMs: Int64 = 3000
-        /// The largest id a moment goes out with: the device keeps ids in
-        /// 32 bits, and JSON readers anywhere take this as a plain int.
-        static let maxId = Int(Int32.max)
-
-        var schedule = MomentSchedule()
-        /// The timer set for the brain's next turn, and the time it's set
-        /// for; nil when none is.
-        var pumpTimer: DispatchSourceTimer?
-        var pumpAt: Int64?
-        /// True while a brain moment is being sent (for debug mode).
-        var brainSending = false
-        /// The id the last brain moment went out with. Each launch starts
-        /// somewhere random and counts up from there, so a moment an
-        /// earlier launch left playing on the device can't share an id with
-        /// one of this launch's (PROTOCOL.md §3).
-        var lastId = Moments.firstId()
-        /// The brain's moments on the device, oldest first, each with its
-        /// id, its handle and when the app stops waiting for its `ended`.
-        var playing: [(id: Int, pending: Pending, deadline: Int64)] = []
-
-        /// Where a launch's ids start: the first goes out as one more.
-        static func firstId() -> Int { Int.random(in: 0..<maxId) }
-
-        /// The id after `id`, back to 1 past `maxId`.
-        static func nextId(after id: Int) -> Int { id >= maxId ? 1 : id + 1 }
-
-        /// A brain moment going to the device at `now`: it gets the next id,
-        /// and its handle, and the schedule's line, wait for the device's
-        /// `ended` until its length at most, and the grace, have passed.
-        func send(_ moment: inout DeviceMoment, _ pending: Pending, now: Int64) {
-            lastId = Self.nextId(after: lastId)
-            moment.id = lastId
-            let deadline = now + schedule.playMs(moment) + Self.endGraceMs
-            playing.append((lastId, pending, deadline))
-            schedule.hold(id: lastId, moment, now: now, until: deadline)
-        }
-
-        /// The device's `ended` at `now`: frees the schedule's line if the
-        /// moment holds it, and ends its handle. An id the app isn't
-        /// waiting on (one it gave up on) is ignored.
-        func ended(_ ended: MomentEnded, now: Int64) {
-            schedule.ended(id: ended.id, now: now)
-            guard let i = playing.firstIndex(where: { $0.id == ended.id }) else { return }
-            playing.remove(at: i).pending.finish(Self.end(ended))
-        }
-
-        /// How a reaction ended, from the device's `ended`
-        /// (harness/DECISIONS.md §5).
-        static func end(_ ended: MomentEnded) -> Pending.End {
-            switch ended.how {
-            case .done: .done
-            case .cut where ended.why == "tap": .failed(TranscriptView.cutByTap)
-            case .cut: .failed("cut short" + (ended.why.flatMap { cutBy[$0] }.map { ": " + $0 } ?? ""))
-            case .skipped: .failed("something needed you")
-            }
-        }
-
-        /// What cut a moment short, as its end says it; a tap's is
-        /// `TranscriptView.cutByTap`, and `reset` is a tool's.
-        static let cutBy = ["moment": "something newer played",
-                            "needs_you": "something needed you"]
-
-        /// Gives up on each moment whose `ended` hasn't come by its
-        /// deadline: the device lost the line, or its firmware doesn't send one.
-        func overdue(now: Int64) {
-            let late = playing.filter { now >= $0.deadline }
-            playing.removeAll { now >= $0.deadline }
-            for moment in late { moment.pending.finish(.failed("the device never said it ended")) }
-        }
-
-        /// Ends every moment on the device as failed, with why.
-        func failAll(_ why: String) {
-            let all = playing
-            playing = []
-            for moment in all { moment.pending.finish(.failed(why)) }
-        }
-    }
-    let moments = Moments()
+    /// in it behind the brain's earlier ones, go to the device with an id
+    /// and hold its line until the device says how they ended.
+    var schedule = MomentSchedule()
+    /// The timer set for the brain's next turn, and the time it's set for;
+    /// nil when none is.
+    var pumpTimer: DispatchSourceTimer?
+    var pumpAt: Int64?
 
     /// After every change the menu bar might show. Called on `home`.
     public var onChange: ((Status) -> Void)?
@@ -266,7 +180,6 @@ public final class Runtime: @unchecked Sendable {
     public init(_ options: Options) throws {
         self.options = options
         debugLogURL = options.stateDir.appendingPathComponent(DebugLog.fileName)
-        doctorArmPath = options.stateDir.appendingPathComponent(Self.doctorArm).path
         guard let lock = InstanceLock(directory: options.stateDir) else { throw OpenError.locked(options.stateDir.path) }
         self.lock = lock
         let log = options.log
@@ -277,17 +190,23 @@ public final class Runtime: @unchecked Sendable {
         link = DeviceLink(transport: options.link, log: log)
         let recent = DebugLog.Recent()
         self.recent = recent
-        do {
-            let moments = self.moments
-            let debugLog = options.debug ? debugLogURL : nil
-            let clock = options.clock
-            link.onSend = { line in
-                let sent = DebugLog.line("sent", line, at: clock())
-                recent.add(sent)
-                guard let debugLog else { return }
-                log("link \(moments.brainSending ? "brain" : "rules") → " + line)
-                Harness.appendLine(sent, to: debugLog)
-            }
+        let debugLog = options.debug ? debugLogURL : nil
+        if let debugLog { DebugLog.start(debugLog) }
+        let printer = DebugLog.Printer()
+        let print = options.debugPrint
+        let emit = { (line: String) in
+            recent.add(line)
+            guard let debugLog else { return }
+            LineFile.append(line, to: debugLog)
+            printer.readable(line).map(print)
+        }
+        self.emit = emit
+        let clock = options.clock
+        link.onSend = { line in
+            emit(DebugLog.line("sent", line, at: clock()))
+            // Only the brain's moments carry a mood (PROTOCOL.md §3).
+            let brain = line.hasPrefix(#"{"t":"moment""#) && line.contains(#""mood":"#)
+            if debugLog != nil { log("link \(brain ? "brain" : "rules") → " + line) }
         }
 
         let now = options.clock()
@@ -308,63 +227,23 @@ public final class Runtime: @unchecked Sendable {
         voice = Voice()
         for over in options.steering.overBudget() { log("steering: over budget: \(over)") }
 
-        // The actions (harness/DECISIONS.md), in the order they run. Their
-        // closures are only ever called on `home`.
-        let core = self.core
-        let view = self.view
-        let link = self.link
-        let clock = options.clock
-        let moments = self.moments
-        let home = self.home
-        var moodSaved: (String) -> Void = { _ in }
-        var acting: () -> ViewEvent? = { nil }
-        let moodChanges = MoodAction(store: mood, clock: clock, changed: { moodSaved($0) })
-        moodAction = moodChanges
-        let react = ReactAction(voice: voice, queue: { moment, pending in
-            view.reacted()  // the working heartbeat waits from here (EVENTS.md §4)
-            core.listeningEnded()  // a reaction ends `listening`: it's the reply (BEHAVIORS.md §3.3)
-            moments.schedule.brain(moment, pending, now: clock())
-            Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
-        }, blocked: { core.reactionBlock }, who: {
-            // The thread's name as its agent's app shows it, once an event
-            // brought one, else the view's: its workspace, else its project.
-            guard let key = acting()?.about, let who = view.who(about: key) else { return nil }
-            return DeviceMoment.Who(agent: who.agent, thread: core.name(about: key) ?? who.thread)
-        }, speaks: { link.status?.hasTheVoice ?? true })
-        let actions: [any Action] = [moodChanges, react]
-        let steering = options.steering
-        let mood = self.mood
-        let time = options.time
+        // The actions' closures are only ever called on `home`, and reach
+        // `self` once it's whole.
         var personalityNow: () -> Personality = { .boop }
-        let wallClock = options.wallClock
-        harness = Harness(brain: nil, actions: actions, pipeline: pipeline, parts: { _ in
-            Runtime.stateParts(steering: steering, personality: personalityNow(), mood: mood.current,
-                               view: view, moodAction: moodChanges, time: time, now: clock(),
-                               wall: wallClock())
-        }, home: home, clock: clock, debugLog: options.debug ? debugLogURL : nil, log: log)
-        if options.debug {
-            DebugLog.start(debugLogURL)
-            let printer = DebugLog.Printer()
-            let print = options.debugPrint
-            let debugLog = debugLogURL
-            harness.onDebugLine = { line in
-                recent.add(line)
-                printer.readable(line).map(print)
-            }
-            // Every event and view event too, as it happens.
-            let write = { (line: String) in
-                recent.add(line)
-                Harness.appendLine(line, to: debugLog)
-                printer.readable(line).map(print)
-            }
-            pipeline.onRecord = { write(DebugLog.event($0)) }
-            pipeline.onView = { write(DebugLog.view($0)) }
-        } else {
-            // Kept for a bug report all the same (harness/HARNESS.md §9).
-            harness.onDebugLine = { recent.add($0) }
-            pipeline.onRecord = { recent.add(DebugLog.event($0)) }
-            pipeline.onView = { recent.add(DebugLog.view($0)) }
-        }
+        var moodSaved: (String) -> Void = { _ in }
+        var queued: (DeviceMoment, Pending) -> Void = { _, _ in }
+        let link = self.link
+        let home = self.home
+        (harness, moodAction) = Runtime.harness(
+            brain: nil, pipeline: pipeline, mood: mood, voice: voice, steering: options.steering,
+            personality: { personalityNow() }, time: options.time, clock: clock, wall: options.wallClock,
+            queue: { queued($0, $1) }, moodChanged: { moodSaved($0) }, speaks: { link.status?.hasTheVoice ?? true },
+            home: home, log: log)
+        harness.onDebugLine = emit
+        // Every event and view event too, as it happens; kept for a bug
+        // report all the same (harness/HARNESS.md §9).
+        pipeline.onRecord = { emit(DebugLog.event($0)) }
+        pipeline.onView = { emit(DebugLog.view($0)) }
         // The view picks up where the last launch left it.
         let loaded = transcript.load(now: now)
         pipeline.replay(loaded, now: now)
@@ -375,7 +254,7 @@ public final class Runtime: @unchecked Sendable {
         harness.whyNotStart = { pipeline.whyNotWake($0) }
         personalityNow = { [weak self] in self?.personality ?? .boop }
         moodSaved = { [weak self] in self?.moodChanged($0) }
-        acting = { [weak self] in self?.harness.acting }
+        queued = { [weak self] moment, pending in self?.queue(moment, pending) }
         // A pass can change the mood, which the menu bar shows.
         harness.onRecord = { [weak self] record in
             log(record.logLine)
@@ -384,17 +263,42 @@ public final class Runtime: @unchecked Sendable {
         }
     }
 
-    /// Everything Jev's state needs besides the view's events, for a pass
-    /// (harness/HARNESS.md §6): the steering files, the line that
-    /// closes HISTORY (`mood`'s time in the mood), the oldest working turn
-    /// at `now`, and the time of day at wall-clock time `wall`. The evals
-    /// build theirs with it too.
-    public static func stateParts(steering: Steering, personality: Personality,
-                                  mood: String, view: TranscriptView, moodAction: MoodAction?,
-                                  time: LocalTime, now: Int64, wall: Int64) -> StateText.Parts {
-        StateText.Parts(guide: steering.guide, personality: steering.personality(personality).text,
-                        mood: steering.mood(mood), closing: moodAction?.sinceLine(at: now),
-                        workingSince: view.workingSince(at: now), clock: "\(time.clock(wall)), \(time.weekday(wall))")
+    /// Boop's actions (harness/DECISIONS.md), in the order they run, and
+    /// the harness that asks for them on `pipeline`'s view events: the
+    /// app's, and the evals', so the two can't drift apart. `queue` plays
+    /// a reaction's moment, `moodChanged` hears a new mood saved, and
+    /// `speaks` says whether the device plays Voice's takes. Jev's state
+    /// is built at each pass (harness/HARNESS.md §6) from the steering
+    /// files, `personality()`, the line that closes HISTORY (the mood's
+    /// time in the mood), the oldest working turn at `clock()` and the
+    /// time of day at wall-clock time `wall()`.
+    public static func harness(brain: (any Brain)?, pipeline: Pipeline, mood: MoodStore, voice: Voice, steering: Steering,
+                               personality: @escaping () -> Personality, time: LocalTime,
+                               clock: @escaping @Sendable () -> Int64, wall: @escaping () -> Int64,
+                               queue: @escaping (DeviceMoment, Pending) -> Void,
+                               moodChanged: @escaping (String) -> Void = { _ in }, speaks: @escaping () -> Bool = { true },
+                               home: DispatchQueue, debugLog: URL? = nil, log: @escaping (String) -> Void = { _ in })
+        -> (harness: Harness, mood: MoodAction) {
+        let core = pipeline.core
+        let view = pipeline.view
+        let moodAction = MoodAction(store: mood, clock: clock, changed: moodChanged)
+        var acting: () -> ViewEvent? = { nil }
+        let react = ReactAction(voice: voice, queue: queue, blocked: { core.reactionBlock }, who: {
+            // The thread's name as its agent's app shows it, once an event
+            // brought one, else the view's: its workspace, else its project.
+            guard let key = acting()?.about, let who = view.who(about: key) else { return nil }
+            return DeviceMoment.Who(agent: who.agent, thread: core.name(about: key) ?? who.thread)
+        }, speaks: speaks)
+        let harness = Harness(brain: brain, actions: [moodAction, react], pipeline: pipeline, parts: { _ in
+            let now = clock()
+            let wall = wall()
+            return StateText.Parts(guide: steering.guide, personality: steering.personality(personality()).text,
+                                   mood: steering.mood(mood.current), closing: moodAction.sinceLine(at: now),
+                                   workingSince: view.workingSince(at: now),
+                                   clock: "\(time.clock(wall)), \(time.weekday(wall))")
+        }, home: home, clock: clock, debugLog: debugLog, log: log)
+        acting = { [weak harness] in harness?.acting }
+        return (harness, moodAction)
     }
 
     // MARK: Running
@@ -403,11 +307,7 @@ public final class Runtime: @unchecked Sendable {
         let home = self.home
         // The questions line is debug.jsonl's first, before the socket or the
         // link can add one, so a changed first line means a new launch.
-        home.sync { [recent] in
-            let questions = DebugLog.questions(harness.actions, at: options.clock())
-            recent.add(questions)
-            if options.debug { Harness.appendLine(questions, to: debugLogURL) }
-        }
+        home.sync { emit(DebugLog.questions(harness.actions, at: options.clock())) }
         // Hooks are timed on the runtime's clock, which headless mode can move.
         let clock = options.clock
         let onLine: @Sendable (HookLine) -> Void = { [weak self] line in
@@ -455,10 +355,10 @@ public final class Runtime: @unchecked Sendable {
         server?.stop()
         server = nil
         options.link?.stop()
-        home.async { [moments] in
-            moments.pumpTimer?.cancel()
-            moments.pumpTimer = nil
-            moments.pumpAt = nil
+        home.async { [weak self] in
+            self?.pumpTimer?.cancel()
+            self?.pumpTimer = nil
+            self?.pumpAt = nil
         }
     }
 
@@ -477,17 +377,6 @@ public final class Runtime: @unchecked Sendable {
         run(pipeline.agent(event))
     }
 
-    /// Whether the doctor armed this app within the last 10 minutes. An
-    /// older arm is removed.
-    func doctorArmed() -> Bool {
-        guard let armed = (try? FileManager.default.attributesOfItem(atPath: doctorArmPath))?[.modificationDate] as? Date
-        else { return false }
-        if Date().timeIntervalSince(armed) < Self.doctorArmSeconds { return true }
-        try? FileManager.default.removeItem(atPath: doctorArmPath)
-        options.log("doctor: an arm older than \(Int(Self.doctorArmSeconds / 60)) minutes, removed")
-        return false
-    }
-
     /// The transport connected or dropped. HISTORY says a moment playing
     /// on a device that dropped didn't happen, since its `ended` may never
     /// come (ARCHITECTURE.md §8). But the device plays on, and the link may
@@ -498,7 +387,7 @@ public final class Runtime: @unchecked Sendable {
         let now = options.clock()
         link.connection(up, now: now)
         if !up {
-            moments.failAll("the device disconnected")
+            schedule.failAll("the device disconnected")
             pump()
             run(core.linkDown(at: now))
         }
@@ -508,20 +397,20 @@ public final class Runtime: @unchecked Sendable {
     func device(_ line: String) {
         let now = options.clock()
         switch link.receive(line, now: now) {
-        case .input(let input):
-            options.log("device: input \(input.rawValue)")
+        case .tap:
+            options.log("device: input tap")
             // The device has already poked, cutting the animation playing
             // but not a reaction's line or face.
-            switch input {
-            case .tap:
-                tapped(now)
-            case .talkOn, .talkOff:
-                run(core.input(input, at: now))
-            }
+            tapped(now)
+            pump()
+        case .talk(let on):
+            options.log("device: input talk_\(on ? "on" : "off")")
+            // The device already shows `listening` (BEHAVIORS.md §3.3).
+            run(core.listen(on, by: .device, at: now))
             pump()
         case .ended(let ended):
             options.log("device: moment \(ended.id) ended \(ended.how.rawValue)" + (ended.why.map { " (\($0))" } ?? ""))
-            moments.ended(ended, now: now)
+            schedule.ended(ended, now: now)
             pump()
         default:
             break
@@ -532,7 +421,7 @@ public final class Runtime: @unchecked Sendable {
     /// The device's tap. While `listening` shows, the device only squashes:
     /// no poke plays, though the tap counts in the run (BEHAVIORS.md §3.3).
     func tapped(_ now: Int64) {
-        moments.schedule.tapped(now: now, listening: core.showsListening(at: now))
+        schedule.tapped(now: now, listening: core.showsListening(at: now))
         run(pipeline.poke(at: now))
     }
 
@@ -588,7 +477,7 @@ public final class Runtime: @unchecked Sendable {
         core.setWallClock(options.wallClock(), at: now)
         run(pipeline.tick(at: now))
         link.tick(now: now)
-        moments.overdue(now: now)
+        schedule.overdue(now: now)
         // A reaction that has waited too long is dropped here too, before
         // the harness's ceiling could end it, even when the pump's timer,
         // which runs on uptime, hasn't fired (the clock jumped).
@@ -652,7 +541,7 @@ public final class Runtime: @unchecked Sendable {
         talker = by
         micTrouble = nil
         replyFor = nil
-        for moment in moments.schedule.dropWaiting() {
+        for moment in schedule.dropWaiting() {
             options.log("react: dropped a brain moment waiting when the mic went on: \(moment.jsonLine)")
         }
         if by == .app { link.play(DeviceMoment(anim: DeviceMoment.listening)) }
@@ -693,7 +582,7 @@ public final class Runtime: @unchecked Sendable {
     func show(_ snapshot: StateSnapshot) {
         let now = options.clock()
         link.update(snapshot, now: now)
-        moments.schedule.show(look: snapshot.look, mood: snapshot.mood, attn: snapshot.attn != nil, now: now)
+        schedule.show(look: snapshot.look, mood: snapshot.mood, attn: snapshot.attn != nil, now: now)
         pump()
     }
 
@@ -704,17 +593,20 @@ public final class Runtime: @unchecked Sendable {
     /// needs you or `listening` shows.
     func playRule(_ moment: DeviceMoment) {
         let now = options.clock()
-        guard moments.schedule.rulePlays(now: now) else {
+        guard schedule.rulePlays(now: now) else {
             options.log("rule: dropped \(moment.anim ?? "a moment") while a brain moment plays")
             return
         }
-        moments.schedule.rule(moment, now: now)
+        schedule.rule(moment, now: now)
         link.play(moment)
     }
 
-    /// The brain's next moment, if its turn has come. On `home`.
-    func pump() {
-        Runtime.pump(moments, link: link, clock: options.clock, home: home, log: options.log)
+    /// A reaction's moment from the brain, to play when its turn comes,
+    /// and its handle to end once it's known how it went. On `home`.
+    func queue(_ moment: DeviceMoment, _ pending: Pending) {
+        core.listeningEnded()  // a reaction ends `listening`: it's the reply (BEHAVIORS.md §3.3)
+        schedule.brain(moment, pending, now: options.clock())
+        pump()
     }
 
     /// Plays the brain's next moment if its turn has come, and sets a timer
@@ -725,43 +617,41 @@ public final class Runtime: @unchecked Sendable {
     /// once, as failed, and leaves the line free; one sent to the device
     /// goes with an id, and it and its handle wait for the device's
     /// `ended`. On `home`.
-    static func pump(_ moments: Moments, link: DeviceLink, clock: @escaping @Sendable () -> Int64,
-                     home: DispatchQueue, log: @escaping @Sendable (String) -> Void) {
-        let now = clock()
-        let due = moments.schedule.due(now: now)
+    func pump() {
+        let now = options.clock()
+        let due = schedule.due(now: now)
         for moment in due.dropped {
-            log("react: dropped a brain moment that waited over \(MomentSchedule.maxWaitMs / 1000) s: \(moment.jsonLine)")
+            options.log("react: dropped a brain moment that waited over \(MomentSchedule.maxWaitMs / 1000) s: \(moment.jsonLine)")
         }
         if var moment = due.play {
             let alone = !link.connected
             if alone {
-                moments.schedule.stop(now: now)
+                schedule.stop(now: now)
             } else if let pending = due.pending {
-                moments.send(&moment, pending, now: now)
+                schedule.send(&moment, pending, now: now)
             }
-            moments.brainSending = true
             link.play(moment)
-            moments.brainSending = false
             if alone { due.pending?.finish(.failed("no device connected")) }
         }
-        guard let next = moments.schedule.next else { return }
+        guard let next = schedule.next else { return }
         // One set for no later will do, unless the clock has passed it: a
         // timer counts the Mac's uptime, which stops while it sleeps, and
         // the clock doesn't, so it would come late.
-        if let at = moments.pumpAt, at <= next, at >= now { return }
+        if let at = pumpAt, at <= next, at >= now { return }
         // A timer source, not asyncAfter, whose leeway grows with the wait
         // (a tenth of it): a turn 3 s away came 0.3 s late.
-        moments.pumpTimer?.cancel()
+        pumpTimer?.cancel()
         let timer = DispatchSource.makeTimerSource(flags: .strict, queue: home)
         timer.schedule(deadline: .now() + .milliseconds(Int(max(1, next - now))), leeway: .milliseconds(5))
-        timer.setEventHandler {
-            moments.pumpTimer?.cancel()
-            moments.pumpTimer = nil
-            moments.pumpAt = nil
-            pump(moments, link: link, clock: clock, home: home, log: log)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            pumpTimer?.cancel()
+            pumpTimer = nil
+            pumpAt = nil
+            pump()
         }
-        moments.pumpTimer = timer
-        moments.pumpAt = next
+        pumpTimer = timer
+        pumpAt = next
         timer.resume()
     }
 
@@ -771,10 +661,7 @@ public final class Runtime: @unchecked Sendable {
                             connected: link.connected, device: link.status, personality: personality,
                             brain: harness.brain?.id ?? "none", brainTrouble: harness.trouble,
                             listening: core.listening != nil, micTrouble: micTrouble)
-        if let line = DebugLog.status(status, at: now, last: &lastStatus) {
-            recent.add(line)
-            if options.debug { Harness.appendLine(line, to: debugLogURL) }
-        }
+        if let line = DebugLog.status(status, at: now, last: &lastStatus) { emit(line) }
         onChange?(status)
     }
 
@@ -782,6 +669,9 @@ public final class Runtime: @unchecked Sendable {
     var lastStatus: String?
     /// This launch's debug lines, debug mode or not, for `saveReport`.
     let recent: DebugLog.Recent
+    /// Every `debug.jsonl` line goes through this: kept in `recent`, and
+    /// in debug mode written to the file and printed readably.
+    let emit: (String) -> Void
 
     func saveSettings(_ change: (inout AppSettings) -> Void) {
         change(&settings)
@@ -790,7 +680,6 @@ public final class Runtime: @unchecked Sendable {
 
     // MARK: From the menu bar (any thread)
 
-    /// The app's mic button: start or stop listening (BEHAVIORS.md §3.3).
     /// Opens `thread` where it runs: a session clicked in the popover.
     public func openThread(_ thread: ThreadRef) {
         home.async { [self] in open(thread, by: "click") }
@@ -808,6 +697,7 @@ public final class Runtime: @unchecked Sendable {
         options.log("open: \(target.arguments.joined(separator: " ")) (\(by))" + (opened ? "" : ": open failed"))
     }
 
+    /// The app's mic button: start or stop listening (BEHAVIORS.md §3.3).
     public func setListening(_ on: Bool) {
         home.async { [self] in run(core.listen(on, at: options.clock())) }
     }
@@ -902,55 +792,6 @@ public final class Runtime: @unchecked Sendable {
                 if jevKey == nil { jevKey = .some(key) }
                 useBrain()
                 changed()
-            }
-        }
-    }
-
-    /// Where `saveReport` puts its folders, in the state directory.
-    public static let reportsDir = "bug-reports"
-    /// How much of the end of `boop.log` a report copies.
-    static let reportLogBytes = 1 << 20
-
-    /// A bug report (harness/HARNESS.md §9): everything needed to work out
-    /// afterwards what Boop saw and did, in a new folder under
-    /// `bug-reports/`. `debug.jsonl` is this launch's debug lines, debug
-    /// mode or not, which `boopdev watch` reads; `boop.log` is the log's
-    /// end; `settings.json` and `mood` are copied; `about.json` is the
-    /// versions and the status now. Calls `done` on `home` with the folder,
-    /// or nil if it couldn't be made.
-    public func saveReport(_ done: @escaping @Sendable (URL?) -> Void) {
-        home.async { [self] in
-            let format = DateFormatter()
-            format.dateFormat = "yyyy-MM-dd-HHmmss"
-            let dir = options.stateDir.appendingPathComponent(Self.reportsDir)
-                .appendingPathComponent(format.string(from: Date(timeIntervalSince1970: Double(options.wallClock()) / 1000)))
-            let fm = FileManager.default
-            do {
-                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-                try Data(recent.kept.map { $0 + "\n" }.joined().utf8).write(to: dir.appendingPathComponent(DebugLog.fileName))
-                if let log = FileHandle(forReadingAtPath: options.stateDir.appendingPathComponent("boop.log").path) {
-                    let end = (try? log.seekToEnd()) ?? 0
-                    try? log.seek(toOffset: end > UInt64(Self.reportLogBytes) ? end - UInt64(Self.reportLogBytes) : 0)
-                    try? log.readToEnd()?.write(to: dir.appendingPathComponent("boop.log"))
-                    try? log.close()
-                }
-                for name in [AppSettings.file, MoodStore.fileName] {
-                    try? fm.copyItem(at: options.stateDir.appendingPathComponent(name), to: dir.appendingPathComponent(name))
-                }
-                let now = options.clock()
-                let about: [String: Any] = [
-                    "app": BoopVersion.current, "firmware": link.status?.fw ?? NSNull(), "device": link.status?.id ?? NSNull(),
-                    "link": options.link?.name ?? "none", "connected": link.connected, "debug": options.debug,
-                    "personality": personality.rawValue, "mood": mood.current, "brain": harness.brain?.id ?? "none",
-                    "taken_at_ms": now, "taken_at_wall_ms": options.wallClock(),
-                    "sessions": core.sessionList(at: now).map { ["agent": $0.agent, "project": $0.project, "status": $0.status.rawValue] },
-                ]
-                try Data(DebugLog.json(about).utf8).write(to: dir.appendingPathComponent("about.json"))
-                options.log("report: saved \(dir.path)")
-                done(dir)
-            } catch {
-                options.log("report: can't save: \(error)")
-                done(nil)
             }
         }
     }

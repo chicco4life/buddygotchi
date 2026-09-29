@@ -151,13 +151,13 @@ struct SetupPane: View {
     }
 
     private var agents: some View {
-        let detected = HookInstaller.Agent.allCases.filter(model.installer.detected)
+        let detected = Agent.allCases.filter(model.installer.detected)
         return VStack(spacing: Theme.gap) {
             title("Which agents should I watch?",
                   "I listen through their hooks. I never approve, deny or block anything.")
                 .padding(.top, Theme.gapLoose)
             VStack(spacing: Theme.gapSnug) {
-                ForEach(HookInstaller.Agent.allCases, id: \.self) { agentRow($0) }
+                ForEach(Agent.allCases, id: \.self) { agentRow($0) }
             }
             .padding(.top, Theme.gapTight)
             if !model.installer.clientInPlace {
@@ -205,7 +205,7 @@ struct SetupPane: View {
         }
     }
 
-    private func agentRow(_ agent: HookInstaller.Agent) -> some View {
+    private func agentRow(_ agent: Agent) -> some View {
         let found = model.installer.detected(agent)
         let on = found && model.installer.clientInPlace && model.setup.agents.contains(agent)
         return Card(padding: 0) {

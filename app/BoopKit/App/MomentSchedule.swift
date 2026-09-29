@@ -26,9 +26,13 @@ import Foundation
 /// "needs you" starting stops everything, and while something needs you
 /// no moment plays.
 ///
+/// Each brain moment goes to the device with an id, and its handle ends
+/// when the device says how it ended, or when it can't have played
+/// (harness/DECISIONS.md §5).
+///
 /// On a caller's clock, so the runtime can drive it with a timer and the
 /// tests without one. It changes nothing but itself and the handles of
-/// the moments it drops.
+/// its moments.
 public struct MomentSchedule {
     /// A brain moment that has waited longer than this for its turn is
     /// dropped (ARCHITECTURE.md §3.2).
@@ -40,6 +44,12 @@ public struct MomentSchedule {
     /// How long past a take's reckoned end it may still be playing on
     /// the device, since every line reaches it a little after it's sent.
     public static let linkSlackMs: Int64 = 500
+    /// How long past a moment's expected end the app waits for the
+    /// device's `ended` before giving up on it (PROTOCOL.md §6).
+    public static let endGraceMs: Int64 = 3000
+    /// The largest id a moment goes out with: the device keeps ids in
+    /// 32 bits, and JSON readers anywhere take this as a plain int.
+    public static let maxId = Int(Int32.max)
     /// Taps in a row, as the device counts them (BEHAVIORS.md §3.3): a tap
     /// within `tapRunMs` of the one before is another in the run, and from
     /// its `tapSpamFrom`-th on the device plays tap_spam instead of poked.
@@ -72,8 +82,22 @@ public struct MomentSchedule {
     /// The taps in the run so far (1 for the first), and when the last came.
     public private(set) var taps = 0
     var lastTap: Int64?
+    /// The id the last brain moment went out with. Each launch starts
+    /// somewhere random and counts up from there, so a moment an earlier
+    /// launch left playing on the device can't share an id with one of
+    /// this launch's (PROTOCOL.md §3).
+    public private(set) var lastId: Int
+    /// The brain's moments on the device, oldest first, each with its id,
+    /// its handle and when the app stops waiting for its `ended`.
+    public private(set) var playing: [(id: Int, pending: Pending, deadline: Int64)] = []
 
-    public init() {}
+    /// A launch's ids start after `lastId`, somewhere random by default.
+    public init(lastId: Int = Int.random(in: 0..<MomentSchedule.maxId)) {
+        self.lastId = lastId
+    }
+
+    /// The id after `id`, back to 1 past `maxId`.
+    static func nextId(after id: Int) -> Int { id >= maxId ? 1 : id + 1 }
 
     /// When the line is free: at its holder's `ended`, or when the app
     /// stops waiting for it; with no holder, at `lineUntil`.
@@ -164,6 +188,59 @@ public struct MomentSchedule {
         waiting = []
         for (_, pending, _) in dropped { pending?.finish(.failed("the mic went on")) }
         return dropped.map(\.moment)
+    }
+
+    /// A brain moment `due` just handed out going to the device at `now`:
+    /// it gets the next id, and its handle, and the line, wait for the
+    /// device's `ended` until its length at most, and the grace, have
+    /// passed.
+    public mutating func send(_ moment: inout DeviceMoment, _ pending: Pending, now: Int64) {
+        lastId = Self.nextId(after: lastId)
+        moment.id = lastId
+        let deadline = now + playMs(moment) + Self.endGraceMs
+        playing.append((lastId, pending, deadline))
+        hold(id: lastId, moment, now: now, until: deadline)
+    }
+
+    /// The device's `ended` at `now`: frees the line if the moment holds
+    /// it, and ends its handle. An id the app isn't waiting on (one it
+    /// gave up on) is ignored.
+    public mutating func ended(_ ended: MomentEnded, now: Int64) {
+        self.ended(id: ended.id, now: now)
+        guard let i = playing.firstIndex(where: { $0.id == ended.id }) else { return }
+        playing.remove(at: i).pending.finish(Self.end(ended))
+    }
+
+    /// How a reaction ended, from the device's `ended`
+    /// (harness/DECISIONS.md §5).
+    static func end(_ ended: MomentEnded) -> Pending.End {
+        switch ended.how {
+        case .done: .done
+        case .cut where ended.why == "tap": .failed(TranscriptView.cutByTap)
+        case .cut: .failed("cut short" + (ended.why.flatMap { cutBy[$0] }.map { ": " + $0 } ?? ""))
+        case .skipped: .failed("something needed you")
+        }
+    }
+
+    /// What cut a moment short, as its end says it; a tap's is
+    /// `TranscriptView.cutByTap`, and `reset` is a tool's.
+    static let cutBy = ["moment": "something newer played",
+                        "needs_you": "something needed you"]
+
+    /// Gives up on each moment whose `ended` hasn't come by its deadline:
+    /// the device lost the line, or its firmware doesn't send one.
+    public mutating func overdue(now: Int64) {
+        let late = playing.filter { now >= $0.deadline }
+        playing.removeAll { now >= $0.deadline }
+        for moment in late { moment.pending.finish(.failed("the device never said it ended")) }
+    }
+
+    /// Ends every moment on the device as failed, with why. The line stays
+    /// held: the device plays on.
+    public mutating func failAll(_ why: String) {
+        let all = playing
+        playing = []
+        for moment in all { moment.pending.finish(.failed(why)) }
     }
 
     /// Nothing is playing and no brain moment is waiting its turn.

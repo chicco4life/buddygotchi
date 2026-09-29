@@ -378,9 +378,9 @@ func hooks(_ raw: [String]) {
     // Never the real HOME by default: tests use a temporary one.
     guard let home = args["--home"] else { fail("boopdev hooks: pass --home DIR") }
     let installer = HookInstaller(home: URL(fileURLWithPath: home), hookPath: args["--hook"] ?? builtHook.path)
-    var agents = HookInstaller.Agent.allCases
+    var agents = Agent.allCases
     if args.words.count > 1 {
-        guard let agent = HookInstaller.Agent(rawValue: args.words[1]) else { fail("boopdev hooks: the agent is claude or codex") }
+        guard let agent = Agent(rawValue: args.words[1]) else { fail("boopdev hooks: the agent is claude or codex") }
         agents = [agent]
     }
     for agent in agents {

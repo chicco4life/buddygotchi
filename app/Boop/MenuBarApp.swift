@@ -35,7 +35,7 @@ struct SetupDraft {
     var step = Step.hello
     var name = ""
     var nature = LongTerm.Nature.sweet
-    var agents = Set(HookInstaller.Agent.allCases)
+    var agents = Set(Agent.allCases)
     var error: String?
 
     var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -47,10 +47,10 @@ final class AppModel: ObservableObject {
     @Published var pane = Pane.overview
     @Published var setup = SetupDraft()
     @Published var status: Runtime.Status?
-    @Published var hooks: [HookInstaller.Agent: HookInstaller.Health] = [:]
+    @Published var hooks: [Agent: HookInstaller.Health] = [:]
     @Published var restartAgents = false
     /// Why the last Connect, Repair or Remove failed, per agent.
-    @Published var hookErrors: [HookInstaller.Agent: String] = [:]
+    @Published var hookErrors: [Agent: String] = [:]
     @Published var startError: String?
 
     let installer: HookInstaller
@@ -76,20 +76,20 @@ final class AppModel: ObservableObject {
     var personality: Personality { status?.personality ?? .boop }
 
     func refreshHooks() {
-        hooks = Dictionary(uniqueKeysWithValues: HookInstaller.Agent.allCases.map { ($0, installer.health($0)) })
+        hooks = Dictionary(uniqueKeysWithValues: Agent.allCases.map { ($0, installer.health($0)) })
     }
 
-    func install(_ agent: HookInstaller.Agent) {
+    func install(_ agent: Agent) {
         changeHooks(agent) { try installer.install(agent) }
     }
 
-    func remove(_ agent: HookInstaller.Agent) {
+    func remove(_ agent: Agent) {
         changeHooks(agent) { try installer.remove(agent) }
     }
 
     /// Only a change that worked asks for a restart; one that failed says
     /// why on the agent's row.
-    private func changeHooks(_ agent: HookInstaller.Agent, _ change: () throws -> Void) {
+    private func changeHooks(_ agent: Agent, _ change: () throws -> Void) {
         guard ownsHooks else {
             hookErrors[agent] = "only the everyday Boop changes them"
             return
@@ -260,7 +260,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             // First launch: open the popover on setup, once, so the person
             // sees where Boop lives.
             model.pane = .setup
-            model.setup.agents = Set(HookInstaller.Agent.allCases.filter(model.installer.detected))
+            model.setup.agents = Set(Agent.allCases.filter(model.installer.detected))
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in self?.showPopover() }
         }
     }
@@ -295,25 +295,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var listener: SpeechListener?
 
     func startRuntime() {
-        let transport: DeviceTransport? = switch model.link {
-        case .bluetooth: BLETransport(log: { [log] in log.write($0) })
-        case .usb(let path): USBTransport(path: path)
-        case .none: nil
-        }
-        let log = self.log
-        var options = Runtime.Options(stateDir: stateDir, socketPath: stateDir.appendingPathComponent("boop.sock").path, link: transport,
-                                      steering: bundledSteering())
-        options.log = { log.write($0) }
-        options.debug = debug
-        options.debugPrint = { log.echo($0) }
-        // So the dashboard can drive `make debug`; plain `make run` stays deaf.
-        options.devLines = debug
+        // In debug mode the dashboard can drive `make debug`; plain `make
+        // run` stays deaf to it.
+        let options = runtimeOptions(stateDir: stateDir, socketPath: stateDir.appendingPathComponent("boop.sock").path,
+                                     link: model.link, debug: debug, log: log)
         do {
             let runtime = try Runtime(options)
             runtime.onChange = { [weak self] status in Task { @MainActor in self?.show(status) } }
             // Push-to-talk (BEHAVIORS.md §3.3): the core says when the mic
             // is on; what it heard goes back to the runtime.
-            let listener = SpeechListener(log: { log.write($0) })
+            let listener = SpeechListener(log: { [log] in log.write($0) })
             runtime.onListen = { (on: Bool) in
                 if on {
                     listener.start { why in runtime.micFailed(why) }
@@ -378,7 +369,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             model.setup.error = "Boop couldn't save its memory. What happened is in boop.log, in Boop's folder."
             return
         }
-        for agent in HookInstaller.Agent.allCases
+        for agent in Agent.allCases
         where model.ownsHooks && draft.agents.contains(agent) && model.installer.detected(agent) {
             model.install(agent)
         }

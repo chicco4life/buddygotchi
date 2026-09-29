@@ -11,7 +11,7 @@ final class InstallerTests: XCTestCase {
     var hook = ""
 
     override func setUpWithError() throws {
-        home = FileManager.default.temporaryDirectory.appendingPathComponent("boop-home-\(UUID().uuidString)")
+        home = tempDir("boop-home")
         try! FileManager.default.createDirectory(at: home.appendingPathComponent(".claude"), withIntermediateDirectories: true)
         try! FileManager.default.createDirectory(at: home.appendingPathComponent(".codex"), withIntermediateDirectories: true)
         hook = placeClient("Library/Application Support/Boop/bin/boop-hook")
@@ -31,17 +31,17 @@ final class InstallerTests: XCTestCase {
         try? FileManager.default.removeItem(at: home)
     }
 
-    func write(_ agent: HookInstaller.Agent, _ object: [String: Any]) {
+    func write(_ agent: Agent, _ object: [String: Any]) {
         let data = try! JSONSerialization.data(withJSONObject: object)
         try! data.write(to: installer.configURL(agent))
     }
 
-    func read(_ agent: HookInstaller.Agent) -> [String: Any] {
+    func read(_ agent: Agent) -> [String: Any] {
         let data = try! Data(contentsOf: installer.configURL(agent))
         return try! JSONSerialization.jsonObject(with: data) as! [String: Any]
     }
 
-    func commands(_ agent: HookInstaller.Agent, _ event: String) -> [String] {
+    func commands(_ agent: Agent, _ event: String) -> [String] {
         let groups = (read(agent)["hooks"] as? [String: Any])?[event] as? [[String: Any]] ?? []
         return groups.flatMap { ($0["hooks"] as? [[String: Any]] ?? []).compactMap { $0["command"] as? String } }
     }
@@ -82,6 +82,20 @@ final class InstallerTests: XCTestCase {
         try XCTAssertFalse(String(decoding: try Data(contentsOf: installer.configURL(.claude)), as: UTF8.self).contains("boop-hook.sh"))
         let notification = (root["hooks"] as! [String: Any])["Notification"] as! [[String: Any]]
         XCTAssertEqual(notification.first?["matcher"] as? String, "permission_prompt|elicitation_dialog|idle_prompt")
+    }
+
+    /// ADAPTERS.md §5: the hooks come from the adapter's tables, in the
+    /// order installs already have, so none reads as outdated.
+    func testTheHooksKeepTheirOrder() {
+        XCTAssertEqual(HookInstaller.events[.claude]!.map { $0.event + ($0.matcher.map { " " + $0 } ?? "") }, [
+            "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest",
+            "Notification permission_prompt|elicitation_dialog|idle_prompt", "Elicitation", "ElicitationResult", "Stop",
+            "StopFailure", "SubagentStart", "SubagentStop", "SessionEnd",
+        ])
+        XCTAssertEqual(HookInstaller.events[.codex]!.map { $0.event + ($0.matcher.map { " " + $0 } ?? "") }, [
+            "SessionStart startup|resume|clear", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PermissionRequest",
+            "Stop", "Interrupt", "SessionEnd",
+        ])
     }
 
     /// ADAPTERS.md §5: Claude runs a `Notification` hook only for the types

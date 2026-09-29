@@ -24,7 +24,6 @@ public struct StateSnapshot: Equatable, Sendable {
         }
     }
 
-    public static let version = 1
     /// A protocol line is at most 512 bytes (PROTOCOL.md §2).
     public static let maxLine = 512
     /// The device keeps names in 24-byte fields, and what needs you's sign
@@ -97,7 +96,7 @@ public struct StateSnapshot: Equatable, Sendable {
 
     /// One JSON line, keys in the protocol's order.
     public var jsonLine: String {
-        var parts: [String] = ["\"t\":\"state\"", "\"v\":\(StateSnapshot.version)", "\"base\":\(json(base))"]
+        var parts: [String] = ["\"t\":\"state\"", "\"base\":\(json(base))"]
         if let act { parts.append("\"act\":\(json(act))") }
         parts.append("\"mood\":\(json(mood))")
         if let attn {

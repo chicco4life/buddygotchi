@@ -215,8 +215,9 @@ public final class Harness: @unchecked Sendable {
     /// and everything is recorded.
     /// A pass with no `job` never asked the brain `brainID`: a waiting
     /// view event whose pass couldn't start.
+    @discardableResult
     func finish(_ now: ViewEvent, _ job: Job?, _ result: Result<Answers, BrainError>, latencyMs: Int,
-                brainID: String? = nil) {
+                brainID: String? = nil) -> Record {
         var pass = Pass(forSeq: now.seq, answers: [:], dropped: nil, latencyMs: latencyMs)
         if job != nil {
             // Only a pass that asked the brain says how it's doing.
@@ -247,6 +248,7 @@ public final class Harness: @unchecked Sendable {
         let record = Record(now: now, pass: pass, actions: ran, questions: job?.questions ?? [])
         if let dropped = pass.dropped { log("harness: \(now.name) dropped: \(dropped)") }
         onRecord?(record)
+        return record
     }
 
     /// Hands each action its own answers, in order, and records what each
@@ -272,14 +274,15 @@ public final class Harness: @unchecked Sendable {
 
     /// Records an action's result as an `action` event (EVENTS.md §2): one
     /// that started something is a `start`, open until its handle ends and
-    /// its `end` is recorded (§5.1).
+    /// its `end` is recorded (§5.1). The result's own facts go in its data
+    /// too, unread; the harness's keys win a clash.
     func record(_ name: String, _ result: ActionResult, forSeq: Int?, by: String, latencyMs: Int) -> ActionRecord {
         let started = result.ok && result.pending != nil
+        let data: [String: JSONValue] = ["for": forSeq.map { .int(Int64($0)) } ?? .null, "by": .string(by),
+                                         "ok": .bool(result.ok), "message": .string(result.message),
+                                         "latency_ms": .int(Int64(latencyMs))]
         let e = pipeline.record(Event(ts: clock(), source: .boop, type: .action, phase: started ? .start : nil,
-                                      specificType: name,
-                                      data: ["for": forSeq.map { .int(Int64($0)) } ?? .null, "by": .string(by),
-                                             "ok": .bool(result.ok), "message": .string(result.message),
-                                             "latency_ms": .int(Int64(latencyMs))]))
+                                      specificType: name, data: data.merging(result.facts) { mine, _ in mine }))
         if started, let pending = result.pending {
             open[e.seq] = Open(name: name, since: e.ts, by: by)
             pending.bind { [weak self] end in self?.settle(e.seq, end) }
@@ -363,7 +366,7 @@ public final class Harness: @unchecked Sendable {
     func logPass(_ pass: Pass, extra: [String: Any]) {
         guard debugLog != nil || onDebugLine != nil else { return }
         let line = DebugLog.pass(pass, extra: extra, at: clock())
-        if let debugLog { Harness.appendLine(line, to: debugLog) }
+        if let debugLog { LineFile.append(line, to: debugLog) }
         onDebugLine?(line)
     }
 
@@ -376,14 +379,7 @@ public final class Harness: @unchecked Sendable {
         }
         guard let job else { return nil }
         let (result, ms) = await Harness.ask(job)
-        return home.sync {
-            var out: Record?
-            let keep = onRecord
-            onRecord = { out = $0; keep?($0) }
-            finish(now, job, result, latencyMs: ms)
-            onRecord = keep
-            return out
-        }
+        return home.sync { finish(now, job, result, latencyMs: ms) }
     }
 
     // MARK: Helpers
@@ -438,19 +434,6 @@ public final class Harness: @unchecked Sendable {
             }
         } onCancel: {
             once.resume(.failure(BrainError("cancelled")))
-        }
-    }
-
-    /// Appends `line` and a newline, opening the file for each line.
-    public static func appendLine(_ line: String, to url: URL) {
-        let data = Data((line + "\n").utf8)
-        if let handle = try? FileHandle(forWritingTo: url) {
-            defer { try? handle.close() }
-            _ = try? handle.seekToEnd()
-            try? handle.write(contentsOf: data)
-        } else {
-            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? data.write(to: url)
         }
     }
 }

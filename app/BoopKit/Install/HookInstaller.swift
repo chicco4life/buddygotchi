@@ -8,12 +8,6 @@ import Foundation
 /// generation's, which call `~/.boop/boop-hook.sh`. Nothing is written when
 /// nothing would change, so installing twice is the same as once.
 public struct HookInstaller {
-    public enum Agent: String, CaseIterable, Sendable {
-        case claude, codex
-
-        public var displayName: String { self == .claude ? "Claude Code" : "Codex" }
-    }
-
     public enum Health: Equatable, Sendable {
         case notInstalled
         case installed
@@ -26,21 +20,17 @@ public struct HookInstaller {
         case clientMissing
     }
 
-    /// The hooks each agent gets, with a matcher where one is needed.
-    /// Claude matches `Notification` on its type, so the matcher lists every
-    /// type the adapter maps (ADAPTERS.md §3, §5).
-    static let events: [Agent: [(event: String, matcher: String?)]] = [
-        .claude: [
-            ("SessionStart", nil), ("UserPromptSubmit", nil), ("PreToolUse", nil), ("PostToolUse", nil),
-            ("PostToolUseFailure", nil), ("PermissionRequest", nil),
-            ("Notification", Adapter.notificationTypes.joined(separator: "|")), ("Elicitation", nil),
-            ("ElicitationResult", nil), ("Stop", nil), ("StopFailure", nil), ("SubagentStart", nil), ("SubagentStop", nil),
-            ("SessionEnd", nil),
-        ],
-        .codex: [
-            ("SessionStart", "startup|resume|clear"), ("UserPromptSubmit", nil), ("PreToolUse", nil),
-            ("PostToolUse", nil), ("PermissionRequest", nil), ("Stop", nil), ("Interrupt", nil), ("SessionEnd", nil),
-        ],
+    /// The hooks each agent gets, the adapter's (ADAPTERS.md §3) in its
+    /// order, with a matcher where one is needed. Claude matches
+    /// `Notification` on its type, so the matcher lists every type the
+    /// adapter maps (ADAPTERS.md §5). A new order would make every install
+    /// look outdated.
+    static let events: [Agent: [(event: String, matcher: String?)]] = Dictionary(
+        uniqueKeysWithValues: Agent.allCases.map { agent in (agent, Adapter.hooks(agent).map { ($0, matchers[agent]?[$0]) }) })
+    /// Each agent's matchers, by hook.
+    static let matchers: [Agent: [String: String]] = [
+        .claude: ["Notification": Adapter.notificationTypes.joined(separator: "|")],
+        .codex: ["SessionStart": "startup|resume|clear"],
     ]
     /// Seconds. `boop-hook` finishes in milliseconds and gives up after one.
     static let timeout = 5

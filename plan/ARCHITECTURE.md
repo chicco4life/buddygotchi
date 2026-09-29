@@ -103,13 +103,13 @@ talks to the device.
 | Brain | `Brains/JevBrain.swift` | Jev: answers multiple-choice questions about a plain-text state, with probabilities | Everything else |
 | Actions | `Actions/` | `mood` and `react`: carry out one call each, checking their own rules | Whether a rule or the brain called them |
 | Thread link | `App/ThreadLink.swift` | Where a thread opens on the Mac: its link in the Claude or Codex app, or its app brought forward ([BEHAVIORS.md](BEHAVIORS.md) §3.2) | Why it's opened |
-| Moment schedule | `App/MomentSchedule.swift` | Decides when each brain moment plays: after any line playing, over an animation, or not at all | What's in it |
+| Moment schedule | `App/MomentSchedule.swift` | Decides when each brain moment plays: after any line playing, over an animation, or not at all; numbers the ones sent and ends their handles from the device's `ended` | What's in it |
 | Voice | `Voice/` | Turns a feeling, a topic, a kind and a face into a line of up to two of the recorded takes the board has, or none | Who asked, or why |
 | Memory store | `Memory/` | Reads and writes `long-term.md`, `short-term.md` and their snapshots | Models, the device |
 | Mood store | `MoodStore` in `Actions/MoodAction.swift` | Reads and writes the `mood` file | Who changes it |
 | Device link | `DeviceLink/` | Sends `state` and moments, receives taps and status, over Bluetooth or USB | What any of it means |
 | Hook installer | `Install/` | Adds, repairs and removes Boop's entries in the agents' settings | Anything at runtime |
-| Runtime | `App/Runtime.swift` | Wires the parts together, owns the queue and the timers, and carries out the core's effects | Any rule |
+| Runtime | `App/Runtime.swift`, with bug reports in `App/BugReport.swift` and the doctor's arm in `App/DoctorArm.swift` | Wires the parts together, owns the queue and the timers, and carries out the core's effects | Any rule |
 | Mac app | `app/Boop/` | The menu-bar icon and popover, setup and settings; places `boop-hook` and repairs hooks at launch | Any rule |
 
 `BoopKit` paths are under `app/BoopKit/`.
@@ -129,8 +129,8 @@ clock.
 | Input | From | Effects it can return |
 | --- | --- | --- |
 | `handle(event)` | A hook's raw event, once recorded | `state` or `sessions`, a `needs_you` action, a rule's one-shot `moment`, a new day |
-| `input(tap, seq:)` | The device's poke, once recorded | `state`, the `wiggle` action, or while something needs you the `open_thread` action and `open` (the runtime opens the waiting thread on the Mac, [BEHAVIORS.md](BEHAVIORS.md) §3.2), a new day |
-| `input(talkOn)`, `input(talkOff)`, `listen(on)`, `linkDown` | BOOT held and let go, the popover's Talk button, the link dropping | `listen` (the mic on or off, and whose button); the runtime turns the mic on, tells the device to show `listening` for Talk, and ends it when no reply is coming ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
+| `poke(at:seq:)` | The device's tap, once recorded as a poke | `state`, the `wiggle` action, or while something needs you the `open_thread` action and `open` (the runtime opens the waiting thread on the Mac, [BEHAVIORS.md](BEHAVIORS.md) §3.2), a new day |
+| `listen(on, by:)`, `linkDown` | BOOT held and let go (`talk_on`, `talk_off`), the popover's Talk button, the link dropping | `listen` (the mic on or off, and whose button); the runtime turns the mic on, tells the device to show `listening` for Talk, and ends it when no reply is coming ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 | `tick(at:)` | The runtime, once a second | `state` or `sessions` (an activity's hold running out, or a call gone quiet, included), a Codex request showing after its grace, a request the safety net clears (their `needs_you` actions), the mic off at 30 s |
 | `setVolume`, `setMood` | Settings; the mood action | `state` |
 | `setWallClock` | Every tick | None: it changes later decisions |
@@ -149,11 +149,22 @@ its plan mode and its activity held; the sessions "needs you" showed for
 when last published, the visual showing, the activity showing and since
 when, the variation each visual and one-shot showed last, when the
 error one-shot last played, the last active day, and its config:
-volume, mood and every timing below. What
+volume, mood and the Codex grace. What
 the brain hears (turn numbers, lengths, checks, pokes, heartbeats) is the
 view's ([harness/EVENTS.md](harness/EVENTS.md) §3–4).
 
-**Its timers**, all in `Core.Config` and run by the tick:
+**The session bookkeeping** both fold from the same events is one piece
+of code, `SessionFold` in `Core/SessionFold.swift`: what an agent's event
+means, which sessions ended (so a late hook of theirs is let go), a
+session's turn and its tool calls (a stale idle notice, a result that
+lands after its turn ended), and the session timings below. The core
+adds who asks, "needs you" and what the look shows; the view, what each
+turn did. Each keeps its own copy: the core forgets a silent session on
+its tick, the view at the session's next event.
+
+**Its timers**, run by the tick: the Codex grace in `Core.Config`, the
+safety net and the idle and forget times in `SessionFold`, and the rest
+on `Core`:
 
 | Timer | Value | Spec |
 | --- | --- | --- |
@@ -223,8 +234,9 @@ when the first waiting one's 5 s run out, and on every tick, so a clock
 jump can't leave one waiting for the harness's ceiling. Each carries its
 reaction's handle. It goes to the device with an `id`, and the device's
 `ended` says how it went: played out, cut short or skipped
-([PROTOCOL.md](PROTOCOL.md) §4). The schedule or the runtime ends the
-handle from that, or when the moment can't have played
+([PROTOCOL.md](PROTOCOL.md) §4). The schedule ends the handle from
+that, or when the moment can't have played (the runtime, for one whose
+turn came with no device connected)
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5).
 
 The app reckons how long each moment plays at most, as the device times
@@ -445,7 +457,7 @@ What crosses each boundary, in the order an event travels:
 | Agent → `boop-hook` | The hook's JSON on stdin | The agent's own | [ADAPTERS.md](ADAPTERS.md) §2 |
 | `boop-hook` → hook server | One JSON line of the kept fields | `HookLine` | [ADAPTERS.md](ADAPTERS.md) §2 |
 | Adapter → pipeline | A raw event | `Event` | [ADAPTERS.md](ADAPTERS.md) §1, [harness/EVENTS.md](harness/EVENTS.md) §2 |
-| Device link → pipeline | A tap, recorded as a poke; BOOT held and let go, to the core | `Core.DeviceInput` | [PROTOCOL.md](PROTOCOL.md) §4 |
+| Device link → pipeline | A tap, recorded as a poke; BOOT held and let go, to the core | `DeviceMessage.tap`, `DeviceMessage.talk` | [PROTOCOL.md](PROTOCOL.md) §4 |
 | App's mic → pipeline | What push-to-talk heard, recorded as a `talk` | `String` (`Runtime.said`) | [harness/EVENTS.md](harness/EVENTS.md) §2 |
 | Pipeline → transcript → core, view | Each raw event, stamped with its `seq` | `Event` | [harness/HARNESS.md](harness/HARNESS.md) §2 |
 | Device link → runtime | How a brain moment ended, by its `id` | `MomentEnded` | [PROTOCOL.md](PROTOCOL.md) §4 |

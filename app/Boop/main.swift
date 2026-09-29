@@ -29,8 +29,8 @@ let usage = """
                and boopctl dash read it). The last 10 launches' files are kept as DIR/debug.1.jsonl (the latest) to
                debug.10.jsonl, and boopctl day sums them all up by the hour. Jev's state never reaches boop.log.
            Headless, or with --debug, the hook socket also takes {"dev":…} lines from boopctl dash: "answer"
-               (a forced pass), "mood" and "moment"; and for push-to-talk with no mic, "listen" (the app's
-               button, {"dev":"listen","on":true}) and "said" (what the mic heard, {"dev":"said","words":"…"}).
+               (a forced pass) and "mood"; and for push-to-talk with no mic, "listen" (the app's button,
+               {"dev":"listen","on":true}) and "said" (what the mic heard, {"dev":"said","words":"…"}).
            Boop --snapshots DIR
                Renders the popover's panes and the menu-bar icons to PNGs from fixtures, then exits.
                No runtime, no Bluetooth.
@@ -44,6 +44,24 @@ func bundledSteering() -> Steering {
         fail("the steering folder is missing from the app")
     }
     do { return try Steering(directory: url) } catch { fail("the app's steering folder is broken: \(error)") }
+}
+
+/// The runtime's options on `stateDir`: the device over `link`, the log in
+/// `log`, and in debug mode everything printed to the terminal and the
+/// dashboard's `{"dev":…}` lines taken (harness/HARNESS.md §9). The
+/// menu-bar app and `--headless` both start from these.
+func runtimeOptions(stateDir: URL, socketPath: String, link: LinkSetting, debug: Bool, log: LogFile) -> Runtime.Options {
+    let transport: DeviceTransport? = switch link {
+    case .bluetooth: BLETransport(log: { log.write($0) })
+    case .usb(let path): USBTransport(path: path)
+    case .none: nil
+    }
+    var options = Runtime.Options(stateDir: stateDir, socketPath: socketPath, link: transport, steering: bundledSteering())
+    options.log = { log.write($0) }
+    options.debug = debug
+    options.debugPrint = { log.echo($0) }
+    options.devLines = debug
+    return options
 }
 
 /// Appends to `DIR/boop.log`, and echoes to stderr when asked. `echo`

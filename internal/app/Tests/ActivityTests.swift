@@ -24,16 +24,16 @@ final class CoreActivityTests: XCTestCase {
     /// delegates only from the main agent.
     func testEachCallShowsWhatItDoes() {
         let cases: [(Agent, String, String?, String)] = [
-            (.claudeCode, "Bash", nil, "terminal"), (.claudeCode, "Bash", "build", "terminal"),
-            (.claudeCode, "Bash", "deploy", "terminal"), (.claudeCode, "Bash", "tests", "testing"),
-            (.claudeCode, "Bash", "inspect", "analyzing"), (.claudeCode, "Read", nil, "analyzing"),
-            (.claudeCode, "Grep", nil, "analyzing"), (.claudeCode, "Glob", nil, "analyzing"),
-            (.claudeCode, "LS", nil, "analyzing"), (.claudeCode, "WebSearch", nil, "searching"),
-            (.claudeCode, "WebFetch", nil, "searching"), (.claudeCode, "Task", nil, "delegating"),
-            (.claudeCode, "Agent", nil, "delegating"), (.claudeCode, "Edit", "docs", "tool_use"),
-            (.claudeCode, "Write", nil, "tool_use"), (.claudeCode, "NotebookEdit", nil, "tool_use"),
-            (.claudeCode, "mcp__github__create_pr", nil, "tool_use"), (.claudeCode, "Skill", nil, "tool_use"),
-            (.claudeCode, "TodoWrite", nil, "planning"), (.claudeCode, "ExitPlanMode", nil, "planning"),
+            (.claude, "Bash", nil, "terminal"), (.claude, "Bash", "build", "terminal"),
+            (.claude, "Bash", "deploy", "terminal"), (.claude, "Bash", "tests", "testing"),
+            (.claude, "Bash", "inspect", "analyzing"), (.claude, "Read", nil, "analyzing"),
+            (.claude, "Grep", nil, "analyzing"), (.claude, "Glob", nil, "analyzing"),
+            (.claude, "LS", nil, "analyzing"), (.claude, "WebSearch", nil, "searching"),
+            (.claude, "WebFetch", nil, "searching"), (.claude, "Task", nil, "delegating"),
+            (.claude, "Agent", nil, "delegating"), (.claude, "Edit", "docs", "tool_use"),
+            (.claude, "Write", nil, "tool_use"), (.claude, "NotebookEdit", nil, "tool_use"),
+            (.claude, "mcp__github__create_pr", nil, "tool_use"), (.claude, "Skill", nil, "tool_use"),
+            (.claude, "TodoWrite", nil, "planning"), (.claude, "ExitPlanMode", nil, "planning"),
             (.codex, "shell", nil, "terminal"), (.codex, "exec_command", "tests", "testing"),
             (.codex, "local_shell", "inspect", "analyzing"), (.codex, "apply_patch", nil, "tool_use"),
             (.codex, "update_plan", nil, "planning"),
@@ -61,7 +61,7 @@ final class CoreActivityTests: XCTestCase {
         let fx = rig.send(.activity, tool: "Bash", id: "b")
         let line = states(fx).last!.jsonLine
         let variant = rig.state.variant
-        XCTAssertEqual(line, #"{"t":"state","v":1,"base":"working","act":"terminal","mood":"calm","busy":1,"vol":6,"variant":"# + "\(variant)}")
+        XCTAssertEqual(line, #"{"t":"state","base":"working","act":"terminal","mood":"calm","busy":1,"vol":6,"variant":"# + "\(variant)}")
         XCTAssertTrue((1...FaceLoops.count(mood: "calm", state: "terminal")).contains(variant))
         rig.send(.needsYou, tool: "Bash")
         XCTAssertNil(rig.act, "needs you covers it")
@@ -448,9 +448,9 @@ final class CoreOneShotTests: XCTestCase {
         XCTAssertEqual(shots(rig.send(.sessionStart, session: "c")), [])
         XCTAssertEqual(shots(rig.send(.activity, session: "a", tool: "Bash", failed: true, id: "b", error: "exit_code")),
                        ["error"], "it ran, and answered the request")
-        rig.input(.talkOn)
+        rig.talk(true)
         XCTAssertEqual(shots(rig.send(.turnStart, session: "c")), [], "the mic is on")
-        rig.input(.talkOff)
+        rig.talk(false)
         XCTAssertEqual(shots(rig.send(.sessionStart, session: "d")), [], "listening waits for the reply")
         rig.core.listeningEnded()
         XCTAssertEqual(shots(rig.send(.turnStart, session: "d")), ["starting new_task"])

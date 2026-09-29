@@ -8,13 +8,8 @@ enum Headless {
     static func run(_ args: Arguments) -> Never {
         guard let dir = args["--state-dir"] else { fail("--headless needs --state-dir\n" + usage) }
         let stateDir = URL(fileURLWithPath: dir).standardizedFileURL
-        let transport: DeviceTransport?
-        switch LinkSetting(args["--link"] ?? "none") {
-        case .usb(let path): transport = USBTransport(path: path)
-        case .none?: transport = nil
-        case .bluetooth?: fail("headless mode never uses Bluetooth; use --link usb:SOCKET")
-        case nil: fail("--link is usb:SOCKET or none")
-        }
+        guard let link = LinkSetting(args["--link"] ?? "none") else { fail("--link is usb:SOCKET or none") }
+        if link == .bluetooth { fail("headless mode never uses Bluetooth; use --link usb:SOCKET") }
         let socketPath = args["--socket"] ?? stateDir.appendingPathComponent("boop.sock").path
         // Checked before anything is set up, as the hook server checks it: a
         // Unix socket's path has room for 103 bytes (sockaddr_un), and a
@@ -42,9 +37,10 @@ enum Headless {
             }
         }
 
-        var options = Runtime.Options(stateDir: stateDir,
-                                      socketPath: socketPath,
-                                      link: transport, steering: bundledSteering())
+        var options = runtimeOptions(stateDir: stateDir, socketPath: socketPath, link: link, debug: args.has("--debug"),
+                                     log: log)
+        // Headless always takes the dashboard's lines.
+        options.devLines = true
         // Jev's key only from BOOP_JEV_KEY, as boopdev: a run from an agent
         // shell must never use the owner's key from the Keychain
         // (harness/HARNESS.md §7).
@@ -57,14 +53,10 @@ enum Headless {
         options.clock = { steady() + skew.ms }
         options.wallClock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.ms }
         options.advance = { skew.add($0) }
-        options.debug = args.has("--debug")
         // A tap while something needs you opens the thread on this Mac;
         // agents' runs only log where (BEHAVIORS.md §3.2).
         if args.has("--no-open") { options.open = { _ in log.write("open: skipped (--no-open)"); return true } }
-        options.debugPrint = { log.echo($0) }
         if let personality { options.personality = personality }
-        options.devLines = true
-        options.log = { log.write($0) }
         let runtime: Runtime
         do {
             runtime = try Runtime(options)

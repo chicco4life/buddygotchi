@@ -43,7 +43,7 @@ public final class Transcript: @unchecked Sendable {
         nextSeq += 1
         events.append(e)
         if events.count > Transcript.limit { events.removeFirst(events.count - Transcript.limit) }
-        if let url = file(for: e.ts) { Harness.appendLine(e.jsonLine, to: url) }
+        if let url = file(for: e.ts) { LineFile.append(e.jsonLine, to: url) }
         return e
     }
 

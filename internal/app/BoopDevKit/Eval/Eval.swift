@@ -454,25 +454,19 @@ public struct Eval {
         // says, played at once by default, so HISTORY reads as the app's
         // does once it has; one left in progress stays so.
         let ending = Ending()
-        let react = ReactAction(voice: Voice(), queue: { moment, pending in
-            view.reacted()
-            ending.said = moment.say?.text
-            ending.takes = moment.say?.takes.map(\.text) ?? []
-            if let end = ending.end { pending.finish(end) } else { ending.open.append(pending) }
-        }, blocked: { core.reactionBlock })
-        let moodAction = MoodAction(store: mood, clock: { clock.now })
+        let (harness, moodAction) = Runtime.harness(
+            brain: brain, pipeline: pipeline, mood: mood, voice: Voice(), steering: steering,
+            personality: { scenario.personality }, time: time, clock: { clock.now }, wall: { clock.now },
+            queue: { moment, pending in
+                ending.said = moment.say?.text
+                ending.takes = moment.say?.takes.map(\.text) ?? []
+                if let end = ending.end { pending.finish(end) } else { ending.open.append(pending) }
+            }, home: home, debugLog: debugLog)
         // The mood it starts in, as the dashboard would set it just before.
         if scenario.mood != mood.current { _ = moodAction.change(to: scenario.mood) }
-        let actions: [any Action] = [moodAction, react]
-        let steering = self.steering
-        let harness = Harness(brain: brain, actions: actions, pipeline: pipeline, parts: { _ in
-            Runtime.stateParts(steering: steering, personality: scenario.personality, mood: mood.current,
-                               view: view, moodAction: moodAction, time: time, now: clock.now,
-                               wall: clock.now)
-        }, home: home, clock: { clock.now }, debugLog: debugLog)
         if let debugLog {
-            pipeline.onRecord = { Harness.appendLine(DebugLog.event($0), to: debugLog) }
-            pipeline.onView = { Harness.appendLine(DebugLog.view($0), to: debugLog) }
+            pipeline.onRecord = { LineFile.append(DebugLog.event($0), to: debugLog) }
+            pipeline.onView = { LineFile.append(DebugLog.view($0), to: debugLog) }
         }
 
         var checks: [Check] = []

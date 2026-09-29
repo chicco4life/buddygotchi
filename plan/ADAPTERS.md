@@ -255,7 +255,7 @@ still counts as working. Which of them the device shows is
 | `turn` start, `tool` start or end | Works |
 | A `tool` end that's a call's result, once its turn has ended or stopped, for a call that started before then | Stays as it is. The result landed late: you pressed Esc as a parallel call finished, a subagent's call raced the interrupt, or Codex reported the command its `Interrupt` aborted. It still counts for the thread ([harness/EVENTS.md](harness/EVENTS.md) §4), but it doesn't start the turn again, so a stopped turn isn't recorded twice |
 | `turn` end, done or failed | Goes idle |
-| `turn` end, stopped | Goes idle, with no rule reaction. If its turn is still open, even after the safety net (below) made the session idle, that turn ends as stopped and the brain hears of it ([harness/EVENTS.md](harness/EVENTS.md) §4), so a call's result after it is a late one (above). Claude's `idle_prompt` less than 30 s after the session's last `turn` start (`Core.idleNoticeMinMs`) is ignored: it comes after a minute at the prompt, so it's from before that prompt, one typed just as the minute ran out. A turn that a call started, with no prompt (a background subagent's after the main agent stopped), has nothing for the notice to race |
+| `turn` end, stopped | Goes idle, with no rule reaction. If its turn is still open, even after the safety net (below) made the session idle, that turn ends as stopped and the brain hears of it ([harness/EVENTS.md](harness/EVENTS.md) §4), so a call's result after it is a late one (above). Claude's `idle_prompt` less than 30 s after the session's last `turn` start (`SessionFold.idleNoticeMinMs`) is ignored: it comes after a minute at the prompt, so it's from before that prompt, one typed just as the minute ran out. A turn that a call started, with no prompt (a background subagent's after the main agent stopped), has nothing for the notice to race |
 | `subagent` start | Stays as it is, as for its end: it only tells the look a helper is at work ([BEHAVIORS.md](BEHAVIORS.md) §2) |
 | `subagent` end | Stays as it is: a subagent finishing isn't activity, and it doesn't count as an event for the timers below, so it can't make an idle or stale session look busy. It can answer a request (below) |
 | A `session` start or end, `turn` start, or `turn` end done or failed, from inside a subagent (with its `agent_id`) | The same as a `subagent` end: that subagent's alone, not the session's turn |
@@ -297,7 +297,7 @@ before the event itself applies (so a `turn` end then makes it idle). After
 a `subagent` end it works again only if its turn is still going, and
 otherwise goes idle.
 
-**Timers**, checked on the core's one-second tick (`Core.Config`):
+**Timers**, checked on the core's one-second tick (the grace in `Core.Config`, the rest in `SessionFold`):
 
 | Timer | Value | What happens |
 | --- | --- | --- |
@@ -348,6 +348,9 @@ command: any command running `boop-hook`, or an older Boop's
 | `~/.claude/settings.json` | Under `hooks`, a group for each Claude hook in §3's table (14 hooks). `Notification`'s has the matcher `permission_prompt\|elicitation_dialog\|idle_prompt`, since Claude runs it only for the types its matcher lists. An install from before `SubagentStart` is outdated, so the launch repair adds it |
 | `~/.codex/hooks.json` | Under `hooks`, a group for each Codex hook in §3's table (8 hooks). `SessionStart`'s has the matcher `startup\|resume\|clear`, so a Codex session never starts as `compact` |
 | `~/.codex/config.toml` | `codex_hooks = true` under `[features]`, which Codex needs to run hooks at all. Added by install (or flipped from `false`), never removed, since other hooks may rely on it |
+
+The installer takes the hooks from the adapter's tables (`Adapter.claude`,
+`Adapter.codex`), in their order, which installs already have.
 
 **The installer's operations** (`HookInstaller`):
 

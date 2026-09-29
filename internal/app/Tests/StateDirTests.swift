@@ -6,7 +6,7 @@ import XCTest
 /// repairs hooks, since they report to its socket.
 final class StateDirTests: XCTestCase {
     func testOnlyTheEverydayFolderOwnsTheHooks() throws {
-        let home = FileManager.default.temporaryDirectory.appendingPathComponent("home-\(UUID().uuidString)")
+        let home = tempDir("home")
         defer { try? FileManager.default.removeItem(at: home) }
         let everyday = AppSettings.defaultStateDir(home: home.path)
         try FileManager.default.createDirectory(at: everyday, withIntermediateDirectories: true)

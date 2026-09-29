@@ -113,27 +113,32 @@ public struct ActionResult: Equatable, Sendable {
     /// How a started action tells the harness it ended; nil for one that
     /// finished when `run` returned.
     public let pending: Pending?
+    /// What the action says of its effect beyond its line, for the tools
+    /// (react's `takes` and `face`): the harness puts them in its `action`
+    /// event's data as they are and never reads them (harness/EVENTS.md §2).
+    public let facts: [String: JSONValue]
 
     public init(ok: Bool, message: String) {
         self.init(ok: ok, message: message, pending: nil)
     }
 
-    init(ok: Bool, message: String, pending: Pending?) {
+    init(ok: Bool, message: String, pending: Pending?, facts: [String: JSONValue] = [:]) {
         self.ok = ok
         self.message = message
         self.pending = pending
+        self.facts = facts
     }
 
     public static func done(_ message: String) -> ActionResult { ActionResult(ok: true, message: message) }
     public static func failed(_ why: String) -> ActionResult { ActionResult(ok: false, message: why) }
     /// Started, and ends when `pending` is finished.
-    public static func started(_ message: String, _ pending: Pending) -> ActionResult {
-        ActionResult(ok: true, message: message, pending: pending)
+    public static func started(_ message: String, _ pending: Pending, facts: [String: JSONValue] = [:]) -> ActionResult {
+        ActionResult(ok: true, message: message, pending: pending, facts: facts)
     }
 
     /// The same handle, not just an equal one.
     public static func == (a: ActionResult, b: ActionResult) -> Bool {
-        a.ok == b.ok && a.message == b.message && a.pending === b.pending
+        a.ok == b.ok && a.message == b.message && a.pending === b.pending && a.facts == b.facts
     }
 }
 
@@ -149,34 +154,25 @@ public final class Pending: @unchecked Sendable {
         case failed(String)
     }
 
+    /// How it ended, once it has; nil until then.
     private var end: End?
     private var deliver: ((End) -> Void)?
-    private var finished = false
-    /// How it ended, once it has; nil until then.
-    public private(set) var ended: End?
 
     public init() {}
 
     public func finish(_ end: End) {
-        guard !finished else { return }
-        finished = true
-        ended = end
+        guard self.end == nil else { return }
+        self.end = end
         if let deliver {
             self.deliver = nil
             deliver(end)
-        } else {
-            self.end = end
         }
     }
 
-    /// The harness's: where the end goes. One that came first goes at once.
+    /// The harness's, once: where the end goes. One that came first goes
+    /// at once.
     func bind(_ deliver: @escaping (End) -> Void) {
-        if let end {
-            self.end = nil
-            deliver(end)
-        } else if !finished {
-            self.deliver = deliver
-        }
+        if let end { deliver(end) } else { self.deliver = deliver }
     }
 }
 

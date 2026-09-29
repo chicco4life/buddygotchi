@@ -51,7 +51,7 @@ public final class Pipeline {
     public func poke(at now: Int64) -> Step {
         var step = Step()
         let e = record(Event(ts: now, source: .device, type: .poke, specificType: "input"), &step)
-        run(core.input(.tap, at: now, seq: e.seq), &step)
+        run(core.poke(at: now, seq: e.seq), &step)
         return gated(step)
     }
 
@@ -119,7 +119,7 @@ public final class Pipeline {
     /// unchanged (harness/EVENTS.md §6).
     public func whyNotWake(_ v: ViewEvent) -> String? {
         if !brain { return "no brain" }
-        if !TranscriptView.wakesWhileNeeded.contains(v.type) && core.needsYouShowing { return "something needs you" }
+        if !TranscriptView.wakesWhileNeeded.contains(v.type), let why = core.needsYouBlock { return why }
         if v.type == .poke && view.pokesAnswered { return "Boop is answering these pokes" }
         return nil
     }

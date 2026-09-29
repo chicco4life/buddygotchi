@@ -246,7 +246,7 @@ final class AdapterTests: XCTestCase {
     }
 
     func testAGitWorktreeAnywhereMapsToItsMainRepository() throws {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-wt-\(UUID().uuidString)")
+        let root = tempDir("boop-wt")
         let tree = root.appendingPathComponent("elsewhere/feature-x")
         try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -259,7 +259,7 @@ final class AdapterTests: XCTestCase {
     /// every hook, and the cache starts again past 512 folders. A line
     /// without a `cwd` is `unknown`; the core keeps the session's project.
     func testProjectNamesAreCachedPerFolder() throws {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-wt-\(UUID().uuidString)")
+        let root = tempDir("boop-wt")
         let tree = root.appendingPathComponent("feature-x")
         try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -331,7 +331,7 @@ final class AdapterTests: XCTestCase {
     /// harness/EVENTS.md §3: a workspace is a linked worktree's folder, else
     /// the branch, and none on the default branch; cleaned to a name.
     func testWorkspaceNames() throws {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-ws-\(UUID().uuidString)")
+        let root = tempDir("boop-ws")
         defer { try? FileManager.default.removeItem(at: root) }
         let tree = root.appendingPathComponent("somewhere")
         try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)

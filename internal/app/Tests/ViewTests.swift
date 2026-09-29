@@ -8,7 +8,7 @@ final class ViewTests: XCTestCase {
     var rig = CoreRig()
 
     @discardableResult
-    func hook(_ kind: Hook, agent: Agent = .claudeCode, session: String = "s1", workspace: String? = "fix-nav",
+    func hook(_ kind: Hook, agent: Agent = .claude, session: String = "s1", workspace: String? = "fix-nav",
               tool: String? = nil, topic: String? = nil, failed: Bool? = nil, done: Bool = false,
               id: String? = nil, error: String? = nil, message: String? = nil, prompt: String? = nil) -> [ViewEvent] {
         events(rig.send(kind, agent, session: session, workspace: workspace, tool: tool, topic: topic, failed: failed,
@@ -42,7 +42,7 @@ final class ViewTests: XCTestCase {
         XCTAssertEqual(third.facts["failed_before"], .int(2))
         XCTAssertEqual(third.facts["took"], "short", "40 s is short (EVENTS.md §5)")
         XCTAssertEqual(third.facts["took_ms"], .int(40_000))
-        XCTAssertEqual(third.about, "claude_code/s1")
+        XCTAssertEqual(third.about, "claude/s1")
 
         XCTAssertEqual(tests(failed: false, id: "t4").map(\.line),
                        [#"claude's tests passed on "fix-nav" (landing) after failing."#])
@@ -73,25 +73,28 @@ final class ViewTests: XCTestCase {
                        #"claude finished turn 1 on "x": done, a short turn, no tool calls."#)
     }
 
-    /// EVENTS.md §3: the keep rule is data. By default a tool call's start
-    /// is read but not kept, its wait on you is, and its end only when
-    /// notable; sessions and subagents are never kept.
+    /// EVENTS.md §3: which view events are kept. By default a tool call's
+    /// start is read but not kept, its wait on you is, and its end only
+    /// when notable; sessions and subagents are never kept.
     func testTheKeepRule() {
-        XCTAssertTrue(Keep.standard.keeps(.turn, .start, notable: false))
-        XCTAssertFalse(Keep.standard.keeps(.tool, .start, notable: true))
-        XCTAssertTrue(Keep.standard.keeps(.tool, .wait, notable: false))
-        XCTAssertFalse(Keep.standard.keeps(.tool, .end, notable: false))
-        XCTAssertTrue(Keep.standard.keeps(.tool, .end, notable: true))
-        XCTAssertFalse(Keep.standard.keeps(.session, .start, notable: true))
-        XCTAssertFalse(Keep.standard.keeps(.subagent, .start, notable: true))
-        XCTAssertFalse(Keep.standard.keeps(.subagent, .end, notable: true))
-        XCTAssertTrue(Keep.of(Personality.Rules(toolUses: .all)).keeps(.tool, .end, notable: false))
+        func keeps(_ type: Event.Kind, _ phase: Event.Phase?, notable: Bool, all: Bool = false) -> Bool {
+            TranscriptView.keeps(type, phase, notable: notable, allToolEnds: all)
+        }
+        XCTAssertTrue(keeps(.turn, .start, notable: false))
+        XCTAssertFalse(keeps(.tool, .start, notable: true))
+        XCTAssertTrue(keeps(.tool, .wait, notable: false))
+        XCTAssertFalse(keeps(.tool, .end, notable: false))
+        XCTAssertTrue(keeps(.tool, .end, notable: true))
+        XCTAssertFalse(keeps(.session, .start, notable: true))
+        XCTAssertFalse(keeps(.subagent, .start, notable: true))
+        XCTAssertFalse(keeps(.subagent, .end, notable: true))
+        XCTAssertTrue(keeps(.poke, nil, notable: false))
+        XCTAssertTrue(keeps(.tool, .end, notable: false, all: true))
+        XCTAssertFalse(keeps(.tool, .start, notable: false, all: true))
 
         hook(.sessionStart)
         hook(.turnStart)
         XCTAssertEqual(hook(.activity, tool: "Bash", topic: "tests", id: "t"), [], "a start isn't kept")
-        XCTAssertEqual(EventLine.toolStart(agent: "claude", category: "shell", topic: "tests", thread: #""landing""#),
-                       #"claude started running tests on "landing"."#)
     }
 
     /// EVENTS.md §3: a helper starting (`SubagentStart`), like one ending,
@@ -155,6 +158,28 @@ final class ViewTests: XCTestCase {
         rig.wait(6 * 60_000)
         XCTAssertEqual(hook(.turnEnd, workspace: nil).first?.line,
                        #"claude finished turn 3 on "landing": done, a very long turn, no tool calls."#)
+    }
+
+    /// ADAPTERS.md §4, EVENTS.md §4: the view lets late hooks go as the
+    /// core does (`SessionFold`). Claude's idle notice within 30 s of a
+    /// prompt ends no turn; a call's result that lands after its turn
+    /// stopped opens none, so no working heartbeat comes; and a session
+    /// that ended isn't back until it starts again.
+    func testLateHooksAreLetGoAsTheCoreLetsThemGo() {
+        XCTAssertEqual(SessionFold.idleNoticeMinMs, 30_000)
+        rig = CoreRig(seed: 7, rules: .chatty)
+        hook(.turnStart)
+        rig.wait(10_000)
+        XCTAssertEqual(events(rig.send(.turnStopped, workspace: "fix-nav", notice: true)), [], "a stale idle notice")
+        hook(.activity, tool: "Bash", id: "t1")
+        rig.wait(1000)
+        XCTAssertEqual(hook(.turnStopped, tool: "Bash").map(\.name), ["turn end"])
+        hook(.activity, tool: "Bash", done: true, id: "t1")
+        XCTAssertEqual(workBeats(rig.wait(10 * 60_000)), [], "the late result opened no turn")
+        hook(.sessionEnd)
+        hook(.activity, tool: "Bash", id: "t2")
+        XCTAssertEqual(workBeats(rig.wait(10 * 60_000)), [], "a call from before the end")
+        XCTAssertEqual(hook(.turnStart).first?.line, #"claude started turn 1 on "fix-nav" (landing)."#, "back, from turn 1")
     }
 
     /// EVENTS.md §6: nothing but what you say wakes the brain while
@@ -363,7 +388,7 @@ final class ViewTests: XCTestCase {
     /// turn numbers go on across a restart. An action left in progress is
     /// ended as failed; older files are deleted.
     func testTheTranscriptPersistsAndReplays() throws {
-        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-tr-\(UUID().uuidString)")
+        let dir = tempDir("boop-tr")
         defer { try? FileManager.default.removeItem(at: dir) }
         let time = rig.time
         func pipeline() -> Pipeline {

@@ -86,49 +86,64 @@ public final class MemoryStore {
 
     /// Reads both files if they changed on disk since this store last saw them.
     func refresh() {
-        for file in [Self.longTermFile, Self.shortTermFile] where stamp(file) != stamps[file] {
-            load(file)
-        }
+        if stamp(Self.longTermFile) != stamps[Self.longTermFile] { loadLongTerm() }
+        if stamp(Self.shortTermFile) != stamps[Self.shortTermFile] { loadShortTerm() }
     }
 
     func reload() {
-        load(Self.longTermFile)
-        load(Self.shortTermFile)
+        loadLongTerm()
+        loadShortTerm()
     }
 
     func stamp(_ file: String) -> Date? {
         (try? FileManager.default.attributesOfItem(atPath: url(file).path))?[.modificationDate] as? Date
     }
 
-    func load(_ file: String) {
+    func text(_ file: String) -> String? { try? String(contentsOf: url(file), encoding: .utf8) }
+
+    /// Missing, it waits for setup. One that won't parse is kept as
+    /// `long-term.md.broken` and comes back from the newest snapshot that
+    /// reads, or from what this store last had.
+    func loadLongTerm() {
+        let file = Self.longTermFile
         defer { stamps[file] = stamp(file) }
-        guard let text = try? String(contentsOf: url(file), encoding: .utf8) else {
-            // Missing: long-term waits for setup, short-term for the first activity.
-            if file == Self.longTermFile { longTermValue = nil } else { shortTermValue = nil }
-            return
-        }
+        guard let text = text(file) else { longTermValue = nil; return }
         do {
-            try assign(file, text)
+            longTermValue = try LongTerm.parse(text)
         } catch {
-            restore(file, because: error)
+            keepBroken(file)
+            let history = directory.appendingPathComponent(Self.historyDir).path
+            let days = ((try? FileManager.default.contentsOfDirectory(atPath: history)) ?? []).filter(LocalTime.isDay).sorted(by: >)
+            for day in days {
+                guard let text = try? String(contentsOf: historyURL(day).appendingPathComponent(file), encoding: .utf8),
+                      let restored = try? LongTerm.parse(text)
+                else { continue }
+                log("memory: \(file) didn't read (\(error)); restored from history/\(day), kept the old one as \(file).broken")
+                longTermValue = restored
+                try? write(text, file)
+                return
+            }
+            if let longTerm = longTermValue {
+                log("memory: \(file) didn't read (\(error)) and there's no snapshot; wrote back the last good copy")
+                try? write(longTerm.markdown, file)
+            } else {
+                log("memory: \(file) didn't read (\(error)) and there's no snapshot; kept it as \(file).broken")
+            }
         }
     }
 
-    func assign(_ file: String, _ text: String) throws {
-        if file == Self.longTermFile { longTermValue = try LongTerm.parse(text) } else { shortTermValue = try ShortTerm.parse(text) }
-    }
-
-    /// Keeps the broken file as `<file>.broken`. Long-term memory comes back
-    /// from the newest snapshot that reads, or from what this store last had.
-    /// Short-term snapshots are always of an earlier day, so short-term memory
-    /// starts fresh instead, keeping the file's date if it has one so the day
-    /// isn't started twice.
-    func restore(_ file: String, because error: Error) {
-        let broken = url(file + ".broken")
-        try? FileManager.default.removeItem(at: broken)
-        try? FileManager.default.copyItem(at: url(file), to: broken)
-        if file == Self.shortTermFile {
-            let text = (try? String(contentsOf: url(file), encoding: .utf8)) ?? ""
+    /// Missing, it waits for the first activity. Its snapshots are always of
+    /// an earlier day, so one that won't parse is kept as
+    /// `short-term.md.broken` and starts fresh instead, keeping the file's
+    /// date if it has one so the day isn't started twice.
+    func loadShortTerm() {
+        let file = Self.shortTermFile
+        defer { stamps[file] = stamp(file) }
+        guard let text = text(file) else { shortTermValue = nil; return }
+        do {
+            shortTermValue = try ShortTerm.parse(text)
+        } catch {
+            keepBroken(file)
             let date = text.split(whereSeparator: { !$0.isNumber && $0 != "-" }).map(String.init).first(where: LocalTime.isDay)
             if let date {
                 log("memory: \(file) didn't read (\(error)); kept it as \(file).broken and wrote back \(date)")
@@ -138,24 +153,14 @@ public final class MemoryStore {
                 shortTermValue = nil
                 try? FileManager.default.removeItem(at: url(file))
             }
-            return
         }
-        let days = ((try? FileManager.default.contentsOfDirectory(atPath: directory.appendingPathComponent(Self.historyDir).path)) ?? [])
-            .filter(LocalTime.isDay).sorted(by: >)
-        for day in days {
-            guard let text = try? String(contentsOf: historyURL(day).appendingPathComponent(file), encoding: .utf8),
-                  (try? assign(file, text)) != nil
-            else { continue }
-            log("memory: \(file) didn't read (\(error)); restored from history/\(day), kept the old one as \(file).broken")
-            try? write(text, file)
-            return
-        }
-        if let longTerm = longTermValue {
-            log("memory: \(file) didn't read (\(error)) and there's no snapshot; wrote back the last good copy")
-            try? write(longTerm.markdown, file)
-        } else {
-            log("memory: \(file) didn't read (\(error)) and there's no snapshot; kept it as \(file).broken")
-        }
+    }
+
+    /// Copies a file that won't parse to `<file>.broken`.
+    func keepBroken(_ file: String) {
+        let broken = url(file + ".broken")
+        try? FileManager.default.removeItem(at: broken)
+        try? FileManager.default.copyItem(at: url(file), to: broken)
     }
 
     func save(_ st: ShortTerm) {

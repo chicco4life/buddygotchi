@@ -93,7 +93,11 @@ public struct MomentEnded: Equatable, Sendable {
 /// A line from the device.
 public enum DeviceMessage: Equatable, Sendable {
     case status(DeviceStatus)
-    case input(Core.DeviceInput)
+    /// An `input` whose `k` is `tap`.
+    case tap
+    /// An `input` whose `k` is `talk_on` (true) or `talk_off`: the BOOT
+    /// button held for push-to-talk, or let go (PROTOCOL.md §4).
+    case talk(Bool)
     case ended(MomentEnded)
     /// Anything else: debug replies passing through the bridge, unknown types.
     case other(String)
@@ -108,8 +112,12 @@ public enum DeviceMessage: Equatable, Sendable {
             guard let id = object["id"] as? String else { return .other(line) }
             return .status(DeviceStatus(id: id, fw: object["fw"] as? String ?? "?", voice: object["voice"] as? String))
         case "input":
-            guard let input = (object["k"] as? String).flatMap(Core.DeviceInput.init(rawValue:)) else { return .other(line) }
-            return .input(input)
+            switch object["k"] as? String {
+            case "tap": return .tap
+            case "talk_on": return .talk(true)
+            case "talk_off": return .talk(false)
+            default: return .other(line)
+            }
         case "ended":
             guard let id = (object["id"] as? NSNumber)?.intValue, id > 0,
                   let how = (object["how"] as? String).flatMap(MomentEnded.How.init(rawValue:))

@@ -169,7 +169,7 @@ struct OverviewPane: View {
         let waiting = sessions.first { $0.status == .waiting }
         let project = waiting?.project ?? attn.project
         let name = waiting?.name ?? attn.name
-        let agent = HookInstaller.Agent(rawValue: attn.agent)?.displayName ?? attn.agent
+        let agent = Agent(rawValue: attn.agent)?.displayName ?? attn.agent
         let opens = waiting?.thread.flatMap(ThreadLink.target)
         return Opens(waiting?.thread, radius: Theme.cardRadius, model: model) {
             needsYouCard(attn, project: project, name: name, agent: agent, workspace: waiting?.workspace,
@@ -226,7 +226,7 @@ struct OverviewPane: View {
         } else {
             // A fixed order, so a group doesn't jump to the top when one of
             // its sessions starts waiting and back when it stops.
-            let agents = HookInstaller.Agent.allCases.filter { a in status.sessions.contains { $0.agent == a.rawValue } }
+            let agents = Agent.allCases.filter { a in status.sessions.contains { $0.agent == a.rawValue } }
             VStack(alignment: .leading, spacing: Theme.gap) {
                 ForEach(agents, id: \.self) { agent in
                     VStack(alignment: .leading, spacing: 5) {

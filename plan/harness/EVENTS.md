@@ -57,7 +57,7 @@ Claude `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | `poke` | device | — | — |
 | `talk` | mic | — | `words`: what the Mac's mic heard, as macOS transcribed it, up to 2,000 characters (`HookLine.maxMessage`). Only when it heard something |
 | `heartbeat` | clock | — | — (the view says what it's about, §4) |
-| `action` | boop | start / end, or none | `for` (the `seq` of the event it's about, or null), `by` (`brain`, `dashboard` or `rule`), `ok`, `message`. end: `for` (its start's `seq`), `outcome` (`done` or `failed`), `why` |
+| `action` | boop | start / end, or none | `for` (the `seq` of the event it's about, or null), `by` (`brain`, `dashboard` or `rule`), `ok`, `message`, and the action's own facts: `react`'s start has `takes` (the ids of the takes it queued, in the order said, `[]` when it says nothing) and `face` (its mood), so a tool can find its moment among those sent. end: `for` (its start's `seq`), `outcome` (`done` or `failed`), `why` |
 
 What you said after the popover's Talk button (a headless run with
 `{"dev":"said",…}`, [VERIFICATION.md](../VERIFICATION.md) §2):
@@ -107,9 +107,9 @@ transcript's last two days to pick up where it left off
 ([HARNESS.md](HARNESS.md) §5): turn numbers and failure runs carry on.
 The one thing it decides from the clock is when a heartbeat is due (§4).
 
-**What it keeps** is data (`Keep`): each type and phase kept, all of them
-or only the notable ones. The rest are read for what they tell the view
-and dropped.
+**What it keeps** goes by type and phase (`TranscriptView.keeps`): all
+of them, or only the notable ones. The rest are read for what they tell
+the view and dropped.
 
 | Type and phase | Kept by default |
 | --- | --- |
@@ -137,7 +137,7 @@ The view events about one thread carry it as the fact `thread`:
 **The workspace** tells two threads in one project apart. An agent
 chooses its branch names, so it's cleaned to a name before anything sees
 it ([ADAPTERS.md](../ADAPTERS.md) §3). A view event's `about` is the
-thread's key, `<agent>/<session>`, such as `claude_code/s1`.
+thread's key, `<agent>/<session>`, such as `claude/s1`.
 
 ## 4. View events
 
@@ -147,10 +147,9 @@ thread's key, `<agent>/<session>`, such as `claude_code/s1`.
 | `turn` end | A turn the view saw start ends | Its outcome, length band, tool calls and last message | Yes |
 | `tool` wait | "Needs you" starts showing (the core's `needs_you` action), after Codex's 2 s grace | The thread | Never |
 | `tool` end | A tool call finishes and is notable, or any with `tool_uses: all` | Its result, whether it passed after failing, its time's band and its category | Yes |
-| `tool` start | A tool call starts (not kept by default) | Its topic and the thread | No |
 | `poke` | Every poke | How many pokes in a row: each within 3 s of the one before (`TranscriptView.Config.inARowMs`) | Yes, but not while something needs you (the tap opens the thread) or while Boop is answering its run (§6) |
 | `talk` | You said something to Boop on push-to-talk ([BEHAVIORS.md](../BEHAVIORS.md) §3.3) | Your words | Always, even while something needs you (§6) |
-| `heartbeat` | While no thread works, each whole hour since the last agent event or poke (`TranscriptView.Config.heartbeatMs`). While any thread works, once the personality's `working_heartbeat` wait has passed since Boop last reacted (`TranscriptView.reacted`, which the runtime calls as a reaction starts), however many view events woke the brain in it ([BEHAVIORS.md](../BEHAVIORS.md) §2) | The idle hours, or the thread working longest | Yes |
+| `heartbeat` | While no thread works, each whole hour since the last agent event or poke (`TranscriptView.Config.heartbeatMs`). While any thread works, once the personality's `working_heartbeat` wait has passed since Boop last started a reaction (the view sees `react`'s `action` start, §7), however many view events woke the brain in it ([BEHAVIORS.md](../BEHAVIORS.md) §2) | The idle hours, or the thread working longest | Yes |
 
 A thread **works** while its turn is open, nothing waits on you, and it
 has had an event within the hour; within 10 minutes if its last event
@@ -290,7 +289,6 @@ marked "in the line" in §4.1 (`EventLine` in
 | `turn` end | `claude finished turn 7 on "fix-nav" (landing): done, a very long turn, 12 tool calls.` `failed` or `stopped` in place of `done`, the length band (§5), and `1 tool call` or `no tool calls` |
 | `tool` end, notable | `claude's tests failed on "fix-nav" (landing).`, the same for a repeat, and `claude's tests passed on "fix-nav" (landing) after failing.` |
 | `tool` end, routine | By category: `claude ran a command on "…".`, `edited a file`, `read a file`, `searched`, `looked something up on the web`, `started a subagent`, and `used a tool` for `mcp` and `other`; ` It failed.` added when it did |
-| `tool` start | `claude started running tests on "…".`, `a build`, `a deploy`, `editing docs`, or by category: `a command`, `editing a file`, … |
 | `tool` wait | `claude needs you on "fix-nav" (landing).` |
 | `poke` | `You poked Boop.`, or `You poked Boop 4 times in a row.` |
 | `talk` | `You said to Boop: "are the tests passing yet?"`, on one line and cut to 300 characters like a note (`EventLine.said`) |

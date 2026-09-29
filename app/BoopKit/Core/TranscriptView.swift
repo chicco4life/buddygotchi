@@ -57,50 +57,6 @@ public struct ViewEvent: Equatable, Sendable {
     }
 }
 
-/// Which view events the view keeps (harness/EVENTS.md §3), as data: each
-/// type and phase kept, all of them or only the notable ones. The rest are
-/// read, for what they tell the view, and dropped.
-public struct Keep: Equatable, Sendable {
-    public enum Rule: String, Sendable { case all, notable }
-
-    public struct Key: Hashable, Sendable {
-        public var type: Event.Kind
-        public var phase: Event.Phase?
-        public init(_ type: Event.Kind, _ phase: Event.Phase? = nil) {
-            self.type = type
-            self.phase = phase
-        }
-    }
-
-    public var rules: [Key: Rule]
-
-    public init(_ rules: [Key: Rule]) { self.rules = rules }
-
-    /// Turns' starts and ends, tool calls that wait on you and notable
-    /// ones' ends, pokes, what you said and heartbeats.
-    public static let standard = Keep([
-        Key(.turn, .start): .all, Key(.turn, .end): .all,
-        Key(.tool, .wait): .all, Key(.tool, .end): .notable,
-        Key(.poke): .all, Key(.talk): .all, Key(.heartbeat): .all,
-    ])
-
-    /// The personality's: every tool call's end with `tool_uses: all`
-    /// (BEHAVIORS.md §6).
-    public static func of(_ rules: Personality.Rules) -> Keep {
-        var keep = standard
-        if rules.toolUses == .all { keep.rules[Key(.tool, .end)] = .all }
-        return keep
-    }
-
-    public func keeps(_ type: Event.Kind, _ phase: Event.Phase?, notable: Bool) -> Bool {
-        switch rules[Key(type, phase)] {
-        case .all?: true
-        case .notable?: notable
-        case nil: false
-        }
-    }
-}
-
 /// The view (harness/EVENTS.md §3): folds the transcript's raw events, one
 /// at a time and in order, into view events: which turn a thread is on and
 /// how long it ran, which checks failed, pokes in a row, heartbeats, who
@@ -124,16 +80,6 @@ public final class TranscriptView {
         /// While no thread works, a heartbeat after this long with no
         /// event, and again every time as long again passes (EVENTS.md §4).
         public var heartbeatMs: Int64 = 60 * 60 * 1000
-        /// A thread with no events for this long isn't working, and one
-        /// silent for `forgetMs` starts again from turn 0.
-        public var staleWorkMs: Int64 = 60 * 60 * 1000
-        public var forgetMs: Int64 = 24 * 60 * 60 * 1000
-        /// A thread whose last event asked for you, and nothing since for
-        /// this long, isn't working: the core's safety net.
-        public var safetyNetMs: Int64 = 10 * 60 * 1000
-        /// Claude's idle notice comes after a minute at its prompt, so one
-        /// sooner than this after you sent a prompt is from before it.
-        public var idleNoticeMinMs: Int64 = 30_000
 
         public init(rules: Personality.Rules = Personality.Rules(), seed: UInt64 = 1) {
             self.rules = rules
@@ -141,8 +87,9 @@ public final class TranscriptView {
         }
     }
 
-    /// One agent session, as the lines name it.
-    struct Thread {
+    /// One agent session, as the lines name it: its turn as the core keeps
+    /// it too (`AgentSession`), and what the turn did.
+    struct Thread: AgentSession {
         var agent: Agent
         var id: String
         var project = "unknown"
@@ -153,7 +100,6 @@ public final class TranscriptView {
         var turns = 0
         var turnStartedAt: Int64?
         var lastTurnEndedAt: Int64?
-        /// When you last sent a prompt, for a stale idle notice.
         var promptedAt: Int64?
         /// This turn's tool calls, and how many failed.
         var tools = 0
@@ -167,10 +113,8 @@ public final class TranscriptView {
         var check: (topic: String, failed: Bool)?
         /// Failures in a row of each check topic, across turns.
         var failRuns: [String: Int] = [:]
-        /// Each running tool call's start and topic, by `tool_use_id`, and
-        /// the last one's, for a result that carries no ID or topic.
-        var toolStarts: [String: (at: Int64, topic: String?)] = [:]
-        var lastToolStart: (at: Int64, topic: String?)?
+        var toolStarts: [String: ToolStart] = [:]
+        var lastToolStart: ToolStart?
         /// "Needs you" shows for it (the core's `needs_you` action), and
         /// whether its last event asked for you: silent for the safety
         /// net's 10 minutes after that, it isn't working (ADAPTERS.md §4).
@@ -178,12 +122,10 @@ public final class TranscriptView {
         var asked = false
 
         var name: String { workspace ?? project }
-        var key: String { TranscriptView.key(agent, id) }
+        var key: String { SessionFold.key(agent, id) }
     }
 
     public private(set) var config: Config
-    /// Which view events it keeps: the personality's.
-    public private(set) var keep: Keep
     let place: (String) -> Adapter.Place
 
     /// The view events, oldest first, up to `limit`.
@@ -193,10 +135,8 @@ public final class TranscriptView {
     var nextID = 1
 
     var threads: [String: Thread] = [:]
-    var nextOrder = 0
-    /// Sessions that ended, until they start again or a day passes: a hook
-    /// of theirs that lands later landed late.
-    var ended: [String: Int64] = [:]
+    /// Which sessions ended, and the order threads were first seen in.
+    var fold = SessionFold()
 
     // The run of pokes going on (BEHAVIORS.md §3.3).
     var pokes: [Int64] = []
@@ -206,7 +146,7 @@ public final class TranscriptView {
     var lastActivityAt: Int64?
     var heartbeats = 0
     /// When the working heartbeat is next due; nil until work starts, and
-    /// again after Boop reacts.
+    /// again once Boop starts a reaction.
     var nextWorkBeatAt: Int64?
     var rng: SplitMix64
 
@@ -223,7 +163,6 @@ public final class TranscriptView {
     public init(config: Config = Config(), place: @escaping (String) -> Adapter.Place = { Adapter.place(cwd: $0) }) {
         self.config = config
         self.place = place
-        keep = Keep.of(config.rules)
         rng = SplitMix64(seed: config.seed)
     }
 
@@ -232,8 +171,6 @@ public final class TranscriptView {
     /// waiting thread (EVENTS.md §6).
     public static let wakesWhileNeeded: Set<Event.Kind> = [.talk]
 
-    static func key(_ agent: Agent, _ id: String) -> String { agent.rawValue + "/" + id }
-
     /// The topics whose failing command fails a turn (BEHAVIORS.md §3.1).
     static let checks: Set<String> = ["tests", "build", "deploy"]
 
@@ -241,7 +178,6 @@ public final class TranscriptView {
     /// heartbeat starts its wait again at the new pace.
     public func setRules(_ rules: Personality.Rules) {
         config.rules = rules
-        keep = Keep.of(rules)
         nextWorkBeatAt = nil
     }
 
@@ -277,15 +213,10 @@ public final class TranscriptView {
         return out
     }
 
-    /// Boop started a reaction: the working heartbeat starts its wait
-    /// again, so it comes after a stretch of work with no reaction, however
-    /// many view events woke the brain in it (EVENTS.md §4).
-    public func reacted() { nextWorkBeatAt = nil }
-
     /// The agent and the name of the thread `key` names (the view event's
     /// `about`), as its lines name it: its workspace, else its project.
     public func who(about key: String) -> (agent: String, thread: String)? {
-        threads[key].map { ($0.agent.short, $0.name) }
+        threads[key].map { ($0.agent.rawValue, $0.name) }
     }
 
     func index(of id: Int) -> Int? {
@@ -297,10 +228,24 @@ public final class TranscriptView {
     /// The view event with this id, if the view still holds it.
     public func event(_ id: Int) -> ViewEvent? { index(of: id).map { events[$0] } }
 
-    /// Keeps a view event of `e`'s type and phase, if the keep rule does.
+    /// Whether the view keeps a view event of this type and phase
+    /// (EVENTS.md §3): turns' starts and ends, tool calls that wait on you,
+    /// pokes, what you said and heartbeats, and tool calls' ends when
+    /// notable, or every one with `allToolEnds` (the personality's
+    /// `tool_uses: all`, BEHAVIORS.md §6). The rest are read, for what
+    /// they tell the view, and dropped.
+    public static func keeps(_ type: Event.Kind, _ phase: Event.Phase?, notable: Bool, allToolEnds: Bool) -> Bool {
+        switch (type, phase) {
+        case (.turn, .start?), (.turn, .end?), (.tool, .wait?), (.poke, nil), (.talk, nil), (.heartbeat, nil): true
+        case (.tool, .end?): notable || allToolEnds
+        default: false
+        }
+    }
+
+    /// Keeps a view event of `e`'s type and phase, if `keeps` does.
     func add(_ e: Event, from: [Int]? = nil, notable: Bool = true, line: @autoclosure () -> String,
              notes: [String] = [], wakes: Bool, about: String? = nil, facts: @autoclosure () -> [String: JSONValue] = [:]) {
-        guard keep.keeps(e.type, e.phase, notable: notable) else { return }
+        guard TranscriptView.keeps(e.type, e.phase, notable: notable, allToolEnds: config.rules.toolUses == .all) else { return }
         events.append(ViewEvent(id: nextID, type: e.type, phase: e.phase, from: from ?? [e.seq], ts: e.ts, line: line(),
                                 notes: notes, wakesBrain: wakes, about: about, facts: facts()))
         nextID += 1
@@ -314,21 +259,15 @@ public final class TranscriptView {
     // MARK: Agents
 
     func agentEvent(_ e: Event) {
-        guard let agent = e.agent, let session = e.session, let step = Core.step(e) else { return }
+        guard let agent = e.agent, let session = e.session, let step = SessionFold.step(e) else { return }
         let now = e.ts
-        let key = TranscriptView.key(agent, session)
-        if let t = threads[key], now - t.lastEventAt >= config.forgetMs { threads[key] = nil }
-        ended = ended.filter { now - $0.value < config.forgetMs }
-        // A session that ended is back only when it starts again (ADAPTERS.md §4).
-        if threads[key] == nil, ended[key] != nil {
-            guard e.subagent == nil, step == .sessionStart || step == .turnStart else { return }
-            ended[key] = nil
-        }
+        let key = SessionFold.key(agent, session)
+        // A thread silent for a day starts again from turn 0.
+        if threads[key]?.forgotten(at: now) == true { threads[key] = nil }
+        fold.forgetEnds(at: now)
+        guard fold.admits(e, step, key: key, known: threads[key] != nil) else { return }
         var t = threads[key] ?? newThread(agent, session, now)
-        // A stale idle notice: from before your last prompt.
-        if step == .turnStopped, e["notice"] != nil, let prompted = t.promptedAt, now - prompted < config.idleNoticeMinMs {
-            return
-        }
+        if t.isStaleNotice(e, step) { return }
         if let cwd = e.cwd, !t.waiting {
             let place = self.place(cwd)
             if place.project != "unknown" {
@@ -346,7 +285,7 @@ public final class TranscriptView {
             threads[key] = t
             return
         }
-        if step == .subagentStart || step == .subagentEnd || (e.subagent != nil && Core.turnLevel.contains(step)) {
+        if SessionFold.subagentsOwn(e, step) {
             threads[key] = t
             return
         }
@@ -355,15 +294,14 @@ public final class TranscriptView {
 
         switch step {
         case .turnStart:
-            t.turnStartedAt = now
-            t.promptedAt = now
+            t.prompted(at: now)
             t.topic = nil
             t.check = nil
             t.turns += 1
             resetCounts(&t)
             threads[key] = t
             let prompt = e["prompt"]?.string
-            add(e, line: EventLine.turnStart(agent: agent.short, turn: t.turns, thread: threadLine(t)),
+            add(e, line: EventLine.turnStart(agent: agent.rawValue, turn: t.turns, thread: threadLine(t)),
                 notes: prompt.flatMap(EventLine.prompt).map { [$0] } ?? [], wakes: true, about: key,
                 facts: ["thread": threadFacts(t), "prompt": .of(prompt)])
         case .activity:
@@ -373,30 +311,17 @@ public final class TranscriptView {
             var late = false
             if done {
                 // A result may come without its call's topic: it's the
-                // `PreToolUse`'s, by ID or else the last one.
-                let started = e["tool_use_id"]?.string.flatMap { t.toolStarts.removeValue(forKey: $0) } ?? t.lastToolStart
+                // `PreToolUse`'s. One that landed after its turn ended
+                // counts, but the turn stays over.
+                let started: ToolStart?
+                (started, late) = t.callEnded(e)
                 if topic == nil { topic = started?.topic }
-                // A result that landed after its turn ended counts, but the
-                // turn stays over.
-                if t.turnStartedAt == nil, let at = started?.at, let ended = t.lastTurnEndedAt, at <= ended { late = true }
                 toolDone(&t, e, tool: tool, topic: topic, started: started?.at)
             } else if tool != nil {
-                let start = (at: now, topic: topic)
-                if let id = e["tool_use_id"]?.string { t.toolStarts[id] = start }
-                t.lastToolStart = start
-                let thread = t
-                add(e, line: EventLine.toolStart(agent: agent.short, category: EventLine.category(tool: tool), topic: topic,
-                                                 thread: threadLine(thread)),
-                    wakes: false, about: key, facts: ["thread": threadFacts(thread), "tool": .string(EventLine.category(tool: tool)),
-                                                      "tool_name": .of(tool), "topic": .of(topic)])
+                t.callStarted(e, topic: topic)
             }
-            if !late && t.turnStartedAt == nil {
-                // A call opens a turn with no prompt (a background
-                // subagent's after the main agent's `Stop`, say): its
-                // counts are its own (EVENTS.md §4.1).
-                t.turnStartedAt = now
-                resetCounts(&t)
-            }
+            // A turn a call opens has counts of its own (EVENTS.md §4.1).
+            if !late && t.openTurn(at: now) { resetCounts(&t) }
             if let topic { t.topic = topic }
             if let topic, let failed = e["failed"]?.bool, TranscriptView.checks.contains(topic) { t.check = (topic, failed) }
             threads[key] = t
@@ -404,14 +329,12 @@ public final class TranscriptView {
             // A finish with no turn open (a second `Stop`, one after the
             // turn stopped, or the first Boop hears from a session)
             // finishes nothing the view saw.
-            guard let started = t.turnStartedAt else {
+            guard let started = t.endTurn(at: now) else {
                 threads[key] = t
                 break
             }
             let check = t.check
-            t.turnStartedAt = nil
             t.check = nil
-            t.lastTurnEndedAt = now
             threads[key] = t
             // A turn the view joined partway (it never saw a prompt) isn't
             // told: it can't say how long it ran or what it did.
@@ -426,7 +349,7 @@ public final class TranscriptView {
                       message: step == .turnEnd ? e["message"]?.string : nil, lengthMs: max(0, now - started))
         case .sessionEnd:
             threads[key] = nil
-            ended[key] = now
+            fold.end(key, at: now)
         case .sessionStart:
             threads[key] = t
         case .needsYou, .subagentStart, .subagentEnd:
@@ -435,8 +358,7 @@ public final class TranscriptView {
     }
 
     func newThread(_ agent: Agent, _ id: String, _ now: Int64) -> Thread {
-        nextOrder += 1
-        return Thread(agent: agent, id: id, order: nextOrder, lastEventAt: now)
+        Thread(agent: agent, id: id, order: fold.takeOrder(), lastEventAt: now)
     }
 
     func resetCounts(_ t: inout Thread) {
@@ -477,8 +399,8 @@ public final class TranscriptView {
         let category = EventLine.category(tool: tool)
         let result = failed.map { $0 ? "failed" : "ok" } ?? "unknown"
         let line = notable
-            ? EventLine.check(agent: t.agent.short, topic: topic!, thread: threadLine(t), failed: failed!)
-            : EventLine.routine(agent: t.agent.short, category: category, thread: threadLine(t), failed: failed)
+            ? EventLine.check(agent: t.agent.rawValue, topic: topic!, thread: threadLine(t), failed: failed!)
+            : EventLine.routine(agent: t.agent.rawValue, category: category, thread: threadLine(t), failed: failed)
         var facts: [String: JSONValue] = [
             "thread": threadFacts(t), "tool": .string(category), "tool_name": .of(tool),
             "tool_use_id": .of(e["tool_use_id"]?.string), "topic": .of(topic), "result": .string(result),
@@ -503,7 +425,7 @@ public final class TranscriptView {
     func turnEnded(_ t: Thread, _ e: Event, outcome: String, error: String?, message: String?, lengthMs: Int64) {
         var topicFacts: [String: JSONValue] = [:]
         for (topic, state) in t.topicStates { topicFacts[topic] = .string(state) }
-        let line = EventLine.turnEnd(agent: t.agent.short, turn: t.turns, thread: threadLine(t), outcome: outcome,
+        let line = EventLine.turnEnd(agent: t.agent.rawValue, turn: t.turns, thread: threadLine(t), outcome: outcome,
                                      lengthMs: lengthMs, tools: t.tools)
         add(e, line: line, notes: message.flatMap(EventLine.lastMessage).map { [$0] } ?? [], wakes: true,
             about: t.key,
@@ -516,7 +438,7 @@ public final class TranscriptView {
     /// The thread's facts (EVENTS.md §3).
     func threadFacts(_ t: Thread) -> JSONValue {
         [
-            "name": .string(t.name), "agent": .string(t.agent.short), "turn": .int(Int64(t.turns)),
+            "name": .string(t.name), "agent": .string(t.agent.rawValue), "turn": .int(Int64(t.turns)),
             "project": .string(t.project), "workspace": .of(t.workspace), "session": .string(t.id),
         ]
     }
@@ -561,9 +483,11 @@ public final class TranscriptView {
     // MARK: Heartbeats
 
     /// Whether a thread is working at `now`: a turn open, nothing asked of
-    /// you, and an event within the hour.
+    /// you, and an event within the hour, or within the core's safety net
+    /// if its last event asked for you.
     func isWorking(_ t: Thread, _ now: Int64) -> Bool {
-        t.turnStartedAt != nil && !t.waiting && now - t.lastEventAt < (t.asked ? config.safetyNetMs : config.staleWorkMs)
+        t.turnStartedAt != nil && !t.waiting
+            && now - t.lastEventAt < (t.asked ? SessionFold.safetyNetMs : SessionFold.staleWorkMs)
     }
 
     /// When the oldest turn still working began, or nil: HISTORY reaches
@@ -598,7 +522,7 @@ public final class TranscriptView {
         let working = threads.values.filter { isWorking($0, now) }
         if let t = working.min(by: { ($0.turnStartedAt ?? now, $0.order) < ($1.turnStartedAt ?? now, $1.order) }) {
             let ms = max(0, now - (t.turnStartedAt ?? now))
-            add(e, line: EventLine.working(agent: t.agent.short, thread: threadLine(t), ms: ms), wakes: true,
+            add(e, line: EventLine.working(agent: t.agent.rawValue, thread: threadLine(t), ms: ms), wakes: true,
                 about: t.key, facts: ["thread": threadFacts(t), "working_ms": .int(ms), "topic": .of(t.topic)])
             return
         }
@@ -636,6 +560,12 @@ public final class TranscriptView {
             }
         default:
             guard e["ok"]?.bool == true, let message = e["message"]?.string else { return }
+            let started = e.phase == .start
+            // Boop started a reaction: the working heartbeat starts its
+            // wait again, so it comes after a stretch of work with no
+            // reaction, however many view events woke the brain in it
+            // (EVENTS.md §4).
+            if started, e.specificType == ReactAction.actionName { nextWorkBeatAt = nil }
             let target: Int?
             if let about = e["for"]?.int.map(Int.init) {
                 target = events.lastIndex { $0.seq == about }
@@ -643,7 +573,6 @@ public final class TranscriptView {
                 target = events.indices.last
             }
             guard let target else { return }
-            let started = e.phase == .start
             events[target].did.append(ViewEvent.Did(message: message, by: e["by"]?.string ?? "brain",
                                                     state: started ? .inProgress : .done, seq: e.seq))
             if started { self.started[e.seq] = (target, events[target].did.count - 1, e.specificType) }
@@ -691,8 +620,8 @@ public final class TranscriptView {
     }
 
     func needs(_ e: Event) {
-        guard let agent = (e["agent"]?.string).flatMap(Agent.init(hookName:)), let session = e.session else { return }
-        let key = TranscriptView.key(agent, session)
+        guard let agent = (e["agent"]?.string).flatMap(Agent.init(rawValue:)), let session = e.session else { return }
+        let key = SessionFold.key(agent, session)
         var t = threads[key] ?? newThread(agent, session, e.ts)
         if e.phase == .start {
             t.waiting = true
@@ -701,7 +630,7 @@ public final class TranscriptView {
             // showing is when the view keeps it, after Codex's grace.
             let asked = e["for"]?.int.map { [Int($0), e.seq] } ?? [e.seq]
             add(Event(seq: e.seq, ts: e.ts, source: .boop, type: .tool, phase: .wait, specificType: e.specificType), from: asked,
-                line: EventLine.needsYou(agent: agent.short, thread: threadLine(t)), wakes: false, about: key,
+                line: EventLine.needsYou(agent: agent.rawValue, thread: threadLine(t)), wakes: false, about: key,
                 facts: ["thread": threadFacts(t)])
         } else {
             t.waiting = false
@@ -718,9 +647,6 @@ public final class TranscriptView {
         guard let r = runReaction, !r.moodChanged else { return false }
         return started[r.seq] != nil || heldByPokes.contains(r.seq)
     }
-
-    /// Whether something needs you, as the view has it.
-    public var needsYouShowing: Bool { threads.values.contains(where: \.waiting) }
 }
 
 /// The lines view events are written as (EVENTS.md §8). Only facts shown to
@@ -794,27 +720,6 @@ public enum EventLine {
     /// `You poked Boop.`, or `You poked Boop 4 times in a row.`
     public static func poke(inARow count: Int) -> String {
         count <= 1 ? "You poked Boop." : "You poked Boop \(count) times in a row."
-    }
-
-    /// A tool call starting: `claude started running tests on "landing".`
-    public static func toolStart(agent: String, category: String, topic: String?, thread: String) -> String {
-        let what = switch topic {
-        case "tests": "running tests"
-        case "build": "a build"
-        case "deploy": "a deploy"
-        case "docs": "editing docs"
-        default:
-            switch category {
-            case "shell": "a command"
-            case "edit": "editing a file"
-            case "read": "reading a file"
-            case "search": "searching"
-            case "web": "looking something up on the web"
-            case "subagent": "a subagent"
-            default: "using a tool"
-            }
-        }
-        return "\(agent) started \(what) on \(thread)."
     }
 
     public static func heartbeat(hours: Int) -> String {

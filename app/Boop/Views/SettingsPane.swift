@@ -61,7 +61,7 @@ struct SettingsPane: View {
         VStack(alignment: .leading, spacing: Theme.gapSnug) {
             Card(padding: 0) {
                 VStack(spacing: 0) {
-                    ForEach(Array(HookInstaller.Agent.allCases.enumerated()), id: \.element) { index, agent in
+                    ForEach(Array(Agent.allCases.enumerated()), id: \.element) { index, agent in
                         if index > 0 { Hairline().padding(.leading, 40).padding(.trailing, 12) }
                         agentRow(agent)
                     }
@@ -75,7 +75,7 @@ struct SettingsPane: View {
         }
     }
 
-    private func agentRow(_ agent: HookInstaller.Agent) -> some View {
+    private func agentRow(_ agent: Agent) -> some View {
         let health = model.hooks[agent]
         let found = model.installer.detected(agent)
         let (text, tone): (String, Color) = if let why = model.hookErrors[agent] {
