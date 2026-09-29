@@ -157,8 +157,9 @@ final class ViewTests: XCTestCase {
                        #"claude finished turn 3 on "landing": done, a very long turn, no tool calls."#)
     }
 
-    /// EVENTS.md §6: nothing but a poke wakes the brain while something
-    /// needs you, and nothing with no brain; the view events still come.
+    /// EVENTS.md §6: nothing but what you say wakes the brain while
+    /// something needs you, a poke included (the tap opens the thread),
+    /// and nothing with no brain; the view events still come.
     /// "Needs you" is kept as the tool call's wait, from the core's action.
     func testGates() {
         hook(.turnStart)
@@ -168,9 +169,9 @@ final class ViewTests: XCTestCase {
         XCTAssertFalse(asked[0].wakesBrain)
         XCTAssertEqual(rig.ruleActions, ["needs_you start"])
         XCTAssertFalse(hook(.turnStart, session: "s2").first!.wakesBrain, "something needs you")
-        XCTAssertTrue(events(rig.poke()).first!.wakesBrain, "a poke wakes it even so")
+        XCTAssertFalse(events(rig.poke()).first!.wakesBrain, "a poke opens the thread instead")
         hook(.activity, tool: "Bash")
-        XCTAssertEqual(rig.ruleActions, ["needs_you start", "needs_you end"], "answered")
+        XCTAssertEqual(rig.ruleActions, ["needs_you start", "open_thread", "needs_you end"], "answered")
         XCTAssertTrue(hook(.turnStart, session: "s3").first!.wakesBrain)
         rig.pipeline.brain = false
         XCTAssertFalse(hook(.turnStart, session: "s4").first!.wakesBrain, "no key")
@@ -193,11 +194,13 @@ final class ViewTests: XCTestCase {
         XCTAssertTrue(last[0].wakesBrain, "no limit")
         rig.wait(3000)
         XCTAssertEqual(events(rig.poke()).map(\.line), ["You poked Boop."], "3 s apart starts again")
-        // While something needs you there's no wiggle.
+        // While something needs you there's no wiggle: the tap opens the
+        // thread, and doesn't wake the brain (BEHAVIORS.md §3.2).
         hook(.turnStart)
         hook(.needsYou, tool: "Bash")
         let seen = events(rig.poke())
-        XCTAssertEqual(rig.view.event(seen[0].id)?.did, [])
+        XCTAssertEqual(rig.view.event(seen[0].id)?.did.map(\.message), ["Boop opened the thread that needs you on the Mac."])
+        XCTAssertFalse(seen[0].wakesBrain)
     }
 
     /// What you say to Boop (EVENTS.md §4, §8): one line, quoted and cut to

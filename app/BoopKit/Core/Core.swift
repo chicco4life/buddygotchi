@@ -5,7 +5,8 @@ import Foundation
 /// agents are doing included (`act`), and which one-shots the rules play
 /// (BEHAVIORS.md §3.1). What it does by rule it records as `action`
 /// events: "needs you" showing and ending, and a poke (the `wiggle`
-/// action, by its older name: the device plays its poke). What the
+/// action, by its older name: the device plays its poke), or while
+/// something needs you, the thread it opens (`open_thread`). What the
 /// brain hears is the view's (harness/EVENTS.md); everything expressive
 /// is the brain's.
 ///
@@ -56,6 +57,10 @@ public final class Core {
         /// The thread's workspace: a linked worktree's folder or the
         /// branch, which tells two sessions in one project apart.
         var workspace: String?
+        /// The app the agent runs in and that app's ID for the session, the
+        /// last an event brought: where a tap opens the thread.
+        var app: String?
+        var appSession: String?
         /// Working on a turn: not idle, and not waiting on "needs you".
         var working = false
         /// When the turn now open started, and when the last one ended: a
@@ -292,6 +297,8 @@ public final class Core {
             s.workspace = place.workspace
         }
         if let name = event["name"]?.string { s.name = name }
+        if let app = event["app"]?.string { s.app = app }
+        if let appSession = event["app_session"]?.string { s.appSession = appSession }
         if let mode = event["mode"]?.string { s.planMode = mode == "plan" }
 
         if step == .needsYou {
@@ -726,14 +733,24 @@ public final class Core {
     /// in a row), and the brain hears of it through the view, which counts
     /// the pokes in a row (BEHAVIORS.md §3.3). The rules add no animation of
     /// their own, but record it, as the `wiggle` action whose older name and
-    /// words Jev reads (harness/EVENTS.md §2). While something needs you a
-    /// poke means "I saw it", and while `listening` shows nothing replaces
-    /// it: the device plays no poke, so nothing is recorded.
+    /// words Jev reads (harness/EVENTS.md §2). While `listening` shows
+    /// nothing replaces it: the device plays no poke, so nothing is
+    /// recorded. While something needs you the device plays no poke either:
+    /// the tap opens the thread the sign names on the Mac, recorded as the
+    /// `open_thread` action (BEHAVIORS.md §3.2).
     func poked(_ now: Int64, seq: Int?, _ fx: inout [CoreEffect]) {
-        guard !needsYouShowing, !showsListening(at: now) else { return }
+        guard !showsListening(at: now) else { return }
+        let seq: JSONValue = seq.map { .int(Int64($0)) } ?? .null
+        if let waiting = grouped(at: now).waiting.first {
+            let thread = ThreadRef(waiting)
+            fx.append(.record(Event(ts: now, source: .boop, type: .action, specificType: Core.openThread,
+                                    data: ["for": seq, "by": "rule", "ok": true, "agent": .string(thread.agent),
+                                           "message": .string(Core.openedThread)])))
+            fx.append(.open(thread))
+            return
+        }
         fx.append(.record(Event(ts: now, source: .boop, type: .action, specificType: Core.wiggle,
-                                data: ["for": seq.map { .int(Int64($0)) } ?? .null, "by": "rule", "ok": true,
-                                       "message": .string(Core.wiggled)])))
+                                data: ["for": seq, "by": "rule", "ok": true, "message": .string(Core.wiggled)])))
     }
 
     func startListening(by talker: Talker, _ now: Int64, _ fx: inout [CoreEffect]) {
@@ -756,6 +773,8 @@ public final class Core {
     /// The rule actions' names and messages (harness/EVENTS.md §2).
     public static let wiggle = "wiggle"
     public static let wiggled = "Boop wiggled on its own."
+    public static let openThread = "open_thread"
+    public static let openedThread = "Boop opened the thread that needs you on the Mac."
     public static let needsYou = "needs_you"
 
     /// Runs every timer due by `now`, in order, but shows no Codex request
@@ -847,16 +866,45 @@ public struct SessionSummary: Equatable, Sendable {
     /// or nil when the folder has neither.
     public var workspace: String?
     public var status: Status
+    /// Which thread it is, for clicking the row open.
+    public var thread: ThreadRef?
 
-    public init(agent: String, project: String, name: String? = nil, workspace: String? = nil, status: Status) {
+    public init(agent: String, project: String, name: String? = nil, workspace: String? = nil, status: Status,
+                thread: ThreadRef? = nil) {
         self.agent = agent
         self.project = project
         self.name = name
         self.workspace = workspace
         self.status = status
+        self.thread = thread
     }
 
     init(_ s: Core.Session, _ status: Status) {
-        self.init(agent: s.agent.short, project: s.project, name: s.name, workspace: s.workspace, status: status)
+        self.init(agent: s.agent.short, project: s.project, name: s.name, workspace: s.workspace, status: status,
+                  thread: ThreadRef(s))
+    }
+}
+
+/// One agent thread, as much as opening it on the Mac needs
+/// (`ThreadLink`): the agent's session ID, the app it runs in and that
+/// app's own ID for it.
+public struct ThreadRef: Equatable, Sendable {
+    /// `claude` or `codex`.
+    public var agent: String
+    public var session: String
+    /// The app's bundle ID (HookWire's `HostApp`), when the hooks said.
+    public var app: String?
+    /// The Claude app's `local_…` ID.
+    public var appSession: String?
+
+    public init(agent: String, session: String, app: String? = nil, appSession: String? = nil) {
+        self.agent = agent
+        self.session = session
+        self.app = app
+        self.appSession = appSession
+    }
+
+    init(_ s: Core.Session) {
+        self.init(agent: s.agent.short, session: s.id, app: s.app, appSession: s.appSession)
     }
 }

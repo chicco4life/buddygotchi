@@ -10,6 +10,9 @@ import XCTest
 /// nothing reaches Jev.
 final class RuntimeTests: XCTestCase {
     var dir: URL!
+    /// What the runtime opened on the Mac, as `open`'s arguments: never for
+    /// real in a test.
+    let opened = Lines()
 
     override func setUpWithError() throws {
         // Unix socket paths must stay under 104 bytes.
@@ -32,6 +35,8 @@ final class RuntimeTests: XCTestCase {
         options.devLines = true
         options.readJevKey = readJevKey
         options.brain = { key in key.map { _ in brain } }
+        let opened = self.opened
+        options.open = { opened.add($0.arguments.joined(separator: " ")); return true }
         return options
     }
 
@@ -282,6 +287,35 @@ final class RuntimeTests: XCTestCase {
 
     func dev(_ json: String) {
         XCTAssertTrue(HookSocket.send(Data((json + "\n").utf8), to: socketPath))
+    }
+
+    /// BEHAVIORS.md §3.2: a tap on the board while something needs you
+    /// opens the waiting thread on the Mac, in its app; a click on a
+    /// session in the popover opens that one. `{"dev":"tap"}` stands in for
+    /// the board.
+    func testATapOrAClickOpensTheThread() throws {
+        let transport = FakeTransport()
+        let runtime = try makeRuntime(transport)
+        try runtime.start()
+        defer { runtime.stop() }
+        transport.onConnection?(true)
+        var ask = HookLine(agent: "claude", hook: "PermissionRequest", session: "s1", cwd: "/tmp/jetpack", tool: "Bash",
+                           app: HostApp.claude, appSession: "local_7db5", ts: 1)
+        XCTAssertTrue(HookSocket.send(ask.encoded(), to: socketPath))
+        ask.agent = "codex"
+        ask.session = "01a0e6fd-587d"
+        ask.app = nil
+        ask.appSession = nil
+        XCTAssertTrue(HookSocket.send(ask.encoded(), to: socketPath))
+        eventually("needs you") { runtime.home.sync { runtime.core.needsYouShowing } }
+        transport.onLine?(#"{"t":"input","k":"tap"}"#)
+        eventually("the oldest opened") { opened.all == ["claude://code/continue?session=local_7db5"] }
+        dev(#"{"dev":"tap"}"#)
+        eventually("the dev line taps too") { opened.all.count == 2 }
+        let codex = try XCTUnwrap(runtime.home.sync { runtime.core.sessionList(at: runtime.options.clock()) }
+            .first { $0.agent == "codex" }?.thread)
+        runtime.openThread(codex)
+        eventually("a click opens its own") { opened.all.last == "codex://threads/01a0e6fd-587d" }
     }
 
     /// harness/HARNESS.md §9: debug mode also writes the

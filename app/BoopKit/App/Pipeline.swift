@@ -113,9 +113,10 @@ public final class Pipeline {
     }
 
     /// Why a view event may not wake the brain now, or nil if it may: it
-    /// needs a brain; nothing but a poke or what you said wakes it while
-    /// something needs you; and a poke doesn't while the brain's reaction to its run is in
-    /// progress, with the mood unchanged (harness/EVENTS.md §6).
+    /// needs a brain; nothing but what you said wakes it while something
+    /// needs you (a tap then opens the thread); and a poke doesn't while
+    /// the brain's reaction to its run is in progress, with the mood
+    /// unchanged (harness/EVENTS.md §6).
     public func whyNotWake(_ v: ViewEvent) -> String? {
         if !brain { return "no brain" }
         if !TranscriptView.wakesWhileNeeded.contains(v.type) && core.needsYouShowing { return "something needs you" }

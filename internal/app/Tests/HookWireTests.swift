@@ -24,6 +24,38 @@ final class HookWireTests: XCTestCase {
         XCTAssertEqual(HookLine.decode(line.encoded()), line)
     }
 
+    /// ADAPTERS.md §2: the app the agent runs in, from the hook's
+    /// environment: a launched app's bundle ID, which its children keep;
+    /// the Codex app's server marks itself instead; and the Claude app's
+    /// own ID for the session. Nothing else of the environment leaves.
+    func testTheHookSaysWhatAppTheAgentRunsIn() throws {
+        let raw = payload(["hook_event_name": "Stop", "session_id": "s1"])
+        func line(_ agent: String, _ env: [String: String]) throws -> HookLine {
+            try XCTUnwrap(HookLine.extract(agent: agent, payload: raw, ts: 1, env: env))
+        }
+        let claude = try line("claude", ["__CFBundleIdentifier": "com.anthropic.claudefordesktop",
+                                         "CLAUDE_CODE_HOST_SESSION_ID": "local_7db5", "HOME": "/Users/secret"])
+        XCTAssertEqual(claude.app, HostApp.claude)
+        XCTAssertEqual(claude.appSession, "local_7db5")
+        let wire = String(decoding: claude.encoded(), as: UTF8.self)
+        XCTAssertTrue(wire.contains(#""app_session":"local_7db5""#))
+        XCTAssertFalse(wire.contains("secret"))
+        XCTAssertEqual(HookLine.decode(claude.encoded()), claude)
+
+        let terminal = try line("claude", ["__CFBundleIdentifier": "com.mitchellh.ghostty"])
+        XCTAssertEqual(terminal.app, "com.mitchellh.ghostty")
+        XCTAssertNil(terminal.appSession)
+        try XCTAssertNil(line("claude", ["CLAUDE_CODE_HOST_SESSION_ID": "cse_1"]).appSession, "only the app's local IDs")
+        try XCTAssertEqual(line("codex", ["CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex"]).app, HostApp.codex)
+        try XCTAssertEqual(line("codex", ["__CFBundleIdentifier": "com.googlecode.iterm2",
+                                          "CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex"]).app, "com.googlecode.iterm2")
+        try XCTAssertNil(line("codex", ["CLAUDE_CODE_HOST_SESSION_ID": "local_1"]).appSession, "Claude's alone")
+        try XCTAssertNil(line("claude", [:]).app, "no environment, no app")
+        // A payload too big to parse keeps them too.
+        let cut = Data(#"{"hook_event_name":"Stop","session_id":"s1","x":"#.utf8)
+        XCTAssertEqual(HookLine.extract(agent: "claude", payload: cut, ts: 1, env: ["__CFBundleIdentifier": "a.b"])?.app, "a.b")
+    }
+
     /// ADAPTERS.md §2: every hook gets the thread's name: Claude's last
     /// title in the transcript, yours over its own, and Codex's from its
     /// session index. Nothing else of either file leaves.

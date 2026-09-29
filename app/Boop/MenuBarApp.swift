@@ -122,6 +122,11 @@ final class AppModel: ObservableObject {
         runtime?.dismissMicTrouble()
     }
 
+    /// Opens a session's thread where it runs (BEHAVIORS.md §3.2).
+    func open(_ thread: ThreadRef) {
+        runtime?.openThread(thread)
+    }
+
     func reconnectDevice() {
         runtime?.reconnectDevice()
     }

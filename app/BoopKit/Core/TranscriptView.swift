@@ -227,9 +227,10 @@ public final class TranscriptView {
         rng = SplitMix64(seed: config.seed)
     }
 
-    /// Pokes and what you say to Boop wake the brain even while something
-    /// needs you; nothing else does (EVENTS.md §6).
-    public static let wakesWhileNeeded: Set<Event.Kind> = [.poke, .talk]
+    /// What you say to Boop wakes the brain even while something needs
+    /// you; nothing else does, a poke included: then a tap opens the
+    /// waiting thread (EVENTS.md §6).
+    public static let wakesWhileNeeded: Set<Event.Kind> = [.talk]
 
     static func key(_ agent: Agent, _ id: String) -> String { agent.rawValue + "/" + id }
 

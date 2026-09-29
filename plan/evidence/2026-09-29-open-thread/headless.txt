@@ -1,0 +1,10 @@
+# Boop --headless --brain scripted --link none --debug; the real boop-hook fed a UserPromptSubmit and a PermissionRequest from a Claude-app agent shell, then {"dev":"tap"}. It opened this same session in the Claude app.
+
+18:43:19.338 hook: claude UserPromptSubmit e2e-1 → turn start UserPromptSubmit claude e2e-1 · app com.anthropic.claudefordesktop, app_session local_<this session>, prompt hi
+18:43:19.355 hook: claude PermissionRequest e2e-1 → tool wait PermissionRequest claude e2e-1 · app com.anthropic.claudefordesktop, app_session local_<this session>, for permission, tool Bash
+18:43:19.878 dev: tap
+18:43:19.880   ✓ open_thread (rule): Boop opened the thread that needs you on the Mac.
+18:43:19.880 ▸ 3 poke (no pass): You poked Boop.
+18:43:19.882 open: claude://code/continue?session=local_<this session> (tap)
+
+# Codex: open "codex://threads/<id>" on a real Codex app thread ("Run a simple test") opened that thread in the Codex app; the owner watched it (2026-09-29).

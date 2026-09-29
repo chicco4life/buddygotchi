@@ -417,7 +417,7 @@ class Run:
             raise SystemExit("--brain jev needs BOOP_JEV_KEY")
         self.device = FakeDevice(self.dev_sock)
         cmd = [str(BIN / "Boop"), "--headless", "--state-dir", str(self.state), "--socket", self.sock,
-               "--link", f"usb:{self.dev_sock}", "--brain", self.brain, "--name", "Pip", "--debug"]
+               "--link", f"usb:{self.dev_sock}", "--brain", self.brain, "--name", "Pip", "--no-open", "--debug"]
         if self.personality:
             cmd += ["--personality", self.personality]
         out = open(self.state / "stdout.txt", "wb")

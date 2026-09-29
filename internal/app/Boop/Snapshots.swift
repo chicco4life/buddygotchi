@@ -87,9 +87,13 @@ enum Snapshots {
                        mood: String = MoodAction.initial, brainTrouble: BrainTrouble? = nil,
                        listening: Bool = false, micTrouble: String? = nil) -> Runtime.Status {
         let statuses: [String: SessionSummary.Status] = ["wait": .waiting, "work": .working, "idle": .idle]
-        let sessions = rows.map {
-            SessionSummary(agent: $0[0], project: $0[1], name: $0.count > 3 && !$0[3].isEmpty ? $0[3] : nil,
-                           workspace: $0.count > 4 ? $0[4] : nil, status: statuses[$0[2]]!)
+        // Each in its agent's own app, so its row opens it.
+        let sessions = rows.enumerated().map { i, row in
+            SessionSummary(agent: row[0], project: row[1], name: row.count > 3 && !row[3].isEmpty ? row[3] : nil,
+                           workspace: row.count > 4 ? row[4] : nil, status: statuses[row[2]]!,
+                           thread: ThreadRef(agent: row[0], session: "s\(i)",
+                                             app: row[0] == "claude" ? "com.anthropic.claudefordesktop" : "com.openai.codex",
+                                             appSession: "local_\(i)"))
         }
         let wait = sessions.filter { $0.status == .waiting }
         let snapshot = StateSnapshot(

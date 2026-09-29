@@ -25,6 +25,9 @@ public enum CoreEffect: Equatable, Sendable {
     /// snapshot of the same input: `starting`, `stopped`, `error` or
     /// `helper_return`, with no `id`, which no brain waits on.
     case moment(DeviceMoment)
+    /// Open a thread on the Mac, in the app it runs in: a tap while
+    /// something needs you (BEHAVIORS.md §3.2).
+    case open(ThreadRef)
 
     /// The effect on one line, for `boopdev replay` and debug mode.
     public var summary: String {
@@ -35,6 +38,7 @@ public enum CoreEffect: Equatable, Sendable {
         case .newDay(let date): "new-day \(date)"
         case .listen(let on, let by): "listen \(on ? "on" : "off") (\(by.rawValue))"
         case .moment(let m): "moment " + m.jsonLine
+        case .open(let t): "open \(t.agent) \(t.session)"
         }
     }
 }

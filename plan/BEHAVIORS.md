@@ -180,9 +180,10 @@ layers meet.
 
 **Attention wins.** While something needs you, no animation, line or
 face plays but `listening`, so push-to-talk still works; one already playing
-is cut short (`listening` plays on), a tap only dips the face, the rules
-send no one-shot, and no view event but a poke or what you say wakes the
-brain ([harness/EVENTS.md](harness/EVENTS.md) §6).
+is cut short (`listening` plays on), a tap only dips the face and opens
+the waiting thread on the Mac (§3.2), the rules send no one-shot, and no
+view event but what you say wakes the brain
+([harness/EVENTS.md](harness/EVENTS.md) §6).
 
 **What shows first,** on the device: no app (§3.4), then `listening`,
 then needs you, then a tap's poke and the moments (the brain's, and the
@@ -414,23 +415,39 @@ finishes, and the brain isn't told ([harness/EVENTS.md](harness/EVENTS.md)
 
 ### 3.2 Something needs you
 
-Boop only tells you. You approve on the Mac, in the agent's own prompt.
+Boop only tells you. You approve on the Mac, in the agent's own prompt,
+and a tap on Boop takes you there.
 
 | When | What Boop does |
 | --- | --- |
 | An agent needs approval | Boop holds up an amber sign naming the agent and the thread (its name, else its project) in large type, and peeks over its top edge, hopping between the corners and the middle ([DEVICE.md](DEVICE.md) §6); the amber light; and the alert: the needs-you performance with its knocks and ding, once ([VOICE.md](VOICE.md) §10). A moment or mumble playing stops |
 | More than one needs you | The sign shows the one waiting longest, with "+N more" for the rest |
 | A different request becomes the one shown | The alert again, the performance starting over behind a blink and the sign rising again: another session's, even in the same project, or another subagent's in the same session once the first is answered |
-| You poke Boop | The press dip only; it stays amber. The brain still hears of the poke (§3.3) |
+| You tap Boop | The press dip only; it stays amber. The Mac opens the thread the sign names (below), and records the tap as a poke with the rule's `open_thread` action under it; it doesn't wake the brain (§3.3) |
+| You click the card in the popover | The same thread opens. A click on any session's row in the popover opens that one, waiting or not |
 | You answer on the Mac | The agent carries on; once nothing needs you, Boop blinks back to its base look. A long command you approved keeps "needs you" up until it finishes ([ADAPTERS.md](ADAPTERS.md) §4) |
 | You deny with Esc | Claude sends nothing, so Boop stays amber until Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §4) |
 | You deny a Claude subagent | It carries on, and Boop stays amber until its next tool call or until it ends ([ADAPTERS.md](ADAPTERS.md) §4) |
 
 The light stays steady and nothing repeats. The brain never shows or
-clears it, and nothing but a poke or what you say wakes it meanwhile
-(push-to-talk still works, §3.3). A poke's pass can
+clears it, and nothing but what you say wakes it meanwhile
+(push-to-talk still works, §3.3). That pass can
 change the mood, which shows once nothing needs you (the sign is the
 same in every mood), and no reaction plays until then.
+
+**Where a thread opens.** The hook client notes the app each agent runs
+in ([ADAPTERS.md](ADAPTERS.md) §2), and `ThreadLink` picks where its
+thread opens, with `open`:
+
+| The agent runs in | What opens |
+| --- | --- |
+| The Claude app | That session, at `claude://code/continue?session=local_…`, by the app's own ID for it |
+| The Codex app, or Codex with no app named | That thread, at `codex://threads/<id>`, by its thread ID (the hook's session) |
+| A terminal or another app | That app, brought to the front: which tab is the agent's is out of reach |
+| Claude with no app named | Nothing; the Mac logs why |
+
+Headless, `--no-open` only logs where a thread would have opened
+([VERIFICATION.md](VERIFICATION.md) §2).
 
 ### 3.3 You and Boop
 
@@ -439,9 +456,9 @@ same in every mood), and no reaction plays until then.
 | You press BOOT or touch the screen | The face dips 2 px at once, until you let go |
 | You let go within 400 ms, or lift your finger: a tap | The mood's `poked` design, once, from its start, replacing the animation playing; asleep too. A brain reaction playing goes on: its line and bubble play over the poke, which is drawn in the reaction's mood until the reaction's face ends. From the third tap in a row on, `tap_spam` instead (below). The Mac records it as a poke, with the rule's `wiggle` action under it, and the brain hears of it, but not while it's answering the pokes before ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | Pokes in a row | Each within 3 s of the last (`TranscriptView.Config.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. The device counts them too, every tap, those that only dip the face included: from the third in a row (`answersRunFrom`), it plays the mood's `tap_spam` design instead of `poked` (`Behaviour::kTapRunMs` 3000 and `kTapSpamFrom` 3, the same numbers). How Boop reacts is the steering's: curious or glad at one poke; a little miffed at two in a row, turning annoyed; fed up at three or more, irritated and then grumpy, for a couple of minutes ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). The device plays its own tap animations, so no reaction plays one, and the taps after a reaction don't cut it short. From the third poke on, while the brain's reaction to them is in progress, a tap-cut one included, the pokes after it don't wake the brain, unless the mood changed since, so a barrage gets one "nope" ([harness/EVENTS.md](harness/EVENTS.md) §6) |
-| A tap while something needs you | The press dip only, with no poke: there a tap means "I saw it". The brain still hears of the poke ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| A tap while something needs you | The press dip only, with no poke: there a tap means "take me there", and the Mac opens the waiting thread (§3.2). It counts in the run, but doesn't wake the brain ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | Hold BOOT 400 ms, or click Talk in the popover | Push-to-talk, below: `listening` shows at once, the device sends `talk_on` at 400 ms and `talk_off` on release, or by itself after 30 s ([DEVICE.md](DEVICE.md) §4). No tap |
-| A tap while `listening` shows | The press dip only: nothing replaces `listening`. The brain still hears of the poke |
+| A tap while `listening` shows | The press dip only: nothing replaces `listening`, and nothing opens, even while something needs you. The brain still hears of the poke |
 
 **Push-to-talk.** Hold BOOT and speak, or click Talk in the popover,
 speak and click Send. The Mac's mic records and macOS turns it into text

@@ -15,7 +15,7 @@ log line (`debug.jsonl`).**
 - **In:** agent hooks that map to a type (§2), pokes, what you say to
   Boop on push-to-talk, heartbeats, and
   actions: the brain's and the dashboard's (`react`, `mood`) and the
-  rules' (`wiggle`, and `needs_you` starting and ending).
+  rules' (`wiggle`, `open_thread`, and `needs_you` starting and ending).
 - **Out:** hooks Boop ignores, passes (`debug.jsonl` only), state
   snapshots and every other line sent to the device (the rules'
   one-shots included: like the look, they show what the agents did, and
@@ -46,7 +46,7 @@ Claude `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | `phase` | `start`, `wait` or `end` for a type with a lifetime; left out for one that just happens |
 | `specific_type` | The source's own name for it: the hook (`UserPromptSubmit`, `Interrupt`), the device's message (`input`), the clock's reason (`idle`, `working`), the button that turned the mic on (`device` or `app`) or the action's name (`react`, `wiggle`) |
 | `session`, `subagent`, `cwd` | An agent's session, the Claude subagent's `agent_id`, and the working directory; an action about a session names it too. Left out when there's none |
-| `data` | The type's own fields, below. Every agent event can also carry `name`, the thread's name as its agent's app shows it, when the hook found one ([ADAPTERS.md](../ADAPTERS.md) §2): for the strip, the popover and a cheer. The view leaves it out |
+| `data` | The type's own fields, below. Every agent event can also carry `name`, the thread's name as its agent's app shows it, when the hook found one ([ADAPTERS.md](../ADAPTERS.md) §2): for the strip, the popover and a cheer; and `app` and `app_session`, the app the agent runs in and that app's ID for the session, when the hook's environment said: where a tap opens the thread ([BEHAVIORS.md](../BEHAVIORS.md) §3.2). The view leaves them out |
 
 | `type` | `source` | `phase` | `data` |
 | --- | --- | --- | --- |
@@ -83,12 +83,13 @@ start (HarnessTests):
 {"seq":3,"ts":1790000000000,"source":"boop","type":"action","phase":"end","specific_type":"a","data":{"by":"brain","for":2,"outcome":"done"}}
 ```
 
-The rules record two actions of their own (`Core`), each after the
+The rules record three actions of their own (`Core`), each after the
 event that caused it:
 
 | Action | When | `data` |
 | --- | --- | --- |
 | `wiggle` | A poke, unless something needs you or `listening` shows: the device played its poke by itself (the mood's `poked` design, `tap_spam` from the third in a row, [BEHAVIORS.md](../BEHAVIORS.md) §3.3). The action keeps its older name and message, which Jev reads, until the evals can check new wording | `for` the poke, `message` `Boop wiggled on its own.` |
+| `open_thread` | A poke while something needs you and `listening` doesn't show: the Mac opens the thread the sign names ([BEHAVIORS.md](../BEHAVIORS.md) §3.2) | `for` the poke, `agent`, `message` `Boop opened the thread that needs you on the Mac.` |
 | `needs_you`, start | "Needs you" starts showing for a session, after Codex's grace ([ADAPTERS.md](../ADAPTERS.md) §4) | `for` the request's `tool` wait, `agent`, `message` |
 | `needs_you`, end | It clears | `agent`, `outcome`: `done` when answered, else `failed` with `why` (`nothing for 10 minutes`, `the session ended`, `forgotten`) |
 
@@ -147,7 +148,7 @@ thread's key, `<agent>/<session>`, such as `claude_code/s1`.
 | `tool` wait | "Needs you" starts showing (the core's `needs_you` action), after Codex's 2 s grace | The thread | Never |
 | `tool` end | A tool call finishes and is notable, or any with `tool_uses: all` | Its result, whether it passed after failing, its time's band and its category | Yes |
 | `tool` start | A tool call starts (not kept by default) | Its topic and the thread | No |
-| `poke` | Every poke | How many pokes in a row: each within 3 s of the one before (`TranscriptView.Config.inARowMs`) | Yes, even while something needs you, but not while Boop is answering its run (§6) |
+| `poke` | Every poke | How many pokes in a row: each within 3 s of the one before (`TranscriptView.Config.inARowMs`) | Yes, but not while something needs you (the tap opens the thread) or while Boop is answering its run (§6) |
 | `talk` | You said something to Boop on push-to-talk ([BEHAVIORS.md](../BEHAVIORS.md) §3.3) | Your words | Always, even while something needs you (§6) |
 | `heartbeat` | While no thread works, each whole hour since the last agent event or poke (`TranscriptView.Config.heartbeatMs`). While any thread works, once the personality's `working_heartbeat` wait has passed since Boop last reacted (`TranscriptView.reacted`, which the runtime calls as a reaction starts), however many view events woke the brain in it ([BEHAVIORS.md](../BEHAVIORS.md) §2) | The idle hours, or the thread working longest | Yes |
 
@@ -233,9 +234,11 @@ only when its kind says so (§4), and never:
 
 - while there's no brain: before Jev's key is read, or without one
   ([HARNESS.md](HARNESS.md) §7);
-- while something needs you ([BEHAVIORS.md](../BEHAVIORS.md) §3.2), a
-  poke or what you say aside: you poking or talking to Boop are the only
-  things that may reach it then (`TranscriptView.wakesWhileNeeded`);
+- while something needs you ([BEHAVIORS.md](../BEHAVIORS.md) §3.2), what
+  you say aside: talking to Boop is the only thing that may reach it
+  then (`TranscriptView.wakesWhileNeeded`). A poke doesn't: then a tap
+  opens the waiting thread (`open_thread`), and it's still counted in
+  its run;
 - for a poke, while Boop is answering its run: the brain's reaction to
   the run's third poke in a row or a later one
   (`TranscriptView.Config.answersRunFrom`) is in progress, a tap-cut one
@@ -272,7 +275,7 @@ cut short (`cut short: you tapped Boop`): you saw it start, so its line
 stays, and stays `(in progress)` while the pokes go on (each within 3 s
 of the last, §6), so the barrage doesn't wake the brain for it again. The next poke
 after that, or any other event, makes it plain. NOW's last line is what the
-rules did (the `wiggle`), or `Boop did nothing on its own.`
+rules did (the `wiggle` or `open_thread`), or `Boop did nothing on its own.`
 ([HARNESS.md](HARNESS.md) §5.3).
 
 ## 8. Lines

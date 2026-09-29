@@ -76,7 +76,7 @@ What the picture leaves out:
   (`onRecord`) and writes its app log line (§9). Then the waiting view
   event's pass starts, unless it may no longer wake the brain
   (`Harness.whyNotStart`, the pipeline's `whyNotWake`): while something
-  needs you only a poke or what you say may, and a poke may not while Boop is answering
+  needs you only what you say may, and a poke may not while Boop is answering
   its run ([EVENTS.md](EVENTS.md) §6). It's logged as a pass dropped
   with that reason (`something needs you`, `Boop is answering these
   pokes`), and the brain isn't asked.
@@ -508,6 +508,7 @@ line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 | `{"dev":"mood","mood":"grumpy"}` | Sets the mood at once through the mood action, device included ([DECISIONS.md](DECISIONS.md) §4). Recorded as an `action` named `mood`, for no event, `by` `dashboard`, refusals included |
 | `{"dev":"listen","on":true}` | The popover's Talk button: the mic on (`true`) or off, as clicking it does ([BEHAVIORS.md](../BEHAVIORS.md) §3.3). With no mic (headless) turning it off hears nothing |
 | `{"dev":"said","words":"are the tests passing?","by":"device"}` | What push-to-talk heard, with no mic: recorded as a `talk` event after `by`'s button (`app` unless it says), whose pass replies or ends `listening` ([EVENTS.md](EVENTS.md) §2) |
+| `{"dev":"tap"}` | A tap on the board, with no board: a poke, or while something needs you, the waiting thread opened on the Mac ([BEHAVIORS.md](../BEHAVIORS.md) §3.2; headless `--no-open` only logs where) |
 | `{"dev":"report"}` | Saves a bug report, as the button does (below) |
 
 A forced pass that plays a finish, its action and the action's end,

@@ -74,6 +74,7 @@ construction.
    | `prompt` | `prompt`, up to 2,000 characters (`HookLine.maxMessage`) | `UserPromptSubmit` |
    | `message` | `last_assistant_message`, up to 2,000 characters | `Stop` |
    | `name` | the thread's name, as the agent's app shows it (below) | every hook |
+   | `app`, `app_session` | the hook's environment: the app the agent runs in, and the Claude app's ID for the session (below) | every hook that has them |
    | `ts` | when `boop-hook` started, in ms | every hook |
 
    A payload cut off at 256 KB won't parse, so the hook name, session,
@@ -95,6 +96,20 @@ construction.
    `session_index.jsonl` under `$CODEX_HOME` (else `~/.codex`). Only the
    name leaves: the rest of either file is read in memory and dropped.
    With no name found the line has none.
+
+   **The app** is where a tap opens the thread
+   ([BEHAVIORS.md](BEHAVIORS.md) §3.2), read from three environment
+   variables the hook inherits from its agent (`HostApp`), and nothing
+   else of the environment. `app` is `__CFBundleIdentifier`, which macOS
+   gives a process an app launched and its children keep: the Claude
+   app's (`com.anthropic.claudefordesktop`), or the terminal's
+   (`com.mitchellh.ghostty`). The Codex app's agent server has none, so a
+   Codex hook with `CODEX_INTERNAL_ORIGINATOR_OVERRIDE` set is the Codex
+   app's (`com.openai.codex`). `app_session` is Claude's
+   `CLAUDE_CODE_HOST_SESSION_ID`, the Claude app's own `local_…` ID for
+   the session, which its links take; Claude Code's `session_id` is
+   another. These are the apps' own internals, so each can change with an
+   update; then the thread doesn't open, or its app just comes forward.
 3. **Send.** One JSON line to the app's Unix socket,
    `~/Library/Application Support/Boop/boop.sock`, or `$BOOP_SOCKET` in
    tests. Connecting and writing are non-blocking and share one 50 ms

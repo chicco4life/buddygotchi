@@ -1,3 +1,4 @@
+import AppKit
 import BoopKit
 import SwiftUI
 
@@ -163,12 +164,25 @@ struct OverviewPane: View {
     /// The card names the session that has waited longest, as the device
     /// does, but in full: the snapshot's project and thread name are cut to
     /// fit the device. The session list puts it first.
+    /// A click opens it, as a tap on the device's sign does.
     private func needsYou(_ attn: StateSnapshot.Attention, _ sessions: [SessionSummary]) -> some View {
         let waiting = sessions.first { $0.status == .waiting }
         let project = waiting?.project ?? attn.project
         let name = waiting?.name ?? attn.name
         let agent = HookInstaller.Agent(rawValue: attn.agent)?.displayName ?? attn.agent
-        return Card(tone: Theme.amber) {
+        let opens = waiting?.thread.flatMap(ThreadLink.target)
+        return Opens(waiting?.thread, radius: Theme.cardRadius, model: model) {
+            needsYouCard(attn, project: project, name: name, agent: agent, workspace: waiting?.workspace,
+                         hint: opens.map { "Waiting for you. Click to \(openVerb($0))." }
+                             ?? "Waiting for you. Answer it in the agent's window.")
+        }
+        .transition(.scale(scale: 0.96, anchor: .top).combined(with: .opacity))
+        .animation(.boopPop, value: project)
+    }
+
+    private func needsYouCard(_ attn: StateSnapshot.Attention, project: String, name: String, agent: String,
+                              workspace: String?, hint: String) -> some View {
+        Card(tone: Theme.amber) {
             HStack(alignment: .top, spacing: Theme.gapSnug + 2) {
                 Image(systemName: "hand.wave.fill")
                     .font(.system(size: 13))
@@ -178,12 +192,12 @@ struct OverviewPane: View {
                     HStack(alignment: .firstTextBaseline, spacing: 5) {
                         Text(project.isEmpty ? agent : "\(agent) · \(project)")
                             .font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle)
-                        if let workspace = waiting?.workspace { ThreadName(workspace) }
+                        if let workspace { ThreadName(workspace) }
                     }
                     if !name.isEmpty {
                         Text(name).font(.system(size: 11, weight: .medium)).lineLimit(1).truncationMode(.tail)
                     }
-                    Text("Waiting for you. Answer it in the agent's window.")
+                    Text(hint)
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                 }
                 Spacer(minLength: 0)
@@ -192,8 +206,6 @@ struct OverviewPane: View {
                 }
             }
         }
-        .transition(.scale(scale: 0.96, anchor: .top).combined(with: .opacity))
-        .animation(.boopPop, value: project)
     }
 
     // MARK: Sessions
@@ -226,8 +238,11 @@ struct OverviewPane: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Theme.inkSoft)
                         ForEach(KeyedSession.rows(status.sessions.filter { $0.agent == agent.rawValue })) { row in
-                            SessionRow(project: row.session.project, thread: row.session.name ?? row.session.workspace,
-                                       status: row.session.status)
+                            Opens(row.session.thread, radius: Theme.wellRadius, model: model) {
+                                SessionRow(project: row.session.project,
+                                           thread: row.session.name ?? row.session.workspace,
+                                           status: row.session.status)
+                            }
                         }
                     }
                 }
@@ -282,6 +297,49 @@ func agentSymbol(_ short: String) -> String {
     case "codex": "curlybraces"
     default: "terminal"
     }
+}
+
+/// A card or row that opens `thread` on a click, where it runs
+/// (BEHAVIORS.md §3.2); as it was when there's nowhere to open it.
+struct Opens<Content: View>: View {
+    let thread: ThreadRef?
+    let radius: CGFloat
+    @ObservedObject var model: AppModel
+    @ViewBuilder var content: Content
+
+    init(_ thread: ThreadRef?, radius: CGFloat, model: AppModel, @ViewBuilder content: () -> Content) {
+        self.thread = thread
+        self.radius = radius
+        self.model = model
+        self.content = content()
+    }
+
+    var body: some View {
+        if let thread, let target = ThreadLink.target(thread) {
+            Button { model.open(thread) } label: { content }
+                .buttonStyle(OpensButtonStyle(radius: radius))
+                .help(openVerb(target).prefix(1).uppercased() + openVerb(target).dropFirst())
+        } else {
+            content
+        }
+    }
+
+}
+
+/// What a click on a session does, after "Click to".
+func openVerb(_ target: ThreadLink.Target) -> String {
+    switch target {
+    case .url(let url) where url.hasPrefix("claude:"): "open it in Claude"
+    case .url(let url) where url.hasPrefix("codex:"): "open it in Codex"
+    case .url: "open it"
+    case .app(let id): "switch to " + appName(id)
+    }
+}
+
+/// An app's name by its bundle ID, as Finder shows it.
+func appName(_ id: String) -> String {
+    guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return "its app" }
+    return FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
 }
 
 /// A session keyed by its project and thread and which of those sessions

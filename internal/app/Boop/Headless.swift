@@ -58,6 +58,9 @@ enum Headless {
         options.wallClock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.ms }
         options.advance = { skew.add($0) }
         options.debug = args.has("--debug")
+        // A tap while something needs you opens the thread on this Mac;
+        // agents' runs only log where (BEHAVIORS.md §3.2).
+        if args.has("--no-open") { options.open = { _ in log.write("open: skipped (--no-open)"); return true } }
         options.debugPrint = { log.echo($0) }
         if let personality { options.personality = personality }
         options.devLines = true

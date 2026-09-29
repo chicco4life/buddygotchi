@@ -45,6 +45,12 @@ public struct HookLine: Equatable, Sendable {
     /// The agent's `permission_mode` (Claude's `default`, `plan`,
     /// `acceptEdits`…), on every hook that carries one.
     public var mode: String?
+    /// The app the agent runs in, by bundle ID (`HostApp`): the Claude or
+    /// Codex app, or the terminal. Where a tap opens the thread.
+    public var app: String?
+    /// The Claude app's own ID for the session (`local_…`), which its links
+    /// open; nil outside the Claude app.
+    public var appSession: String?
     /// When the hook ran, in milliseconds.
     public var ts: Int64
 
@@ -52,7 +58,8 @@ public struct HookLine: Equatable, Sendable {
                 topic: String? = nil, error: String? = nil, kind: String? = nil, interrupt: Bool = false,
                 toolError: String? = nil, toolUseID: String? = nil, agentType: String? = nil,
                 agentID: String? = nil, message: String? = nil, prompt: String? = nil, name: String? = nil,
-                source: String? = nil, mode: String? = nil, ts: Int64) {
+                source: String? = nil, mode: String? = nil, app: String? = nil, appSession: String? = nil,
+                ts: Int64) {
         self.agent = agent
         self.hook = hook
         self.session = session
@@ -71,6 +78,8 @@ public struct HookLine: Equatable, Sendable {
         self.name = name
         self.source = source
         self.mode = mode
+        self.app = app
+        self.appSession = appSession
         self.ts = ts
     }
 
@@ -87,12 +96,16 @@ public struct HookLine: Equatable, Sendable {
 
     /// Picks the kept fields out of a raw hook payload. Returns nil when the
     /// payload has no hook name or session. With `names`, the line also
-    /// gets the thread's name from there.
-    public static func extract(agent: String, payload: Data, ts: Int64, names: ThreadName.Source? = nil) -> HookLine? {
-        if let object = try? JSONSerialization.jsonObject(with: payload) as? [String: Any] {
-            return extract(agent: agent, json: object, ts: ts, names: names)
-        }
-        return salvage(agent: agent, payload: payload, ts: ts)
+    /// gets the thread's name from there. `env` is the hook's environment,
+    /// which says what app the agent runs in (`HostApp`).
+    public static func extract(agent: String, payload: Data, ts: Int64, names: ThreadName.Source? = nil,
+                               env: [String: String] = [:]) -> HookLine? {
+        var line = (try? JSONSerialization.jsonObject(with: payload) as? [String: Any])
+            .flatMap { extract(agent: agent, json: $0, ts: ts, names: names) }
+            ?? salvage(agent: agent, payload: payload, ts: ts)
+        line?.app = HostApp.bundleID(agent: agent, env: env)
+        line?.appSession = HostApp.session(agent: agent, env: env)
+        return line
     }
 
     public static func extract(agent: String, json: [String: Any], ts: Int64,
@@ -182,6 +195,8 @@ public struct HookLine: Equatable, Sendable {
         if let name { object["name"] = name }
         if let source { object["source"] = source }
         if let mode { object["mode"] = mode }
+        if let app { object["app"] = app }
+        if let appSession { object["app_session"] = appSession }
         // No `.sortedKeys`: nothing reads the order, and sorting loads
         // locale-aware comparison, about half of a hook's few milliseconds.
         var data = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
@@ -201,6 +216,7 @@ public struct HookLine: Equatable, Sendable {
                         toolUseID: string(object["tool_use_id"]), agentType: string(object["agent_type"]),
                         agentID: string(object["agent_id"]), message: string(object["message"], max: maxMessage),
                         prompt: string(object["prompt"], max: maxMessage), name: string(object["name"]),
-                        source: string(object["source"]), mode: string(object["mode"]), ts: ts)
+                        source: string(object["source"]), mode: string(object["mode"]), app: string(object["app"]),
+                        appSession: string(object["app_session"]), ts: ts)
     }
 }

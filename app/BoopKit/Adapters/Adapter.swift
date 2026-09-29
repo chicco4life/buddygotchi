@@ -126,6 +126,9 @@ public enum Adapter {
             break
         }
         put("name", line.name)
+        // Where a tap opens the thread (BEHAVIORS.md §3.2).
+        put("app", line.app)
+        put("app_session", line.appSession)
         return Event(ts: receivedAt ?? line.ts, source: Event.source(agent), type: type, phase: phase,
                      specificType: line.hook, session: line.session, subagent: claude ? line.agentID : nil,
                      cwd: line.cwd, data: data)

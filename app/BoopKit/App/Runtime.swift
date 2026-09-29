@@ -45,6 +45,9 @@ public final class Runtime: @unchecked Sendable {
         /// stop to ask for access.
         public var readJevKey: @Sendable () -> String? = { JevKey.read() }
         public var log: @Sendable (String) -> Void = { _ in }
+        /// Opens a thread on the Mac (`ThreadLink`): a tap while something
+        /// needs you, or a click in the popover. Tests pass their own.
+        public var open: @Sendable (ThreadLink.Target) -> Bool = ThreadLink.openOnMac
 
         public init(stateDir: URL, socketPath: String, link: DeviceTransport?, steering: Steering) {
             self.stateDir = stateDir
@@ -511,11 +514,7 @@ public final class Runtime: @unchecked Sendable {
             // but not a reaction's line or face.
             switch input {
             case .tap:
-                // While `listening` shows, the device only squashes: no
-                // poke plays, though the tap counts in the run
-                // (BEHAVIORS.md §3.3).
-                moments.schedule.tapped(now: now, listening: core.showsListening(at: now))
-                run(pipeline.poke(at: now))
+                tapped(now)
             case .talkOn, .talkOff:
                 run(core.input(input, at: now))
             }
@@ -528,6 +527,13 @@ public final class Runtime: @unchecked Sendable {
             break
         }
         changed()
+    }
+
+    /// The device's tap. While `listening` shows, the device only squashes:
+    /// no poke plays, though the tap counts in the run (BEHAVIORS.md §3.3).
+    func tapped(_ now: Int64) {
+        moments.schedule.tapped(now: now, listening: core.showsListening(at: now))
+        run(pipeline.poke(at: now))
     }
 
     /// A `{"dev":…}` line from the socket (VERIFICATION.md §2):
@@ -559,6 +565,12 @@ public final class Runtime: @unchecked Sendable {
             talker = (object["by"] as? String).flatMap(Core.Talker.init(rawValue:)) ?? .app
             heard(words)
             options.log("dev: said \(words.count) characters")
+        case "tap":
+            // The device's tap, without a board (VERIFICATION.md §2).
+            options.log("dev: tap")
+            tapped(options.clock())
+            pump()
+            changed()
         case "listen":
             // The app's mic button.
             guard let on = object["on"] as? Bool else { return }
@@ -618,6 +630,8 @@ public final class Runtime: @unchecked Sendable {
                 stateChanged = true
             case .moment(let moment):
                 playRule(moment)
+            case .open(let thread):
+                open(thread, by: "tap")
             }
         }
         harness.take(step.views)
@@ -777,6 +791,23 @@ public final class Runtime: @unchecked Sendable {
     // MARK: From the menu bar (any thread)
 
     /// The app's mic button: start or stop listening (BEHAVIORS.md §3.3).
+    /// Opens `thread` where it runs: a session clicked in the popover.
+    public func openThread(_ thread: ThreadRef) {
+        home.async { [self] in open(thread, by: "click") }
+    }
+
+    /// Opens a thread on the Mac, after a tap or a click (BEHAVIORS.md
+    /// §3.2). What opened is a log line: only the tap's is Boop's doing,
+    /// and the core records it.
+    func open(_ thread: ThreadRef, by: String) {
+        guard let target = ThreadLink.target(thread) else {
+            options.log("open: nowhere to open \(thread.agent) \(thread.session) (\(by)): no app named")
+            return
+        }
+        let opened = options.open(target)
+        options.log("open: \(target.arguments.joined(separator: " ")) (\(by))" + (opened ? "" : ": open failed"))
+    }
+
     public func setListening(_ on: Bool) {
         home.async { [self] in run(core.listen(on, at: options.clock())) }
     }

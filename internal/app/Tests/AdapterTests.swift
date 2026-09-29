@@ -77,6 +77,18 @@ final class AdapterTests: XCTestCase {
         XCTAssertNil(Adapter.event(from: line("claude", "Stop"))?["name"], "none found, none sent")
     }
 
+    /// ADAPTERS.md §2–3: every event carries the app its agent runs in,
+    /// for opening the thread.
+    func testEveryEventCarriesItsApp() {
+        var l = line("claude", "PreToolUse", tool: "Bash")
+        l.app = "com.anthropic.claudefordesktop"
+        l.appSession = "local_1"
+        let e = Adapter.event(from: l)
+        XCTAssertEqual(e?["app"], "com.anthropic.claudefordesktop")
+        XCTAssertEqual(e?["app_session"], "local_1")
+        XCTAssertNil(Adapter.event(from: line("codex", "Stop"))?["app"], "none said, none sent")
+    }
+
     /// ADAPTERS.md §2: a Claude subagent's id rides on the event; Codex
     /// has none.
     func testASubagentsEventsSayWhichSubagent() {

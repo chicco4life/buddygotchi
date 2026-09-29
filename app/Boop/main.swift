@@ -12,13 +12,15 @@ let usage = """
                other than the everyday one it never installs or repairs the hooks in ~/.claude and
                ~/.codex: they keep reporting to the everyday app's socket, not this one.
            Boop --headless --state-dir DIR [--link usb:SOCKET|none] [--socket PATH] [--personality boop|chatter]
-                [--brain jev|scripted] [--name NAME] [--nature sweet|cheeky] [--debug]
+                [--brain jev|scripted] [--name NAME] [--nature sweet|cheeky] [--no-open] [--debug]
                No UI and no Bluetooth. The hook socket defaults to DIR/boop.sock. A new state directory
                is set up with --name (default Boop). --personality overrides the saved one for this run only.
                --brain jev (the default) asks Jev only when BOOP_JEV_KEY holds its key, since headless never
                reads the Keychain; without it Boop does only its rule reactions. --brain scripted answers
                every pass the same way without a network: an excited "Go", for pipeline checks.
-               Stops cleanly on SIGINT or SIGTERM. {"dev":"advance","ms":N} on the socket moves the clock forward.
+               Stops cleanly on SIGINT or SIGTERM. {"dev":"advance","ms":N} on the socket moves the clock forward,
+               and {"dev":"tap"} stands in for a tap on the board. A tap while something needs you opens that
+               thread on this Mac; --no-open only logs where it would have opened.
                Every event goes to DIR/transcript/<date>.jsonl, read back at the next launch.
            --debug prints everything to this terminal as it happens: each hook and the raw event Boop made
                of it, every line sent to the device, and every view event, pass (with Jev's whole state) and
@@ -102,7 +104,7 @@ enum Launch {
     var flags: Set<String> {
         switch self {
         case .menuBar: ["--debug"]
-        case .headless: ["--headless", "--debug"]
+        case .headless: ["--headless", "--debug", "--no-open"]
         case .snapshots: []
         }
     }

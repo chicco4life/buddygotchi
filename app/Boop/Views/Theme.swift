@@ -244,6 +244,24 @@ struct QuietButtonStyle: ButtonStyle {
     }
 }
 
+/// A card or row that opens its thread: it looks as it did, with a
+/// darker edge on hover and a little squash when pressed.
+struct OpensButtonStyle: ButtonStyle {
+    var radius: CGFloat
+    @ViewState private var hovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .overlay(RoundedRectangle(cornerRadius: radius)
+                .strokeBorder(hovering || configuration.isPressed ? Theme.inkFaint : .clear, lineWidth: 1))
+            .scaleEffect(configuration.isPressed ? 0.99 : 1)
+            .contentShape(RoundedRectangle(cornerRadius: radius))
+            .onHover { hovering = $0 }
+            .animation(.boopSettle, value: hovering)
+            .animation(.boopSettle, value: configuration.isPressed)
+    }
+}
+
 /// The one filled button per screen: black glass with an oat label, like
 /// the device's face (oat on dark paper), rounded, a little squash when
 /// pressed.

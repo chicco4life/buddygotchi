@@ -85,7 +85,7 @@ class Run:
         self.procs.append(subprocess.Popen(bridge, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         self._wait_for(lambda: os.path.exists(self.bridge_sock), 10, "the bridge's socket")
         app = [str(BIN / "Boop"), "--headless", "--state-dir", str(self.state), "--link", f"usb:{self.bridge_sock}",
-               "--socket", self.hook_sock, "--brain", self.brain, "--name", "Pip", "--debug"]
+               "--socket", self.hook_sock, "--brain", self.brain, "--name", "Pip", "--no-open", "--debug"]
         self.procs.append(subprocess.Popen(app, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         self._wait_for(lambda: "device link: connected" in self.app_log(), 10, "the app to reach the bridge")
         # The first launch of a freshly built boop-hook is slow (~270 ms) while

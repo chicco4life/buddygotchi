@@ -70,9 +70,11 @@ final class CoreRig {
                project: String = "landing", workspace: String? = nil, tool: String? = nil, topic: String? = nil,
                failed: Bool? = nil, notice: Bool? = nil, kind noticeKind: String? = nil, id: String? = nil,
                done: Bool? = nil, error: String? = nil, message: String? = nil, prompt: String? = nil,
-               source: String? = nil, mode: String? = nil) -> Event {
+               source: String? = nil, mode: String? = nil, app: String? = nil, appSession: String? = nil) -> Event {
         var data: [String: JSONValue] = [:]
         func put(_ key: String, _ value: String?) { if let value { data[key] = .string(value) } }
+        put("app", app)
+        put("app_session", appSession)
         put("tool", tool)
         put("tool_use_id", id)
         put("topic", topic)
@@ -136,10 +138,10 @@ final class CoreRig {
               project: String = "landing", workspace: String? = nil, tool: String? = nil, topic: String? = nil,
               failed: Bool? = nil, notice: Bool? = nil, kind noticeKind: String? = nil, id: String? = nil,
               done: Bool? = nil, error: String? = nil, message: String? = nil, prompt: String? = nil,
-              source: String? = nil, mode: String? = nil) -> Fx {
+              source: String? = nil, mode: String? = nil, app: String? = nil, appSession: String? = nil) -> Fx {
         send(event(kind, agent, session: session, subagent: subagent, project: project, workspace: workspace, tool: tool,
                    topic: topic, failed: failed, notice: notice, kind: noticeKind, id: id, done: done, error: error,
-                   message: message, prompt: prompt, source: source, mode: mode))
+                   message: message, prompt: prompt, source: source, mode: mode, app: app, appSession: appSession))
     }
 
     @discardableResult
@@ -229,6 +231,11 @@ func workBeats(_ fx: Fx) -> [String] {
 }
 
 func states(_ fx: Fx) -> [StateSnapshot] { states(fx.effects) }
+
+/// The threads the rules opened on the Mac (BEHAVIORS.md §3.2).
+func opened(_ fx: Fx) -> [ThreadRef] {
+    fx.effects.compactMap { if case .open(let t) = $0 { return t } else { return nil } }
+}
 
 func states(_ fx: [CoreEffect]) -> [StateSnapshot] {
     fx.compactMap { if case .state(let s) = $0 { return s } else { return nil } }
@@ -1309,21 +1316,53 @@ final class CoreNeedsYouTests: XCTestCase {
 final class CoreYouAndBoopTests: XCTestCase {
     /// harness/EVENTS.md §2: a poke is the rules' alone to react to: they
     /// record the device's wiggle as an action under it, and the brain
-    /// hears of it, every time. While something needs you, the device only
-    /// squashes, so nothing is recorded, but the brain still hears of it
-    /// (EVENTS.md §6).
-    func testAPokeWigglesByRuleAndAlwaysReachesTheBrain() {
+    /// hears of it. While something needs you, the device only squashes,
+    /// and the tap opens the thread instead: no wiggle, and the brain
+    /// isn't woken (BEHAVIORS.md §3.2, EVENTS.md §6).
+    func testAPokeWigglesByRuleAndReachesTheBrain() {
         let rig = CoreRig()
         let fx = rig.poke()
         XCTAssertEqual(woke(fx), ["You poked Boop."])
         XCTAssertEqual(rig.ruleActions, ["wiggle"])
         XCTAssertEqual(states(fx), [], "the rules add no moment: the device has already wiggled")
+        XCTAssertEqual(opened(fx), [])
         rig.wait(5000)
         rig.send(.turnStart)
         rig.send(.needsYou, tool: "Bash")
         let needed = rig.poke()
-        XCTAssertEqual(woke(needed), ["You poked Boop."], "a poke wakes it even so")
-        XCTAssertEqual(rig.ruleActions, ["wiggle", "needs_you start"], "no wiggle")
+        XCTAssertEqual(woke(needed), [], "the tap opens the thread; it doesn't wake the brain")
+        XCTAssertEqual(rig.ruleActions, ["wiggle", "needs_you start", "open_thread"], "no wiggle")
+    }
+
+    /// BEHAVIORS.md §3.2: a tap while something needs you opens the thread
+    /// the sign names, the one that has waited longest, in the app it runs
+    /// in, as the last event said.
+    func testATapWhileSomethingNeedsYouOpensTheOldestWaitingThread() {
+        let rig = CoreRig()
+        rig.send(.turnStart, session: "a", app: "com.mitchellh.ghostty")
+        rig.send(.turnStart, session: "b", app: "com.anthropic.claudefordesktop", appSession: "local_b")
+        rig.send(.needsYou, session: "b", tool: "Bash")
+        rig.wait(1000)
+        rig.send(.needsYou, session: "a", tool: "Edit")
+        XCTAssertEqual(opened(rig.poke()), [ThreadRef(agent: "claude", session: "b", app: "com.anthropic.claudefordesktop",
+                                                      appSession: "local_b")])
+        rig.send(.activity, session: "b", tool: "Bash", done: true)
+        XCTAssertEqual(opened(rig.poke()), [ThreadRef(agent: "claude", session: "a", app: "com.mitchellh.ghostty")],
+                       "b was answered: a is next")
+        rig.send(.activity, session: "a", tool: "Edit", done: true)
+        let after = rig.poke()
+        XCTAssertEqual(opened(after), [], "nothing waits: a poke")
+        XCTAssertEqual(rig.ruleActions.suffix(3), ["open_thread", "needs_you end", "wiggle"])
+    }
+
+    /// While `listening` shows, a tap only dips the face, even while
+    /// something needs you: nothing opens (BEHAVIORS.md §3.3).
+    func testATapWhileListeningOpensNothing() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.needsYou, tool: "Bash")
+        rig.input(.talkOn)
+        XCTAssertEqual(opened(rig.poke()), [])
     }
 
     /// BEHAVIORS.md §3.3: holding BOOT turns the Mac's mic on, and letting
