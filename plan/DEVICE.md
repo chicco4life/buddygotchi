@@ -427,8 +427,8 @@ text is black on it through its own ramp (palette entries 8–15,
 `kInkOnAmber`): "CLAUDE  NEEDS YOU" in the 13 px font after a dot, a rule,
 then the thread's name, else the project, in the 28 px font, 16 columns
 wrapped at spaces (`render::wrapText`), at most three lines, and
-"+N more" at the bottom right. The Mac cuts names to 23 bytes
-([PROTOCOL.md](PROTOCOL.md) §3), so a name takes at most two lines. The
+"+N more" at the bottom right. The Mac cuts these names to 47 bytes
+([PROTOCOL.md](PROTOCOL.md) §3), about what three lines hold. The
 sign covers the strip, so the working count doesn't show while something
 needs you. `test_face` pins the timings; the `needs_you` scenario's shots
 show the rise and each spot.

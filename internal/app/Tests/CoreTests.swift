@@ -1091,21 +1091,21 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(rig.sessions, [["claude", "web", "working"]], "then it follows its events again")
     }
 
-    /// BEHAVIORS.md §3.2, PROTOCOL.md §3: the strip shows the thread's name
-    /// in the project's place, cut to the device's field. The session keeps
+    /// BEHAVIORS.md §3.2, PROTOCOL.md §3: the sign shows the thread's name
+    /// in the project's place, cut to the sign's 47 bytes. The session keeps
     /// the last name an event brought, and one with none sends no `name`.
     func testTheStripNamesTheThreadThatAsks() {
         let rig = CoreRig()
         var ask = rig.event(.needsYou, project: "landing", tool: "Bash")
-        ask.data["name"] = "Thread name on \"needs you\" screen"
+        ask.data["name"] = "Thread name on \"needs you\" screen, with a sign on it"
         rig.send(ask)
-        XCTAssertEqual(rig.state.attn?.name, "Thread name on \"needs..")
-        XCTAssertTrue(rig.state.jsonLine.contains(#""project":"landing","name":"Thread name on \"needs..","more":0"#))
-        XCTAssertEqual(rig.core.sessionList(at: rig.now).first?.name, "Thread name on \"needs you\" screen",
+        XCTAssertEqual(rig.state.attn?.name, "Thread name on \"needs you\" screen, with a sig..")
+        XCTAssertTrue(rig.state.jsonLine.contains(#""project":"landing","name":"Thread name on \"needs you\" screen, with a sig..","more":0"#))
+        XCTAssertEqual(rig.core.sessionList(at: rig.now).first?.name, "Thread name on \"needs you\" screen, with a sign on it",
                        "the popover shows it whole")
         rig.send(.activity, tool: "Bash")  // approved
         rig.send(.needsYou, tool: "Edit")  // a request that brings no name
-        XCTAssertEqual(rig.state.attn?.name, "Thread name on \"needs..", "the session keeps it")
+        XCTAssertEqual(rig.state.attn?.name, "Thread name on \"needs you\" screen, with a sig..", "the session keeps it")
         rig.send(.needsYou, session: "s2", project: "jetpack", tool: "Bash")
         rig.send(.activity)  // s1 answered: s2 is shown
         XCTAssertEqual(rig.state.attn?.project, "jetpack")
@@ -1643,10 +1643,11 @@ final class CoreRulesTests: XCTestCase {
 
     func testNamesAreClippedToTheDevicesFields() {
         let rig = CoreRig()
-        rig.send(.needsYou, session: "s", project: "a-really-long-project-name-number-1", tool: "Bash")
-        // A cut project name ends in "..", within the 23 bytes (PROTOCOL.md §3).
-        XCTAssertEqual(rig.state.attn?.project, "a-really-long-project..")
-        XCTAssertEqual(rig.sessions.first?[1], "a-really-long-project-name-number-1", "the popover shows it whole")
+        rig.send(.needsYou, session: "s", project: "a-really-long-project-name-number-1-for-the-sign-too", tool: "Bash")
+        // A cut project name ends in "..", within the sign's 47 bytes (PROTOCOL.md §3).
+        XCTAssertEqual(rig.state.attn?.project, "a-really-long-project-name-number-1-for-the-s..")
+        XCTAssertEqual(rig.state.attn?.project.utf8.count, 47)
+        XCTAssertEqual(rig.sessions.first?[1], "a-really-long-project-name-number-1-for-the-sign-too", "the popover shows it whole")
         XCTAssertLessThanOrEqual(rig.state.jsonLine.utf8.count, StateSnapshot.maxLine)
         XCTAssertEqual(StateSnapshot.clip("ünïcödé-ünïcödé-ünïcödé"), "ünïcödé-ünïcödé")
         XCTAssertEqual(StateSnapshot.clip("ünïcödé-ünïcödé-ünïcödé", marked: true), "ünïcödé-ünïcöd..")

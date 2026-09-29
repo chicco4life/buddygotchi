@@ -50,3 +50,8 @@
 {"shot":"sign-right"}
 {"clock":132600}
 {"shot":"sign-middle"}
+// A name as long as the Mac sends, 47 bytes, fills the sign's three lines.
+{"t":"state","v":1,"base":"working","attn":{"agent":"claude","project":"buddygotchi","name":"Thread name on \"needs you\" screen, with a sig..","more":0},"busy":1}
+{"clock":135000}
+{"expect":{"screen":"needs_you","attn":{"name":"Thread name on \"needs you\" screen, with a sig.."},"alert":132600}}
+{"shot":"sign-long-name"}

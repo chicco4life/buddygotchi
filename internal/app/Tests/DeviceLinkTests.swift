@@ -221,17 +221,22 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertFalse(link.connected)
     }
 
-    private let esc = String(repeating: "\\u0001", count: 23)
+    /// The widest name the Mac sends: 47 bytes that JSON escapes to two
+    /// each. Control characters, six bytes escaped, clip turns to spaces.
+    private let widest = StateSnapshot.clip(String(repeating: "\"", count: 60), max: StateSnapshot.maxSignBytes)
+    private let esc = String(repeating: #"\""#, count: 47)
 
     /// PROTOCOL.md §2: a line is at most 512 bytes. The biggest `state`,
-    /// with a 23-byte project that escapes to six bytes a character, fits.
+    /// with a 47-byte project and name that escape to two bytes a
+    /// character, fits.
     func testEveryStateLineFitsTheProtocol() {
-        let widest = String(repeating: "\u{1}", count: 23)
-        let s = StateSnapshot(base: "working", mood: "determined", attn: .init(agent: "claude", project: widest, more: 999, id: Int(Int32.max)),
+        XCTAssertEqual(StateSnapshot.clip("a\u{1}b\u{7F}c\td"), "a b c d")
+        let s = StateSnapshot(base: "working", mood: "determined",
+                              attn: .init(agent: "claude", project: widest, name: widest, more: 999, id: Int(Int32.max)),
                               busy: 999, vol: 10, variant: 5)
         XCTAssertLessThanOrEqual(s.jsonLine.utf8.count, StateSnapshot.maxLine)
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
-        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"determined","attn":{"agent":"claude","project":"\#(esc)","more":999,"id":2147483647},"busy":999,"vol":10,"variant":5}"#)
+        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"determined","attn":{"agent":"claude","project":"\#(esc)","name":"\#(esc)","more":999,"id":2147483647},"busy":999,"vol":10,"variant":5}"#)
     }
 
     /// PROTOCOL.md §3: `act` goes after `base`; the widest line that can
@@ -241,7 +246,6 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertEqual(working.jsonLine, #"{"t":"state","v":1,"base":"working","act":"delegating","mood":"happy","busy":2,"vol":6,"variant":3}"#)
         XCTAssertEqual(working.visual, "delegating")
         XCTAssertEqual(working.look, "delegating")
-        let widest = String(repeating: "\u{1}", count: 23)
         let s = StateSnapshot(base: "working", act: "delegating", mood: "determined",
                               attn: .init(agent: "claude", project: widest, name: widest, more: 999, id: Int(Int32.max)),
                               busy: 999, vol: 10, variant: 9)

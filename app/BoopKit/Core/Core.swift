@@ -604,8 +604,9 @@ public final class Core {
         let base = !working.isEmpty ? "working" : sessions.isEmpty ? "asleep" : "idle"
         let attn = waiting.first.map {
             StateSnapshot.Attention(
-                agent: $0.agent.short, project: StateSnapshot.clip($0.project, marked: true),
-                name: $0.name.map { StateSnapshot.clip($0, marked: true) } ?? "", more: waiting.count - 1, id: $0.ask)
+                agent: $0.agent.short, project: StateSnapshot.clip($0.project, marked: true, max: StateSnapshot.maxSignBytes),
+                name: $0.name.map { StateSnapshot.clip($0, marked: true, max: StateSnapshot.maxSignBytes) } ?? "",
+                more: waiting.count - 1, id: $0.ask)
         }
         // What the agents are doing shows only in the working look, and
         // not while something needs you (BEHAVIORS.md §2).
