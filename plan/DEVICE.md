@@ -256,7 +256,7 @@ the test pattern and the webcam, and live in `firmware/src/board/display.h`:
 | Colour inversion | On |
 | Colour order | RGB |
 | Panel memory | 240×320, offsets 0, 0 |
-| Rotation | `kRotation` 1: landscape, 320×240, USB-C on the right. The panel controller turns the picture, so it costs no CPU. A board that shows the pattern upside down needs 3; 4–7 mirror it |
+| Rotation | `kRotation` 3: landscape, 320×240, USB-C on the left seen from the front. The panel controller turns the picture, so it costs no CPU. A board that shows the pattern upside down needs 1; 4–7 mirror it |
 
 ### Touch calibration
 
@@ -459,7 +459,7 @@ the checks):
    means this pin was never driven high.
 2. **Test pattern** (`internal/tools/boopctl play pattern`): six colour
    blocks, labelled corners, a big UP arrow and a black bar down the USB-C
-   edge. Upright, the arrow is at the top and the bar on the USB-C side;
+   edge (the left). Upright, the arrow is at the top and the bar on the USB-C side;
    the colours confirm inversion and colour order (§4).
 3. **Screenshot:** `internal/tools/boopctl shot` matches the simulator
    pixel for pixel.

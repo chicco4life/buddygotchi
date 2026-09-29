@@ -88,13 +88,13 @@ def find_screen(lit: Image.Image, dark: Image.Image) -> tuple[int, int, int, int
     return xs[0] * 4, ys[0] * 4, (xs[-1] + 1) * 4, (ys[-1] + 1) * 4
 
 
-SCREEN = (320, 240)  # the screen as drawn: landscape, USB-C on the right (board/display.h kRotation)
+SCREEN = (320, 240)  # the screen as drawn: landscape, USB-C on the left (board/display.h kRotation)
 
 
 def upright(img: Image.Image, box: tuple[int, int, int, int], usb: str) -> Image.Image:
-    """Crops the screen and turns it so USB-C is on the right, 320×240."""
+    """Crops the screen and turns it so USB-C is on the left, 320×240."""
     crop = img.crop(box)
-    turn = {"right": 0, "top": 90, "left": 180, "bottom": 270}[usb]  # clockwise degrees
+    turn = {"left": 0, "bottom": 90, "right": 180, "top": 270}[usb]  # clockwise degrees
     if turn:
         crop = crop.rotate(-turn, expand=True)
     return crop.resize(SCREEN)
@@ -141,12 +141,12 @@ def mean(img: Image.Image, x: int, y: int, w: int, h: int) -> tuple[float, float
 
 # The same rectangles as firmware/src/render/pattern.h.
 BLOCKS = {
-    "red": (8, 122, 92, 50), "green": (108, 122, 92, 50), "blue": (208, 122, 92, 50),
-    "white": (8, 176, 92, 50), "black": (108, 176, 92, 50), "amber": (208, 176, 92, 50),
+    "red": (20, 122, 92, 50), "green": (120, 122, 92, 50), "blue": (220, 122, 92, 50),
+    "white": (20, 176, 92, 50), "black": (120, 176, 92, 50), "amber": (220, 176, 92, 50),
 }
 ARROW = (138, 70, 44, 14)  # top of the arrow's shaft, above the "UP" text
 BELOW = (138, 228, 44, 10)  # the grey strip at the same x, along the bottom
-USB = (308, 70, 12, 100)  # the black USB-C bar down the right edge
+USB = (0, 70, 12, 100)  # the black USB-C bar down the left edge
 
 
 def judge(colors: dict[str, tuple[float, float, float]]) -> list[str]:
@@ -167,7 +167,7 @@ def judge(colors: dict[str, tuple[float, float, float]]) -> list[str]:
     if not (r > g > b and r > 1.5 * b):
         problems.append(f"amber block reads {colors['amber']}")
     if sum(colors["arrow"]) < sum(colors["below"]) + 60:
-        problems.append("the UP arrow isn't at the top with USB-C on the right: rotation (board/display.h kRotation)")
+        problems.append("the UP arrow isn't at the top with USB-C on the left: rotation (board/display.h kRotation)")
     if sum(colors["usb"]) + 60 > sum(colors["below"]):
         problems.append("the black USB-C bar isn't on the USB-C side: rotation (board/display.h kRotation)")
     return problems

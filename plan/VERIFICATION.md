@@ -309,7 +309,7 @@ if authorised (§6):
 
 1. **Framing:** `internal/tools/boopctl cam frame` finds the screen by
    lighting it white and then turning the backlight off, and saves the
-   crop to `/tmp/boop-cam/crop.json`, turned so USB-C is on the right
+   crop to `/tmp/boop-cam/crop.json`, turned so USB-C is on the left
    (`--usb` says where it is otherwise). If it finds no screen, skip L3
    and say so.
 2. **Pattern:** `internal/tools/boopctl cam pattern` samples the test

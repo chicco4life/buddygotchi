@@ -19,15 +19,16 @@ constexpr int kPanelWidth = 240, kPanelHeight = 320;
 
 // Which way up Boop is. LovyanGFX rotation, in quarter turns of the picture
 // clockwise; the panel controller does the turning, so it costs no CPU.
-// Boop sits sideways with USB-C on the RIGHT, and the test pattern's USB-C
-// bar and the webcam check assume it. Rotation 0 is portrait with USB-C at
-// the bottom (confirmed at bring-up), so 1 should be that landscape. If the
-// board shows the pattern upside down (the UP arrow at the bottom, the bar
-// away from the port), 1 was the wrong way round: change this to 3, half a
-// turn. It isn't a setting for USB-C on the left. The default touch map
-// follows it, and a touch calibration saved for another rotation is ignored,
-// so run `boopctl calibrate` again after changing it. Don't use 4–7: mirrored.
-constexpr uint8_t kRotation = 1;
+// Boop sits sideways with USB-C on the LEFT, seen from the front, and the
+// test pattern's USB-C bar and the webcam check assume it. Rotation 0 is
+// portrait with USB-C at the bottom (confirmed at bring-up), so 3 should be
+// that landscape; 1, half a turn from it, put USB-C on the right until
+// 2026-09-29. If the board shows the pattern upside down (the UP arrow at
+// the bottom, the bar away from the port), 3 was the wrong way round: change
+// this to 1. The default touch map follows it, and a touch calibration saved
+// for another rotation is ignored, so run `boopctl calibrate` again after
+// changing it. Don't use 4–7: mirrored.
+constexpr uint8_t kRotation = 3;
 
 static_assert((kRotation & 1 ? kPanelHeight : kPanelWidth) == render::kWidth &&
                   (kRotation & 1 ? kPanelWidth : kPanelHeight) == render::kHeight,
