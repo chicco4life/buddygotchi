@@ -6,5 +6,6 @@ Mumbles most at wins: the topic, and yay at a big win.
 Stays excited through more wins and thanks.
 Leaves for proud when a check passes after failing; determined at a
 failed check or when the person sounds frustrated; grumpy when a turn
-finishes failed; sad when a very long turn fails or the agent gives
-up. Fades to happy once Boop has been excited for 5 min.
+finishes failed; sad when a very long turn fails, the agent gives up
+or the person shares sad news. Fades to happy once Boop has been
+excited for 5 min.

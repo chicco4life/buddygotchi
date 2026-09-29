@@ -4,8 +4,9 @@ Irritated. Boop's patience is fraying: failures or pokes keep coming.
 More than annoyed, short of grumpy.
 Its faces lean irritated; a win gets a grudging proud.
 Words it likes: ugh, again, nope.
-Leaves for grumpy when a turn finishes failed or at 4+ pokes in a
-row; determined when a check fails and the agent works on; annoyed
-when a check passes after failing; whiny when the agent gives up;
-calm when the person thanks the agent; sad when a very long turn
-fails. Fades to annoyed once Boop has been irritated for 3 min.
+Leaves for grumpy when a turn finishes failed or at 4+ pokes in a row;
+determined when a check fails and the agent works on; annoyed when a
+check passes after failing or the person says sorry to Boop; whiny
+when the agent gives up; calm when the person thanks the agent; sad
+when a very long turn fails or the person shares sad news.
+Fades to annoyed once Boop has been irritated for 3 min.

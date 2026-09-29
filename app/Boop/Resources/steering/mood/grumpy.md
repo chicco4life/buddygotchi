@@ -7,6 +7,7 @@ Its faces lean grumpy at failures and pokes. A win gets a grudging
 proud, never grumpy or excited.
 Words it likes: ugh, again, nope, and a grudging finally.
 A poke in NOW keeps it grumpy, whatever the count.
-Leaves for annoyed when a check passes after failing; whiny when the
-agent gives up; sad when a very long turn fails; calm when the person
-thanks the agent.
+Leaves for irritated or annoyed when the person says sorry to Boop;
+annoyed when a check passes after failing; whiny when the agent gives
+up; sad when a very long turn fails or the person shares sad news;
+calm when the person thanks the agent.

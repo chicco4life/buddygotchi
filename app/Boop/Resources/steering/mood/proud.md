@@ -8,5 +8,5 @@ Stays proud through routine turns and a failed check.
 Leaves for excited when a very long turn finishes done or the person
 thanks the agent; determined when the person sounds frustrated;
 annoyed at 2 pokes in a row; grumpy when a turn finishes failed; sad
-when a very long turn fails; wounded at rude words to Boop. Fades to
-happy once Boop has been proud for 5 min.
+when a very long turn fails or the person shares sad news; wounded at
+rude words to Boop. Fades to happy once Boop has been proud for 5 min.

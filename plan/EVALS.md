@@ -82,7 +82,7 @@ and to be tightened once Boop meets it (`Eval.judge`):
 | `moves_on_graph` | A pass's `mood` answer wasn't one of the options it offered (or Jev gave none it could use), or the mood changed along something that isn't a move on the graph |
 
 **Always and gaps.** An `always` scenario is Boop's character, not a
-tuning target: it runs 5 times by default, and every steering change
+tuning target: it runs 3 times by default, and every steering change
 keeps it passing. A scenario with a `gap` is one Boop can't pass today,
 with why and what would fix it: its failures are reported as `GAP` and
 don't fail the eval, and when it passes in every run the report says to
@@ -91,19 +91,35 @@ take the gap out.
 ## 2. Running them
 
 ```sh
-BOOP_JEV_KEY=… make eval                     # every scenario: 5 runs each for always, 3 for the rest
-BOOP_JEV_KEY=… .build/debug/boopdev eval --always
-.build/debug/boopdev eval --runs 1 --only tests --timeline
-.build/debug/boopdev eval --list             # every scenario's case; no key needed
+BOOP_JEV_KEY=… .build/debug/boopdev eval --only apology   # while developing: the scenarios you touched, under the budget
+BOOP_JEV_KEY=… .build/debug/boopdev eval --only tests --timeline
+BOOP_JEV_KEY=… make eval                     # the final pass: every scenario, 3 runs for always and 1 for the rest
+.build/debug/boopdev eval --list             # every scenario's case, runs and requests; no key needed
 ```
+
+**The API budget.** Every pass is one request to Jev, and a full
+`make eval` is about 620 of them, so it's the final pass before a
+commit, once. While developing, run the scenarios the change is about
+with `--only`. Before it asks Jev anything, `boopdev eval` counts each
+run's passes with the scripted brain (about right: what Jev answers can
+move a later pass or two), times its runs, prints the total, and stops
+with the costliest scenarios if that's over the budget: 100 requests,
+or `--budget N`. `make eval` passes `--no-budget`.
+
+Repeat runs are for the scenarios that need them: an `always` one runs
+3 times, since it's Boop's character and a flaky pass there matters;
+the rest run once. A scenario can say its own `runs` (§3), as `53` says
+1: it's long, and the code already holds its moves to the graph.
 
 | Flag | Does |
 | --- | --- |
-| `--runs N` | Runs each scenario N times (default 5 for an `always` scenario, 3 for the rest). It passes only if every run does |
+| `--runs N` | Runs each scenario N times (default its own `runs`, else 3 for an `always` scenario and 1 for the rest). It passes only if every run does |
+| `--budget N` | Stops before asking Jev if the run would send more than about N requests (default 100) |
+| `--no-budget` | No budget: the final pass (`make eval`) |
 | `--only TEXT` | Only the scenarios whose name contains TEXT (any case) or whose file name does |
 | `--always` | Only the `always` scenarios |
 | `--timeline` | Prints every pass of every run: when, the line, what Boop did and the mood after |
-| `--list` | Prints each scenario's file, name, case, and whether it's `always` or a known gap, and runs nothing |
+| `--list` | Prints each scenario's file, name, runs, about how many requests a run sends, case, and whether it's `always` or a known gap, then the total, and runs nothing |
 | `--scenarios DIR`, `--steering DIR` | Other scenarios or steering files; by default the repo's, found from the working directory or from `boopdev`'s own place |
 
 The report gives each scenario's verdict (`pass`, `FAIL`, or `GAP` for a
@@ -152,7 +168,8 @@ file-name order:
 | `name` | What it checks, in a line |
 | `case` | The situation and what Boop should do in it, in plain words and no harness terms, so the steps can be rewritten to fit it when the harness changes. Required |
 | `why` | The spec or steering file that says so |
-| `always` | `true` for Boop's character (§1): 5 runs by default, and `--always` runs these |
+| `always` | `true` for Boop's character (§1): 3 runs by default, and `--always` runs these |
+| `runs` | How many runs it gets without `--runs`, when its kind's default (§2) is too many or too few |
 | `mood` | The mood the run starts in, one of the 13 ([DECISIONS.md](harness/DECISIONS.md) §2.3): `calm` by default |
 | `gap` | A known gap (§1): why Boop can't pass it today, and what would fix it. Never on an `always` scenario |
 | `checks` | Whole-run checks (§1), any of `max_quiet_working` and `no_mood_bounce_within` (times, like `6m`), `max_same_in_a_row` and `min_variety` (counts), `mood_changes` and `reactions` (ranges, like `1-3`), and `moves_on_graph` (`true`) |
@@ -196,7 +213,7 @@ kinds, all with the `boop` personality unless the file says otherwise:
   however upbeat its message (`41`–`43`); and its mood only moves along
   the graph, a step at a time (`47`, `49`, `53`).
 - **Tuning** (`01`, `07`, `10`–`12`, `14`, `15`, `18`, `19`, `21`,
-  `22`, `24`–`27`, `29`–`34`, `44`–`46`, `48`, `50`–`52`, `54`, `55`):
+  `22`, `24`–`27`, `29`–`34`, `44`–`46`, `48`, `50`–`52`, `54`–`59`):
   single decisions ("nice" at a long turn done, not "yay", is `29`; the
   topic words Jev reads from the words, "bug", "merge" and "review",
   `30`–`32`, the agent's name as the filler when the words are about
@@ -215,12 +232,18 @@ kinds, all with the `boop` personality unless the file says otherwise:
   calm is a small step and a big one may jump (`48`), thanks bring a
   whiny or wounded Boop back (`50`), routine work holds calm (`52`), an
   irritated Boop answers as irritated, not grumpy (`54`), and hours of
-  nothing fade excited through happy to calm (`55`).
+  nothing fade excited through happy to calm (`55`). And talk moves
+  the mood at once (the owner's brief of 2026-09-29): one apology
+  softens a fed-up Boop a step (`56`), a second is fair only after
+  poking it again (`57`), sad news makes it sad and keeps it so until
+  it's taken back, when it switches (`58`), and a plain question
+  softens nothing (`59`).
 - **Known gaps** (`20`): flipping tests don't flip the mood. Its `gap`
   says why the steering can't get there alone.
 
 A new decision or a change to the steering files gets a scenario that
-shows it, and `make eval` before it's committed.
+shows it. Run the scenarios it touches with `--only` while you work, and
+`make eval` once, as the final pass, before it's committed (§2).
 
 ## 5. The working day
 

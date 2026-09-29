@@ -104,9 +104,12 @@ public struct Scenario: Sendable {
     /// the harness changes (the file's `case`).
     public var story: String
     public var why: String
-    /// Boop's character, not a tuning target: runs 5 times by default, and
+    /// Boop's character, not a tuning target: runs 3 times by default, and
     /// `boopdev eval --always` runs only these.
     public var always: Bool
+    /// How many runs it gets when `--runs` doesn't say, if not the default
+    /// for its kind (`Eval.runs`).
+    public var runs: Int?
     public var checks: Checks?
     /// A known gap: why Boop can't pass this today, and what would fix it.
     /// Its failures are reported but don't fail the eval, and the report
@@ -138,7 +141,7 @@ public struct Scenario: Sendable {
         guard let name = o["name"] as? String, let story = o["case"] as? String, let why = o["why"] as? String,
               let raw = o["steps"] as? [[String: Any]]
         else { throw bad("needs name, case, why and steps") }
-        let unknownKeys = Set(o.keys).subtracting(["name", "case", "why", "always", "gap", "personality", "mood", "checks", "steps"])
+        let unknownKeys = Set(o.keys).subtracting(["name", "case", "why", "always", "runs", "gap", "personality", "mood", "checks", "steps"])
         guard unknownKeys.isEmpty else { throw bad("unknown key \(unknownKeys.sorted().joined(separator: ", "))") }
         self.name = name
         self.story = story
@@ -146,6 +149,10 @@ public struct Scenario: Sendable {
         always = o["always"] as? Bool ?? false
         gap = o["gap"] as? String
         if always, gap != nil { throw bad("an always scenario can't be a known gap") }
+        if let r = o["runs"] {
+            guard let n = r as? Int, n >= 1 else { throw bad("runs is a count, 1 or more") }
+            runs = n
+        }
         if let c = o["checks"] {
             guard let c = c as? [String: Any] else { throw bad("checks is an object") }
             let unknown = Set(c.keys).subtracting(Checks.keys)
@@ -373,6 +380,18 @@ public struct Eval {
     public init(brain: any Brain, steering: Steering) {
         self.brain = brain
         self.steering = steering
+    }
+
+    /// How many runs a scenario gets unless `--runs` says (plan/EVALS.md
+    /// §2): its own `runs`, else 3 for an `always` one, Boop's character,
+    /// and 1 for the rest.
+    public static func runs(_ scenario: Scenario) -> Int { scenario.runs ?? (scenario.always ? 3 : 1) }
+
+    /// About how many requests one run of a scenario sends Jev: its passes
+    /// with the scripted brain, no key needed. A real run can differ by a
+    /// pass or two, since what Jev answers can move what wakes it later.
+    public static func requests(_ scenario: Scenario, steering: Steering) async throws -> Int {
+        try await Eval(brain: ScriptedBrain.pipelineCheck, steering: steering).run(scenario).timeline.count
     }
 
     /// One run of a scenario, from a fresh core, transcript and mood.

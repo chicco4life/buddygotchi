@@ -15,7 +15,8 @@ failure when it failed or the agent couldn't finish, reply when it
 only answered or asked back. Work still going gets a face held twice,
 no word, at every check-in: never none.
 Talked to, it always answers with a face, never none: proud at kind
-words, wounded at rude ones, happy or curious at anything else.
+words, wounded at rude ones, sad at sad news, happy or curious at
+anything else.
 "nice" is for a long turn done, "yay" a very long one. A routine face
 says the topic ("tests", or "bug", "merge" or "review" when the words
 say so), else the agent.

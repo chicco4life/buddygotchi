@@ -65,7 +65,7 @@ launch the menu-bar app or run the whole eval.
 | `make dash` | The dashboard for the app `make debug` started, in a second terminal |
 | `make day` | What the everyday app did in a day, and why, from the logs `make debug` leaves (`boopctl day`, below); `DATE=YYYY-MM-DD` picks the day, the newest line's by default |
 | `make flash` | Builds the firmware and uploads it over USB; `BOOP_PORT` picks the port |
-| `make eval` | Builds, then runs the eval scenarios against Jev, 5 runs each for an `always` scenario and 3 for the rest (L5); fails without `BOOP_JEV_KEY` |
+| `make eval` | Builds, then runs every eval scenario against Jev with no request budget, 3 runs each for an `always` scenario and 1 for the rest (L5): the final pass, about 620 requests; fails without `BOOP_JEV_KEY` |
 | `make clean` | Deletes `.build` and `firmware/.pio` |
 | `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim (`python3 internal/app/tools/test.py`), since there's no Xcode |
 | `make -C internal fw` | Builds the firmware for the board |
@@ -107,7 +107,7 @@ commands go through the bridge.
 | `replay <hooks.jsonl> [--agent claude\|codex] [--gap-ms N] [--states]` | Runs recorded hook payloads through `boop-hook`'s field picking, the adapter and the pipeline (the core and the view) on a virtual clock, and prints each raw event, the core's decisions and the view events. `{"wait_ms":N}` and `{"advance_ms":N}` lines move the clock. `--states` prints only what goes to the device: each `state` and each rule `moment` |
 | `replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]` | Sends each payload through the real `boop-hook` to a running app, in real time, and times each `boop-hook` from launch to exit. `{"advance_ms":N}` moves a headless app's clock |
 | `voice <feeling\|mood> [word] [--dialect HEX] [--seed N] [--count N] [--json]` | Prints the lines `react` would build ([VOICE.md](VOICE.md) §4), in a feeling or in the one Voice gives a mood's face; dialect `7f3a` and seed 1 by default |
-| `eval [--runs N] [--only TEXT] [--always] [--timeline] [--scenarios DIR] [--steering DIR]`, `eval --list` | The eval scenarios against Jev (L5, [EVALS.md](EVALS.md)); `--list` prints each one's case with no key |
+| `eval [--runs N] [--only TEXT] [--always] [--budget N \| --no-budget] [--timeline] [--scenarios DIR] [--steering DIR]`, `eval --list` | The eval scenarios against Jev (L5, [EVALS.md](EVALS.md)), stopping first if they'd send more than the budget of requests (100 by default); `--list` prints each one's case, runs and requests with no key |
 | `watch [FILE] [--new]` | Prints a `debug.jsonl`'s view events, passes and actions readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's. `--new` skips what's already there |
 | `hooks status\|install\|remove [claude\|codex] --home DIR [--hook PATH]` | The hook installer, against any HOME ([ADAPTERS.md](ADAPTERS.md)) |
 
@@ -364,9 +364,10 @@ retried once and counted as a link glitch.
 
 ### L5: brain
 
-1. `make eval` (`.build/debug/boopdev eval`, with `BOOP_JEV_KEY`) runs
-   every eval scenario against Jev, 5 times each for an `always` one and
-   3 for the rest. What it reports is in [EVALS.md](EVALS.md) §2.
+1. While developing, `boopdev eval --only TEXT` (with `BOOP_JEV_KEY`)
+   runs the scenarios the change touches, under a budget of Jev
+   requests. As the final pass, `make eval` runs every scenario, 3 times
+   each for an `always` one and once for the rest, with no budget. What it reports is in [EVALS.md](EVALS.md) §2.
 2. Read a sample of its passes (`boopdev watch` on the file it names)
    against the steering files (`plan/steering/`): are the reactions and
    mood changes in character and never nagging, and the words and how

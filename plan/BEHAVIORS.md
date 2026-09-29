@@ -21,8 +21,8 @@ MOODS  (how Boop acts; a step at a time along the mood graph, fading
   grumpy      a failed turn on top of trouble, or 4+ pokes        2 min
   whiny       sorry for itself: things keep going wrong           5 min
   wounded     hurt: rude words, or a big failure                 10 min
-  sad         a very long turn ended failed, or the agent        10 min
-              gave up
+  sad         a very long turn ended failed, the agent gave      10 min
+              up, or sad news you shared
 
 VISUALS  (what Boop is doing)
 ───────────────────────────────────────────────────────────────────────

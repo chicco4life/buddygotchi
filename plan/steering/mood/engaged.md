@@ -9,6 +9,6 @@ Leaves for determined when a very long turn works on, a check fails or
 the person sounds frustrated; proud when a check passes after failing
 or a long turn's hard work is done; happy at kind words to Boop;
 curious at a poke; annoyed at a failed turn; excited when a very long
-turn finishes done; sad when a very long turn fails or the agent gives
-up. Once Boop has been engaged for 5 min, fades to calm at anything
-but work going on.
+turn finishes done; sad when a very long turn fails, the agent gives
+up or the person shares sad news. Once Boop has been engaged for 5
+min, fades to calm at anything but work going on.

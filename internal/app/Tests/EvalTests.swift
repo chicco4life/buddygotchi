@@ -132,7 +132,8 @@ final class EvalTests: XCTestCase {
     func testAScenarioNeedsItsCaseAndKnownChecks() throws {
         for (json, why) in [(#"{"name":"n","why":"w","steps":[{"event":"pokes","at":"0s","expect":{"react":"none"}}]}"#, "needs name, case"),
                             (#"{"name":"n","case":"c","why":"w","checks":{"max_fun":2},"steps":[{"event":"pokes","at":"0s"}]}"#, "checks has only"),
-                            (#"{"name":"n","case":"c","why":"w","checks":{"reactions":"lots"},"steps":[{"event":"pokes","at":"0s"}]}"#, "checks.reactions")] {
+                            (#"{"name":"n","case":"c","why":"w","checks":{"reactions":"lots"},"steps":[{"event":"pokes","at":"0s"}]}"#, "checks.reactions"),
+                            (#"{"name":"n","case":"c","why":"w","runs":0,"steps":[{"event":"pokes","at":"0s","expect":{"react":"none"}}]}"#, "runs is a count")] {
             let file = FileManager.default.temporaryDirectory.appendingPathComponent("bad-\(UUID().uuidString).json")
             try Data(json.utf8).write(to: file)
             defer { try? FileManager.default.removeItem(at: file) }
@@ -143,6 +144,23 @@ final class EvalTests: XCTestCase {
                 XCTAssertTrue("\(error)".contains(why), "\(error)")
             }
         }
+    }
+
+    /// EVALS.md §2: an always scenario runs 3 times, the rest once, unless
+    /// the file says; and what a run costs is its passes, counted with the
+    /// scripted brain before Jev is asked anything.
+    func testRunsAndTheirCost() async throws {
+        let all = try Scenario.load(directory: Self.scenarios)
+        let always = try XCTUnwrap(all.first { $0.always && $0.runs == nil })
+        let tuning = try XCTUnwrap(all.first { !$0.always && $0.runs == nil })
+        XCTAssertEqual(Eval.runs(always), 3)
+        XCTAssertEqual(Eval.runs(tuning), 1)
+        let busy = try XCTUnwrap(all.first { $0.file.hasPrefix("53-") })
+        XCTAssertEqual(Eval.runs(busy), 1, "53 says runs 1: the code already holds its moves to the graph")
+        // 05's four pokes, a second apart then a turn start: a pass each.
+        let pokes = try Scenario(file: Self.scenarios.appendingPathComponent("05-pokes-glad-miffed-grumpy.json"))
+        let requests = try await Eval.requests(pokes, steering: RuntimeTests.steering)
+        XCTAssertEqual(requests, 4)
     }
 
     /// EVALS.md §3's whole-run checks, against a brain that makes the same
