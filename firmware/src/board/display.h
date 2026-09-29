@@ -1,6 +1,6 @@
-// The screen and touch panel through LovyanGFX (plan/DEVICE.md §4). This is
-// the only code that knows the display library: it pushes the 8-bit canvas
-// to the panel and reads raw touches.
+// The screen through LovyanGFX (plan/DEVICE.md §4). This is the only code
+// that knows the display library: it pushes the 8-bit canvas to the panel.
+// Touch is board/touch.h.
 #pragma once
 #include <cstdint>
 
@@ -38,9 +38,5 @@ bool displayBegin();
 // batch.
 void displayPush(const render::Canvas& canvas);
 void displayBacklight(uint8_t level);
-
-// The XPT2046's raw reading (no mapping) and the interrupt line. BoardHal
-// maps it to screen pixels (app/touch_cal.h).
-void touchRaw(int& x, int& y, int& z, bool& irq);
 
 }  // namespace board

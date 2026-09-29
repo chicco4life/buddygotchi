@@ -176,11 +176,12 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     mo.empty = doc["anim"].isNull() && !mo.said && doc["mood"].isNull();
     JsonObjectConst who = doc["who"];  // copied by onMoment, while doc lives
     if (who) mo.whoAgent = who["agent"] | "", mo.whoThread = who["thread"] | "";
-    // The line: a take by its id. `{}`, or an id the device doesn't have,
+    // The line: a take by its id, and maybe a second, `then`, from the
+    // card's voice pack. `{}`, or an id the pack doesn't have (or no card),
     // is still a `say` (the reply listening waits for) but plays nothing.
-    voice::Line line;
-    line.take = voice::takeIndex(doc["say"]["take"].as<const char*>());
-    mo.take = line.take;
+    mo.take = voice::takeIndex(doc["say"]["take"].as<const char*>());
+    mo.then = mo.take >= 0 ? voice::takeIndex(doc["say"]["then"].as<const char*>()) : -1;
+    voice::Line line = voice::makeLine(mo.take, mo.then);
     mo.id = doc["id"] | 0u;  // the Mac waits on it: `ended` goes back where it came from
     mo.from = uint8_t(from);
     uint32_t seq = b_.momentSeq();
@@ -479,10 +480,11 @@ void Device::sendPing(Link to) {
   d["ble"] = hal_.bleState();
   if (hal_.bleName()[0]) d["name"] = hal_.bleName();
   d["voice"] = voice::assetsVersion();
+  d["card"] = hal_.cardState();
   d["fx"] = voice::effectsVersion();
   d["w"] = render::kWidth;  // the screen as drawn, for boopctl calibrate
   d["h"] = render::kHeight;
-  char buf[320];
+  char buf[384];
   size_t n = serializeJson(d, buf, sizeof(buf));
   reply(to, buf, n);
 }
@@ -505,8 +507,8 @@ void Device::sendEnded() {
 void Device::sendStatus(Link to) {
   statusReal_ = hal_.realMs();
   char buf[160];
-  int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"status\",\"v\":1,\"id\":\"%s\",\"fw\":\"%s\"}", hal_.deviceId(),
-                        hal_.fwVersion());
+  int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"status\",\"v\":1,\"id\":\"%s\",\"fw\":\"%s\",\"voice\":\"%s\"}",
+                        hal_.deviceId(), hal_.fwVersion(), voice::assetsVersion());
   reply(to, buf, size_t(n));
 }
 

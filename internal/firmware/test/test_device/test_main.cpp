@@ -2,6 +2,8 @@
 // simulator uses.
 #include <unity.h>
 
+#include "../../pack_file.h"
+
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -227,7 +229,11 @@ static void test_status_on_connect_and_every_minute() {
   Rig r;
   r.hal.real = 1000;
   r.dev.connected();
-  TEST_ASSERT_TRUE(has(r.ble.text, "{\"t\":\"status\",\"v\":1,\"id\":\"b00p-0000\",\"fw\":\"t\"}\n"));
+  // It names the voice pack on its card, which the Mac checks (VOICE.md §8).
+  std::string status = std::string("{\"t\":\"status\",\"v\":1,\"id\":\"b00p-0000\",\"fw\":\"t\",\"voice\":\"") +
+                       voice::assetsVersion() + "\"}\n";
+  TEST_ASSERT_EQUAL(12, int(std::strlen(voice::assetsVersion())));
+  TEST_ASSERT_TRUE(has(r.ble.text, status.c_str()));
   r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);
   r.hal.real = 60999;
   r.dev.tick();
@@ -930,14 +936,23 @@ static void test_a_say_on_its_own_plays_the_line() {
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
   TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"take\":\"previous.go\""));
-  // "Go"'s 640 ms + 1.2 s: the bubble goes, and the line with it.
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1839}");
+  // "Go"'s 638 ms + 1.2 s: the bubble goes, and the line with it.
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1837}");
   TEST_ASSERT_EQUAL(0, r.hal.hushes);
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1840}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1838}");
   TEST_ASSERT_EQUAL(1, r.hal.hushes);
   // With no line and no animation, nothing happens.
   r.usbLine("{\"t\":\"moment\"}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
+  // A line of two takes (PROTOCOL.md §3): both play, one after the other,
+  // and the status names the first.
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.tsk\",\"then\":\"phase1.word.test.test__annoyed__contained\"}}");
+  TEST_ASSERT_EQUAL(2, int(r.hal.said.size()));
+  TEST_ASSERT_TRUE(r.hal.said.back().then >= 0);
+  TEST_ASSERT_TRUE(r.hal.said.back().b.len > 0);
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"take\":\"previous.tsk\""));
 }
 
 static void test_mute_and_needs_you_keep_it_silent() {
@@ -1423,6 +1438,7 @@ static void test_the_sounds_follow_every_design() {
 
 int main() {
   UNITY_BEGIN();
+  if (!packfile::open()) std::printf("no voice pack: run make -C internal voice\n");
   RUN_TEST(test_the_face_plays_its_designs_sounds);
   RUN_TEST(test_the_sounds_follow_every_design);
   RUN_TEST(test_a_state_carries_what_the_agents_do);

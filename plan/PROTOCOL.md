@@ -185,8 +185,8 @@ And a rule's one-shot, from the replay of
 | Field | Type | The Mac sends | The device reads it as |
 | --- | --- | --- | --- |
 | `anim` | `task_complete`, `reply_ready`, `starting`, `stopped`, `error`, `helper_return`, `poked`, `tap_spam` or `listening`, and the older `cheer` and `wiggle`, optional | `task_complete` (with `outcome`) or `reply_ready` with a brain reaction that plays a turn's finish ([harness/DECISIONS.md](harness/DECISIONS.md) §5); never `cheer` or `wiggle`, which only older Macs and `boopctl play` send; `listening` when the Mac's own mic turns on; `starting`, `stopped`, `error` and `helper_return` as the rules' one-shots, with no `id`, `mood`, `loops` or `say` ([BEHAVIORS.md](BEHAVIORS.md) §3.1). A tap's poke and BOOT's listening are the device's own ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | The animation ([BEHAVIORS.md](BEHAVIORS.md) §5): the design of the state of the same name, in the mood it's drawn in. `cheer` reads as `task_complete` with `outcome` `success`, and `wiggle` as `poked`. `listening` holds until the reply ([DEVICE.md](DEVICE.md) §4); the others play their `loops` of their design once through (below). An unknown one is ignored |
-| `say` | object, optional | The line: `{"take":ID}`, a recorded take Voice picked ([VOICE.md](VOICE.md)), from the brain's `react`; `{}` for a reply with no line | A line to speak: the take plays whole, with the mouth and bubble in time (below). `{}`, or a `take` it doesn't have, is still a `say` (the reply `listening` waits for) but plays nothing. Any other field in it (the old `syl`, `word`, `at`, `tune` and `ms`) is ignored |
-| `say.take` | string | A take's id, as `voicegen` wrote it into the Mac's `Takes.swift` and the device's `voice.h` (`previous.go`, `new.d15`) | The take by that id: its sound, its text in the bubble and its mouth ([DEVICE.md](DEVICE.md) §4) |
+| `say` | object, optional | The line: `{"take":ID}` or `{"take":ID,"then":ID}`, one or two recorded takes Voice picked, the feeling's then the topic's ([VOICE.md](VOICE.md) §4), from the brain's `react`; `{}` for a reply with no line. Only while the device's `status` names the Mac's voice pack (§4) | A line to speak: the takes play whole from the card's voice pack, 180 ms apart, with the mouth and bubble in time (below). `{}`, or a `take` the pack doesn't have (or no card), is still a `say` (the reply `listening` waits for) but plays nothing; a `then` it doesn't have leaves the first alone. Any other field in it (the old `syl`, `word`, `at`, `tune` and `ms`) is ignored |
+| `say.take`, `say.then` | string | A take's id, as `voicegen` wrote it into the Mac's `Takes.swift` and the voice pack (`previous.pfft`, `phase1.word.test.test__annoyed__contained`) | The take by that id: its sound, its text in the bubble and its mouth ([DEVICE.md](DEVICE.md) §4) |
 | `mood` | one of `state`'s 13 moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5), any of the 13 whatever Boop's own mood. The rules' moments never carry one | The expression: while this moment plays, the look (or the animation playing) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
 | `loops` | int, optional | How many loops of its design a reaction's face holds, as Jev picked ([harness/DECISIONS.md](harness/DECISIONS.md) §5). None on the rules' moments | Held to 1–6. Missing reads as 1. With an animation (but `listening`), how many times its design plays. With a `mood` and no animation, how many loops of the design it's drawn in the face holds (below) |
 | `variant` | int ≥ 1, optional | With a finish: which of its variations plays, picked at random by `react` among those for its `outcome`, never the last one ([harness/DECISIONS.md](harness/DECISIONS.md) §5). With a rule's one-shot: the core's pick, at random among the mood's variations of it (for `starting`, those for its `ctx`), never the one it played last | The animation's variation, in the mood it's drawn in, when it's one of those for the moment's facts (`outcome`, `ctx`; `render::fitting`). Missing, out of range, or for another outcome or context: the device picks one of those at random, never the one of that design it showed last. A face with no animation takes the look's variation showing |
@@ -226,9 +226,9 @@ in `FaceLoops`.
   comes back; a tap's poke plays once. A finish with `who` names them in
   the strip for as long as it plays.
 - A line with no animation plays over whatever face is showing and
-  replaces any line playing, at once. It speaks for its take's length
-  (the take's samples at 11.025 kHz, in ms rounded down, as the Mac's
-  `Take.ms`), and its bubble stays 1.2 s more. With an animation in the same
+  replaces any line playing, at once. It speaks for its takes' length
+  (each take's samples at 11.025 kHz, in ms rounded down, as the Mac's
+  `Take.ms`, and 180 ms between two), and its bubble stays 1.2 s more. With an animation in the same
   moment, as the brain's finish sends, its line starts at the design's
   voice window ([VOICE.md](VOICE.md) §9), and the animation holds on,
   resting on its last frame, until the line and its bubble end.
@@ -281,7 +281,7 @@ in `FaceLoops`.
 ### `status`: who the device is
 
 ```json
-{"t":"status","v":1,"id":"b00p-54fe","fw":"1.0.0"}
+{"t":"status","v":1,"id":"b00p-54fe","fw":"1.0.0","voice":"1aace295d219"}
 ```
 
 | Field | Type | Meaning |
@@ -289,6 +289,7 @@ in `FaceLoops`.
 | `v` | int | 1 |
 | `id` | string | The device's permanent ID: `b00p-` and the same 4 hex digits as its advertised name, in lower case (`b00p-0000` in the simulator and tests). The Mac logs it, and ignores a `status` without one |
 | `fw` | string | The firmware version, from the repo's `VERSION` file (`sim` in the simulator). Shown in the popover's footer |
+| `voice` | string | The version of the voice pack on its microSD card ([VOICE.md](VOICE.md) §8), `none` with no card or no pack. The Mac sends takes only while it's its own `Take.packVersion`, and logs when they differ. Older firmware leaves it out, and the Mac then sends takes as before |
 
 The device sends one when a Mac connects over Bluetooth, and over USB when
 the Mac starts speaking (§2), then again whenever 60 s have passed since
@@ -403,7 +404,8 @@ instead of running.
 | `link` | `usb`, `ble` or `none`: the link the Mac last spoke on. `dbg.*` doesn't count |
 | `ble` | `off` (Bluetooth didn't start), `idle` (neither advertising nor connected, so no Mac can find it), `adv` or `conn` |
 | `name` | `Boop-XXXX`; left out in the simulator |
-| `voice` | The voice takes' version, `kVersion` in `voice.h` ([VOICE.md](VOICE.md)) |
+| `voice` | The version of the voice pack on the card, as `status` gives it (§4) |
+| `card` | The microSD card: `ok`, `no card` or `no pack` ([VOICE.md](VOICE.md) §8); `none` in the tests, and in the simulator whether it found `.build/voice/voice.bin` |
 | `fx` | The sound effects' version ([VOICE.md](VOICE.md) §10) |
 | `w`, `h` | The screen as drawn: 320 and 240 |
 
@@ -418,7 +420,7 @@ instead of running.
 | `expr` | The mood the face borrows while a moment with `mood` plays (§3), otherwise null |
 | `life` | `blink` while Boop blinks, otherwise null |
 | `led`, `bl` | The LED's colour as `#RRGGBB`, and the backlight level, 0–255 |
-| `audio` | `playing` while the mouth follows a line (the take's length), and `take`, the id of the take in the bubble, or null while none shows. `out` is what the sound output did: `ready` (the DAC started), `playing` (the amp is on: something sounds, or did in the last second), `lines` finished since boot, and for the last line `take` (its id, or null before any), `plan_ms` (the take's length), `out_ms` (samples rendered), `wall_ms` (the DAC's measured time), `cut` (hushed or replaced) and `errors` (DAC writes that timed out). `fx` is the face's sound effects ([VOICE.md](VOICE.md) §10): `sent` to the sound output since boot, and the `last` one's clip, such as `{"sent":42,"last":"keyB"}`, or null before any |
+| `audio` | `playing` while the mouth follows a line (its takes' length), and `take`, the id of the line's first take in the bubble, or null while none shows. `out` is what the sound output did: `ready` (the DAC started), `playing` (the amp is on: something sounds, or did in the last second), `lines` finished since boot, and for the last line `take` (its first take's id, or null before any), `plan_ms` (the line's length), `out_ms` (samples rendered), `wall_ms` (the DAC's measured time), `cut` (hushed or replaced) and `errors` (DAC writes that timed out). `fx` is the face's sound effects ([VOICE.md](VOICE.md) §10): `sent` to the sound output since boot, and the `last` one's clip, such as `{"sent":42,"last":"keyB"}`, or null before any |
 | `alert` | When needs you's performance last started for a new request shown, in device ms, such as `27000`, or null before any ([BEHAVIORS.md](BEHAVIORS.md) §3.2) |
 | `last_input` | The last input: `k` (`tap`, `talk_on`, `talk_off`, or `touch` when a touch starts), `at`, and `x` and `y` for a touch; null before any |
 | `rx` | The `state` and `moment` messages received since boot. The pipeline check times hooks by `rx.state` |

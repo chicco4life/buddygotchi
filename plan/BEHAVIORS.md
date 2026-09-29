@@ -78,14 +78,17 @@ JEV  (the brain; decides everything expressive)
                                  failure | reply    judged from its text
                 react.loops      once … 4 times     how long it holds
   ─────────────────────────────────────────────────────────────────────
-  SAY           say.meaning      none | success,         what it means
-                                 frustration, …    (faces that can say it)
-                say.kind         sound | word |     how, stepping down
-                                 phrase | swear     when there's none
-                → one recorded take in the face's mood, or silence
+  SAY           say.feeling      none | upset |     how it feels
+                                 glad | tickled
+                say.about        none | tests,      what NOW is about
+                                 work, …
+                say.kind         sound | word |     how big, the nearest
+                                 phrase | swear     kind when there's none
+                → up to two recorded takes in the face's mood, the
+                  feeling's then the topic's, or silence
 
   e.g. a failed turn that stings:
-       mood → grumpy;  react: grumpy, failure, once, "Shit"
+       mood → grumpy;  react: irritated, failure, once, "Shit"
   e.g. a 5 s routine turn:  nothing
 
 

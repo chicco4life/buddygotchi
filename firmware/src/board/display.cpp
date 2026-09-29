@@ -4,7 +4,6 @@
 #include <LovyanGFX.hpp>
 #include <esp_heap_caps.h>
 
-#include "app/touch_cal.h"
 #include "board/pins.h"
 #include "render/palette.h"
 
@@ -59,25 +58,6 @@ class Panel : public lgfx::LGFX_Device {
       light_.config(cfg);
       panel_.setLight(&light_);
     }
-    {
-      auto cfg = touch_.config();
-      // Only raw readings are used; BoardHal maps them (app/touch_cal.h).
-      cfg.x_min = app::kTouchRawMin;
-      cfg.x_max = app::kTouchRawMax;
-      cfg.y_min = app::kTouchRawMin;
-      cfg.y_max = app::kTouchRawMax;
-      cfg.pin_int = pins::kTouchIrq;
-      cfg.bus_shared = false;
-      cfg.offset_rotation = 0;
-      cfg.spi_host = SPI3_HOST;
-      cfg.freq = 1000000;
-      cfg.pin_sclk = pins::kTouchSclk;
-      cfg.pin_mosi = pins::kTouchMosi;
-      cfg.pin_miso = pins::kTouchMiso;
-      cfg.pin_cs = pins::kTouchCs;
-      touch_.config(cfg);
-      panel_.setTouch(&touch_);
-    }
     setPanel(&panel_);
   }
 
@@ -85,7 +65,6 @@ class Panel : public lgfx::LGFX_Device {
   lgfx::Bus_SPI bus_;
   lgfx::Panel_ST7789 panel_;
   lgfx::Light_PWM light_;
-  lgfx::Touch_XPT2046 touch_;
 };
 
 // Rows per DMA batch (DEVICE.md §6): 12 rows of 320 px keep each buffer at
@@ -141,15 +120,5 @@ void displayPush(const render::Canvas& canvas) {
 }
 
 void displayBacklight(uint8_t level) { lcd.setBrightness(level); }
-
-void touchRaw(int& x, int& y, int& z, bool& irq) {
-  irq = digitalRead(pins::kTouchIrq) == LOW;
-  lgfx::touch_point_t tp;
-  if (lcd.getTouchRaw(&tp, 1)) {
-    x = tp.x, y = tp.y, z = tp.size;
-  } else {
-    x = y = z = 0;
-  }
-}
 
 }  // namespace board

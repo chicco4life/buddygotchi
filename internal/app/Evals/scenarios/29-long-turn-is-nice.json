@@ -5,6 +5,6 @@
   "steps": [
     {"event": "turn started", "at": "0s"},
     {"event": "command", "at": "1m", "topic": "tests", "failed": false},
-    {"event": "turn finished", "at": "3m", "expect": {"react": "happy|excited|proud|calm|engaged", "animation": "success", "meaning": "success|celebrate", "mood": "calm|engaged"}}
+    {"event": "turn finished", "at": "3m", "expect": {"react": "happy|excited|proud|calm|engaged", "animation": "success", "feeling": "glad|none", "about": "done|none", "mood": "calm|engaged", "said": "some"}}
   ]
 }

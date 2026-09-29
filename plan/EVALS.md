@@ -55,9 +55,10 @@ a scenario holds wherever more than one answer is right:
 | --- | --- |
 | `react` | Jev's pick for the `react.mood` question: `none` or a mood's face |
 | `animation` | The finish the reaction played, Jev's `react.animation` pick (`success`, `failure` or `reply`), or `none` when it played none or Boop didn't react |
-| `meaning` | What the reaction meant, `say.meaning`'s pick when it reached the floor ([DECISIONS.md](harness/DECISIONS.md) §5), or `none` |
+| `feeling` | How Boop felt, `say.feeling`'s pick when it reached the floor ([DECISIONS.md](harness/DECISIONS.md) §5), or `none` |
+| `about` | What NOW was about, `say.about`'s pick when it reached the floor, or `none` |
 | `kind` | How it asked to say it, `say.kind`'s pick (`sound` when missing), or `none` when `react` didn't react |
-| `said` | The text of the take Boop said, as the bubble shows it (`Tsk...`), or `none` when it said nothing; a scenario that names a take no one has doesn't load |
+| `said` | A take Boop said, by its text as the bubble shows it (`Tsk...`): the step passes when any of the line's takes is one listed; `some` when it said anything, `none` when it said nothing. A scenario that names a text no take has doesn't load |
 | `loops` | How long the face held, Jev's `react.loops` pick (`once` to `four times`), or `none` when `react` didn't react |
 | `mood` | Boop's mood after the pass |
 | `offered` | Exactly the options the pass's `mood` question offered, as a set: staying in the mood it had, and that mood's moves on the graph ([DECISIONS.md](harness/DECISIONS.md) §2.3), so a scenario can pin the graph |
@@ -153,13 +154,13 @@ file-name order:
 ```json
 {
   "name": "Pokes make Boop curious, then miffed, then fed up",
-  "case": "The person pokes Boop once, again a second later, and a third time a second after that. The first poke makes Boop curious or glad: a curious or happy face, and its mood turns curious or happy. The second, two in a row, leaves it a little miffed: an annoyed face with 'hmm' or no word, and its mood turns annoyed. The third, three in a row, makes it fed up: an irritated or grumpy face with 'nope', 'ugh' or no word, and its mood turns irritated or grumpy. Four minutes later, when the agent starts a new turn, it has calmed down a step, to annoyed (or irritated, from grumpy), and doesn't react to the start with anything but a calm or annoyed face.",
+  "case": "The person pokes Boop once, again a second later, and a third time a second after that. The first poke makes Boop curious or glad: a curious or happy face, and its mood turns curious or happy. The second, two in a row, leaves it a little miffed: an annoyed face, maybe a huff, and its mood turns annoyed. The third, three in a row, makes it fed up: an irritated or grumpy face, maybe a grumble, never a swear, and its mood turns irritated or grumpy. Four minutes later, when the agent starts a new turn, it has calmed down a step, to annoyed (or irritated, from grumpy), and doesn't react to the start with anything but a calm or annoyed face.",
   "always": true,
-  "why": "PERSONALITY's Examples and the react question: one poke gets a curious face, two in a row an annoyed 'hmm', three or more an irritated or grumpy face. plan/steering/mood/: a poke moves calm to happy or curious, two in a row to annoyed, three to irritated or, a jump a barrage earns, grumpy; irritated and grumpy fade a step toward calm after their minutes. harness/EVENTS.md §6: the first two pokes' reactions don't hold back the third. Taps play the device's own animations, so no reaction plays one",
+  "why": "PERSONALITY's Examples and the react question: one poke gets a curious face, two in a row an annoyed huff, three or more an irritated or grumpy face. plan/steering/mood/: a poke moves calm to happy or curious, two in a row to annoyed, three to irritated or, a jump a barrage earns, grumpy; irritated and grumpy fade a step toward calm after their minutes. harness/EVENTS.md §6: the first two pokes' reactions don't hold back the third. Taps play the device's own animations, so no reaction plays one",
   "steps": [
     {"event": "poke", "at": "0s", "expect": {"react": "curious|happy|excited", "animation": "none", "mood": "curious|happy"}},
-    {"event": "poke", "at": "1s", "expect": {"react": "annoyed|irritated", "animation": "none", "meaning": "frustration|ponder|none", "kind": "sound|word|phrase", "mood": "annoyed"}},
-    {"event": "poke", "at": "2s", "expect": {"react": "irritated|grumpy|annoyed", "animation": "none", "meaning": "frustration|ponder|none", "kind": "sound|word|phrase", "mood": "irritated|grumpy"}},
+    {"event": "poke", "at": "1s", "expect": {"react": "annoyed|irritated", "animation": "none", "feeling": "upset|tickled|none", "kind": "sound|word|phrase", "mood": "annoyed"}},
+    {"event": "poke", "at": "2s", "expect": {"react": "irritated|grumpy|annoyed", "animation": "none", "feeling": "upset|tickled|none", "kind": "sound|word|phrase", "mood": "irritated|grumpy"}},
     {"event": "turn started", "at": "4m", "expect": {"react": "none|calm|annoyed", "mood": "annoyed|irritated"}}
   ]
 }
@@ -185,7 +186,7 @@ file-name order:
 | `steps[].workspace` | The thread's workspace, when it has one |
 | `steps[].session` | Claude's session, `s1` unless it says: another session is another thread, working at the same time |
 | `steps[].reaction` | How a reaction this step's passes start ends: `done` (the default), `in progress` (HISTORY keeps saying so), or `failed: <why>` (HISTORY leaves it out) |
-| `steps[].expect` | Any of `react`, `animation`, `meaning`, `kind`, `said`, `loops`, `mood` and `offered`, each a `\|`-separated list |
+| `steps[].expect` | Any of `react`, `animation`, `feeling`, `about`, `kind`, `said`, `loops`, `mood` and `offered`, each a `\|`-separated list |
 
 A file with no `case`, an unknown key, event, personality, `expect` key
 or check, a starting `mood`, or an expected `react`, `mood` or `offered`,

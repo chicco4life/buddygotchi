@@ -20,13 +20,13 @@ board.
 | Radio | Wi-Fi 2.4 GHz; Bluetooth 4.2 BR/EDR and BLE | BLE only; Wi-Fi stays off |
 | Screen | 2.4" IPS TFT, 240×320, ST7789, 4-wire SPI, RGB565, about 169 ppi | Used sideways, as 320×240 (§4) |
 | Backlight | 4 white LEDs through a MOSFET, 220 cd/m² | PWM-dimmed |
-| Touch | Resistive XPT2046 on its own SPI pins | Needs a firm press |
+| Touch | Resistive XPT2046 on its own SPI pins | Needs a firm press; read by bit-banged SPI (§2) |
 | Audio | 8-bit DAC on GPIO26 → on-board amp → 2-pin speaker header | A speaker is attached (§3) |
 | Light | RGB LED, common anode | On the back, so it shows as a glow |
 | Buttons | BOOT (IO0) and RESET (EN) | BOOT is a normal button after boot |
 | USB | USB-C: power, and a CH340 USB-serial bridge (1a86:7523) with auto-reset | Shows up as `/dev/cu.usbserial-*`; flashing needs no BOOT press (§7) |
 | Battery | 1.25 mm LiPo header and a charger for 3.7 V cells; sense on GPIO34 | Unused in v1 |
-| Storage | microSD slot | Unused |
+| Storage | microSD slot | Boop's voice: every recorded take, in one file ([VOICE.md](VOICE.md) §8). The bench card is 64 GB, FAT |
 | Size | 42.89 × 74.33 × 5.44 mm, four Ø3.2 mm holes 34.89 × 66.33 mm apart | |
 
 The bench unit's Bluetooth MAC ends in `54:fe`, so it advertises as
@@ -41,7 +41,7 @@ The pins the firmware drives, from `firmware/src/board/pins.h`:
 | 14, 13, 15, 2 | Screen SPI clock, MOSI, chip select, data/command | SPI2 (HSPI). No MISO, so the panel can't be read back. 2 is a strapping pin, fine as wired |
 | EN | Screen reset | Shared with the ESP32's reset, so the firmware resets the ST7789 in software |
 | 21 | Backlight | PWM at 12 kHz; high is on |
-| 25, 32, 39, 33 | Touch SPI clock, MOSI, MISO, chip select | SPI3 (VSPI), remapped. 39 is input-only |
+| 25, 32, 39, 33 | Touch SPI clock, MOSI, MISO, chip select | Bit-banged (`board/touch.cpp`). 39 is input-only |
 | 36 | Touch interrupt | Low while pressed; input-only |
 | 22, 16, 17 | LED red, green, blue | PWM at 5 kHz, **active low**. 16 is free because there's no PSRAM |
 | 26 | Audio | DAC channel 2 (the driver's `CH1`) |
@@ -49,13 +49,16 @@ The pins the firmware drives, from `firmware/src/board/pins.h`:
 | 0 | BOOT, the main button (`kMainButton`) | Active low, internal pull-up |
 | 3, 1 | UART0 | The USB serial port |
 
-**Two SPI buses.** The screen is on SPI2 and touch on SPI3, which is free
-because Boop doesn't use the microSD card that normally has it. The
-spec's FAQ says touch and screen share a bus; its pin table, which says
-otherwise, is right, and touch must stay on its own bus.
+| 18, 19, 23, 5 | microSD clock, MISO, MOSI, chip select | SPI3 (VSPI), at 10 MHz (`board/card.cpp`) |
 
-Not used: 34 (battery sense), 5, 18, 19 and 23 (microSD; 18, 19 and 23
-are also on the SPI header), 27 (the SPI header's chip select) and 35
+**Two SPI buses.** The screen is on SPI2 and the microSD card on SPI3.
+Touch has pins of its own and is read by bit-banged SPI, a 57-byte
+reading as LovyanGFX's `Touch_XPT2046` made it, so the card could have
+the second bus (2026-09-29). The spec's FAQ says touch and screen share
+a bus; its pin table, which says otherwise, is right, and touch must
+stay off the screen's bus.
+
+Not used: 34 (battery sense), 27 (the SPI header's chip select) and 35
 (the expansion header). 34, 35, 36 and 39 are input-only with no
 internal pull-ups.
 
@@ -76,7 +79,9 @@ except by volume 0.
 | Piece | Choice |
 | --- | --- |
 | Platform | PlatformIO, pioarduino `platform-espressif32` 55.03.39 (Arduino core 3.x on ESP-IDF 5.x), board `esp32dev` at 240 MHz, DIO flash |
-| Display and touch | LovyanGFX 1.2: `Panel_ST7789` on SPI2, `Touch_XPT2046` on SPI3, `Light_PWM` backlight |
+| Display | LovyanGFX 1.2: `Panel_ST7789` on SPI2, `Light_PWM` backlight |
+| Touch | Our own bit-banged XPT2046 reading (`board/touch.cpp`) |
+| microSD | The Arduino core's `SD` on SPI3: the voice pack ([VOICE.md](VOICE.md) §8) |
 | Bluetooth | NimBLE-Arduino 2.x, a Nordic UART peripheral ([PROTOCOL.md](PROTOCOL.md) §2); Classic Bluetooth's memory is released at start |
 | JSON | ArduinoJson 7 |
 | Audio | ESP-IDF's continuous DAC driver at a fixed 22.05 kHz, fed by a task on core 0 (§6, [VOICE.md](VOICE.md) §8) |
@@ -94,11 +99,11 @@ replace the code that knows the hardware.
 | `src/app/behaviour.*` | What Boop does ([BEHAVIORS.md](BEHAVIORS.md)): the last `state`, the moment and line playing and how each the Mac waits on ended, taps in a row, blinks, no app, and the light, backlight and sound cues they imply | Board and Mac |
 | `src/app/` (the rest) | The device clock and random numbers (`clock.h`), BOOT's taps and holds (`gesture.*`), touch calibration (`touch_cal.h`), line reassembly and Bluetooth packets (`line_reader.h`, `packets.h`), dropping a quiet link (`link_silence.h`), and the screenshot's CRC and base64 (`codec.*`) | Board and Mac |
 | `src/render/` | The 8-bit canvas, palette, anti-aliased shapes, fonts, the animation bank's player (`scene.*`), the face screen with its bottom lane, the bubble or the strip (`screens.*`), the animation and mood names (`anim.*`) and the test pattern | Board and Mac |
-| `src/voice/player.*` | The takes by id, their text and mouth, and a line into samples: one take played whole ([VOICE.md](VOICE.md)) | Board and Mac |
+| `src/voice/player.*` | The voice pack: takes found by id, their text and mouth, and a line of one or two takes into samples, read from a `voice::Source` (the card, or a file on the Mac) ([VOICE.md](VOICE.md) §8) | Board and Mac |
 | `src/voice/effects.*`, `src/app/effect_track.*` | The sound effects' clips and timelines, the mixer that adds them to the voice, and when each event plays with the face ([VOICE.md](VOICE.md) §10) | Board and Mac |
-| `src/board/` | The pins; `board_hal.*`, the board's side of the core's `Hal` (buttons, touch, LED, backlight, NVS, heap, sound); `display.*`, the only code that knows LovyanGFX; `audio.*`, the DAC task | Board |
+| `src/board/` | The pins; `board_hal.*`, the board's side of the core's `Hal` (buttons, touch, LED, backlight, NVS, heap, sound); `display.*`, the only code that knows LovyanGFX; `touch.*`, the XPT2046; `card.*`, the microSD card and the pack on it; `audio.*`, the DAC task | Board |
 | `src/link/ble.*` | The Nordic UART peripheral | Board |
-| `assets/` | Generated and checked in: `faces.h` (facegen), `fonts.h` (fontgen), `voice.h` (voicegen), `sfx.h` (sfxgen) ([VERIFICATION.md](VERIFICATION.md) §2) | Both |
+| `assets/` | Generated and checked in: `faces.h` (facegen), `fonts.h` (fontgen), `sfx.h` (sfxgen) ([VERIFICATION.md](VERIFICATION.md) §2). The voice isn't here: it's on the card | Both |
 | `tools/pio.sh`, `tools/version.py` | PlatformIO with its packages inside the checkout; the version and git SHA baked into each build | — |
 
 Everything marked "Board and Mac" is plain C++ with integer maths. The
@@ -152,7 +157,7 @@ knows nothing until the next `state`. Only the touch calibration survives
 | --- | --- | --- |
 | The model: `base`, `act`, `mood`, `attn` (agent, project, more), `busy` and `vol` from the last `state` ([PROTOCOL.md](PROTOCOL.md) §3) | Each `state` | The next `state` |
 | The moment: an animation (the finish, a one-shot, a poke, `listening`), its variation, start and length | A `moment`'s `anim`, a tap (`poked` or `tap_spam`), or BOOT held (`listening`) | Its end, a new moment, or a new "needs you". `listening` only by its end, the reply or the empty moment (below) |
-| The line: its take, whose text, length and mouth frames drive the bubble and the mouth, and when it starts: at once, or at its animation's voice window ([VOICE.md](VOICE.md)) | A `moment`'s `say` with a take the device has | Its end, a new moment (not a tap's poke, which plays under it), or a new "needs you". A `state` with `attn` or volume 0 also stops its sound |
+| The line: its one or two takes, whose text, length and mouth frames drive the bubble and the mouth, and when it starts: at once, or at its animation's voice window ([VOICE.md](VOICE.md)) | A `moment`'s `say` with a take the device has | Its end, a new moment (not a tap's poke, which plays under it), or a new "needs you". A `state` with `attn` or volume 0 also stops its sound |
 | Taps in a row: how many, and when the last came | Every tap ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | A tap 3 s or more after the last starts a new run |
 | The variation of each animation's design shown last | Each animation that plays | `dbg.reset` |
 | A blink | The device's own timer ([BEHAVIORS.md](BEHAVIORS.md) §2), not on a flip-book | Its end, or an animation |
@@ -180,24 +185,27 @@ lane.
 **The bottom lane.** The animation bank's designs keep y 192–240 free
 for text (their clip, §6). The status strip sits in it, from y 204, and
 while a line plays the bubble takes the whole lane in the strip's place
-(`render::kLaneTop`): the take's text, in the large font in amber and
+(`render::kLaneTop`): the line's words, in the large font in amber and
 centred, in a box with stepped corners and a short tail up to the face,
-as the bank asks host text to be drawn. The texts are printable ASCII,
-at most 20 characters ("Bada bing bada boom" is the longest), so every
-one fits whole; longer text would end "..". The bubble shows from the
-line's start for the take's length (its samples at 11.025 kHz, in ms
-rounded down) and 1.2 s more to read it (`Behaviour::kBubbleReadMs`).
+as the bank asks host text to be drawn. The large font fits 20
+characters; a longer line, up to 34, is drawn in the small one, so every
+line fits whole ("Technical difficulties" is the longest take, 22), and
+longer text would end "..". The texts are printable ASCII. The bubble
+shows from the line's start for its takes' length (their samples at
+11.025 kHz, in ms rounded down, and 180 ms between two) and 1.2 s more
+to read it (`Behaviour::kBubbleReadMs`).
 No line plays while something needs you, so the bubble never hides
 who's asking. The first pack's looks and its successes for the finish
 draw into the lane; the bubble blanks it, so their props there are cut
 at y 192 while it shows.
 
-**The talking mouth.** While the take plays, the mouth is a small "o"
-(§6) whenever the take is loud: `voice.h` has one mouth frame for every
-20 ms of each take (220 samples), open when that frame is loud
+**The talking mouth.** While the line plays, the mouth is a small "o"
+(§6) whenever a take is loud: the voice pack has one mouth frame for
+every 20 ms of each take (220 samples), open when that frame is loud
 (voicegen's rule, [VOICE.md](VOICE.md)), and the device looks up the frame
-for the time since the line started (`voice::mouthOpen`). Once the take
-is said the mouth shuts, while the bubble stays.
+for the time since the line started, shut in the gap between two takes
+(`voice::lineMouthOpen`). Once the line is said the mouth shuts, while
+the bubble stays.
 
 ### Taps and push-to-talk
 
@@ -279,7 +287,7 @@ updates over the air, so its second slot went to the firmware:
 | --- | --- | --- |
 | nvs | 20 KB | The touch calibration (below) |
 | otadata | 8 KB | Which app slot boots: there's only app0 |
-| app0 | 3 MB | The firmware, with its fonts, faces, voice and sound effects |
+| app0 | 3 MB | The firmware, with its fonts, faces and sound effects |
 | spiffs | 896 KB | Unused |
 | coredump | 64 KB | Reserved for crash dumps |
 
@@ -294,12 +302,11 @@ calibrate again after changing `kRotation`. It survives reflashing.
 Nothing else is stored: the device ID comes from the Bluetooth MAC, and no
 `state` is kept.
 
-Fonts, faces, voice takes and sound effects are compiled in as arrays:
-the voice is 465 KB, 462,857 bytes of takes and 2,130 of mouth frames
-([VOICE.md](VOICE.md)), within its budget of 480,000 bytes of takes
-(`test_voice`), the sound effects 208 KB with their timelines (§10
-there), the faces 1.19 MB (§6) and the fonts about 27 KB. The whole
-firmware is 2.73 MB, about 87% of app0.
+Fonts, faces and sound effects are compiled in as arrays: the sound
+effects 208 KB with their timelines ([VOICE.md](VOICE.md) §10), the
+faces 1.19 MB (§6) and the fonts about 27 KB. The voice is on the
+microSD card, 30.5 MB for 2,722 takes ([VOICE.md](VOICE.md) §8). The
+whole firmware is 2.32 MB, about 74% of app0.
 
 ## 6. Memory, drawing and speed
 
@@ -308,7 +315,7 @@ firmware is 2.73 MB, about 87% of app0.
 | Screen canvas, 8-bit indexed | 76.8 KB | 320 × 240 × 1 byte, allocated first |
 | Push buffers | 2 × 7.68 KB | Each turns a band of 12 canvas rows into RGB565 for SPI DMA, plus the 256-colour palette in the panel's byte order (512 B) |
 | NimBLE host and controller | ~75 KB, measured | |
-| Audio | ~11 KB, measured | Four 1 KB DMA buffers, a 3 KB task stack and the driver |
+| Audio | ~15 KB | Four 1 KB DMA buffers, a 6 KB task stack (it reads the card as it plays), the player's 1 KB window of samples and the driver |
 | JSON and serial buffers | ~6 KB | 2 KB of received bytes each for USB and Bluetooth; a line is at most 512 bytes |
 | **Free heap** | **≥ 60 KB** | The target; measured below |
 
@@ -415,7 +422,7 @@ frames stay exact) and a press draws at once for its first 60 ms. A screenshot a
 
 | Measure | Value | Source |
 | --- | --- | --- |
-| Firmware size | 2.73 MB (2,725,851 bytes), 86.7% of app0 | The board build that plays the recorded takes (`make -C internal fw`), 2026-09-29 |
+| Firmware size | 2.32 MB (2,320,171 bytes), 73.8% of app0 | The board build that plays the takes from the card (`make -C internal fw`), 2026-09-29 |
 | Minimum free heap, through a 10-minute soak with brain reactions | 71.5 KB (71,472 bytes), no drift from its first sample | The bench board, firmware `067c7d80`, [2026-09-29](evidence/2026-09-28-mood-spectrum/board/README.md) |
 | Frames a second through `perf --motion`'s finishes and pokes | 6.1 on average, 3 at the least: the wiggle now plays the stepped poke designs, not a continuous sway, so fewer frames change | The bench board, firmware `067c7d80`, 60 s, the same |
 | Drawing and pushing one changed frame (`draw_us`, `push_us`), through the soak | 1.5 ms and 11.7 ms typically; 3.0 ms and 27.0 ms at the most | The same |
@@ -465,8 +472,9 @@ the checks):
    pixel for pixel.
 4. **The rest:** `internal/tools/boopctl state` reports BOOT, raw touch,
    the LED and the amp, and `internal/tools/boopctl ping` shows Bluetooth
-   advertising. Presses, calibration, the speaker
-   (`internal/tools/boopctl takes`) and the LED's glow need a person.
+   advertising, and `ping`'s `card` whether the voice pack is on the
+   card. Presses, calibration, the speaker (`internal/tools/boopctl
+   takes`) and the LED's glow need a person.
 
 ## 8. Known quirks
 
@@ -474,7 +482,12 @@ the checks):
   says the spec's FAQ. Check inversion, colour order and the SPI pins
   first.
 - **Touch does nothing:** wrong pins, no calibration, or bus contention.
-  Touch must stay on its own bus (§2).
+  Touch must stay on its own pins (§2).
+- **Boop is silent, faces fine:** `ping`'s `card` says why. `no card`:
+  the card is out, or not FAT (a card over 32 GB comes as exFAT, which
+  the board can't read; format it FAT32). `no pack`: copy the pack on
+  with `voicegen.py --card`. Or the pack is another version than the
+  app's, which `boop.log` says ([VOICE.md](VOICE.md) §8).
 - **Backlight flickers:** PWM too slow, or unstable USB power. Keep it at
   5 kHz or more.
 - **Advertising stops after a disconnect:** NimBLE-Arduino 2.x doesn't

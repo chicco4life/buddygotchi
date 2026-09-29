@@ -2,22 +2,28 @@
 
 The bank, internal/boop-design/assets/boop-voice-v1/, has whole recorded
 takes, each a word, a sound, a phrase or a swear performed in one mood.
-Every take in its manifest is converted from its robot-soft WAV (44.1 kHz,
-16-bit): the near-silence around it trimmed, cut to 11.025 kHz with a box
-low-pass, saturated and normalised like the old syllables so it's as loud
-on the small speaker, and stored as 8-bit unsigned samples. Two files come
-out, both checked in; rerun this only when the bank or a mapping changes:
+Every take in its manifest is read from its robot-soft WAV (8-bit,
+11.025 kHz), the near-silence around it trimmed, saturated and normalised
+so it's as loud on the small speaker, and stored as 8-bit unsigned
+samples. Two things come out; rerun this whenever the bank or a mapping
+changes:
 
-    python3 internal/tools/voicegen/voicegen.py [--wav-dir DIR]
+    python3 internal/tools/voicegen/voicegen.py [--card /Volumes/CARD] [--wav-dir DIR]
 
-- firmware/assets/voice.h: each take's samples, its bubble text and its
-  mouth (open or shut every 20 ms), which the board plays by id.
-- app/BoopKit/Voice/Takes.swift: each take's id, text, meaning, kind, mood,
-  the finish it needs and its length, which the Mac picks from.
+- .build/voice/voice.bin: the pack the board plays from its SD card
+  (at /boop/voice.bin; VOICE.md §8): every take's samples, bubble text
+  and mouth (open or shut every 20 ms), found by id. `--card` also copies
+  it onto a mounted card. It's built, not checked in; `make -C internal
+  voice` makes it for the simulator and the firmware's tests.
+- app/BoopKit/Voice/Takes.swift, checked in: each take's id, text, part
+  and answer, kind, mood, the finish it needs and its length, which the
+  Mac picks from, and the pack's version, which the board reports.
 
-The bank's intents are the meanings Jev picks from (harness/DECISIONS.md
-§3), its category the kind. Six takes were recorded in moods Boop doesn't
-have; MOOD_OF gives them one, by the owner's word (2026-09-29).
+Every take answers one of the brain's two questions (harness/DECISIONS.md
+§3): how Boop feels (`say.feeling`) or what NOW is about (`say.about`),
+by the bank's intent (FEELING, ABOUT). Needs you's takes (`attention`)
+are the rules' only. Six takes were recorded in moods Boop doesn't have;
+MOOD_OF gives them one, by the owner's word (2026-09-29).
 
 `--wav-dir` also writes every converted take as a WAV, for listening.
 """
@@ -27,14 +33,19 @@ import argparse
 import hashlib
 import json
 import math
+import os
+import shutil
+import struct
+import unicodedata
 import wave
-from array import array
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 BANK = REPO / "internal" / "boop-design" / "assets" / "boop-voice-v1"
-OUT = REPO / "firmware" / "assets" / "voice.h"
+PACK = REPO / ".build" / "voice" / "voice.bin"
 SWIFT = REPO / "app" / "BoopKit" / "Voice" / "Takes.swift"
+CARD_PATH = "boop/voice.bin"  # where the board looks on its card
 
 RATE = 11025        # the takes' sample rate on the board (VOICE.md §3)
 TEXTURE = "robot-soft"
@@ -46,21 +57,60 @@ PEAK = 0.92
 MOUTH_MS = 20       # the mouth's resolution
 MOUTH_OPEN = 0.2    # open while a frame is this loud, of the take's loudest frame
 
+# The pack's layout (VOICE.md §8), little-endian: a 64-byte header, then an
+# index of fixed-size records sorted by id, so the board can find a take
+# by binary search without holding the index, then each take's mouth (one
+# byte per MOUTH_MS) and samples.
+MAGIC = b"BOOPVOX1"
+HEADER = struct.Struct("<8s16sIIIII20x")  # magic, version, count, record size, index at, rate, mouth ms
+ID_BYTES, TEXT_BYTES = 72, 36
+RECORD = struct.Struct(f"<{ID_BYTES}s{TEXT_BYTES}sIIII4x")  # id, text, samples at, len, mouth at, frames
+
 MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad",
          "calm", "engaged", "annoyed", "irritated", "whiny", "wounded"]
 # Takes recorded in a mood Boop doesn't have, by the bank's label or, for
 # the two with none, by id: the mood they're used in.
 MOOD_OF = {"relieved": "happy", "weary": "whiny", "amused": "happy",
            "previous.go": "calm", "previous.oi": "curious"}
-# The finish a take needs, from the fact the bank says it requires: a
-# success word only on a success, a swear only on a failure.
-FINISH_OF = {"success_confirmed": "success", "failure_confirmed": "failure"}
+
+# The bank's intents, as answers to the brain's two questions (VOICE.md §3).
+FEELING = {"frustration": "upset", "setback": "upset", "deflate": "upset",
+           "celebrate": "glad", "delight": "glad", "relief": "glad", "pride": "glad", "insight": "glad",
+           "poke": "tickled"}
+ABOUT = {"begin": "start", "delegate": "helpers", "return": "helper back", "retry": "retry",
+         "work": "work", "effort": "work", "test": "tests", "terminal": "command", "tool": "tool",
+         "search": "looking", "analyze": "looking", "ponder": "looking", "plan": "planning",
+         "success": "done", "reply": "answer", "stop": "stopped", "wait": "waiting", "idle": "quiet"}
+# Entries whose words name a fact that belongs to another topic: "Passed"
+# is about tests, so it's only said about them (and only on a success).
+ABOUT_OF_ENTRY = {"word.success.passed": "tests"}
+# The facts the bank says a take needs that the Mac can check: a success
+# word only on a success. Swears play only on a failed turn (VOICE.md §6).
+SUCCESS = {"success_confirmed", "fix_confirmed", "tests_passed", "insight_confirmed"}
 
 
 def kind(entry: dict) -> str:
     if entry["explicit"]:
         return "swear"
     return {"word": "word", "phrase": "phrase", "nonverbal": "sound"}[entry["category"]]
+
+
+def answer(entry: dict) -> tuple[str, str]:
+    """The take's part (feeling, about or attention) and its answer."""
+    intent = entry["intent"]
+    if intent in FEELING:
+        return "feeling", FEELING[intent]
+    if intent in ABOUT:
+        return "about", ABOUT_OF_ENTRY.get(entry["id"], ABOUT[intent])
+    if intent == "attention":
+        return "attention", "attention"
+    raise SystemExit(f"voicegen: {entry['id']} has intent {intent!r}, which answers neither question; map it in FEELING or ABOUT")
+
+
+def finish(entry: dict) -> str | None:
+    if entry["explicit"]:
+        return "failure"
+    return "success" if entry["requires"] in SUCCESS else None
 
 
 def mood(rec: dict) -> str:
@@ -71,38 +121,36 @@ def mood(rec: dict) -> str:
 
 
 def text(entry: dict) -> str:
-    """The bubble's text: the bank's, in the board font's ASCII."""
-    t = entry["text"].replace("....", "...")
+    """The bubble's text: the bank's, folded into the board font's ASCII."""
+    t = unicodedata.normalize("NFKD", entry["text"]).encode("ascii", "ignore").decode()
+    t = t.replace("....", "...")
     return t[:-1] if t.endswith(".") and not t.endswith("...") else t
 
 
-def load(path: Path) -> tuple[list[float], int]:
+def load(path: Path) -> list[float]:
     with wave.open(str(path)) as w:
-        assert w.getsampwidth() == 2 and w.getnchannels() == 1, path
-        rate = w.getframerate()
-        a = array("h", w.readframes(w.getnframes()))
-    return [v / 32768 for v in a], rate
+        assert w.getnchannels() == 1 and w.getframerate() == RATE, path
+        width, raw = w.getsampwidth(), w.readframes(w.getnframes())
+    if width == 1:
+        return [(b - 128) / 128 for b in raw]
+    assert width == 2, path
+    return [v / 32768 for v in struct.unpack(f"<{len(raw) // 2}h", raw)]
 
 
 def rms(x: list[float]) -> float:
     return math.sqrt(sum(v * v for v in x) / len(x)) if x else 0.0
 
 
-def trim(x: list[float], rate: int) -> list[float]:
-    step, floor = rate // 100, 10 ** (-TRIM_DB / 20)
+def trim(x: list[float]) -> list[float]:
+    step, floor = RATE // 100, 10 ** (-TRIM_DB / 20)
     loud = [i for i in range(0, len(x), step) if rms(x[i:i + step]) > floor]
     if not loud:
         return x
-    return x[max(0, loud[0] - rate * PAD_BEFORE_MS // 1000):min(len(x), loud[-1] + step + rate * PAD_AFTER_MS // 1000)]
-
-
-def decimate(x: list[float], k: int) -> list[float]:
-    """Every k-th sample after a box low-pass over k."""
-    return [sum(x[max(0, i - k + 1):i + 1]) / min(k, i + 1) for i in range(0, len(x), k)]
+    return x[max(0, loud[0] - RATE * PAD_BEFORE_MS // 1000):min(len(x), loud[-1] + step + RATE * PAD_AFTER_MS // 1000)]
 
 
 def shape(x: list[float]) -> list[float]:
-    """Saturate, normalise and fade the ends, as the old syllables were."""
+    """Saturate, normalise and fade the ends."""
     p = max(map(abs, x)) or 1
     y = [math.tanh(DRIVE * v / p) for v in x]
     p = max(map(abs, y)) or 1
@@ -127,99 +175,104 @@ def mouth(y: list[float]) -> bytes:
     return bytes(1 if f >= MOUTH_OPEN * top else 0 for f in frames)
 
 
-def convert(rec: dict) -> tuple[bytes, bytes]:
-    x, rate = load(BANK / rec["files"][TEXTURE]["path"])
-    if rate % RATE:
-        raise SystemExit(f"voicegen: {rec['id']} is {rate} Hz, not a multiple of {RATE}")
-    y = shape(decimate(trim(x, rate), rate // RATE))
+def convert(path: str) -> tuple[bytes, bytes]:
+    y = shape(trim(load(BANK / path)))
     return to_u8(y), mouth(y)
 
 
-def c_str(s: str) -> str:
-    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+def version(takes: list[dict], clips: list[bytes], mouths: list[bytes]) -> str:
+    h = hashlib.sha256()
+    for t, c, m in zip(takes, clips, mouths):
+        h.update(t["id"].encode() + b"\0" + t["text"].encode() + b"\0" + m + c)
+    return h.hexdigest()[:12]
 
 
-def write_header(takes: list[dict], clips: list[bytes], mouths: list[bytes]) -> str:
-    blob = b"".join(clips)
-    digest = hashlib.sha256(blob + b"".join(mouths) + "".join(t["id"] + t["text"] for t in takes).encode()).hexdigest()[:12]
+def write_pack(path: Path, ver: str, takes: list[dict], clips: list[bytes], mouths: list[bytes]) -> None:
+    order = sorted(range(len(takes)), key=lambda i: takes[i]["id"].encode())
+    index_at = HEADER.size
+    at = index_at + RECORD.size * len(takes)
+    records, data = [], []
+    for i in order:
+        t = takes[i]
+        if len(t["id"].encode()) >= ID_BYTES or len(t["text"].encode()) >= TEXT_BYTES:
+            raise SystemExit(f"voicegen: {t['id']}'s id or text is too long for the pack")
+        records.append(RECORD.pack(t["id"].encode(), t["text"].encode(), at + len(mouths[i]), len(clips[i]), at, len(mouths[i])))
+        data += [mouths[i], clips[i]]
+        at += len(mouths[i]) + len(clips[i])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    with open(tmp, "wb") as f:
+        f.write(HEADER.pack(MAGIC, ver.encode(), len(takes), RECORD.size, index_at, RATE, MOUTH_MS))
+        f.writelines(records)
+        f.writelines(data)
+    tmp.replace(path)
+
+
+SWIFT_CHUNK = 400  # takes per function in Takes.swift
+
+
+def write_swift(ver: str, takes: list[dict]) -> str:
+    """Takes.swift: one `append` per take, spelled out (`Take.Kind.word`,
+    `nil as String?`) and split into functions of SWIFT_CHUNK, so the Swift
+    compiler checks each statement on its own. One array literal of every
+    take makes its type checker run out of memory."""
+    chunks = [takes[i:i + SWIFT_CHUNK] for i in range(0, len(takes), SWIFT_CHUNK)]
     lines = [
-        "// Boop's voice: recorded takes as 8-bit unsigned samples at 11.025 kHz (plan/VOICE.md §3).",
-        "// Generated by internal/tools/voicegen/voicegen.py from internal/boop-design/assets/boop-voice-v1/.",
-        "// Don't edit; rerun the tool. Include from one .cpp only (voice/player.cpp).",
-        "#pragma once",
-        "#include <cstdint>",
-        "",
-        "namespace voice_assets {",
-        "",
-        f"constexpr uint32_t kRate = {RATE};",
-        f'constexpr const char* kVersion = "{digest}";',
-        f"constexpr int kTakes = {len(takes)};",
-        f"constexpr uint32_t kBytes = {len(blob)};",
-        f"constexpr uint32_t kMouthMs = {MOUTH_MS};",
-        "",
-        "struct Take {",
-        "  const char* id;",
-        "  const char* text;  // the bubble's",
-        "  uint32_t at;       // offset into kSamples",
-        "  uint16_t len;      // samples",
-        "  uint16_t mouth;    // offset into kMouth: one entry per kMouthMs (kRate * kMouthMs / 1000 samples), rounded up",
-        "};",
-        "",
-        "static const Take kTake[] = {",
-    ]
-    at = m = 0
-    for t, c, mo in zip(takes, clips, mouths):
-        lines.append(f"    {{{c_str(t['id'])}, {c_str(t['text'])}, {at}, {len(c)}, {m}}},")
-        at += len(c)
-        m += len(mo)
-    lines += ["};", "", "static const uint8_t kMouth[] = {"]
-    allm = b"".join(mouths)
-    for i in range(0, len(allm), 64):
-        lines.append("    " + ",".join(str(b) for b in allm[i:i + 64]) + ",")
-    lines += ["};", "", "static const uint8_t kSamples[] = {"]
-    for i in range(0, len(blob), 32):
-        lines.append("    " + ",".join(str(b) for b in blob[i:i + 32]) + ",")
-    lines += ["};", "", "}  // namespace voice_assets", ""]
-    return "\n".join(lines)
-
-
-def write_swift(takes: list[dict]) -> str:
-    lines = [
-        "// Boop's voice: the recorded takes on the board (plan/VOICE.md §3).",
+        "// Boop's voice: every recorded take, as the board plays them from its SD card (plan/VOICE.md §3).",
         "// Generated by internal/tools/voicegen/voicegen.py from internal/boop-design/assets/boop-voice-v1/.",
         "// Don't edit; rerun the tool.",
         "",
         "extension Take {",
+        "    /// The version of the pack these takes are in, as the board reports it.",
+        f'    public static let packVersion = "{ver}"',
+        "",
         "    /// Every take the board has, in the bank's order.",
-        "    public static let all: [Take] = [",
+        "    public static let all: [Take] = {",
+        "        var all: [Take] = []",
+        f"        all.reserveCapacity({len(takes)})",
+        *[f"        takes{i}(&all)" for i in range(len(chunks))],
+        "        return all",
+        "    }()",
     ]
-    for t in takes:
-        finish = f'"{t["finish"]}"' if t["finish"] else "nil"
-        lines.append(f'        Take(id: "{t["id"]}", text: {json.dumps(t["text"])}, meaning: "{t["meaning"]}", '
-                     f'kind: .{t["kind"]}, mood: "{t["mood"]}", finish: {finish}, ms: {t["ms"]}),')
-    lines += ["    ]", "}", ""]
+    for i, chunk in enumerate(chunks):
+        lines += ["", f"    private static func takes{i}(_ all: inout [Take]) {{"]
+        for t in chunk:
+            fin = f'"{t["finish"]}"' if t["finish"] else "nil as String?"
+            lines.append(f'        all.append(Take(id: "{t["id"]}", text: {json.dumps(t["text"])}, part: Take.Part.{t["part"]}, '
+                         f'meaning: "{t["meaning"]}", kind: Take.Kind.{t["kind"]}, mood: "{t["mood"]}", finish: {fin}, ms: {t["ms"]}))')
+        lines.append("    }")
+    lines += ["}", ""]
     return "\n".join(lines)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", type=Path, default=OUT, help="the header to write (default: firmware/assets/voice.h)")
+    ap.add_argument("--pack", type=Path, default=PACK, help="the pack to write (default: .build/voice/voice.bin)")
     ap.add_argument("--swift", type=Path, default=SWIFT, help="the Mac's table (default: app/BoopKit/Voice/Takes.swift)")
+    ap.add_argument("--card", type=Path, help="also copy the pack onto the card mounted here, as boop/voice.bin")
     ap.add_argument("--wav-dir", type=Path, help="also write every converted take as a WAV here")
     args = ap.parse_args()
 
     manifest = json.loads((BANK / "manifest.json").read_text())
     entries = {e["id"]: e for e in json.loads((BANK / "dictionary.json").read_text())["entries"]}
+    recs = manifest["recordings"]
+    with ProcessPoolExecutor(max_workers=os.cpu_count()) as pool:
+        out = list(pool.map(convert, [r["files"][TEXTURE]["path"] for r in recs], chunksize=16))
     takes, clips, mouths = [], [], []
-    for rec in manifest["recordings"]:
+    for rec, (clip, mo) in zip(recs, out):
         e = entries[rec["entryId"]]
-        clip, mo = convert(rec)
-        takes.append({"id": rec["id"], "text": text(e), "meaning": e["intent"], "kind": kind(e), "mood": mood(rec),
-                      "finish": FINISH_OF.get(e["requires"]), "ms": len(clip) * 1000 // RATE})
+        part, meaning = answer(e)
+        takes.append({"id": rec["id"], "text": text(e), "part": part, "meaning": meaning, "kind": kind(e),
+                      "mood": mood(rec), "finish": finish(e), "ms": len(clip) * 1000 // RATE})
         clips.append(clip)
         mouths.append(mo)
-    args.out.write_text(write_header(takes, clips, mouths))
-    args.swift.write_text(write_swift(takes))
+    ver = version(takes, clips, mouths)
+    write_pack(args.pack, ver, takes, clips, mouths)
+    args.swift.write_text(write_swift(ver, takes))
+    if args.card:
+        dest = args.card / CARD_PATH
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(args.pack, dest)
     if args.wav_dir:
         args.wav_dir.mkdir(parents=True, exist_ok=True)
         for t, c in zip(takes, clips):
@@ -229,8 +282,9 @@ def main() -> None:
                 w.setframerate(RATE)
                 w.writeframes(c)
     ms = [t["ms"] for t in takes]
-    print(f"voicegen: {len(takes)} takes, {sum(map(len, clips))} B of samples, {sum(map(len, mouths))} B of mouth "
-          f"({min(ms)}–{max(ms)} ms) → {args.out.relative_to(REPO)}, {args.swift.relative_to(REPO)}")
+    where = f", copied to {args.card / CARD_PATH}" if args.card else ""
+    print(f"voicegen: {len(takes)} takes, version {ver}, {args.pack.stat().st_size} B pack "
+          f"({min(ms)}–{max(ms)} ms) → {args.pack}, {args.swift.relative_to(REPO)}{where}")
 
 
 if __name__ == "__main__":

@@ -17,8 +17,8 @@ firmware once they're rerun.
   app ships it as `app/BoopKit/Actions/MoodGraph.swift`, which a test
   holds to this file move for move ([plan/harness/DECISIONS.md](../../plan/harness/DECISIONS.md) §4).
 - [Voice asset bank and agent selection guide](assets/boop-voice-v1/README.md):
-  40 recorded Robot Minion takes, three local DSP alternatives, original masters,
-  dictionary, lookup indexes and a tested host-side selector.
+  2,722 recorded Robot Minion takes (only the robot-soft texture is kept here),
+  dictionary, lookup indexes, the audition page and a tested host-side selector.
 
 From the **repository root**, with Node.js:
 

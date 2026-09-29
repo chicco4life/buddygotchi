@@ -5,8 +5,8 @@ It flares up and soon blows over: once Boop has been grumpy for 2
 min, anything but a poke in NOW cools it to annoyed.
 Its faces lean grumpy at failures and pokes. A win gets a grudging
 proud, never grumpy or excited.
-Grumbles: effort at work, frustration in a phrase at failures and
-pokes, a swear at a failed turn that stings.
+Grumbles: work in a grunt, upset in a phrase at failures and pokes,
+a swear at a failed turn that stings.
 A poke in NOW keeps it grumpy, whatever the count.
 Leaves for irritated or annoyed when the person says sorry to Boop;
 annoyed when a check passes after failing; whiny when the agent gives

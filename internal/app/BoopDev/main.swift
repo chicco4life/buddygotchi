@@ -20,11 +20,11 @@ let usages: [(command: String, text: String)] = [
         app's clock.
     """),
     ("say", """
-    boopdev say [--meaning M] [--face MOOD] [--kind K] [--finish success|failure]
-        Prints the recorded takes the board has (VOICE.md §3), those that fit: id, text, meaning, kind,
-        mood, the finish it needs and its length. With --meaning, --face and --kind, it also says which
-        the react action would pick from, stepping down to a plainer kind when there's none of that one
-        (VOICE.md §4). --kind defaults to sound.
+    boopdev say [--feeling F] [--about TOPIC] [--face MOOD] [--kind K] [--finish success|failure]
+        Prints the recorded takes the board has (VOICE.md §3), those that fit: id, text, part, answer,
+        kind, mood, the finish it needs and its length. With --face and --feeling or --about, it also
+        says the line the react action would say, the feeling's take of the nearest kind to --kind and
+        the topic's (VOICE.md §4). --kind defaults to sound.
     """),
     ("eval", """
     boopdev eval [--runs N] [--only TEXT] [--always] [--budget N | --no-budget] [--timeline] [--scenarios DIR] [--steering DIR]
@@ -168,29 +168,31 @@ func spawn(_ path: String, _ args: [String], stdin: Data, environment: [String: 
 }
 
 func say(_ raw: [String]) {
-    let args = arguments("say", raw, options: ["--meaning", "--face", "--kind", "--finish"])
+    let args = arguments("say", raw, options: ["--feeling", "--about", "--face", "--kind", "--finish"])
     let voice = Voice()
     let moods = MoodAction.moods.map(\.name)
-    if let m = args["--meaning"], !voice.meanings.contains(m) { fail("meanings: " + voice.meanings.sorted().joined(separator: ", ")) }
+    for (flag, part) in [("--feeling", Take.Part.feeling), ("--about", .about)] {
+        if let a = args[flag], !voice.answers(part).contains(a) { fail("\(flag): " + voice.answers(part).sorted().joined(separator: ", ")) }
+    }
     if let f = args["--face"], !moods.contains(f) { fail("faces: " + moods.joined(separator: ", ")) }
     guard let kind = Take.Kind(rawValue: args["--kind"] ?? "sound") else {
         fail("kinds: " + Take.Kind.allCases.map(\.rawValue).joined(separator: ", "))
     }
     let finish = args["--finish"]
     if let finish, !["success", "failure"].contains(finish) { fail("--finish is success or failure") }
+    let asked: [(Take.Part, String)] = [(.feeling, args["--feeling"]), (.about, args["--about"])].compactMap { p, a in a.map { (p, $0) } }
     let fit = voice.takes.filter { t in
-        args["--meaning"].map { $0 == t.meaning } ?? true && args["--face"].map { $0 == t.mood } ?? true
+        (asked.isEmpty || asked.contains { $0.0 == t.part && $0.1 == t.meaning }) && args["--face"].map { $0 == t.mood } ?? true
             && (t.finish == nil || finish == nil || t.finish == finish)
     }
     for t in fit {
-        print("\(t.id)\t\"\(t.text)\"\t\(t.meaning)\t\(t.kind.rawValue)\t\(t.mood)\t\(t.finish ?? "any")\t\(t.ms) ms")
+        print("\(t.id)\t\"\(t.text)\"\t\(t.part.rawValue)\t\(t.meaning)\t\(t.kind.rawValue)\t\(t.mood)\t\(t.finish ?? "any")\t\(t.ms) ms")
     }
-    if let meaning = args["--meaning"], let face = args["--face"] {
+    if let face = args["--face"], !asked.isEmpty {
         var rng = SplitMix64(seed: 1)
-        let pick = voice.take(meaning: meaning, kind: kind, face: face, finish: finish, avoiding: nil, rng: &rng)
-        let from = pick.map { p in fit.filter { $0.kind == p.kind && ($0.finish == nil || $0.finish == finish) } } ?? []
-        print(pick.map { "react says a \($0.kind.rawValue), one of: " + from.map { "\"\($0.text)\" (\($0.id))" }.joined(separator: ", ") }
-              ?? "react says nothing: no take of \(meaning) in \(face)'s mood fits")
+        let line = voice.line(feeling: args["--feeling"], about: args["--about"], kind: kind, face: face, finish: finish, rng: &rng)
+        print(line.isEmpty ? "react says nothing: no take of that in \(face)'s mood fits"
+              : "react says \"" + DeviceMoment.Say(takes: line).text! + "\" (" + line.map(\.id).joined(separator: ", ") + ")")
     }
 }
 

@@ -23,13 +23,24 @@
 {"t":"moment","say":{"take":"new.d15"}}
 {"clock":30400}
 {"shot":"longest"}
-// Its take's 1780 ms, then 1.2 s to read it.
-{"clock":32979}
+// Its take's 1845 ms, then 1.2 s to read it.
+{"clock":33044}
 {"expect":{"audio":{"take":"new.d15"}}}
-{"clock":32980}
+{"clock":33045}
 {"expect":{"moment":null,"audio":{"playing":false,"take":null}}}
 {"clock":34000}
 {"shot":"bubble-gone"}
+// A line of two takes: both words, one after the other.
+{"clock":35000}
+{"t":"moment","say":{"take":"previous.tsk","then":"phase1.word.test.validate__annoyed__contained"}}
+{"clock":35400}
+{"shot":"two-takes"}
+{"expect":{"audio":{"take":"previous.tsk"}}}
+// Text too long for the large font, 22 characters: the small one, whole.
+{"clock":40000}
+{"t":"moment","say":{"take":"phase1.phrase.setback.technical-difficulties__sad__contained"}}
+{"clock":40400}
+{"shot":"small-text"}
 // Over an animation, a line leaves it playing, and plays at once; the
 // bubble blanks the lane, which the first pack's success fills with gold.
 {"t":"state","v":1,"base":"idle"}

@@ -1,0 +1,20 @@
+15 scenarios, about 69 Jev requests
+every event, view event and pass goes to /tmp/boop-eval/20260929-172846-82839.jsonl
+pass  03-turn-failed.json  A failed turn puts Boop out, and shows it
+pass  04-tests-fight-back.json  Failing tests put Boop out, then determined, and passing after them proud
+pass  05-pokes-glad-miffed-grumpy.json  Pokes make Boop curious, then miffed, then fed up
+pass  09-failure-worked-through.json  A failure being worked through makes Boop determined, and the fix makes it proud
+pass  11-comeback-still-showing.json  A comeback still showing isn't made again when the turn finishes
+pass  12-comeback-that-didnt-happen.json  A comeback that didn't happen is made when the turn finishes
+pass  15-quiet-work.json  A long quiet stretch of work gets a small face, not a finish
+pass  16-poking-keeps-boop-angry.json  Poking Boop again and again keeps it angry
+pass  27-agent-gives-up.json  An agent that couldn't do it makes Boop sad
+pass  29-long-turn-is-nice.json  A long turn done says it went well
+pass  35-talk-gets-an-answer.json  Talking to Boop always gets a face, kind or hurt
+pass  54-talk-while-irritated.json  Talked to while irritated, Boop answers as irritated, not grumpy
+pass  60-stinging-failure-swears.json  A failure that really stings gets a swear
+pass  61-no-swear-at-a-win.json  Boop never swears at a win, a poke or the person
+pass  62-face-says-what-it-means.json  Boop says something when it reacts
+15/15 passed in every run with jev:jev-latest
+latency: median 223 ms, slowest 401 ms (deadline 1500 ms)
+to read them: boopdev watch /tmp/boop-eval/20260929-172846-82839.jsonl

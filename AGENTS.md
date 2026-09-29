@@ -44,7 +44,7 @@ lived in `archived/`, now at git tag `archived-final`
 The everyday entry points are in [README.md](README.md), which stays a
 short overview. The root `Makefile` has only what the owner uses: `build`,
 `run`, `debug`, `flash`, `eval` and `clean`. The development targets
-(`test`, `tools-test`, `fw`, `fw-test`, `sim`, `e2e`, `faces`, `tools`)
+(`test`, `tools-test`, `voice`, `fw`, `fw-test`, `sim`, `e2e`, `faces`, `tools`)
 are in `internal/Makefile`; run them from the repo root as
 `make -C internal <target>`. Every make target and tool is in
 [plan/VERIFICATION.md](plan/VERIFICATION.md) §2, and each CLI prints its

@@ -3,7 +3,8 @@ import Foundation
 /// A `moment` message: something for the device to play (PROTOCOL.md §3).
 /// A rule moment has an `anim`; a brain reaction has a `say` and a `mood`,
 /// its expression: the device draws that mood's version of the look while
-/// the moment plays, and says the take in `say`, if there is one, over it. The rules' moments never carry one. Whoever plays an
+/// the moment plays, and says the line in `say`, if there is one, over
+/// it. The rules' moments never carry one. Whoever plays an
 /// animation or a face says how many `loops` of its design. A moment the
 /// app waits on has an `id`, which the device's `ended` gives back (§4). The
 /// finish for a thread's turn says `who`: the device names it in the strip
@@ -22,18 +23,32 @@ public struct DeviceMoment: Equatable, Sendable {
         }
     }
 
-    /// What a brain reaction says: a recorded take, or nothing. A reaction
+    /// What a brain reaction says: a line of up to two recorded takes (the
+    /// feeling's, then the topic's; VOICE.md §4), or nothing. A reaction
     /// always has one, even with no take: it's the reply that ends
     /// push-to-talk's `listening` (PROTOCOL.md §3).
     public struct Say: Equatable, Sendable {
-        public var take: Take?
+        public var takes: [Take]
 
-        public init(take: Take?) {
-            self.take = take
+        public init(takes: [Take]) {
+            self.takes = Array(takes.prefix(2))
         }
 
-        /// The `say` object: `{"take":"new.d02"}`, or `{}`.
-        public var json: String { take.map { "{\"take\":\(Event.quote($0.id))}" } ?? "{}" }
+        /// The `say` object: `{"take":"new.d02"}`, with its second take as
+        /// `then`, or `{}`.
+        public var json: String {
+            guard let first = takes.first else { return "{}" }
+            let then = takes.count > 1 ? ",\"then\":\(Event.quote(takes[1].id))" : ""
+            return "{\"take\":\(Event.quote(first.id))\(then)}"
+        }
+
+        /// How long the line plays: its takes, and the gap between two.
+        public var ms: Int {
+            takes.map(\.ms).reduce(0, +) + (takes.count > 1 ? Voice.joinGapMs : 0)
+        }
+
+        /// What the bubble shows, and HISTORY reads: the takes' words.
+        public var text: String? { takes.isEmpty ? nil : takes.map(\.text).joined(separator: " ") }
     }
 
     public var anim: String?
@@ -137,17 +152,17 @@ public struct DeviceMoment: Equatable, Sendable {
         DeviceMoment(anim: run >= MomentSchedule.tapSpamFrom ? "tap_spam" : "poked").playMs(look: "idle", mood: mood)
     }
 
-    /// How long its take plays, then 1.2 s for the bubble; 0 with none.
+    /// How long its line plays, then 1.2 s for the bubble; 0 with none.
     public var sayMs: Int64 {
-        guard let take = say?.take else { return 0 }
-        return Int64(take.ms) + DeviceMoment.bubbleReadMs
+        guard let say, !say.takes.isEmpty else { return 0 }
+        return Int64(say.ms) + DeviceMoment.bubbleReadMs
     }
 
     /// How long a brain reaction with no animation keeps the next one from
     /// replacing its face (ARCHITECTURE.md §3.2): its take and bubble, or
     /// for one that says nothing, as long as a bubble shows, so a silent
     /// face is seen before the next replaces it.
-    public var faceFirstMs: Int64 { say?.take == nil ? DeviceMoment.bubbleReadMs : sayMs }
+    public var faceFirstMs: Int64 { sayMs == 0 ? DeviceMoment.bubbleReadMs : sayMs }
 
     public var jsonLine: String {
         var parts = ["\"t\":\"moment\""]

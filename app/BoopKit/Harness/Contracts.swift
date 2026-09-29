@@ -69,7 +69,7 @@ public struct Option: Equatable, Sendable {
 
 /// A multiple-choice question an action asks Jev.
 public struct Question: Equatable, Sendable {
-    /// Unique across all actions: `react`, `say.meaning`.
+    /// Unique across all actions: `react`, `say.feeling`.
     public let key: String
     public let text: String
     /// The part of the state it's about: `the NOW section`.

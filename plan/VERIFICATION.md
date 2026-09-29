@@ -51,8 +51,10 @@ new art.
 ([VOICE.md](VOICE.md) §3). `node internal/boop-design/assets/boop-voice-v1/tools/check.mjs`
 validates the bank itself: every recording's hash, PCM format and level,
 the indexes, and its own reference selector; it's offline and never plays
-sound or calls an API. `voicegen` turns the bank into the board's and the
-Mac's tables (below), and `VoiceTests` checks the two list the same takes.
+sound or calls an API; the repo keeps only the robot-soft WAVs, and it
+checks the textures that are there. `voicegen` turns the bank into the
+voice pack and the Mac's table (below), and `VoiceTests` checks the two
+list the same takes.
 Evidence: [voice asset publication](evidence/2026-09-29-voice-asset-push/README.md),
 [voice bank integration](evidence/2026-09-29-voice-bank/PLAN.md).
 
@@ -76,6 +78,7 @@ launch the menu-bar app or run the whole eval.
 | `make flash` | Builds the firmware and uploads it over USB; `BOOP_PORT` picks the port |
 | `make eval` | Builds, then runs every eval scenario against Jev with no request budget, 3 runs each for an `always` scenario and 1 for the rest (L5): the final pass, about 620 requests; fails without `BOOP_JEV_KEY` |
 | `make clean` | Deletes `.build` and `firmware/.pio` |
+| `make -C internal voice` | Builds the voice pack, `.build/voice/voice.bin`, and `Takes.swift` with voicegen (below) when the bank or voicegen changed. `test`, `fw-test` and `sim` make it first, since they read it |
 | `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim (`python3 internal/app/tools/test.py`), since there's no Xcode |
 | `make -C internal fw` | Builds the firmware for the board |
 | `make -C internal fw-test` | The firmware's unit tests on the Mac (`pio test -e native`) |
@@ -97,7 +100,7 @@ commands go through the bridge.
 | `shot [--out FILE]` | Saves a screenshot of the canvas as a PNG (default `/tmp/boop-shot.png`) |
 | `send '<json>'` | Sends one message as the Mac would; for a `dbg.*` request it prints the reply |
 | `play ANIM\|needs\|pattern` | Makes the board do one thing the Mac can, and checks it took. An animation (`task_complete`, `reply_ready`, `starting`, `stopped`, `error`, `helper_return`, `poked` or `tap_spam`, or the older `cheer` and `wiggle`) plays over `--base` (idle) in `--mood` (happy) at `--vol` (1–10, 6), and `--loops N` (1–6) sends that many loops (without it the moment has none, which plays once); `--variant N`, `--outcome success\|failure` (task_complete) and `--ctx new_task\|session\|continuation` (starting) pick its variation, and it prints the one playing; `--take ID` adds that take, from the design's voice window. `needs` holds a fake "needs you" for `--seconds` (10) from `--agent` (claude) on `--project` (boopctl) with `--more` (0), and reports whether its performance started and its ding was sent. `pattern` shows the test pattern |
-| `takes [--only TEXT]` | Plays every take on the board on its own, one after another (or those whose id starts with `--only`, or whose text is it or has it as a word, any case), printing each id and text, and checks each in `audio.out`: the take, and the DAC's time within 10% of its length; then that a muted line moves the mouth silently. `--vol`, `--gap S` between takes (0.8), `--json`. For listening: `--board-volume` plays the first take at the volume the board already has; `--levels L…` plays the first take at each level, `--rounds N` times (6) |
+| `takes [--only TEXT]` | Plays every take in the card's voice pack on its own, one after another, about two and a half hours for all 2,722 (or those whose id starts with `--only`, or whose text is it or has it as a word, any case), printing each id and text, and checks each in `audio.out`: the take, and the DAC's time within 10% of its length; then that a muted line moves the mouth silently. `--vol`, `--gap S` between takes (0.8), `--json`. For listening: `--board-volume` plays the first take at the volume the board already has; `--levels L…` plays the first take at each level, `--rounds N` times (6) |
 | `sim [scenario…] [--accept]` | Plays scenarios (all by default) in the simulator into `/tmp/boop-sim/<scenario>/` and compares them with the goldens (L1); `--accept` copies the pictures in |
 | `run [scenario…]` | Plays scenarios on the board and diffs each screenshot against the simulator's, threshold 0 (L2), then lets the clock run again |
 | `perf [--seconds N] [--motion]` | Samples fps, frame time and heap once a second for N s (30); `--motion` keeps the face moving (L2) |
@@ -115,7 +118,7 @@ commands go through the bridge.
 | --- | --- |
 | `replay <hooks.jsonl> [--agent claude\|codex] [--gap-ms N] [--states]` | Runs recorded hook payloads through `boop-hook`'s field picking, the adapter and the pipeline (the core and the view) on a virtual clock, and prints each raw event, the core's decisions and the view events. `{"wait_ms":N}` and `{"advance_ms":N}` lines move the clock. `--states` prints only what goes to the device: each `state` and each rule `moment` |
 | `replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]` | Sends each payload through the real `boop-hook` to a running app, in real time, and times each `boop-hook` from launch to exit. `{"advance_ms":N}` moves a headless app's clock |
-| `say [--meaning M] [--face MOOD] [--kind K] [--finish success\|failure]` | Prints the takes the board has that fit ([VOICE.md](VOICE.md) §3), and with a meaning and a face, which `react` would pick from ([VOICE.md](VOICE.md) §4); `--kind` is `sound` by default |
+| `say [--feeling F] [--about TOPIC] [--face MOOD] [--kind K] [--finish success\|failure]` | Prints the takes the board has that fit ([VOICE.md](VOICE.md) §3), and with a face and a feeling or topic, the line `react` would say ([VOICE.md](VOICE.md) §4); `--kind` is `sound` by default |
 | `eval [--runs N] [--only TEXT] [--always] [--budget N \| --no-budget] [--timeline] [--scenarios DIR] [--steering DIR]`, `eval --list` | The eval scenarios against Jev (L5, [EVALS.md](EVALS.md)), stopping first if they'd send more than the budget of requests (100 by default); `--list` prints each one's case, runs and requests with no key |
 | `watch [FILE] [--new]` | Prints a `debug.jsonl`'s view events, passes and actions readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's. `--new` skips what's already there |
 | `hooks status\|install\|remove [claude\|codex] --home DIR [--hook PATH]` | The hook installer, against any HOME ([ADAPTERS.md](ADAPTERS.md)) |
@@ -133,7 +136,7 @@ commands go through the bridge.
 
 | Tool | What it does |
 | --- | --- |
-| `python3 internal/tools/voicegen/voicegen.py [--out FILE] [--swift FILE] [--wav-dir DIR]` | Rebuilds the voice from the recorded bank: `firmware/assets/voice.h` and the Mac's `app/BoopKit/Voice/Takes.swift` ([VOICE.md](VOICE.md) §3); `--wav-dir` also writes every converted take as a WAV |
+| `python3 internal/tools/voicegen/voicegen.py [--pack FILE] [--swift FILE] [--card DIR] [--wav-dir DIR]` | Rebuilds the voice from the recorded bank ([VOICE.md](VOICE.md) §3): the pack, `.build/voice/voice.bin` (not checked in), and the Mac's `app/BoopKit/Voice/Takes.swift`, in about 3 s. `--card /Volumes/<card>` also copies the pack onto a microSD card in the Mac, as `boop/voice.bin`; `--wav-dir` writes every converted take as a WAV |
 | `node internal/tools/sfxgen/sfxgen.mjs [--wav-dir DIR]` | Rebuilds the sound effects, `firmware/assets/sfx.h`, from the animation bank's synthesiser and timelines, for the designs facegen lists, so after `make -C internal faces` ([VOICE.md](VOICE.md) §10); `--wav-dir` also writes every clip as a WAV |
 | `internal/tools/.venv/bin/python internal/tools/fontgen/fontgen.py [--ttf-dir DIR]` | Rebuilds the device's fonts, `firmware/assets/fonts.h`, from Geist Mono ([DEVICE.md](DEVICE.md) §6); the `.ttf` files are in `landing/node_modules` after `npm ci` there, by default |
 | `internal/tools/.venv/bin/python internal/tools/facegen/facegen.py [--check]` | What `make -C internal faces` runs; without `--check` it skips the comparison with Chrome |

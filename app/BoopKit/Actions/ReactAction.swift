@@ -5,9 +5,10 @@ import Foundation
 /// is a mood × a visual for a moment: the device draws that mood's design
 /// of whatever look is showing, or of the animation picked (a turn's
 /// finish: task_complete for its outcome, or reply_ready), for a number of
-/// its loops (PROTOCOL.md §3). Jev picks what Boop says as a meaning and a
-/// kind, and Voice finds a recorded take of it in the face's mood, or none,
-/// and then the face plays in silence. It plays once any line or
+/// its loops (PROTOCOL.md §3). Jev picks what Boop says as a feeling, a
+/// topic and a kind, and Voice finds a recorded take of each in the face's
+/// mood and joins them into a line, or finds none, and then the face plays
+/// in silence. It plays once any line or
 /// reaction's face playing has finished. It's started, not done, until
 /// whoever plays the moment ends its handle.
 public final class ReactAction: Action {
@@ -22,21 +23,26 @@ public final class ReactAction: Action {
     /// The agent and thread NOW is about, or nil (a poke, an idle
     /// heartbeat): a finish names it on the device.
     let who: () -> DeviceMoment.Who?
-    /// Picks among the takes that fit, and remembers the last one said,
-    /// which isn't said again while another fits.
+    /// Whether the device plays the takes Voice picks from: false while its
+    /// card has another pack, or none (VOICE.md §8), and then Boop says
+    /// nothing.
+    let speaks: () -> Bool
+    /// Picks among the takes that fit, and remembers the last line's,
+    /// which aren't said again while another fits.
     var takes = SplitMix64(seed: 0x7A4E)
-    var lastTake: String?
+    var lastTakes: Set<String> = []
     /// Picks each finish's variation, never the last one of its animation
     /// (BEHAVIORS.md §5).
     var variants = SplitMix64(seed: 0xB00B)
     var lastVariant: [String: Int] = [:]
 
     public init(voice: Voice, queue: @escaping (DeviceMoment, Pending) -> Void, blocked: @escaping () -> String?,
-                who: @escaping () -> DeviceMoment.Who? = { nil }) {
+                who: @escaping () -> DeviceMoment.Who? = { nil }, speaks: @escaping () -> Bool = { true }) {
         self.voice = voice
         self.queue = queue
         self.blocked = blocked
         self.who = who
+        self.speaks = speaks
     }
 
     static func article(_ word: String) -> String { "aeiou".contains(word.first ?? "x") ? "an" : "a" }
@@ -53,38 +59,57 @@ public final class ReactAction: Action {
                notFor: "A failure."),
         Option("determined", "A determined face: a check failed and the agent is trying again, or long work goes on.",
                notFor: "A turn that has ended."),
-        Option("grumpy", "A grumpy face: a turn failed, or Boop is poked three or more times in a row.",
-               notFor: "An agent giving up."),
+        Option("grumpy", "A grumpy face: Boop is poked three or more times in a row, or failures pile up on failures.",
+               notFor: "An agent giving up, or a single failed turn: that's irritated."),
         Option("sad", "A sad face: a very long turn ended failed, or the agent gave up, stuck.",
                notFor: "A shorter turn failing with an error, or a check failing."),
         Option("calm", "A calm face: all is well, and nothing stands out."),
         Option("engaged", "An engaged face: following work that's going well.", notFor: "A failure."),
         Option("annoyed", "An annoyed face: a small failure, or poked twice in a row, a little miffed."),
-        Option("irritated", "An irritated face: failures or pokes that keep coming."),
+        Option("irritated", "An irritated face: a turn that failed, or failures or pokes that keep coming.",
+               notFor: "An agent giving up: that's sad."),
         Option("whiny", "A whiny face: things keep going wrong, and Boop feels sorry for itself."),
         Option("wounded", "A wounded face: rude words to Boop, or a big failure after a lot of work."),
     ]
 
-    /// What a reaction can mean, in the order `say.meaning` offers them
-    /// (DECISIONS.md §3). Voice's takes each have one; a meaning with no
-    /// take isn't offered, and a test checks every take's has its words
-    /// here.
-    public static let meanings = [
-        Option("begin", "A turn starting: off it goes.", notFor: "Work going on, or a turn that finished."),
-        Option("work", "Steady work going on, going well.", notFor: "A failure, or a turn that finished."),
-        Option("effort", "Straining: long or hard work going on.", notFor: "A turn that finished."),
-        Option("ponder", "Puzzled or curious: a question, or something new or confusing.", notFor: "A failure."),
-        Option("success", "A turn finished, done and working.", notFor: "Anything but a success."),
-        Option("celebrate", "A big win: a long or very long turn done, or thanks.", notFor: "A short turn done, or anything but a win."),
-        Option("relief", "Relief: it worked in the end.", notFor: "Anything but a success, or a first try."),
-        Option("pride", "Smug: something long or hard finished well.", notFor: "Anything but a success, or a small win."),
-        Option("delight", "Tickled: a win, a poke or kind words.", notFor: "A failure."),
-        Option("frustration", "Something failed or keeps failing: a check, a turn, or the agent giving up.", notFor: "A win."),
-        Option("retry", "The same thing again: a retry, or the person saying it's still broken.", notFor: "A first failure."),
+    /// How Boop can feel about NOW, in the order `say.feeling` offers them
+    /// (DECISIONS.md §3). Every feeling take has one; one with no take
+    /// isn't offered, and a test checks every take's has its words here.
+    public static let feelings = [
+        Option("upset", "Something went wrong or let Boop down: a check or a turn failing, the agent stuck or giving up, rude words or sad news.",
+               notFor: "A win, a poke, or work going on, however long."),
+        Option("glad", "Something went right: a turn done and working, a check passing, a big win, thanks or kind words.",
+               notFor: "A failure, or work still going on."),
+        Option("tickled", "Poked or teased: a poke, a tap, or playful words to Boop.",
+               notFor: "A failure, or the agent's work."),
     ]
 
-    /// How a reaction says its meaning (DECISIONS.md §3), plainest first:
-    /// with none of the kind asked for, Voice steps down to a plainer one.
+    /// What NOW can be about, in the order `say.about` offers them
+    /// (DECISIONS.md §3): each a topic NOW's line shows. Every topic take
+    /// has one, and a test checks it.
+    public static let topics = [
+        Option("start", "A turn starting: off it goes.", notFor: "Work going on, or a turn that finished."),
+        Option("helpers", "The agent starting a subagent: helpers sent off."),
+        Option("helper back", "A subagent finishing: a helper back with its report."),
+        Option("retry", "The same thing again: a retry, a check run again after failing, or the person saying it's still broken.",
+               notFor: "A first failure."),
+        Option("work", "Work going on: edits, steady progress, a long or hard turn.", notFor: "A turn that finished."),
+        Option("tests", "Tests: running, failing or passing."),
+        Option("command", "A command or a build running in the terminal.", notFor: "Tests: they're tests."),
+        Option("tool", "A tool: the web, an MCP tool, something fetched or looked up."),
+        Option("looking", "Searching or reading: the agent looking through files, or something puzzling."),
+        Option("planning", "Planning: the agent in plan mode, or thinking before it acts."),
+        Option("done", "A turn finished, done and working.", notFor: "Anything but a success."),
+        Option("answer", "A turn that only answered something or asked something back.", notFor: "Work done, or a failure."),
+        Option("stopped", "A turn stopped: interrupted, or the agent giving up.", notFor: "A turn that finished done."),
+        Option("waiting", "Waiting: a long command, or the agent waiting on something slow.",
+               notFor: "Something that needs the person: the ding says that."),
+        Option("quiet", "Nothing going on: a quiet check-in, or words to Boop about nothing in particular."),
+    ]
+
+    /// How big what it says is (DECISIONS.md §3), plainest first:
+    /// with none of the kind asked for, Voice takes the nearest one, but
+    /// never a swear unless one was asked for.
     public static let kinds = [
         Option("sound", "A noise with no word: a huff, a grunt, a gasp. The usual."),
         Option("word", "One word that names the moment.", notFor: "A routine check-in."),
@@ -143,29 +168,36 @@ public final class ReactAction: Action {
     /// (DECISIONS.md §5).
     public static let sayFloor = 0.35
 
-    /// What the reaction means (DECISIONS.md §5): `say.meaning`'s pick if
-    /// it isn't `none` and reaches the floor, else nil.
-    public static func meaning(_ answers: Answers) -> String? {
-        guard let a = answers["say.meaning"], a.choice != "none", a.p >= sayFloor,
-              meanings.contains(where: { $0.name == a.choice }) else { return nil }
+    /// A `say` question's pick (DECISIONS.md §5): its answer if it isn't
+    /// `none`, reaches the floor and is one of `options`, else nil.
+    static func pick(_ answers: Answers, _ key: String, _ options: [Option]) -> String? {
+        guard let a = answers[key], a.choice != "none", a.p >= sayFloor,
+              options.contains(where: { $0.name == a.choice }) else { return nil }
         return a.choice
     }
 
-    /// How it says it: `say.kind`'s pick, or a sound when it's missing.
+    /// How Boop feels, `say.feeling`'s pick, or nil.
+    public static func feeling(_ answers: Answers) -> String? { pick(answers, "say.feeling", feelings) }
+    /// What NOW is about, `say.about`'s pick, or nil.
+    public static func about(_ answers: Answers) -> String? { pick(answers, "say.about", topics) }
+
+    /// How big the feeling's take is: `say.kind`'s pick, or a sound when
+    /// it's missing.
     public static func kind(_ answers: Answers) -> Take.Kind {
         answers["say.kind"].flatMap { Take.Kind(rawValue: $0.choice) } ?? .sound
     }
 
-    /// `say.meaning`'s options: `none`, then each meaning Voice has a take
-    /// of, naming the faces that can say it, so Jev can pick a face and a
-    /// meaning that go together.
-    func meaningOptions() -> [Option] {
-        let have = voice.meanings
-        return [Option("none", "Say nothing: nothing in NOW is worth a word or a sound.")]
-            + Self.meanings.filter { have.contains($0.name) }.map { m in
-                let faces = voice.faces(saying: m.name, in: MoodAction.moods.map(\.name)).joined(separator: ", ")
-                return Option(m.name, m.what + " Only these faces can say it: \(faces).", notFor: m.notFor)
-            }
+    /// A `say` question's options: `none`, then each of `options` Voice has
+    /// a take of, naming the faces that can say it when not all of them
+    /// can, so Jev can pick a face and an answer that go together.
+    func sayOptions(_ part: Take.Part, _ options: [Option], none: String) -> [Option] {
+        let have = voice.answers(part)
+        let moods = MoodAction.moods.map(\.name)
+        return [Option("none", none)] + options.filter { have.contains($0.name) }.map { o in
+            let faces = voice.faces(saying: o.name, part: part, in: moods)
+            let only = faces.count == moods.count ? "" : " Only these faces can say it: \(faces.joined(separator: ", "))."
+            return Option(o.name, o.what + only, notFor: o.notFor)
+        }
     }
 
     public func questions() -> [Question] {
@@ -183,9 +215,13 @@ public final class ReactAction: Action {
                          + Self.animations),
             Question(key: "react.loops", text: "If Boop reacts, how long does it hold the face?", about: "the NOW section",
                      judgeBy: byBoth, options: Self.holds),
-            Question(key: "say.meaning", text: "If Boop reacts, what does it say about NOW? It says it in its face's mood.",
-                     about: "the NOW section", judgeBy: byBoth, options: meaningOptions()),
-            Question(key: "say.kind", text: "If Boop says something, how does it say it?", about: "the NOW section",
+            Question(key: "say.feeling", text: "If Boop reacts, how does it feel about NOW? It says so first, in its face's mood.",
+                     about: "the NOW section", judgeBy: byBoth,
+                     options: sayOptions(.feeling, Self.feelings, none: "No feeling to say: nothing in NOW is worth a sound.")),
+            Question(key: "say.about", text: "If Boop reacts, what is NOW about? It names it after the feeling, in its face's mood.",
+                     about: "the NOW section", judgeBy: "NOW's line",
+                     options: sayOptions(.about, Self.topics, none: "No topic to name: NOW's line isn't about any of these.")),
+            Question(key: "say.kind", text: "If Boop says something, how big is it?", about: "the NOW section",
                      judgeBy: byBoth, options: Self.kinds),
         ]
     }
@@ -197,15 +233,16 @@ public final class ReactAction: Action {
         }
         // 2. This action's own rules.
         if let why = blocked() { return .failed(why) }
-        // 3. The effect: the face, and the take it says, if Voice has one
-        // for the meaning in this face's mood and the turn's finish.
+        // 3. The effect: the face, and the line it says, if Voice has takes
+        // for the feeling and the topic in this face's mood and the turn's
+        // finish.
         let loops = Self.loops(answers)
         let pick = Self.animation(answers)
-        let take = Self.meaning(answers).flatMap {
-            voice.take(meaning: $0, kind: Self.kind(answers), face: choice, finish: pick, avoiding: lastTake, rng: &takes)
-        }
-        if let take { lastTake = take.id }
-        var moment = DeviceMoment(say: DeviceMoment.Say(take: take), mood: choice, loops: loops)
+        let line = !speaks() ? [] : voice.line(feeling: Self.feeling(answers), about: Self.about(answers), kind: Self.kind(answers),
+                                               face: choice, finish: pick, avoiding: lastTakes, rng: &takes)
+        if !line.isEmpty { lastTakes = Set(line.map(\.id)) }
+        let say = DeviceMoment.Say(takes: line)
+        var moment = DeviceMoment(say: say, mood: choice, loops: loops)
         if let pick {
             // A finish: its scene, a variation of it for its outcome in the
             // face's design (never the last one), and whose turn it was.
@@ -223,6 +260,6 @@ public final class ReactAction: Action {
         // the device says how the moment ended.
         let did = pick.map { "Boop played \(Self.article($0)) \($0) in \(Self.article(choice)) \(choice) face" }
             ?? "Boop made \(Self.article(choice)) \(choice) face"
-        return .started(did + ", held \(Self.holds[loops - 1].name)" + (take.map { ", and said \"\($0.text)\"." } ?? "."), pending)
+        return .started(did + ", held \(Self.holds[loops - 1].name)" + (say.text.map { ", and said \"\($0)\"." } ?? "."), pending)
     }
 }

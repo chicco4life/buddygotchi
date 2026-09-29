@@ -327,7 +327,7 @@ public final class Runtime: @unchecked Sendable {
             // brought one, else the view's: its workspace, else its project.
             guard let key = acting()?.about, let who = view.who(about: key) else { return nil }
             return DeviceMoment.Who(agent: who.agent, thread: core.name(about: key) ?? who.thread)
-        })
+        }, speaks: { link.status?.hasTheVoice ?? true })
         let actions: [any Action] = [moodChanges, react]
         let steering = options.steering
         let mood = self.mood

@@ -59,14 +59,17 @@ void drawBox(Canvas& c, int w) {
 }
 
 // The line's text in its bubble, which takes the whole lane: the text
-// centred, cut to fit the room.
+// centred in the large font, or the small one when it doesn't fit (20
+// characters do, the longest line 34), cut to fit the room.
 void drawBubble(Canvas& c, const char* text) {
   c.fillRect(0, kLaneTop, kWidth, kHeight - kLaneTop, kBlack);  // the lane is the bubble's
   const int room = kWidth - 2 * kMargin - 2 * (kBubblePad + kBubbleLine);
-  int w = stringWidth(kLarge, text);
+  const bool large = stringWidth(kLarge, text) <= room;
+  const Font& f = large ? kLarge : kSmall;
+  int w = stringWidth(f, text);
   if (w > room) w = room;
   drawBox(c, w);
-  drawStringFit(c, kLarge, (kWidth - w) / 2, kBubbleCy - kLarge.baseline + 8, text, kInkAmber, room);
+  drawStringFit(c, f, (kWidth - w) / 2, kBubbleCy - f.baseline + (large ? 8 : 5), text, kInkAmber, room);
 }
 
 // Status-strip icons, 16 px boxes with (x, y) at the top left.

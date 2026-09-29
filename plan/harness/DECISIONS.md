@@ -18,9 +18,9 @@ Two actions, registered in this order (`Runtime`):
 | Action | Decides | Its questions | Effect |
 | --- | --- | --- | --- |
 | `mood` (§4) | Whether Boop's mood stays or moves one step along the mood graph, and to which neighbour | `mood` | The `mood` file; MOOD from the next pass; the device's set of faces |
-| `react` (§5) | Whether Boop reacts, with which mood's face, for how long, what it says and how, and, for a turn that finished, how it ended | `react.mood`, `react.animation`, `react.loops`, `say.meaning`, `say.kind` | The device draws the look, or the finish's scene when there is one, in that mood's design for the loops picked, and says a recorded take in that mood if Voice has one ([VOICE.md](../VOICE.md) §4) |
+| `react` (§5) | Whether Boop reacts, with which mood's face, for how long, what it says and how, and, for a turn that finished, how it ended | `react.mood`, `react.animation`, `react.loops`, `say.feeling`, `say.about`, `say.kind` | The device draws the look, or the finish's scene when there is one, in that mood's design for the loops picked, and says a recorded take in that mood if Voice has one ([VOICE.md](../VOICE.md) §4) |
 
-All six questions go in one request, and Jev answers each on its own
+All seven questions go in one request, and Jev answers each on its own
 ([HARNESS.md](HARNESS.md) §7). So both actions are judged against the
 mood as it stood: on a pass that changes the mood, the reaction is still
 judged by the old one. The guide asks for the two to fit together (a
@@ -86,16 +86,17 @@ event. It has two parts:
   [BEHAVIORS.md](../BEHAVIORS.md) §6's, and it never reaches Jev.
 - **The text,** which is the PERSONALITY section: who this Boop is, how
   often it speaks up, and its Examples, each a NOW line and what it
-  would pick: the face, a finished turn's outcome, what it means and in
-  which kind, and how long it holds (`→ grumpy, failure, frustration in
-  a swear, once`, or `→ annoyed, frustration in a sound, once` for a
-  line that isn't a finish). `says nothing` is `say.meaning`'s `none`
-  (§3).
+  would pick: the face, a finished turn's outcome, the feeling and how
+  big, then the topic, and how long it holds (`→ irritated, failure,
+  upset in a swear, once`, or `→ annoyed, upset in a sound, then tests,
+  once` for a line that isn't a finish; `→ happy, success, done in a
+  word, once` names only a topic). The guide says how to read them
+  (`a feeling, then a topic`).
 
 | Personality | For | Its text |
 | --- | --- | --- |
-| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted, a little smug and lively: it never sits still for long, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments, and almost always says something, with a face that can say it: mostly a sound or a word, a phrase for a big moment, and a swear, grumpy, at a failed turn that really stings, never at the person. A failed check is annoyed with a frustrated sound, held once; a check passing after failing proud, twice, saying nothing (no proud take fits a check); a very long turn done excited, a success, celebrating in a phrase, three times; a failed turn grumpy, a failure, with a swear, once; an agent giving up sad, a failure, saying nothing. A stopped turn has no Example: the device shows the stop on its own. Every turn that finishes done or failed gets a face and its outcome: a success when the work is done and working, a failure when it failed or the agent couldn't finish, a reply when it only answered or asked back (curious, pondering in a sound). A turn start gets nothing, unless the person sounds frustrated (determined, retry in a word) or thanks the agent (excited, begin in a word). Work still going gets an engaged face held twice at every working heartbeat, never none, with work in a word or effort in a sound. Poked, it's curious, then miffed: a single poke gets a curious ponder, two in a row an annoyed huff, four a grumpy phrase. Talked to, it always answers with a face, never none: proud with a delighted sound at kind words, wounded and silent at rude ones, sad at sad news |
-| [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses, heartbeats and what you say included, always says something, a phrase whenever it can, swears at every failed turn, and holds its faces long: twice for routine lines, up to four times for a fix or a very long turn done, a success |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted, a little smug and lively: it never sits still for long, and it all shows on its face. It reacts to anything that stands out, with a strong face, held longer for bigger moments, and almost always says how it feels, what NOW is about, or both, but never just to speak: mostly a sound or a word, a phrase for a big moment, and a swear, irritated, at a failed turn that really stings. A failed check is annoyed, upset in a sound, then tests, held once; a build passing after failing proud, glad in a sound, then command, twice; a very long turn done excited, a success, glad in a phrase, three times; a failed turn irritated, a failure, upset in a swear, once; an agent giving up sad, a failure, upset in a sound. A stopped turn has no Example: the device shows the stop on its own. Every turn that finishes done or failed gets a face and its outcome: a success when the work is done and working, a failure when it failed or the agent couldn't finish, a reply when it only answered or asked back (curious, answer in a word). A turn start gets nothing, unless the person sounds frustrated (determined, retry in a word) or thanks the agent (excited, glad in a word, then start). Work still going gets an engaged face held twice at every working heartbeat, never none, with work in a word, or in a sound for a very long turn. Poked, it's curious, then miffed: a single poke gets a curious, tickled word, two in a row an annoyed, upset sound, four a grumpy, upset phrase. Talked to, it always answers with a face, never none: proud and glad at kind words, wounded and upset at rude ones, sad at sad news |
+| [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses, heartbeats and what you say included, always says something, how it feels and what NOW is about whenever both fit, a phrase whenever it can, swears at every failed turn, and holds its faces long: twice for routine lines, up to four times for a fix or a very long turn done, a success |
 
 "Never stays quiet" is still Jev's call: `none` stays an option, and the
 moods still apply.
@@ -262,8 +263,9 @@ meaning is its criterion.
 | `react.mood` | `react` | How should Boop react to NOW, if at all? It makes this mood's face for a moment, and may say something. | the NOW section | the PERSONALITY and MOOD sections, PERSONALITY's Examples first | `none` and the 13 moods' faces |
 | `react.animation` | `react` | If Boop reacts and NOW's line is a turn that finished, how did the turn end? | the NOW section | NOW's line and the agent's last message under it | `none`, `success`, `failure` and `reply` |
 | `react.loops` | `react` | If Boop reacts, how long does it hold the face? | the NOW section | as `react.mood` | Four lengths, once to four times |
-| `say.meaning` | `react` | If Boop reacts, what does it say about NOW? It says it in its face's mood. | the NOW section | as `react.mood` | `none` and the meanings Voice has a take of, each naming the faces that can say it (11 today) |
-| `say.kind` | `react` | If Boop says something, how does it say it? | the NOW section | as `react.mood` | `sound`, `word`, `phrase` and `swear` |
+| `say.feeling` | `react` | If Boop reacts, how does it feel about NOW? It says so first, in its face's mood. | the NOW section | as `react.mood` | `none` and the feelings Voice has a take of (3 today) |
+| `say.about` | `react` | If Boop reacts, what is NOW about? It names it after the feeling, in its face's mood. | the NOW section | NOW's line | `none` and the topics Voice has a take of (15 today) |
+| `say.kind` | `react` | If Boop says something, how big is it? | the NOW section | as `react.mood` | `sound`, `word`, `phrase` and `swear` |
 
 **The `mood` question** is built on every pass from the saved mood
 (`MoodAction.options(from:)`): its first option is staying, named for
@@ -301,12 +303,12 @@ disagree (a "no" with a confident "proud"); one choice can't.
 | `proud` | A proud face: something long or hard just finished, or finally worked |
 | `curious` | A curious face: a poke, a question, or something new or puzzling. Not for a failure |
 | `determined` | A determined face: a check failed and the agent is trying again, or long work goes on. Not for a turn that has ended |
-| `grumpy` | A grumpy face: a turn failed, or Boop is poked three or more times in a row. Not for an agent giving up |
+| `grumpy` | A grumpy face: Boop is poked three or more times in a row, or failures pile up on failures. Not for an agent giving up, or a single failed turn: that's irritated |
 | `sad` | A sad face: a very long turn ended failed, or the agent gave up, stuck. Not for a shorter turn failing with an error, or a check failing |
 | `calm` | A calm face: all is well, and nothing stands out |
 | `engaged` | An engaged face: following work that's going well. Not for a failure |
 | `annoyed` | An annoyed face: a small failure, or poked twice in a row, a little miffed |
-| `irritated` | An irritated face: failures or pokes that keep coming |
+| `irritated` | An irritated face: a turn that failed, or failures or pokes that keep coming. Not for an agent giving up: that's sad |
 | `whiny` | A whiny face: things keep going wrong, and Boop feels sorry for itself |
 | `wounded` | A wounded face: rude words to Boop, or a big failure after a lot of work |
 
@@ -351,34 +353,47 @@ long.
 | `three times` | 3 | A big moment, such as a check passing after failing |
 | `four times` | 4 | The biggest moments: a hard-won finish, or a failure that keeps coming back. Not for a single win or failure |
 
-**What Boop says** is two questions: what it means, and how. Jev never
-picks a recording: Voice maps a meaning, a kind and the face onto the
-takes ([VOICE.md](../VOICE.md) §4), so the questions stay this size as
-the bank grows. `say.meaning` offers only the meanings that have a take
-(`ReactAction.meanings`, and a test checks each take's has one), and
-each option ends by naming the faces that can say it, from the takes
-(`Only these faces can say it: happy, excited.`), so Jev can pick a face
-and a meaning that go together. Needs you's meaning, `attention`, is
-never offered ([VOICE.md](../VOICE.md) §7).
+**What Boop says** is three questions: how it feels, what NOW is
+about, and how big. Jev never picks a recording: Voice finds a take for
+the feeling and one for the topic in the face's mood and joins them,
+the feeling first ([VOICE.md](../VOICE.md) §4), so the questions stay
+this size as the bank grows. The two parts match the old mumble's
+exclamation and topic word. `say.feeling` and `say.about` offer only the
+answers that have a take (`ReactAction.feelings` and
+`ReactAction.topics`, and a test checks each take's has one), each
+naming the faces that can say it when not all 13 can
+(`sayOptions`); today every face can say every answer. Needs you's
+takes, `attention`, are never offered ([VOICE.md](../VOICE.md) §7).
 
-| `say.meaning` | Meaning |
+| `say.feeling` | Meaning |
 | --- | --- |
-| `none` | Say nothing: nothing in NOW is worth a word or a sound |
-| `begin` | A turn starting: off it goes. Not for work going on, or a turn that finished |
-| `work` | Steady work going on, going well. Not for a failure, or a turn that finished |
-| `effort` | Straining: long or hard work going on. Not for a turn that finished |
-| `ponder` | Puzzled or curious: a question, or something new or confusing. Not for a failure |
-| `success` | A turn finished, done and working. Not for anything but a success |
-| `celebrate` | A big win: a long or very long turn done, or thanks. Not for a short turn done, or anything but a win |
-| `relief` | Relief: it worked in the end. Not for anything but a success, or a first try |
-| `pride` | Smug: something long or hard finished well. Not for anything but a success, or a small win |
-| `delight` | Tickled: a win, a poke or kind words. Not for a failure |
-| `frustration` | Something failed or keeps failing: a check, a turn, or the agent giving up. Not for a win |
-| `retry` | The same thing again: a retry, or the person saying it's still broken. Not for a first failure |
+| `none` | No feeling to say: nothing in NOW is worth a sound |
+| `upset` | Something went wrong or let Boop down: a check or a turn failing, the agent stuck or giving up, rude words or sad news. Not for a win, a poke, or work going on, however long |
+| `glad` | Something went right: a turn done and working, a check passing, a big win, thanks or kind words. Not for a failure, or work still going on |
+| `tickled` | Poked or teased: a poke, a tap, or playful words to Boop. Not for a failure, or the agent's work |
+
+| `say.about` | Meaning |
+| --- | --- |
+| `none` | No topic to name: NOW's line isn't about any of these |
+| `start` | A turn starting: off it goes. Not for work going on, or a turn that finished |
+| `helpers` | The agent starting a subagent: helpers sent off |
+| `helper back` | A subagent finishing: a helper back with its report |
+| `retry` | The same thing again: a retry, a check run again after failing, or the person saying it's still broken. Not for a first failure |
+| `work` | Work going on: edits, steady progress, a long or hard turn. Not for a turn that finished |
+| `tests` | Tests: running, failing or passing |
+| `command` | A command or a build running in the terminal. Not for tests: they're tests |
+| `tool` | A tool: the web, an MCP tool, something fetched or looked up |
+| `looking` | Searching or reading: the agent looking through files, or something puzzling |
+| `planning` | Planning: the agent in plan mode, or thinking before it acts |
+| `done` | A turn finished, done and working. Not for anything but a success |
+| `answer` | A turn that only answered something or asked something back. Not for work done, or a failure |
+| `stopped` | A turn stopped: interrupted, or the agent giving up. Not for a turn that finished done |
+| `waiting` | Waiting: a long command, or the agent waiting on something slow. Not for something that needs the person: the ding says that |
+| `quiet` | Nothing going on: a quiet check-in, or words to Boop about nothing in particular |
 
 | `say.kind` | Meaning |
 | --- | --- |
-| `sound` | A noise with no word: a huff, a grunt, a gasp. The usual |
+| `sound` | A noise with no word: a huff, a grunt, a gasp. The usual. With none of the kind asked for, Voice takes the nearest, never a swear nobody asked for |
 | `word` | One word that names the moment. Not for a routine check-in |
 | `phrase` | A little catchphrase, for a moment worth remembering, now and then. Not for routine work, or a small win or failure |
 | `swear` | A swear, at a failure that really stings. Not for a win, a poke, words to Boop, or anything about the person |
@@ -442,16 +457,19 @@ gate, which says when something needs you.
 2. **Its rule:** something needs you or the mic is on → `ok: false`,
    `something needs you` or `the mic is on`, and nothing plays, so no
    face is borrowed while needs you shows (`Core.reactionBlock`).
-3. **What it says:** `say.meaning`'s pick if it isn't `none` and its
-   probability is **at least 0.35** (`ReactAction.sayFloor`), else
-   nothing: below the floor Jev is guessing, and silence beats a guessed
-   meaning. With a meaning, Voice picks the take ([VOICE.md](../VOICE.md)
-   §4): of that meaning, in the face's mood, fit for `react.animation`'s
-   finish, of `say.kind`'s kind (a sound when it's missing) or the
-   nearest plainer one, never the take said last while another fits.
-   It may find none, and then Boop says nothing.
-4. **The effect:** it's queued as a `moment` with `say` (the take, or
-   `{}` when it says nothing, which still ends push-to-talk's
+3. **What it says:** `say.feeling`'s and `say.about`'s picks, each if it
+   isn't `none` and its probability is **at least 0.35**
+   (`ReactAction.sayFloor`): below the floor Jev is guessing, and silence
+   beats a guessed answer. Voice builds the line ([VOICE.md](../VOICE.md)
+   §4): a take for each, in the face's mood, fit for `react.animation`'s
+   finish, of the nearest kind to `say.kind`'s (a sound when it's
+   missing), never one of the last line's takes while another fits; the
+   feeling's first, then the topic's, or the first alone when one is a
+   phrase or the two run past 2.8 s. It may find none, and then Boop
+   says nothing. Nor does it while the device's card has another voice
+   pack (`speaks`, [VOICE.md](../VOICE.md) §8).
+4. **The effect:** it's queued as a `moment` with `say` (the line's one
+   or two takes, or `{}` when it says nothing, which still ends push-to-talk's
    `listening`), the face as `mood` and `react.loops`' pick as `loops`
    (1–4, `ReactAction.loops`). A
    finish (`react.animation` other than `none`) goes as its scene

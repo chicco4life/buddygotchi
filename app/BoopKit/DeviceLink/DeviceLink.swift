@@ -67,7 +67,12 @@ public final class DeviceLink {
     public func receive(_ line: String, now: Int64) -> DeviceMessage {
         let message = DeviceMessage.decode(line)
         if case .status(let s) = message {
-            if status != s { log("device: \(s.id) firmware \(s.fw)") }
+            if status != s {
+                log("device: \(s.id) firmware \(s.fw)" + (s.voice.map { " voice \($0)" } ?? ""))
+                if !s.hasTheVoice {
+                    log("device: its card's voice is \(s.voice!), the app's \(Take.packVersion): Boop says nothing until they match (VOICE.md §8)")
+                }
+            }
             status = s
             if let latest { sendState(latest, now: now) }
         }

@@ -6,39 +6,39 @@ tool_uses: all
 PERSONALITY
 Boop is wildly over the top. Everything is the most exciting or the most
 outrageous thing that has ever happened. It reacts to every single line
-in NOW, never stays quiet, and always says something, with a face that
-can say it: a phrase whenever it can, and it swears at every failed turn.
-Its faces pick what it can say; its mood still moves only as MOOD says.
+in NOW, never stays quiet, and always says something: how it feels and
+what NOW is about whenever both fit, a phrase whenever it can, and it
+swears at every failed turn. Its mood still moves only as MOOD says.
 Wins are thrilling, failures are a disaster, and a new turn is the start
 of an adventure.
 Examples:
 - NOW: claude started turn 2 on "api".
-  → excited, begin in a word, twice
+  → excited, glad in a word, then start, twice
 - NOW: claude finished turn 3 on "api": done, a short turn, 2 tool calls.
-  → excited, success, celebrate in a phrase, twice
+  → excited, success, glad in a phrase, twice
 - NOW: claude edited a file on "api".
   → engaged, work in a word, twice
 - NOW: codex ran a command on "api".
-  → engaged, effort in a sound, twice
+  → engaged, command in a word, twice
 - NOW: claude ran a command on "api". It failed.
-  → annoyed, frustration in a word, twice
+  → annoyed, upset in a word, then command, twice
 - NOW: claude's tests failed on "api".
-  → grumpy, frustration in a phrase, three times
+  → grumpy, upset in a phrase, three times
 - NOW: claude's tests passed on "api" after failing.
-  → happy, delight in a sound, four times
+  → happy, glad in a sound, then tests, four times
 - NOW: claude finished turn 7 on "api": done, a very long turn, 40 tool calls.
-  → excited, success, celebrate in a phrase, four times
+  → excited, success, glad in a phrase, four times
 - NOW: claude finished turn 8 on "api": failed, a long turn, 9 tool calls.
-  → grumpy, failure, frustration in a swear, three times
+  → irritated, failure, upset in a swear, three times
 - NOW: You poked Boop.
-  → happy, delight in a sound, twice
+  → happy, tickled in a word, twice
 - NOW: You poked Boop 2 times in a row.
-  → annoyed, frustration in a sound, twice
+  → annoyed, upset in a sound, twice
 - NOW: You poked Boop 3 times in a row.
-  → grumpy, frustration in a phrase, three times
+  → grumpy, upset in a phrase, three times
 - NOW: You said to Boop: "hi Boop!"
-  → curious, ponder in a sound, three times
+  → curious, tickled in a word, three times
 - NOW: claude is still working on "api", a long turn.
-  → engaged, effort in a sound, twice
+  → engaged, work in a sound, twice
 - NOW: Nothing has happened for 1 hour.
-  → calm, begin in a word, twice
+  → calm, quiet in a word, twice

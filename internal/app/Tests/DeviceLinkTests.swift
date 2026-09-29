@@ -174,14 +174,15 @@ final class DeviceLinkTests: XCTestCase {
                        #"{"t":"moment","say":{"take":"new.d02"},"mood":"proud","loops":3,"id":12}"#)
         // A reaction that says nothing still has a `say`: the reply that
         // ends push-to-talk's listening.
-        XCTAssertEqual(DeviceMoment(say: .init(take: nil), mood: "calm", loops: 1, id: 5).jsonLine,
+        XCTAssertEqual(DeviceMoment(say: .init(takes: []), mood: "calm", loops: 1, id: 5).jsonLine,
                        #"{"t":"moment","say":{},"mood":"calm","loops":1,"id":5}"#)
         XCTAssertEqual(DeviceMoment(anim: "cheer", loops: 1).jsonLine, #"{"t":"moment","anim":"cheer","loops":1}"#)
         // A cheer names whose turn it cheers, the thread cut as names are.
         XCTAssertEqual(DeviceMoment(anim: "cheer", loops: 2, variant: 3, who: .init(agent: "codex", thread: "fix-nav"), id: 7).jsonLine,
                        #"{"t":"moment","anim":"cheer","loops":2,"variant":3,"who":{"agent":"codex","thread":"fix-nav"},"id":7}"#)
         XCTAssertEqual(DeviceMoment.Who(agent: "claude", thread: "claude/cheer-animation-thread-codex").thread, "claude/cheer-animatio..")
-        let longest = DeviceMoment.Say(take: Take.all.max { $0.id.utf8.count < $1.id.utf8.count })
+        let byLength = Take.all.sorted { $0.id.utf8.count > $1.id.utf8.count }
+        let longest = DeviceMoment.Say(takes: [byLength[0], byLength[1]])
         let longestWho = DeviceMoment.Who(agent: "claude", thread: String(repeating: "\u{1}", count: 23))
         XCTAssertLessThanOrEqual(DeviceMoment(anim: "wiggle", say: longest, mood: "determined", loops: DeviceMoment.maxLoops,
                                               variant: 5, who: longestWho, id: Int(Int32.max)).jsonLine.utf8.count,

@@ -58,9 +58,10 @@ approve on the Mac as you normally would.
    message as a note. It wakes the brain, so the **harness** asks
    **Jev** every action's questions about it in one request, and Jev answers, say,
    `react.mood: proud`, `react.animation: success`, `react.loops: twice`,
-   `say.meaning: pride` and `say.kind: phrase`.
-5. The **`react` action** asks **Voice** for a take of pride in proud's
-   mood, fit for a success (*"Tiny genius"*), and queues it as the
+   `say.feeling: glad`, `say.about: done` and `say.kind: phrase`.
+5. The **`react` action** asks **Voice** for a line: a glad phrase in
+   proud's mood, fit for a success (*"Nailed it"*), which plays alone,
+   as a phrase does; and queues it as the
    finish, a success, in proud's face, held twice. No line is playing, so
    the **device link** sends it at once, and the device plays proud's
    task_complete scene for a success and says the take at its voice
@@ -102,7 +103,7 @@ talks to the device.
 | Brain | `Brains/JevBrain.swift` | Jev: answers multiple-choice questions about a plain-text state, with probabilities | Everything else |
 | Actions | `Actions/` | `mood` and `react`: carry out one call each, checking their own rules | Whether a rule or the brain called them |
 | Moment schedule | `App/MomentSchedule.swift` | Decides when each brain moment plays: after any line playing, over an animation, or not at all | What's in it |
-| Voice | `Voice/` | Turns a meaning, a kind and a face into one of the recorded takes the board has, or none | Who asked, or why |
+| Voice | `Voice/` | Turns a feeling, a topic, a kind and a face into a line of up to two of the recorded takes the board has, or none | Who asked, or why |
 | Memory store | `Memory/` | Reads and writes `long-term.md`, `short-term.md` and their snapshots | Models, the device |
 | Mood store | `MoodStore` in `Actions/MoodAction.swift` | Reads and writes the `mood` file | Who changes it |
 | Device link | `DeviceLink/` | Sends `state` and moments, receives taps and status, over Bluetooth or USB | What any of it means |
@@ -279,16 +280,17 @@ order:
 | Action | Effect | Its own rules |
 | --- | --- | --- |
 | `mood` | Saves the new mood to the `mood` file; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the current mood's moves on the mood graph, and only a change |
-| `react` | Queues a moment in the moment schedule: the chosen mood as its face, with the finish Jev judged if NOW is a turn that finished (task_complete for a success or a failure, reply_ready for a reply), held for the loops Jev picked, and the take Voice finds for the meaning and kind Jev picked in that mood, if Jev is sure enough and there is one. It's started, not done, until the device says how the moment ended | Nothing while something needs you |
+| `react` | Queues a moment in the moment schedule: the chosen mood as its face, with the finish Jev judged if NOW is a turn that finished (task_complete for a success or a failure, reply_ready for a reply), held for the loops Jev picked, and the line Voice finds for the feeling, topic and kind Jev picked in that mood, if Jev is sure enough and there are takes. It's started, not done, until the device says how the moment ended | Nothing while something needs you |
 
 No rule makes a moment on the Mac: every face and take comes through them.
 
 ### 3.5 Voice
 
-Voice picks what Boop says: of the recorded takes the board has
-(`Take.all`, which voicegen writes), one of the meaning Jev picked,
-performed in the face's mood, fit for the finish, of the kind asked or a
-plainer one, or none ([VOICE.md](VOICE.md) §4).
+Voice picks what Boop says: of the recorded takes the board has on its
+SD card (`Take.all`, which voicegen writes with the pack), one for the
+feeling and one for the topic Jev picked, each performed in the face's
+mood, fit for the finish, of the kind asked or the nearest, joined into
+a line, or none ([VOICE.md](VOICE.md) §4).
 
 ### 3.6 Memory store
 
@@ -452,7 +454,7 @@ What crosses each boundary, in the order an event travels:
 | Harness → Jev | The state as text, and every action's questions | One HTTPS request | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | Jev → actions | Each question's choice and probabilities, only to the action that asked | `Answers` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
 | Actions → harness | `(ok, message)`; a successful message goes into HISTORY. A started one also hands over a handle, and its end comes later | `ActionResult`, `Pending` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
-| `react` → moment schedule → device link | A face (`mood`) with its `loops` and what it says (`say`, a take or nothing), and its handle, which the schedule or the runtime ends; it goes out with an `id` | `DeviceMoment`, `Pending` | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
+| `react` → moment schedule → device link | A face (`mood`) with its `loops` and what it says (`say`, one or two takes or nothing), and its handle, which the schedule or the runtime ends; it goes out with an `id` | `DeviceMoment`, `Pending` | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
 | `mood` → mood store → core | The new mood | A word | [harness/DECISIONS.md](harness/DECISIONS.md) §4 |
 | Device link ↔ device | `state` and `moment` out; `input`, `ended` and `status` in | JSON lines | [PROTOCOL.md](PROTOCOL.md) |
 | Runtime → Mac app | Name, snapshot, sessions, link, device, personality, brain | `Runtime.Status` | `app/Boop/` |
@@ -673,3 +675,5 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-29 | What the person says to Boop moves its mood at once: the guide lets talk move the mood in its first minute, as a poke does; saying sorry moves grumpy to irritated or annoyed, irritated to annoyed and annoyed to calm; sad news moves most moods to sad and keeps Boop there, and taking it back or cheering it up leaves sad for calm or happy. The mood question's meanings (`MoodAction.moods`) and a dramatic move's "not for" say the same, and PERSONALITY answers sad news with a sad face | The owner's brief: the mood should change faster while the person talks to Boop, and one apology should do. Before, the first-minute hold and grumpy's rules (it cooled only after 2 min or at thanks) meant saying sorry twice. Scenarios `56`–`59` check it; all passed, and `make eval` passed but for the known gap `20` ([evidence](evidence/2026-09-29-talk-moves-mood/README.md)) | [harness/DECISIONS.md](harness/DECISIONS.md) §2.1, §2.3, [EVALS.md](EVALS.md) §4 |
 | 2026-09-29 | Boop says recorded takes, not gibberish: Jev picks a meaning (the takes' intents, each naming the faces that can say it) and a kind (sound, word, phrase, swear), and Voice finds a take of that meaning performed in the face's mood, fit for the finish (success takes only on a success, swears only on a failure), stepping down to a plainer kind, never the last take again while another fits; with none, the face plays in silence. All 40 of the bank's takes go on the board unreviewed; the six in moods Boop lacks are mapped to the nearest. The gibberish, dialects, unintelligibility check and one-real-word rule go | The owner's choice (2026-09-29) of option B: Jev picks from a dozen meanings and four kinds, however many recordings there are; silence rather than another mood's voice, with the steering asking for a face that can speak; swears by personality | [VOICE.md](VOICE.md), [harness/DECISIONS.md](harness/DECISIONS.md) §3, §5 |
 | 2026-09-29 | A tap's poke replaces only the animation playing: a brain reaction's line, bubble and face play on over it, the poke drawn in the reaction's mood, where before the poke cut the whole reaction. A finish's animation is still replaced, and reported `cut` by `tap`; "needs you", a newer moment and push-to-talk still cut the line | In a barrage the brain answers once (EVENTS.md §6), and that answer usually landed mid-barrage, so the next tap cut it and you never heard it. The taps still get their animation at once | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
+| 2026-09-29 | Boop's whole voice is on the board's microSD card: all 2,722 of Federico's takes, the 40 before them included, in one pack voicegen builds (`.build/voice/voice.bin`, not checked in), which the board reads at 10 MHz on SPI3 and the Mac checks by version (`status`'s `voice`). With no card, or another pack, Boop has no voice; its faces and sound effects, still in flash, carry on. Touch moves to bit-banged SPI so the card can have the second bus. `Takes.swift` is written as one `append` per take | The owner wanted every take, even overlapping ones, for more choice, and no difference between the old and the new; at 30.5 MB they can't fit the 4 MB flash, and the card reads about eighty times faster than a line needs (probe, [evidence](evidence/2026-09-29-voice-sd/PLAN.md)). One array literal of 2,722 takes ran the Swift compiler out of memory (63 GB) | [VOICE.md](VOICE.md) §3, §8, [DEVICE.md](DEVICE.md) §2, §5, [PROTOCOL.md](PROTOCOL.md) §3–5 |
+| 2026-09-29 | What Boop says is two answers again, as the mumble's exclamation and topic word were: how it feels (`say.feeling`: upset, glad, tickled) and what NOW is about (`say.about`: 15 topics), played as a line of up to two takes, 180 ms apart, at most 2.8 s, a phrase alone; `say.meaning` goes. Every face has takes for every answer. Voice takes the nearest kind either way, never a swear nobody asked for. A failed turn's face is irritated, which swears; sad is for an agent giving up. The bubble drops to the small font for a line too long for the large one | The owner's rule: every face and every answer has something to play, and the topic words (Launch, Rerun, Cleared, Test) are the content half of the old pair. Sad and wounded were silent at the failures that matter most. The changed scenarios pass once each (15 of 15) | [VOICE.md](VOICE.md) §4, [harness/DECISIONS.md](harness/DECISIONS.md) §3, §5, [DEVICE.md](DEVICE.md) §4, [evidence](evidence/2026-09-29-voice-sd/eval.txt) |

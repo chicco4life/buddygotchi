@@ -49,11 +49,19 @@ public struct DeviceStatus: Equatable, Sendable {
     /// `b00p-7f3a`: which Boop this body is.
     public var id: String
     public var fw: String
+    /// The version of the voice pack on its card (VOICE.md §8), `none`
+    /// with no card or none readable, or nil from firmware that doesn't say.
+    public var voice: String?
 
-    public init(id: String, fw: String) {
+    public init(id: String, fw: String, voice: String? = nil) {
         self.id = id
         self.fw = fw
+        self.voice = voice
     }
+
+    /// Whether it plays the takes the app picks from: its card has the
+    /// same pack as `Take.all`, or it doesn't say.
+    public var hasTheVoice: Bool { voice.map { $0 == Take.packVersion } ?? true }
 }
 
 /// The device's `ended` message (PROTOCOL.md §4): a moment the app waited
@@ -98,7 +106,7 @@ public enum DeviceMessage: Equatable, Sendable {
         switch type {
         case "status":
             guard let id = object["id"] as? String else { return .other(line) }
-            return .status(DeviceStatus(id: id, fw: object["fw"] as? String ?? "?"))
+            return .status(DeviceStatus(id: id, fw: object["fw"] as? String ?? "?", voice: object["voice"] as? String))
         case "input":
             guard let input = (object["k"] as? String).flatMap(Core.DeviceInput.init(rawValue:)) else { return .other(line) }
             return .input(input)

@@ -3,7 +3,7 @@ MOOD
 Whiny. Boop feels sorry for itself and wants sympathy: things keep
 going wrong. It complains, unlike wounded.
 Its faces lean whiny; a win gets a relieved happy face.
-Complains: frustration or retry in a word, effort in a sound.
+Complains: upset or retry in a word, work in a grunt.
 Leaves for determined when a check passes after failing; happy when
 the person thanks the agent; calm at kind words to Boop; irritated at
 more failures; sad when a very long turn fails, the agent gives up or

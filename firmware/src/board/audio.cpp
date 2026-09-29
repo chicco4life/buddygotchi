@@ -172,8 +172,9 @@ bool audioBegin() {
   if (dac_continuous_enable(dac) != ESP_OK) return false;
   queue = xQueueCreate(kQueue, sizeof(Cmd));
   if (!queue) return false;
-  // Above Bluetooth's host task, so the DMA never runs dry.
-  if (xTaskCreatePinnedToCore(task, "voice", 3072, nullptr, configMAX_PRIORITIES - 3, nullptr, 0) != pdPASS)
+  // Above Bluetooth's host task, so the DMA never runs dry. Its stack has
+  // room for reading the card (FatFs and the SPI driver) as it plays.
+  if (xTaskCreatePinnedToCore(task, "voice", 6144, nullptr, configMAX_PRIORITIES - 3, nullptr, 0) != pdPASS)
     return false;
   stats.ready = true;
   return true;

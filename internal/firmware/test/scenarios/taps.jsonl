@@ -86,8 +86,8 @@
 {"input":{"press":"tap"}}
 {"clock":42000}
 {"expect":{"moment":{"anim":"tap_spam"},"expr":"grumpy","audio":{"take":"new.d12"}}}
-// Its line is over after the take's 900 ms and 1.2 s to read it.
-{"clock":43399}
+// Its line is over after the take's 898 ms and 1.2 s to read it.
+{"clock":43397}
 {"expect":{"expr":"grumpy","audio":{"take":"new.d12"}}}
-{"clock":43400}
+{"clock":43398}
 {"expect":{"audio":{"take":null}}}

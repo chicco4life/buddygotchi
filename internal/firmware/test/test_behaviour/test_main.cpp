@@ -2,6 +2,8 @@
 // every timing checked to the millisecond.
 #include <unity.h>
 
+#include "../../pack_file.h"
+
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -27,8 +29,8 @@ namespace {
 
 // A take with a known length (DEVICE.md §4: a line speaks for its take's
 // length, and its bubble stays kBubbleReadMs longer).
-constexpr const char* kGo = "previous.go";  // 7056 samples: 640 ms
-constexpr uint32_t kGoMs = 640;
+constexpr const char* kGo = "previous.go";  // 7042 samples: 638 ms
+constexpr uint32_t kGoMs = 638;
 
 struct Rig {
   Behaviour b;
@@ -45,7 +47,7 @@ struct Rig {
     m.anim = a;
     b.onMoment(m, t);
   }
-  // A line on its own: take `id` ("Go", 640 ms, by default); null for a
+  // A line on its own: take `id` ("Go", 638 ms, by default); null for a
   // `say` with no take.
   bool say(const char* id = kGo) {
     MomentIn m;
@@ -913,7 +915,7 @@ static void test_a_take_moves_the_mouth() {
   TEST_ASSERT_TRUE(r.b.onMoment(m, r.t));
   TEST_ASSERT_EQUAL_STRING("Go", r.b.bubble(r.t));
   TEST_ASSERT_EQUAL(m.take, r.b.take());
-  TEST_ASSERT_TRUE(r.b.speaking(kGoMs - 1));  // 7056 samples at 11.025 kHz
+  TEST_ASSERT_TRUE(r.b.speaking(kGoMs - 1));  // 7042 samples at 11.025 kHz
   TEST_ASSERT_FALSE(r.b.speaking(kGoMs));
   int open = 0, shut = 0;
   for (uint32_t t = 0; t < kGoMs; ++t) {
@@ -924,6 +926,24 @@ static void test_a_take_moves_the_mouth() {
   TEST_ASSERT_FALSE(r.b.show(kGoMs).mouthOpen);
   TEST_ASSERT_FALSE(r.b.show(kGoMs + 500).mouthOpen);  // the bubble stays, the mouth shut
   TEST_ASSERT_NOT_NULL(r.b.bubble(kGoMs + 500));
+}
+
+// VOICE.md §4, §8: a line of two takes shows both words, speaks for both
+// and the gap between them, and moves the mouth for each.
+static void test_a_line_of_two_takes() {
+  Rig r;
+  r.state(base("idle"));
+  MomentIn m;
+  m.said = true, m.take = voice::takeIndex("previous.tsk");
+  m.then = voice::takeIndex("phase1.word.test.test__annoyed__contained");
+  TEST_ASSERT_TRUE(r.b.onMoment(m, r.t));
+  TEST_ASSERT_EQUAL_STRING("Tsk... Test", r.b.bubble(r.t));
+  const uint32_t ms = 1377 + voice::kJoinGapMs + 868;
+  TEST_ASSERT_TRUE(r.b.speaking(ms - 1));
+  TEST_ASSERT_FALSE(r.b.speaking(ms));
+  for (uint32_t t = 0; t < ms; t += 7) TEST_ASSERT_EQUAL(voice::lineMouthOpen(m.take, m.then, t), r.b.show(t).mouthOpen);
+  TEST_ASSERT_NOT_NULL(r.b.bubble(ms + Behaviour::kBubbleReadMs - 1));
+  TEST_ASSERT_NULL(r.b.bubble(ms + Behaviour::kBubbleReadMs));
 }
 
 // The first millisecond the mouth is open into take `id`.
@@ -1086,7 +1106,7 @@ static void test_an_expression_holds_its_loops() {
   TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
   TEST_ASSERT_TRUE(s.eyesShut);  // it blinks into the expression
   TEST_ASSERT_EQUAL_UINT32(1000, s.t);  // the look's clock goes on
-  // "Go"'s 640 ms, then the bubble's 1.2 s: the line is over first, and
+  // "Go"'s 638 ms, then the bubble's 1.2 s: the line is over first, and
   // the face holds to the design's next boundary.
   const uint32_t said = 1000 + kGoMs + Behaviour::kBubbleReadMs;
   TEST_ASSERT_TRUE(said < loop);
@@ -1117,9 +1137,9 @@ static void test_an_expression_holds_its_loops() {
   // A line longer than its loop: the face holds as long as it plays.
   r.at(6 * loop);
   r.state(m);
-  MomentIn in = expressive(render::Mood::kExcited, "new.d20");  // "Mwahaha...", 2430 ms
+  MomentIn in = expressive(render::Mood::kExcited, "new.d20");  // "Mwahaha...", 2434 ms
   r.b.onMoment(in, r.t);
-  const uint32_t end = r.t + 2430 + Behaviour::kBubbleReadMs;
+  const uint32_t end = r.t + 2434 + Behaviour::kBubbleReadMs;
   TEST_ASSERT_TRUE(end - r.t > loopMs(render::Mood::kExcited, SceneState::kWorking));
   r.at(end - 1);
   TEST_ASSERT_TRUE(r.b.expression(r.t, e));
@@ -1149,7 +1169,7 @@ static void test_an_expression_over_the_cheer_and_across_a_look_change() {
   TEST_ASSERT_EQUAL(Anim::kTaskComplete, r.b.moment(r.t, left));
   TEST_ASSERT_EQUAL_UINT32(cheer - 200, left);  // a line doesn't cut the finish
   // The face holds one loop of the finish's design in proud, on the
-  // finish's clock: to 1000 + proud's loop, after the line (1200 + 640 +
+  // finish's clock: to 1000 + proud's loop, after the line (1200 + 638 +
   // 1200). A finish's variation loops alike in every mood, so the finish
   // ends then too.
   TEST_ASSERT_TRUE(1200 + kGoMs + Behaviour::kBubbleReadMs < 1000 + proud);
@@ -1278,7 +1298,7 @@ static void test_a_waited_moment_says_how_it_ended() {
   r.state(base("idle"));  // the idle design's clock from 0
   r.at(1000);
   TEST_ASSERT_TRUE(r.b.onMoment(waited(7), r.t));
-  // Its line is over at 1000 + 640 + 1.2 s, and its face at the idle
+  // Its line is over at 1000 + 638 + 1.2 s, and its face at the idle
   // design's next boundary, or with the line if that's later.
   const uint32_t look = loopMs(render::Mood::kProud, SceneState::kIdle);
   uint32_t end = (1000 / look + 1) * look;
@@ -2056,11 +2076,11 @@ static void test_a_finishs_line_waits_for_its_voice_window() {
   r.at(1000);
   MomentIn in;
   in.anim = Anim::kTaskComplete, in.variant = 4;  // grumpy's failed finish
-  in.said = true, in.take = voice::takeIndex("new.d20");  // "Mwahaha...", 2430 ms
+  in.said = true, in.take = voice::takeIndex("new.d20");  // "Mwahaha...", 2434 ms
   in.expr = true, in.mood = Mood::kGrumpy, in.id = 5;
   const uint32_t voice = voice::score(int(Mood::kGrumpy), int(SceneState::kTaskComplete), 4).voiceMs;
   const uint32_t loop = loopMs(Mood::kGrumpy, SceneState::kTaskComplete, 4);
-  uint32_t line = 2430 + Behaviour::kBubbleReadMs;
+  uint32_t line = 2434 + Behaviour::kBubbleReadMs;
   TEST_ASSERT_TRUE(voice > 0 && voice + line > loop);  // it doesn't fit: the hold stretches
   TEST_ASSERT_TRUE(r.b.onMoment(in, r.t));
   uint32_t left;
@@ -2250,6 +2270,7 @@ static void test_a_long_touch_during_needs_you_is_a_tap() {
 
 int main() {
   UNITY_BEGIN();
+  if (!packfile::open()) std::printf("no voice pack: run make -C internal voice\n");
   RUN_TEST(test_needs_you_alerts_once_and_stays_amber);
   RUN_TEST(test_a_different_request_with_the_same_names_alerts);
   RUN_TEST(test_a_new_launchs_moment_is_its_own);
@@ -2270,6 +2291,7 @@ int main() {
   RUN_TEST(test_moments_end_and_replace);
   RUN_TEST(test_a_cheer_plays_its_loops);
   RUN_TEST(test_a_take_moves_the_mouth);
+  RUN_TEST(test_a_line_of_two_takes);
   RUN_TEST(test_a_line_alone_plays_over_the_face);
   RUN_TEST(test_a_face_alone_plays_its_loops);
   RUN_TEST(test_an_expression_holds_its_loops);

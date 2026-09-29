@@ -4,8 +4,8 @@ socket, and noticing a board reset."""
 from __future__ import annotations
 
 import json
-import re
 import socket
+import struct
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -36,7 +36,7 @@ MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad",
          "calm", "engaged", "annoyed", "irritated", "whiny", "wounded"]
 
 
-VOICE_H = REPO / "firmware" / "assets" / "voice.h"
+PACK = REPO / ".build" / "voice" / "voice.bin"
 
 
 @dataclass(frozen=True)
@@ -51,14 +51,20 @@ class Take:
 
 @cache
 def takes() -> tuple[Take, ...]:
-    """The takes in firmware/assets/voice.h, which voicegen writes, in the
-    board's order."""
-    src = VOICE_H.read_text()
-    rate = int(re.search(r"kRate = (\d+);", src).group(1))
-    rows = re.findall(r'\{"([^"]+)", "((?:[^"\\]|\\.)*)", \d+, (\d+), \d+\}', src)
-    if not rows:
-        raise DeviceError(f"no takes in {VOICE_H}")
-    return tuple(Take(i, t, int(n) * 1000 // rate) for i, t, n in rows)
+    """The takes in the voice pack the board plays from its card
+    (.build/voice/voice.bin, which voicegen writes; VOICE.md §8), by id."""
+    if not PACK.exists():
+        raise DeviceError(f"no voice pack at {PACK}: run make -C internal voice")
+    data = PACK.read_bytes()
+    magic, _, count, size, index, rate, _ = struct.unpack_from("<8s16sIIIII", data)
+    if magic != b"BOOPVOX1":
+        raise DeviceError(f"{PACK} isn't a voice pack")
+    out = []
+    for i in range(count):
+        rec = data[index + i * size:index + (i + 1) * size]
+        key, text = (rec[a:b].split(b"\0")[0].decode() for a, b in ((0, 72), (72, 108)))
+        out.append(Take(key, text, struct.unpack_from("<I", rec, 112)[0] * 1000 // rate))
+    return tuple(out)
 
 
 def take(key: str) -> Take | None:

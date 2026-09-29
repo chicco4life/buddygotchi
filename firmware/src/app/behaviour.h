@@ -13,6 +13,7 @@
 #include "render/anim.h"
 #include "render/scene.h"
 #include "render/screens.h"
+#include "voice/player.h"
 
 namespace app {
 
@@ -78,7 +79,8 @@ struct MomentIn {
   // which ends `listening` and does nothing else.
   bool said = false;
   bool empty = false;
-  int take = -1;  // the line: its take's index (voice/player.h), -1 for none
+  int take = -1;  // the line: its first take's handle (voice/player.h), -1 for none
+  int then = -1;  // and its second's, -1 for none
   // The expression: this mood's version of the look while the moment
   // plays. Only a known mood sets it.
   bool expr = false;
@@ -227,13 +229,15 @@ class Behaviour {
     char agent[12] = "";  // the finish's `who`; empty for none
     char thread[24] = "";
   };
-  // A line: its take, the bubble with its text, and the mouth following
-  // the take's loudness. It plays over whatever face is showing, from `at`,
-  // which with an animation is its design's voice window.
+  // A line: its one or two takes, the bubble with their text, and the
+  // mouth following their loudness. It plays over whatever face is showing,
+  // from `at`, which with an animation is its design's voice window.
   struct Say {
     int take = -1;  // -1: no line
+    int then = -1;
+    char text[2 * voice::kTextMax] = "";  // the bubble's: the takes' words
     uint32_t at = 0, ms = 0;
-    uint32_t speakMs = 0;  // the take plays this long
+    uint32_t speakMs = 0;  // the takes play this long, the gap included
     uint32_t id = 0;
   };
   // A moment the Mac waits on, while any part of it plays: where it came

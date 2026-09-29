@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <vector>
 
+#include "../pack_file.h"
 #include "app/device.h"
 #include "app/line_reader.h"
 
@@ -18,7 +19,9 @@ struct SimHal : app::Hal {
     using namespace std::chrono;
     return uint32_t(duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
   }
+  const char* cardState() override { return card; }
   const char* fwVersion() override { return "sim"; }
+  const char* card = "no pack";
   const char* gitSha() override { return "sim"; }
 };
 
@@ -30,6 +33,8 @@ struct StdOut : app::Out {
 
 int main() {
   SimHal hal;
+  // The voice pack, as on the board's card: .build/voice/voice.bin.
+  if (packfile::open()) hal.card = "ok";
   StdOut out;
   std::vector<uint8_t> pixels(size_t(render::kWidth) * render::kHeight, 0);
   app::Device device(hal, pixels.data(), /*frozenClock=*/true);

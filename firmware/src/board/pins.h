@@ -10,12 +10,18 @@ constexpr int kLcdCs = 15;
 constexpr int kLcdDc = 2;
 constexpr int kBacklight = 21;  // high is on
 
-// Touch, XPT2046 on SPI3 (VSPI), remapped.
+// Touch, XPT2046, bit-banged on its own pins (board/touch.cpp).
 constexpr int kTouchSclk = 25;
 constexpr int kTouchMosi = 32;
 constexpr int kTouchMiso = 39;
 constexpr int kTouchCs = 33;
 constexpr int kTouchIrq = 36;  // low while pressed
+
+// The microSD slot, on SPI3 (VSPI): the voice pack (board/card.cpp).
+constexpr int kCardSclk = 18;
+constexpr int kCardMiso = 19;
+constexpr int kCardMosi = 23;
+constexpr int kCardCs = 5;
 
 // RGB LED, common anode: low is on.
 constexpr int kLedRed = 22;

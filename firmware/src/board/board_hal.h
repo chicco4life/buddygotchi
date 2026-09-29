@@ -39,6 +39,7 @@ class BoardHal : public app::Hal {
   const char* deviceId() override;
   const char* bleState() override;
   const char* bleName() override;
+  const char* cardState() override;
   const char* fwVersion() override;
   const char* gitSha() override;
 

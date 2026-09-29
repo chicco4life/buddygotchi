@@ -1,6 +1,7 @@
 #include "app/behaviour.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 
 #include "render/raster.h"
@@ -436,7 +437,9 @@ void Behaviour::startSay(const MomentIn& in, uint32_t t, uint32_t at) {
   ++momentSeq_;
   Say& s = say_;
   s.take = in.take;
-  s.speakMs = voice::takeMs(in.take);
+  s.then = voice::takeText(in.then) ? in.then : -1;
+  std::snprintf(s.text, sizeof(s.text), s.then >= 0 ? "%s %s" : "%s", voice::takeText(in.take), voice::takeText(s.then));
+  s.speakMs = voice::lineMs(s.take, s.then);
   s.at = at;
   s.ms = s.speakMs + kBubbleReadMs;
 }
@@ -538,7 +541,7 @@ render::SceneShow Behaviour::show(uint32_t t) const {
   s.eyesShut = blinking(t) || (switched_ && within(t, switchAt_, render::kBlendMs));
   if (sayOn(t)) {
     uint32_t lt = t - say_.at;
-    s.mouthOpen = lt < say_.speakMs && voice::mouthOpen(say_.take, lt);
+    s.mouthOpen = lt < say_.speakMs && voice::lineMouthOpen(say_.take, say_.then, lt);
   }
   if (pressed_) s.dy = int16_t(s.dy + kPressPx);
   return s;
@@ -592,7 +595,7 @@ render::Strip Behaviour::strip(uint32_t t) const {
 }
 
 // With no app, no line shows: it outranks the moments.
-const char* Behaviour::bubble(uint32_t t) const { return sayOn(t) && !noApp(t) ? voice::takeText(say_.take) : nullptr; }
+const char* Behaviour::bubble(uint32_t t) const { return sayOn(t) && !noApp(t) ? say_.text : nullptr; }
 
 bool Behaviour::lineAhead(uint32_t t) const { return sayDue(t) && !sayOn(t); }
 

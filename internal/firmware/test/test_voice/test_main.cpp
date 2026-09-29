@@ -1,13 +1,16 @@
-// The voice player: the take tables, a take played whole at its recorded
-// pitch (11.025 kHz resampled 2× to 22.05 kHz), volume, the cut's fade, and
-// the mouth (plan/VOICE.md, plan/DEVICE.md §4–5).
+// The voice player: the pack's takes found by id, a line of one or two
+// takes played whole at their recorded pitch (11.025 kHz resampled 2× to
+// 22.05 kHz), volume, the cut's fade, and the mouth (plan/VOICE.md §8,
+// plan/DEVICE.md §4–5). The pack is .build/voice/voice.bin, as voicegen
+// writes it and the board reads it from its card.
 #include <unity.h>
+
+#include "../../pack_file.h"
 
 #include <cstdlib>
 #include <cstring>
 #include <vector>
 
-#include "voice.h"
 #include "voice/player.h"
 
 void setUp() {}
@@ -15,11 +18,9 @@ void tearDown() {}
 
 namespace {
 
-voice::Line line(const char* id, uint8_t vol = 6) {
-  voice::Line l;
-  l.take = voice::takeIndex(id);
-  l.vol = vol;
-  return l;
+voice::Line line(const char* id, uint8_t vol = 6, const char* then = nullptr) {
+  int a = voice::takeIndex(id);
+  return voice::makeLine(a, then ? voice::takeIndex(then) : -1, vol);
 }
 
 std::vector<uint8_t> renderAll(voice::Player& p, size_t extra = 0) {
@@ -35,56 +36,95 @@ int peak(const std::vector<uint8_t>& v) {
   return m;
 }
 
+// A clip's samples, straight from the pack file.
+std::vector<uint8_t> samples(const voice::Clip& c) {
+  std::vector<uint8_t> d(c.len);
+  TEST_ASSERT_TRUE(packfile::source().read(c.at, d.data(), c.len));
+  return d;
+}
+
 }  // namespace
 
 // The Mac's Takes.swift comes from the same voicegen run: the same takes by
-// the same ids. The voice's flash budget is 480,000 bytes (DEVICE.md §5).
-void test_the_takes_and_their_budget() {
-  TEST_ASSERT_EQUAL(40, voice::takeCount());
-  TEST_ASSERT_EQUAL(0, voice::takeIndex("previous.go"));
-  TEST_ASSERT_EQUAL_STRING("Go", voice::takeText(0));
-  TEST_ASSERT_EQUAL_STRING("previous.go", voice::takeId(0));
+// the same ids, which the board finds in the pack's sorted index.
+void test_the_pack_finds_takes_by_id() {
+  TEST_ASSERT_TRUE(voice::packOpen());
+  TEST_ASSERT_EQUAL(2722, voice::takeCount());
+  TEST_ASSERT_EQUAL(12, std::strlen(voice::assetsVersion()));
+  int go = voice::takeIndex("previous.go");
+  TEST_ASSERT_TRUE(go >= 0);
+  TEST_ASSERT_EQUAL_STRING("Go", voice::takeText(go));
+  TEST_ASSERT_EQUAL_STRING("previous.go", voice::takeId(go));
+  TEST_ASSERT_EQUAL(go, voice::takeIndex("previous.go"));  // already loaded: the same handle
   int boom = voice::takeIndex("new.d15");
-  TEST_ASSERT_TRUE(boom >= 0);
   TEST_ASSERT_EQUAL_STRING("Bada bing bada boom", voice::takeText(boom));
+  int longest = voice::takeIndex("phase1.phrase.delegate.little-reinforcements__determined__contained");
+  TEST_ASSERT_EQUAL_STRING("Little reinforcements", voice::takeText(longest));
   TEST_ASSERT_EQUAL(-1, voice::takeIndex("banana"));
   TEST_ASSERT_EQUAL(-1, voice::takeIndex(nullptr));
   TEST_ASSERT_NULL(voice::takeText(-1));
-  TEST_ASSERT_NULL(voice::takeId(40));
   TEST_ASSERT_EQUAL_UINT32(0, voice::takeMs(-1));
-  TEST_ASSERT_TRUE(voice::assetsBytes() <= 480000u);
-  uint32_t samples = 0;
-  for (int i = 0; i < voice::takeCount(); ++i) {
-    samples += voice_assets::kTake[i].len;
-    // The bubble's font has printable ASCII only (DEVICE.md §4).
-    for (const char* c = voice::takeText(i); *c; ++c) TEST_ASSERT_TRUE(*c >= 0x20 && *c <= 0x7E);
-  }
-  TEST_ASSERT_EQUAL_UINT32(voice_assets::kBytes, samples);
+  // A handle goes stale once enough other takes have been loaded.
+  const char* others[] = {"new.d01", "new.d02", "new.d03", "new.d04", "new.d05", "new.d06", "new.d07", "new.d08"};
+  for (const char* id : others) TEST_ASSERT_TRUE(voice::takeIndex(id) >= 0);
+  TEST_ASSERT_NULL(voice::takeText(go));
+  // With no pack there's no voice at all.
+  voice::closePack();
+  TEST_ASSERT_EQUAL(-1, voice::takeIndex("previous.go"));
+  TEST_ASSERT_EQUAL_STRING("none", voice::assetsVersion());
+  TEST_ASSERT_TRUE(packfile::open());
 }
 
 // A take plays whole: two output samples for each of its own, so its
-// length in ms is the recording's (640 ms for "Go", 7056 samples).
+// length in ms is the recording's (638 ms for "Go", 7042 samples).
 void test_a_take_plays_whole_at_its_pitch() {
   voice::Line l = line("previous.go");
-  TEST_ASSERT_EQUAL_UINT32(2 * 7056, voice::lineSamples(l));
-  TEST_ASSERT_EQUAL_UINT32(640, voice::takeMs(l.take));
+  TEST_ASSERT_EQUAL_UINT32(7042, l.a.len);
+  TEST_ASSERT_EQUAL_UINT32(2 * 7042, voice::lineSamples(l));
+  TEST_ASSERT_EQUAL_UINT32(638, voice::takeMs(l.take));
   voice::Player p;
   p.start(l);
   TEST_ASSERT_TRUE(p.playing());
   TEST_ASSERT_EQUAL(l.take, p.take());
-  TEST_ASSERT_EQUAL_UINT32(2 * 7056, p.total());
+  TEST_ASSERT_EQUAL_UINT32(2 * 7042, p.total());
   l.vol = 10;
   p.start(l);
   std::vector<uint8_t> out = renderAll(p, 500);
   TEST_ASSERT_FALSE(p.playing());
   // Even samples are the recording's; odd ones the midpoint of two.
-  const uint8_t* d = voice_assets::kSamples + voice_assets::kTake[l.take].at;
+  std::vector<uint8_t> d = samples(l.a);
   for (uint32_t i = 0; i + 2 < p.total(); i += 2) {
     TEST_ASSERT_INT_WITHIN(1, d[i / 2], out[i]);
     TEST_ASSERT_INT_WITHIN(1, (int(d[i / 2]) + d[i / 2 + 1]) / 2, out[i + 1]);
   }
   for (size_t i = p.total(); i < out.size(); ++i) TEST_ASSERT_EQUAL_UINT8(128, out[i]);  // then silence
   TEST_ASSERT_EQUAL_UINT32(0, p.render(out.data(), 10));
+}
+
+// VOICE.md §4, §8: a line of two takes plays the first, 180 ms of
+// silence, then the second, and says both words; its mouth follows each.
+void test_a_line_of_two_takes() {
+  voice::Line l = line("previous.tsk", 10, "phase1.word.test.test__annoyed__contained");
+  TEST_ASSERT_TRUE(l.then >= 0);
+  TEST_ASSERT_EQUAL_UINT32(2 * (l.a.len + voice::kGapSamples + l.b.len), voice::lineSamples(l));
+  TEST_ASSERT_EQUAL_UINT32(1377 + 180 + 868, voice::lineMs(l.take, l.then));  // as the Mac's Say.ms
+  voice::Player p;
+  p.start(l);
+  std::vector<uint8_t> out = renderAll(p);
+  std::vector<uint8_t> a = samples(l.a), b = samples(l.b);
+  for (uint32_t i = 0; i + 2 < 2 * l.a.len; i += 2) TEST_ASSERT_INT_WITHIN(1, a[i / 2], out[i]);
+  for (uint32_t i = 2 * l.a.len + 2; i < 2 * (l.a.len + voice::kGapSamples); ++i) TEST_ASSERT_EQUAL_UINT8(128, out[i]);
+  const uint32_t at = 2 * (l.a.len + voice::kGapSamples);
+  for (uint32_t i = 0; i + 2 < 2 * l.b.len; i += 2) TEST_ASSERT_INT_WITHIN(1, b[i / 2], out[at + i]);
+  // The mouth: the first take's, shut in the gap, then the second's.
+  for (uint32_t ms = 0; ms < 1377; ++ms) TEST_ASSERT_EQUAL(voice::mouthOpen(l.take, ms), voice::lineMouthOpen(l.take, l.then, ms));
+  for (uint32_t ms = 1377; ms < 1377 + 180; ++ms) TEST_ASSERT_FALSE(voice::lineMouthOpen(l.take, l.then, ms));
+  for (uint32_t ms = 0; ms < 868; ++ms)
+    TEST_ASSERT_EQUAL(voice::mouthOpen(l.then, ms), voice::lineMouthOpen(l.take, l.then, 1377 + 180 + ms));
+  // A second take the pack doesn't have: the first alone.
+  voice::Line one = line("previous.tsk", 10, "banana");
+  TEST_ASSERT_EQUAL(-1, one.then);
+  TEST_ASSERT_EQUAL_UINT32(2 * one.a.len, voice::lineSamples(one));
 }
 
 void test_an_unknown_take_plays_nothing() {
@@ -135,29 +175,21 @@ void test_volume_scales_and_zero_mutes() {
 // 11.025 kHz), and is shut before, after and with no take.
 void test_the_mouth_follows_the_take() {
   int go = voice::takeIndex("previous.go");
-  const uint8_t* m = voice_assets::kMouth + voice_assets::kTake[go].mouth;
   int open = 0;
-  for (uint32_t ms = 0; ms < voice::takeMs(go); ++ms) {
-    uint32_t frame = ms * 11025 / 1000 / 220;
-    TEST_ASSERT_EQUAL(m[frame] != 0, voice::mouthOpen(go, ms));
-    open += voice::mouthOpen(go, ms);
-  }
+  for (uint32_t ms = 0; ms < voice::takeMs(go); ++ms) open += voice::mouthOpen(go, ms);
   TEST_ASSERT_TRUE(open > 0);
-  TEST_ASSERT_FALSE(voice::mouthOpen(go, 0));  // "Go" starts quiet (kMouth's first frame)
+  TEST_ASSERT_FALSE(voice::mouthOpen(go, 0));  // "Go" starts quiet
+  TEST_ASSERT_TRUE(voice::mouthOpen(go, 40));  // and opens at its 3rd frame
   TEST_ASSERT_FALSE(voice::mouthOpen(go, 100000));
   TEST_ASSERT_FALSE(voice::mouthOpen(-1, 100));
-  // Every take opens the mouth somewhere.
-  for (int i = 0; i < voice::takeCount(); ++i) {
-    bool any = false;
-    for (uint32_t ms = 0; ms < voice::takeMs(i) && !any; ms += 10) any = voice::mouthOpen(i, ms);
-    TEST_ASSERT_TRUE(any);
-  }
 }
 
 int main() {
   UNITY_BEGIN();
-  RUN_TEST(test_the_takes_and_their_budget);
+  if (!packfile::open()) std::printf("no voice pack: run make -C internal voice\n");
+  RUN_TEST(test_the_pack_finds_takes_by_id);
   RUN_TEST(test_a_take_plays_whole_at_its_pitch);
+  RUN_TEST(test_a_line_of_two_takes);
   RUN_TEST(test_an_unknown_take_plays_nothing);
   RUN_TEST(test_a_cut_fades_instead_of_clicking);
   RUN_TEST(test_volume_scales_and_zero_mutes);

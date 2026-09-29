@@ -471,9 +471,12 @@ def state_text(s: Line) -> str:
 
 
 def say_text(say: Line) -> str:
-    """A line as the board plays it: its take's text, and its id."""
-    t = take(say.get("take") or "")
-    return f"“{t.text}” ({t.id})" if t else "no take"
+    """A line as the board plays it: its takes' words, and their ids (the
+    feeling's, then the topic's; VOICE.md §4)."""
+    takes = [t for t in (take(say.get(k) or "") for k in ("take", "then")) if t]
+    if not takes or not take(say.get("take") or ""):
+        return "no take"
+    return "“" + " ".join(t.text for t in takes) + "” (" + ", ".join(t.id for t in takes) + ")"
 
 
 def answers(p: Line) -> list[tuple[str, Line]]:

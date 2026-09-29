@@ -19,11 +19,11 @@
 {"expect":{"audio":{"playing":true,"take":"previous.yay"}}}
 {"clock":4300}
 {"shot":"success-line"}
-// "Yay"'s 960 ms and 1.2 s to read it: the bubble goes at 6210, and the
+// "Yay"'s 958 ms and 1.2 s to read it: the bubble goes at 6208, and the
 // strip comes back for the rest.
-{"clock":6209}
+{"clock":6207}
 {"expect":{"audio":{"take":"previous.yay"}}}
-{"clock":6210}
+{"clock":6208}
 {"expect":{"moment":{"anim":"task_complete"},"audio":{"take":null}}}
 {"clock":6300}
 {"shot":"success-strip-again"}
@@ -31,11 +31,11 @@
 {"expect":{"moment":null,"expr":null}}
 // A failure, grumpy: its window opens 5.04 s into a 5.2 s design, so the
 // design rests on its last frame until the line and its bubble end, at
-// 5040 + 900 ("Hrr...") + 1200 = 7140 ms.
+// 5040 + 898 ("Hrr...") + 1200 = 7138 ms.
 {"clock":20000}
 {"t":"state","v":1,"base":"idle","mood":"grumpy","busy":1}
 {"t":"moment","anim":"task_complete","outcome":"failure","say":{"take":"new.d12"},"mood":"grumpy","loops":1,"id":12,"who":{"agent":"claude","thread":"fix-nav"}}
-{"expect":{"moment":{"anim":"task_complete","left_ms":7140,"variant":5}}}
+{"expect":{"moment":{"anim":"task_complete","left_ms":7138,"variant":5}}}
 {"clock":21000}
 {"shot":"failure-cross"}
 {"clock":25040}
@@ -44,9 +44,9 @@
 {"shot":"failure-line"}
 {"clock":26500}
 {"shot":"failure-rests"}
-{"clock":27139}
+{"clock":27137}
 {"expect":{"moment":{"anim":"task_complete","left_ms":1}}}
-{"clock":27140}
+{"clock":27138}
 {"expect":{"moment":null,"audio":{"take":null}}}
 // A reply, calm: three dots, and a line from 0.45 s in.
 {"clock":40000}

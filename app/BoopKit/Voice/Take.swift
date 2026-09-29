@@ -4,17 +4,25 @@ import Foundation
 /// phrase or a swear, performed in one of Boop's moods. The list is
 /// `Take.all`, which voicegen writes from the voice bank.
 public struct Take: Equatable, Sendable {
-    /// How a take says its meaning, from the plainest up: Voice steps down
-    /// this order when there's no take of the kind asked for.
+    /// How a take says its meaning, from the plainest up: Voice takes the
+    /// nearest kind to the one asked for when there's none of it.
     public enum Kind: String, CaseIterable, Sendable {
         case sound, word, phrase, swear
+    }
+
+    /// Which of the brain's questions a take answers (DECISIONS.md §3):
+    /// how Boop feels (`say.feeling`) or what NOW is about (`say.about`).
+    /// Needs you's takes are the rules' only.
+    public enum Part: String, CaseIterable, Sendable {
+        case feeling, about, attention
     }
 
     /// The board's id for it, as `say.take` sends it.
     public let id: String
     /// What it says, as the bubble shows it and HISTORY reads it.
     public let text: String
-    /// What it means: one of `say.meaning`'s options.
+    public let part: Part
+    /// Its answer to its part's question, such as `upset` or `tests`.
     public let meaning: String
     public let kind: Kind
     /// The mood it was performed in: it only plays in that mood's face.

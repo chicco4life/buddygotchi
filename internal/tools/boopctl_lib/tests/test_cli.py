@@ -171,30 +171,35 @@ class PerfTests(unittest.TestCase):
 
 
 class TakesTests(unittest.TestCase):
-    """The takes boopctl plays are the board's, from voice.h."""
+    """The takes boopctl plays are the board's, from the voice pack on its
+    card (.build/voice/voice.bin)."""
 
     def test_the_takes_are_the_boards(self):
         takes = cli.takes()
-        self.assertEqual(len(takes), 40)
-        self.assertEqual((takes[0].id, takes[0].text, takes[0].ms), ("previous.go", "Go", 640))
+        self.assertEqual(len(takes), 2722)
+        self.assertEqual([t.id for t in takes], sorted((t.id for t in takes), key=str.encode), "the pack's order: by id")
+        go = cli.take("previous.go")
+        self.assertEqual((go.id, go.text, go.ms), ("previous.go", "Go", 638))
         self.assertEqual(cli.take("new.d15").text, "Bada bing bada boom")
         self.assertIsNone(cli.take("banana"))
 
     def test_only_picks_by_id_or_text(self):
-        self.assertEqual([t.id for t in cli.chosen_takes("Go")], ["previous.go", "new.d01", "new.d02"])
+        gos = cli.chosen_takes("Go")
+        self.assertTrue({"previous.go", "new.d01", "new.d02"} <= {t.id for t in gos})
+        self.assertTrue(all(t.text == "Go" or "go" in t.text.lower().split() for t in gos), [t.text for t in gos])
         self.assertEqual([t.id for t in cli.chosen_takes("new.d15")], ["new.d15"])
-        self.assertEqual(len(cli.chosen_takes("again")), 4)
+        self.assertTrue(all("again" in t.text.lower() for t in cli.chosen_takes("again")))
         self.assertEqual([t.id for t in cli.chosen_takes("mamma mia")], ["new.d14"])
-        self.assertEqual([t.id for t in cli.chosen_takes("boom")], ["new.d15"])
-        self.assertEqual(len(cli.chosen_takes(None)), 40)
+        self.assertEqual({t.text for t in cli.chosen_takes("boom")}, {"Bada bing bada boom", "Boom shakalaka"})
+        self.assertEqual(len(cli.chosen_takes(None)), 2722)
         with self.assertRaises(cli.DeviceError):
             cli.chosen_takes("banana")
 
     def test_a_take_is_checked_against_audio_out(self):
         t = cli.take("previous.go")
         states = iter([{"audio": {"out": {"lines": 3}}, "amp": False},
-                       {"amp": True, "vol": 6, "audio": {"out": {"lines": 4, "take": "previous.go", "plan_ms": 640,
-                                                                  "out_ms": 640, "wall_ms": 650, "cut": False}}}])
+                       {"amp": True, "vol": 6, "audio": {"out": {"lines": 4, "take": "previous.go", "plan_ms": 638,
+                                                                  "out_ms": 638, "wall_ms": 648, "cut": False}}}])
         board = FakeBoard(lambda msg: json.dumps({"t": msg["t"], **next(states)}).encode() + b"\n"
                           if msg["t"] == "dbg.state" else b"")
         r = cli.check_take(board, t)

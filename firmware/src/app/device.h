@@ -37,8 +37,8 @@ struct AudioOut {
   bool ready = false;   // there's a DAC and it started
   bool playing = false;
   uint32_t lines = 0;
-  int take = -1;        // the last line's take (voice/player.h)
-  uint32_t planMs = 0;  // the take's length
+  int take = -1;        // the last line's first take (voice/player.h)
+  uint32_t planMs = 0;  // the line's length
   uint32_t outMs = 0;   // samples rendered, at 22.05 kHz
   uint32_t wallMs = 0;  // time the DAC took to play them; 0 where there's no DAC
   bool cut = false;     // stopped early (hushed or replaced)
@@ -87,6 +87,9 @@ struct Hal {
   // connected), "adv" (advertising) or "conn".
   virtual const char* bleState() { return "off"; }
   virtual const char* bleName() { return ""; }
+  // The microSD card that holds the voice pack, for dbg.ping: "ok", "no
+  // card" or "no pack" (VOICE.md §8); the simulator's is a file.
+  virtual const char* cardState() { return "none"; }
   virtual const char* fwVersion() = 0;
   virtual const char* gitSha() = 0;
 };
