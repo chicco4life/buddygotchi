@@ -13,6 +13,27 @@ uint32_t crc32(const uint8_t* data, size_t n, uint32_t crc) {
 
 static const char kAlphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
+long base64Decode(const char* text, size_t n, uint8_t* out, size_t cap) {
+  if (n % 4) return -1;
+  size_t made = 0;
+  for (size_t i = 0; i < n; i += 4) {
+    uint32_t v = 0;
+    int pad = 0;
+    for (int k = 0; k < 4; ++k) {
+      char c = text[i + k];
+      int d = c >= 'A' && c <= 'Z' ? c - 'A' : c >= 'a' && c <= 'z' ? c - 'a' + 26 : c >= '0' && c <= '9' ? c - '0' + 52
+              : c == '+' ? 62 : c == '/' ? 63 : -1;
+      if (c == '=' && i + 4 == n && k >= 2) d = 0, ++pad;
+      else if (d < 0 || pad) return -1;
+      v = v << 6 | uint32_t(d);
+    }
+    size_t bytes = 3 - pad;
+    if (made + bytes > cap) return -1;
+    for (size_t k = 0; k < bytes; ++k) out[made++] = uint8_t(v >> (16 - 8 * k));
+  }
+  return long(made);
+}
+
 void Base64Writer::write(const uint8_t* data, size_t n) {
   for (size_t i = 0; i < n; ++i) {
     pend_[npend_++] = data[i];

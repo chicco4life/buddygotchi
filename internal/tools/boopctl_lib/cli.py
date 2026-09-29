@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 from boopctl_lib import scenario
-from boopctl_lib.common import ANIMS, CTXS, MOODS, OLD_ANIMS, OUTCOMES, REPO, Take, restarted, take, takes
+from boopctl_lib.common import ANIMS, CTXS, MOODS, OLD_ANIMS, OUTCOMES, PACK, REPO, Take, restarted, take, takes
 from boopctl_lib.device import Device, DeviceError, Sim
 from boopctl_lib.image import diff, save_shot
 
@@ -32,6 +32,13 @@ def cmd_ping(args: argparse.Namespace) -> int:
     with Device(args.port) as dev:
         emit(dev.request({"t": "dbg.ping"}))
     return 0
+
+
+def cmd_card(args: argparse.Namespace) -> int:
+    """Copies the voice pack onto the board's card over USB (VOICE.md §8)."""
+    from boopctl_lib import card
+    with Device(args.port) as dev:
+        return card.copy(dev, Path(args.pack), force=args.force, fresh=args.fresh)
 
 
 def cmd_state(args: argparse.Namespace) -> int:
@@ -712,6 +719,12 @@ def build_parser() -> argparse.ArgumentParser:
                      help="compare volumes by ear: the first take at each level in turn, --rounds times")
     p.add_argument("--rounds", type=int, default=6, help="with --levels (default 6)")
     p.set_defaults(func=cmd_takes)
+    p = sub.add_parser("card", help="copy the voice pack onto the board's microSD card over USB, unless it has it; "
+                                    "goes on where a cut-off copy stopped (about 15-30 min for the whole pack)")
+    p.add_argument("--pack", default=str(PACK), help="the pack (default: .build/voice/voice.bin)")
+    p.add_argument("--force", action="store_true", help="copy even when the card has this version")
+    p.add_argument("--fresh", action="store_true", help="start again rather than go on from an earlier copy")
+    p.set_defaults(func=cmd_card)
     p = sub.add_parser("sim", help="play scenarios in the simulator and compare with the goldens (L1)")
     p.add_argument("scenario", nargs="*", help="names or paths (default: all)")
     p.add_argument("--accept", action="store_true", help="copy the pictures into the goldens (after looking!)")

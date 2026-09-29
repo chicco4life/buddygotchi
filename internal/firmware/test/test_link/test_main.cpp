@@ -140,7 +140,17 @@ static void test_base64_matches_rfc4648() {
     w.write(reinterpret_cast<const uint8_t*>(c[0]) + n / 2, n - n / 2);
     w.finish();
     TEST_ASSERT_EQUAL_STRING(c[1], out.c_str());
+    // And back (dbg.card's chunks).
+    uint8_t back[16];
+    long n2 = app::base64Decode(c[1], std::strlen(c[1]), back, sizeof(back));
+    TEST_ASSERT_EQUAL(long(n), n2);
+    if (n) TEST_ASSERT_EQUAL_MEMORY(c[0], back, n);
   }
+  uint8_t out[4];
+  TEST_ASSERT_EQUAL(-1, app::base64Decode("Zm9", 3, out, sizeof(out)));        // not a multiple of 4
+  TEST_ASSERT_EQUAL(-1, app::base64Decode("Zm*v", 4, out, sizeof(out)));       // not base64
+  TEST_ASSERT_EQUAL(-1, app::base64Decode("Zg==Zg==", 8, out, sizeof(out)));   // padding mid-way
+  TEST_ASSERT_EQUAL(-1, app::base64Decode("Zm9vYmFy", 8, out, sizeof(out)));   // too long for out
 }
 
 static void test_crc32_matches_zlib() {

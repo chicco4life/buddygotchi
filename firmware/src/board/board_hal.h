@@ -40,6 +40,9 @@ class BoardHal : public app::Hal {
   const char* bleState() override;
   const char* bleName() override;
   const char* cardState() override;
+  bool packBegin(bool keep, uint32_t& have, const char*& why) override;
+  bool packAppend(const uint8_t* d, size_t n, uint32_t& have) override;
+  bool packEnd(uint32_t size, uint32_t crc, const char*& why) override;
   const char* fwVersion() override;
   const char* gitSha() override;
 

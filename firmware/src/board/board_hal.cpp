@@ -52,6 +52,9 @@ const char* BoardHal::deviceId() { return ble_ ? ble_->id() : Hal::deviceId(); }
 const char* BoardHal::bleState() { return ble_ ? ble_->state() : "off"; }
 const char* BoardHal::bleName() { return ble_ ? ble_->name() : ""; }
 const char* BoardHal::cardState() { return board::cardState(); }
+bool BoardHal::packBegin(bool keep, uint32_t& have, const char*& why) { return board::packBegin(keep, have, why); }
+bool BoardHal::packAppend(const uint8_t* d, size_t n, uint32_t& have) { return board::packAppend(d, n, have); }
+bool BoardHal::packEnd(uint32_t size, uint32_t crc, const char*& why) { return board::packEnd(size, crc, why); }
 
 uint32_t BoardHal::realMs() { return millis(); }
 

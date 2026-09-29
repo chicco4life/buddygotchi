@@ -261,6 +261,13 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
                                       long(c.ax), long(c.bx), long(c.cx), long(c.ay), long(c.by), long(c.cy))
                       : std::snprintf(buf, sizeof(buf), "{\"t\":\"dbg.touchcal\",\"cal\":null}");
     reply(from, buf, size_t(len));
+  } else if (!std::strcmp(t, "dbg.card")) {
+    CardOp o;
+    o.op = doc["op"] | "";
+    o.keep = doc["keep"] | false;
+    o.at = doc["at"] | 0u, o.c = doc["c"] | 0u, o.size = doc["size"] | 0u, o.crc = doc["crc"] | 0u;
+    o.d = doc["d"] | "";
+    cardCopy(o, from);
   } else if (!std::strcmp(t, "dbg.light")) {
     if (doc["bl"].is<int>()) b_.overrideBacklight(uint8_t(doc["bl"].as<int>()));
     uint32_t rgb;
@@ -270,6 +277,44 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
   if (hello) sendStatus(from);
   sendEnded();
   return debug;
+}
+
+// Copying a voice pack onto the card over USB (PROTOCOL.md §5, VOICE.md §8):
+// `begin` (afresh, or `keep` to go on), then `put`s of base64 chunks at
+// the end of what the card holds, each with its CRC-32, then `end` with the
+// whole file's size and CRC-32. Every reply says what the card holds, so
+// a chunk lost on the way is simply sent again.
+void Device::cardCopy(const CardOp& o, Link from) {
+  char buf[160];
+  int n = 0;
+  uint32_t have = 0;
+  const char* why = "";
+  bool ok = false;
+  if (!std::strcmp(o.op, "begin")) {
+    ok = hal_.packBegin(o.keep, have, why);
+  } else if (!std::strcmp(o.op, "put")) {
+    static uint8_t chunk[kCardChunk];
+    long got = app::base64Decode(o.d, std::strlen(o.d), chunk, sizeof(chunk));
+    hal_.packAppend(chunk, 0, have);  // how much the card holds
+    if (got < 0) why = "not base64";
+    else if (app::crc32(chunk, size_t(got)) != o.c) why = "wrong crc";
+    else if (o.at != have) why = "not where the card is";
+    else if (!(ok = hal_.packAppend(chunk, size_t(got), have))) why = "can't write";
+  } else if (!std::strcmp(o.op, "end")) {
+    hush();  // nothing reads the old pack while it's swapped
+    linePending_ = false;
+    ok = hal_.packEnd(o.size, o.crc, why);
+    n = std::snprintf(buf, sizeof(buf), "{\"t\":\"dbg.card\",\"op\":\"end\",\"ok\":%s,\"voice\":\"%s\",\"why\":\"%s\"}",
+                      ok ? "true" : "false", voice::assetsVersion(), ok ? "" : why);
+    reply(from, buf, size_t(n));
+    return;
+  } else {
+    why = "op is begin, put or end";
+  }
+  const char* name = ok || std::strcmp(why, "op is begin, put or end") ? o.op : "?";  // never echo junk
+  n = std::snprintf(buf, sizeof(buf), "{\"t\":\"dbg.card\",\"op\":\"%s\",\"ok\":%s,\"have\":%lu,\"why\":\"%s\"}", name,
+                    ok ? "true" : "false", (unsigned long)have, ok ? "" : why);
+  reply(from, buf, size_t(n));
 }
 
 void Device::connected() {

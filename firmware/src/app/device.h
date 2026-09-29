@@ -91,6 +91,23 @@ struct Hal {
   // The microSD card that holds the voice pack, for dbg.ping: "ok", "no
   // card" or "no pack" (VOICE.md §8); the simulator's is a file.
   virtual const char* cardState() { return "none"; }
+  // Copying a new voice pack onto the card over USB (`dbg.card`, PROTOCOL.md
+  // §5): a file begun afresh, or kept to go on where an earlier copy
+  // stopped, then appended to, then checked against its size and CRC-32
+  // and swapped in for the pack, which reopens. `have` is how many bytes
+  // it holds. With no card they fail, and `why` says so.
+  virtual bool packBegin(bool keep, uint32_t& have, const char*& why) {
+    have = 0, why = "no card";
+    return false;
+  }
+  virtual bool packAppend(const uint8_t* d, size_t n, uint32_t& have) {
+    (void)d, (void)n, have = 0;
+    return false;
+  }
+  virtual bool packEnd(uint32_t size, uint32_t crc, const char*& why) {
+    (void)size, (void)crc, why = "no card";
+    return false;
+  }
   virtual const char* fwVersion() = 0;
   virtual const char* gitSha() = 0;
 };
@@ -142,6 +159,15 @@ class Device {
   void render(uint32_t t);
   void sendPing(Link to);
   void sendStatus(Link to);
+  // dbg.card: copying a voice pack onto the card, a chunk at a time.
+  static constexpr size_t kCardChunk = 360;  // bytes a `put` may carry
+  struct CardOp {
+    const char* op = "";
+    bool keep = false;
+    uint32_t at = 0, c = 0, size = 0, crc = 0;
+    const char* d = "";
+  };
+  void cardCopy(const CardOp& o, Link from);
   void sendEnded();
   void sendState(Link to);
   void sendShot(Link to);
