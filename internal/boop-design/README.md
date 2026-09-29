@@ -1,6 +1,6 @@
 # Boop animation and mood design package
 
-Updated 2026-09-28. The code-based animation/SFX bank and approved mood-graph
+Updated 2026-09-29. The code-based animation/SFX bank and approved mood-graph
 handover, published together for review and later integration. Nothing here
 changes the shipped app, firmware enums, steering or hardware assets.
 
@@ -11,6 +11,10 @@ changes the shipped app, firmware enums, steering or hardware assets.
 - [Mood graph and JEV handover](boop-mood-spectrum-v2/HANDOVER.md):
   neighbor choices, dramatic-edge gating, migration and voice guidance.
 - [Machine-readable graph](boop-mood-spectrum-v2/mood-graph.json).
+- [Voice asset bank and agent selection guide](assets/boop-voice-v1/README.md):
+  40 recorded Robot Minion takes, three local DSP alternatives, original masters,
+  dictionary, lookup indexes and a tested host-side selector. Audition assets,
+  not automatic production playback.
 
 From the **repository root**, with Node.js:
 
@@ -58,5 +62,7 @@ generation, and the specifications. The generic harness must not acquire mood
 graph logic. Publication of this package is not visual approval or a claim of
 device support.
 
-No recordings, execution logs, credentials, enclosure CAD, or the sound chat's
-unfinished scripts are part of this publication.
+The original animation publication contained no recordings. The separately
+authorized voice asset folder now contains only the selected voice bank and its
+integration guide. No execution logs, credentials, account ledgers, enclosure CAD,
+other voices or unused recording intermediates are included.

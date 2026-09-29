@@ -1,6 +1,6 @@
 # Boop: verification
 
-Updated 2026-09-28. How we check that Boop works, including what's on its
+Updated 2026-09-29. How we check that Boop works, including what's on its
 screen, without a person watching, and every tool that does it.
 
 ## 1. The loop
@@ -44,6 +44,16 @@ All scripts support `--help`; none contacts JEV, ElevenLabs or a device.
 Evidence: [mood design publication](evidence/2026-09-28-mood-design-push/README.md).
 These checks are not firmware integration, physical audio tests or owner
 approval of the new art.
+
+**Recorded voice design assets (not production integration).**
+`node internal/boop-design/assets/boop-voice-v1/tools/check.mjs` validates all
+recorded hashes, PCM formats/levels, indexes, safe candidate selection and assembly,
+and writes an exact storage report. `select.mjs --help` in the same bank documents
+the dependency-free shortlist CLI. Both are offline and never play sound or call
+an API; unreviewed takes require explicit audition mode. The
+[agent handoff](../internal/boop-design/assets/boop-voice-v1/README.md) distinguishes
+actual recordings from the planned dictionary and documents encoding/timing limits.
+Evidence: [voice asset publication](evidence/2026-09-29-voice-asset-push/README.md).
 
 Every tool prints its flags with `--help` (`internal/tools/boopctl
 <command> --help`, `.build/debug/boopdev <command> --help`,

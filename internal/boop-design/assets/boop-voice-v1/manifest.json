@@ -1,0 +1,2568 @@
+{
+  "version": 1,
+  "status": "audition; not approved for automatic production playback",
+  "voiceId": "rErOatUrNIU3vfNcLl6Z",
+  "defaultTexture": "robot-soft",
+  "recordings": [
+    {
+      "id": "previous.go",
+      "entryId": "word.begin.go",
+      "mood": "unspecified",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[softly] Go.",
+      "seconds": 1.0710204081632653,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.go.wav",
+          "bytes": 94508,
+          "sha256": "907020d8287b487de191a1eb3fa512fe822055e5a4ca59868a9f28c0510c6b3b",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.go.wav",
+          "bytes": 94508,
+          "sha256": "644af9b3bf23fc2be41c668cf6fd13f4a704f551e78e7ec04f810fbe637b5210",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.go.wav",
+          "bytes": 94508,
+          "sha256": "47a611cfa882a2ffe234c5554091c8b821eafd2c6fcb9a8c363eedbda944696f",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.go.mp3",
+        "bytes": 17598,
+        "sha256": "6f03968c942ac012a37831f159f6283e800d4d351eb116977da96289dc0657bb",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.work",
+      "entryId": "word.work.work",
+      "mood": "engaged",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[focused] Work.",
+      "seconds": 1.3061224489795917,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.work.wav",
+          "bytes": 115244,
+          "sha256": "e7a3eb8ece5554c341ebf533f0991860acb303108f396478cb9885e1ca02a438",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.work.wav",
+          "bytes": 115244,
+          "sha256": "558d2bfaf936decafd01c2ebc1d3b0ec8cc0be61005169c4f888d0512a68f09d",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.work.wav",
+          "bytes": 115244,
+          "sha256": "83821dad208975b3f40d87f7cbc47e66ef61a4f066b663d534a5773130314d9c",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.work.mp3",
+        "bytes": 21359,
+        "sha256": "f6c636cc51e5ce40c6dd6180053cd570ebb04107fb15096d878e776fa4fcdba0",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.finish",
+      "entryId": "word.success.finish",
+      "mood": "happy",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[pleased] Finish.",
+      "seconds": 1.4106122448979592,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.finish.wav",
+          "bytes": 124460,
+          "sha256": "439c042cb80517ecdbede91e0c9aaa4508b2a47713c5b1226b85b7145103b3b9",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.finish.wav",
+          "bytes": 124460,
+          "sha256": "420985c1ce0a5a3a12d897d391eb48ae3ec3c13c0f61e73aeef2c73c369431a0",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.finish.wav",
+          "bytes": 124460,
+          "sha256": "1b57b62c0a87c42b29acbd2c0308afdfe43dc35f7c5f3dc9153910d9834b9bfc",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.finish.mp3",
+        "bytes": 23031,
+        "sha256": "3c597c405d1eca72c93aa66f8c5b060836858ac186b0b5ab464f2e16281dc9f8",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.done",
+      "entryId": "word.success.done",
+      "mood": "relieved",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[relieved] Done.",
+      "seconds": 1.4106122448979592,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.done.wav",
+          "bytes": 124460,
+          "sha256": "6e296f421179d02087b3709b6aa01b7c743f01beabed742d8e49fcd0fbdf5083",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.done.wav",
+          "bytes": 124460,
+          "sha256": "e5b18df8d9c44398bc1885cfcc0e69efe1c7575fcd315bdc55ddeff76a6c7475",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.done.wav",
+          "bytes": 124460,
+          "sha256": "ce3ca584ecdfab52a6c344237414dcfe82948634dc9a8967d21d981336a1cc69",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.done.mp3",
+        "bytes": 23031,
+        "sha256": "e751e62115e73a95d910a7cffda15fa72d1739e18460581c3d6e4e735709f88b",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.yay",
+      "entryId": "word.celebrate.yay",
+      "mood": "happy",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[happy] Yay.",
+      "seconds": 1.4106122448979592,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.yay.wav",
+          "bytes": 124460,
+          "sha256": "57253cf75f07a6767850067325455c1913d21fc0c70b1684680f04c72c382978",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.yay.wav",
+          "bytes": 124460,
+          "sha256": "763c6895e8b4b3cad3bf665a48ecb2eb1381eb7a79ffa706e21005920fecf126",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.yay.wav",
+          "bytes": 124460,
+          "sha256": "aa0cddfa87dcf52c680cd0a439d7374438dd0dcafdd9448a1cccea8bae33d257",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.yay.mp3",
+        "bytes": 23031,
+        "sha256": "b7c44122827dc4cfa22d77d674bbac6e8dc4bf4a14d1af8ec46be15814ed44ca",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.dai",
+      "entryId": "borrowed.dai",
+      "mood": "determined",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[determined] Dai.",
+      "seconds": 1.0710204081632653,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.dai.wav",
+          "bytes": 94508,
+          "sha256": "99a47175806b96a7f4c86174b08fab8fea003e0c79d7d8839008abade130f7a2",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.dai.wav",
+          "bytes": 94508,
+          "sha256": "7640f27f23eecfb4db7228434dd8ab1f7eb59174c6371b88d166f1ae1519d278",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.dai.wav",
+          "bytes": 94508,
+          "sha256": "69b47dd5df94ced96876f09d15495a1d46d08f15f4bd3198a4b9a1f086a1e125",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.dai.mp3",
+        "bytes": 17598,
+        "sha256": "4c75133cd107e899322996fc985e6039101f81f96f04efb9acbdebfe1c219296",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.basta",
+      "entryId": "borrowed.basta",
+      "mood": "annoyed",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[annoyed] Basta.",
+      "seconds": 1.4106122448979592,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.basta.wav",
+          "bytes": 124460,
+          "sha256": "2f880d2926b4fe838365c9a3e68e8b2f24907b8fc850f0d461d90cd6ae3cc9ee",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.basta.wav",
+          "bytes": 124460,
+          "sha256": "3e46a7d918fa5425dcd58f35c71d4a0d815aae794879201420d384ec8587f04a",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.basta.wav",
+          "bytes": 124460,
+          "sha256": "776bc2c4a4254abe138197b715cba79e0dbcf421e21e6b4a1928cd9f5dc19f15",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.basta.mp3",
+        "bytes": 23031,
+        "sha256": "f38141f54349354a3be055a27421bfd7c89c195835403d8835852a6347f6f363",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.aigo",
+      "entryId": "borrowed.aigo",
+      "mood": "weary",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[weary] Aigo.",
+      "seconds": 1.6457142857142857,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.aigo.wav",
+          "bytes": 145196,
+          "sha256": "c17295215478b0e68f8447eaaccf47e721c7a5aacc397db9af9a1403a1dc24c1",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.aigo.wav",
+          "bytes": 145196,
+          "sha256": "fdc0f79d9a7aa4314e5ec1114847705eb45c641154c453db0d37378e278b416b",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.aigo.wav",
+          "bytes": 145196,
+          "sha256": "8fca70a75fdb590f0148fc0b16a861b8dc31f35afdaa260e7d1326deaa327e6c",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.aigo.mp3",
+        "bytes": 26793,
+        "sha256": "1a6539ae8a2bcb8cd11c5deb64044dd25698c712206c7ee260c9c6b4213f3cfe",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.yatta",
+      "entryId": "borrowed.yatta",
+      "mood": "happy",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[happy] Yatta.",
+      "seconds": 1.2277551020408164,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.yatta.wav",
+          "bytes": 108332,
+          "sha256": "b04ecda25d1bb2c542b96570f88daf4c358dc233312b5dcef107737298381a89",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.yatta.wav",
+          "bytes": 108332,
+          "sha256": "22cdea05469a35b8144b7febf539d1f51f1cc964e8324bae75c5ecba91d7f6a8",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.yatta.wav",
+          "bytes": 108332,
+          "sha256": "8df7996b2411bc17df1f1d53c383988cdddc849667391414eee02d64f9a7c78a",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.yatta.mp3",
+        "bytes": 20106,
+        "sha256": "cd3a1b223d9a531fad3fafa972cdd57de1f1a3664fe71605ad80dbe0e87b3c88",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.oi",
+      "entryId": "borrowed.oi",
+      "mood": "unspecified",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[softly] Oi?",
+      "seconds": 0.9926530612244898,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.oi.wav",
+          "bytes": 87596,
+          "sha256": "67b168aefa9dcd14b111becbde694afe6fa2f91a2bc5cca56bc731aa16659eca",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.oi.wav",
+          "bytes": 87596,
+          "sha256": "b6eb0500146a30c025b98dcb8a249076a29d9d2ab498bf390c10c53020dee284",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.oi.wav",
+          "bytes": 87596,
+          "sha256": "30c3d3baf6fefbf074e992cb855ee01f7bf2a08cff17438b6aa67ddaa469a7d7",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.oi.mp3",
+        "bytes": 16344,
+        "sha256": "7228cb1743182804ce4295f54ab1acd7ad8ea11c6afcf64aace6a3739b2f81fe",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.eh",
+      "entryId": "nonverbal.ponder.eh",
+      "mood": "curious",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[curious] Eh?",
+      "seconds": 0.9926530612244898,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.eh.wav",
+          "bytes": 87596,
+          "sha256": "73dcd7592bf28b9cd7659e7ab4e237f0a1d20937a3a9b8d025d5c67ac63dcf7d",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.eh.wav",
+          "bytes": 87596,
+          "sha256": "464b153865e4ac11d0380d35b213563f4e32f10fa985ce9d33f38cfa3558cb74",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.eh.wav",
+          "bytes": 87596,
+          "sha256": "032669dca0666ec97b64edc56d20a5faefa4cd8dd0d38d51f938700d0374d7fb",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.eh.mp3",
+        "bytes": 16344,
+        "sha256": "4dbe6dc12b35b1a8c2fe0ee8016fc74c71d9ff16e8bee7c67b84ad67a8b275fd",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.tsk",
+      "entryId": "nonverbal.frustration.tsk",
+      "mood": "annoyed",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[annoyed] Tsk....",
+      "seconds": 1.7240816326530612,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.tsk.wav",
+          "bytes": 152108,
+          "sha256": "118d94040cd746b0c84ead5078ec5b47dfe33308daf5cd64326006e800c18f9f",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.tsk.wav",
+          "bytes": 152108,
+          "sha256": "a00b01ef9b1631424ffeb386f7107179fc32bb8ae545ee7b91e149acec045ab9",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.tsk.wav",
+          "bytes": 152108,
+          "sha256": "2605feae37313dd24e08f31be63204e2a524df98e5d4aa28d80158b97eb81797",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.tsk.mp3",
+        "bytes": 28047,
+        "sha256": "f9e8471a28937865976d96b320f6eef1a833c2b40dbebbb5ffe83a9fd814a058",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.hrr",
+      "entryId": "nonverbal.effort.hrr",
+      "mood": "grumpy",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[frustrated] Hrr....",
+      "seconds": 1.4106122448979592,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.hrr.wav",
+          "bytes": 124460,
+          "sha256": "f69fbd59b8205932172ac6e4701c96cd44f4bdccbb1d75ddf81d32c7e8ea726d",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.hrr.wav",
+          "bytes": 124460,
+          "sha256": "21c31d0b3c09891cd0791e3dbcc4741de09c173087a8015065f12a7cda182b61",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.hrr.wav",
+          "bytes": 124460,
+          "sha256": "13c8c758b930361eba1c5782b46d8098d9fa4a117fdbcaf713cc6fdf7adedcc0",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.hrr.mp3",
+        "bytes": 23031,
+        "sha256": "8e1828840b5c2c0f471a562f929b5af89cad094025adfd4b31b8dc1ad6601503",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.pfft",
+      "entryId": "nonverbal.frustration.pfft",
+      "mood": "annoyed",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[annoyed] Pfft.",
+      "seconds": 0.9142857142857143,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.pfft.wav",
+          "bytes": 80684,
+          "sha256": "6b367cea9634b06ebe928b40903ee2226243ad393916b1308f6a14f546b84e51",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.pfft.wav",
+          "bytes": 80684,
+          "sha256": "43821da2b4c6deb79ed06bf116f3820fcbd379f98db47004364c000bc88796bc",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.pfft.wav",
+          "bytes": 80684,
+          "sha256": "ae0a42b1bb29b8d45fdad1f6fba714cfe621406412eb532c6ef688610e4e18ff",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.pfft.mp3",
+        "bytes": 15090,
+        "sha256": "ff93d34a288b7f4e7d4373c31c206d38f86fec68b346adcfb66922a63d3e2227",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.krr",
+      "entryId": "nonverbal.effort.krr",
+      "mood": "weary",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[weary] Krr....",
+      "seconds": 1.4889795918367348,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.krr.wav",
+          "bytes": 131372,
+          "sha256": "429c6437ae2f966e38e4614db958399d4172146ec688b2f278f14ba4ee5bcbe6",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.krr.wav",
+          "bytes": 131372,
+          "sha256": "b0973306b34dcd3d6fd66705017e9f906b26264fd766873bd7a76ae0c87fbf11",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.krr.wav",
+          "bytes": 131372,
+          "sha256": "fe513368485972b9afaef757adee781e9df46323770dc94b4bc5fa81c4100819",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.krr.mp3",
+        "bytes": 24285,
+        "sha256": "ced73499d4493a36fa3554256eb15e9924e2be6aee758ca0613d4b7fbd746507",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.rrtik",
+      "entryId": "nonverbal.effort.rrr-tik",
+      "mood": "engaged",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[focused] Rrr.... tik.",
+      "seconds": 2.27265306122449,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.rrtik.wav",
+          "bytes": 200492,
+          "sha256": "7e0e74141baae912c458671b32d68853cd832ca4a82a37f54b6ced3e2a91dae2",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.rrtik.wav",
+          "bytes": 200492,
+          "sha256": "e36d8cc9edcf4933f168ebd540d8157388722db68cc4700349c9ca254b00858e",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.rrtik.wav",
+          "bytes": 200492,
+          "sha256": "387f18a043212382c4ea179a20846952cee9a5df3471015a329d1dde74182d3e",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.rrtik.mp3",
+        "bytes": 36824,
+        "sha256": "7e12d360b4709b5dac337529da706f0e233b9e813b40b4762b72967a83376073",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.heh",
+      "entryId": "nonverbal.delight.heh",
+      "mood": "amused",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[amused] Heh....",
+      "seconds": 1.0710204081632653,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.heh.wav",
+          "bytes": 94508,
+          "sha256": "915299d2264d6807145b0399408c5e4dffae90ae57021a24079102eaf9c3d924",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.heh.wav",
+          "bytes": 94508,
+          "sha256": "46a47a8d30f6ead0b351861d9643263a02d9357a213ef0035dae31e6c8f4ece5",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.heh.wav",
+          "bytes": 94508,
+          "sha256": "c4676cce13fcd41c0ab669f1ccba7172b92ed09d353bdcdfa2ec424dabf9ed36",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.heh.mp3",
+        "bytes": 17598,
+        "sha256": "229d992e02190215e3d05b12af9175c9c38af0dcce727245f3d85ada24472731",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.shit",
+      "entryId": "explicit.shit",
+      "mood": "grumpy",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[frustrated] Shit.",
+      "seconds": 1.3061224489795917,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.shit.wav",
+          "bytes": 115244,
+          "sha256": "ca02e61da85b883650eba53fd719efd3551e0b8b0590937211c27a893f82bf82",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.shit.wav",
+          "bytes": 115244,
+          "sha256": "f7faa956d467b8eec6099b6cf78c6b1cac60a8ead6df76d7f3f35351239c50bc",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.shit.wav",
+          "bytes": 115244,
+          "sha256": "cac63655acbff04048c45e6c8df4b5df6889a80cf6c30a2d7d2997145c1a648e",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.shit.mp3",
+        "bytes": 21359,
+        "sha256": "97139fce30c899536c6366970e301433bedb25e5737f26dffda62e9c257ddaaa",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.fuck",
+      "entryId": "explicit.fuck",
+      "mood": "grumpy",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[frustrated] Fuck.",
+      "seconds": 1.4106122448979592,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.fuck.wav",
+          "bytes": 124460,
+          "sha256": "0823f76854f7f045f60aa941366657cfb82a1829fc1cdc017543080730b8fe01",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.fuck.wav",
+          "bytes": 124460,
+          "sha256": "b09688b46ffc4e8f33a39cb561c06603421cfb844795a5a9a8c3a5a6cd12a577",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.fuck.wav",
+          "bytes": 124460,
+          "sha256": "5fb1906a48a84e8f36bc838f905736b0cb4c65b5922450b216f7c18182f88646",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.fuck.mp3",
+        "bytes": 23031,
+        "sha256": "8ff8a94c2f6a21d91cecb76326eeb7d6e155e5ab828184d80fd193bc952f7a08",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "previous.shiba",
+      "entryId": "explicit.shiba",
+      "mood": "annoyed",
+      "moodStatus": "editorial alias; inspect the original script tag",
+      "variant": "prior audition",
+      "script": "[annoyed] Shiba.",
+      "seconds": 1.4106122448979592,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": null,
+      "sourceBatch": "robot-language-v2",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/previous.shiba.wav",
+          "bytes": 124460,
+          "sha256": "0d3d00d08e7b1d27f54bdf4df1fcaedab38f5db14264a7c5ce78edb165ef6a70",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/previous.shiba.wav",
+          "bytes": 124460,
+          "sha256": "6a3c7a512d5e72109728f826ecd986698b5721add1d8bb29b1beda9c553934dd",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/previous.shiba.wav",
+          "bytes": 124460,
+          "sha256": "0bd344965bd03010068b4f3bdb5b111152fac5cd507013242509b76c013863df",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/previous.shiba.mp3",
+        "bytes": 23031,
+        "sha256": "5eaa1d561bc791887e3f8ec1b87f54b6f05e71e1c384417f8ea058a101daebb5",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d01",
+      "entryId": "word.begin.go",
+      "mood": "engaged",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[focused] Go.",
+      "seconds": 1.0710204081632653,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "word.begin.go__engaged__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d01.wav",
+          "bytes": 94508,
+          "sha256": "3e52d90634758a58e377d6670ae7af3606e74d833e2508ad543d66ada16bc16b",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d01.wav",
+          "bytes": 94508,
+          "sha256": "739e2fef14dc5e28b2c7f4467bc722cfde069ba1a481d546cf31637adb917dff",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d01.wav",
+          "bytes": 94508,
+          "sha256": "56b9b6fa5cdfc12d15cb4c6964df1ca88047baef86932e8d8288388cfabcb384",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d01.mp3",
+        "bytes": 17598,
+        "sha256": "8beb542a53d0cb49228a62923e5b0bb2c58f6af637d23ae27d716dcd360898ce",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d02",
+      "entryId": "word.begin.go",
+      "mood": "excited",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[excited] Go.",
+      "seconds": 1.1493877551020408,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "word.begin.go__excited__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d02.wav",
+          "bytes": 101420,
+          "sha256": "2389b9a6d9b28d11b479eb7ca85afb9290af0d86b3900e9c015385a9c0a051b7",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d02.wav",
+          "bytes": 101420,
+          "sha256": "281fa5a7960b7332f035bbe953bd3351dd29b464f79a3430ab0ad29371753930",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d02.wav",
+          "bytes": 101420,
+          "sha256": "851876bc4596c949b19c03a1f770bd64d3696263edda56f9c2eb00776fd9cb20",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d02.mp3",
+        "bytes": 18852,
+        "sha256": "c425e55d771d0ab9af5007094b633857a3ae93201e4e1e0cc81ddb141ed0c619",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d03",
+      "entryId": "word.success.done",
+      "mood": "proud",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[mischievously] Done.",
+      "seconds": 1.4889795918367348,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "word.success.done__proud__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d03.wav",
+          "bytes": 131372,
+          "sha256": "65792de94ed3ce256a04c6ff88290bf7b40f2e9c2385a9999cd13c7c02f29dc2",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d03.wav",
+          "bytes": 131372,
+          "sha256": "3258188b05978635131d85a6f971270fd89dc367ef47a5b5a735cd20495c0a47",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d03.wav",
+          "bytes": 131372,
+          "sha256": "2d8358d509a77c87347a56fe449db287fb820bfd3294ddc91ade4ccc788253b2",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d03.mp3",
+        "bytes": 24285,
+        "sha256": "c562c396a326fcd591a3478bce8a5479593e7faf9932ce3463f1e68ac0fec967",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d04",
+      "entryId": "word.success.done",
+      "mood": "sad",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[sad] Done.",
+      "seconds": 1.5673469387755101,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "word.success.done__sad__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d04.wav",
+          "bytes": 138284,
+          "sha256": "eabc508019c1838e2382a70ce0f1fb067ce3a1c24962d1413eb83ebb4ceffb6f",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d04.wav",
+          "bytes": 138284,
+          "sha256": "7826acdce471cb8b0d0f8109d3547fb00d3d600daea8bc14b2d97a6ca3c090e5",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d04.wav",
+          "bytes": 138284,
+          "sha256": "6226b2ee279ead8414ab6af3f4dedc170c44b7757e05483d04aba8091faf95d9",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d04.mp3",
+        "bytes": 25539,
+        "sha256": "e8f1adfb6bbbdf2f0f840b59c85a7d1e59fc4506bbf386adc483a498c733f51e",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d05",
+      "entryId": "word.retry.again",
+      "mood": "annoyed",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[annoyed] Again.",
+      "seconds": 1.5673469387755101,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "word.retry.again__annoyed__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d05.wav",
+          "bytes": 138284,
+          "sha256": "cdeb1d725e6cf448fc9fb62ac6b72a03496f7c536a2cd2bd04e909d11302b48e",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d05.wav",
+          "bytes": 138284,
+          "sha256": "74bfa5513cae13ccd1437a2b59bc33f4664063ee10b19ca2c5f4570d3413d3d3",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d05.wav",
+          "bytes": 138284,
+          "sha256": "bda4c6b0a71f83a6e8b4c0ea5e62c1f195fe71b9f0bba08ad04360af8c1e95f8",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d05.mp3",
+        "bytes": 25539,
+        "sha256": "7a858ea8e04d744e8a53b9d9050419fc155f142437ba32a54b35b0b19980f64a",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d06",
+      "entryId": "word.retry.again",
+      "mood": "irritated",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[frustrated] Again.",
+      "seconds": 1.5673469387755101,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "word.retry.again__irritated__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d06.wav",
+          "bytes": 138284,
+          "sha256": "a2122170996963f22f04594b159687e2eab76e980707faf1f52c1915362721b5",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d06.wav",
+          "bytes": 138284,
+          "sha256": "0d478df242427d82292e89c2110c41b555c4d48201519105ad61e1de539139a4",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d06.wav",
+          "bytes": 138284,
+          "sha256": "5c44159921c4c7fb4f404141bae4a712102f5abd5d831525441d967f68302013",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d06.mp3",
+        "bytes": 25539,
+        "sha256": "4529b399343b36a78c98121af052e4c92fe3d12336b793851e07f235e9e2744e",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d07",
+      "entryId": "word.retry.again",
+      "mood": "whiny",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[whining] Again.",
+      "seconds": 1.8024489795918368,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "word.retry.again__whiny__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d07.wav",
+          "bytes": 159020,
+          "sha256": "609bc3dbdbf635103908193b30a84543378512cfe945244314fe3f765f7fa4dd",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d07.wav",
+          "bytes": 159020,
+          "sha256": "4e414fb4557d3c7b606d907c87d5a96f1ec65c632a64134f86e8f211fcc2c500",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d07.wav",
+          "bytes": 159020,
+          "sha256": "2240b489c46ad4b39c1982a515fc42e1a6a0788398bab78868139fee6eac642a",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d07.mp3",
+        "bytes": 29301,
+        "sha256": "d04cfb87481ee41fa9b9147873b0af0c0cd4195e37800c6a1ad6d46341606cc6",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d08",
+      "entryId": "word.retry.again",
+      "mood": "determined",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[determined] Again.",
+      "seconds": 1.3061224489795917,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "word.retry.again__determined__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d08.wav",
+          "bytes": 115244,
+          "sha256": "985a936de8b43cdfe9ce8137f9f9451d74e883cfde0de23e20051d6088004dfe",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d08.wav",
+          "bytes": 115244,
+          "sha256": "8828d9a0f9659b1c7886e3356f2323db7ead59b074af1b2b8086815e1c8cdad6",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d08.wav",
+          "bytes": 115244,
+          "sha256": "59055b8726fa3195642a9739cadb46bdfc36ab5d062d6d5447e862670852193f",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d08.mp3",
+        "bytes": 21359,
+        "sha256": "3a89012a0b8a83ce4756288908ca456e283a71029dbe985672e350eefa3206a6",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d09",
+      "entryId": "word.attention.hello",
+      "mood": "curious",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[curious] Hello.",
+      "seconds": 1.1493877551020408,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "word.attention.hello__curious__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d09.wav",
+          "bytes": 101420,
+          "sha256": "4e513f6aae0c49888ab240ce76641be28ccee4593789b06fd024a2a7dd828d57",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d09.wav",
+          "bytes": 101420,
+          "sha256": "b829d2fc384b29d014c99f86e110d2ebdf989821d8628bc3fe7127363b814f20",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d09.wav",
+          "bytes": 101420,
+          "sha256": "2f60ebffd34c1caa2782882ba468066cfc4f3e963105af679b3017dd031af945",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d09.mp3",
+        "bytes": 18852,
+        "sha256": "ba85bdbef456321cbc33909c7aa430b922a1891c12db2840376d8b1f8fa8d201",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d10",
+      "entryId": "word.attention.hello",
+      "mood": "calm",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[calm] Hello.",
+      "seconds": 1.1493877551020408,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "word.attention.hello__calm__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d10.wav",
+          "bytes": 101420,
+          "sha256": "8b71bfef195c46d18ffce4e468ffab9b6ee9427bfb170bdb66fb3cb6f8ce092b",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d10.wav",
+          "bytes": 101420,
+          "sha256": "9cb0f35aea08b4d36b86152c283ebf00e312642ae4009bff7479dfd67b963f00",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d10.wav",
+          "bytes": 101420,
+          "sha256": "c3beeda778444858cde61800e9c73de3cb016225612c8125775bc1eddd0579ec",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d10.mp3",
+        "bytes": 18852,
+        "sha256": "c268b988d84e22bcc1c65899741b0839451b577892255af127fa8e9baaed0150",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d11",
+      "entryId": "word.attention.hello",
+      "mood": "wounded",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[hurt] Hello.",
+      "seconds": 1.5673469387755101,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "word.attention.hello__wounded__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d11.wav",
+          "bytes": 138284,
+          "sha256": "d720471f6932ab47b89540708927ef240f4359a102aa78fcca3f3fea478d44c2",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d11.wav",
+          "bytes": 138284,
+          "sha256": "e28bcb67dcfa6e49f4f84ab90e75c7596c3c8a14fc09f3e99b236f003a517da7",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d11.wav",
+          "bytes": 138284,
+          "sha256": "d12a2ad47359477ed7240978b4da3bf87692acd50d0aae9323bae5df7e2ba3e4",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d11.mp3",
+        "bytes": 25539,
+        "sha256": "75e45015385715ba1eee7fdf1e9f1a588f74bde6a1b9de15f3ce5eb64444cca6",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d12",
+      "entryId": "nonverbal.effort.hrr",
+      "mood": "grumpy",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[frustrated] Hrr.",
+      "seconds": 1.1493877551020408,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "nonverbal.effort.hrr__grumpy__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d12.wav",
+          "bytes": 101420,
+          "sha256": "3e7cae0982dd940ebc86d898c4b49fc9766b641c98f7a964d88f38bf52cc4fb5",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d12.wav",
+          "bytes": 101420,
+          "sha256": "a80747fe2e4bbb5f19ff0589ed8990d3fb453f11db3916afe73476117479a240",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d12.wav",
+          "bytes": 101420,
+          "sha256": "5189b6e88a7e5872e286cf8592e45738b909e0fcc6f8f69d08fe674494249416",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d12.mp3",
+        "bytes": 18852,
+        "sha256": "4242f925a7f6115292ec4ecd851653a6a84e2f209fcf6ab012532ecdaaaa8db9",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d13",
+      "entryId": "nonverbal.relief.phew",
+      "mood": "happy",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[happy] Phew.",
+      "seconds": 1.3061224489795917,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "nonverbal.relief.phew__happy__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d13.wav",
+          "bytes": 115244,
+          "sha256": "f6f2cf5d30902e2da4a3895a86dcf6764f347c5f005e37c1b05420f94d7e449a",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d13.wav",
+          "bytes": 115244,
+          "sha256": "99a43645eb1c0e802b9b0d826379a14a47e8217361ebf1b14626bad667ef7ab1",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d13.wav",
+          "bytes": 115244,
+          "sha256": "91af6057e553754f8302470a253238d19c6443318274ac3e1ea9b987189ba874",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d13.mp3",
+        "bytes": 21359,
+        "sha256": "b137ed0013350c6439c75f69b377565e9ae0bdc0512a6ae108a113d5c75c889e",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d14",
+      "entryId": "phrase.frustration.mamma-mia",
+      "mood": "grumpy",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[frustrated] Mamma mia.",
+      "seconds": 1.9591836734693877,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "phrase.frustration.mamma-mia__grumpy__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d14.wav",
+          "bytes": 172844,
+          "sha256": "64449d7fac0a81ebacb90bfeae5e2b13fb463f9c5473c2a4bc313bf8b8be866f",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d14.wav",
+          "bytes": 172844,
+          "sha256": "c1c54d6c9d37f22c7ee5b16387dc10dfad1add96e08f4a4e3f4cb685bbdbdb95",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d14.wav",
+          "bytes": 172844,
+          "sha256": "bd624614dac217a5d7581fd2681da8048f3107bdaa812c149f92e674960d8f30",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d14.mp3",
+        "bytes": 31808,
+        "sha256": "484bd08c69bac27060829505d64a20608098f6f73b3326e91f0765976f74c275",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d15",
+      "entryId": "phrase.celebrate.bada-bing-bada-boom",
+      "mood": "excited",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[excited] Bada bing bada boom.",
+      "seconds": 2.3510204081632655,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "phrase.celebrate.bada-bing-bada-boom__excited__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d15.wav",
+          "bytes": 207404,
+          "sha256": "8b4c840742961f6570e8686a0426f17d15145580b5a7c73a6745b471f6d39ebd",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d15.wav",
+          "bytes": 207404,
+          "sha256": "7740cdbbbaa3b58a452c279ca35c08d5c3df6e6e03f014c1b5ad35104e43b7ea",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d15.wav",
+          "bytes": 207404,
+          "sha256": "ef00bc0d19cb9d2f9b056c96462eb4170ac3b6c81fd2996d8ebd9e2745bbb082",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d15.mp3",
+        "bytes": 38078,
+        "sha256": "d788dc93dcdba829d8c729744db207ed1be77cfffef650acf6948f20ca974240",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d16",
+      "entryId": "phrase.pride.tiny-genius",
+      "mood": "proud",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[mischievously] Tiny genius.",
+      "seconds": 2.115918367346939,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "phrase.pride.tiny-genius__proud__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d16.wav",
+          "bytes": 186668,
+          "sha256": "e4b899823f1e25c3c71347957251997825c3b64d462e9b5a1a53deca1045fc52",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d16.wav",
+          "bytes": 186668,
+          "sha256": "d3f797145def4a86b8fc315d493453722157ec4f41a2bc6024268fda342b55e5",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d16.wav",
+          "bytes": 186668,
+          "sha256": "353060be1949ff59242f145e7f50a87aebf2996c21bf66e870d78ce9cc059a8f",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d16.mp3",
+        "bytes": 34316,
+        "sha256": "a3a6f07d5cfadda2d0e26f96135558aa6e040234105393e7e77200157562ca3e",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d17",
+      "entryId": "phrase.attention.knock-knock",
+      "mood": "curious",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[curious] Knock knock.",
+      "seconds": 1.2277551020408164,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "phrase.attention.knock-knock__curious__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d17.wav",
+          "bytes": 108332,
+          "sha256": "e9eb37f34680d5e14f6871b6dd3ad4511828c40d6ccf26afe5a26c241abdc7c0",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d17.wav",
+          "bytes": 108332,
+          "sha256": "30f8527ea858b920d5cb6686d500255cb6651b5b315d152f8d2c5719d84911ef",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d17.wav",
+          "bytes": 108332,
+          "sha256": "311c11972ddc35d34ee4f906dffdb9319aca4f790ed0854601df6dce129749ff",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d17.mp3",
+        "bytes": 20106,
+        "sha256": "6aa33a978346f8b182866643e40a8b504a35edb5521c433990d74f317310776b",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d18",
+      "entryId": "borrowed.aigo",
+      "mood": "whiny",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[whining] Aigo.",
+      "seconds": 1.8808163265306121,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "borrowed.aigo__whiny__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d18.wav",
+          "bytes": 165932,
+          "sha256": "a6a77d56993f857f3993876d5fec2bc42d4a93c11be4384bc710112ed258f544",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d18.wav",
+          "bytes": 165932,
+          "sha256": "d0364f5d96a7907a992552fc892172b89f0fce3faf1becaf0531143c85dee9d9",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d18.wav",
+          "bytes": 165932,
+          "sha256": "c1cc93f3695e16dfa23e1d306d558734117df8976b3c6f45798da688c8010968",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d18.mp3",
+        "bytes": 30555,
+        "sha256": "e5e65ecfb8c50603edb6834da7d9a2c7d1e209af859beabf147f7fcad274de48",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d19",
+      "entryId": "borrowed.yatta",
+      "mood": "happy",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[happy] Yatta.",
+      "seconds": 1.2277551020408164,
+      "routineDurationEligible": true,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "borrowed.yatta__happy__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d19.wav",
+          "bytes": 108332,
+          "sha256": "8ce76dabb7d51d5e7290a8c8bf41a27deebda45760db32ba061b3b22836113ae",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d19.wav",
+          "bytes": 108332,
+          "sha256": "f65821bb5c45c803760c8ee8d4afa177ca8e07c3c9984cdc103bef7a0f8cede2",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d19.wav",
+          "bytes": 108332,
+          "sha256": "7ebb44187a7417606ba5607a61820402883523fcda6bd5bf0b706f6077f19530",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d19.mp3",
+        "bytes": 20106,
+        "sha256": "86f37305da730010a3f98d3d796bdcad301f80bea473595bafff2e854d4830d1",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    },
+    {
+      "id": "new.d20",
+      "entryId": "nonverbal.delight.mwahaha",
+      "mood": "proud",
+      "moodStatus": "intended audition mood, not listening-validated",
+      "variant": "contained",
+      "script": "[mischievously] Mwahaha.",
+      "seconds": 2.9257142857142857,
+      "routineDurationEligible": false,
+      "reviewStatus": "unreviewed-by-ear",
+      "performanceId": "nonverbal.delight.mwahaha__proud__contained",
+      "sourceBatch": "robot-dictionary-v1",
+      "generation": {
+        "voiceId": "rErOatUrNIU3vfNcLl6Z",
+        "modelId": "eleven_v4",
+        "seed": 42,
+        "language": "auto"
+      },
+      "files": {
+        "original": {
+          "path": "audio/original/new.d20.wav",
+          "bytes": 258092,
+          "sha256": "46550f00d11cc846e88dd0ac5cd2ca37953e40c083257a7d0e8e33550f74c8de",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-soft": {
+          "path": "audio/robot-soft/new.d20.wav",
+          "bytes": 258092,
+          "sha256": "025e0182ad6418c4cf76acb146544e296e553089abc6e9f3947ee2d3ef53a414",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        },
+        "robot-grain": {
+          "path": "audio/robot-grain/new.d20.wav",
+          "bytes": 258092,
+          "sha256": "77c86b8de8cb0c6660979b38c67ce85116b403753c6eaa62f60e9d33f5d2b2ca",
+          "encoding": {
+            "container": "wav",
+            "codec": "pcm_s16le",
+            "sampleRate": 44100,
+            "channels": 1
+          }
+        }
+      },
+      "master": {
+        "path": "masters/new.d20.mp3",
+        "bytes": 47273,
+        "sha256": "f697cf1588a2fe3eeee98ec3f5345c0efc8fbe12ad88fc5964174032da0fa69d",
+        "encoding": {
+          "container": "mp3",
+          "nominalBitrate": 128000,
+          "sampleRate": 44100
+        }
+      }
+    }
+  ]
+}
