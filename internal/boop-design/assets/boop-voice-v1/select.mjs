@@ -23,7 +23,7 @@ export function choices(bank,context,{audition=false,explicit=false,phrases=fals
  const rank={daily:0,occasional:1,rare:2};
  candidates.sort((a,b)=>rank[entries.get(a.entryId).tier]-rank[entries.get(b.entryId).tier]||a.id.localeCompare(b.id));
  const seen=new Set(),shortlist=candidates.filter(r=>{if(seen.has(r.entryId))return false;seen.add(r.entryId);return true;});
- return [silence,...shortlist.slice(0,limit).map(r=>{const e=entries.get(r.entryId);return {id:r.id,entryId:e.id,label:e.text,intent:e.intent,mood:r.mood,kind:e.category,seconds:r.seconds,requiredFact:e.requires,explicit:e.explicit,reviewStatus:r.reviewStatus,file:r.files[texture].path,sha256:r.files[texture].sha256};})];
+ return [silence,...shortlist.slice(0,limit).map(r=>{const e=entries.get(r.entryId);return {id:r.id,entryId:e.id,label:e.text,intent:e.intent,mood:r.mood,kind:e.category,seconds:r.seconds,requiredFact:e.requires,explicit:e.explicit,reviewStatus:r.reviewStatus,file:r.files[texture].path,encoding:r.files[texture].encoding,sha256:r.files[texture].sha256};})];
 }
 export function resolveChoice(options,id){return options.find(o=>o.id===id)||options.find(o=>o.id==='silence');}
 // A joined clip is still two whole recordings, never word fragments.
