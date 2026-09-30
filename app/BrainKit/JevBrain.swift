@@ -1,9 +1,9 @@
 import Foundation
 
-/// TypeSafe's Jev (https://docs.typesafe.ai/api), the brain
-/// (harness/HARNESS.md §7): the state as one string and every action's
-/// questions as choice questions, in one request of about 0.2–0.3 s. Needs
-/// the person's API key. Only a failed request's HTTP status is logged,
+/// TypeSafe's Jev (https://docs.typesafe.ai/api), a brain (kit/BRAIN-KIT.md
+/// §8, harness/HARNESS.md §7 for the request): the state as one string and
+/// every output's questions as choice questions, in one request of about
+/// 0.2–0.3 s. Needs the person's API key. Only a failed request's HTTP status is logged,
 /// since an error body may repeat the request.
 public struct JevBrain: Brain {
     public let id = "jev:\(JevBrain.model)"
@@ -94,16 +94,5 @@ public struct JevBrain: Brain {
             out[q.key] = Answer(choice: choice, probabilities: probabilities)
         }
         return out
-    }
-}
-
-/// Jev's key (HARNESS.md §7): `BOOP_JEV_KEY`, else, in the menu-bar app
-/// only, the Keychain.
-public enum JevKey {
-    /// The only place `boopdev` and `Boop --headless` read it from.
-    public static let variable = "BOOP_JEV_KEY"
-
-    public static func environment() -> String? {
-        ProcessInfo.processInfo.environment[variable].flatMap { $0.isEmpty ? nil : $0 }
     }
 }

@@ -38,12 +38,20 @@ func excludingAllBut(_ kept: [String]) -> [String] {
 }
 
 var packageTargets: [Target] = [
+    // The brain kit (plan/kit/BRAIN-KIT.md): the generic multiple-choice
+    // harness Boop's brain runs on. Foundation only, and it depends on
+    // nothing else here, so it can be open-sourced on its own.
+    .target(
+        name: "BrainKit",
+        path: "app/BrainKit",
+        swiftSettings: testable
+    ),
     // Everything that isn't the app shell: Adapters, Core, Harness, Brains,
     // Actions, Voice, Memory, DeviceLink, the hook installer (Install) and
     // the Runtime that wires them together (App) (plan/ARCHITECTURE.md §3).
     .target(
         name: "BoopKit",
-        dependencies: [agentHooks],
+        dependencies: ["BrainKit", agentHooks],
         path: "app/BoopKit",
         swiftSettings: testable
     ),
@@ -94,7 +102,7 @@ var packageTargets: [Target] = [
 packageTargets += [
     .executableTarget(
         name: "BoopTests",
-        dependencies: ["BoopKit", "BoopDevKit", "XCTest", agentHooks],
+        dependencies: ["BrainKit", "BoopKit", "BoopDevKit", "XCTest", agentHooks],
         path: "internal/app/Tests",
         exclude: ["Fixtures"],
         swiftSettings: [.define("BOOP_SHIM_RUNNER")]

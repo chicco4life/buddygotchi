@@ -1,7 +1,6 @@
 import Foundation
 
-/// A JSON value: a raw event's `data` and a view event's facts
-/// (harness/EVENTS.md). The harness logs them but never reads them.
+/// A JSON value: an event's `data` (kit/BRAIN-KIT.md §2.1).
 public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, ExpressibleByDictionaryLiteral,
     ExpressibleByBooleanLiteral, ExpressibleByIntegerLiteral {
     case string(String)
@@ -51,7 +50,7 @@ public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, Expressi
     public var bool: Bool? { if case .bool(let b) = self { b } else { nil } }
 }
 
-// MARK: - Actions: the output contract (harness/HARNESS.md §4)
+// MARK: - Outputs: the output contract (kit/BRAIN-KIT.md §5)
 
 /// One option of a question, with its meaning: Jev's criterion.
 public struct Option: Equatable, Sendable {
@@ -171,7 +170,7 @@ public final class Pending: @unchecked Sendable {
 
     /// The harness's, once: where the end goes. One that came first goes
     /// at once.
-    func bind(_ deliver: @escaping (End) -> Void) {
+    package func bind(_ deliver: @escaping (End) -> Void) {
         if let end { deliver(end) } else { self.deliver = deliver }
     }
 }

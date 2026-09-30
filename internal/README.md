@@ -25,9 +25,9 @@ has the tests, evals, dev tools and skills that check them.
 
 - **Swift.** `Package.swift` is at the repo root, because SwiftPM takes no
   target outside the package's root and the targets live in both `app/`
-  and here. The production targets (`BoopKit`, `Boop`, and agent-hooks',
-  a local package the root one depends on) never depend on the internal
-  ones (`BoopDevKit`, `BoopDev`, `BoopTests`, `XCTest`). SwiftPM alone only warns about an import of a
+  and here. The production targets (`BrainKit`, `BoopKit`, `Boop`, and
+  agent-hooks', a local package the root one depends on) never depend on
+  the internal ones (`BoopDevKit`, `BoopDev`, `BoopTests`, `XCTest`). SwiftPM alone only warns about an import of a
   target that isn't a dependency, so `make build`, `make app` and
   `make -C internal test` build with
   `--explicit-target-dependency-import-check error`, and code in

@@ -150,7 +150,7 @@ struct ViewEvent {
 ## 4. Actions: the output contract
 
 An action is something Boop can do when the brain wakes
-(`app/BoopKit/Harness/Contracts.swift`):
+(`app/BrainKit/Contracts.swift`, [kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md) §5):
 
 ```swift
 protocol Action: AnyObject {
@@ -597,13 +597,13 @@ the lines alone:
 | Part | File | Job |
 | --- | --- | --- |
 | Harness | `app/BoopKit/Harness/Harness.swift` | One pass running and the ones waiting, by priority; asks, hands out answers, records actions; started actions until they end, and their ceiling (`tick`); forced passes; `respond(to:)`, one view event straight through for the evals |
-| Contracts | `app/BoopKit/Harness/Contracts.swift`, `app/BoopKit/Core/Event.swift` | `Action`, `Question`, `Option`, `Answer`, `ActionResult`, `Pending`, `JSONValue`; `Event` |
+| Contracts | `app/BrainKit/Contracts.swift`, `app/BoopKit/Core/Event.swift` | `Action`, `Question`, `Option`, `Answer`, `ActionResult`, `Pending`, `JSONValue`; `Event` |
 | Transcript | `app/BoopKit/Harness/Transcript.swift` | The events, their files, and reading them back |
 | Pipeline | `app/BoopKit/App/Pipeline.swift` | Records each input, hands it to the core and the view, and gates the view events |
 | The view | `app/BoopKit/Core/TranscriptView.swift` | View events, their lines, the keep rule, heartbeats ([EVENTS.md](EVENTS.md)) |
 | State text | `app/BoopKit/Harness/StateText.swift` | HISTORY, NOW and the reading part, put together; pure |
 | Steering | `app/BoopKit/Harness/Steering.swift` | Loads the static parts, read-only, and checks their budgets |
-| Brain | `app/BoopKit/Harness/Brain.swift`, `app/BoopKit/Brains/JevBrain.swift` | The `Brain` protocol and `ScriptedBrain`; Jev and its key |
+| Brain | `app/BrainKit/Brain.swift`, `app/BrainKit/JevBrain.swift`, `app/BoopKit/Brains/` | The `Brain` protocol and `ScriptedBrain`, and Jev, in the kit; Jev's key and the pipeline check's scripted answers, Boop's |
 | Debug log | `app/BoopKit/Harness/DebugLog.swift` | The `debug.jsonl` lines, and printing them readably, an action's end by its name |
 | Wiring | `app/BoopKit/App/Runtime.swift` | Registers the actions, supplies `parts`, reads the key, takes dev lines, reads the transcript back, ticks the pipeline and the harness every second |
 | Rule actions | `app/BoopKit/Core/Core.swift` | The wiggle and "needs you" ([EVENTS.md](EVENTS.md) §2) |

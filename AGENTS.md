@@ -19,7 +19,7 @@ cheap ESP32 board with a screen is the body. Start with
 | `plan/` | The spec, which the code implements ([the index](plan/README.md)). [plan/VERIFICATION.md](plan/VERIFICATION.md) says how everything is checked. Evidence goes in `plan/evidence/` |
 | `Package.swift` | The Swift package, at the root because its targets are in both `app/` and `internal/`. It builds into `.build/` |
 | `agent-hooks/` | The hook layer, a Swift package of its own meant to be open-sourced ([its README](agent-hooks/README.md), [its spec](agent-hooks/SPEC.md)): the `agent-hook` hook client, the `agent-hooks` command line, and the `AgentHooks` library that turns hooks into events and keeps the sessions and "needs you". It depends on nothing else in the repo; Boop depends on it |
-| `app/` | The Mac side that ships: the menu-bar app (`Boop`) and the `BoopKit` library |
+| `app/` | The Mac side that ships: the menu-bar app (`Boop`) and the `BoopKit` and `BrainKit` (the brain kit, [plan/kit/BRAIN-KIT.md](plan/kit/BRAIN-KIT.md)) libraries |
 | `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)), with its generated assets and build scripts |
 | `internal/` | Everything that doesn't ship ([its README](internal/README.md)): `boopdev` and its library, the Swift tests and eval scenarios, the sources of `Boop --headless` and `--snapshots`, and the firmware's simulator and unit tests (env `native`) |
 | `internal/tools/` | `boopctl` (device tool, and `boopctl workday`, a scripted working day through the brain), `voicegen` (voice assets), `sfxgen` (the sound effects, from the animation bank), `fontgen` (the device's fonts), `facegen` (the device's faces, from the animation bank), `webcam/` (opt-in recorder) |
@@ -28,9 +28,9 @@ cheap ESP32 board with a screen is the body. Start with
 | `internal/boop-design/` | The animation bank, the code the device's designs and sounds are built from (facegen and sfxgen run it), with its offline review, and the mood-graph handover ([guide](internal/boop-design/README.md)) |
 
 Code that doesn't ship goes in `internal/`: tests, evals, dev tools,
-skills and the simulator. Production targets (`BoopKit`, `Boop` and
-agent-hooks') never depend on internal ones, and `make build` fails if
-one imports them; agent-hooks depends on nothing outside its folder. The one overlap is `Boop --headless` and
+skills and the simulator. Production targets (`BrainKit`, `BoopKit`,
+`Boop` and agent-hooks') never depend on internal ones, and `make build`
+fails if one imports them; agent-hooks depends on nothing outside its folder. The one overlap is `Boop --headless` and
 `Boop --snapshots`, flags of the shipped app whose sources are in
 `internal/app/Boop/`.
 

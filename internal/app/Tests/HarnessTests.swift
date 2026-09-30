@@ -1,6 +1,7 @@
 import Foundation
 import XCTest
 @testable import BoopKit
+@testable import BrainKit
 
 /// The harness, its state text, the actions and Jev's wire format
 /// (harness/HARNESS.md, harness/DECISIONS.md).
