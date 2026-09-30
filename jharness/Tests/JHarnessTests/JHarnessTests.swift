@@ -584,6 +584,27 @@ import Testing
         #expect(again.value(view()) == "worried", "nothing to restore: it's the log's")
     }
 
+    /// §6: `restore` carries a value over without a line: it's the value
+    /// from then on, by who restored it, HISTORY never shows it, and
+    /// restoring the value it has logs nothing.
+    @Test func testARestoredChoiceHasNoLine() {
+        let rig = Rig()
+        let tone = Choice(name: "tone", start: "calm", question: "?", judgeBy: "?", options: { _, _, _ in [] })
+        rig.h.output(tone)
+        rig.h.input("press", wake: 0) { _, _ in "You pressed the button." }
+        rig.emit("press")
+        let restored = rig.sync { tone.restore("worried", by: "upgrade", in: rig.h) }
+        #expect(restored?["by"] == "upgrade")
+        #expect(restored?["from"] == "calm")
+        #expect(restored?["message"] == nil)
+        #expect(rig.sync { tone.value(rig.h.log.view(now: rig.clock.now)) } == "worried")
+        #expect(rig.sync { tone.since(rig.h.log.view(now: rig.clock.now)) } == restored?.at)
+        #expect(rig.sync { tone.restore("worried", by: "upgrade", in: rig.h) } == nil, "already worried")
+        let next = rig.emit("press")
+        let prompt = rig.sync { rig.h.prompt(for: next) }
+        #expect(!prompt.contains("worried") && !prompt.contains("tone"), "HISTORY shows no line for it: \(prompt)")
+    }
+
     // MARK: The tick (§10)
 
     /// §10: a timed check emits what it returns, and doesn't fire twice

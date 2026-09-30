@@ -25,8 +25,6 @@ public struct StateSnapshot: Equatable, Sendable {
         }
     }
 
-    /// A protocol line is at most 512 bytes (PROTOCOL.md §2).
-    public static let maxLine = 512
     /// The device keeps names in 24-byte fields, and what needs you's sign
     /// shows (`attn.project` and `attn.name`) in 48-byte ones: three lines
     /// of 16 on the sign (DEVICE.md §6).

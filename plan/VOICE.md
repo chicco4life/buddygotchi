@@ -1,6 +1,6 @@
 # Boop: voice
 
-Updated 2026-09-30. What Boop says, how the brain and Voice pick it, and
+Updated 2026-10-01. What Boop says, how the brain and Voice pick it, and
 how the device plays it, with the sound effects that go with the face's
 designs (§10). The code is the source: `app/BoopKit/Voice/` on the Mac,
 `firmware/src/voice/`, `firmware/src/app/effect_track.*` and
@@ -253,10 +253,12 @@ sends one, starts at that design's voice window (§10), so it follows the
 design's attention cue rather than talking over it; its sound, mouth and
 bubble start together. The animation holds on, resting on its last
 frame, until the line and its bubble end. A tap or "needs you" before
-the window drops the line unplayed. The Mac reckons the same length for
-the moment (`DeviceMoment.playMs`, from `FaceLoops.voiceMs`). A reaction
-that says nothing keeps the next reaction from replacing its face for as
-long as a bubble would show, 1.2 s (`DeviceMoment.faceFirstMs`).
+the window drops the line unplayed. The Mac times none of this: the
+device says when a reaction may give way to the next and when it has
+ended ([PROTOCOL.md](PROTOCOL.md) §3). A reaction with no animation
+gives way half a second after its line and bubble end, or, when it says
+nothing, 1.7 s after it starts, the 1.2 s a bubble would show and that
+half second; a finish holds on until all of it has played.
 
 ## 10. Sound effects
 

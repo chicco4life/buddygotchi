@@ -5,7 +5,7 @@ import LinkKit
 /// protocol under it): what Boop calls its device, the names it plays
 /// beside the moments' own (`DeviceMoment`), and what its `hello` and taps
 /// mean to the app. The link itself, with its ids, `ended`s and transports,
-/// is LinkKit's `Link` (ARCHITECTURE.md §3.7).
+/// is LinkKit's `DeviceLink` (ARCHITECTURE.md §3.7).
 public enum BoopDevice {
     /// The `hello.app` of Boop's firmware.
     public static let app = "boop"
@@ -22,8 +22,8 @@ public enum BoopDevice {
     public static let reactionTTL = 5000
 
     /// The link to Boop's device over `transport`, or to none.
-    public static func link(_ transport: Transport?, log: @escaping (String) -> Void = { _ in }) -> Link {
-        Link(app: app, transport: transport, log: log)
+    public static func link(_ transport: Transport?, log: @escaping (String) -> Void = { _ in }) -> DeviceLink {
+        DeviceLink(app: app, transport: transport, log: log)
     }
 
     /// The `do` id of the brain's finish a tap landed on, when the device
@@ -36,7 +36,7 @@ public enum BoopDevice {
 
     /// Who Boop's firmware from before LinkKit says it is, in the `status`
     /// it sends where a `hello` would be (PROTOCOL.md §4); nil for any
-    /// other line. Such firmware is too old for the app (`Link.tooOld`),
+    /// other line. Such firmware is too old for the app (`DeviceLink.Trouble.tooOld`),
     /// which the app spots itself (linkkit/SPEC.md §6).
     public static func fromBeforeTheKit(_ line: String) -> DeviceInfo? {
         guard let o = JSON.parse(line)?.object, o["t"]?.string == "status" else { return nil }

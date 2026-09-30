@@ -1,5 +1,6 @@
 import Foundation
 import JHarness
+import JHarnessLink
 import LinkKit
 
 /// Debug mode's record of the brain (harness/HARNESS.md §9): in the state
@@ -7,9 +8,9 @@ import LinkKit
 /// (`event`), every view event (`view`) and every pass with the state and
 /// questions it sent (`pass`, with the state's unchanging head in a `head`
 /// line only when it changes), one JSON line each, and the same lines
-/// readably, for the terminal (`Boop --debug`) and `boopdev watch`. Three
-/// more kinds of line are for the dashboard: `questions`, `sent` and
-/// `status`.
+/// readably, for the terminal (`Boop --debug`) and `boopdev watch`. Four
+/// more kinds of line are for the dashboard: `questions`, `sent`, `ended`
+/// and `status`.
 public enum DebugLog {
     public static let fileName = "debug.jsonl"
 
@@ -20,9 +21,19 @@ public enum DebugLog {
     }
 
     /// A line sent to the device, verbatim, and who sent it: `brain` for
-    /// the brain's reactions, `rule` for everything else.
-    public static func sent(_ json: String, by sender: Link.Sender, at ms: Int64) -> String {
-        "{\"sent\":\(json),\"by\":\"\(sender.name)\",\"received_at_ms\":\(ms)}"
+    /// the brain's reactions, `rule` for everything else, the link's own
+    /// lines (every `state`, the `hello` ask) among them.
+    public static func sent(_ json: String, by sender: DeviceLink.Sender, at ms: Int64) -> String {
+        "{\"sent\":\(json),\"by\":\"\(sender == .brain ? "brain" : "rule")\",\"received_at_ms\":\(ms)}"
+    }
+
+    /// How the device said a `do` ended (linkkit/SPEC.md §4), so the tools
+    /// can tell a one-shot or a finish it skipped from one it played:
+    /// `{"ended":{"id":N,"how":"skipped","why":"busy"},…}`.
+    public static func ended(_ e: Ended, at ms: Int64) -> String {
+        var ended: [String: Any] = ["id": e.id, "how": e.how.rawValue]
+        if let why = e.why { ended["why"] = why }
+        return line("ended", JSONLine.encode(ended), at: ms)
     }
 
     /// An event as the transcript recorded it, as its line there.
@@ -283,9 +294,9 @@ public enum DebugLog {
             _ = readable(String(decoding: head, as: UTF8.self))
         }
 
-        /// Nil for a line it doesn't print: the dashboard's, `head` (the
-        /// first pass prints the latest before it), and raw events other
-        /// than actions.
+        /// Nil for a line it doesn't print: the dashboard's (boop.log says
+        /// how each `do` ended), `head` (the first pass prints the latest
+        /// before it), and raw events other than actions.
         public func readable(_ line: String) -> String? {
             guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8), options: .fragmentsAllowed) as? [String: Any]
             else { return line }

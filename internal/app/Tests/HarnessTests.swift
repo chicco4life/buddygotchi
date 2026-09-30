@@ -54,6 +54,7 @@ final class HarnessTests: XCTestCase {
              "  ✓ wiggle (rule): Boop wiggled on its own."),
             ("not json", "not json"),
             (#"{"sent":{"t":"do","id":1,"name":"poked","play":"now"},"by":"rule","received_at_ms":9}"#, nil),
+            (DebugLog.ended(Ended(id: 1, how: .skipped, why: "busy"), at: 9), nil),
             (#"{"status":{"brain":"none","connected":false,"mood":"cheerful","personality":"boop","sessions":[]},"received_at_ms":9}"#, nil),
             (#"{"questions":[],"received_at_ms":9}"#, nil),
             (#"{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react"]},"received_at_ms":10}"#,
@@ -68,6 +69,10 @@ final class HarnessTests: XCTestCase {
              "  · needs_you (rule) ended"),
         ]
         for (line, readable) in lines { XCTAssertEqual(printer.readable(line), readable, line) }
+        // §9: how the device said each `do` ended, for the dashboard.
+        XCTAssertEqual(DebugLog.ended(Ended(id: 1, how: .skipped, why: "busy"), at: 9),
+                       #"{"ended":{"how":"skipped","id":1,"why":"busy"},"received_at_ms":9}"#)
+        XCTAssertEqual(DebugLog.ended(Ended(id: 2, how: .done), at: 10), #"{"ended":{"how":"done","id":2},"received_at_ms":10}"#)
     }
 
     /// §9: a pass line carries HISTORY and NOW, and a `head` line before

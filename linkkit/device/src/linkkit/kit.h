@@ -107,9 +107,9 @@ class App {
   // ---- the host's messages
   // A `state`: the app's whole map, sent every time (§3).
   virtual void onState(JsonObjectConst state, uint32_t t) = 0;
-  // A call is about to take the turn: a short lower-case reason skips it
-  // (`skipped`, that reason) and leaves the holder alone; null lets it
-  // play (§4). It may change the app's own state.
+  // A call is about to take the turn: a short lower-case reason ([a-z_],
+  // §4) skips it (`skipped`, that reason) and leaves the holder alone;
+  // null lets it play. It may change the app's own state.
   virtual const char* refuse(const Call& c, uint32_t t) {
     (void)c, (void)t;
     return nullptr;
@@ -192,6 +192,7 @@ class Kit {
   Rng& rng() { return rng_; }
 
   // The turn (§4). A report for a key that doesn't hold the turn is ignored.
+  // A `why` is a short lower-case word ([a-z_]); the line escapes it anyway.
   void rest(uint32_t key);  // the holder may be replaced now
   // The holder is over: done, or cut (why says by what).
   void ended(uint32_t key, How how = How::kDone, const char* why = nullptr);
@@ -203,8 +204,10 @@ class Kit {
 
   // Device → host. An `ev` of the app's `kind` (never "ended"), with what
   // the device already did about it and its details as a JSON object's
-  // text (either may be null). It goes on every live link, or only over
-  // USB when a tool injected the input behind it (§3, §5).
+  // text (either may be null). `kind` and `did` are escaped as JSON
+  // strings; `data` goes on the line as it is, so it must be an object's
+  // JSON. A line longer than kMaxLine isn't sent. It goes on every live
+  // link, or only over USB when a tool injected the input behind it (§3, §5).
   void emit(const char* kind, const char* did, const char* data, bool injected);
   // Something in hello changed: send it again on the host's link.
   void helloChanged();

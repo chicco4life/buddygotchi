@@ -2,9 +2,10 @@ import Darwin
 import Foundation
 
 /// The device over USB, through a bridge process's Unix socket (SPEC.md
-/// §8). The bridge owns the board's serial port and passes lines both ways,
-/// so tools and the app can share it and the app never opens the port
-/// itself. Reconnects every second while the bridge is away.
+/// §8): `linkkit-bridge` (`Bridge`), or any that keeps the same rules. The
+/// bridge owns the board's serial port and passes lines both ways, so tools
+/// and the app can share it and the app never opens the port itself.
+/// Reconnects every second while the bridge is away.
 ///
 /// `send` runs on the caller's queue (the app's), so a write never waits
 /// more than `sendTimeoutMs`, and a dropped link waits a second before
@@ -15,10 +16,16 @@ public final class SocketTransport: Transport, @unchecked Sendable {
     public let path: String
     /// `usb:<path>` unless `init` is given another.
     public let name: String
-    let lock = NSLock()
-    var fd: Int32 = -1
-    var running = false
-    var thread: Thread?
+    private let state = State()
+
+    /// What the reading thread needs, apart from the transport, so letting
+    /// go of the transport stops it: a thread holding the transport itself
+    /// would keep it, its socket and its reconnecting, for good.
+    private final class State: @unchecked Sendable {
+        let lock = NSLock()
+        var fd: Int32 = -1
+        var running = false
+    }
 
     /// `path` is the bridge's socket, under 104 bytes.
     public init(path: String, name: String? = nil) {
@@ -26,19 +33,23 @@ public final class SocketTransport: Transport, @unchecked Sendable {
         self.name = name ?? "usb:" + path
     }
 
+    deinit { stop() }
+
     public func start(onLine: @escaping @Sendable (String) -> Void, onConnection: @escaping @Sendable (Bool) -> Void) {
-        lock.withLock { running = true }
-        let thread = Thread { [weak self] in self?.loop(onLine: onLine, onConnection: onConnection) }
+        let state = state, path = path
+        state.lock.withLock { state.running = true }
+        let thread = Thread { SocketTransport.loop(path, state, onLine: onLine, onConnection: onConnection) }
         thread.name = "linkkit.socket"
         thread.qualityOfService = .userInteractive
-        self.thread = thread
         thread.start()
     }
 
     public func send(_ line: String) {
         var data = Data(line.utf8)
         data.append(0x0A)
-        lock.withLock {
+        let state = state
+        state.lock.withLock {
+            let fd = state.fd
             guard fd >= 0 else { return }
             let ok = data.withUnsafeBytes { raw -> Bool in
                 var offset = 0
@@ -56,26 +67,39 @@ public final class SocketTransport: Transport, @unchecked Sendable {
 
     /// The reader sees the socket close and connects to the bridge again.
     public func reconnect() {
-        lock.withLock {
-            if fd >= 0 { shutdown(fd, SHUT_RDWR) }
+        let state = state
+        state.lock.withLock {
+            if state.fd >= 0 { shutdown(state.fd, SHUT_RDWR) }
         }
     }
 
     public func stop() {
-        lock.withLock {
-            running = false
-            if fd >= 0 { shutdown(fd, SHUT_RDWR) }
+        let state = state
+        state.lock.withLock {
+            state.running = false
+            if state.fd >= 0 { shutdown(state.fd, SHUT_RDWR) }
         }
     }
 
-    func loop(onLine: @escaping @Sendable (String) -> Void, onConnection: @escaping @Sendable (Bool) -> Void) {
+    /// Runs until `stop()`, on the transport's own thread.
+    private static func loop(_ path: String, _ state: State, onLine: @escaping @Sendable (String) -> Void,
+                             onConnection: @escaping @Sendable (Bool) -> Void) {
         var buffer = [UInt8](repeating: 0, count: 65536)
-        while lock.withLock({ running }) {
-            guard let socket = connectOnce() else {
+        while state.lock.withLock({ state.running }) {
+            guard let socket = connectOnce(path) else {
                 usleep(1_000_000)
                 continue
             }
-            lock.withLock { fd = socket }
+            // A stop() while connecting: don't take the socket up.
+            let taken = state.lock.withLock { () -> Bool in
+                guard state.running else { return false }
+                state.fd = socket
+                return true
+            }
+            guard taken else {
+                close(socket)
+                break
+            }
             onConnection(true)
             var framer = LineFramer()
             while true {
@@ -83,16 +107,16 @@ public final class SocketTransport: Transport, @unchecked Sendable {
                 if n <= 0 { break }
                 for line in framer.push(buffer[0..<n]) { onLine(line) }
             }
-            lock.withLock {
-                close(fd)
-                fd = -1
+            state.lock.withLock {
+                close(state.fd)
+                state.fd = -1
             }
             onConnection(false)
-            usleep(1_000_000)
+            if state.lock.withLock({ state.running }) { usleep(1_000_000) }
         }
     }
 
-    func connectOnce() -> Int32? {
+    static func connectOnce(_ path: String) -> Int32? {
         guard var address = UnixSocket.address(path) else { return nil }
         let socket = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
         guard socket >= 0 else { return nil }

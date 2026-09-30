@@ -1,5 +1,5 @@
-// A platform and an app for testing LinkKit alone (test_turn, test_kit):
-// nothing of Boop's. The app records what the kit asks of it, and the test
+// A platform and an app for testing the kit alone (test_turn, test_kit):
+// nothing of any real app's. The app records what the kit asks of it, and the test
 // scripts its answers.
 #pragma once
 #include <ArduinoJson.h>

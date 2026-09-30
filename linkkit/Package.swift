@@ -15,12 +15,16 @@ let package = Package(
     products: [
         .library(name: "LinkKit", targets: ["LinkKit"]),
         .library(name: "JHarnessLink", targets: ["JHarnessLink"]),
+        .executable(name: "linkkit-bridge", targets: ["LinkKitBridge"]),
     ],
     dependencies: [.package(path: "../jharness")],
     targets: [
-        // The four messages, the transports and the host's side of the
-        // protocol (`Link`).
+        // The four messages, the transports, the USB bridge and the host's
+        // side of the protocol (`DeviceLink`).
         .target(name: "LinkKit", linkerSettings: [.linkedFramework("CoreBluetooth")]),
+        // `linkkit-bridge`: shares a board's USB serial port on a socket
+        // (`Bridge`), for `SocketTransport`.
+        .executableTarget(name: "LinkKitBridge", dependencies: ["LinkKit"]),
         // A device in a JHarness app: a `do` that finishes a `Pending`, the
         // device's events in the log, and `Play`, an output of its names.
         .target(name: "JHarnessLink", dependencies: ["LinkKit", .product(name: "JHarness", package: "jharness")]),

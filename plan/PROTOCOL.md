@@ -1,6 +1,6 @@
 # Boop: protocol
 
-Updated 2026-09-30. What Boop says over LinkKit, between the Boop Mac app
+Updated 2026-10-01. What Boop says over LinkKit, between the Boop Mac app
 and the device, over Bluetooth or USB, and the debug messages tools send
 over USB. The generic protocol (the four messages, the turn, lifecycle,
 limits) is [linkkit/SPEC.md](../linkkit/SPEC.md); this file is Boop's
@@ -35,15 +35,16 @@ Every message is a JSON object with a type, `t`, on one line of at most
 
 ## 2. Transport
 
-Both links carry the same lines. The device listens on both at once and
-answers on the link a message came in on (SPEC §8).
+Both links carry the same lines, and the device answers on the link a
+message came in on. How LinkKit carries them, its Bluetooth service and
+packets, the host's outbox, reconnecting and the USB bridge's rules, is
+[SPEC §8](../linkkit/SPEC.md#8-transport), with its numbers in SPEC §9;
+this is what Boop chooses on top.
 
 | Item | Bluetooth | USB |
 | --- | --- | --- |
-| Roles | The device is a NimBLE peripheral, the Mac a CoreBluetooth central | The board's CH340 serial port at 460800 baud ([DEVICE.md](DEVICE.md) §7). The app never opens it: `boopctl bridge` owns the port and shares it on a Unix socket ([VERIFICATION.md](VERIFICATION.md) §2) |
-| Service | Nordic UART Service `6E400001-B5A3-F393-E0A9-E50E24DCCA9E`: RX `6E400002-…` (Mac → device, written without response), TX `6E400003-…` (device → Mac, notified) | — |
+| Roles | The device is a NimBLE peripheral, the Mac a CoreBluetooth central (LinkKit's `BLETransport`) | The board's CH340 serial port at 460800 baud ([DEVICE.md](DEVICE.md) §7). The app never opens it: `boopctl bridge` owns the port and shares it on a Unix socket ([VERIFICATION.md](VERIFICATION.md) §2), keeping the bridge's rules (SPEC §8) |
 | Name | `Boop-XXXX`, XXXX the last 4 hex digits of the Bluetooth MAC (the kit's `<Prefix>-XXXX`, Boop's prefix) | — |
-| Packets | The device asks for a 247-byte MTU and sends notifications of up to MTU − 3 bytes (20 until it's negotiated). The Mac cuts each line to the write size CoreBluetooth reports | A byte stream |
 | Security | None: no pairing, no encryption. The Mac connects to any device advertising as `Boop-*` | Local only |
 
 Nordic UART is the de facto serial port over Bluetooth, so a generic tool
@@ -55,14 +56,6 @@ such as nRF Connect can talk to the device.
 | A line the device sends over Bluetooth | 512 bytes; longer ones are dropped. Over USB `dbg.*` replies can be longer: `dbg.state` is up to about 1.2 KB and `dbg.shot` about 103 KB (§5) |
 | The device's receive buffers | 2 KB each for USB and Bluetooth. Bluetooth bytes that don't fit are dropped, and the torn line fails to parse |
 | A line the Mac takes | 4 KB, so a screenshot passing through the bridge is dropped |
-
-**Flow on the Mac (Bluetooth).** Lines wait in an outbox and go out one
-packet at a time, as CoreBluetooth has room (`canSendWriteWithoutResponse`,
-then `peripheralIsReady`), so a burst never loses part of a line. A line
-that has started goes out whole. A newer `state` replaces one still
-waiting. Past 4 KB waiting, the oldest lines not yet started are dropped,
-since the next `state` catches the device up. A line sent while no link is
-up is dropped.
 
 **Flow on the device.** Each pass of the main loop reads every waiting
 line, for up to 8 ms, then draws one frame ([DEVICE.md](DEVICE.md) §4).
@@ -76,60 +69,25 @@ dropped.
 
 Either side can vanish without warning: the app gets killed or rebuilt,
 the board reflashed or reset. Neither remembers the other, so a reconnect
-is just a fresh connect.
+is just a fresh connect, as SPEC §5 and §8 say. What Boop adds:
 
-The Mac, over Bluetooth:
-
-- **Finding the device.** macOS, not the app, owns a Bluetooth
-  connection, and can keep one alive after the app that made it is gone.
-  A device that's still connected doesn't advertise, so the app first
-  asks macOS for a `Boop-*` device it's already connected to and takes
-  that link over; otherwise it scans for the service and connects to the
-  first `Boop-*` it finds.
-- **Ready means subscribed.** A link is up once the Mac is subscribed to
-  TX. An attempt that isn't up within 10 s, or fails on the way (no UART
-  service, no RX or TX, no subscription), is cancelled and tried again.
-- **Retry timing.** After a drop or a failed attempt it looks again after
-  1 s, doubling up to 5 s while attempts keep failing, and back to 1 s
-  once a link is up.
 - **Reconnect by hand.** Settings' Reconnect drops the link or attempt in
-  progress, resets the retry timing and looks again at once.
-- **Services changed.** If macOS reports the UART service changed (a
-  reflash with a different GATT table), the app drops the link and
-  connects again. Bluetooth turning off drops it too.
+  progress and looks again at once (`Transport.reconnect`), over either
+  link.
 - **Bluetooth off or not allowed.** Each change of Bluetooth's state is
   logged (`ble: Bluetooth off`). While it's off, refused at the first
   launch's prompt, or missing, the app can't look for the device, and
   the popover says so and what to do (`BLETransport.trouble`), within a
   second, in place of looking and "Plug it into USB power".
-
-The device, over Bluetooth:
-
-- **It advertises whenever it isn't connected.** It restarts advertising
-  on every disconnect, and checks once a second in case that didn't take.
-- **A quiet link is dropped.** The Mac sends a `state` at least every
-  10 s (§3), so a link with no whole line from the Mac for 30 s is left
-  over from an app that's gone (SPEC §5). The device drops it and
-  advertises again, so a restarted app can find it even if macOS held on
-  to the old link, and tries again every 30 s if the drop didn't take.
-  Anything that connects without sending lines, such as nRF Connect, is
-  dropped after 30 s too. The device keeps this clock in real time, apart
-  from the face's no-app look, which counts from the last `state` on the
-  device's own clock ([BEHAVIORS.md](BEHAVIORS.md) §3.4).
-
-Over USB:
-
-- **The Mac's side.** The app connects to the bridge's socket, and tries
-  again every second while it can't. A write waits at most 250 ms; one
-  that can't finish drops the connection, which comes back a second
-  later, so a stuck bridge can't freeze the app. Settings' Reconnect drops
-  it the same way.
-- **The device's side.** USB has no connection event. The Mac counts as
-  there while it has spoken on USB (any line that isn't `dbg.*`) in the
-  last 30 s, and its first line after that silence gets a `hello` (§4).
-  So does the Mac's own `hello`, which it sends first on every connect:
-  a Mac relaunched, or reconnected after a write timed out, within the
-  30 s still hears one.
+- **The device advertises whenever it isn't connected**, restarting on
+  every disconnect and checking once a second in case that didn't take,
+  and drops a Bluetooth link the Mac has been quiet on for 30 s (SPEC
+  §5), again every 30 s if the drop didn't take, so a restarted app can
+  find it even if macOS held on to the old link. Anything that connects
+  without sending lines, such as nRF Connect, is dropped too. The device
+  keeps this clock in real time, apart from the face's no-app look, which
+  counts from the last `state` on the device's own clock
+  ([BEHAVIORS.md](BEHAVIORS.md) §3.4).
 
 ## 3. Mac → device
 
@@ -383,7 +341,8 @@ The device has already reacted on screen before it sends a tap or
 with `who` plays), or `listening` from `talk_on` until the reply
 ([DEVICE.md](DEVICE.md) §4). The Mac records a tap as a `poke` event, with
 `input` as its `specific_type`, and hands it to the core, with the thread
-of the finish `on` names while the Mac still waits on that call
+of the finish `on` names while that finish may still play: until its
+`ended`, or its `ttl` plus 60 s, a dropped link included
 ([BEHAVIORS.md](BEHAVIORS.md) §3.3, [harness/EVENTS.md](harness/EVENTS.md)
 §2); `talk_on` and `talk_off` turn its mic on and off. It ignores any
 other `kind`.
@@ -500,32 +459,26 @@ those 77,312 bytes.
 
 ## 6. Lifecycle and timings
 
-On connect the Mac sends `hello` and its latest `state` at once; the
-device answers with its `hello`, which the Mac answers with another
-`state` (SPEC §5). From then on the Mac sends `state` on every change and every
-10 s, and a `do` when something should play; the device sends a tap and
-push-to-talk as they happen, an `ended` for every `do`, and `hello` every
-60 s. When the Mac goes quiet the device shows the no-app look, and drops
-a Bluetooth link to advertise again. The next connect starts from the top.
+The lifecycle is LinkKit's (SPEC §5): on connect the Mac asks for the
+device's `hello` and sends its latest `state`, answers every `hello` with
+the `state`, and keeps sending it on every change and every 10 s, with a
+`do` when something should play; the device sends a tap and push-to-talk
+as they happen, an `ended` for every `do`, and `hello` every 60 s. When
+the Mac goes quiet the device shows the no-app look, and drops a
+Bluetooth link to advertise again. The kit's timings (the keepalive, the
+host gone, `hello`'s repeat, USB counting as live, the give-up on an
+`ended`, the frozen debug clock, the transports' attempts, retries and
+writes) are in SPEC §9 and §8. Boop's own:
 
 | Timing | Value | Side |
 | --- | --- | --- |
-| `state` keepalive | The latest again once 10 s have passed since the last, checked every second | Mac |
 | No app | 30 s without a `state` ([BEHAVIORS.md](BEHAVIORS.md) §3.4) | Device |
 | Push-to-talk | BOOT held 400 ms; `talk_off` by itself 30 s after `talk_on` ([DEVICE.md](DEVICE.md) §4) | Device |
 | `listening` | At most 30 s, then 8 s for the reply; `talk_off` cuts that to 8 s from then ([DEVICE.md](DEVICE.md) §4) | Device |
 | A reaction's rest | Its line's start plus the take, 1.2 s and 0.5 s; 1.7 s after it starts with no line (§3) | Device |
-| A `next` call's wait | Its `ttl`, 5000 ms from the Mac: then `late` | Device |
-| A quiet Bluetooth link | Dropped after 30 s with no line from the Mac, and again 30 s later if that didn't take | Device |
-| USB counts as live | For 30 s after the Mac last spoke there | Device |
-| `hello` | On the Mac's `hello` or its first line on a link, then 60 s after the last | Device |
-| Connect attempt | Up (subscribed to TX) within 10 s, or retried | Mac |
-| Bluetooth retry | 1 s, doubling to 5 s; back to 1 s once up | Mac |
+| A reaction's wait | Its `ttl`, 5000 ms from the Mac (`BoopDevice.reactionTTL`): then `late` | Device |
 | Advertising check | Every second while not connected | Device |
-| USB write | At most 250 ms; a failed write, or a lost bridge, reconnects after 1 s | Mac |
-| A `do`'s `ended` | Given up on once its `ttl` plus 60 s have passed since it was sent (SPEC §5) | Mac |
 | Reading lines | Up to 8 ms of lines before each frame | Device |
-| A frozen debug clock | Runs again after 60 s with no `dbg.*` | Device |
 
 ## 7. Not in v1
 

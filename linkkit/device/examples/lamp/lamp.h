@@ -2,7 +2,7 @@
 // linkkit/device/README.md walks through. Its `state` is {"level":0-255};
 // it plays one call, `blink`, which blinks the light `times` times
 // (1-10, 200 ms each) and ends `done`, or `cut` when the lamp's own
-// button is pressed. The unit tests run it (internal/firmware/test/test_kit).
+// button is pressed. The unit tests run it (test/test_kit).
 #pragma once
 #include <cstdint>
 

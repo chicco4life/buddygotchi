@@ -1,6 +1,6 @@
 # Boop: architecture
 
-Updated 2026-09-30. The parts of Boop, how they connect, what each one
+Updated 2026-10-01. The parts of Boop, how they connect, what each one
 keeps and where, the budgets, and the decisions still in force. The other
 specs go deeper on each part; [README.md](README.md) lists them.
 
@@ -107,7 +107,7 @@ talks to the device.
 | Reactions | `App/Reactions.swift` | Ends each brain reaction's handle from how the device says its `do` ended, or why the link has no end for it; holds one your tap cut short until the pokes stop, and keeps where a tap on a finish opens its thread | When anything plays: the device decides |
 | Voice | `Voice/` | Turns a feeling, a topic, a kind and a face into a line of up to two of the recorded takes the board has, or none | Who asked, or why |
 | Memory store | `Memory/` | Reads and writes `long-term.md` and its copies in `history/` | Models, the device |
-| Device link | LinkKit's `Link` (`linkkit/`, [its spec](../linkkit/SPEC.md)), with Boop's vocabulary in `DeviceLink/BoopDevice.swift` | Sends `state` and `do`s and hands back how each ended, receives the device's `hello`, taps and push-to-talk, over Bluetooth or USB | What any of it means |
+| Device link | LinkKit's `DeviceLink` (`linkkit/`, [its spec](../linkkit/SPEC.md)), with Boop's vocabulary in `DeviceLink/BoopDevice.swift` | Sends `state` and `do`s and hands back how each ended, receives the device's `hello`, taps and push-to-talk, over Bluetooth or USB | What any of it means |
 | Presence signals | `app/Boop/PresenceSignals.swift` | Hears the Mac's lock, sleep and wake, and reads its idle time, with no permission asked | What they mean |
 | Presence detector | `Presence/PresenceDetector.swift` | The only code that decides whether you're at the Mac: turns the signals into `presence` events, away and back ([harness/EVENTS.md](harness/EVENTS.md) §2.1) | What they lead to |
 | Hook installer | agent-hooks' `HookInstaller`, as `HookInstaller.boop` in `Adapters/Adapter.swift` sets it up | Adds, repairs and removes Boop's entries in the agents' settings | Anything at runtime |
@@ -117,7 +117,8 @@ talks to the device.
 `BoopKit` paths are under `app/BoopKit/`. agent-hooks is its own package
 in `agent-hooks/` ([its spec](../agent-hooks/SPEC.md)), and so are
 JHarness in `jharness/` and LinkKit in `linkkit/`: Boop depends on them,
-and they on nothing of Boop's (§10).
+and they on nothing of Boop's (§10). [MODULES.md](MODULES.md) says where
+each joins Boop's code and follows one event through all three.
 
 ### 3.1 Adapters
 
@@ -234,12 +235,14 @@ something has finished. The Mac sends each thing to play at once, as a
 - **The brain's reactions** go with `play: next` and a `ttl` of 5 s
   (`BoopDevice.reactionTTL`): each waits on the device behind whatever
   holds the turn, and takes it the moment that rests. A reaction rests
-  once its take and bubble have played (a silent face once it has shown
-  1.2 s), so the next replaces the face it holds on for its loops; a
-  finish holds the turn to its end. One still waiting after 5 s is
-  skipped (`late`), since a late reaction is worse than none; the mic
-  going on skips the ones waiting (`listening`), and "needs you" cuts
-  what plays. The Talk button's `listening` takes the turn at once
+  half a second after its take and bubble have played, or 1.7 s after it
+  starts when it says nothing (the 1.2 s a bubble shows, and that half
+  second), the pause the Mac's link slack used to leave between one
+  reaction and the next (`Device::kReactGapMs`); so the next replaces
+  the face it holds on for its loops. A finish holds the turn to its
+  end. One still waiting after 5 s is skipped (`late`), since a late
+  reaction is worse than none; the mic going on skips the ones waiting
+  (`mic_on`), and "needs you" cuts what plays. The Talk button's `listening` takes the turn at once
   (`now`), and push-to-talk ending with no reply sends `stop_listening`
   (`if_free`).
 - **Every `do` gets exactly one end**: the device's `ended` (`done`,
@@ -248,11 +251,11 @@ something has finished. The Mac sends each thing to play at once, as a
   connects, §3.7), firmware that doesn't fit, a name its `hello` doesn't
   list, or a line too long (it fails at once, and nothing is sent), the
   link dropping, or no `ended` by its `ttl` plus 60 s
-  (`Link.answerGraceMs`: a line was lost, and until then HISTORY shows
+  (`DeviceLink.answerGraceMs`: a line was lost, and until then HISTORY shows
   the reaction in progress, up to 65 s). Its id is the link's, starting
-  somewhere random each launch and counting up. `Reactions` ends a
-  reaction's handle from that
-  ([harness/DECISIONS.md](harness/DECISIONS.md) §5), holding one your
+  somewhere random each launch and counting up. JHarnessLink's
+  `do(…, pending:)` ends a reaction's handle from that, as `Reactions`
+  reads it ([harness/DECISIONS.md](harness/DECISIONS.md) §5), holding one your
   tap cut short until the pokes stop; the rules' `do`s end only in the
   log.
 - **A link that drops** doesn't stop what the device plays (the USB
@@ -310,7 +313,7 @@ opens it, and writes atomically.
 
 ### 3.7 Device link
 
-The device link is LinkKit's `Link`, a package of its own like
+The device link is LinkKit's `DeviceLink`, a package of its own like
 agent-hooks and JHarness ([linkkit/README.md](../linkkit/README.md),
 [its spec](../linkkit/SPEC.md)), with Boop's vocabulary on it in
 `DeviceLink/BoopDevice.swift`: the `hello.app` `boop`, the names its
@@ -332,7 +335,8 @@ a flash over a link that stays up is heard, but no `do`, and its taps
 are ignored; the popover says to flash it, boop.log names its id and
 firmware, and a bug report says why (`device_trouble`). Its transport is Bluetooth for normal use (`BLETransport`, which
 finds `Boop-XXXX`) or USB, through `boopctl bridge`'s socket
-(`SocketTransport`), for development. Both carry identical lines, and
+(`SocketTransport`; `boopctl bridge` keeps the rules of LinkKit's own
+`linkkit-bridge`, [linkkit/SPEC.md](../linkkit/SPEC.md) §8), for development. Both carry identical lines, and
 nothing above the link knows which is in use. A `state` sent while
 disconnected is dropped; the next catches the device up. An agent can't
 launch the app with Bluetooth, so the whole hook-to-screen path is tested
@@ -473,7 +477,7 @@ What crosses each boundary, in the order an event travels:
 | Presence signals → presence detector | A lock, unlock, sleep or wake; the idle time on each tick | `PresenceDetector.Signal`, milliseconds | [harness/EVENTS.md](harness/EVENTS.md) §2.1 |
 | Presence detector → pipeline | You stepped away or came back, recorded as a `presence` start or end | `Event` (`Pipeline.presence`) | [harness/EVENTS.md](harness/EVENTS.md) §2.1 |
 | Pipeline → transcript → view, core | Each event, stamped with its `seq`: its line worked out, then the core has it | `Event` | [harness/HARNESS.md](harness/HARNESS.md) §2 |
-| Device link → reactions | How a reaction's `do` ended, or why the link has no end for it | `Link.Outcome` (`Ended`, `Link.Failure`) | [linkkit/SPEC.md](../linkkit/SPEC.md) §4–5 |
+| Device link → reactions | How a reaction's `do` ended, or why the link has no end for it | `DeviceLink.Outcome` (`Ended`, `DeviceLink.Failure`) | [linkkit/SPEC.md](../linkkit/SPEC.md) §4–5 |
 | Core → runtime | Effects | `CoreEffect` | §3.2 |
 | View → harness | Each event's line and notes, with facts the harness never reads; its kind's wake and hold | `Line` | [harness/EVENTS.md](harness/EVENTS.md) §3–4 |
 | Actions, core → transcript | What Boop did, as a `did` (and "needs you" as `needs_you` events) | `Event` | [harness/EVENTS.md](harness/EVENTS.md) §2 |
@@ -497,7 +501,7 @@ What crosses each boundary, in the order an event travels:
 | The last active day | Core | Memory | Starts as the day the app opened, whose old transcript files the launch deleted |
 | The transcript | Transcript (JHarness's log) | `transcript/<date>.jsonl`, and `debug.jsonl` in debug mode; its last 24 hours in memory | Kept 14 days; the last 24 hours read back |
 | The pass running | Harness | Memory | Gone. The events waiting and the started actions still open are the transcript's: nothing older than 10 s is answered, and an open action is ended as failed at launch |
-| The `do`s sent, by `id`, with who waits for each end and when to give up waiting for its `ended` | LinkKit's `Link` | Memory | Gone |
+| The `do`s sent, by `id`, with who waits for each end and when to give up waiting for its `ended` | LinkKit's `DeviceLink` | Memory | Gone |
 | Where a tap on each finish still playing opens its thread, and the reactions a tap cut short | `Reactions` | Memory | Gone |
 | The device's `hello`, why its firmware doesn't fit, whether it's connected; the latest snapshot | Device link; the runtime | Memory | Rebuilt at start |
 | Project and workspace by folder (up to 512, each for 30 s) | agent-hooks' `Places`, the runtime's | Memory | Read again |
@@ -564,8 +568,9 @@ personality or memory, only its touch calibration. What it does is in
   here, so the app's `Info.plist` (the Bluetooth usage description,
   `LSUIElement`) is linked into the `Boop` binary with `-sectcreate`.
 - **Firmware:** PlatformIO + Arduino core + LovyanGFX + NimBLE-Arduino in
-  `firmware/` ([DEVICE.md](DEVICE.md) §4), to be ported to ESP-IDF + LVGL
-  once v1 is verified.
+  `firmware/` ([DEVICE.md](DEVICE.md) §4): Boop's app on LinkKit's device
+  library (`linkkit/device/`, C++17 on ArduinoJson, linked in by
+  `lib_deps`), to be ported to ESP-IDF + LVGL once v1 is verified.
 - **Dev tools:** `internal/tools/boopctl` for the device and `boopdev` for
   the app ([VERIFICATION.md](VERIFICATION.md) §2).
 - **Animation bank:** `internal/boop-design/` holds the SVG and
@@ -590,7 +595,9 @@ Swift targets:
 
 `BoopKit` and every target on it take agent-hooks' `AgentHooks`,
 JHarness's `JHarness` and LinkKit's `LinkKit` products, each file
-importing the ones it uses (no re-export). agent-hooks is a package of its own,
+importing the ones it uses (no re-export); `BoopKit` also takes
+`JHarnessLink`, for a reaction's `do` that ends its `Pending` and
+JHarness's two senders, `rule` and `brain`. agent-hooks is a package of its own,
 `agent-hooks/Package.swift`, meant to be open-sourced: Foundation only,
 nothing outside its folder, and its own tests in Swift Testing
 ([its README](../agent-hooks/README.md)):
@@ -619,13 +626,15 @@ same terms but CoreBluetooth and `../jharness`, which the package needs
 beside it whichever product an app takes: SwiftPM resolves a package's
 dependencies for all its products, and `JHarnessLink` is on JHarness
 (`LinkKit` itself imports nothing of it). Its device half is C++ in
-`linkkit/device/`, which the firmware builds and SwiftPM ignores
+`linkkit/device/`, which the firmware builds, with its own PlatformIO
+project for its tests, and SwiftPM ignores
 ([its README](../linkkit/README.md)):
 
 | Target | Kind | Sources | Ships |
 | --- | --- | --- | --- |
-| `LinkKit` | Library: the four messages, the host's `Link` and the Bluetooth and socket transports ([linkkit/SPEC.md](../linkkit/SPEC.md)) | `linkkit/Sources/LinkKit/` | Yes |
-| `JHarnessLink` | Library, on `LinkKit` and `JHarness` (the one target that looks outside the folder): a `do` that finishes a `Pending`, the device's events in a JHarness log, and `Play`, an output of the device's names | `linkkit/Sources/JHarnessLink/` | Not with Boop |
+| `LinkKit` | Library: the four messages, the host's `DeviceLink`, the Bluetooth and socket transports and the USB bridge ([linkkit/SPEC.md](../linkkit/SPEC.md)) | `linkkit/Sources/LinkKit/` | Yes |
+| `JHarnessLink` | Library, on `LinkKit` and `JHarness` (the one target that looks outside the folder): a `do` that finishes a `Pending`, JHarness's senders, the device's events in a JHarness log, and `Play`, an output of the device's names | `linkkit/Sources/JHarnessLink/` | Yes |
+| `LinkKitBridge` (`linkkit-bridge`) | The USB bridge: a board's serial port on a Unix socket (`Bridge`) | `linkkit/Sources/LinkKitBridge/` | Not with Boop |
 | `LinkKitTests`, `JHarnessLinkTests` | Its tests, under `swift test` | `linkkit/Tests/` | No |
 
 The production targets never depend on internal ones, and none of
@@ -770,6 +779,7 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-30 | The mood is the `to` of its latest change in the transcript (JHarness's `Choice`), and the `mood` file is gone: a relaunch reads it back with the transcript's last 24 hours, and after a day with no change Boop starts calm. How long Boop has been in its mood now survives a relaunch. The first launch after the change starts calm, unless the transcript's last day has a change | The log is JHarness's only state (the owner: "very functional style, avoid state"). Calm is where every mood fades anyway | [harness/DECISIONS.md](harness/DECISIONS.md) §2, §4 |
 | 2026-09-30 | A reaction your tap cut short is held by the app (now `Reactions`), in progress, until the pokes stop, then ended done; it used to be ended failed at once and held by the view. The working heartbeat keeps its random waits as the view's own timer, reset when it sees a reaction start in the transcript | JHarness shows only what the log says, so the hold moved to where the handle is. The heartbeat's waits stay drawn as before, so every eval scenario's states stayed the same | [harness/DECISIONS.md](harness/DECISIONS.md) §5, [harness/EVENTS.md](harness/EVENTS.md) §4, §7 |
 | 2026-09-30 | The brain's harness moves into a package of its own, `jharness/` (JHarness, which was the `BrainKit` target), with its worked example Beacon, `jharness-emit` (which was `kit-emit`) and its own tests in Swift Testing. Boop's files import it where they use it, as they do agent-hooks, where BoopKit re-exported it. Question keys asked twice drop the pass, a forced one too, with why, where they stopped the app; a relaunch answers nothing it read back, however recent, where it answered what was under 10 s old | The owner's three pieces: B as cleanly apart as A, open-sourceable, nothing outside its folder. Both rules were the spec's already (it said the harness refuses repeated keys, and that nothing from before a relaunch is answered), but the code crashed and answered. Boop's keys are fixed and every golden state came out byte for byte the same | [jharness/SPEC.md](../jharness/SPEC.md) §5.1, §9, [harness/HARNESS.md](harness/HARNESS.md) §1.1, §10 |
-| 2026-09-30 | The device decides what plays when: the link is LinkKit, a package of its own (`linkkit/`), and its turn ([linkkit/SPEC.md](../linkkit/SPEC.md) §4) replaces the Mac's moment schedule, its pump, its reckoning of each design's length and its 0.5 s slack for the link. Every `do` from the Mac has an `id` and gets exactly one `ended` (`done`, `cut` or `skipped`, with why), and the Mac gives up on one only at its `ttl` plus 60 s. The brain's reactions go at once with `play: next` and a 5 s `ttl`, and the next takes the turn once the one before rests (its take and bubble played), replacing a face held on for its loops, which still ends `done`; a finish holds the turn to its end; a rule's one-shot goes with `if_free`, so it never cuts a brain line; the Talk button's `listening` goes with `now`. The link asks for the device's `hello` on every connect (the host's `{"t":"hello"}`, which the device kit answers on that link), since a device that still counts the app as there, after a relaunch within 30 s or on a Bluetooth link macOS kept, says none unasked. Firmware from before the kit gets `state` but no `do`, and the popover says to flash it; Boop spots it (`status`) itself, since LinkKit leaves that to the app. A lost `ended` (a Bluetooth line dropped, or the board restarting while the USB link stays up) leaves its reaction in progress in HISTORY for up to 65 s, where the Mac's reckoning ended it a few seconds after it would have played. This replaces 2026-09-27's `ended` given up at a moment's length plus a grace, and 2026-09-28's rows on the schedule's line, a link blip holding it, and the next reaction after the mumble plus the link's 0.5 s | Only the device knows when something has finished. The Mac's reckoning was an upper bound that needed the designs' loops, a guess at the link's delay and a timer of its own, and a device that rebooted blocked reactions for up to a minute. A held face still gives way to the next reaction as soon as its take has played, as the owner chose (decision 5c) | §3.2, §3.7, [PROTOCOL.md](PROTOCOL.md) §3 |
+| 2026-09-30 | The device decides what plays when: the link is LinkKit, a package of its own (`linkkit/`), and its turn ([linkkit/SPEC.md](../linkkit/SPEC.md) §4) replaces the Mac's moment schedule, its pump, its reckoning of each design's length and its timing of the 0.5 s slack for the link, a pause the device now keeps itself. Every `do` from the Mac has an `id` and gets exactly one `ended` (`done`, `cut` or `skipped`, with why), and the Mac gives up on one only at its `ttl` plus 60 s. The brain's reactions go at once with `play: next` and a 5 s `ttl`, and the next takes the turn once the one before rests (half a second after its take and bubble, or 1.7 s in for a silent face), replacing a face held on for its loops, which still ends `done`; a finish holds the turn to its end; a rule's one-shot goes with `if_free`, so it never cuts a brain line; the Talk button's `listening` goes with `now`. The link asks for the device's `hello` on every connect (the host's `{"t":"hello"}`, which the device kit answers on that link), since a device that still counts the app as there, after a relaunch within 30 s or on a Bluetooth link macOS kept, says none unasked. Firmware from before the kit gets `state` but no `do`, and the popover says to flash it; Boop spots it (`status`) itself, since LinkKit leaves that to the app. A lost `ended` (a Bluetooth line dropped, or the board restarting while the USB link stays up) leaves its reaction in progress in HISTORY for up to 65 s, where the Mac's reckoning ended it a few seconds after it would have played. This replaces 2026-09-27's `ended` given up at a moment's length plus a grace, and 2026-09-28's rows on the schedule's line, a link blip holding it, and the next reaction after the mumble plus the link's 0.5 s | Only the device knows when something has finished. The Mac's reckoning was an upper bound that needed the designs' loops, a guess at the link's delay and a timer of its own, and a device that rebooted blocked reactions for up to a minute. A held face still gives way to the next reaction once its take and bubble have played, as the owner chose (decision 5c) | §3.2, §3.7, [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-30 | The first launch after the transcript took over the mood carries the old `mood` file's mood into it when its last day has no change, however old the file is, and deletes the file (`MoodAction.carryOver`); the change is logged by `upgrade` with no message, so HISTORY doesn't show it and the line on how long Boop has been in its mood leaves it out. This replaces the morning's "the first launch after the change starts calm" | The owner's rule for the refactor: behave like main. Main's Boop came back in the mood its file kept, however old, with no time in it; a relaunch after upgrading forgot it. From then on the transcript alone keeps the mood, and a day with no change still starts calm | [harness/DECISIONS.md](harness/DECISIONS.md) §2, §4, [evidence](evidence/2026-09-30-link-kit/parity.md) |
 | 2026-09-30 | An output can keep what it started open past its `openFor` (JHarness's `keepOpen`, asked from the `did` and the log on the tick), and react keeps a reaction your tap cut short open while the pokes hold it (`TranscriptView.heldByPokes`): a poke came after it, and nothing since has stopped the pokes | The tick ended such a reaction as failed 90 s after it started: a run of pokes that long, or a few pokes and then 90 s with nothing else happening, dropped it from HISTORY, and a run that long got a second reaction. Main held it in progress however long the pokes went on, then done | [jharness/SPEC.md](../jharness/SPEC.md) §5.3, [harness/DECISIONS.md](harness/DECISIONS.md) §5, [evidence](evidence/2026-09-30-link-kit/parity.md) |
+| 2026-10-01 | LinkKit's pieces stand on their own: the host's type is `DeviceLink` (it was `Link`, which SwiftUI already names), its own lines are by `link` and JHarness's senders, `rule` and `brain`, are JHarnessLink's; `Trouble` is a value, not words; the USB bridge is LinkKit's (`linkkit-bridge`, whose rules `boopctl bridge` keeps), and the device library tests in its own PlatformIO project. Boop ends a reaction's handle through JHarnessLink's `do(…, pending:)`, read by `Reactions`, and the tap-cut hold is wired in `Runtime.harness`, for the app and the evals alike. The Bluetooth outbox never drops a `do`: past 4 KB waiting it gives the link up, which fails what waits at once | A library a SwiftUI app can't name without a module prefix, a USB path that needs Boop's tools, and a generic `do` with Boop's words in it weren't separate pieces; a `do` the outbox dropped left its reaction in progress in HISTORY for a minute, since no `ended` could come | [MODULES.md](MODULES.md), [linkkit/SPEC.md](../linkkit/SPEC.md) §8 |

@@ -8,8 +8,9 @@ time something needed you and how long it took to clear, and why reactions
 didn't happen. What the dashboard forced is counted apart from the brain.
 
 It reads only the lines, like the dashboard (dash/feed.py): what was sent
-to the device (`sent`), the transcript's actions (`event`), what the
-brain heard (`view`), the passes (`pass`) and `status`. A failed action's message is its reason
+to the device (`sent`) and how the device said each `do` went (`ended`),
+the transcript's actions (`event`), what the brain heard (`view`), the
+passes (`pass`) and `status`. A failed action's message is its reason
 (harness/HARNESS.md §4), so that one is shown; no other message is parsed."""
 from __future__ import annotations
 
@@ -181,6 +182,7 @@ def summarise(launches: list[Launch], date: str) -> Day:
         passed: set[int] = set()
         names: dict[int, str] = {}
         last_pass: Line = {}  # an action's pass: its entries follow the pass's
+        finish_hour: dict[int, Hour] = {}  # each finish sent, by its `do` id, until the device says how it went
         up_since = None
         for line in launch.lines:
             t, k = line["received_at_ms"], kind(line)
@@ -221,8 +223,15 @@ def summarise(launches: list[Launch], date: str) -> Day:
                 # log's rules' moment with a line is chatter.
                 if c["anim"] in FINISHES:
                     h.finishes += 1
+                    if c.get("id"):
+                        finish_hour[c["id"]] = h
                 if c.get("say") and sent_by(line) == "rule":
                     h.chatter += 1
+            elif k == "ended" and (fh := finish_hour.pop(body.get("id"), None)):
+                # The device decides what plays: a finish it skipped, or one
+                # something other than your tap cut, didn't play.
+                if body.get("how") == "skipped" or (body.get("how") == "cut" and body.get("why") != "tap"):
+                    fh.finishes -= 1
             elif k == "view":
                 seq = (body.get("from") or [0])[-1]  # the raw event that made it, which a pass is for
                 events[seq], event_at[seq] = body, t
@@ -377,7 +386,8 @@ def render(day: Day) -> str:
     out.append("")
     out.append("reacts are the reactions the brain asked for, with their faces, and missed the ones of them that "
                "didn't happen (below);")
-    out.append("finishes are every finish played, task_complete or reply_ready (the brain's), and cheers in logs from "
+    out.append("finishes are every finish played, task_complete or reply_ready (the brain's), not one the device "
+               "skipped or cut short but by your tap, and cheers in logs from "
                "before 2026-09-29; chatter is the rules' working chatter, "
                "which only logs from before then have;")
     out.append("alerts are states bringing a new needs-you or a different one.")

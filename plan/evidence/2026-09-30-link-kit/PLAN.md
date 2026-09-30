@@ -40,7 +40,21 @@ The contract both lanes built against is [linkkit/SPEC.md](../../../linkkit/SPEC
 (the generic protocol) and Boop's vocabulary on it,
 [PROTOCOL.md](../../PROTOCOL.md).
 
-## Evidence
+## Results
 
-- [golden-states-on-main.txt](golden-states-on-main.txt): main builds the
-  same 387 prompt states as the A and B branch.
+| Check | Result |
+| --- | --- |
+| Prompts against main | [golden-states-on-main.txt](golden-states-on-main.txt): main builds the same 387 states as this branch, byte for byte |
+| A working day, scripted, against main | 193 turns both; 427 passes and reactions here, 426 on main; 17 quiet check-ins against 16; no mood bounces either way ([workday-main-vs-branch.md](workday-main-vs-branch.md)) |
+| Performance after two days | per event 0.34 ms (main 0.31, B before the fix 1.72), per tick 0.05 ms (main 0.05) ([parity.md](parity.md)) |
+| Swift tests | BoopTests 269 (+1 opt-in soak), agent-hooks 77, jharness 36, LinkKit 43, JHarnessLink 7 |
+| Firmware tests | Boop's 168, the device library's own 53; `sim` 15 scenarios, all 80 goldens unchanged |
+| The board, scenarios | [board-run.txt](board-run.txt): 15 scenarios, 0 expect failures, 0 pictures differ from the simulator |
+| The board, pipeline (L4) | [board-e2e/](board-e2e/e2e-scripted.txt): PASS; hook to state on the device p50 80 ms, p95 105 ms; 9 brain reactions, every one ended |
+| The board, soak | [board-soak-6min.json](board-soak-6min.json): 38 reactions each ended once, nothing lost or torn, no reset, heap drift 0, least free heap 61,188 bytes (about 2.3 KB less than before: the four queued calls' argument slots; the budget is 50 KB) |
+| The board, webcam | [webcam/review.md](webcam/review.md): a reaction waits for the line before it, a one-shot is skipped while a line plays |
+| `linkkit-bridge` | [linkkit-bridge.txt](linkkit-bridge.txt): on the board, ping, `hello` and a `do`'s `ended` through it |
+| Evals (1 of the owner's 5) | [eval-1.txt](eval-1.txt): 55/60 (1 known gap); the four failures (13, 15, 40, 52) are the ones main's own recent evals fail by turns (2026-09-29 overnight's baseline and evals 2 to 4) |
+
+Not checked: Bluetooth (an agent's shell can't use it: the owner's `make
+run`), and the Mac app's popover by eye (`Boop --snapshots` draws it).

@@ -1,6 +1,6 @@
 # Boop: harness decisions
 
-Updated 2026-09-30. What Boop decides when the brain wakes: the steering
+Updated 2026-10-01. What Boop decides when the brain wakes: the steering
 files Jev reads, the questions it answers, and the two actions that
 carry out its answers. The contract every action follows is
 [HARNESS.md](HARNESS.md) §4. The events are in [EVENTS.md](EVENTS.md),
@@ -497,9 +497,10 @@ says when something needs you.
    and a 5 s `ttl`: the device plays it once any take or face playing
    has finished, and skips it if that takes longer. A face the last
    reaction holds on for its loops is the exception: the last one rests
-   once its take has played, or, when it said nothing, once its face has
-   shown as long as a bubble would (1.2 s), and this one then replaces
-   it, so a long hold doesn't make the next reaction wait past its 5 s
+   half a second after its take and bubble have played, or, when it said
+   nothing, 1.7 s after it started (the 1.2 s a bubble would show, and
+   that half second, the pause the Mac's link slack used to leave), and
+   this one then replaces it, so a long hold doesn't make the next reaction wait past its 5 s
    and be skipped ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2). The last
    reaction is still `done`. A new `Pending` goes with it, and the
    action returns without waiting for the device.
@@ -524,8 +525,8 @@ the handle is ended ([HARNESS.md](HARNESS.md) §4, §5.3). The link gives
 its `do` an `id`, and hands back how it came out: the device's `ended`
 (`done`, `cut` or `skipped`, with why, [PROTOCOL.md](../PROTOCOL.md)
 §4), or why there's none ([linkkit/SPEC.md](../../linkkit/SPEC.md) §5).
-The app's `Reactions` (`app/BoopKit/App/Reactions.swift`) ends the
-handle from that:
+JHarnessLink's `do(…, pending:)` ends the handle from that, as the app's
+`Reactions` (`app/BoopKit/App/Reactions.swift`, `read`) reads it:
 
 | End | When |
 | --- | --- |
@@ -539,8 +540,8 @@ handle from that:
 | `failed`, `the mic went on` | Push-to-talk started while it waited, and a reaction would end `listening` (`skipped`, `mic_on`) |
 | `failed`, `skipped: <why>` | The device skipped it for one of the kit's own reasons: `full` (four already waited), `busy`, `unknown` or `reset` |
 | `failed`, `no device connected` | No device was connected when it was sent, so nothing went out. So does a device that hasn't said `hello` (`the device hasn't said hello`: the link asks for one whenever it connects, so only for the moment before it answers), one whose firmware doesn't fit (`the device's firmware doesn't fit this app`), a name its `hello` doesn't list (`the device doesn't play that`), and a line too long for the link (`the line is too long`) |
-| `failed`, `the device disconnected` | The link dropped before the device said how it ended |
-| `failed`, `the device never said it ended` | No `ended` came by its `ttl` plus 60 s: the line was lost (a Bluetooth line dropped, or the board restarted while the USB link stayed up). Until then HISTORY shows it `(in progress)`, up to 65 s, where the Mac's own reckoning used to end it a few seconds after it would have played; `react.mood`'s `none` is for a reaction still in progress, so Boop may stay quiet on that thread meanwhile |
+| `failed`, `the device disconnected` | The link dropped before the device said how it ended, or the Bluetooth link was too stuck to take the lines sent (4 KB waiting), which the link gives up and connects again ([linkkit/SPEC.md](../../linkkit/SPEC.md) §8) |
+| `failed`, `the device never said it ended` | No `ended` came by its `ttl` plus 60 s: the line was lost (the board restarted while the USB link stayed up, or a line torn on the way). Until then HISTORY shows it `(in progress)`, up to 65 s, where the Mac's own reckoning used to end it a few seconds after it would have played; `react.mood`'s `none` is for a reaction still in progress, so Boop may stay quiet on that thread meanwhile |
 
 Even the longest hold of the design with the longest loop ends one of
 these ways before its `openFor` could end it

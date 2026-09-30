@@ -24,10 +24,10 @@ let helloLine = #"{"t":"hello","kit":1,"app":"pip","id":"pip-54fe","fw":"1.0.0",
 let fields: JSONObject = ["base": "working", "mood": "calm", "busy": 1, "vol": 6]
 
 /// A link to a fake device, connected and past `hello` unless asked not to.
-func makeLink(connected: Bool = true, hello: Bool = true) -> (Link, FakeTransport, Box<String>) {
+func makeLink(connected: Bool = true, hello: Bool = true) -> (DeviceLink, FakeTransport, Box<String>) {
     let transport = FakeTransport()
     let logs = Box<String>()
-    let link = Link(app: "pip", transport: transport, log: { logs.add($0) })
+    let link = DeviceLink(app: "pip", transport: transport, log: { logs.add($0) })
     if connected { link.connection(true, now: 0) }
     if hello { link.receive(helloLine, now: 0) }
     transport.clear()
@@ -57,7 +57,7 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
         #expect(transport.sent[2] == transport.sent[1], "the keepalive is the latest line again")
         #expect(transport.sent[2] == #"{"t":"state","base":"working","mood":"calm","busy":2,"vol":6}"#)
         #expect(link.state == busier)
-        #expect(Link.keepaliveMs == 10_000)
+        #expect(DeviceLink.keepaliveMs == 10_000)
     }
 
     /// SPEC.md §5: when a link comes up the host sends its latest `state`
@@ -96,28 +96,31 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
         #expect(transport.sent == [Wire.state(fields), Wire.state(fields)], "the last that fit is the keepalive")
     }
 
-    /// Every line goes to `onSend` with who asked for it; every `state`
-    /// is the rules'.
+    /// Every line goes to `onSend` with who asked for it: the app's name
+    /// for a `do`, `app` when it doesn't say, and `link` for the link's
+    /// own lines, every `state` and the ask for `hello`.
     @Test func testOnSendTracesEveryLineWithItsSender() {
-        let (link, _, _) = makeLink()
+        let (link, _, _) = makeLink(connected: false, hello: false)
         let traced = Box<String>()
         link.onSend = { line, by in traced.add("\(by) \(JSON.parse(line)?.object?["t"]?.string ?? "?")") }
         link.update(state: fields, now: 0)
-        link.do("react", by: .brain, now: 0) { _ in }
+        link.connection(true, now: 0)
+        link.receive(helloLine, now: 0)
+        link.do("react", by: "brain", now: 0) { _ in }
         link.do("cheer", by: "tool", now: 0) { _ in }
         link.do("cheer", now: 0) { _ in }
-        #expect(traced.all == ["rule state", "brain do", "tool do", "rule do"])
+        #expect(traced.all == ["link state", "link hello", "link state", "link state", "brain do", "tool do", "app do"])
     }
 
     /// With no transport the link sends into nothing: `onSend` still
     /// traces the `state`, and a `do` fails at once.
     @Test func testNoTransportIsNeverConnected() {
-        let link = Link(app: "pip", transport: nil)
+        let link = DeviceLink(app: "pip", transport: nil)
         let traced = Box<String>()
         link.onSend = { line, _ in traced.add(line) }
         link.update(state: fields, now: 0)
         #expect(traced.all == [Wire.state(fields)])
-        var outcome: Link.Outcome?
+        var outcome: DeviceLink.Outcome?
         #expect(link.do("react", now: 0) { outcome = $0 } == nil)
         #expect(outcome == .failed(.notConnected))
     }
@@ -165,12 +168,13 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
         link.onEvent = { events.add($0) }
         link.update(state: fields, now: 0)
         transport.clear()
-        let status = #"{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.3.1"}"#
+        let status = #"{"t":"status","v":1,"id":"pip-7f3a","fw":"0.3.1"}"#
         for t in [100, 200] as [Int64] {
             #expect(link.receive(status, now: t) == .other(status))
-            link.incompatible(Link.tooOld, now: t)
+            link.incompatible(now: t)
         }
-        #expect(link.trouble == "the device's firmware is too old for this app: flash it")
+        #expect(link.trouble == .tooOld)
+        #expect(link.trouble?.description == "the device's firmware is too old for this app: flash it")
         #expect(logs.all.filter { $0.contains("too old") }.count == 1)
         #expect(transport.sent == [Wire.state(fields), Wire.state(fields)], "each gets the latest state")
         var busier = fields
@@ -182,7 +186,7 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
         #expect(transport.sent.count == 4, "and the keepalive")
         link.receive(#"{"t":"ev","kind":"tap"}"#, now: 10_400)
         #expect(events.all.isEmpty, "its events are dropped")
-        var outcome: Link.Outcome?
+        var outcome: DeviceLink.Outcome?
         #expect(link.do("react", now: 60_000) { outcome = $0 } == nil)
         #expect(outcome == .failed(.incompatible))
         #expect(transport.types().allSatisfy { $0 == "state" }, "no do, and no hello ask")
@@ -203,17 +207,19 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
     /// `app` it was written for. Either way the device still gets `state`,
     /// but no `do`, and its `ev`s are dropped; the log says who it is.
     @Test func testAHelloThatDoesntFitIsTrouble() {
-        let cases: [(String, String)] = [
-            (#"{"t":"hello","kit":2,"app":"pip","id":"i","fw":"9","does":["react"]}"#,
+        let cases: [(String, DeviceLink.Trouble, String)] = [
+            (#"{"t":"hello","kit":2,"app":"pip","id":"i","fw":"9","does":["react"]}"#, .tooNew,
              "the device's firmware is too new for this app: update the app"),
-            (#"{"t":"hello","app":"pip","id":"i","fw":"0","does":["react"]}"#,
+            (#"{"t":"hello","app":"pip","id":"i","fw":"0","does":["react"]}"#, .tooOld,
              "the device's firmware is too old for this app: flash it"),
-            (#"{"t":"hello","kit":0,"app":"pip","id":"i","fw":"0","does":["react"]}"#,
+            (#"{"t":"hello","kit":0,"app":"pip","id":"i","fw":"0","does":["react"]}"#, .tooOld,
              "the device's firmware is too old for this app: flash it"),
-            (#"{"t":"hello","kit":1,"app":"boop","id":"i","fw":"1","does":["react"]}"#,
-             "the device's firmware is for another app (boop), not pip: flash it"),
+            (#"{"t":"hello","kit":1,"app":"lamp","id":"i","fw":"1","does":["react"]}"#, .otherApp(device: "lamp", host: "pip"),
+             "the device's firmware is for another app (lamp), not pip: flash it"),
+            (#"{"t":"hello","kit":1,"app":"","id":"i","fw":"1","does":["react"]}"#, .otherApp(device: "", host: "pip"),
+             "the device's firmware is for another app (unnamed), not pip: flash it"),
         ]
-        for (line, why) in cases {
+        for (line, trouble, why) in cases {
             let (link, transport, logs) = makeLink(hello: false)
             link.update(state: fields, now: 0)
             transport.clear()
@@ -222,7 +228,8 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
             var events = 0
             link.onEvent = { _ in events += 1 }
             link.receive(line, now: 100)
-            #expect(link.trouble == why)
+            #expect(link.trouble == trouble)
+            #expect(link.trouble?.description == why)
             #expect(link.hello == nil)
             #expect(hellos == 0)
             #expect(logs.all.contains { $0.hasPrefix("device link: i firmware ") && $0.hasSuffix(why) }, "\(logs.all)")
@@ -238,12 +245,12 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
     /// nothing more goes to it and its answer can't be trusted.
     @Test func testTroubleFailsWhatWaits() {
         let (link, _, _) = makeLink()
-        let outcomes = Box<Link.Outcome>()
+        let outcomes = Box<DeviceLink.Outcome>()
         link.do("react", now: 0) { outcomes.add($0) }
         link.receive(#"{"t":"hello","kit":2,"app":"pip","id":"i","fw":"9","does":["react"]}"#, now: 10)
         link.receive(helloLine, now: 20)
         link.do("react", now: 30) { outcomes.add($0) }
-        link.incompatible(Link.tooOld, now: 40)
+        link.incompatible(now: 40)
         #expect(outcomes.all == [.failed(.incompatible), .failed(.incompatible)])
     }
 
@@ -264,7 +271,8 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
         link.receive(helloLine, now: 63_100)
         #expect(heard.all == ["1.0.0", "1.0.1", "1.0.0"])
 
-        link.incompatible(Link.tooOld, now: 64_000)
+        link.incompatible(.tooNew, now: 64_000)
+        #expect(link.trouble == .tooNew)
         #expect(link.trouble != nil)
         link.connection(false, now: 65_000)
         #expect(link.trouble == nil)
@@ -279,7 +287,7 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
             let (link, _, _) = makeLink()
             let first = link.do("react", now: 0) { _ in }!
             #expect((1...Wire.maxId).contains(first))
-            #expect(link.do("react", now: 0) { _ in } == Link.after(first))
+            #expect(link.do("react", now: 0) { _ in } == DeviceLink.after(first))
             return first
         }
         #expect(Set(firsts).count > 1, "each launch starts somewhere else")
@@ -302,7 +310,7 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
     /// is ignored.
     @Test func testEachDoGetsExactlyOneOutcome() {
         let (link, transport, _) = makeLink()
-        let outcomes = Box<(Int, Link.Outcome)>()
+        let outcomes = Box<(Int, DeviceLink.Outcome)>()
         let a = link.do("react", args: ["say": ["take": "x"]], now: 0) { outcomes.add((1, $0)) }!
         let b = link.do("cheer", play: .now, now: 0) { outcomes.add((2, $0)) }!
         #expect(transport.sent == [Wire.do(id: a, name: "react", play: .next, ttl: 5000, args: ["say": ["take": "x"]]),
@@ -330,7 +338,7 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
         link.tick(now: 1000 + 2000 + 59_999)
         #expect(outcomes.all.isEmpty)
         link.tick(now: 1000 + 2000 + 60_000)
-        #expect(outcomes.all == ["next \(Link.Outcome.failed(.noAnswer))"])
+        #expect(outcomes.all == ["next \(DeviceLink.Outcome.failed(.noAnswer))"])
         link.tick(now: 1000 + 5000 + 59_999)
         #expect(outcomes.all.count == 1, "if_free leaves its ttl out, so it has the default")
         link.tick(now: 1000 + 5000 + 60_000)
@@ -338,7 +346,7 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
         link.receive(ended(free, "done"), now: 70_000)
         #expect(outcomes.all.count == 2)
         #expect(logs.all.contains { $0.contains("no ended for do \(free) (cheer): gave up") })
-        #expect(Link.answerGraceMs == 60_000)
+        #expect(DeviceLink.answerGraceMs == 60_000)
     }
 
     /// SPEC.md §3, §9: `ttl` is 1–60000 ms; the host keeps it in range, so
@@ -366,7 +374,7 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
             link.do(name, now: 0) { heard.add("\(name) \($0)") }
         }
         link.connection(false, now: 10)
-        let failed = Link.Outcome.failed(.disconnected)
+        let failed = DeviceLink.Outcome.failed(.disconnected)
         #expect(heard.all == ["react \(failed)", "cheer \(failed)", "listening \(failed)", "connection false"])
         #expect(link.waiting.isEmpty)
         link.connection(false, now: 20)
@@ -377,8 +385,8 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
     /// `unknown`, so it fails at once and nothing goes out; so does a `do`
     /// with no link, before a hello, or too long for a line.
     @Test func testADoThatCantPlayFailsAtOnce() {
-        func attempt(_ link: Link, _ name: String = "react", args: JSONObject = [:]) -> Link.Outcome? {
-            var outcome: Link.Outcome?
+        func attempt(_ link: DeviceLink, _ name: String = "react", args: JSONObject = [:]) -> DeviceLink.Outcome? {
+            var outcome: DeviceLink.Outcome?
             #expect(link.do(name, args: args, now: 0) { outcome = $0 } == nil)
             return outcome
         }
@@ -398,7 +406,7 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
         var second: Int?
         let first = link.do("react", now: 0) { _ in second = link.do("cheer", now: 1) { _ in } }!
         link.receive(ended(first, "done"), now: 1)
-        #expect(second == Link.after(first))
+        #expect(second == DeviceLink.after(first))
         #expect(transport.dos.count == 2)
         #expect(link.waiting.keys.sorted() == [second!])
     }

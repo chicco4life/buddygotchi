@@ -1,0 +1,18 @@
+linkkit-bridge on the bench board, 2026-10-01 00:50 KST, firmware f952e488d2-dirty
+(the final tree before its commit), port /dev/cu.usbserial-110, socket /tmp/lkb.sock.
+
+A client on the socket sent dbg.ping, {"t":"hello"}, a state and
+{"t":"do","id":7001,"name":"poked","play":"now"}, and heard back:
+
+dbg.ping {'kit': 1, 'sha': 'f952e488d2-dirty', 'heap_min': 61188, 'link': 'usb'}
+hello {'t': 'hello', 'kit': 1, 'app': 'boop', 'id': 'b00p-54fe', 'fw': '1.0.0', 'does': [...11 names...]}
+ev {'t': 'ev', 'kind': 'ended', 'data': {'id': 7001, 'how': 'done'}}
+
+bridge: /dev/cu.usbserial-110 ⇄ /tmp/lkb.sock
+bridge: client joined (1)
+bridge: client left (0)
+bridge: stopped            (Ctrl-C; the socket file was removed)
+
+The first run printed a Swift runtime warning on Ctrl-C (the signal handler
+was main-actor code run on a global queue); fixed in LinkKitBridge/main.swift
+and run again without it.

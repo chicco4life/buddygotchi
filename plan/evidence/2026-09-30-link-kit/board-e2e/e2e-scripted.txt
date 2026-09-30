@@ -1,0 +1,75 @@
+bridge and headless app up (brain scripted, state /tmp/boop-e2e/state)
+## internal/app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: agent-hook 19 ms, state on the device after 62 ms
+  claude UserPromptSubmit: agent-hook 21 ms, state on the device after 69 ms
+  ok {"base": "working", "attn": null} after 58 ms
+  claude PreToolUse: agent-hook 19 ms, state on the device after 46 ms
+  claude PostToolUse: agent-hook 20 ms, no new state
+  claude PreToolUse: agent-hook 24 ms, no new state
+  claude PostToolUse: agent-hook 23 ms, no new state
+  claude PreToolUse: agent-hook 20 ms, state on the device after 48 ms
+  claude PermissionRequest: agent-hook 19 ms, state on the device after 64 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}} after 30 ms
+  claude Notification: agent-hook 17 ms, no new state
+  ok {"screen": "needs_you"} after 24 ms
+  shot /tmp/boop-e2e-out/claude-needs-you.png
+  claude PostToolUse: agent-hook 22 ms, state on the device after 79 ms
+  ok {"base": "working", "attn": null} after 21 ms
+  app clock +400 s
+  claude Stop: agent-hook 21 ms, state on the device after 101 ms
+  ok {"moment": {"anim": "task_complete"}} after 25 ms
+  claude UserPromptSubmit: agent-hook 22 ms, state on the device after 87 ms
+  ok {"base": "working"} after 24 ms
+  claude PreToolUse: agent-hook 22 ms, state on the device after 80 ms
+  app clock +40 s
+  claude PostToolUseFailure: agent-hook 23 ms, no new state
+  claude StopFailure: agent-hook 23 ms, state on the device after 105 ms
+  ok {"base": "idle", "attn": null} after 28 ms
+## internal/app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: agent-hook 27 ms, no new state
+  codex UserPromptSubmit: agent-hook 22 ms, state on the device after 85 ms
+  ok {"base": "working"} after 24 ms
+  codex PreToolUse: agent-hook 23 ms, state on the device after 77 ms
+  codex PermissionRequest: agent-hook 19 ms, no new state
+  codex PostToolUse: agent-hook 22 ms, no new state
+  ok not {"screen": "needs_you"} until 3515 ms after the last hook
+  ok {"base": "working", "attn": null} after 25 ms
+  app clock +45 s
+  codex Stop: agent-hook 22 ms, state on the device after 100 ms
+  ok {"moment": {"anim": "task_complete"}} after 24 ms
+## internal/app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: agent-hook 22 ms, no new state
+  codex UserPromptSubmit: agent-hook 22 ms, state on the device after 90 ms
+  ok {"base": "working"} after 27 ms
+  codex PreToolUse: agent-hook 23 ms, state on the device after 77 ms
+  codex PermissionRequest: agent-hook 23 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 946 ms
+  ok {"screen": "needs_you"} after 24 ms
+  shot /tmp/boop-e2e-out/codex-needs-you.png
+  codex PostToolUse: agent-hook 21 ms, state on the device after 80 ms
+  ok {"base": "working", "attn": null} after 22 ms
+  app clock +45 s
+  codex Stop: agent-hook 23 ms, state on the device after 104 ms
+  ok {"moment": {"anim": "task_complete"}} after 25 ms
+Boop exit 0
+boopctl exit 0
+/tmp/boop-e2e/boop.sock removed: True
+/tmp/boop-e2e/usb.sock removed: True
+latency, hook launch to state on the device: n 17/27 hooks, p50 80 ms, p95 105 ms, max 105 ms
+the harness saw an event with 'claude started turn 1 on': True
+the harness saw an event with 'claude finished turn 1 on': True
+the harness saw an event with "claude's deploy failed on": True
+the harness saw an event with '"error":"rate_limit"': True
+the harness saw an event with 'codex finished turn 1 on': True
+PRIVATE_ markers in app files or the brain log: none
+  00:48:46.283 brain line: 27 ms after the rules' reaction to claude UserPromptSubmit e2e-claude-1 → turn start UserPromptSubmit claude e2e-claude-1 · app com.mitchellh.ghostty, prompt PRIVATE_PROMPT_7001 fix the flaky test; the device said it ended cut (needs_you)
+  00:48:54.598 brain task_complete: 1 ms after the rules' reaction to claude Stop e2e-claude-1 → turn end Stop claude e2e-claude-1 · app com.mitchellh.ghostty, message PRIVATE_CLOSING_7009, outcome done; the device said it ended done
+  00:48:58.758 brain line: 2 ms after the rules' reaction to claude UserPromptSubmit e2e-claude-1 → turn start UserPromptSubmit claude e2e-claude-1 · app com.mitchellh.ghostty, prompt PRIVATE_PROMPT_7010 now deploy it; the device said it ended done
+  00:48:59.316 brain line: 2 ms after the rules' reaction to claude PostToolUseFailure e2e-claude-1 → tool end PostToolUseFailure claude e2e-claude-1 · app com.mitchellh.ghostty, error exit_code, failed true, tool Bash, topic deploy; the device said it ended skipped (late)
+  00:48:59.868 brain task_complete: 2 ms after the rules' reaction to claude StopFailure e2e-claude-1 → turn end StopFailure claude e2e-claude-1 · app com.mitchellh.ghostty, error rate_limit, outcome failed; the device said it ended done
+  00:49:04.584 brain line: 2 ms after the rules' reaction to codex UserPromptSubmit e2e-codex-quick → turn start UserPromptSubmit codex e2e-codex-quick · app com.mitchellh.ghostty, prompt PRIVATE_PROMPT_8001 run the tests; the device said it ended skipped (late)
+  00:49:12.260 brain task_complete: 3 ms after the rules' reaction to codex Stop e2e-codex-quick → turn end Stop codex e2e-codex-quick · app com.mitchellh.ghostty, message PRIVATE_CLOSING_8004, outcome done; the device said it ended done
+  00:49:16.954 brain line: 2 ms after the rules' reaction to codex UserPromptSubmit e2e-codex-slow → turn start UserPromptSubmit codex e2e-codex-slow · app com.mitchellh.ghostty, prompt PRIVATE_PROMPT_9001 ship it; the device said it ended cut (needs_you)
+  00:49:28.717 brain task_complete: 2 ms after the rules' reaction to codex Stop e2e-codex-slow → turn end Stop codex e2e-codex-slow · app com.mitchellh.ghostty, message PRIVATE_CLOSING_9004, outcome done; the device said it ended done
+brain reactions: 9, early: 0, cut short by a newer `now`: none, skipped: 2, with no `ended` from the device: 0

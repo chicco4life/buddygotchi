@@ -63,9 +63,11 @@ faces: tools
 fw:
 	cd $(ROOT) && $(PIO) run -e cyd24
 
-# Firmware unit tests on the Mac.
+# Firmware unit tests on the Mac: Boop's, then LinkKit's device library's
+# own (linkkit/device/platformio.ini).
 fw-test: voice
 	cd $(ROOT) && $(PIO) test -e native
+	cd $(ROOT) && $(PIO) test -d $(ROOT)/linkkit/device -e native
 
 # Every device scenario in the simulator, against the goldens (L1). The
 # PNGs land in /tmp/boop-sim/<scenario>/; internal/tools/boopctl sim NAME

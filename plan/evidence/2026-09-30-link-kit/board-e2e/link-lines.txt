@@ -1,0 +1,59 @@
+00:48:45.861 link rules → {"t":"state","base":"asleep","mood":"calm","busy":0,"vol":6,"variant":2}
+00:48:45.861 boop: running on /tmp/boop-e2e/state, socket /tmp/boop-e2e/boop.sock, link usb:/tmp/boop-e2e/usb.sock, personality boop, mood calm, brain none (reading Jev's key), debug log /tmp/boop-e2e/state/debug.jsonl
+00:48:45.861 link rules → {"t":"hello"}
+00:48:45.875 device: b00p-54fe firmware 1.0.0 voice 1aace295d219
+00:48:46.165 link rules → {"t":"state","base":"idle","mood":"calm","busy":0,"vol":6,"variant":3}
+00:48:46.165 link rules → {"t":"do","id":534514995,"name":"starting","play":"if_free","args":{"variant":4,"ctx":"session"}}
+00:48:46.256 link rules → {"t":"state","base":"working","mood":"calm","busy":1,"vol":6,"variant":3}
+00:48:46.257 link rules → {"t":"do","id":534514996,"name":"starting","play":"if_free","args":{"variant":1,"ctx":"new_task"}}
+00:48:46.283 link brain → {"t":"do","id":534514997,"name":"react","play":"next","ttl":5000,"args":{"say":{"take":"phase1.borrowed.andiamo__excited__contained"},"mood":"excited","loops":1}}
+00:48:46.289 device: do 534514995 ended done
+00:48:46.328 device: do 534514996 ended done
+00:48:46.405 link rules → {"t":"state","base":"working","act":"testing","mood":"calm","busy":1,"vol":6,"variant":3}
+00:48:48.086 link rules → {"t":"state","base":"working","act":"terminal","mood":"calm","busy":1,"vol":6,"variant":2}
+00:48:48.159 link rules → {"t":"state","base":"idle","mood":"calm","attn":{"agent":"claude","project":"jetpack","more":0,"id":1276185301},"busy":0,"vol":6,"variant":2}
+00:48:48.188 device: do 534514997 ended cut (needs_you)
+00:48:54.166 link rules → {"t":"state","base":"working","mood":"calm","busy":1,"vol":6,"variant":5}
+00:48:54.597 link rules → {"t":"state","base":"idle","mood":"calm","busy":0,"vol":6,"variant":1}
+00:48:54.598 link brain → {"t":"do","id":534514998,"name":"task_complete","play":"next","ttl":5000,"args":{"outcome":"success","variant":2,"who":{"agent":"claude","thread":"jetpack"},"say":{"take":"phase1.word.begin.onward__excited__contained"},"mood":"excited","loops":1}}
+00:48:58.756 link rules → {"t":"state","base":"working","mood":"calm","busy":1,"vol":6,"variant":3}
+00:48:58.756 link rules → {"t":"do","id":534514999,"name":"starting","play":"if_free","args":{"variant":3,"ctx":"new_task"}}
+00:48:58.758 link brain → {"t":"do","id":534515000,"name":"react","play":"next","ttl":5000,"args":{"say":{"take":"phase1.word.begin.awake__excited__contained"},"mood":"excited","loops":1}}
+00:48:58.784 device: do 534514999 ended skipped (busy)
+00:48:58.896 link rules → {"t":"state","base":"working","act":"terminal","mood":"calm","busy":1,"vol":6,"variant":3}
+00:48:58.956 link rules → {"t":"state","base":"working","act":"waiting","mood":"calm","busy":1,"vol":6,"variant":3}
+00:48:59.314 link rules → {"t":"do","id":534515001,"name":"error","play":"if_free","args":{"variant":3}}
+00:48:59.316 link brain → {"t":"do","id":534515002,"name":"react","play":"next","ttl":5000,"args":{"say":{"take":"phase1.borrowed.vamos__excited__contained"},"mood":"excited","loops":1}}
+00:48:59.343 device: do 534515001 ended skipped (busy)
+00:48:59.866 link rules → {"t":"state","base":"idle","mood":"calm","busy":0,"vol":6,"variant":3}
+00:48:59.868 link brain → {"t":"do","id":534515003,"name":"task_complete","play":"next","ttl":5000,"args":{"outcome":"failure","variant":5,"who":{"agent":"claude","thread":"jetpack"},"say":{"take":"phase1.word.begin.ready__excited__contained"},"mood":"excited","loops":1}}
+00:49:01.826 device: do 534514998 ended done
+00:49:04.039 link rules → {"t":"do","id":534515004,"name":"starting","play":"if_free","args":{"variant":5,"ctx":"session"}}
+00:49:04.066 device: do 534515004 ended skipped (busy)
+00:49:04.355 device: do 534515002 ended skipped (late)
+00:49:04.532 device: do 534515000 ended done
+00:49:04.582 link rules → {"t":"state","base":"working","mood":"calm","busy":1,"vol":6,"variant":5}
+00:49:04.582 link rules → {"t":"do","id":534515005,"name":"starting","play":"if_free","args":{"variant":2,"ctx":"new_task"}}
+00:49:04.584 link brain → {"t":"do","id":534515006,"name":"react","play":"next","ttl":5000,"args":{"say":{"take":"phase1.word.begin.begin__excited__contained"},"mood":"excited","loops":1}}
+00:49:04.610 device: do 534515005 ended skipped (busy)
+00:49:04.718 link rules → {"t":"state","base":"working","act":"testing","mood":"calm","busy":1,"vol":6,"variant":2}
+00:49:07.869 link rules → {"t":"state","base":"working","mood":"calm","busy":1,"vol":6,"variant":3}
+00:49:09.617 device: do 534515006 ended skipped (late)
+00:49:11.631 device: do 534515003 ended done
+00:49:12.257 link rules → {"t":"state","base":"idle","mood":"calm","busy":0,"vol":6,"variant":2}
+00:49:12.260 link brain → {"t":"do","id":534515007,"name":"task_complete","play":"next","ttl":5000,"args":{"outcome":"success","variant":4,"who":{"agent":"codex","thread":"landing"},"say":{"take":"phase1.borrowed.dai__excited__contained"},"mood":"excited","loops":1}}
+00:49:16.413 link rules → {"t":"do","id":534515008,"name":"starting","play":"if_free","args":{"variant":6,"ctx":"session"}}
+00:49:16.423 device: do 534515008 ended skipped (busy)
+00:49:16.952 link rules → {"t":"state","base":"working","mood":"calm","busy":1,"vol":6,"variant":5}
+00:49:16.952 link rules → {"t":"do","id":534515009,"name":"starting","play":"if_free","args":{"variant":1,"ctx":"new_task"}}
+00:49:16.954 link brain → {"t":"do","id":534515010,"name":"react","play":"next","ttl":5000,"args":{"say":{"take":"phase1.word.begin.start__excited__contained"},"mood":"excited","loops":1}}
+00:49:16.985 device: do 534515009 ended skipped (busy)
+00:49:17.096 link rules → {"t":"state","base":"working","act":"terminal","mood":"calm","busy":1,"vol":6,"variant":2}
+00:49:18.871 link rules → {"t":"state","base":"working","act":"waiting","mood":"calm","busy":1,"vol":6,"variant":2}
+00:49:19.417 device: do 534515007 ended done
+00:49:19.873 link rules → {"t":"state","base":"idle","mood":"calm","attn":{"agent":"codex","project":"landing","more":0,"id":1276185302},"busy":0,"vol":6,"variant":3}
+00:49:19.899 device: do 534515010 ended cut (needs_you)
+00:49:28.280 link rules → {"t":"state","base":"working","mood":"calm","busy":1,"vol":6,"variant":4}
+00:49:28.715 link rules → {"t":"state","base":"idle","mood":"calm","busy":0,"vol":6,"variant":3}
+00:49:28.717 link brain → {"t":"do","id":534515011,"name":"task_complete","play":"next","ttl":5000,"args":{"outcome":"success","variant":3,"who":{"agent":"codex","thread":"landing"},"say":{"take":"phase1.word.begin.begin__excited__contained"},"mood":"excited","loops":1}}
+00:49:35.145 device: do 534515011 ended done

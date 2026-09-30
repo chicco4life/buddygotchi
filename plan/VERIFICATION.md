@@ -1,6 +1,6 @@
 # Boop: verification
 
-Updated 2026-09-30. How we check that Boop works, including what's on its
+Updated 2026-10-01. How we check that Boop works, including what's on its
 screen, without a person watching, and every tool that does it.
 
 ## 1. The loop
@@ -70,7 +70,7 @@ launch the menu-bar app or run the whole eval.
 
 | Target | What it does |
 | --- | --- |
-| `make build` | Builds the Mac app, `boopdev` and the tests' runner in one `swift build`, then agent-hooks' `agent-hook` and JHarness's `jharness-emit` and `beacon` by product name. Importing a target that isn't a declared dependency fails it, so `app/` can't use `internal/` code ([ARCHITECTURE.md](ARCHITECTURE.md) §10) |
+| `make build` | Builds the Mac app, `boopdev` and the tests' runner in one `swift build`, then agent-hooks' `agent-hook`, JHarness's `jharness-emit` and `beacon`, and LinkKit's `linkkit-bridge` by product name. Importing a target that isn't a declared dependency fails it, so `app/` can't use `internal/` code ([ARCHITECTURE.md](ARCHITECTURE.md) §10) |
 | `make app` | Builds the Mac app, `agent-hook` and `boopdev` (the doctor skill checks the hooks with it), not the tests, with the same import check: what `make run` needs |
 | `make run` | `make app`, then runs the menu-bar app with Bluetooth. The owner's; never from an agent's shell |
 | `make debug` | The same with `--debug` |
@@ -80,9 +80,9 @@ launch the menu-bar app or run the whole eval.
 | `make eval` | Builds, then runs every eval scenario against Jev with no request budget, 3 runs each for an `always` scenario and 1 for the rest (L5): the final pass ([EVALS.md](EVALS.md) §2 counts its requests); fails without `BOOP_JEV_KEY` |
 | `make clean` | Deletes `.build` and `firmware/.pio` |
 | `make -C internal voice` | Builds the voice pack, `.build/voice/voice.bin`, and `Takes.swift` with voicegen (below) when the bank or voicegen changed. `test`, `fw-test` and `sim` make it first, since they read it |
-| `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim, since there's no Xcode: `make build`, then `.build/debug/BoopTests`. `BOOP_TEST_FILTER=Golden .build/debug/BoopTests` runs only the tests whose `Class.method` name contains `Golden`. Then the own tests of agent-hooks and of JHarness, in Swift Testing: `swift test --scratch-path .build/tests` in `agent-hooks/` and in `jharness/`, each tried again up to four times when its build fails with the "plugin for module 'TestingMacros' not found" flake |
+| `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim, since there's no Xcode: `make build`, then `.build/debug/BoopTests`. `BOOP_TEST_FILTER=Golden .build/debug/BoopTests` runs only the tests whose `Class.method` name contains `Golden`. Then the own tests of agent-hooks, JHarness and LinkKit, in Swift Testing: `swift test --scratch-path .build/tests` in `agent-hooks/`, `jharness/` and `linkkit/`, each tried again up to four times when its build fails with the "plugin for module 'TestingMacros' not found" flake |
 | `make -C internal fw` | Builds the firmware for the board: Boop's app on LinkKit's device library (`linkkit/device/`, [DEVICE.md](DEVICE.md) §4), whose build fails if the kit includes anything of Boop's (`linkkit/device/tools/check_includes.py`, run by every env) |
-| `make -C internal fw-test` | The firmware's unit tests on the Mac (`pio test -e native`), LinkKit's own suites (`test_turn`, `test_kit`) among them |
+| `make -C internal fw-test` | The firmware's unit tests on the Mac (`pio test -e native`), then LinkKit's device library's own, from its own project (`pio test -d linkkit/device -e native`: `test_turn`, `test_kit`, `test_helpers`) |
 | `make -C internal sim` | Every scenario in the simulator, against the goldens (L1) |
 | `make -C internal e2e` | Builds, then runs the pipeline check (L4) |
 | `make -C internal faces` | Regenerates the faces (`firmware/assets/faces.h`, the popover's `app/Boop/Views/FaceDesigns.swift`, the designs' loops for the Mac in `app/BoopKit/Core/FaceLoops.swift`, the frames `fw-test` checks, and the designs' list in `internal/tools/facegen/design/manifest.json`) from the animation bank (`internal/boop-design/boop-sound-bank-v4/`), whose generator it runs with node. It stops if an older mood's design doesn't come out as it was captured, then draws each design at a dozen moments in Google Chrome and fails unless facegen's own drawing matches pixel for pixel in RGB565, a blended pixel within one step (7,970 frames of 704 scenes, 7 minutes or so). Then rerun sfxgen (below) |
@@ -119,7 +119,7 @@ commands go through the bridge.
 
 | Command | What it does |
 | --- | --- |
-| `replay <hooks.jsonl> [--agent claude\|codex] [--gap-ms N] [--states]` | Runs recorded hook payloads through `agent-hook`'s field picking (with `--keep-text`, as Boop installs it), the adapter and the pipeline (the core and the view) on a virtual clock, and prints each raw event, the core's decisions and the view events. `{"wait_ms":N}` and `{"advance_ms":N}` lines move the clock. `--states` prints only what goes to the device: each `state` and each rule `moment` |
+| `replay <hooks.jsonl> [--agent claude\|codex] [--gap-ms N] [--states]` | Runs recorded hook payloads through `agent-hook`'s field picking (with `--keep-text`, as Boop installs it), the adapter and the pipeline (the core and the view) on a virtual clock, and prints each raw event, the core's decisions and the view events. `{"wait_ms":N}` and `{"advance_ms":N}` lines move the clock. `--states` prints only what goes to the device: each `state` and each rule one-shot's `do` |
 | `replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]` | Sends each payload through the real `agent-hook --keep-text` to a running app, in real time, and times each `agent-hook` from launch to exit. `{"advance_ms":N}` moves a headless app's clock |
 | `say [--feeling F] [--about TOPIC] [--face MOOD] [--kind K] [--finish success\|failure]` | Prints the takes the board has that fit ([VOICE.md](VOICE.md) §3), and with a face and a feeling or topic, the line `react` would say ([VOICE.md](VOICE.md) §4); `--kind` is `sound` by default |
 | `eval [--runs N] [--only TEXT] [--always] [--budget N \| --no-budget] [--timeline] [--scenarios DIR] [--steering DIR]`, `eval --list` | The eval scenarios against Jev (L5, [EVALS.md](EVALS.md)), stopping first if they'd send more than the budget of requests (100 by default); `--list` prints each one's case, runs and requests with no key |
@@ -162,8 +162,10 @@ commands go through the bridge.
 default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`). Every line from the
 board goes to every client, and each client's lines reach the board whole.
 The bridge never waits on a client: one that stops reading and falls 4 MB
-behind is dropped. The app's USB link (`--link usb:SOCKET`) and other
-`boopctl` commands can use the board at the same time.
+behind is dropped. These are LinkKit's bridge rules
+([linkkit/SPEC.md](../linkkit/SPEC.md) §8), which LinkKit's own
+`linkkit-bridge` keeps too. The app's USB link (`--link usb:SOCKET`) and
+other `boopctl` commands can use the board at the same time.
 
 ## 3. The debug channel
 
@@ -258,6 +260,13 @@ gets at least one scenario. Their pictures are the golden images in
   A deliberate change rewrites them:
   `BOOP_GOLDEN_RECORD=1 BOOP_TEST_FILTER=Golden .build/debug/BoopTests`
   (`BOOP_GOLDEN_OUT=DIR` keeps what a failing run built, to diff).
+- **agent-hooks (`swift test` in `agent-hooks/`, run by
+  `make -C internal test`):** `AgentHooksTests` checks it on its own
+  ([agent-hooks/SPEC.md](../agent-hooks/SPEC.md)): the hook line and the
+  client's field picking, against the real and synthetic payloads in its
+  `Fixtures/`; every hook's event; sessions and "needs you"; the
+  listener; the installer in a temporary home; where a thread opens; and
+  project and workspace names.
 - **JHarness (`swift test` in `jharness/`, run by
   `make -C internal test`):** `JHarnessTests` checks it on its own, with
   toy outputs and no Boop ([jharness/SPEC.md](../jharness/SPEC.md)): the
@@ -267,19 +276,36 @@ gets at least one scenario. Their pictures are the golden images in
   passes, `Choice`, the tick and the socket in; `JevBrainTests` Jev's
   request, answer and retry; `BeaconTests` the worked example, pinned as
   the spec quotes it.
-- **Firmware (`make -C internal fw-test`):** LinkKit alone, with a fake
-  app and nothing of Boop's: every rule of the turn with its numbers
+- **LinkKit's host (`swift test` in `linkkit/`, run by
+  `make -C internal test`):** `LinkKitTests` checks it on its own, each
+  test naming the [linkkit/SPEC.md](../linkkit/SPEC.md) section it pins:
+  framing and chunking, the Bluetooth outbox (states merge, no `do` is
+  dropped, and past 4 KB the link is stuck) and reconnect timing, the
+  socket transport (and that letting go of it stops it), the USB bridge
+  on a pseudo-terminal (whole lines both ways, a client that stops
+  reading dropped, the board going away), the wire, the keepalive,
+  `hello` and trouble (a device that doesn't fit gets `state` but no
+  `do`, and its `ev`s are dropped), who sent each line, ids, exactly one
+  end per `do`, the give-up at its `ttl` plus 60 s and a link that drops;
+  `JHarnessLinkTests` the glue: the default mapping of an end, a
+  `Pending` the device finishes, the device's events in the log, and
+  `Play`'s options following the `hello`.
+- **LinkKit's device library (`pio test -d linkkit/device -e native`,
+  run by `make -C internal fw-test`):** the library alone, from its own
+  PlatformIO project, with a fake app and nothing of Boop's: every rule of the turn with its numbers
   (`test_turn`: `now`, `next` and `if_free`, rest and the line moving at
   its exact millisecond, 4 waiting, `ttl` 5000 and 1–60000, refuse, the
   one `ended` per id, same id again, dropping the line whole or by link,
   `dbg.reset`) and the rest of the kit (`test_kit`: 512-byte lines,
   `hello`, the host's `hello` asking for one, one too long for a line,
-  its 60 s repeat, the 30 s host-gone window, `ev` routing, `dbg.ping`,
-  `dbg.clock` and its thaw, `dbg.shot`, `dbg.state`, and the README's
-  lamp example), each test naming its [linkkit/SPEC.md](../linkkit/SPEC.md)
-  section; line reassembly across Bluetooth packets (a dropped link's
-  part line included), screenshot encoding, the clock and
-  gestures (`test_link`); Boop's vocabulary line in and line out, its
+  its 60 s repeat, the 30 s host-gone window, `ev` routing, the app's
+  words escaped, `dbg.ping`, `dbg.clock` and its thaw, `dbg.shot`,
+  `dbg.state`, and the README's lamp example), and line reassembly
+  across Bluetooth packets (a dropped link's part line included),
+  screenshot encoding and the clock (`test_helpers`), each test naming
+  its [linkkit/SPEC.md](../linkkit/SPEC.md) section.
+- **Firmware (`make -C internal fw-test`):** BOOT's gestures
+  (`test_gesture`); Boop's vocabulary line in and line out, its
   rules for the turn, the debug channel and inputs (`test_device`);
   the behaviour state machine, to the millisecond, including
   `test_no_change_ever_cuts_hard` and

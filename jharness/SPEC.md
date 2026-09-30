@@ -1,6 +1,6 @@
 # JHarness: the spec
 
-Updated 2026-09-30. What JHarness does, exactly: events and the log,
+Updated 2026-10-01. What JHarness does, exactly: events and the log,
 inputs and their lines, rules, outputs and their questions, the one
 ready-made output (`Choice`), the prompt, the brain, the loop that asks
 it, and the tick. [README.md](README.md) is the overview. Code:
@@ -350,6 +350,10 @@ h.section { log in steering["tone/\(tone.value(log))"] }
 - `tone.set("grim", log:)` returns the result for a change made outside
   the brain, whatever the options, through
   `h.force(tone, by: "dashboard") { tone.set("grim", log: h.log.view(now: h.clock.now())) }`.
+- `tone.restore("grim", by: "upgrade", in: h)` carries over a value your
+  app kept before the log did (its own file, say): a change for no event,
+  by `by`, with no message, so HISTORY never shows it; `since` is when it
+  was restored. Restoring the value it has logs nothing.
 
 ## 7. The prompt
 

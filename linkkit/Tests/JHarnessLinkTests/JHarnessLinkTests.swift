@@ -36,7 +36,7 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
 final class Rig: @unchecked Sendable {
     let queue = DispatchQueue(label: "jharnesslink.test")
     let harness: Harness
-    let link: Link
+    let link: DeviceLink
     let transport = FakeTransport()
     var now: Int64 = 1_790_000_000_000
 
@@ -45,7 +45,7 @@ final class Rig: @unchecked Sendable {
         options.loop = false
         let clock = Box(now)
         harness = Harness(name: "Pip", brain: nil, log: Log(), clock: .init(now: { clock.value }), queue: queue, options: options)
-        link = Link(app: "pip", transport: transport)
+        link = DeviceLink(app: "pip", transport: transport)
         queue.sync {
             if connected { link.connection(true, now: now) }
             if hello { link.receive(helloLine, now: now) }
@@ -71,14 +71,14 @@ final class Box<T>: @unchecked Sendable {
     /// cut or a skip failed with the device's why, and a failure here in
     /// its own words.
     @Test func testTheDefaultMapping() {
-        #expect(Link.end(.ended(Ended(id: 1, how: .done))) == .done)
-        #expect(Link.end(.ended(Ended(id: 1, how: .cut, why: "tap"))) == .failed("cut short: tap"))
-        #expect(Link.end(.ended(Ended(id: 1, how: .cut))) == .failed("cut short"))
-        #expect(Link.end(.ended(Ended(id: 1, how: .skipped, why: "late"))) == .failed("skipped: late"))
-        #expect(Link.end(.ended(Ended(id: 1, how: .skipped))) == .failed("skipped"))
-        #expect(Link.end(.failed(.disconnected)) == .failed("the device disconnected"))
-        #expect(Link.end(.failed(.notConnected)) == .failed("no device connected"))
-        #expect(Link.end(.failed(.noAnswer)) == .failed("the device never said it ended"))
+        #expect(DeviceLink.end(.ended(Ended(id: 1, how: .done))) == .done)
+        #expect(DeviceLink.end(.ended(Ended(id: 1, how: .cut, why: "tap"))) == .failed("cut short: tap"))
+        #expect(DeviceLink.end(.ended(Ended(id: 1, how: .cut))) == .failed("cut short"))
+        #expect(DeviceLink.end(.ended(Ended(id: 1, how: .skipped, why: "late"))) == .failed("skipped: late"))
+        #expect(DeviceLink.end(.ended(Ended(id: 1, how: .skipped))) == .failed("skipped"))
+        #expect(DeviceLink.end(.failed(.disconnected)) == .failed("the device disconnected"))
+        #expect(DeviceLink.end(.failed(.notConnected)) == .failed("no device connected"))
+        #expect(DeviceLink.end(.failed(.noAnswer)) == .failed("the device never said it ended"))
     }
 
     /// The device's `ended` finishes the `Pending`, once; a link that drops
@@ -114,7 +114,7 @@ final class Box<T>: @unchecked Sendable {
         rig.sync {
             let id = rig.link.do("react", now: rig.now, pending: held) { outcome in
                 if case .ended(let e) = outcome, e.why == "tap" { return nil }
-                return Link.end(outcome)
+                return DeviceLink.end(outcome)
             }!
             rig.link.receive(ended(id, "cut", "tap"), now: rig.now)
         }

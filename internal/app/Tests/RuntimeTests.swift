@@ -187,7 +187,7 @@ final class RuntimeTests: XCTestCase {
         eventually("the report") { !saved.all.isEmpty }
         let about = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: saved.all[0])
             .appendingPathComponent("about.json"))) as? [String: Any])
-        XCTAssertEqual(about["device_trouble"] as? String, Link.tooOld)
+        XCTAssertEqual(about["device_trouble"] as? String, DeviceLink.Trouble.tooOld.description)
         XCTAssertEqual(about["connected"] as? Bool, true)
     }
 
@@ -484,7 +484,7 @@ final class RuntimeTests: XCTestCase {
         }
         eventually("the first state") { runtime.home.sync { states().sent == 1 } }
         for _ in 0..<2 {
-            clock.now += Link.keepaliveMs
+            clock.now += DeviceLink.keepaliveMs
             runtime.home.sync { runtime.tick() }
         }
         XCTAssertEqual(runtime.home.sync { states().sent }, 3)
@@ -1055,7 +1055,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(end(of: skipped.seq), .failed("something needed you"))
 
         let silent = try react()
-        let giveUp = clock.now + Int64(BoopDevice.reactionTTL) + Link.answerGraceMs
+        let giveUp = clock.now + Int64(BoopDevice.reactionTTL) + DeviceLink.answerGraceMs
         clock.now = giveUp - 1
         runtime.home.sync { runtime.tick() }
         XCTAssertNil(end(of: silent.seq), "still waiting")
@@ -1113,15 +1113,16 @@ final class RuntimeTests: XCTestCase {
         XCTAssertNil(reactions.opens(finish: 9))
         reactions.ended(7)
         XCTAssertNil(reactions.opens(finish: 7), "over")
-        reactions.tick(now: 1000 + 5000 + Link.answerGraceMs - 1)
+        reactions.tick(now: 1000 + 5000 + DeviceLink.answerGraceMs - 1)
         XCTAssertEqual(reactions.opens(finish: 8), thread)
-        reactions.tick(now: 1000 + 5000 + Link.answerGraceMs)
+        reactions.tick(now: 1000 + 5000 + DeviceLink.answerGraceMs)
         XCTAssertNil(reactions.opens(finish: 8), "given up on")
 
         var ends: [Pending.End] = []
         let cut = Pending()
         cut.bind { ends.append($0) }
-        reactions.finish(cut, .ended(Ended(id: 8, how: .cut, why: "tap")))
+        XCTAssertNil(reactions.read(.ended(Ended(id: 8, how: .cut, why: "tap")), cut), "held")
+        XCTAssertEqual(reactions.read(.ended(Ended(id: 9, how: .skipped, why: "late")), Pending()), .failed("waited too long"))
         XCTAssertTrue(ends.isEmpty)
         XCTAssertEqual(reactions.cutByTap.count, 1)
         reactions.pokesStopped()
@@ -1138,7 +1139,7 @@ final class RuntimeTests: XCTestCase {
     /// end it. The loops are the designs' (`FaceLoops`), so a new design
     /// with a long loop fails here rather than in HISTORY: wounded's 13 s
     /// idle, held four times, is 52 s.
-    func testAReactionEndsBeforeTheHarnessCeiling() {
+    func testAReactionEndsBeforeTheHarnessCeiling() throws {
         XCTAssertEqual(MoodAction.moods.count, 13)
         let held = Int64(ReactAction.holds.count)
         func longest(_ ms: (String, String, Int) -> Int64) -> Int64 {
@@ -1151,10 +1152,15 @@ final class RuntimeTests: XCTestCase {
         // A line joins two takes only within `Voice.maxLineMs`; one take
         // plays alone whatever its length.
         let longestLine = max(Int64(Voice.maxLineMs), Int64(Take.all.map(\.ms).max()!))
-        let longestPlay = max(held * longestLoop, latestVoice + longestLine + DeviceMoment.bubbleReadMs)
+        // The bubble stays up after the take (firmware `Behaviour::kBubbleReadMs`).
+        let behaviour = try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../../firmware/src/app/behaviour.h").standardizedFileURL, encoding: .utf8)
+        let bubbleRead = try XCTUnwrap(behaviour.firstMatch(of: /kBubbleReadMs = (\d+);/).flatMap { Int64($0.1) })
+        XCTAssertEqual(bubbleRead, 1200)
+        let longestPlay = max(held * longestLoop, latestVoice + longestLine + bubbleRead)
         XCTAssertGreaterThan(longestPlay, 30_000)
-        XCTAssertLessThan(longestPlay, Link.answerGraceMs)
-        XCTAssertLessThan(Int64(BoopDevice.reactionTTL) + Link.answerGraceMs, ReactAction.openForMs)
+        XCTAssertLessThan(longestPlay, DeviceLink.answerGraceMs)
+        XCTAssertLessThan(Int64(BoopDevice.reactionTTL) + DeviceLink.answerGraceMs, ReactAction.openForMs)
     }
 
     /// PROTOCOL.md §3, VOICE.md §10: the Mac bounds a reaction's length

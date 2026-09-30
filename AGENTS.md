@@ -16,21 +16,28 @@ cheap ESP32 board with a screen is the body. Start with
 
 | Path | What it is |
 | --- | --- |
-| `plan/` | The spec, which the code implements ([the index](plan/README.md)). [plan/VERIFICATION.md](plan/VERIFICATION.md) says how everything is checked. Evidence goes in `plan/evidence/` |
+| `plan/` | The spec, which the code implements ([the index](plan/README.md)). [plan/MODULES.md](plan/MODULES.md) says how the three packages below join Boop, and [plan/VERIFICATION.md](plan/VERIFICATION.md) how everything is checked. Evidence goes in `plan/evidence/` |
 | `Package.swift` | The Swift package, at the root because its targets are in both `app/` and `internal/`. It builds into `.build/` |
 | `agent-hooks/` | The hook layer, a Swift package of its own meant to be open-sourced ([its README](agent-hooks/README.md), [its spec](agent-hooks/SPEC.md)): the `agent-hook` hook client, the `agent-hooks` command line, and the `AgentHooks` library that turns hooks into events and keeps the sessions and "needs you". It depends on nothing else in the repo; Boop depends on it |
-| `app/` | The Mac side that ships: the menu-bar app (`Boop`) and the `BoopKit` and `BrainKit` (the brain kit, [plan/kit/BRAIN-KIT.md](plan/kit/BRAIN-KIT.md)) libraries |
-| `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)), with its generated assets and build scripts |
-| `internal/` | Everything that doesn't ship ([its README](internal/README.md)): `boopdev` and its library, the Swift tests and eval scenarios, the sources of `Boop --headless` and `--snapshots`, the brain kit's example Beacon and `kit-emit`, and the firmware's simulator and unit tests (env `native`) |
+| `jharness/` | The brain's harness, a Swift package of its own meant to be open-sourced ([its README](jharness/README.md), [its spec](jharness/SPEC.md)): the `JHarness` library (events and the log, each kind's line, rules, outputs and `Choice`, the prompt, Jev and the loop that asks it), `jharness-emit`, and its worked example Beacon (`beacon`). It depends on nothing else in the repo; Boop's brain runs on it |
+| `linkkit/` | The device link, a package of its own meant to be open-sourced ([its README](linkkit/README.md), [its spec](linkkit/SPEC.md)): the protocol (four JSON messages, and the turn, by which the device decides what plays when), the Swift host library `LinkKit` with its Bluetooth and socket transports, `linkkit-bridge` (the USB bridge), `JHarnessLink` (optional glue to JHarness, whose reaction `do` Boop uses), and the C++ device library in `linkkit/device/` ([its README](linkkit/device/README.md)), with its own PlatformIO project for its tests, that Boop's firmware plugs into. Only `JHarnessLink` depends on anything else in the repo (`../jharness`); Boop depends on the rest |
+| `app/` | The Mac side that ships: the menu-bar app (`Boop`) and the `BoopKit` library, Boop's own code on the three packages |
+| `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)): Boop's app on LinkKit's device library, with its generated assets and build scripts |
+| `internal/` | Everything that doesn't ship ([its README](internal/README.md)): `boopdev` and its library, Boop's Swift tests and eval scenarios, the sources of `Boop --headless` and `--snapshots`, and the firmware's simulator and unit tests (env `native`) |
 | `internal/tools/` | `boopctl` (device tool, and `boopctl workday`, a scripted working day through the brain), `voicegen` (voice assets), `sfxgen` (the sound effects, from the animation bank), `fontgen` (the device's fonts), `facegen` (the device's faces, from the animation bank), `webcam/` (opt-in recorder) |
 | `internal/skills/` | `doctor` (hook self-check) and `webcam-verify`, symlinked for Claude, Codex and Cursor |
 | `landing/` | The Next.js landing page (Vercel project root) |
 | `internal/boop-design/` | The animation bank, the code the device's designs and sounds are built from (facegen and sfxgen run it), with its offline review, and the mood-graph handover ([guide](internal/boop-design/README.md)) |
 
 Code that doesn't ship goes in `internal/`: tests, evals, dev tools,
-skills and the simulator. Production targets (`BrainKit`, `BoopKit`,
-`Boop` and agent-hooks') never depend on internal ones, and `make build`
-fails if one imports them; agent-hooks depends on nothing outside its folder. The one overlap is `Boop --headless` and
+skills and the simulator. What ships (`BoopKit`, `Boop`, the three
+packages agent-hooks, jharness and linkkit, LinkKit's device library and
+the firmware) never depends on internal code, and `make build` fails if a
+Swift target imports one it doesn't declare. The packages depend on
+nothing of Boop's and nothing outside their folders, but for
+`JHarnessLink`'s `../jharness`; the device library's build fails if it
+includes a header that isn't its own (`linkkit/device/tools/check_includes.py`).
+Their own tests live in each package. The one overlap is `Boop --headless` and
 `Boop --snapshots`, flags of the shipped app whose sources are in
 `internal/app/Boop/`.
 
@@ -53,8 +60,8 @@ flags with `--help`. `make run` and `make debug` use Bluetooth, so they're
 the owner's. For agents:
 
 ```sh
-make build                                            # Mac app, agent-hook and boopdev (make -C internal test and make eval build too)
-make -C internal test                                 # Swift unit tests, Boop's and then agent-hooks'
+make build                                            # Mac app, boopdev, the tests' runner, agent-hook, jharness-emit, beacon and linkkit-bridge (make -C internal test and make eval build too)
+make -C internal test                                 # Swift unit tests: Boop's, then swift test in agent-hooks/, jharness/ and linkkit/
 .build/debug/Boop --headless --state-dir DIR --debug  # the whole runtime with no UI or Bluetooth, printing everything
 .build/debug/Boop --snapshots DIR                     # the popover's panes and the menu-bar icons as PNGs, then exits
 ```
@@ -64,11 +71,16 @@ make -C internal test                                 # Swift unit tests, Boop's
 - There's no Xcode, so XCTest is missing and `swift test` runs nothing of
   Boop's. `make -C internal test` runs `make build`, which generates the
   XCTest shim's runner and builds the package in one `swift build`, then
-  runs `.build/debug/BoopTests`. Then it runs agent-hooks' tests, which
-  use Swift Testing, as `swift test --scratch-path .build/tests` in
-  `agent-hooks/`. That build now and then fails with "plugin for module
-  'TestingMacros' not found", a toolchain flake, even from a clean build
-  folder; it passes when run again, and the target retries it.
+  runs `.build/debug/BoopTests`. Then it runs the three packages' own
+  tests, which use Swift Testing, as
+  `swift test --scratch-path .build/tests` in `agent-hooks/`,
+  `jharness/` and `linkkit/` in turn.
+  That build now and then fails with "plugin for module 'TestingMacros'
+  not found", a toolchain flake, even from a clean build folder; it
+  passes when run again, so the target tries that failure alone again, up
+  to four times (five tries in all). LinkKit's device library has no
+  Swift: its own tests (`linkkit/device/test/`) run after the firmware's
+  in `make -C internal fw-test`.
 - Command Line Tools lack some Swift macro plugins, so SwiftUI's `@State`
   doesn't compile. Write `@ViewState` (the alias in
   `app/Boop/Views/ViewState.swift`).
@@ -109,8 +121,9 @@ make -C internal test                                 # Swift unit tests, Boop's
 
 ## Architecture rules
 
-The full picture is in [plan/ARCHITECTURE.md](plan/ARCHITECTURE.md). The
-rules that are easy to break:
+The full picture is in [plan/ARCHITECTURE.md](plan/ARCHITECTURE.md), and
+how Boop sits on its three packages (agent-hooks, JHarness, LinkKit) in
+[plan/MODULES.md](plan/MODULES.md). The rules that are easy to break:
 
 - **Decisions and effects are separate.** The core and the brain decide.
   Actions (`mood`, `react`) carry out effects and check their own rules.
@@ -118,12 +131,19 @@ rules that are easy to break:
   and every action are raw events in one shape; the view folds them into
   what the brain hears ([plan/harness/EVENTS.md](plan/harness/EVENTS.md)).
   Anything else is a log line.
-- **The harness is generic.** It takes view events, asks every action's
-  questions in one request and hands each action its own answers. It
-  never reads a view event's facts, picks what Boop says or talks to the
+- **The packages stay apart.** agent-hooks, JHarness and LinkKit know
+  nothing of Boop, and nothing of each other but for `JHarnessLink`.
+  Boop translates between them in a few places (plan/MODULES.md, Where
+  they join), and anything Boop-specific stays in `app/` or `firmware/`.
+- **The harness is generic.** JHarness takes events, asks every output's
+  questions in one request and hands each output its own answers. It
+  never reads an event's facts, picks what Boop says or talks to the
   device.
 - **Only Voice knows what Boop can say.** Only the memory store reads and writes
-  the memory files. Only the device link knows Bluetooth or USB.
+  the memory files. Only LinkKit knows Bluetooth or USB: on the Mac its
+  `DeviceLink` and transports, with Boop's vocabulary on them in
+  `app/BoopKit/DeviceLink/BoopDevice.swift`; on the board its device
+  library, which `firmware/src/main.cpp` feeds the serial port's lines.
 - **The brain is never on the screen's path.** Rules keep the screen true
   at once (the look, "needs you", the tap's poke, the rules' one-shots).
   Every reaction, a finished turn's included, is the brain's, later or
@@ -138,8 +158,10 @@ rules that are easy to break:
   to the brain.** The only words are your prompt, the agent's last
   message and what you say to Boop on push-to-talk, cut short.
 - **"Needs you" and the screen priority are plain rules in the core.**
-- **The device only renders and reports.** It receives the same messages
-  over Bluetooth and USB. Its drawing code stays independent of the display
+- **The device renders, reports, and decides when a request plays**
+  (LinkKit's turn), never what Boop does: the Mac sends each thing to
+  play at once and never times it. It receives the same messages over
+  Bluetooth and USB. Its drawing code stays independent of the display
   library, so the simulator and a later ESP-IDF + LVGL port can reuse it.
 
 ## Specs stay in sync
@@ -153,22 +175,27 @@ so reviewers can read the spec diff next to the code diff.
 anything: a worktree made from `origin/main` can be far behind an
 unpushed local `main`.
 
-**Which spec goes with which code** (specs are in `plan/`):
+**Which spec goes with which code** (specs are in `plan/`; a package's
+`SPEC.md` and `README.md` are in its own folder):
 
 | When you change | Update |
 | --- | --- |
 | `app/BoopKit/Core/Core.swift`, `app/BoopKit/Core/Activity.swift`, `firmware/src/app/behaviour.*` | `BEHAVIORS.md` |
 | `firmware/src/render/`, `firmware/src/app/gesture.*` | `DEVICE.md` |
 | `agent-hooks/` (its sources, tests, fixtures and command line) | `agent-hooks/SPEC.md`, `agent-hooks/README.md`, and `ADAPTERS.md` where Boop's use changes |
+| `jharness/` (its sources, tests, `jharness-emit` and Beacon) | `jharness/SPEC.md`, `jharness/README.md`, and `harness/HARNESS.md` §1.1 where Boop's use changes |
+| `linkkit/Sources/` (the bridge included), `linkkit/Tests/`, `linkkit/Package.swift` | `linkkit/SPEC.md`, `linkkit/README.md`, `ARCHITECTURE.md` §3.7 and §10, and `PROTOCOL.md` where Boop's use changes |
+| `linkkit/device/` (its tests and `platformio.ini` included) | `linkkit/SPEC.md`, `linkkit/device/README.md`, `DEVICE.md` |
+| How the pieces join: the adapter, the pipeline's batch, the runtime's link calls, `Reactions`, which package products Boop takes | `MODULES.md` |
 | `app/BoopKit/Adapters/`, the hook setup in `app/Boop/MenuBarApp.swift` | `ADAPTERS.md` |
-| `app/BrainKit/`, `internal/examples/`, `internal/app/KitEmit/` | `kit/BRAIN-KIT.md` |
 | `app/BoopKit/Harness/`, `app/BoopKit/Brains/`, `app/BoopKit/App/Pipeline.swift` | `harness/HARNESS.md` |
 | `app/BoopKit/Core/Event.swift`, `app/BoopKit/Core/TranscriptView.swift`, what the core records | `harness/EVENTS.md` |
 | `app/BoopKit/Presence/`, `app/Boop/PresenceSignals.swift` | `harness/EVENTS.md` §2.1 |
 | `app/BoopKit/Actions/`, `plan/steering/` | `harness/DECISIONS.md` |
+| `app/BoopKit/App/Reactions.swift` (how a reaction's `ended` reads) | `harness/DECISIONS.md` §5 |
 | `app/BoopKit/Memory/`, `app/BoopKit/App/` | `ARCHITECTURE.md` §3–4 |
 | `app/BoopKit/Voice/`, `firmware/src/voice/`, `firmware/src/app/effect_track.*`, `internal/tools/voicegen/`, `internal/tools/sfxgen/` | `VOICE.md` |
-| `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/{device.cpp,packets.h}`, `internal/tools/boopctl_lib/` | `PROTOCOL.md` |
+| `app/BoopKit/DeviceLink/`, `app/BoopKit/Core/StateSnapshot.swift`, `app/BoopKit/Actions/DeviceMoment.swift`, `firmware/src/app/device.*`, `internal/tools/boopctl_lib/` | `PROTOCOL.md` |
 | `firmware/src/board/`, `firmware/platformio.ini`, `internal/tools/fontgen/` | `DEVICE.md` |
 | `internal/tools/facegen/` (and its designs), `firmware/src/render/scene.*` | `DEVICE.md` §6 |
 | `internal/boop-design/boop-sound-bank-v4/` (the designs and their sounds) | `DEVICE.md` §6, `VOICE.md` §10 |
@@ -177,7 +204,7 @@ unpushed local `main`.
 | `internal/tools/boopctl_lib/dash/`, the dev lines and the dashboard's lines in `debug.jsonl` | `harness/HARNESS.md` §9 |
 | `internal/tools/boopctl_lib/day.py`, or any `debug.jsonl` line it reads | `harness/HARNESS.md` §9 (A day's summary), `VERIFICATION.md` §2 |
 | `internal/app/BoopDevKit/Eval/`, `internal/app/Evals/`, `internal/tools/boopctl_lib/workday.py` | `EVALS.md` |
-| `Package.swift`, `agent-hooks/Package.swift`, what goes in `internal/` | `ARCHITECTURE.md` §10, `internal/README.md`, this file |
+| `Package.swift`, a package's `Package.swift` (`agent-hooks/`, `jharness/`, `linkkit/`), what goes in `internal/` | `ARCHITECTURE.md` §10, `internal/README.md`, `MODULES.md`, this file |
 | Structure, boundaries or a budget | `ARCHITECTURE.md` |
 | What's in or out of v1 | `VISION.md` (Scope) |
 | A spec added, renamed or removed | `plan/README.md`, this table |
@@ -187,15 +214,17 @@ unpushed local `main`.
 - **Say each fact once.** A number, name or rule lives in one doc; the
   others link to it. When you change one, grep `plan/`, this file,
   `README.md`, `internal/README.md`, `internal/skills/`,
-  `internal/tools/*/README.md`, `agent-hooks/*.md` and code comments for
-  the old value or name, and fix every hit. Most drift is a copy left behind in a second
+  `internal/tools/*/README.md`, `agent-hooks/*.md`, `jharness/*.md`,
+  `linkkit/**/*.md` and code comments for the old value or name, and fix
+  every hit. Most drift is a copy left behind in a second
   doc.
 - **Examples are real.** JSON, command lines and file layouts in a spec
   come from a test fixture or actual output. When the shape changes, the
   example changes with it.
 - **Commands run as written.** Every command in this file, `README.md`,
-  `VERIFICATION.md`, `agent-hooks/README.md` and the skills exists with
-  those arguments. When you
+  `VERIFICATION.md`, `MODULES.md`, `agent-hooks/README.md`,
+  `jharness/README.md`, `linkkit/README.md`, `linkkit/device/README.md`
+  and the skills exists with those arguments. When you
   add, rename or remove a make target, a `boopctl` or `boopdev`
   subcommand, a flag or a path, grep the docs for it in the same commit.
 - **Pin rules in tests.** When you implement or change a rule with a number

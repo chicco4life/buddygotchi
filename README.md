@@ -8,9 +8,9 @@ there's no reset button. It never approves, denies or blocks anything: its hooks
 report, and they fail open.
 
 A Mac menu-bar app does the thinking. A cheap ESP32 board with a 2.4" touch
-screen (MicroTech MTR024QV01A) is the body: it only draws and reports, over
-Bluetooth or USB. Why it exists and what's in v1 are in
-[plan/VISION.md](plan/VISION.md).
+screen (MicroTech MTR024QV01A) is the body: it draws, plays what the Mac
+asks for when its turn comes, and reports, over Bluetooth or USB. Why it
+exists and what's in v1 are in [plan/VISION.md](plan/VISION.md).
 
 ## Using it
 
@@ -75,9 +75,18 @@ internal/tools/boopctl dash --state-dir /tmp/boop
 
 ## Where things are
 
-What ships is in `app/` (the Mac app), `firmware/` and `agent-hooks/`,
-the hook layer: a package of its own that installs the agents' hooks and
-tells Boop what they're doing ([its README](agent-hooks/README.md)).
+What ships is in `app/` (the Mac app), `firmware/` and three packages
+of their own, each with a README and a spec, that Boop is built on and
+that know nothing of it ([plan/MODULES.md](plan/MODULES.md) says how
+they join):
+
+- [agent-hooks/](agent-hooks/README.md): installs the agents' hooks and
+  says what each session is doing.
+- [jharness/](jharness/README.md): the brain's harness, a personality
+  from Markdown and multiple-choice questions.
+- [linkkit/](linkkit/README.md): the device link, a Swift host and a C++
+  device library the firmware plugs into.
+
 Tests, the simulator and the other dev tools are in
 [internal/](internal/README.md), run as `make -C internal <target>`
 ([plan/VERIFICATION.md](plan/VERIFICATION.md) lists them). The specs start

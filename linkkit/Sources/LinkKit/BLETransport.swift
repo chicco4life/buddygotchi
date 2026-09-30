@@ -22,9 +22,9 @@ public final class BLETransport: NSObject, Transport, @unchecked Sendable {
 
     /// The device's own name is in this transport's log lines.
     public let name = "ble"
-    /// Devices advertise as `<prefix>-XXXX` (SPEC.md §8): `Pip` finds `Pip-54fe`.
+    /// Devices advertise as `<prefix>-XXXX` (SPEC.md §8): `Lamp` finds `Lamp-54fe`.
     public let prefix: String
-    /// The app's name in the words `trouble` says: `Pip isn't allowed to use Bluetooth.`
+    /// The app's name in the words `trouble` says: `Lamp isn't allowed to use Bluetooth.`
     public let appName: String
     /// Read from any thread, so it's kept apart from `peripheral`.
     public var trouble: String? { troubleLock.withLock { stateTrouble } }
@@ -75,12 +75,18 @@ public final class BLETransport: NSObject, Transport, @unchecked Sendable {
     /// Writes without response are dropped once CoreBluetooth's queue is
     /// full, which would splice lines on the device, so each piece waits
     /// until `canSendWriteWithoutResponse`, and `peripheralIsReady` sends
-    /// the rest.
+    /// the rest. No line is dropped on the way: a link too stuck to take
+    /// them is given up instead (`BLEOutbox.stuck`), so the link fails the
+    /// `do`s waiting on it at once rather than a minute later.
     public func send(_ line: String) {
         queue.async { [self] in
             guard up, let peripheral, rxCharacteristic != nil, peripheral.state == .connected else { return }
             outbox.add(line, size: peripheral.maximumWriteValueLength(for: .withoutResponse))
             drain()
+            if outbox.stuck {
+                log("ble: \(outbox.bytes) bytes waiting to go out, reconnecting")
+                giveUp(peripheral)
+            }
         }
     }
 
@@ -166,10 +172,11 @@ extension BLETransport {
 }
 
 /// What waits to go out over Bluetooth, as whole lines cut into write-sized
-/// pieces. A line that has started goes out whole. A newer `state` takes
-/// the place of one still waiting, since only the latest matters, and past
-/// `limit` bytes the oldest lines that haven't started are dropped: the next
-/// `state` catches the device up (SPEC.md §8).
+/// pieces, in order. A line that has started goes out whole. A newer
+/// `state` takes the place of one still waiting, since only the latest
+/// matters; every other line goes out, since the host waits for each `do`'s
+/// `ended` (SPEC.md §8). With the states merged only `do`s pile up, so past
+/// `limit` bytes the link is stuck, and the transport gives it up.
 struct BLEOutbox {
     static let limit = 4096
     private var lines: [(state: Bool, chunks: [Data])] = []
@@ -177,6 +184,8 @@ struct BLEOutbox {
     private var sent = 0
 
     var bytes: Int { lines.reduce(0) { $0 + $1.chunks.reduce(0) { $0 + $1.count } } }
+    /// More than `limit` bytes wait: the link isn't taking them.
+    var stuck: Bool { bytes > Self.limit }
 
     mutating func add(_ line: String, size: Int) {
         let state = line.hasPrefix(#"{"t":"state""#)
@@ -185,9 +194,6 @@ struct BLEOutbox {
             lines[i].chunks = chunks
         } else {
             lines.append((state, chunks))
-        }
-        while bytes > Self.limit, lines.count > (sent > 0 ? 2 : 1) {
-            lines.remove(at: sent > 0 ? 1 : 0)
         }
     }
 

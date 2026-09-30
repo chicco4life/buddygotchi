@@ -64,12 +64,14 @@ macOS 13 or later, on Foundation and CoreBluetooth, with
 .product(name: "LinkKit", package: "linkkit"),
 ```
 
-A `Link` keeps the device's picture true with `state`, sends each `do`
-and hands its end to a completion called exactly once, and passes on
+A `DeviceLink` keeps the device's picture true with `state`, sends each
+`do` and hands its end to a completion called exactly once, and passes on
 every other `ev`. It runs on one queue of yours: the transport calls back
 on its own thread, so hop to the queue, and tick the link about once a
 second for the keepalive and the give-ups. This drives the lamp from the
-device library's example (below) through a USB bridge's socket:
+device library's example (below) through the USB bridge's socket, with
+the board plugged in and `swift run linkkit-bridge --socket /tmp/lamp.sock`
+running beside it:
 
 ```swift
 import Foundation
@@ -78,7 +80,7 @@ import LinkKit
 /// Drives a lamp over its USB bridge: its level, a blink, its button.
 final class LampHost: @unchecked Sendable {
     let queue = DispatchQueue(label: "lamp")  // the link's one queue
-    let link = Link(app: "lamp", transport: SocketTransport(path: "/tmp/lamp.sock"), log: { print($0) })
+    let link = DeviceLink(app: "lamp", transport: SocketTransport(path: "/tmp/lamp.sock"), log: { print($0) })
     var keep: [Any] = []
 
     func now() -> Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
@@ -109,6 +111,9 @@ final class LampHost: @unchecked Sendable {
 
 - **Ids** start somewhere random each launch and count up, so a call an
   earlier launch left on the device can't be mistaken for a new one.
+- **Who asked** for each line goes to `onSend` with it, for a debug log:
+  the name you pass as `by:` on `do` (`app` when you don't), and `link` for
+  the link's own lines, every `state` and its ask for `hello`.
 - **A `do` fails at once**, with nothing sent, when there's no link, no
   `hello` yet, the name isn't in `hello.does` or the line would be too
   long; later when the link drops or no `ended` comes in time. The
@@ -123,12 +128,19 @@ final class LampHost: @unchecked Sendable {
   fit, or one your app finds too old by a line of its own
   (`link.incompatible`, for firmware from before it had a `hello`),
   still gets `state` but no `do`, its `ev`s are dropped, and
-  `link.trouble` says what to do about it, for your settings screen.
+  `link.trouble` says why (`.tooOld`, `.tooNew`, `.otherApp`), with what
+  to do about it in its `description`, for your settings screen.
 - **Bluetooth:** `BLETransport(prefix: "Lamp")` finds `Lamp-XXXX` on the
   Nordic UART service, cuts lines to the write size and keeps a newer
-  `state` from queueing behind an old one. macOS kills a process that
+  `state` from queueing behind an old one; it never drops a `do`, and
+  gives up a link too stuck to take them. macOS kills a process that
   touches Bluetooth without the right to, so tests, and anything started
   from an agent's shell, use `SocketTransport`.
+- **USB:** `linkkit-bridge` owns the board's serial port and shares it on
+  a Unix socket, so your app (`SocketTransport`) and your tools can use
+  the board at once: `--port` names the port when there's more than one
+  USB serial port, `--socket` where to share it, `--baud` the board's
+  rate (460800 by default). An app can run one itself (`Bridge`).
 
 `Wire` builds and reads the lines themselves, and `JSON` and `JSONObject`
 (keys in order) are the app's parts of them.
@@ -158,9 +170,11 @@ JHarness's folder must be beside this one even for `LinkKit` alone.
 - **`link.do(…, pending:)`** finishes a JHarness `Pending` from the
   `do`'s end, so an output that plays something returns
   `.started(message, pending)` and HISTORY shows it in progress until
-  the device says. `Link.end` is the default reading (`done`, `cut short:
-  tap`, `skipped: late`, `the device disconnected`); pass your own `map`,
-  and return nil to finish it yourself later.
+  the device says. `DeviceLink.end` is the default reading (`done`, `cut
+  short: tap`, `skipped: late`, `the device disconnected`); pass your own
+  `map`, and return nil to finish it yourself later. It's by `brain`
+  unless you say: JHarnessLink names JHarness's two senders, `rule` and
+  `brain`.
 - **`DeviceEvents`** logs every `ev` as an event from `device`, what the
   device did about it as a `did` in your words, and `device_up` and
   `device_down`.
@@ -175,7 +189,7 @@ import JHarness
 import JHarnessLink
 import LinkKit
 
-func wire(_ harness: Harness, to link: Link, clock: @escaping () -> Int64) {
+func wire(_ harness: Harness, to link: DeviceLink, clock: @escaping () -> Int64) {
     _ = DeviceEvents(link: link, harness: harness) { ev in ev.did == "stopped" ? "The lamp stopped blinking." : nil }
     harness.input("press", wake: 1) { _, _ in Line("You pressed the lamp's button.") }
     harness.output(Play(link: link, question: "Should the lamp blink at NOW?", judgeBy: "NOW's line",
@@ -185,10 +199,10 @@ func wire(_ harness: Harness, to link: Link, clock: @escaping () -> Int64) {
 
 ## Boop
 
-Boop's vocabulary on it, its `state` fields, `do` names, `hello`'s
-`voice` and its taps, is in [plan/PROTOCOL.md](../plan/PROTOCOL.md); the
-app's side is `app/BoopKit/DeviceLink/BoopDevice.swift`, and the
-firmware's `firmware/src/app/device.cpp`.
+Boop, the desk creature LinkKit was pulled out of, is one app on it: its
+own `state` fields, `do` names, `hello`'s `voice` and taps, on the Mac
+and in its firmware. Its reactions end their JHarness `Pending`s through
+`link.do(…, pending:)`, read its own way.
 
 ## Development
 
@@ -197,11 +211,12 @@ swift test --scratch-path .build/tests
 ```
 
 The tests use Swift Testing: `LinkKitTests` (framing and chunking, the
-Bluetooth outbox and reconnect timing, the socket transport, the wire,
-the keepalive, `hello` and trouble, ids, exactly one end, the give-up
-and a link that drops), each naming the SPEC.md section it checks, and
-`JHarnessLinkTests`. The device half's tests run with the firmware's
-(`make -C internal fw-test`). The package depends on nothing but
-Foundation, CoreBluetooth and `../jharness` (which only `JHarnessLink`
-imports, though SwiftPM needs it for either product), and on nothing
-else outside this folder.
+Bluetooth outbox and reconnect timing, the socket transport, the bridge
+on a pseudo-terminal, the wire, the keepalive, `hello` and trouble, ids,
+exactly one end, the give-up and a link that drops), each naming the
+SPEC.md section it checks, and `JHarnessLinkTests`. The device half has
+its own PlatformIO project for its tests
+([device/README.md](device/README.md)). The package depends on nothing
+but Foundation, CoreBluetooth and `../jharness` (which only
+`JHarnessLink` imports, though SwiftPM needs it for either product), and
+on nothing else outside this folder.

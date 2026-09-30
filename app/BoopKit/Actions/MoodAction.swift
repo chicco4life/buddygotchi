@@ -100,9 +100,9 @@ public enum MoodAction {
     /// file into the log, at the first launch after the log took over
     /// (harness/DECISIONS.md §2): when the log's last day has no change of
     /// its own, Boop comes back in the mood it left, however long ago, as
-    /// it did when the file kept it. The change is logged for no event and
-    /// with no message, so HISTORY doesn't show it and no time counts from
-    /// it. The file goes either way: from then on the log alone keeps the
+    /// it did when the file kept it. It's JHarness's `restore`, a change
+    /// with no line, so HISTORY doesn't show it, and no time counts from it
+    /// (`sinceLine`). The file goes either way: from then on the log alone keeps the
     /// mood. It read `cheerful`, happy's old name, as happy, and a word that
     /// isn't a mood as calm. On the harness's queue, after the read-back.
     public static func carryOver(_ mood: Choice, stateDir: URL, harness: Harness, note: (String) -> Void = { _ in }) {
@@ -117,11 +117,7 @@ public enum MoodAction {
             if !word.isEmpty { note("mood: the mood file says \(word), which isn't a mood; reading it as \(initial)") }
             return
         }
-        let from = value(mood, log)
-        guard to != from else { return }
-        harness.emit(Event(source: Event.harness, kind: Event.did,
-                           data: ["for": .null, "by": .string(carriedBy), "action": .string(actionName), "ok": true,
-                                  "from": .string(from), "to": .string(to)]))
+        guard to != value(mood, log), mood.restore(to, by: carriedBy, in: harness) != nil else { return }
         note("mood: \(to), carried over from the mood file")
     }
 

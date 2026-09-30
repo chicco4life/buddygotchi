@@ -8,13 +8,13 @@ public struct Hello: Equatable, Sendable {
     /// Which kind of device this is. A host drives only the app it was
     /// written for.
     public var app: String
-    /// The device's permanent id: `b00p-54fe`.
+    /// The device's permanent id: `lamp-54fe`.
     public var id: String
     /// The firmware version.
     public var fw: String
     /// The `do` names it plays.
     public var does: [String]
-    /// Every other field, in the line's order: the app's own (Boop's `voice`).
+    /// Every other field, in the line's order: the app's own.
     public var fields: JSONObject
 
     public init(kit: Int? = Wire.kit, app: String, id: String, fw: String, does: [String], fields: JSONObject = [:]) {

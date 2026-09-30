@@ -49,11 +49,6 @@ public struct DeviceMoment: Equatable, Sendable {
             return .object(say)
         }
 
-        /// How long the line plays: its takes, and the gap between two.
-        public var ms: Int {
-            takes.map(\.ms).reduce(0, +) + (takes.count > 1 ? Voice.joinGapMs : 0)
-        }
-
         /// What the bubble shows, and HISTORY reads: the takes' words.
         public var text: String? { takes.isEmpty ? nil : takes.map(\.text).joined(separator: " ") }
     }
@@ -102,9 +97,6 @@ public struct DeviceMoment: Equatable, Sendable {
     /// The most `loops` the device plays (firmware `Behaviour::kMaxLoops`).
     public static let maxLoops = 6
 
-    /// Bubble time after the take (firmware `kBubbleReadMs`).
-    static let bubbleReadMs: Int64 = 1200
-
     /// The `do`'s name: its animation, or `react`.
     public var name: String { anim ?? Self.react }
 
@@ -120,11 +112,5 @@ public struct DeviceMoment: Equatable, Sendable {
         if let mood { args["mood"] = .string(mood) }
         if let loops { args["loops"] = .int(loops) }
         return args
-    }
-
-    /// The `do` line for it, as the link sends it: `id` and `play` are the
-    /// link's and the runtime's.
-    public func line(id: Int, play: Wire.Play, ttl: Int = Wire.defaultTTL) -> String {
-        Wire.do(id: id, name: name, play: play, ttl: ttl, args: args)
     }
 }

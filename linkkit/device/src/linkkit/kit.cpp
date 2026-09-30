@@ -1,6 +1,5 @@
 #include "linkkit/kit.h"
 
-#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <initializer_list>
@@ -27,15 +26,49 @@ Play playFrom(const char* s) {
   return Play::kNext;  // missing or unknown (§3)
 }
 
-// Formats one line into `buf` (kMaxLine + 1 bytes). Returns its length,
-// or 0 when it wouldn't fit: a line cut short is never sent.
-size_t format(char* buf, const char* fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  int n = std::vsnprintf(buf, kMaxLine + 1, fmt, ap);
-  va_end(ap);
-  return n > 0 && size_t(n) <= kMaxLine ? size_t(n) : 0;
-}
+// Builds one line of at most kMaxLine bytes, escaping the app's strings as
+// JSON, so a quote or a backslash in an `ev`'s kind, its did or a `why`
+// can't break the line. A line that wouldn't fit is never sent: len() is 0.
+class LineOut {
+ public:
+  LineOut& raw(const char* s) {
+    while (*s) put(*s++);
+    return *this;
+  }
+  LineOut& str(const char* s) {
+    put('"');
+    for (; *s; ++s) {
+      const unsigned char c = static_cast<unsigned char>(*s);
+      if (c == '"' || c == '\\') {
+        put('\\'), put(char(c));
+      } else if (c < 0x20) {
+        char esc[7];
+        std::snprintf(esc, sizeof(esc), "\\u%04x", unsigned(c));
+        raw(esc);
+      } else {
+        put(char(c));
+      }
+    }
+    put('"');
+    return *this;
+  }
+  LineOut& num(long n) {
+    char digits[24];
+    std::snprintf(digits, sizeof(digits), "%ld", n);
+    return raw(digits);
+  }
+  const char* text() const { return buf_; }
+  size_t len() const { return ok_ ? n_ : 0; }
+
+ private:
+  void put(char c) {
+    if (n_ < kMaxLine) buf_[n_++] = c;
+    else ok_ = false;
+  }
+  char buf_[kMaxLine];
+  size_t n_ = 0;
+  bool ok_ = true;
+};
 
 // Streams ArduinoJson's output to an Out a few bytes at a time, so a long
 // dbg.* reply needs no buffer of its own size.
@@ -255,13 +288,16 @@ void Kit::helloChanged() {
 }
 
 void Kit::emit(const char* kind, const char* did, const char* data, bool injected) {
-  char buf[kMaxLine + 1];
-  size_t n = format(buf, "{\"t\":\"ev\",\"kind\":\"%s\"%s%s%s%s%s}", kind, did ? ",\"did\":\"" : "", did ? did : "",
-                    did ? "\"" : "", data ? ",\"data\":" : "", data ? data : "");
+  LineOut line;
+  line.raw("{\"t\":\"ev\",\"kind\":").str(kind ? kind : "");
+  if (did) line.raw(",\"did\":").str(did);
+  if (data) line.raw(",\"data\":").raw(data);
+  line.raw("}");
+  const size_t n = line.len();
   if (!n) return;
-  if (injected) return reply(Link::kUsb, buf, n);
-  if (live(Link::kBle)) reply(Link::kBle, buf, n);
-  if (live(Link::kUsb)) reply(Link::kUsb, buf, n);
+  if (injected) return reply(Link::kUsb, line.text(), n);
+  if (live(Link::kBle)) reply(Link::kBle, line.text(), n);
+  if (live(Link::kUsb)) reply(Link::kUsb, line.text(), n);
 }
 
 // ---- The turn (§4) -------------------------------------------------------
@@ -431,12 +467,11 @@ void Kit::endHolder(How how, const char* why) {
 // Exactly one per call with an id, on the link its do came in on.
 void Kit::sendEnded(int32_t id, Link to, How how, const char* why) {
   if (id <= 0) return;
-  char buf[kMaxLine + 1];
-  size_t n = why && *why ? format(buf, "{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":%ld,\"how\":\"%s\",\"why\":\"%s\"}}",
-                                  long(id), howName(how), why)
-                         : format(buf, "{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":%ld,\"how\":\"%s\"}}", long(id),
-                                  howName(how));
-  if (n) reply(to, buf, n);
+  LineOut line;
+  line.raw("{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":").num(long(id)).raw(",\"how\":").str(howName(how));
+  if (why && *why) line.raw(",\"why\":").str(why);
+  line.raw("}}");
+  if (line.len()) reply(to, line.text(), line.len());
 }
 
 void Kit::resetTurn() {

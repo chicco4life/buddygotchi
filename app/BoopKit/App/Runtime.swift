@@ -1,6 +1,7 @@
 import AgentHooks
 import Foundation
 import JHarness
+import JHarnessLink
 import LinkKit
 
 /// Everything the app runs, wired together (ARCHITECTURE.md §1): the hook
@@ -136,7 +137,7 @@ public final class Runtime: @unchecked Sendable {
     public let home = DispatchQueue(label: "boop.home", qos: .userInitiated, autoreleaseFrequency: .workItem)
     public let options: Options
     /// LinkKit's link to the device, in Boop's vocabulary (`BoopDevice`).
-    public let link: Link
+    public let link: DeviceLink
     /// The newest snapshot sent to the device.
     public private(set) var latest: StateSnapshot?
     /// Boop's name, from `long-term.md`.
@@ -173,7 +174,7 @@ public final class Runtime: @unchecked Sendable {
     var jevKey: String??
     /// The brain's reactions on the device until each ends: the device
     /// decides when each plays (ARCHITECTURE.md §3.2).
-    let reactions = Reactions()
+    let reactions: Reactions
     /// The transport's `trouble` as the status last had it. It changes on
     /// the transport's thread, so the tick looks.
     var linkTrouble: String?
@@ -280,8 +281,10 @@ public final class Runtime: @unchecked Sendable {
         var personalityNow: () -> Personality = { .boop }
         var queued: (DeviceMoment, Pending) -> Void = { _, _ in }
         let link = self.link
+        let reactions = Reactions()
+        self.reactions = reactions
         (harness, mood) = Runtime.harness(
-            pipeline: pipeline, steering: options.steering, personality: { personalityNow() },
+            pipeline: pipeline, steering: options.steering, personality: { personalityNow() }, reactions: reactions,
             queue: { queued($0, $1) }, speaks: { link.hello.map { DeviceInfo($0).hasTheVoice } ?? true })
         // The questions line is debug.jsonl's first, before the read-back's
         // lines, the socket or the link can add one, so a changed first line
@@ -312,14 +315,6 @@ public final class Runtime: @unchecked Sendable {
             guard e.action == MoodAction.actionName, e["ok"]?.bool == true, let to = e["to"]?.string else { return }
             self?.moodChanged(to)
         }
-        // A reaction your tap cut short is in progress while the pokes go
-        // on, and done once anything else happens (harness/DECISIONS.md §5).
-        // A reaction's end, JHarness's own event, never stops the pokes.
-        let reactions = reactions
-        harness.on("*") { e in
-            guard !reactions.cutByTap.isEmpty, TranscriptView.stopsThePokes(e, transcript.view(before: e)) else { return }
-            reactions.pokesStopped()
-        }
         harness.onPass = { [weak self] pass in self?.passed(pass) }
     }
 
@@ -328,20 +323,30 @@ public final class Runtime: @unchecked Sendable {
     /// state (§6): the guide with how to read the rest, PERSONALITY and
     /// MOOD, then HISTORY, closed by how long Boop has been in its mood and
     /// reaching back to the oldest working turn. The app's, and the evals',
-    /// so the two can't drift apart. `queue` plays a reaction's moment, and
-    /// `speaks` says whether the device plays Voice's takes. The brain is
-    /// the caller's to set (`harness.use`).
+    /// so the two can't drift apart. `queue` plays a reaction's moment,
+    /// whose end `reactions` reads, and `speaks` says whether the device
+    /// plays Voice's takes. The brain is the caller's to set (`harness.use`).
     public static func harness(pipeline: Pipeline, steering: Steering, personality: @escaping () -> Personality,
-                               queue: @escaping (DeviceMoment, Pending) -> Void, speaks: @escaping () -> Bool = { true })
-        -> (harness: Harness, mood: Choice) {
+                               reactions: Reactions = Reactions(), queue: @escaping (DeviceMoment, Pending) -> Void,
+                               speaks: @escaping () -> Bool = { true }) -> (harness: Harness, mood: Choice) {
         let h = pipeline.harness
         let core = pipeline.core
         let view = pipeline.view
         let mood = MoodAction.choice()
-        let react = ReactAction(queue: queue, blocked: { core.reactionBlock }, who: { now in
+        // A reaction your tap cut short is in progress while the pokes go
+        // on, and done once anything else happens (harness/DECISIONS.md §5).
+        // A reaction's end, JHarness's own event, never stops the pokes.
+        // The rule holds the log, not the harness, which holds the rule.
+        let transcript = h.log
+        h.on("*") { e in
+            guard !reactions.cutByTap.isEmpty, TranscriptView.stopsThePokes(e, transcript.view(before: e)) else { return }
+            reactions.pokesStopped()
+        }
+        let react = ReactAction(queue: queue, blocked: { core.reactionBlock }, who: { [weak h] now in
             // The thread's name as its agent's app shows it, once an event
             // brought one, else the view's: its workspace, else its project.
-            guard let now, let key = TranscriptView.about(now, facts: h.line(now.seq)?.facts),
+            // Weak: the harness holds this output.
+            guard let h, let now, let key = TranscriptView.about(now, facts: h.line(now.seq)?.facts),
                   let who = view.who(about: key, h.log.view(now: h.clock.now())) else { return nil }
             return DeviceMoment.Who(agent: who.agent, thread: core.name(about: key) ?? who.thread, opens: core.thread(about: key))
         }, speaks: speaks)
@@ -458,11 +463,12 @@ public final class Runtime: @unchecked Sendable {
         switch link.receive(line, now: now) {
         case .ended(let ended):
             options.log("device: do \(ended.id) ended \(ended.how.rawValue)" + (ended.why.map { " (\($0))" } ?? ""))
+            emit(DebugLog.ended(ended, at: now))
             reactions.ended(ended.id)
         case .other:
             guard let old = BoopDevice.fromBeforeTheKit(line) else { break }
-            if link.trouble != Link.tooOld { options.log("device: \(old.id) firmware \(old.fw)") }
-            link.incompatible(Link.tooOld, now: now)
+            if link.trouble != .tooOld { options.log("device: \(old.id) firmware \(old.fw)") }
+            link.incompatible(.tooOld, now: now)
         default:
             break
         }
@@ -633,7 +639,7 @@ public final class Runtime: @unchecked Sendable {
         talker = by
         micTrouble = nil
         replyFor = nil
-        if by == .app { link.do(BoopDevice.listening, play: .now, now: options.clock()) { _ in } }
+        if by == .app { link.do(BoopDevice.listening, play: .now, by: .rule, now: options.clock()) { _ in } }
         onListen?(true)
     }
 
@@ -696,7 +702,7 @@ public final class Runtime: @unchecked Sendable {
     /// nothing else (PROTOCOL.md §3).
     func endListening() {
         core.listeningEnded()
-        link.do(BoopDevice.stopListening, play: .ifFree, now: options.clock()) { _ in }
+        link.do(BoopDevice.stopListening, play: .ifFree, by: .rule, now: options.clock()) { _ in }
     }
 
     /// A snapshot for the device.
@@ -712,18 +718,18 @@ public final class Runtime: @unchecked Sendable {
     /// then. The core has already left it out while something needs you or
     /// `listening` shows.
     func playRule(_ moment: DeviceMoment) {
-        link.do(moment.name, args: moment.args, play: .ifFree, now: options.clock()) { _ in }
+        link.do(moment.name, args: moment.args, play: .ifFree, by: .rule, now: options.clock()) { _ in }
     }
 
     /// A reaction from the brain, sent at once to wait its turn on the
     /// device (`next`, for up to 5 s), and its handle, ended once it's
-    /// known how it went: at once when it can't be sent. On `home`.
+    /// known how it went (JHarnessLink's `do(…, pending:)`, read Boop's way
+    /// by `Reactions`): at once when it can't be sent. On `home`.
     func queue(_ moment: DeviceMoment, _ pending: Pending) {
         core.listeningEnded()  // a reaction ends `listening`: it's the reply (BEHAVIORS.md §3.3)
         let now = options.clock(), reactions = reactions
-        let id = link.do(moment.name, args: moment.args, play: .next, ttl: BoopDevice.reactionTTL, by: .brain, now: now) {
-            reactions.finish(pending, $0)
-        }
+        let id = link.do(moment.name, args: moment.args, play: .next, ttl: BoopDevice.reactionTTL, by: .brain, now: now,
+                         pending: pending) { reactions.read($0, pending) }
         if let id, let thread = moment.who?.opens { reactions.sent(id, opens: thread, ttl: BoopDevice.reactionTTL, now: now) }
     }
 
@@ -731,7 +737,7 @@ public final class Runtime: @unchecked Sendable {
         let now = options.clock()
         let status = Status(name: name, snapshot: latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
                             connected: link.connected, device: link.hello.map(DeviceInfo.init), linkTrouble: linkTrouble,
-                            deviceTrouble: link.trouble, personality: personality, brain: harness.brain?.id ?? "none",
+                            deviceTrouble: link.trouble?.description, personality: personality, brain: harness.brain?.id ?? "none",
                             keyRead: jevKey != nil, brainTrouble: trouble, listening: core.listening != nil,
                             micTrouble: micTrouble)
         if let line = DebugLog.status(status, at: now, last: &lastStatus) { emit(line) }

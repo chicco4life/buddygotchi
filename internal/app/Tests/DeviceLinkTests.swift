@@ -99,6 +99,14 @@ func sampleSnapshot(busy: Int = 0) -> StateSnapshot {
 
 /// Boop's vocabulary on LinkKit (PROTOCOL.md): its `state` and `do` lines,
 /// what its `hello` and taps mean, and the `--link` setting.
+extension DeviceMoment {
+    /// The `do` line the link sends for it, with `id` and `play`: what the
+    /// device reads.
+    func line(id: Int, play: Wire.Play, ttl: Int = Wire.defaultTTL) -> String {
+        Wire.do(id: id, name: name, play: play, ttl: ttl, args: args)
+    }
+}
+
 final class DeviceLinkTests: XCTestCase {
     /// PROTOCOL.md §4: the device's `hello` says who it is and which voice
     /// pack its card has; a tap names the brain's finish it landed on, when
@@ -172,10 +180,11 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertEqual(BoopDevice.fromBeforeTheKit(status), DeviceInfo(id: "b00p-7f3a", fw: "0.3.1"))
         XCTAssertNil(BoopDevice.fromBeforeTheKit(FakeTransport.hello))
         XCTAssertNil(BoopDevice.fromBeforeTheKit("rst:0x1 (POWERON_RESET)"))
-        link.incompatible(Link.tooOld, now: 400)
-        XCTAssertEqual(link.trouble, "the device's firmware is too old for this app: flash it")
+        link.incompatible(.tooOld, now: 400)
+        XCTAssertEqual(link.trouble, .tooOld)
+        XCTAssertEqual(link.trouble?.description, "the device's firmware is too old for this app: flash it")
         XCTAssertNil(link.hello)
-        var outcome: Link.Outcome?
+        var outcome: DeviceLink.Outcome?
         XCTAssertNil(link.do("react", now: 500) { outcome = $0 })
         XCTAssertEqual(outcome, .failed(.incompatible))
         XCTAssertEqual(transport.types().last, "state", "it still gets the state")
@@ -252,7 +261,7 @@ final class DeviceLinkTests: XCTestCase {
         let s = StateSnapshot(base: "working", mood: "determined",
                               attn: .init(agent: "claude", project: widest, name: widest, more: 999, id: Int(Int32.max)),
                               busy: 999, vol: 10, variant: 5)
-        XCTAssertLessThanOrEqual(s.jsonLine.utf8.count, StateSnapshot.maxLine)
+        XCTAssertLessThanOrEqual(s.jsonLine.utf8.count, Wire.maxLine)
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
         XCTAssertEqual(s.jsonLine, #"{"t":"state","base":"working","mood":"determined","attn":{"agent":"claude","project":"\#(esc)","name":"\#(esc)","more":999,"id":2147483647},"busy":999,"vol":10,"variant":5}"#)
         XCTAssertEqual(s.jsonLine, Wire.state(s.fields), "LinkKit's state, Boop's fields")
@@ -268,7 +277,7 @@ final class DeviceLinkTests: XCTestCase {
         let s = StateSnapshot(base: "working", act: "delegating", mood: "determined",
                               attn: .init(agent: "claude", project: widest, name: widest, more: 999, id: Int(Int32.max)),
                               busy: 999, vol: 10, variant: 9)
-        XCTAssertLessThanOrEqual(s.jsonLine.utf8.count, StateSnapshot.maxLine)
+        XCTAssertLessThanOrEqual(s.jsonLine.utf8.count, Wire.maxLine)
         XCTAssertEqual(s.visual, "needs_you", "attn wins")
         XCTAssertLessThanOrEqual(Act.allCases.map(\.rawValue.utf8.count).max()!, "delegating".utf8.count)
     }

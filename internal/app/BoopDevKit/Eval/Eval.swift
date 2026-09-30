@@ -460,17 +460,17 @@ public struct Eval {
         let ending = Ending()
         let reactions = Reactions()
         let (harness, mood) = Runtime.harness(
-            pipeline: pipeline, steering: steering, personality: { scenario.personality },
+            pipeline: pipeline, steering: steering, personality: { scenario.personality }, reactions: reactions,
             queue: { moment, pending in
                 ending.said = moment.say?.text
                 ending.takes = moment.say?.takes.map(\.text) ?? []
                 guard let end = ending.end else { return ending.open.append(pending) }
-                if let ended = Eval.ended(end) { reactions.finish(pending, .ended(ended)) } else { pending.finish(end) }
+                if let ended = Eval.ended(end) {
+                    reactions.read(.ended(ended), pending).map(pending.finish)
+                } else {
+                    pending.finish(end)
+                }
             })
-        harness.on("*") { e in
-            guard !reactions.cutByTap.isEmpty, TranscriptView.stopsThePokes(e, harness.log.view(before: e)) else { return }
-            reactions.pokesStopped()
-        }
         if let url = debugLog {
             let writer = Runtime.debugLines(pipeline: pipeline, emit: { LineFile.append($0, to: url) })
             harness.onPass = { pass in writer.pass(pass, launchOptions: [:], at: clock.now) }

@@ -1,13 +1,14 @@
 import AgentHooks
 import Foundation
 import JHarness
+import JHarnessLink
 import LinkKit
 
 /// The brain's reactions on the device, until each ends (ARCHITECTURE.md
 /// §3.2). The device decides what plays when (linkkit/SPEC.md §4): each
 /// reaction goes out at once, a `do` that waits its turn there, and the
-/// link hands back how it came out. This makes that its handle's end
-/// (harness/DECISIONS.md §5), holds a reaction your tap cut short in
+/// link hands back how it came out (JHarnessLink's `do(…, pending:)`). This
+/// reads that as its handle's end (harness/DECISIONS.md §5), holds a reaction your tap cut short in
 /// progress until the pokes stop, and keeps where a tap on the brain's
 /// finish opens its thread (BEHAVIORS.md §3.3) while the finish may still
 /// play, a link that drops for a moment included, since the device plays
@@ -33,7 +34,7 @@ public final class Reactions {
     /// The finish sent as `id` at `now`, waiting up to `ttl` for its turn:
     /// a tap on it opens `thread`.
     public func sent(_ id: Int, opens thread: ThreadRef, ttl: Int, now: Int64) {
-        opens[id] = (thread, now + Int64(ttl) + Link.answerGraceMs)
+        opens[id] = (thread, now + Int64(ttl) + DeviceLink.answerGraceMs)
     }
 
     /// The device said the `do` `id` ended, even one the link had failed
@@ -51,14 +52,15 @@ public final class Reactions {
     /// landed on it (BEHAVIORS.md §3.3). Nil once it's over.
     public func opens(finish id: Int) -> ThreadRef? { opens[id]?.thread }
 
-    /// How the reaction whose handle is `pending` came out: its end, or
-    /// held while the pokes go on when your tap cut it.
-    public func finish(_ pending: Pending, _ outcome: Link.Outcome) {
+    /// How the reaction whose handle is `pending` came out, as the map of
+    /// JHarnessLink's `do(…, pending:)`: its end, or nil, holding it while
+    /// the pokes go on, when your tap cut it.
+    public func read(_ outcome: DeviceLink.Outcome, _ pending: Pending) -> Pending.End? {
         guard let end = Self.end(outcome) else {
             cutByTap.append(pending)
-            return
+            return nil
         }
-        pending.finish(end)
+        return end
     }
 
     /// The pokes stopped, or something else happened: the reactions a tap
@@ -72,7 +74,7 @@ public final class Reactions {
     /// How a reaction ended (harness/DECISIONS.md §5), from the device's
     /// `ended` or the link's failure; nil for a cut by your tap, which is
     /// held until the pokes stop.
-    public static func end(_ outcome: Link.Outcome) -> Pending.End? {
+    public static func end(_ outcome: DeviceLink.Outcome) -> Pending.End? {
         switch outcome {
         case .ended(let ended):
             switch (ended.how, ended.why) {

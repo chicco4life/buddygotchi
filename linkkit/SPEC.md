@@ -1,12 +1,12 @@
 # LinkKit: the spec
 
-Updated 2026-09-30. The contract between a host (a Mac app) and a small
+Updated 2026-10-01. The contract between a host (a Mac app) and a small
 device with a screen, a light or a speaker: four messages, how the device
 decides what plays when, and the rules both sides keep. It's language
 neutral: the Swift host library (`Sources/LinkKit`) and the C++ device
 library (`device/`) both implement it, and a port to another language
-matches this file. [README.md](README.md) is the overview; Boop's own
-vocabulary on top of it is in [plan/PROTOCOL.md](../plan/PROTOCOL.md).
+matches this file. [README.md](README.md) is the overview. It was pulled
+out of Boop, a desk creature whose app and firmware are one app on it.
 
 ## 1. The idea
 
@@ -186,7 +186,7 @@ queue in order of arrival.
 | While the link is up | The host sends `state` on every change and at least every 10 s. The device sends `hello` again when something in it changes, and 60 s after the last one on the link the host last spoke on |
 | 30 s with no line from the host | The device treats the host as gone: it tells the app, and drops a Bluetooth link so it can advertise again |
 | The link drops | The host ends every `do` still waiting for its `ended` as failed (the device may play on) |
-| No `ended` by a `do`'s `ttl` (5000 ms for `now` and `if_free`) plus 60 s after it was sent | The host gives up on it as failed: a line was lost. So a call that holds the turn much longer than a minute should `rest` or end, or its host stops waiting |
+| No `ended` by a `do`'s `ttl` (5000 ms for `now` and `if_free`) plus 60 s after it was sent | The host gives up on it as failed: a line was lost. Only the `ended` stops that wait (resting never reaches the host), so a call that may play longer than its `ttl` plus 60 s must end sooner, or be split into several calls |
 
 A link is *live* for device → host messages while it's connected
 (Bluetooth) or the host has spoken on it in the last 30 s (USB).
@@ -205,7 +205,8 @@ already live, which the device has no way to tell from the host before.
 - A host that meets a `kit` it doesn't know, or another `app`, keeps the
   link and keeps sending `state` (so a device that's flashed while the link
   stays up still hears it and answers with its new `hello`), but sends no
-  `do`, and says the firmware is too new, too old or not its device. A
+  `do`, drops the device's `ev`s, and says the firmware is too new, too
+  old or not its device. A
   `do` asked for before a `hello` has come fails at once. How to recognise
   an app's older firmware (Boop's sent `status` before there was a
   `hello`) is the app's business.
@@ -214,16 +215,17 @@ already live, which the device has no way to tell from the host before.
 
 Types starting `dbg.` are for tools and tests over USB; over Bluetooth the
 device ignores them. Each gets one reply with the same `t`; an unknown one
-gets none. The kit handles four, and an app adds its own.
+gets none. The kit handles five, and an app adds its own.
 
 | Request | Reply |
 | --- | --- |
 | `{"t":"dbg.ping"}` | `{"t":"dbg.ping","kit":1,"fw":…,"up":ms,…}` plus the app's vitals, and `hello_long` (the whole `hello`'s length) when the `hello` doesn't fit in a line (§3) |
+| `{"t":"dbg.state"}` | `{"t":"dbg.state",…,"clock":{"now":T,"frozen":bool},"rx":{"state":N,"do":N},"turn":{…}}`: the app's fields first, then the kit's clock, the `state` and `do` lines it has read, and the turn (below) |
 | `{"t":"dbg.clock","freeze":T}`, `{"step":MS}`, `{"run":true}` | `{"t":"dbg.clock","now":T,"frozen":bool}`. A frozen clock runs again by itself after 60 s with no `dbg.*` |
 | `{"t":"dbg.shot"}` | The app's current frame, when it draws one |
 | `{"t":"dbg.reset"}` | `{"t":"dbg.reset"}`, after §4's reset and the app's own |
 
-`dbg.state` includes the kit's `turn`: `{"holder":{"id":44,"name":"react","resting":false},"waiting":[{"id":45,"name":"react","left_ms":3200}]}`,
+`dbg.state`'s `turn` is `{"holder":{"id":44,"name":"react","resting":false},"waiting":[{"id":45,"name":"react","left_ms":3200}]}`,
 `holder` null when the turn is free.
 
 ## 8. Transport
@@ -235,14 +237,32 @@ message came in on.
   RX `…0002` host → device, written without response; TX `…0003` device →
   host, notified). The device is the peripheral and advertises as
   `<Prefix>-XXXX`, the prefix the app's. It asks for a 247-byte MTU and
-  cuts notifications to MTU − 3. The host cuts each line to the write size
-  it's allowed, and queues lines so a burst never loses part of one; a
-  newer `state` replaces one not yet started. A connect attempt that isn't
-  up (subscribed to TX) within 10 s is cancelled and tried again; after a
-  drop or a failed attempt the host looks again after 1 s, doubling to 5 s,
-  and back to 1 s once a link is up.
+  cuts notifications to MTU − 3.
+  - The host cuts each line to the write size it's allowed, and queues
+    lines so a burst never loses part of one. A newer `state` replaces one
+    not yet started; no other line is dropped, since the host waits for
+    every `do`'s `ended` (§5). Once states merge only `do`s pile up, so a
+    backlog past 4 KB means the link is stuck: the host gives it up and
+    connects again, which ends what waited as failed (§5).
+  - A device still connected to the system doesn't advertise, so the host
+    first takes over a link the system holds to one, and scans otherwise.
+    It's up once subscribed to TX. An attempt that isn't up within 10 s,
+    or fails on the way, is cancelled and tried again, and a device whose
+    UART service changed (a reflash) is connected again. After a drop or
+    a failed attempt the host looks again after 1 s, doubling to 5 s, and
+    back to 1 s once a link is up.
 - **USB:** the board's serial port, owned by a bridge process that shares
-  it on a Unix socket, so tools and the host can both use it.
+  it on a Unix socket, so tools and the host can both use it:
+  `linkkit-bridge`, or any bridge that keeps its rules.
+  - Every whole line from the board goes to every client, and every whole
+    line from a client goes to the board whole, so two clients' lines
+    never interleave.
+  - The bridge never waits on a client: one that falls 4 MB behind (it
+    stopped reading) is dropped, so it can't stall the others.
+  - The host connects to the socket, and again every second while it
+    can't. A write that can't finish within 250 ms drops the connection,
+    which comes back a second later, so a stuck bridge can't freeze the
+    host.
 
 ## 9. Limits
 
@@ -256,3 +276,6 @@ message came in on.
 | `state` keepalive / host gone | 10 s / 30 s |
 | `hello` repeat | 60 s |
 | A host gives up on an `ended` | `ttl` + 60 s |
+| Bluetooth backlog before the host gives the link up | 4 KB |
+| A bridge client's backlog before it's dropped | 4 MB |
+| A host's write to the bridge | 250 ms |

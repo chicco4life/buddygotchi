@@ -26,9 +26,9 @@ public final class DeviceEvents {
     var isUp = false
 
     /// `said` words what the device did about an `ev` on its own (its
-    /// `did`, `poked`) as HISTORY's line for it, `Boop wiggled.`; nil
+    /// `did`, `stopped`) as HISTORY's line for it, `The lamp stopped blinking.`; nil
     /// records none.
-    public init(link: Link, harness: Harness, source: String = "device",
+    public init(link: DeviceLink, harness: Harness, source: String = "device",
                 said: @escaping (DeviceEvent) -> String? = { _ in nil }) {
         self.harness = harness
         self.source = source

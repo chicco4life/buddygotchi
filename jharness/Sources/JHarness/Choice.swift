@@ -59,4 +59,18 @@ public final class Choice: Action {
         guard to != from else { return nil }
         return .done(said(from, to), facts: ["from": .string(from), "to": .string(to)])
     }
+
+    /// Sets it to `to` without a line: a value carried over from before
+    /// the log kept it, such as your app's own file (§6). The change is
+    /// logged for no event, by `by`, with no message, so HISTORY never
+    /// shows it; `since` is when it was logged. Returns the change, or nil
+    /// when it already is `to`. On the harness's queue.
+    @discardableResult
+    public func restore(_ to: String, by: String, in harness: Harness) -> Event? {
+        let from = value(harness.log.view(now: harness.clock.now()))
+        guard to != from else { return nil }
+        return harness.emit(Event(source: Event.harness, kind: Event.did,
+                                  data: ["for": .null, "by": .string(by), "action": .string(name), "ok": true,
+                                         "from": .string(from), "to": .string(to)]))
+    }
 }

@@ -1,12 +1,11 @@
 # LinkKit: the device library
 
-Updated 2026-09-30. The C++ half of LinkKit, for the small device a host
+Updated 2026-10-01. The C++ half of LinkKit, for the small device a host
 app drives: it reads the host's lines, keeps track of the links, sends
 `hello`, decides when each `do` plays (the turn), routes `ev` and answers
 the kit's `dbg.*` messages, all as [../SPEC.md](../SPEC.md) says. What the
 device draws, plays and says is yours: you write an app that plugs into
-it. Boop's firmware is one (`firmware/src/app/device.cpp`); a lamp that
-fits on a page is below.
+it. Boop's firmware is one; a lamp that fits on a page is below.
 
 C++17 and ArduinoJson 7, single-threaded, fixed-size tables. The portable
 part has no Arduino headers and runs on a Mac for tests and simulators;
@@ -49,7 +48,7 @@ And what your app calls on `kit()`, from inside any hook: `rest(key)`
 `cut(why)` (you cut the holder: a button, a tap), `dropWaiting(why, only)`
 (every call waiting, or only those from link `only`),
 `emit(kind, did, data, injected)` (an `ev` to every live link, or only to
-USB for a tool's injected input), `helloChanged()`, `reply(link, text)`
+USB for a tool's injected input), `helloChanged()`, `reply(link, text, n)`
 for your `dbg.*` replies, and `now()`, `rng()`, `frozen()`. A report for
 a key that doesn't hold the turn is ignored, so each `do` gets exactly
 one `ended` however your layers overlap.
@@ -57,7 +56,7 @@ one `ended` however your layers overlap.
 ### A lamp
 
 `examples/lamp/lamp.h`, trimmed of its comments; the unit tests run it
-(`internal/firmware/test/test_kit`):
+(`test/test_kit`):
 
 ```cpp
 class Lamp : public linkkit::App {
@@ -157,14 +156,21 @@ lib_deps =
     bblanchon/ArduinoJson @ ^7.0.0
 ```
 
-Boop's `firmware/platformio.ini` does that in both its envs, the board's
-(`cyd24`) and the Mac's (`native`: the unit tests and the simulator). The
-kit's own tests are `internal/firmware/test/test_turn` (every rule of §4)
-and `test_kit` (lines, `hello`, links, `ev`, `dbg.*`, the lamp), with a
-fake app and nothing of Boop's (`internal/firmware/kit_fakes.h`):
+Boop's firmware does that in both its envs, the board's and the Mac's
+(its unit tests and simulator).
+
+The library tests on its own, on the Mac, from its own PlatformIO
+project (`platformio.ini` here, which apps don't use): `test/test_turn`
+(every rule of §4), `test/test_kit` (lines, `hello`, links, `ev`, the
+app's words escaped, `dbg.*`, the lamp) and `test/test_helpers` (lines
+out of bytes and into Bluetooth packets, CRC-32 and base64, the clock),
+with a fake platform and app (`test/kit_fakes.h`):
 
 ```sh
-make -C internal fw-test                               # every firmware suite, the kit's included
-firmware/tools/pio.sh test -e native -f test_turn -f test_kit   # just the kit's
-python3 linkkit/device/tools/check_includes.py         # the include check, by itself
+pio test -d linkkit/device -e native          # the kit's own tests
+python3 linkkit/device/tools/check_includes.py   # the include check, by itself
 ```
+
+In Boop's checkout, run PlatformIO through `firmware/tools/pio.sh`, which
+keeps its packages there; `make -C internal fw-test` runs these after
+Boop's own suites.

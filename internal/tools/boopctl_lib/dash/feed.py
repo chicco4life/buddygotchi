@@ -67,7 +67,8 @@ class Follower:
 def kind(line: Line) -> str:
     """`event` (a raw event the transcript recorded), `view` (what the brain
     may hear of), `pass`, `head` (the state's head, which the passes after
-    it share), `sent`, `status` or `questions`."""
+    it share), `sent`, `ended` (how the device said a `do` went), `status`
+    or `questions`."""
     return next((k for k in line if k not in ("seq", "by", "received_at_ms")), "?")
 
 
@@ -194,6 +195,8 @@ class Board:
             return "status", "status: " + status_text(body, before)
         if k == "sent":
             return self._sent(body, sent_by(line), at)
+        if k == "ended":
+            return self._ended(body)
         if k == "view":
             self.events[(body.get("from") or [0])[-1]] = body
             self._event(body, at)
@@ -264,15 +267,17 @@ class Board:
                     # recorded right after names what set it off.
                     fact = c.get("ctx") or c.get("outcome")
                     what = c["anim"] + (f" ({fact})" if fact else "")
-                    self.reflexes.append({"at": at, "what": what, "anim": True, "rule": True, "trigger": None})
+                    self.reflexes.append({"at": at, "what": what, "anim": True, "rule": True, "trigger": None,
+                                          "id": c.get("id")})
                 elif c["anim"] == "listening":
                     # The Mac's Talk button; BOOT's push-to-talk the device
                     # starts itself.
                     what = "listening"
-                    self.reflexes.append({"at": at, "what": what, "trigger": "you pressed Talk on the Mac"})
+                    self.reflexes.append({"at": at, "what": what, "trigger": "you pressed Talk on the Mac",
+                                          "id": c.get("id")})
                 elif c["anim"]:
                     what = c["anim"] + (f", loops {c['loops']}" if c.get("loops") else "")
-                    self.reflexes.append({"at": at, "what": what, "anim": True, "trigger": None})
+                    self.reflexes.append({"at": at, "what": what, "anim": True, "trigger": None, "id": c.get("id")})
                 elif c.get("say"):
                     # Older logs: the rules' chatter while an agent worked.
                     what = "working chatter " + say_text(c["say"])
@@ -284,6 +289,17 @@ class Board:
                 return "sent", "→ moment " + " + ".join(parts)
             return "sent", f"→ do {c['name']}" + (f" + say {say_text(c['say'])}" if c.get("say") else "")
         return "sent", "→ " + json.dumps(msg)
+
+    def _ended(self, ended: Line) -> tuple[str, str]:
+        """How the device said a `do` went (linkkit/SPEC.md §4). The device
+        decides what plays, so a rule's one-shot it skipped (`busy`, while
+        a reaction held its turn) is marked on its reflex: it didn't
+        happen."""
+        how, why = ended.get("how"), ended.get("why")
+        said = f"⇠ do {ended.get('id')} {how}" + (f" ({why})" if why else "")
+        if how == "skipped" and (r := next((r for r in reversed(self.reflexes) if r.get("id") == ended.get("id")), None)):
+            r["skipped"] = why or "?"
+        return ("dim" if how == "done" else "fail"), "  " + said
 
     def _state_changed(self, before: Line | None, now: Line, at: int) -> None:
         mood = now.get("mood")
@@ -430,8 +446,9 @@ class Board:
             return [("dim", "none yet")]
         out = []
         for r in reversed(self.reflexes):
-            style = "attn" if r.get("attn") else "ok"
-            out.append((style, f"{clock(r['at'])} {r['what']}"))
+            style = "attn" if r.get("attn") else "dim" if r.get("skipped") else "ok"
+            skipped = f" (skipped: {r['skipped']})" if r.get("skipped") else ""
+            out.append((style, f"{clock(r['at'])} {r['what']}{skipped}"))
             trigger = r["trigger"] or ("" if r.get("rule") else "no event: played from the dashboard" if r.get("anim") else "")
             if trigger:
                 out.append(("dim", f"  {trigger}"))

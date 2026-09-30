@@ -165,7 +165,7 @@ final class VoiceTests: XCTestCase {
             if line.count == 2 {
                 XCTAssertEqual(line[1].part, .about)
                 XCTAssertEqual(line[1].meaning, "tests")
-                XCTAssertLessThanOrEqual(DeviceMoment.Say(takes: line).ms, Voice.maxLineMs)
+                XCTAssertLessThanOrEqual(line[0].ms + Voice.joinGapMs + line[1].ms, Voice.maxLineMs)
             }
             XCTAssertLessThanOrEqual(line.count, 2)
         }
@@ -191,10 +191,9 @@ final class VoiceTests: XCTestCase {
         let topic = Voice.line(feeling: nil, about: "tests", kind: .sound, face: "calm", finish: nil, rng: &rng)
         XCTAssertEqual(topic.map(\.part), [.about])
         XCTAssertEqual(Voice.line(feeling: nil, about: nil, kind: .sound, face: "calm", finish: nil, rng: &rng), [])
-        // Two takes on the wire, and the gap between them in its length.
+        // Two takes on the wire.
         let two = DeviceMoment.Say(takes: [.named("previous.tsk"), .named("phase1.word.test.test__annoyed__contained")])
         XCTAssertEqual(two.json.json, #"{"take":"previous.tsk","then":"phase1.word.test.test__annoyed__contained"}"#)
-        XCTAssertEqual(two.ms, two.takes[0].ms + Voice.joinGapMs + two.takes[1].ms)
         XCTAssertEqual(two.text, "Tsk... Test")
     }
 

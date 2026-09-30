@@ -1,6 +1,6 @@
 # Boop: events and the view
 
-Updated 2026-09-30. What Boop records and what the brain hears. Every
+Updated 2026-10-01. What Boop records and what the brain hears. Every
 raw event goes into the transcript in one shape; the view folds them
 into view events, each with a line of text, and HISTORY and NOW are built
 from those ([HARNESS.md](HARNESS.md) §5). Actions only ever see a view
@@ -49,7 +49,7 @@ subagent and working directory) is in `data` (Boop's reading of an event,
 | `at` | When it happened, in unix milliseconds (the app's steady clock, which starts at the wall clock's time: [ARCHITECTURE.md](../ARCHITECTURE.md) §3.2) |
 | `source` | `claude`, `codex`, `device`, `clock`, `boop`, `mic` or `mac`, and `self` for JHarness's own events (below) |
 | `kind` | One of the nine types below, and for a type with a lifetime its phase after an underscore, `start`, `wait` or `end`: `turn_end`, `tool_wait`, `presence_start`. A type that just happens is its name alone: `poke` |
-| `data.specific_type` | The source's own name for it: the hook (`UserPromptSubmit`, `Interrupt`), the device's message (`input`), the clock's reason (`idle`, `working`), the button that turned the mic on (`device` or `app`) or why you're away or back (§2.1) |
+| `data.specific_type` | The source's own name for it: the hook (`UserPromptSubmit`, `Interrupt`), `input` for a poke (the name of the device's message before LinkKit's `ev`, kept so the transcript reads as it did), the clock's reason (`idle`, `working`), the button that turned the mic on (`device` or `app`) or why you're away or back (§2.1) |
 | `data.session`, `data.subagent`, `data.cwd` | An agent's session, the Claude subagent's `agent_id`, and the working directory; "needs you" names its session too. Left out when there's none |
 | `data` | Those, and the type's own fields, below. Every agent event can also carry `name`, the thread's name as its agent's app shows it, when the hook found one ([ADAPTERS.md](../ADAPTERS.md) §2): for the strip, the popover and a cheer; and `app` and `app_session`, the app the agent runs in and that app's ID for the session, when the hook's environment said: where a tap opens the thread ([BEHAVIORS.md](../BEHAVIORS.md) §3.2). The view leaves them out. The core carries each on, so an event is recorded without the ones its session already has (and `mode` while plan mode hasn't changed): the first event of a session each day, so each day's file has them for a launch's read-back ([HARNESS.md](HARNESS.md) §5), or of one the core doesn't hold, after a launch, the session's end or a day's silence, has them all (`Core.unrepeated`) |
 

@@ -1,6 +1,6 @@
 # Boop: the harness
 
-Updated 2026-09-30. How Boop's brain runs on JHarness, the generic
+Updated 2026-10-01. How Boop's brain runs on JHarness, the generic
 multiple-choice harness in `jharness/`
 ([its spec](../../jharness/SPEC.md)): what Boop registers on it, how an
 event becomes questions for Jev, how Jev's answers become something Boop
@@ -46,7 +46,7 @@ each of Boop's parts is on it:
 | The view (`TranscriptView`) | Transforms for the kinds with lines, their wakes, and holds for the gates. The agent lines need each thread's turn history: a fold of the log (`TranscriptView.Fold`) that catches up to the event it's asked about, so its answer depends on the log alone |
 | Heartbeats | Timed checks. The working heartbeat's random wait is the view's own timer, reset when it sees a reaction start in the log |
 | Mood | A `Choice`, its options Boop's mood graph |
-| React | An output that returns `.started`, its handle finished by the app's `Reactions` when the device's `ended` comes, or when the link says none will. A reaction your tap cut short is finished `done` once the pokes stop, so HISTORY shows it in progress while they go on |
+| React | An output that returns `.started`, its handle finished through JHarnessLink's `do(…, pending:)`, as the app's `Reactions` reads it, when the device's `ended` comes, or when the link says none will. A reaction your tap cut short is finished `done` once the pokes stop, so HISTORY shows it in progress while they go on |
 | Jev's state | Sections: the guide (with Boop's own "how to read" and words), PERSONALITY and MOOD; the closing line; reach-back to the oldest working turn |
 | `debug.jsonl`, the dashboard, `boopctl day` | `onLine` and `onPass`, and the log's own lines |
 | The transcript | JHarness's log, in `transcript/`; lines written before JHarness are still read (`Event.legacy`, the log's `decode`) |
@@ -519,9 +519,11 @@ which headless `advance` moves:
 | `head` | Before a Jev pass whose state's head differs from the last `head` line's: the launch's first, and after a new personality or mood | The head, as a string: the state up to HISTORY, that is the guide, PERSONALITY and MOOD (§6), which the passes after it share. `boopdev watch` and the terminal print it with the first pass; `watch --new` prints the latest one before the end of the file with the first pass it shows |
 | `questions` | As the file's first line, before the launch's read-back's lines (whose ends of actions left in progress are events, §5.1), the socket's or the link's: the questions as they stand at launch, once the log is read back. A pass that asked other options, such as the mood's moves once it has moved, names them itself (`options`, below) | Every action's questions in order: `action`, `key`, `text`, and each option's `name`, `what` and `not_for` |
 | `sent` | Every line sent to the device, whatever the link, none included | The line, verbatim ([PROTOCOL.md](../PROTOCOL.md) §3, and the link's `{"t":"hello"}` asking for the device's own, [ARCHITECTURE.md](../ARCHITECTURE.md) §3.7), and beside it `by`: `brain` for the brain's reactions (a forced pass's included), `rule` for everything else, states included. `boop.log`'s `link brain →` and `link rules →` in debug mode say the same, but for a `state` the same as the last one sent (the 10 s keepalive, a reply to `hello`), which only `debug.jsonl` keeps: the dashboard reads it as a sign the app is running. A `do` goes only to a device that's connected and has said `hello`. `{"sent":{"t":"do","id":1044930537,"name":"react","play":"next","ttl":5000,"args":{"say":{"take":"phase1.nonverbal.delight.mm-hm__proud__contained"},"mood":"proud","loops":2}},"by":"brain","received_at_ms":1790777600448}` |
+| `ended` | Every `ended` the device sends ([linkkit/SPEC.md](../../linkkit/SPEC.md) §4): the device decides what plays, so a `do` sent may have been skipped | `id` (the `do`'s), `how` (`done`, `cut` or `skipped`) and `why` when there is one. `boop.log`'s `device: do N ended …` says the same. `{"ended":{"how":"skipped","id":1,"why":"busy"},"received_at_ms":9}` |
 | `status` | When the personality, the brain, the sessions or the connection changes | `personality`, `brain` (an `id`, or `none`), `sessions` (`agent`, `project`, `status`) and `connected`; the mood is in `sent`'s `state` |
 
-The last three are for the dashboard (`internal/tools/boopctl dash`);
+The last four are for the dashboard (`internal/tools/boopctl dash`),
+which marks a rule's one-shot the device skipped on its reflex;
 the terminal and `boopdev watch` skip them. What a reaction said is the
 `takes` its action's start records, the ones Voice picked
 ([VOICE.md](../VOICE.md) §4, [EVENTS.md](EVENTS.md) §2); the dashboard
@@ -581,7 +583,7 @@ the lines alone:
 
 | It counts | From |
 | --- | --- |
-| Finishes, and working chatter in older logs | A `sent` `do` named `task_complete` or `reply_ready` (a `moment` with that `anim` in logs from before the device took turns), the brain's since 2026-09-29, or `cheer`, as older logs have it (the brain's from 2026-09-28; older logs also have ones the dashboard played, which only their `sent` line records); and the rules' chatter: a `sent` moment with a `say` whose `by` is `rule`, or, in logs from before `by`, a `say` without a `mood` |
+| Finishes, and working chatter in older logs | A `sent` `do` named `task_complete` or `reply_ready` (a `moment` with that `anim` in logs from before the device took turns), the brain's since 2026-09-29, unless its `ended` says the device skipped it or something other than your tap cut it, or `cheer`, as older logs have it (the brain's from 2026-09-28; older logs also have ones the dashboard played, which only their `sent` line records); and the rules' chatter: a `sent` moment with a `say` whose `by` is `rule`, or, in logs from before `by`, a `say` without a `mood` |
 | The brain's reactions, and their faces | A `react` action for a Jev pass, started or refused, in the face its pass's `react.mood` answer chose (`react` in older logs). Those `by` the dashboard were forced, and are counted apart |
 | Alerts, and each time something needed you | A `sent` state whose `attn` is new, or has a different `id`, agent or project ([PROTOCOL.md](../PROTOCOL.md) §3; a missing `id` reads as 0). Needing you lasts from the `state` that brings `attn` to the first without it, or to the end of its launch |
 | Mood changes, and what made each | A `sent` state's `mood`, and the `mood` action right after it: the event it was for, or `by` the dashboard. A launch's first `state` in a mood other than the last launch's changed between launches |

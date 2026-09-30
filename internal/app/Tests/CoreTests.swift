@@ -1819,7 +1819,7 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(rig.state.attn?.project, "a-really-long-project-name-number-1-for-the-s..")
         XCTAssertEqual(rig.state.attn?.project.utf8.count, 47)
         XCTAssertEqual(rig.sessions.first?[1], "a-really-long-project-name-number-1-for-the-sign-too", "the popover shows it whole")
-        XCTAssertLessThanOrEqual(rig.state.jsonLine.utf8.count, StateSnapshot.maxLine)
+        XCTAssertLessThanOrEqual(rig.state.jsonLine.utf8.count, 512, "a line is at most 512 bytes (linkkit/SPEC.md §2)")
         XCTAssertEqual(StateSnapshot.clip("ünïcödé-ünïcödé-ünïcödé"), "ünïcödé-ünïcödé")
         XCTAssertEqual(StateSnapshot.clip("ünïcödé-ünïcödé-ünïcödé", marked: true), "ünïcödé-ünïcöd..")
         XCTAssertEqual(StateSnapshot.clip("a-23-byte-project-name!", marked: true), "a-23-byte-project-name!", "one that fits isn't marked")

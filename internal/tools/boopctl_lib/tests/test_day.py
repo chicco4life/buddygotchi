@@ -312,6 +312,29 @@ class RuleTests(unittest.TestCase):
         )], "2026-09-28")
         self.assertEqual((d.total().finishes, d.total().chatter), (2, 0))
 
+    def test_a_finish_the_device_didnt_play_isnt_one(self):
+        """linkkit/SPEC.md §4: the device decides what plays, and says how
+        each `do` went (`ended`, plan/harness/HARNESS.md §9). A finish it
+        skipped, or one cut short by anything but your tap, didn't play; one
+        your tap cut did, and one with no word yet counts as sent."""
+        do = lambda t, id, name: {  # noqa: E731
+            "sent": {"t": "do", "id": id, "name": name, "play": "next", "ttl": 5000, "args": {"mood": "calm"}},
+            "by": "brain", "received_at_ms": t}
+        ended = lambda t, id, how, why=None: {  # noqa: E731
+            "ended": {"id": id, "how": how, **({"why": why} if why else {})}, "received_at_ms": t}
+        d = day.summarise([launch(
+            state(at("09:00:00")),
+            do(at("09:01:00"), 1, "task_complete"), ended(at("09:01:06"), 1, "done"),
+            do(at("09:02:00"), 2, "reply_ready"), ended(at("09:02:05"), 2, "skipped", "late"),
+            do(at("09:03:00"), 3, "task_complete"), ended(at("09:03:02"), 3, "cut", "tap"),
+            do(at("09:04:00"), 4, "task_complete"), ended(at("09:04:01"), 4, "cut", "now"),
+            do(at("09:59:59"), 5, "reply_ready"), ended(at("10:00:01"), 5, "skipped", "needs_you"),
+            do(at("10:05:00"), 6, "reply_ready"),
+            ended(at("10:06:00"), 99, "skipped", "busy"),
+        )], "2026-09-28")
+        self.assertEqual(d.total().finishes, 3)
+        self.assertEqual((d.hours[9].finishes, d.hours[10].finishes), (2, 1), "a finish counts in the hour it was sent")
+
     def test_finishes_in_logs_from_before_do(self):
         """Older logs sent a `moment`: a finish is task_complete or
         reply_ready, and a cheer in logs from before them; a rule's

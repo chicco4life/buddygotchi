@@ -151,6 +151,10 @@ public final class ReactAction: Action {
 
     /// How long the face holds, in loops of the design it's drawn in: the
     /// first holds once, and each one after a loop more (DECISIONS.md §5).
+    /// The longest hold of the longest design must end on the device
+    /// before the link stops waiting for its `ended` (its `ttl` plus 60 s,
+    /// linkkit/SPEC.md §5), or a reaction that played would read as
+    /// failed: `testAReactionEndsBeforeTheHarnessCeiling` holds it so.
     public static let holds = [
         Option("once", "A small moment: the usual."),
         Option("twice", "A moment that stands out.", notFor: "Routine work."),

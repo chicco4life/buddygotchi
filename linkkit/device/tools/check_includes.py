@@ -10,14 +10,19 @@ import sys
 
 ALLOWED_ANGLE = re.compile(r"^(ArduinoJson\.h|Arduino\.h|NimBLEDevice\.h|esp_[a-z0-9_]+\.h|[a-z_]+)$")
 INCLUDE = re.compile(r'^\s*#\s*include\s*([<"])([^>"]+)[>"]')
+# Only C and C++ sources are read, and never strictly: an editor's swap
+# file or Finder's .DS_Store in src/ mustn't fail the build.
+SOURCES = (".h", ".hpp", ".c", ".cc", ".cpp")
 
 
 def problems(src_dir):
     found = []
     for base, _, files in os.walk(src_dir):
         for name in sorted(files):
+            if not name.endswith(SOURCES):
+                continue
             path = os.path.join(base, name)
-            with open(path, encoding="utf-8") as f:
+            with open(path, encoding="utf-8", errors="replace") as f:
                 for n, line in enumerate(f, 1):
                     m = INCLUDE.match(line)
                     if not m:

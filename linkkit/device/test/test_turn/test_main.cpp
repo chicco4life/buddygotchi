@@ -2,7 +2,7 @@
 // the wire out. Each test names the rule it pins.
 #include <unity.h>
 
-#include "../../kit_fakes.h"
+#include "../kit_fakes.h"
 
 using kitfake::ended;
 using kitfake::has;

@@ -11,7 +11,7 @@ public protocol Transport: AnyObject, Sendable {
     var trouble: String? { get }
     /// `onLine` gets each complete line from the device, and `onConnection`
     /// each change of connection, both on the transport's own thread: the
-    /// owner hops to its queue before handing them to `Link`.
+    /// owner hops to its queue before handing them to `DeviceLink`.
     func start(onLine: @escaping @Sendable (String) -> Void, onConnection: @escaping @Sendable (Bool) -> Void)
     /// Sends one line (without its newline). Dropped when not connected:
     /// the next `state` catches the device up.

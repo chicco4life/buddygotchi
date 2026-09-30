@@ -6,13 +6,13 @@ import LinkKit
 /// `play: next`. The options are `none`, then the names the app describes
 /// that the device's `hello` says it plays, in the app's order: with no
 /// device, or before its `hello`, only `none`. It returns `.started` with a
-/// `Pending` the device's `ended` finishes (`Link.end`), so HISTORY shows
+/// `Pending` the device's `ended` finishes (`DeviceLink.end`), so HISTORY shows
 /// it in progress until then.
 ///
 /// Its `run` is called on the harness's queue, which must be the link's.
 public final class Play: Action {
     public let name: String
-    let link: Link
+    let link: DeviceLink
     let question: String
     let about: String
     let judgeBy: String
@@ -24,7 +24,7 @@ public final class Play: Action {
     /// `options` are the names the app describes, with what each means;
     /// `said` is HISTORY's line for a name played; `clock` the link's, in
     /// ms.
-    public init(name: String = "play", link: Link, question: String, about: String = "the NOW section", judgeBy: String,
+    public init(name: String = "play", link: DeviceLink, question: String, about: String = "the NOW section", judgeBy: String,
                 none: Option = Option("none", "Play nothing: nothing in NOW is worth it."), options: [Option],
                 said: @escaping (String) -> String = { "The device played \($0)." }, clock: @escaping () -> Int64) {
         self.name = name

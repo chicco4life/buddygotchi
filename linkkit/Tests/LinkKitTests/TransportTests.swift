@@ -87,7 +87,8 @@ final class Box<T>: @unchecked Sendable {
 
     /// SPEC.md §8: Bluetooth lines go out whole, one piece at a time as
     /// CoreBluetooth takes them; a newer `state` replaces one not yet
-    /// started, and a backlog drops its oldest lines that haven't started.
+    /// started; no other line is ever dropped, and a backlog past 4 KB says
+    /// the link is stuck, for the transport to give it up.
     @Test func testBluetoothOutboxKeepsLinesWholeAndStatesFresh() {
         func drain(_ box: inout BLEOutbox) -> String {
             var bytes = Data()
@@ -109,12 +110,17 @@ final class Box<T>: @unchecked Sendable {
         #expect(started + drain(&box) == state1 + "\n" + state2 + "\n",
                 "a state that has started goes out whole, and the new one after it")
 
-        for i in 0..<200 { box.add(Wire.do(id: i + 1, name: "wiggle", play: .now, ttl: 5000, args: ["n": .int(i)]), size: 20) }
-        #expect(box.bytes <= BLEOutbox.limit)
-        let lines = drain(&box).split(separator: "\n")
-        #expect(lines.last?.contains(#""n":199"#) == true, "the newest is kept")
-        #expect(lines.allSatisfy { $0.hasPrefix("{") && $0.hasSuffix("}") }, "only whole lines")
-        #expect(box.bytes == 0, "all sent")
+        #expect(BLEOutbox.limit == 4096)
+        var dos: [String] = []
+        while !box.stuck {
+            dos.append(Wire.do(id: dos.count + 1, name: "wiggle", play: .now, ttl: 5000, args: ["n": .int(dos.count)]))
+            box.add(dos.last!, size: 20)
+            box.add(state1, size: 20)
+        }
+        #expect(box.bytes > BLEOutbox.limit && box.bytes - BLEOutbox.limit <= dos.last!.utf8.count + state1.utf8.count + 2)
+        #expect(drain(&box) == dos[0] + "\n" + state1 + "\n" + dos.dropFirst().map { $0 + "\n" }.joined(),
+                "every do goes out, in order, and the states merge into the first one's place")
+        #expect(box.bytes == 0 && !box.stuck, "all sent")
     }
 
     /// 1 s after a drop, doubling to 5 s, back to 1 s once a connection
@@ -190,6 +196,31 @@ final class Box<T>: @unchecked Sendable {
                 "one timed-out write, then the rest are dropped")
         eventually("dropped", timeout: 2) { ups.all.count >= 2 }
         #expect(ups.all.prefix(2) == [true, false], "it lets go, to reconnect")
+    }
+
+    /// A transport let go without `stop()` stops: its thread doesn't keep
+    /// it, so its connection closes and it never reconnects.
+    @Test func testLettingGoOfTheTransportStopsIt() throws {
+        let bridge = try FakeBridge()
+        let ups = Box<Bool>()
+        weak var gone: SocketTransport?
+        var client: Int32 = -1
+        do {
+            let transport = SocketTransport(path: bridge.path)
+            transport.start(onLine: { _ in }, onConnection: { ups.add($0) })
+            gone = transport
+            client = try bridge.accept()
+            eventually("connected", timeout: 2) { ups.all == [true] }
+        }
+        defer { close(client) }
+        #expect(gone == nil, "the reading thread let go of the transport")
+        var timeout = timeval(tv_sec: 2, tv_usec: 0)
+        setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+        var byte: UInt8 = 0
+        #expect(read(client, &byte, 1) == 0, "its connection closed")
+        eventually("dropped", timeout: 2) { ups.all == [true, false] }
+        var poller = pollfd(fd: bridge.fd, events: Int16(POLLIN), revents: 0)
+        #expect(poll(&poller, 1, 1500) == 0, "and it never connects again")
     }
 
     /// A socket's path has room for 103 bytes; an empty or longer one has

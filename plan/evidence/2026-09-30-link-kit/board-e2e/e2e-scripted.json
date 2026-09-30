@@ -1,0 +1,276 @@
+{
+  "brain": "scripted",
+  "started": 1790783325.389675,
+  "seconds": 54,
+  "hooks": [
+    {
+      "agent": "claude",
+      "hook": "SessionStart",
+      "hook_ms": 18.8,
+      "state_ms": 62.1
+    },
+    {
+      "agent": "claude",
+      "hook": "UserPromptSubmit",
+      "hook_ms": 20.6,
+      "state_ms": 68.8
+    },
+    {
+      "agent": "claude",
+      "hook": "PreToolUse",
+      "hook_ms": 18.9,
+      "state_ms": 45.9
+    },
+    {
+      "agent": "claude",
+      "hook": "PostToolUse",
+      "hook_ms": 19.9,
+      "state_ms": null
+    },
+    {
+      "agent": "claude",
+      "hook": "PreToolUse",
+      "hook_ms": 23.6,
+      "state_ms": null
+    },
+    {
+      "agent": "claude",
+      "hook": "PostToolUse",
+      "hook_ms": 22.9,
+      "state_ms": null
+    },
+    {
+      "agent": "claude",
+      "hook": "PreToolUse",
+      "hook_ms": 19.8,
+      "state_ms": 47.7
+    },
+    {
+      "agent": "claude",
+      "hook": "PermissionRequest",
+      "hook_ms": 19.4,
+      "state_ms": 64.2
+    },
+    {
+      "agent": "claude",
+      "hook": "Notification",
+      "hook_ms": 17.3,
+      "state_ms": null
+    },
+    {
+      "agent": "claude",
+      "hook": "PostToolUse",
+      "hook_ms": 21.6,
+      "state_ms": 79.0
+    },
+    {
+      "agent": "claude",
+      "hook": "Stop",
+      "hook_ms": 21.5,
+      "state_ms": 101.2
+    },
+    {
+      "agent": "claude",
+      "hook": "UserPromptSubmit",
+      "hook_ms": 22.5,
+      "state_ms": 86.7
+    },
+    {
+      "agent": "claude",
+      "hook": "PreToolUse",
+      "hook_ms": 22.0,
+      "state_ms": 80.3
+    },
+    {
+      "agent": "claude",
+      "hook": "PostToolUseFailure",
+      "hook_ms": 23.2,
+      "state_ms": null
+    },
+    {
+      "agent": "claude",
+      "hook": "StopFailure",
+      "hook_ms": 23.4,
+      "state_ms": 105.0
+    },
+    {
+      "agent": "codex",
+      "hook": "SessionStart",
+      "hook_ms": 26.6,
+      "state_ms": null
+    },
+    {
+      "agent": "codex",
+      "hook": "UserPromptSubmit",
+      "hook_ms": 21.8,
+      "state_ms": 84.9
+    },
+    {
+      "agent": "codex",
+      "hook": "PreToolUse",
+      "hook_ms": 22.5,
+      "state_ms": 76.7
+    },
+    {
+      "agent": "codex",
+      "hook": "PermissionRequest",
+      "hook_ms": 18.6,
+      "state_ms": null
+    },
+    {
+      "agent": "codex",
+      "hook": "PostToolUse",
+      "hook_ms": 22.0,
+      "state_ms": null
+    },
+    {
+      "agent": "codex",
+      "hook": "Stop",
+      "hook_ms": 22.0,
+      "state_ms": 99.5
+    },
+    {
+      "agent": "codex",
+      "hook": "SessionStart",
+      "hook_ms": 22.5,
+      "state_ms": null
+    },
+    {
+      "agent": "codex",
+      "hook": "UserPromptSubmit",
+      "hook_ms": 21.9,
+      "state_ms": 90.3
+    },
+    {
+      "agent": "codex",
+      "hook": "PreToolUse",
+      "hook_ms": 23.0,
+      "state_ms": 77.2
+    },
+    {
+      "agent": "codex",
+      "hook": "PermissionRequest",
+      "hook_ms": 22.7,
+      "state_ms": null
+    },
+    {
+      "agent": "codex",
+      "hook": "PostToolUse",
+      "hook_ms": 21.0,
+      "state_ms": 79.9
+    },
+    {
+      "agent": "codex",
+      "hook": "Stop",
+      "hook_ms": 22.8,
+      "state_ms": 103.8
+    }
+  ],
+  "latency": {
+    "p50": 79.9,
+    "p95": 105.0,
+    "n": 17
+  },
+  "order": {
+    "brain_moments": 9,
+    "early": 0,
+    "cut_by_newer": [],
+    "skipped": 2,
+    "odd_ends": [],
+    "unended": 0,
+    "answers": [
+      {
+        "moment": "line",
+        "at": "00:48:46.283",
+        "id": 534514997,
+        "next_by": "brain",
+        "now_by": null,
+        "after_reaction_ms": 27,
+        "reaction_to": "claude UserPromptSubmit e2e-claude-1 \u2192 turn start UserPromptSubmit claude e2e-claude-1 \u00b7 app com.mitchellh.ghostty, prompt PRIVATE_PROMPT_7001 fix the flaky test",
+        "ended": "cut (needs_you)"
+      },
+      {
+        "moment": "task_complete",
+        "at": "00:48:54.598",
+        "id": 534514998,
+        "next_by": "rules",
+        "now_by": null,
+        "after_reaction_ms": 1,
+        "reaction_to": "claude Stop e2e-claude-1 \u2192 turn end Stop claude e2e-claude-1 \u00b7 app com.mitchellh.ghostty, message PRIVATE_CLOSING_7009, outcome done",
+        "ended": "done"
+      },
+      {
+        "moment": "line",
+        "at": "00:48:58.758",
+        "id": 534515000,
+        "next_by": "rules",
+        "now_by": null,
+        "after_reaction_ms": 2,
+        "reaction_to": "claude UserPromptSubmit e2e-claude-1 \u2192 turn start UserPromptSubmit claude e2e-claude-1 \u00b7 app com.mitchellh.ghostty, prompt PRIVATE_PROMPT_7010 now deploy it",
+        "ended": "done"
+      },
+      {
+        "moment": "line",
+        "at": "00:48:59.316",
+        "id": 534515002,
+        "next_by": "brain",
+        "now_by": null,
+        "after_reaction_ms": 2,
+        "reaction_to": "claude PostToolUseFailure e2e-claude-1 \u2192 tool end PostToolUseFailure claude e2e-claude-1 \u00b7 app com.mitchellh.ghostty, error exit_code, failed true, tool Bash, topic deploy",
+        "ended": "skipped (late)"
+      },
+      {
+        "moment": "task_complete",
+        "at": "00:48:59.868",
+        "id": 534515003,
+        "next_by": "rules",
+        "now_by": null,
+        "after_reaction_ms": 2,
+        "reaction_to": "claude StopFailure e2e-claude-1 \u2192 turn end StopFailure claude e2e-claude-1 \u00b7 app com.mitchellh.ghostty, error rate_limit, outcome failed",
+        "ended": "done"
+      },
+      {
+        "moment": "line",
+        "at": "00:49:04.584",
+        "id": 534515006,
+        "next_by": "brain",
+        "now_by": null,
+        "after_reaction_ms": 2,
+        "reaction_to": "codex UserPromptSubmit e2e-codex-quick \u2192 turn start UserPromptSubmit codex e2e-codex-quick \u00b7 app com.mitchellh.ghostty, prompt PRIVATE_PROMPT_8001 run the tests",
+        "ended": "skipped (late)"
+      },
+      {
+        "moment": "task_complete",
+        "at": "00:49:12.260",
+        "id": 534515007,
+        "next_by": "rules",
+        "now_by": null,
+        "after_reaction_ms": 3,
+        "reaction_to": "codex Stop e2e-codex-quick \u2192 turn end Stop codex e2e-codex-quick \u00b7 app com.mitchellh.ghostty, message PRIVATE_CLOSING_8004, outcome done",
+        "ended": "done"
+      },
+      {
+        "moment": "line",
+        "at": "00:49:16.954",
+        "id": 534515010,
+        "next_by": "brain",
+        "now_by": null,
+        "after_reaction_ms": 2,
+        "reaction_to": "codex UserPromptSubmit e2e-codex-slow \u2192 turn start UserPromptSubmit codex e2e-codex-slow \u00b7 app com.mitchellh.ghostty, prompt PRIVATE_PROMPT_9001 ship it",
+        "ended": "cut (needs_you)"
+      },
+      {
+        "moment": "task_complete",
+        "at": "00:49:28.717",
+        "id": 534515011,
+        "next_by": null,
+        "now_by": null,
+        "after_reaction_ms": 2,
+        "reaction_to": "codex Stop e2e-codex-slow \u2192 turn end Stop codex e2e-codex-slow \u00b7 app com.mitchellh.ghostty, message PRIVATE_CLOSING_9004, outcome done",
+        "ended": "done"
+      }
+    ]
+  },
+  "failures": [],
+  "ok": true
+}

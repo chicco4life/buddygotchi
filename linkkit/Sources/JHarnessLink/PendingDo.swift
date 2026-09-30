@@ -1,7 +1,14 @@
 import JHarness
 import LinkKit
 
-extension Link {
+extension DeviceLink.Sender {
+    /// JHarness's two kinds of doer (jharness/SPEC.md §4, §5): the app's
+    /// rules, and the brain's outputs.
+    public static let rule: Self = "rule"
+    public static let brain: Self = "brain"
+}
+
+extension DeviceLink {
     /// How a `do` reads as a JHarness `Pending`'s end by default: `done` is
     /// done; `cut` and `skipped` failed, with the device's why (`cut short:
     /// tap`, `skipped: late`); a failure here failed in its own words (`the
@@ -22,13 +29,14 @@ extension Link {
     /// `do`, finishing `pending` with how it came out: an output that asks
     /// the device to play something returns `.started(…, pending)`, and
     /// HISTORY shows it in progress until the device says it ended
-    /// (jharness/SPEC.md §5.3). `map` makes the outcome an end, `Link.end`
-    /// by default; nil leaves `pending` to the app to finish itself later.
-    /// Call it on the harness's queue, which must be the link's.
+    /// (jharness/SPEC.md §5.3), which is why it's the brain's by default.
+    /// `map` makes the outcome an end, `DeviceLink.end` by default; nil
+    /// leaves `pending` to the app to finish itself later. Call it on the
+    /// harness's queue, which must be the link's.
     @discardableResult
     public func `do`(_ name: String, args: JSONObject = [:], play: Wire.Play = .next, ttl: Int = Wire.defaultTTL,
-                     by sender: Sender = .rule, now: Int64, pending: Pending,
-                     map: @escaping (Outcome) -> Pending.End? = { Link.end($0) }) -> Int? {
+                     by sender: Sender = .brain, now: Int64, pending: Pending,
+                     map: @escaping (Outcome) -> Pending.End? = { DeviceLink.end($0) }) -> Int? {
         self.do(name, args: args, play: play, ttl: ttl, by: sender, now: now) { outcome in
             if let end = map(outcome) { pending.finish(end) }
         }

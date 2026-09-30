@@ -98,9 +98,9 @@ class Device : public linkkit::App {
  public:
   // A panel touch ends after this long without contact, in real ms.
   static constexpr uint32_t kTouchReleaseMs = 50;
-  // A reaction rests this long after its line and bubble (PROTOCOL.md §3):
-  // the pause the Mac used to leave between one reaction's bubble and the
-  // next reaction or a rule's one-shot (its old MomentSchedule.linkSlackMs).
+  // A reaction rests this long after its line and bubble (PROTOCOL.md §3),
+  // so the next reaction or a rule's one-shot doesn't follow it at once:
+  // the same pause the Mac left between them before the device took turns.
   static constexpr uint32_t kReactGapMs = 500;
 
   // `pixels` is the kWidth × kHeight canvas buffer, allocated by the

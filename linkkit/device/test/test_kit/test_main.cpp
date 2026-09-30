@@ -1,12 +1,12 @@
 // LinkKit alone, around the turn (linkkit/SPEC.md §2, §3, §5, §7, §9):
 // lines, hello, the links, `ev`, the kit's dbg.* messages, and the lamp
-// example the README walks through. A fake app; nothing of Boop's.
+// example the README walks through. A fake app; nothing of any real app's.
 #include <unity.h>
 
 #include <string>
 
-#include "../../../../linkkit/device/examples/lamp/lamp.h"
-#include "../../kit_fakes.h"
+#include "../../examples/lamp/lamp.h"
+#include "../kit_fakes.h"
 #include "linkkit/line_reader.h"
 
 using kitfake::count;
@@ -264,6 +264,29 @@ static void test_ev_goes_on_every_live_link() {
   TEST_ASSERT_TRUE(r.usb.text.empty());
 }
 
+// §2, §4: the app's words go on the line as JSON strings, so a quote, a
+// backslash or a control character in an `ev`'s kind or did, or in a
+// refusal's why, can't break it; an `ev`'s data goes as it is.
+static void test_the_apps_words_are_escaped() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\"}");
+  r.usb.text.clear();
+  r.app.k().emit("say \"hi\"", "a\\b\n", "{\"n\":1}", false);
+  TEST_ASSERT_EQUAL_STRING("{\"t\":\"ev\",\"kind\":\"say \\\"hi\\\"\",\"did\":\"a\\\\b\\u000a\",\"data\":{\"n\":1}}\n",
+                           r.usb.text.c_str());
+  JsonDocument d;
+  TEST_ASSERT_TRUE(deserializeJson(d, r.usb.text) == DeserializationError::Ok);
+  TEST_ASSERT_EQUAL_STRING("say \"hi\"", d["kind"].as<const char*>());
+  TEST_ASSERT_EQUAL_STRING("a\\b\n", d["did"].as<const char*>());
+  r.usb.text.clear();
+  r.app.refuseWith = "not \"now\"";
+  r.doLine(7, "say", "now");
+  TEST_ASSERT_EQUAL_STRING("{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":7,\"how\":\"skipped\",\"why\":\"not \\\"now\\\"\"}}\n",
+                           r.usb.text.c_str());
+  TEST_ASSERT_TRUE(deserializeJson(d, r.usb.text) == DeserializationError::Ok);
+  TEST_ASSERT_EQUAL_STRING("not \"now\"", d["data"]["why"].as<const char*>());
+}
+
 // §7: dbg.* works only over USB, and never counts as the host speaking.
 static void test_debug_is_usb_only() {
   Rig r;
@@ -418,6 +441,7 @@ int main() {
   RUN_TEST(test_does_is_capped_at_32);
   RUN_TEST(test_the_host_is_gone_after_30_s);
   RUN_TEST(test_ev_goes_on_every_live_link);
+  RUN_TEST(test_the_apps_words_are_escaped);
   RUN_TEST(test_debug_is_usb_only);
   RUN_TEST(test_ping);
   RUN_TEST(test_clock_freezes_steps_runs_and_thaws);
