@@ -16,6 +16,9 @@ let agentHooks: Target.Dependency = .product(name: "AgentHooks", package: "agent
 /// JHarness's library, which every Boop target that touches the brain, its
 /// log or its events imports.
 let jharness: Target.Dependency = .product(name: "JHarness", package: "jharness")
+/// LinkKit's library, which every Boop target that talks to the device
+/// imports.
+let linkKit: Target.Dependency = .product(name: "LinkKit", package: "linkkit")
 
 /// Everything in the repo except `kept` and the directories leading to them,
 /// for a target whose path is the repo root: SwiftPM warns about each file
@@ -42,11 +45,12 @@ func excludingAllBut(_ kept: [String]) -> [String] {
 
 var packageTargets: [Target] = [
     // Everything that isn't the app shell: Adapters, Core, Harness, Brains,
-    // Actions, Voice, Memory, DeviceLink, the hook installer (Install) and
-    // the Runtime that wires them together (App) (plan/ARCHITECTURE.md §3).
+    // Actions, Voice, Memory, DeviceLink (Boop's vocabulary on LinkKit),
+    // the hook installer (Install) and the Runtime that wires them together
+    // (App) (plan/ARCHITECTURE.md §3).
     .target(
         name: "BoopKit",
-        dependencies: [jharness, agentHooks],
+        dependencies: [jharness, agentHooks, linkKit],
         path: "app/BoopKit",
         swiftSettings: testable
     ),
@@ -60,7 +64,7 @@ var packageTargets: [Target] = [
     // single source.
     .executableTarget(
         name: "Boop",
-        dependencies: ["BoopKit", agentHooks, jharness],
+        dependencies: ["BoopKit", agentHooks, jharness, linkKit],
         path: ".",
         exclude: excludingAllBut(["app/Boop", "internal/app/Boop", "plan/steering"])
             + ["app/Boop/Info.plist"],
@@ -77,7 +81,7 @@ var packageTargets: [Target] = [
     // replay.
     .target(
         name: "BoopDevKit",
-        dependencies: ["BoopKit", agentHooks, jharness],
+        dependencies: ["BoopKit", agentHooks, jharness, linkKit],
         path: "internal/app/BoopDevKit",
         swiftSettings: testable
     ),
@@ -97,7 +101,7 @@ var packageTargets: [Target] = [
 packageTargets += [
     .executableTarget(
         name: "BoopTests",
-        dependencies: ["BoopKit", "BoopDevKit", "XCTest", agentHooks, jharness],
+        dependencies: ["BoopKit", "BoopDevKit", "XCTest", agentHooks, jharness, linkKit],
         path: "internal/app/Tests",
         exclude: ["Fixtures"],
         swiftSettings: [.define("BOOP_SHIM_RUNNER")]
@@ -115,10 +119,11 @@ let package = Package(
         .executable(name: "Boop", targets: ["Boop"]),
         .executable(name: "boopdev", targets: ["BoopDev"]),
     ],
-    // The hook layer (agent-hooks/README.md) and the brain's harness
-    // (jharness/README.md) are packages of their own: Boop depends on them,
-    // and they on nothing here. Their tools, agent-hook, jharness-emit and
-    // beacon, are built from them by name (`swift build --product agent-hook`).
-    dependencies: [.package(path: "agent-hooks"), .package(path: "jharness")],
+    // The hook layer (agent-hooks/README.md), the brain's harness
+    // (jharness/README.md) and the device link (linkkit/README.md) are
+    // packages of their own: Boop depends on them, and they on nothing here.
+    // Their tools, agent-hook, jharness-emit and beacon, are built from them
+    // by name (`swift build --product agent-hook`).
+    dependencies: [.package(path: "agent-hooks"), .package(path: "jharness"), .package(path: "linkkit")],
     targets: packageTargets
 )

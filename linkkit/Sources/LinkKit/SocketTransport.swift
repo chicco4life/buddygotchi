@@ -1,33 +1,35 @@
-import AgentHooks
 import Darwin
 import Foundation
 
-/// The device over USB, through `boopctl bridge`'s Unix socket
-/// (VERIFICATION.md §2, L4). The bridge owns the serial port and passes lines
-/// both ways, so the app never opens the port itself. Reconnects every
-/// second while the bridge is away.
+/// The device over USB, through a bridge process's Unix socket (SPEC.md
+/// §8). The bridge owns the board's serial port and passes lines both ways,
+/// so tools and the app can share it and the app never opens the port
+/// itself. Reconnects every second while the bridge is away.
 ///
-/// `send` runs on the caller's queue (the runtime's `home`), so a write
-/// never waits more than `sendTimeoutMs`, and a dropped link waits a second
-/// before connecting again: a bridge that stops reading costs at most one
+/// `send` runs on the caller's queue (the app's), so a write never waits
+/// more than `sendTimeoutMs`, and a dropped link waits a second before
+/// connecting again: a bridge that stops reading costs at most one
 /// timed-out write a second, not a frozen app.
-public final class USBTransport: DeviceTransport, @unchecked Sendable {
+public final class SocketTransport: Transport, @unchecked Sendable {
     public static let sendTimeoutMs = 250
     public let path: String
-    public var name: String { "usb:" + path }
+    /// `usb:<path>` unless `init` is given another.
+    public let name: String
     let lock = NSLock()
     var fd: Int32 = -1
     var running = false
     var thread: Thread?
 
-    public init(path: String) {
+    /// `path` is the bridge's socket, under 104 bytes.
+    public init(path: String, name: String? = nil) {
         self.path = path
+        self.name = name ?? "usb:" + path
     }
 
     public func start(onLine: @escaping @Sendable (String) -> Void, onConnection: @escaping @Sendable (Bool) -> Void) {
         lock.withLock { running = true }
         let thread = Thread { [weak self] in self?.loop(onLine: onLine, onConnection: onConnection) }
-        thread.name = "boop.usb-link"
+        thread.name = "linkkit.socket"
         thread.qualityOfService = .userInteractive
         self.thread = thread
         thread.start()
@@ -91,7 +93,7 @@ public final class USBTransport: DeviceTransport, @unchecked Sendable {
     }
 
     func connectOnce() -> Int32? {
-        guard var address = HookSocket.unixAddress(path) else { return nil }
+        guard var address = UnixSocket.address(path) else { return nil }
         let socket = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
         guard socket >= 0 else { return nil }
         var on: Int32 = 1
@@ -108,5 +110,24 @@ public final class USBTransport: DeviceTransport, @unchecked Sendable {
             return nil
         }
         return socket
+    }
+}
+
+/// A Unix socket's address.
+enum UnixSocket {
+    /// `path` as a `sockaddr_un`, or nil when it's empty or too long: the
+    /// address has room for 103 bytes and the closing zero.
+    static func address(_ path: String) -> sockaddr_un? {
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        let bytes = Array(path.utf8)
+        let capacity = MemoryLayout.size(ofValue: address.sun_path)
+        guard !bytes.isEmpty, bytes.count < capacity else { return nil }
+        withUnsafeMutableBytes(of: &address.sun_path) { buffer in
+            for (i, byte) in bytes.enumerated() { buffer[i] = byte }
+            buffer[bytes.count] = 0
+        }
+        address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
+        return address
     }
 }

@@ -1,5 +1,5 @@
 import Foundation
-import JHarness
+import LinkKit
 
 /// The `state` message: the whole picture the device draws (PROTOCOL.md §3).
 public struct StateSnapshot: Equatable, Sendable {
@@ -95,18 +95,25 @@ public struct StateSnapshot: Equatable, Sendable {
     /// headline; the line doesn't carry it.
     public var waiting: Int { attn.map { $0.more + 1 } ?? 0 }
 
-    /// One JSON line, keys in the protocol's order.
-    public var jsonLine: String {
-        var parts: [String] = ["\"t\":\"state\"", "\"base\":\(Event.json(base))"]
-        if let act { parts.append("\"act\":\(Event.json(act))") }
-        parts.append("\"mood\":\(Event.json(mood))")
+    /// The line's fields after its `t`, in the protocol's order: the
+    /// app's part of LinkKit's `state` (linkkit/SPEC.md §3).
+    public var fields: JSONObject {
+        var fields: JSONObject = ["base": .string(base)]
+        if let act { fields["act"] = .string(act) }
+        fields["mood"] = .string(mood)
         if let attn {
-            let name = attn.name.isEmpty ? "" : ",\"name\":\(Event.json(attn.name))"
-            let id = attn.id > 0 ? ",\"id\":\(attn.id)" : ""
-            parts.append("\"attn\":{\"agent\":\(Event.json(attn.agent)),\"project\":\(Event.json(attn.project))\(name),"
-                         + "\"more\":\(attn.more)\(id)}")
+            var a: JSONObject = ["agent": .string(attn.agent), "project": .string(attn.project)]
+            if !attn.name.isEmpty { a["name"] = .string(attn.name) }
+            a["more"] = .int(attn.more)
+            if attn.id > 0 { a["id"] = .int(attn.id) }
+            fields["attn"] = .object(a)
         }
-        parts += ["\"busy\":\(busy)", "\"vol\":\(vol)", "\"variant\":\(variant)"]
-        return "{" + parts.joined(separator: ",") + "}"
+        fields["busy"] = .int(busy)
+        fields["vol"] = .int(vol)
+        fields["variant"] = .int(variant)
+        return fields
     }
+
+    /// One JSON line, keys in the protocol's order.
+    public var jsonLine: String { Wire.state(fields) }
 }

@@ -1,6 +1,7 @@
 import AgentHooks
 import Foundation
 import JHarness
+import LinkKit
 import XCTest
 @testable import BoopDevKit
 @testable import BoopKit
@@ -84,6 +85,13 @@ final class RuntimeTests: XCTestCase {
         eventually("the brain when Settings saves one") { runtime.home.sync { statuses.last?.brain == "jev-test" } }
     }
 
+    /// The transport says the device connected, and the device says hello
+    /// when the app first speaks: `home` has heard both, so a `do` goes out.
+    func connect(_ transport: FakeTransport, _ runtime: Runtime) {
+        transport.onConnection?(true)
+        eventually("the device's hello") { runtime.home.sync { runtime.link.hello != nil } }
+    }
+
     func hook(_ hook: String, tool: String? = nil) -> Data {
         HookLine(agent: "claude", hook: hook, session: "s1", cwd: "/tmp/jetpack", tool: tool,
                  ts: Int64(Date().timeIntervalSince1970 * 1000)).encoded()
@@ -95,7 +103,7 @@ final class RuntimeTests: XCTestCase {
         try runtime.start()
         defer { runtime.stop() }
         eventually("first state on start") { transport.types().contains("state") }
-        transport.onConnection?(true)
+        connect(transport, runtime)
 
         XCTAssertTrue(HookSocket.send(hook("SessionStart"), to: socketPath))
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
@@ -103,20 +111,20 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(HookSocket.send(hook("PermissionRequest", tool: "Bash"), to: socketPath))
         eventually("needs you") { transport.sent.contains { $0.contains("\"attn\":{\"agent\":\"claude\",\"project\":\"jetpack\"") } }
 
-        // The device's status gets a state back.
+        // The device's hello gets a state back.
         let before = transport.types().filter { $0 == "state" }.count
-        transport.onLine?(#"{"t":"status","v":1,"id":"b00p-54fe","fw":"1.0.0"}"#)
-        eventually("state after status") { transport.types().filter { $0 == "state" }.count > before }
-        XCTAssertEqual(runtime.home.sync { runtime.link.status?.id }, "b00p-54fe")
+        transport.onLine?(FakeTransport.hello)
+        eventually("state after hello") { transport.types().filter { $0 == "state" }.count > before }
+        XCTAssertEqual(runtime.home.sync { runtime.link.hello?.id }, "b00p-54fe")
 
         // A finished turn clears "needs you", and the brain plays its
         // finish (no rule does, BEHAVIORS.md §3.1).
         XCTAssertTrue(HookSocket.send(hook("PostToolUse", tool: "Bash"), to: socketPath))
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
         eventually("the brain's finish") {
-            transport.sent.contains {
-                $0.hasPrefix(#"{"t":"moment","anim":"task_complete","say":"#) && $0.contains(#""mood":"excited""#)
-                    && $0.contains(#""outcome":"success""#)
+            transport.dos("task_complete").contains {
+                $0.contains(#""play":"next","ttl":5000,"args":{"outcome":"success","variant":"#) && $0.contains(#""say":"#)
+                    && $0.contains(#""mood":"excited""#)
             }
         }
         XCTAssertEqual(AppSettings.load(from: dir).personality, .boop)
@@ -140,6 +148,83 @@ final class RuntimeTests: XCTestCase {
         XCTAssertNil(runtime.home.sync { statuses.last?.linkTrouble })
     }
 
+    /// linkkit/SPEC.md §6, ARCHITECTURE.md §8: firmware from before the
+    /// kit says `status` where Boop's says `hello`, which Boop spots itself.
+    /// The popover says to flash it, boop.log says whose firmware it is and
+    /// a bug report why it gets no `do`; the device still gets its `state`,
+    /// and a reaction fails at once instead of going to it; its taps are
+    /// left out.
+    func testFirmwareThatDoesntFitIsThePopoversTrouble() throws {
+        let transport = FakeTransport()
+        let status = #"{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.3.1"}"#
+        transport.greeting = status
+        let lines = Lines()
+        var options = try options(transport)
+        options.log = { lines.add($0) }
+        let runtime = try Runtime(options)
+        var statuses: [Runtime.Status] = []  // on `home`
+        runtime.onChange = { statuses.append($0) }
+        try runtime.start()
+        defer { runtime.stop() }
+        transport.onConnection?(true)
+        eventually("the trouble") { runtime.home.sync { statuses.last?.deviceTrouble != nil } }
+        XCTAssertEqual(runtime.home.sync { statuses.last?.deviceTrouble }, "the device's firmware is too old for this app: flash it")
+        XCTAssertNil(runtime.home.sync { statuses.last?.device })
+        XCTAssertEqual(runtime.home.sync { statuses.last?.connected }, true)
+        runtime.home.sync { _ = runtime.harness.force(["react.mood": "happy"], by: Runtime.forcedBy) }
+        XCTAssertEqual(transport.dos, [], "no do")
+        XCTAssertEqual(runtime.home.sync { self.recorded().last { $0.actionPhase == .end && $0.actionName == "react" }.map(Self.end) },
+                       .failed("the device's firmware doesn't fit this app"))
+        transport.onLine?(#"{"t":"ev","kind":"tap","did":"poked"}"#)
+        runtime.home.sync {}
+        XCTAssertFalse(runtime.home.sync { self.recorded().contains { $0.type == .poke } }, "its taps are left out")
+        XCTAssertEqual(Set(transport.types()), ["hello", "state"], "the ask on connect, then only state")
+        transport.onLine?(status)
+        runtime.home.sync {}
+        XCTAssertEqual(lines.all.filter { $0 == "device: b00p-7f3a firmware 0.3.1" }.count, 1, "whose it is, once")
+        let saved = Lines()
+        runtime.saveReport { saved.add($0?.path ?? "none") }
+        eventually("the report") { !saved.all.isEmpty }
+        let about = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: saved.all[0])
+            .appendingPathComponent("about.json"))) as? [String: Any])
+        XCTAssertEqual(about["device_trouble"] as? String, Link.tooOld)
+        XCTAssertEqual(about["connected"] as? Bool, true)
+    }
+
+    /// A device that doesn't see the link drop still counts the app as
+    /// there, and says no `hello` unasked (linkkit/device's kit): an app
+    /// relaunched within 30 s over USB, the socket's write timeout or
+    /// Settings' Reconnect, or a relaunched app taking over the Bluetooth
+    /// link macOS kept. The link asks for one on every connect, so the
+    /// reactions go out at once, not only after the device's next hello,
+    /// up to 60 s later.
+    func testAReconnectTheDeviceDidntSeeStillGetsItsHello() throws {
+        let transport = FakeTransport()
+        transport.seesDrops = false
+        var options = try options(transport)
+        let clock = VirtualClock(harnessT0)
+        options.clock = { clock.now }
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        func connection(_ up: Bool) {
+            transport.onConnection?(up)
+            runtime.home.sync {}
+            runtime.home.sync {}
+        }
+        connection(true)
+        XCTAssertNotNil(runtime.home.sync { runtime.link.hello })
+        connection(false)
+        XCTAssertNil(runtime.home.sync { runtime.link.hello })
+        clock.now += 1000
+        connection(true)
+        XCTAssertEqual(runtime.home.sync { runtime.link.hello?.id }, "b00p-54fe", "asked, and answered")
+        let before = transport.dos.count
+        runtime.home.sync { _ = runtime.harness.force(["react.mood": "happy"], by: Runtime.forcedBy) }
+        XCTAssertEqual(transport.dos.count, before + 1, "the reaction goes out")
+        XCTAssertEqual(transport.sent.filter { $0 == Wire.hello }.count, 2, "one ask a connect")
+    }
+
     /// harness/HARNESS.md §3–5: an event that wakes the brain gets a pass;
     /// the answers become a reaction on the device, and the mood action's
     /// change reaches the transcript, the device's state, and the next
@@ -159,10 +244,10 @@ final class RuntimeTests: XCTestCase {
         runtime.onChange = { statuses.append($0) }
         try runtime.start()
         defer { runtime.stop() }
-        transport.onConnection?(true)
+        connect(transport, runtime)
         eventually("the brain") { runtime.home.sync { statuses.last?.brain == "scripted" } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
-        eventually("a mumble") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) } }
+        eventually("a mumble") { transport.dos("react").contains { $0.contains(#""args":{"say":"#) } }
         eventually("annoyed") { runtime.home.sync { runtime.moodNow == "annoyed" } }
         eventually("the device hears it") { transport.sent.contains { $0.hasPrefix(#"{"t":"state""#) && $0.contains(#""mood":"annoyed""#) } }
         XCTAssertTrue(runtime.home.sync { runtime.harness.log.events.contains { $0.action == MoodAction.actionName && $0["to"] == "annoyed" } },
@@ -199,10 +284,10 @@ final class RuntimeTests: XCTestCase {
         runtime.onChange = { statuses.append($0) }
         try runtime.start()
         defer { runtime.stop() }
-        transport.onConnection?(true)
+        connect(transport, runtime)
         eventually("the brain") { runtime.home.sync { statuses.last?.brain == "scripted" } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
-        eventually("a mumble") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) } }
+        eventually("a mumble") { transport.dos("react").contains { $0.contains(#""args":{"say":"#) } }
         XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent(DebugLog.fileName).path),
                        "no debug.jsonl outside debug mode")
         let saved = Lines()
@@ -399,7 +484,7 @@ final class RuntimeTests: XCTestCase {
         }
         eventually("the first state") { runtime.home.sync { states().sent == 1 } }
         for _ in 0..<2 {
-            clock.now += DeviceLink.keepaliveMs
+            clock.now += Link.keepaliveMs
             runtime.home.sync { runtime.tick() }
         }
         XCTAssertEqual(runtime.home.sync { states().sent }, 3)
@@ -471,7 +556,7 @@ final class RuntimeTests: XCTestCase {
         let runtime = try makeRuntime(transport)
         try runtime.start()
         defer { runtime.stop() }
-        transport.onConnection?(true)
+        connect(transport, runtime)
         var ask = HookLine(agent: "claude", hook: "PermissionRequest", session: "s1", cwd: "/tmp/jetpack", tool: "Bash",
                            app: HostApp.claude, appSession: "local_7db5", ts: 1)
         XCTAssertTrue(HookSocket.send(ask.encoded(), to: socketPath))
@@ -481,7 +566,7 @@ final class RuntimeTests: XCTestCase {
         ask.appSession = nil
         XCTAssertTrue(HookSocket.send(ask.encoded(), to: socketPath))
         eventually("needs you") { runtime.home.sync { runtime.core.needsYouShowing } }
-        transport.onLine?(#"{"t":"input","k":"tap"}"#)
+        transport.onLine?(#"{"t":"ev","kind":"tap","did":"poked"}"#)
         eventually("the oldest opened") { opened.all == ["claude://code/continue?session=local_7db5"] }
         dev(#"{"dev":"tap"}"#)
         eventually("the dev line taps too") { opened.all.count == 2 }
@@ -495,17 +580,18 @@ final class RuntimeTests: XCTestCase {
     /// dashboard's lines, with no `seq`: every action's questions first at
     /// launch, and again only when they change (not here: the scripted
     /// brain keeps the mood, whose options would change with it), every
-    /// line sent to the device verbatim (with no transport too) with who
-    /// sent it (`brain` for the brain's moments, `rule` for the rest), and a
-    /// status line whenever the mood, personality, brain, sessions or
-    /// connection change.
+    /// line sent to the device verbatim with who sent it (`brain` for the
+    /// brain's reactions, `rule` for the rest), and a status line whenever
+    /// the mood, personality, brain, sessions or connection change.
     func testDebugModeWritesTheDashboardsLines() throws {
-        var options = try options(nil)
+        let transport = FakeTransport()
+        var options = try options(transport)
         options.debug = true
         let runtime = try Runtime(options)
         let sentLines = collectSent(runtime)
         try runtime.start()
         defer { runtime.stop() }
+        connect(transport, runtime)
         eventually("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
         eventually("a mumble") { runtime.home.sync { sentLines.all.contains { $0.contains(#""say":"#) } } }
@@ -536,10 +622,10 @@ final class RuntimeTests: XCTestCase {
         }
         let sent = sentBy.map(\.line)
         XCTAssertEqual(sent, runtime.home.sync { sentLines.all })
-        XCTAssertTrue(sent.contains { $0.hasPrefix(#"{"t":"state""#) } && sent.contains { $0.hasPrefix(#"{"t":"moment""#) })
+        XCTAssertTrue(sent.contains { $0.hasPrefix(#"{"t":"state""#) } && sent.contains { $0.hasPrefix(#"{"t":"do""#) })
         // The scripted brain's reactions carry a mood; the rules' lines don't.
         for (line, by) in sentBy {
-            XCTAssertEqual(by, line.hasPrefix(#"{"t":"moment""#) && line.contains(#""mood":"#) ? "brain" : "rule", line)
+            XCTAssertEqual(by, line.hasPrefix(#"{"t":"do""#) && line.contains(#""mood":"#) ? "brain" : "rule", line)
         }
         XCTAssertTrue(sentBy.contains { $0.by == "brain" }, "the brain's reaction")
 
@@ -548,7 +634,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertFalse(statuses.isEmpty)
         XCTAssertEqual(Set(statuses[0].keys), ["personality", "brain", "sessions", "connected"], "a state carries the mood")
         XCTAssertEqual(statuses.last?["brain"] as? String, "scripted")
-        XCTAssertEqual(statuses.last?["connected"] as? Bool, false)
+        XCTAssertEqual(statuses.last?["connected"] as? Bool, true)
         let sessions = try XCTUnwrap(statuses.last?["sessions"] as? [[String: String]])
         XCTAssertEqual(sessions, [["agent": "claude", "project": "jetpack", "status": "working"]])
         for (a, b) in zip(statuses, statuses.dropFirst()) { XCTAssertFalse(NSDictionary(dictionary: a).isEqual(to: b), "only changes") }
@@ -596,12 +682,12 @@ final class RuntimeTests: XCTestCase {
         let runtime = try Runtime(options)
         try runtime.start()
         defer { runtime.stop() }
-        transport.onConnection?(true)
+        connect(transport, runtime)
         eventually("no brain") { runtime.home.sync { runtime.jevKey != nil } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
 
         dev(#"{"dev":"answer","answers":{"react.mood":"grumpy","say.about":"work"}}"#)
-        eventually("a take with no brain") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":{"take":"#) && $0.contains(#""mood":"grumpy""#) } }
+        eventually("a take with no brain") { transport.dos("react").contains { $0.contains(#""args":{"say":{"take":"#) && $0.contains(#""mood":"grumpy""#) } }
         dev(#"{"dev":"mood","mood":"grumpy"}"#)
         eventually("grumpy") { runtime.home.sync { runtime.moodNow == "grumpy" } }
         dev(#"{"dev":"mood","mood":"happy"}"#)
@@ -639,9 +725,10 @@ final class RuntimeTests: XCTestCase {
 
     /// BEHAVIORS.md §3.3: BOOT held and let go turns the mic on and off; with
     /// no mic (headless) it hears nothing, so `listening` ends at once with
-    /// the empty moment. What the mic heard is recorded and wakes the brain:
-    /// a reaction is the reply, and a pass that reacts with none ends
-    /// `listening` too. The app's button tells the device to show it.
+    /// `stop_listening`, if the turn is free. What the mic heard is recorded
+    /// and wakes the brain: a reaction is the reply, and a pass that reacts
+    /// with none ends `listening` too. The app's button tells the device to
+    /// show it at once.
     func testWhatYouSayGetsAReplyOrEndsListening() throws {
         for (brain, replies) in [(ScriptedBrain.pipelineCheck, true), (ScriptedBrain(always: [:]), false)] {
             try? FileManager.default.removeItem(at: dir)
@@ -650,31 +737,33 @@ final class RuntimeTests: XCTestCase {
             options.debug = true
             let runtime = try Runtime(options)
             try runtime.start()
-            transport.onConnection?(true)
+            connect(transport, runtime)
             eventually("the brain") { runtime.home.sync { runtime.pipeline.brain } }
-            let empty = #"{"t":"moment"}"#
-            transport.onLine?(#"{"t":"input","k":"talk_on"}"#)
+            let stop = #","name":"stop_listening","play":"if_free"}"#
+            transport.onLine?(#"{"t":"ev","kind":"talk_on","did":"listening"}"#)
             eventually("listening") { runtime.home.sync { runtime.core.listening?.by == .device } }
-            transport.onLine?(#"{"t":"input","k":"talk_off"}"#)
-            eventually("heard nothing") { transport.sent.contains(empty) }
+            transport.onLine?(#"{"t":"ev","kind":"talk_off"}"#)
+            eventually("heard nothing") { transport.dos.contains { $0.hasSuffix(stop) } }
             XCTAssertEqual(runtime.home.sync { self.recorded().filter { $0.type == .talk }.count }, 0)
 
             let before = transport.sent.count
             dev(#"{"dev":"said","words":"are the tests passing?","by":"device"}"#)
             eventually("the pass") { self.debugLines().contains { ($0["pass"] as? [String: Any]) != nil } }
             runtime.home.sync {}
-            let after = Array(transport.sent.dropFirst(before)).filter { $0.hasPrefix(#"{"t":"moment""#) }
+            let after = Array(transport.sent.dropFirst(before)).filter { $0.hasPrefix(#"{"t":"do""#) }
             if replies {
                 XCTAssertEqual(after.count, 1, "\(after)")
-                XCTAssertTrue(after.first?.contains(#""say":"#) == true, "the reaction is the reply")
+                XCTAssertTrue(after.first?.contains(#""name":"react","play":"next","ttl":5000,"args":{"say":"#) == true,
+                              "the reaction is the reply")
             } else {
-                XCTAssertEqual(after, [empty], "no reply: listening ends")
+                XCTAssertEqual(after.count, 1, "\(after)")
+                XCTAssertTrue(after.first?.hasSuffix(stop) == true, "no reply: listening ends")
             }
             let talk = try XCTUnwrap(runtime.home.sync { self.recorded().last { $0.type == .talk } })
             XCTAssertEqual(talk["words"], "are the tests passing?")
 
             dev(#"{"dev":"listen","on":true}"#)
-            eventually("the app's button") { transport.sent.contains(#"{"t":"moment","anim":"listening"}"#) }
+            eventually("the app's button") { transport.dos.contains { $0.hasSuffix(#","name":"listening","play":"now"}"#) } }
             XCTAssertTrue(runtime.home.sync { runtime.core.listening?.by == .app })
             runtime.stop()
         }
@@ -831,11 +920,11 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(AppSettings.load(from: dir).personality, .chatter)
     }
 
-    /// A long turn, finished after moving the clock with `{"dev":"advance"}`:
-    /// no rule plays its finish; the brain's reaction does, as one moment
-    /// with the finish, its outcome, its face and what it says (BEHAVIORS.md
-    /// §3.1, §5). A tap on it opens that thread, and isn't a poke that
-    /// wakes the brain (§3.3).
+    /// A long turn, finished after `{"dev":"advance"}`: no rule plays its
+    /// finish; the brain's reaction does, as one `do` with the finish, its
+    /// outcome, its face and what it says (BEHAVIORS.md §3.1, §5). A tap on
+    /// it (`data.on`) opens that thread and isn't a poke that wakes the
+    /// brain (§3.3); a tap naming a finish the app didn't send is a poke.
     func testTheBrainJudgesAFinish() throws {
         let transport = FakeTransport()
         var options = try options(transport)
@@ -845,112 +934,56 @@ final class RuntimeTests: XCTestCase {
         let runtime = try Runtime(options)
         try runtime.start()
         defer { runtime.stop() }
-        transport.onConnection?(true)
+        connect(transport, runtime)
 
         eventually("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
         let prompt = HookLine(agent: "claude", hook: "UserPromptSubmit", session: "s1", cwd: "/tmp/jetpack",
                               app: HostApp.claude, appSession: "local_7db5", ts: Int64(Date().timeIntervalSince1970 * 1000))
         XCTAssertTrue(HookSocket.send(prompt.encoded(), to: socketPath))
         eventually("working") { transport.sent.contains { $0.contains("\"base\":\"working\"") } }
-        eventually("the start's reaction") { transport.sent.contains { $0.contains("\"say\"") } }
-        let moments = { transport.sent.filter { $0.contains("\"t\":\"moment\"") } }
-        XCTAssertFalse(moments().contains { $0.contains(#""anim":"task_complete""#) || $0.contains(#""anim":"reply_ready""#) },
-                       "a start gets no finish")
-        XCTAssertEqual(moments().filter { $0.contains("\"anim\"") }.count, 1, "only the rule's one-shot")
-        XCTAssertTrue(moments()[0].hasPrefix(#"{"t":"moment","anim":"starting","variant":"#), moments()[0])
-        transport.endMoments()  // the device says it has played
+        eventually("the start's reaction") { transport.dos("react").contains { $0.contains("\"say\"") } }
+        XCTAssertTrue(transport.dos("task_complete").isEmpty && transport.dos("reply_ready").isEmpty, "a start gets no finish")
+        let starting = transport.dos("starting")
+        XCTAssertEqual(starting.count, 1, "only the rule's one-shot")
+        XCTAssertTrue(starting[0].contains(#","name":"starting","play":"if_free","args":{"variant":"#), starting[0])
+        transport.endDos()  // the device says each has played
         eventually("the start's reaction has played") {
-            runtime.home.sync {
-                let schedule = runtime.schedule
-                return schedule.holder == nil && schedule.waiting.isEmpty
-            }
+            runtime.home.sync { self.recorded().contains { $0.actionPhase == .end && $0.actionName == "react" } }
         }
         XCTAssertTrue(HookSocket.send(Data(#"{"dev":"advance","ms":30000}"#.utf8), to: socketPath))
         eventually("clock moved") { skew.now == 30_000 }
-        let before = moments().count
+        let before = transport.dos.count
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
-        eventually("the brain's finish", timeout: 4) { moments().count >= before + 1 }
-        let finish = moments()[before]
-        XCTAssertTrue(finish.hasPrefix(#"{"t":"moment","anim":"task_complete","say":"#), "one moment: \(finish)")
-        XCTAssertTrue(finish.contains(#""mood":"excited","loops":1,"variant":"#) && finish.contains(#""id":"#), "in its face, held once, a variation, waited on: \(finish)")
-        XCTAssertTrue(finish.contains(#""who":{"agent":"claude","thread":"jetpack"},"outcome":"success","id":"#),
-                      "names whose turn, and its outcome: \(finish)")
-        XCTAssertEqual(moments().count, before + 1, "no rule finish besides")
+        eventually("the brain's finish", timeout: 4) { transport.dos.count >= before + 1 }
+        let finish = transport.dos[before]
+        XCTAssertTrue(finish.contains(#","name":"task_complete","play":"next","ttl":5000,"args":{"outcome":"success","variant":"#),
+                      "one do, a variation for its outcome: \(finish)")
+        XCTAssertTrue(finish.contains(#""who":{"agent":"claude","thread":"jetpack"},"say":"#), "names whose turn: \(finish)")
+        XCTAssertTrue(finish.hasSuffix(#","mood":"excited","loops":1}}"#), "in its face, held once: \(finish)")
+        XCTAssertEqual(transport.dos.count, before + 1, "no rule finish besides")
 
-        let id = try XCTUnwrap(finish.range(of: #"(?<="id":)\d+"#, options: .regularExpression).map { finish[$0] })
-        transport.onLine?(#"{"t":"input","k":"tap","id":\#(id)}"#)
+        let id = FakeTransport.id(finish)
+        transport.onLine?(#"{"t":"ev","kind":"tap","did":"dip","data":{"on":\#(id)}}"#)
         eventually("the finished thread opened") { opened.all == ["claude://code/continue?session=local_7db5"] }
         let action = try XCTUnwrap(recorded().last { $0.actionName == Core.openThread })
         XCTAssertEqual(action["message"]?.string, Core.openedFinished)
         let poke = try XCTUnwrap(runtime.home.sync { runtime.pipeline.views.last })
         XCTAssertEqual(poke.type, .poke)
         XCTAssertFalse(poke.wakesBrain, "it doesn't wake the brain")
-        transport.onLine?(#"{"t":"input","k":"tap","id":1}"#)  // a moment the app isn't waiting on: a poke
+        transport.onLine?(#"{"t":"ev","kind":"tap","did":"dip","data":{"on":1}}"#)  // a finish the app didn't send: a poke
         eventually("a poke") { recorded().contains { $0.actionName == Core.wiggle } }
         XCTAssertEqual(opened.all.count, 1)
     }
 
-    /// ARCHITECTURE.md §3.2: the brain's moments play one at a time, each
-    /// after any line playing, so none cuts off a line or another of the
-    /// brain's mumbles. One sent to the device holds the line until the
-    /// device says it ended, and for the brain's next until its mumble has
-    /// played, or its `ended` if sooner.
-    func testBrainMomentsTakeTurns() {
-        let line = DeviceMoment.Say.test(ms: 720)
-        let mumble = DeviceMoment(say: line, mood: "proud")  // its line is 1920 ms
-        var schedule = MomentSchedule(lastId: 0)
-        schedule.brain(mumble, Pending(), now: 100)
-        schedule.brain(mumble, Pending(), now: 200)
-        var due = schedule.due(now: 500, connected: true)
-        XCTAssertEqual(due.play.queued, mumble)
-        XCTAssertEqual(schedule.next, 500 + 1920 + MomentSchedule.linkSlackMs, "the second waits for the first's mumble")
-        XCTAssertNil(schedule.due(now: 2000, connected: true).play, "the line is busy")
-        schedule.ended(.done(2), now: 2200)
-        XCTAssertNil(schedule.due(now: 2200, connected: true).play, "another moment's end")
-        schedule.ended(.done(1), now: 2300)
-        due = schedule.due(now: 2300, connected: true)
-        XCTAssertEqual(due.play.queued, mumble, "then the second, once the device says the first is over")
-        XCTAssertNil(schedule.next, "nothing left")
-    }
-
-    /// harness/DECISIONS.md §5: a brain moment's handle goes through the
-    /// schedule with it. One dropped for waiting over 5 s ends there as
-    /// failed, `waited too long`; one whose turn comes is handed on with
-    /// its handle, for whoever plays it to end.
-    func testADroppedMomentDidntHappen() throws {
-        let line = DeviceMoment.Say.test(ms: 720)
-        let mumble = DeviceMoment(say: line, mood: "proud")
-        let cheer = DeviceMoment(anim: "task_complete", say: line, mood: "proud", outcome: "success")
-        var ends: [String: Pending.End] = [:]
-        func handle(_ name: String) -> Pending {
-            let pending = Pending()
-            pending.bind { ends[name] = $0 }
-            return pending
-        }
-        let late = handle("late"), onTime = handle("on time")
-        var schedule = MomentSchedule(lastId: 0)
-        schedule.brain(cheer, Pending(), now: 0)
-        XCTAssertEqual(schedule.due(now: 0, connected: true).play.queued, cheer)
-        let cheerEnds = try XCTUnwrap(schedule.holder?.until)  // a cheer holds the line until its end
-        schedule.brain(mumble, late, now: 0)
-        schedule.brain(mumble, onTime, now: cheerEnds - 4800)
-        let due = schedule.due(now: cheerEnds, connected: true)
-        XCTAssertEqual(MomentSchedule.maxWaitMs, 5000)
-        XCTAssertGreaterThan(cheerEnds, 5000)
-        XCTAssertEqual(due.dropped, [mumble], "past 5 s")
-        XCTAssertEqual(ends, ["late": .failed("waited too long")])
-        XCTAssertEqual(due.play.queued, mumble, "4.8 s isn't")
-        XCTAssertTrue(schedule.playing.last?.pending === onTime, "handed on, still open")
-    }
-
-    /// harness/DECISIONS.md §5, PROTOCOL.md §4: a reaction is in progress
-    /// until the device says how its moment ended: its moment goes out with
-    /// the next id, and the device's `ended` for that id ends it, done,
-    /// cut short (and by what) or skipped. With no device it didn't happen;
-    /// nor did one the device never reported by its length plus
-    /// `endGraceMs`, or one playing when the device dropped. An `ended` for
-    /// an id the app isn't waiting on changes nothing. The device connects,
-    /// answers and drops through the transport, as it does in the app.
+    /// harness/DECISIONS.md §5, linkkit/SPEC.md §4–5: a reaction is in
+    /// progress until the device says how its `do` ended: it goes out at
+    /// once with the link's next id, and the device's `ended` for that id
+    /// ends it, done, cut short (and by what) or skipped. With no device it
+    /// didn't happen, and nothing goes out; nor did one the device never
+    /// reported by its ttl plus 60 s, or one waiting when the device
+    /// dropped. An `ended` for an id the app isn't waiting on changes
+    /// nothing. The device connects, answers and drops through the
+    /// transport, as it does in the app.
     func testAReactionEndsWhenTheDeviceSaysSo() throws {
         let transport = FakeTransport()
         var options = try options(transport)
@@ -959,9 +992,11 @@ final class RuntimeTests: XCTestCase {
         let runtime = try Runtime(options)
         try runtime.start()
         defer { runtime.stop() }
-        /// The transport says the device connected or dropped; `home` hears it.
+        /// The transport says the device connected or dropped; `home` hears
+        /// it, and the hello the device says when the app speaks.
         func connection(_ up: Bool) {
             transport.onConnection?(up)
+            runtime.home.sync {}
             runtime.home.sync {}
         }
         /// The device sends a line; `home` hears it.
@@ -969,14 +1004,14 @@ final class RuntimeTests: XCTestCase {
             transport.onLine?(line)
             runtime.home.sync {}
         }
-        /// A forced reaction once the last one's line has played: its
-        /// `action` entry's seq, and the moment sent for it.
-        func react() throws -> (seq: Int, moment: String) {
-            clock.now = max(clock.now, runtime.home.sync { runtime.schedule.lineUntil })
-            return try runtime.home.sync {
+        /// A forced reaction: its `action` entry's seq, and the `do` sent
+        /// for it, if one was.
+        func react() throws -> (seq: Int, id: Int?) {
+            try runtime.home.sync {
+                let before = transport.dos.count
                 XCTAssertEqual(runtime.harness.force(["react.mood": "happy"], by: Runtime.forcedBy).map(\.name), ["react"])
                 let seq = try XCTUnwrap(self.recorded().last { $0.isAction && $0.actionName == "react" && $0.actionPhase != .end }?.seq)
-                return (seq, try XCTUnwrap(transport.sent.last { $0.hasPrefix(#"{"t":"moment""#) }))
+                return (seq, transport.dos.count > before ? transport.dos.last.map(FakeTransport.id) : nil)
             }
         }
         func end(of seq: Int) -> Pending.End? {
@@ -987,29 +1022,27 @@ final class RuntimeTests: XCTestCase {
 
         let alone = try react()
         XCTAssertEqual(end(of: alone.seq), .failed("no device connected"))
-        XCTAssertFalse(alone.moment.contains(#""id""#), "sent all the same, and dropped, with nothing to wait on")
-        XCTAssertEqual(runtime.home.sync { runtime.schedule.look }, "asleep",
-                       "the look of the last state, which times the face: no sessions")
+        XCTAssertNil(alone.id, "nothing goes out, and nothing waits")
 
         clock.now += 10_000
         connection(true)
-        let id = runtime.home.sync { runtime.schedule.lastId }  // this launch's ids count up from here
         let played = try react()
-        XCTAssertTrue(played.moment.hasSuffix(#","mood":"happy","loops":1,"id":\#(id + 1)}"#), played.moment)
-        clock.now = runtime.home.sync { runtime.schedule.lineUntil }
+        let id = try XCTUnwrap(played.id)
+        XCTAssertTrue(transport.dos.last!.hasSuffix(#","name":"react","play":"next","ttl":5000,"args":{"say":{},"mood":"happy","loops":1}}"#),
+                      transport.dos.last!)
         runtime.home.sync { runtime.tick() }
-        XCTAssertNil(end(of: played.seq), "played by the app's reckoning, but the device hasn't said so")
-        device(#"{"t":"ended","id":\#(id + 1),"how":"done"}"#)
+        XCTAssertNil(end(of: played.seq), "the device hasn't said")
+        device(FakeTransport.ended(id, "done"))
         XCTAssertEqual(end(of: played.seq), .done)
-        XCTAssertTrue(runtime.home.sync { runtime.schedule.playing.isEmpty })
 
         let tapped = try react()
-        XCTAssertTrue(tapped.moment.hasSuffix(#","id":\#(id + 2)}"#))
-        device(#"{"t":"ended","id":\#(id + 99),"how":"done"}"#)
+        let tappedId = try XCTUnwrap(tapped.id)
+        XCTAssertEqual(tappedId, id == Wire.maxId ? 1 : id + 1, "this launch's ids count up")
+        device(FakeTransport.ended(tappedId == 1 ? 2 : tappedId - 1, "done"))
         XCTAssertNil(end(of: tapped.seq), "another id: ignored")
-        device(#"{"t":"ended","id":\#(id + 2),"how":"cut","why":"tap"}"#)
+        device(FakeTransport.ended(tappedId, "cut", "tap"))
         XCTAssertNil(end(of: tapped.seq), "your tap cut it: in progress while the pokes go on (harness/DECISIONS.md §5)")
-        device(#"{"t":"ended","id":\#(id + 2),"how":"done"}"#)
+        device(FakeTransport.ended(tappedId, "done"))
         XCTAssertNil(end(of: tapped.seq), "only the first end counts")
         runtime.home.sync {  // anything but another poke, and nothing that wakes the brain
             runtime.run(runtime.pipeline.presence(Event(ts: clock.now, source: .mac, type: .presence, phase: .start,
@@ -1018,74 +1051,118 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(end(of: tapped.seq), .done, "you saw it begin: done once something else happens")
 
         let skipped = try react()
-        device(#"{"t":"ended","id":\#(id + 3),"how":"skipped"}"#)
+        device(FakeTransport.ended(try XCTUnwrap(skipped.id), "skipped"))
         XCTAssertEqual(end(of: skipped.seq), .failed("something needed you"))
 
         let silent = try react()
-        let deadline = try XCTUnwrap(runtime.home.sync { runtime.schedule.playing.first?.deadline })
-        XCTAssertEqual(deadline, runtime.home.sync { runtime.schedule.lineUntil } + MomentSchedule.endGraceMs,
-                       "sent, plus its length, plus the grace")
-        clock.now = deadline - 1
+        let giveUp = clock.now + Int64(BoopDevice.reactionTTL) + Link.answerGraceMs
+        clock.now = giveUp - 1
         runtime.home.sync { runtime.tick() }
         XCTAssertNil(end(of: silent.seq), "still waiting")
-        clock.now = deadline
+        clock.now = giveUp
         runtime.home.sync { runtime.tick() }
         XCTAssertEqual(end(of: silent.seq), .failed("the device never said it ended"))
-        device(#"{"t":"ended","id":\#(id + 4),"how":"done"}"#)
+        device(FakeTransport.ended(try XCTUnwrap(silent.id), "done"))
         XCTAssertEqual(end(of: silent.seq), .failed("the device never said it ended"), "too late: ignored")
 
         let dropped = try react()
-        XCTAssertNil(end(of: dropped.seq), "playing")
+        XCTAssertNil(end(of: dropped.seq), "waiting")
         connection(false)
         XCTAssertEqual(end(of: dropped.seq), .failed("the device disconnected"))
-        XCTAssertTrue(runtime.home.sync { runtime.schedule.playing.isEmpty })
     }
 
-    /// PROTOCOL.md §4, harness/DECISIONS.md §5: how each `ended` reads in
-    /// HISTORY; and PROTOCOL.md §6: the grace the app gives a moment past
-    /// its length.
+    /// PROTOCOL.md §4, harness/DECISIONS.md §5: how each `ended`, and each
+    /// way the link fails a `do`, reads in HISTORY; a cut by your tap is
+    /// held until the pokes stop.
     func testWhatTheDevicesEndedMeans() {
-        XCTAssertEqual(MomentSchedule.endGraceMs, 3000)
-        let end = { (how: MomentEnded.How, why: String?) in MomentSchedule.end(MomentEnded(id: 1, how: how, why: why)) }
+        let end = { (how: Ended.How, why: String?) in Reactions.end(.ended(Ended(id: 1, how: how, why: why))) }
         XCTAssertEqual(end(.done, nil), .done)
-        XCTAssertEqual(end(.cut, "moment"), .failed("cut short: something newer played"))
+        XCTAssertNil(end(.cut, "tap"), "held")
+        XCTAssertEqual(end(.cut, "now"), .failed("cut short: something newer played"))
         XCTAssertEqual(end(.cut, "needs_you"), .failed("cut short: something needed you"))
         XCTAssertEqual(end(.cut, "reset"), .failed("cut short"))
         XCTAssertEqual(end(.cut, nil), .failed("cut short"))
+        XCTAssertEqual(end(.skipped, "late"), .failed("waited too long"))
+        XCTAssertEqual(end(.skipped, "mic_on"), .failed("the mic went on"))
+        for why in ["listening", "no_app", "not_listening", "nothing"] {
+            XCTAssertEqual(end(.skipped, why), .failed("something needed you"), why)
+        }
+        XCTAssertEqual(end(.skipped, "needs_you"), .failed("something needed you"))
         XCTAssertEqual(end(.skipped, nil), .failed("something needed you"))
+        XCTAssertEqual(end(.skipped, "busy"), .failed("skipped: busy"))
+        XCTAssertEqual(Reactions.end(.failed(.disconnected)), .failed("the device disconnected"))
+        XCTAssertEqual(Reactions.end(.failed(.notConnected)), .failed("no device connected"))
+        XCTAssertEqual(Reactions.end(.failed(.noAnswer)), .failed("the device never said it ended"))
+        XCTAssertEqual(Reactions.end(.failed(.noHello)), .failed("the device hasn't said hello"))
+        XCTAssertEqual(Reactions.end(.failed(.incompatible)), .failed("the device's firmware doesn't fit this app"))
+        XCTAssertEqual(Reactions.end(.failed(.unknownName)), .failed("the device doesn't play that"))
+        XCTAssertEqual(Reactions.end(.failed(.tooLong)), .failed("the line is too long"))
+        XCTAssertEqual(BoopDevice.reactionTTL, 5000, "ARCHITECTURE.md §3.2: a reaction waits 5 s for its turn")
     }
 
-    /// harness/DECISIONS.md §5, HARNESS.md §5.1: a reaction held longest,
-    /// in the design with the longest loop of any of the 13 moods and any
-    /// look, and with the slowest line, ends by the app's own reckoning
-    /// (its wait for a turn, a pump running late, its length and the grace
-    /// for the device's `ended`) before the harness's ceiling would end
-    /// it. The loops are the designs' (`FaceLoops`), so a new design with a
-    /// long loop fails here rather than in HISTORY: wounded's 13 s idle,
-    /// held four times, is 52 s, past the 60 s ceiling there was once the
-    /// wait and grace are added.
+    /// BEHAVIORS.md §3.3: where a tap on the brain's finish opens its
+    /// thread is kept until the device says the finish ended, or the link
+    /// would have given up on it (its ttl plus 60 s); a reaction your tap
+    /// cut is held until the pokes stop.
+    func testReactionsKeepWhereATapOpens() {
+        let reactions = Reactions()
+        let thread = ThreadRef(agent: "claude", session: "s1")
+        reactions.sent(7, opens: thread, ttl: 5000, now: 1000)
+        reactions.sent(8, opens: thread, ttl: 5000, now: 1000)
+        XCTAssertEqual(reactions.opens(finish: 7), thread)
+        XCTAssertNil(reactions.opens(finish: 9))
+        reactions.ended(7)
+        XCTAssertNil(reactions.opens(finish: 7), "over")
+        reactions.tick(now: 1000 + 5000 + Link.answerGraceMs - 1)
+        XCTAssertEqual(reactions.opens(finish: 8), thread)
+        reactions.tick(now: 1000 + 5000 + Link.answerGraceMs)
+        XCTAssertNil(reactions.opens(finish: 8), "given up on")
+
+        var ends: [Pending.End] = []
+        let cut = Pending()
+        cut.bind { ends.append($0) }
+        reactions.finish(cut, .ended(Ended(id: 8, how: .cut, why: "tap")))
+        XCTAssertTrue(ends.isEmpty)
+        XCTAssertEqual(reactions.cutByTap.count, 1)
+        reactions.pokesStopped()
+        XCTAssertEqual(ends, [.done])
+        XCTAssertTrue(reactions.cutByTap.isEmpty)
+    }
+
+    /// harness/DECISIONS.md §5, HARNESS.md §5.1, linkkit/SPEC.md §5: a
+    /// reaction held longest, in the design with the longest loop of any of
+    /// the 13 moods and any look, or with the longest line after the latest
+    /// voice window and its bubble, ends on the device before the link
+    /// gives up on its `ended` (60 s after its turn could come at the
+    /// latest), and the link gives up before the harness's ceiling would
+    /// end it. The loops are the designs' (`FaceLoops`), so a new design
+    /// with a long loop fails here rather than in HISTORY: wounded's 13 s
+    /// idle, held four times, is 52 s.
     func testAReactionEndsBeforeTheHarnessCeiling() {
         XCTAssertEqual(MoodAction.moods.count, 13)
-        let slow = DeviceMoment.Say(takes: [Take.all.max { $0.ms < $1.ms }!])
-        let held = ReactAction.holds.count
-        let longest = MoodAction.moods.map(\.name).flatMap { mood in
-            FaceLoops.states.map { look in
-                DeviceMoment(say: slow, mood: mood, loops: held).playMs(look: look, mood: mood)
-            }
-        }.max() ?? 0
-        let longestLoop = MoodAction.moods.map(\.name).flatMap { mood in
-            FaceLoops.states.flatMap { state in (1...FaceLoops.count(mood: mood, state: state)).map { FaceLoops.ms(mood: mood, state: state, variant: $0) } }
-        }.max() ?? 0
-        XCTAssertGreaterThanOrEqual(longest, Int64(held) * longestLoop)
-        XCTAssertLessThan(MomentSchedule.maxWaitMs + MomentSchedule.lateMs + longest + MomentSchedule.endGraceMs,
-                          ReactAction.openForMs)
+        let held = Int64(ReactAction.holds.count)
+        func longest(_ ms: (String, String, Int) -> Int64) -> Int64 {
+            MoodAction.moods.map(\.name).flatMap { mood in
+                FaceLoops.states.flatMap { state in (1...FaceLoops.count(mood: mood, state: state)).map { ms(mood, state, $0) } }
+            }.max() ?? 0
+        }
+        let longestLoop = longest { FaceLoops.ms(mood: $0, state: $1, variant: $2) }
+        let latestVoice = longest { FaceLoops.voiceMs(mood: $0, state: $1, variant: $2) }
+        // A line joins two takes only within `Voice.maxLineMs`; one take
+        // plays alone whatever its length.
+        let longestLine = max(Int64(Voice.maxLineMs), Int64(Take.all.map(\.ms).max()!))
+        let longestPlay = max(held * longestLoop, latestVoice + longestLine + DeviceMoment.bubbleReadMs)
+        XCTAssertGreaterThan(longestPlay, 30_000)
+        XCTAssertLessThan(longestPlay, Link.answerGraceMs)
+        XCTAssertLessThan(Int64(BoopDevice.reactionTTL) + Link.answerGraceMs, ReactAction.openForMs)
     }
 
-    /// PROTOCOL.md §3, VOICE.md §10: the Mac and the device time the
-    /// designs alike. Every design's loop and voice window in `FaceLoops`
-    /// is the one firmware/assets/faces.h (`kScenes`' `loopMs`, through
-    /// `kDesigns`) and sfx.h (`kScore`'s `voiceMs`) give the device, in the
-    /// same order: facegen and sfxgen write them from one manifest.
+    /// PROTOCOL.md §3, VOICE.md §10: the Mac bounds a reaction's length
+    /// by the designs as the device times them (the ceiling, above). Every
+    /// design's loop and voice window in `FaceLoops` is the one
+    /// firmware/assets/faces.h (`kScenes`' `loopMs`, through `kDesigns`)
+    /// and sfx.h (`kScore`'s `voiceMs`) give the device, in the same order:
+    /// facegen and sfxgen write them from one manifest.
     func testTheMacTimesTheDesignsAsTheDeviceDoes() throws {
         let assets = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .appendingPathComponent("../../../firmware/assets").standardizedFileURL
@@ -1122,313 +1199,40 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(windows.count, n)
     }
 
-    /// ARCHITECTURE.md §3.2, PROTOCOL.md §3: the app knows how long each
-    /// moment plays on the device at most, as firmware/src/app/behaviour.cpp's
-    /// `onMoment` and `play` time it: an animation its loops (1–6) of its
-    /// design, the longest of the variations the device may play for the
-    /// moment's facts; a face its loops of the look's design in its own mood
-    /// (the device ends it on a loop boundary, so no later); and a mumble
-    /// its beats and bubble when that's longer, from its design's voice
-    /// window when it comes with an animation (VOICE.md §10). The loops and
-    /// windows are `FaceLoops`, the numbers faces.h and sfx.h give the
-    /// device.
-    func testMomentLengthsFollowTheFirmware() {
-        let cheer = FaceLoops.ms(mood: "happy", state: "task_complete")
-        let idle = { (m: DeviceMoment) in m.playMs(look: "idle", mood: "happy") }
-        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", variant: 1, outcome: "success")), cheer, "once when it doesn't say")
-        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", loops: 3, variant: 1, outcome: "success")), 3 * cheer)
-        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", loops: 9, variant: 1, outcome: "success")), 6 * cheer, "at most 6")
-        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", loops: 0, variant: 1, outcome: "success")), cheer, "at least 1")
-        XCTAssertEqual(DeviceMoment(anim: "task_complete", variant: 1, outcome: "success").playMs(look: "idle", mood: "proud"),
-                       FaceLoops.ms(mood: "proud", state: "task_complete"), "in the mood's design")
-        // With no variation, or one that isn't for its facts, the device
-        // picks one of those that are: the longest of them.
-        let wins = FaceLoops.variants(mood: "happy", state: "task_complete", outcome: "success")
-        XCTAssertEqual(wins, [1, 2, 3, 4])
-        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", outcome: "success")), 7200)
-        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", variant: 5, outcome: "success")), 7200, "happy's fifth is a failure")
-        XCTAssertEqual(idle(DeviceMoment(anim: "task_complete", variant: 1, outcome: "failure")), 5200)
-        XCTAssertEqual(idle(DeviceMoment(anim: "starting", ctx: "session")),
-                       FaceLoops.ms(mood: "happy", state: "starting", variant: 2))
-        // A poke: its loops of poked's design.
-        XCTAssertEqual(idle(DeviceMoment(anim: "poked", loops: 3)), 3 * FaceLoops.ms(mood: "happy", state: "poked"))
-
-        // A take lasts its length, then 1.2 s of bubble, when that's longer
-        // than the face; a reaction that says nothing, only its face.
-        let working = { (m: DeviceMoment) in m.playMs(look: "working", mood: "happy") }
-        let line = DeviceMoment.Say.test(ms: 720)
-        XCTAssertEqual(working(DeviceMoment(say: line)), 1920)
-        XCTAssertEqual(DeviceMoment(say: line).lineStartMs(mood: "happy"), 0, "at once on its own")
-        XCTAssertEqual(working(DeviceMoment(say: .init(takes: []))), 0)
-        XCTAssertEqual(DeviceMoment(say: .init(takes: [])).sayMs, 0)
-        let quick = DeviceMoment.Say.test(ms: 360)
-        XCTAssertEqual(working(DeviceMoment(anim: "task_complete", say: quick, variant: 1, outcome: "success")), cheer, "the finish is longer")
-
-        // With an animation the line starts at the design's voice window,
-        // and the animation holds on until the line and its bubble end.
-        let grumpyFail = DeviceMoment(anim: "task_complete", say: line, mood: "grumpy", variant: 5, outcome: "failure")
-        XCTAssertEqual(FaceLoops.voiceMs(mood: "grumpy", state: "task_complete", variant: 5), 5040)
-        XCTAssertEqual(grumpyFail.lineStartMs(mood: "happy"), 5040, "in its own mood")
-        XCTAssertEqual(working(grumpyFail), 5040 + 1920, "longer than its 5.2 s loop")
-        XCTAssertEqual(working(DeviceMoment(anim: "reply_ready", say: line, variant: 1)),
-                       FaceLoops.ms(mood: "happy", state: "reply_ready"), "450 + 1920 fits its loop")
-        XCTAssertEqual(DeviceMoment(anim: "reply_ready", say: line).lineStartMs(mood: "happy"), 450)
-        let lateWin = FaceLoops.variants(mood: "happy", state: "task_complete", outcome: "success")
-            .map { FaceLoops.voiceMs(mood: "happy", state: "task_complete", variant: $0) }.max()!
-        XCTAssertEqual(DeviceMoment(anim: "task_complete", say: line, outcome: "success").lineStartMs(mood: "happy"), lateWin,
-                       "with no variation named, the latest window of those it may play")
-
-        // A face holds its loops of the design showing, in its own mood,
-        // timed by the look's longest variation, since they take turns on
-        // the device (BEHAVIORS.md §2).
-        let grumpy = (1...5).map { FaceLoops.ms(mood: "grumpy", state: "working", variant: $0) }.max()!
-        XCTAssertEqual(grumpy, 4400)
-        XCTAssertEqual(working(DeviceMoment(say: quick, mood: "grumpy")), grumpy)
-        XCTAssertEqual(working(DeviceMoment(say: quick, mood: "grumpy", loops: 2)), 2 * grumpy)
-        XCTAssertEqual(DeviceMoment(say: quick, mood: "grumpy").playMs(look: "task_complete", mood: "happy"),
-                       7200, "over the cheer, the cheer's design, its longest")
-        XCTAssertEqual(working(DeviceMoment(say: .test(ms: 3200), mood: "excited")), 4400, "a longer take holds it longer")
-    }
-
-    /// ARCHITECTURE.md §3.2: the schedule times a moment by the design
-    /// showing: the look and mood of the last `state`. A reaction's face
-    /// holds the brain's next one back.
-    func testTheScheduleTimesAMomentByTheDesignShowing() {
-        let line = DeviceMoment.Say.test(ms: 100)
-        let proud = DeviceMoment(say: line, mood: "proud", loops: 2)
-        // Two loops of a design's longest variation.
-        let loop = { (mood: String, state: String) in
-            2 * (1...FaceLoops.count(mood: mood, state: state)).map { FaceLoops.ms(mood: mood, state: state, variant: $0) }.max()!
-        }
-        XCTAssertNotEqual(loop("proud", "idle"), loop("proud", "working"))
-        var schedule = MomentSchedule()
-        schedule.look = "idle"
-        var working = MomentSchedule()
-        working.look = "working"
-        XCTAssertEqual(schedule.playMs(proud), loop("proud", "idle"))
-        XCTAssertEqual(working.playMs(proud), loop("proud", "working"))
-        schedule.brain(proud, Pending(), now: 100)
-        schedule.brain(proud, Pending(), now: 100)
-        let due = schedule.due(now: 100, connected: true)
-        XCTAssertEqual(due.play.queued, proud)
-        XCTAssertEqual(schedule.lineUntil, 100 + loop("proud", "idle"), "its line waits for its face")
-        XCTAssertEqual(schedule.next, 100 + proud.faceFirstMs + MomentSchedule.linkSlackMs, "the next, for its take")
-    }
-
-    /// ARCHITECTURE.md §3.2: a rule's one-shot plays at once, and a brain
-    /// moment plays over it without waiting. None goes while a brain
-    /// moment's line plays, which it would cut, nor while something needs
-    /// you; a face held on after its line may be replaced.
-    func testARuleOneShotPlaysAtOnceAndNeverCutsABrainLine() {
-        var schedule = MomentSchedule()
-        schedule.look = "working"
-        XCTAssertTrue(schedule.rulePlays(now: 100))
-        let line = DeviceMoment.Say.test(ms: 240)
-        let face = DeviceMoment(say: line, mood: "grumpy")
-        schedule.brain(face, Pending(), now: 200)
-        let due = schedule.due(now: 200, connected: true)
-        XCTAssertEqual(due.play.queued, face, "the brain's mumble plays over it")
-        XCTAssertFalse(schedule.rulePlays(now: 300), "its line plays")
-        let spoken = 200 + face.sayMs + MomentSchedule.linkSlackMs
-        XCTAssertFalse(schedule.rulePlays(now: spoken - 1))
-        XCTAssertTrue(schedule.rulePlays(now: spoken), "its face held on after the line may go")
-        schedule.show(look: "working", mood: "happy", attn: true, now: spoken)
-        XCTAssertFalse(schedule.rulePlays(now: spoken + 1), "something needs you")
-    }
-
     /// BEHAVIORS.md §3.1: the rules' one-shot goes to the device right
-    /// after the `state` of the same hook, with no `id`, and nothing waits
-    /// on it.
+    /// after the `state` of the same hook, to play only if the device's
+    /// turn is free (`if_free`), and no reaction waits on it: how it ended
+    /// is only logged.
     func testARuleOneShotFollowsItsState() throws {
         let transport = FakeTransport()
-        let runtime = try makeRuntime(transport, brain: ScriptedBrain(id: "jev-test", always: [:]))
+        let lines = Lines()
+        var options = try options(transport, brain: ScriptedBrain(id: "jev-test", always: [:]))
+        options.log = { lines.add($0) }
+        let runtime = try Runtime(options)
         try runtime.start()
         defer { runtime.stop() }
-        transport.onConnection?(true)
-        eventually("first state") { transport.types().contains("state") }
+        connect(transport, runtime)
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
-        eventually("the start") { transport.sent.contains { $0.contains(#""anim":"starting""#) } }
+        eventually("the start") { !transport.dos("starting").isEmpty }
         let sent = transport.sent
-        let start = try XCTUnwrap(sent.firstIndex { $0.contains(#""anim":"starting""#) })
+        let start = try XCTUnwrap(sent.firstIndex { $0.contains(#""name":"starting""#) })
         XCTAssertTrue(sent[start - 1].hasPrefix(#"{"t":"state""#) && sent[start - 1].contains(#""base":"working""#),
                       "\(sent)")
-        XCTAssertTrue(sent[start].hasPrefix(#"{"t":"moment","anim":"starting","variant":"#)
-                      && sent[start].hasSuffix(#","ctx":"new_task"}"#), sent[start])
-        XCTAssertTrue(runtime.home.sync { runtime.schedule.playing.isEmpty }, "no brain waits on it")
+        XCTAssertTrue(sent[start].contains(#","name":"starting","play":"if_free","args":{"variant":"#)
+                      && sent[start].hasSuffix(#","ctx":"new_task"}}"#), sent[start])
+        let id = FakeTransport.id(sent[start])
+        transport.endDos("skipped", why: "busy")
+        eventually("its end logged") { lines.all.contains("device: do \(id) ended skipped (busy)") }
+        XCTAssertFalse(runtime.home.sync { self.recorded().contains { $0.actionPhase == .end } }, "no reaction waited on it")
     }
 
-    /// PROTOCOL.md §3–4, ARCHITECTURE.md §3.2: a brain moment sent to the
-    /// device holds the line until the device's `ended` for it, or until
-    /// the app stops waiting for that (its length and `endGraceMs`); then
-    /// the next one's turn comes. "Needs you" starting stops everything.
-    func testTheDeviceSaysWhenTheLineIsFree() {
-        let line = DeviceMoment.Say.test(ms: 720)
-        let face = DeviceMoment(say: line, mood: "proud")
-        func sent(_ schedule: inout MomentSchedule, at now: Int64) -> Int64 {
-            XCTAssertEqual(schedule.due(now: now, connected: true).play.queued, face)
-            return now + schedule.playMs(face) + MomentSchedule.endGraceMs
-        }
-        var schedule = MomentSchedule(lastId: 6)
-        schedule.brain(face, Pending(), now: 0)
-        let until = sent(&schedule, at: 0)
-        XCTAssertEqual(schedule.holder?.until, until, "until its ended, at the latest when the app gives up on it")
-        schedule.brain(face, Pending(), now: 1000)
-        schedule.ended(.done(7), now: 1500)
-        XCTAssertNil(schedule.holder)
-        XCTAssertEqual(schedule.brainFree, 1500)
-        XCTAssertEqual(schedule.due(now: 1500, connected: true).play.queued, face, "its turn")
-
-        // No `ended`: the line is free once the app stops waiting for it.
-        var silent = MomentSchedule()
-        silent.brain(face, Pending(), now: 0)
-        let deadline = sent(&silent, at: 0)
-        XCTAssertEqual(silent.holder?.until, deadline)
-        XCTAssertNil(silent.due(now: deadline, connected: true).play)
-        XCTAssertNil(silent.holder)
-        XCTAssertEqual(silent.brainFree, deadline)
-
-        // Its `ended` frees it, and so does "needs you" starting.
-        for free in ["ended", "needs you"] {
-            var cut = MomentSchedule(lastId: 0)
-            cut.brain(face, Pending(), now: 0)
-            _ = sent(&cut, at: 0)
-            cut.brain(face, Pending(), now: 500)
-            XCTAssertNil(cut.due(now: 1000, connected: true).play)
-            switch free {
-            case "ended": cut.ended(.done(1), now: 1000)
-            default: cut.show(look: "idle", mood: "happy", attn: true, now: 1000)
-            }
-            XCTAssertEqual(cut.brainFree, 1000, free)
-            XCTAssertEqual(cut.due(now: 1000, connected: true).play.queued, face, free)
-        }
-
-        // Nothing plays with no device: `stop` frees everything.
-        var gone = MomentSchedule()
-        gone.brain(face, Pending(), now: 0)
-        _ = sent(&gone, at: 0)
-        gone.stop(now: 10)
-        XCTAssertNil(gone.holder)
-        XCTAssertEqual(gone.brainFree, 10)
-    }
-
-    /// harness/DECISIONS.md §5, ARCHITECTURE.md §3.2 (the owner's call,
-    /// 2026-09-28): a reaction's face held on for its loops holds up the
-    /// brain's next reaction only until its mumble has played (and
-    /// `linkSlackMs`). The next is sent then, not dropped at 5 s, and
-    /// replaces the face; the device says the first was done, and it
-    /// settles done. The line itself waits for the face's `ended`.
-    func testTheNextReactionReplacesAHeldFace() {
-        let line = DeviceMoment.Say.test(ms: 720)
-        let held = DeviceMoment(say: line, mood: "proud", loops: 4)  // its line is 1920 ms
-        let next = DeviceMoment(say: line, mood: "grumpy")
-        XCTAssertEqual(MomentSchedule.linkSlackMs, 500)
-        XCTAssertEqual(held.sayMs, 1920)
-        var moments = MomentSchedule()
-        var ends: [String: Pending.End] = [:]
-        let first = Pending(), second = Pending()
-        first.bind { ends["first"] = $0 }
-        second.bind { ends["second"] = $0 }
-        moments.brain(held, first, now: 0)
-        var play = moments.due(now: 0, connected: true)
-        XCTAssertEqual(play.play.queued, held, "the first plays at once")
-        guard let sent = play.play else { return }
-        let faceEnds = 4 * FaceLoops.ms(mood: "proud", state: "idle", variant: 2)
-        XCTAssertGreaterThanOrEqual(faceEnds, 16_000, "a face held four times over the idle look")
-        XCTAssertEqual(moments.holder?.until, faceEnds + MomentSchedule.endGraceMs)
-
-        moments.brain(next, second, now: 1000)
-        XCTAssertEqual(moments.next, 1920 + 500, "asked back once the first's mumble has played")
-        XCTAssertNil(moments.due(now: 2419, connected: true).play)
-        play = moments.due(now: 2420, connected: true)
-        XCTAssertEqual(play.play.queued, next, "sent then, over the held face")
-        XCTAssertEqual(play.dropped, [])
-        guard let replacing = play.play else { return }
-        XCTAssertGreaterThan(moments.holder?.until ?? 0, 2420 + 1920, "the line waits for the second's ended")
-
-        // The device ends the first at once, done: its line had played.
-        moments.ended(MomentEnded(id: sent.id!, how: .done, why: nil), now: 2450)
-        XCTAssertEqual(ends, ["first": .done])
-        XCTAssertEqual(moments.holder?.id, replacing.id, "the second holds the line")
-    }
-
-    /// ARCHITECTURE.md §3.2: a brain moment's wait is counted to when its
-    /// turn came, so a pump that runs a little late (up to `lateMs`) doesn't
-    /// drop it; one that runs later counts to now. One still waiting past
-    /// 5 s is dropped at once, not when the line frees, and the pump is
-    /// asked back for that.
-    func testAWaitIsCountedToItsTurn() {
-        let line = DeviceMoment.Say.test(ms: 720)
-        let face = DeviceMoment(say: line, mood: "proud")
-        let cheer = DeviceMoment(anim: "task_complete", say: line, mood: "proud", outcome: "success")
-        XCTAssertEqual(MomentSchedule.lateMs, 1000)
-        let freed = cheer.playMs(look: "idle", mood: MoodAction.initial) + MomentSchedule.endGraceMs
-        func schedule() -> MomentSchedule {
-            var s = MomentSchedule()
-            s.brain(cheer, Pending(), now: 0)
-            _ = s.due(now: 0, connected: true)  // it holds the line until `freed`
-            s.brain(face, Pending(), now: freed - 4840)
-            return s
-        }
-        var late = schedule()
-        XCTAssertEqual(late.next, freed)
-        XCTAssertEqual(late.due(now: freed + 320, connected: true).play.queued, face, "its turn came after 4.84 s: the pump ran 0.32 s late")
-        var later = schedule()
-        XCTAssertEqual(later.due(now: freed + MomentSchedule.lateMs + 1, connected: true).dropped, [face], "too late to count from its turn")
-
-        var ends: [Pending.End] = []
-        let pending = Pending()
-        pending.bind { ends.append($0) }
-        var stuck = MomentSchedule()
-        let long = DeviceMoment(anim: "task_complete", say: line, mood: "proud", loops: 4, outcome: "success")
-        stuck.brain(long, Pending(), now: 0)
-        XCTAssertNotNil(stuck.due(now: 0, connected: true).play)
-        XCTAssertGreaterThan(stuck.brainFree, 6001, "a long finish holds the line")
-        stuck.brain(face, pending, now: 1000)
-        XCTAssertEqual(stuck.next, 1000 + MomentSchedule.maxWaitMs + 1, "asked back when it's too old")
-        XCTAssertNil(stuck.due(now: 6000, connected: true).play)
-        XCTAssertEqual(ends, [], "5 s isn't over 5 s")
-        let due = stuck.due(now: 6001, connected: true)
-        XCTAssertEqual(due.dropped, [face], "dropped while the line is still busy")
-        XCTAssertEqual(ends, [.failed("waited too long")])
-        XCTAssertNil(stuck.next)
-    }
-
-    /// harness/DECISIONS.md §5: the schedule hands the pump a brain moment
-    /// ready to send. With no device connected its handle ends at once and
-    /// nothing holds the line; with one it goes with the next id, and it
-    /// and its handle wait for the device's `ended`.
-    func testTheScheduleSendsOrFailsTheMomentDue() {
-        let face = DeviceMoment(say: .test(ms: 240), mood: "grumpy")
-        var alone = MomentSchedule(lastId: 7)
-        let lost = Pending()
-        var ends: [Pending.End] = []
-        lost.bind { ends.append($0) }
-        alone.brain(face, lost, now: 0)
-        let unsent = alone.due(now: 0, connected: false)
-        XCTAssertEqual(unsent.play, face, "sent all the same, with no id")
-        XCTAssertEqual(ends, [.failed("no device connected")])
-        XCTAssertNil(alone.holder, "nothing holds the line")
-        XCTAssertEqual(alone.brainFree, 0)
-        XCTAssertEqual(alone.lastId, 7)
-
-        var linked = MomentSchedule(lastId: 7)
-        let open = Pending()
-        open.bind { ends.append($0) }
-        linked.brain(face, open, now: 0)
-        let sent = linked.due(now: 0, connected: true)
-        XCTAssertEqual(sent.play?.id, 8)
-        XCTAssertEqual(linked.playing.map(\.id), [8])
-        XCTAssertEqual(ends.count, 1, "its handle waits for the device")
-        XCTAssertNotNil(linked.holder)
-    }
-
-    /// ARCHITECTURE.md §3.2, PROTOCOL.md §4: whatever frees the line sends
-    /// the brain's next moment at once, rather than when the app's own
-    /// reckoning of the last one runs out: the device's `ended` for the one
-    /// playing, or "needs you" starting, which
-    /// stops everything there. With no device connected a reaction doesn't
-    /// happen and leaves the line free for the next.
-    func testWhatFreesTheLineSendsTheNextAtOnce() throws {
+    /// ARCHITECTURE.md §3.2, linkkit/SPEC.md §4: the device decides what
+    /// plays when, so the Mac sends each reaction at once, however many are
+    /// still playing or waiting there, each to wait its turn for up to 5 s
+    /// (`next`), and each ends as the device says. A link that drops fails
+    /// every one still waiting for its `ended`, and with no device a
+    /// reaction fails at once.
+    func testEveryReactionGoesOutAtOnce() throws {
         let transport = FakeTransport()
         var options = try options(transport)
         let clock = VirtualClock(harnessT0)
@@ -1436,9 +1240,7 @@ final class RuntimeTests: XCTestCase {
         let runtime = try Runtime(options)
         try runtime.start()
         defer { runtime.stop() }
-        transport.onConnection?(true)
-        runtime.home.sync {}
-        let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
+        connect(transport, runtime)
         func react(_ mood: String) {
             runtime.home.sync { _ = runtime.harness.force(["react.mood": mood, "react.loops": "twice"], by: Runtime.forcedBy) }
         }
@@ -1453,90 +1255,32 @@ final class RuntimeTests: XCTestCase {
         }
 
         react("proud")
-        XCTAssertEqual(moments(), 1, "plays at once")
-        clock.now += 1000
+        clock.now += 300
         react("happy")
-        XCTAssertEqual(moments(), 1, "waits for the first's face")
-        device(#"{"t":"ended","id":\#(transport.momentIds[0]),"how":"done"}"#)
-        XCTAssertEqual(moments(), 2, "the device says the first is over: the second goes at once")
-
-        clock.now += 300
         react("excited")
-        XCTAssertEqual(moments(), 2, "waits for the second")
-        device(#"{"t":"input","k":"tap"}"#)
-        XCTAssertEqual(moments(), 2, "the tap's poke may have come before the second arrived")
-        device(#"{"t":"ended","id":\#(transport.momentIds[1]),"how":"cut","why":"tap"}"#)
-        XCTAssertEqual(moments(), 3, "the device says the tap stopped the second")
+        let sent = transport.dos("react")
+        XCTAssertEqual(sent.count, 3, "none waits on the Mac")
+        XCTAssertTrue(sent.allSatisfy { $0.contains(#""play":"next","ttl":5000,"#) && $0.hasSuffix(#""loops":2}}"#) }, "\(sent)")
+        let ids = sent.map(FakeTransport.id)
+        device(FakeTransport.ended(ids[0], "done"))
+        device(FakeTransport.ended(ids[1], "cut", "tap"))
         XCTAssertEqual(ends(), [.done], "the tap's cut is in progress while the pokes go on")
-
-        clock.now += 300
         react("sad")
-        XCTAssertEqual(moments(), 3, "waits for the third")
-        let calm = runtime.home.sync { runtime.core.snapshot(at: clock.now) }
-        var needsYou = calm
-        needsYou.attn = .init(agent: "claude", project: "jetpack", more: 0)
-        runtime.home.sync { runtime.show(needsYou) }
-        XCTAssertEqual(moments(), 4, "\"needs you\" stops the third on the device: the fourth goes at once, for it to skip")
-        runtime.home.sync { runtime.show(calm) }
+        XCTAssertEqual(transport.dos("react").count, 4)
 
         transport.onConnection?(false)
         runtime.home.sync {}
-        XCTAssertEqual(ends().count, 3, "the two it was waiting on didn't happen; the tap's cut waits for the pokes to stop")
-        // The fourth may play on the device, and holds the line until the
-        // app gives up on it; after that nothing is playing.
-        clock.now = try XCTUnwrap(runtime.home.sync { runtime.schedule.holder?.until })
-        runtime.home.sync { runtime.tick() }
+        XCTAssertEqual(ends(), [.done, .failed("the device disconnected"), .failed("the device disconnected")],
+                       "the two it was waiting on didn't happen; the tap's cut waits for the pokes to stop")
         react("happy")
-        react("sad")
-        XCTAssertEqual(Array(ends().suffix(2)), [.failed("no device connected"), .failed("no device connected")],
-                       "nothing played the first, so the second didn't wait for it")
+        XCTAssertEqual(ends().last, .failed("no device connected"))
+        XCTAssertEqual(transport.dos("react").count, 4, "nothing went out")
     }
 
-    /// ARCHITECTURE.md §3.2: "needs you" stops any line on the device and
-    /// plays nothing while it shows (BEHAVIORS.md §1), so the schedule
-    /// stops timing it: a reaction after it doesn't wait for a line that
-    /// was cut, and is timed on the new look's design.
-    func testNeedsYouEndsWhatTheScheduleThoughtWasPlaying() {
-        let line = DeviceMoment.Say.test(ms: 100)
-        let face = DeviceMoment(say: line, mood: "proud", loops: 2)
-        var schedule = MomentSchedule()
-        schedule.brain(face, Pending(), now: 0)
-        XCTAssertEqual(schedule.due(now: 0, connected: true).play.queued, face)
-        schedule.show(look: "working", mood: schedule.mood, attn: true, now: 300)
-        XCTAssertEqual(schedule.lineUntil, 300)
-        XCTAssertEqual(schedule.brainFree, 300)
-        XCTAssertEqual(schedule.playMs(face), face.playMs(look: "working", mood: schedule.mood))
-    }
-
-    /// ARCHITECTURE.md §3.2: a brain moment that can no longer play in
-    /// time is dropped once it has waited 5 s, even while a face holds the
-    /// turn, and the schedule asks again when the first waiting one's 5 s
-    /// run out.
-    func testAWaitingMomentIsDroppedAtFiveSecondsWhateverPlays() {
-        let line = DeviceMoment.Say.test(ms: 100)
-        let long = DeviceMoment(anim: "task_complete", say: line, mood: "proud", loops: 4, outcome: "success")
-        let next = DeviceMoment(say: line, mood: "happy")
-        var ends: [Pending.End] = []
-        let pending = Pending()
-        pending.bind { ends.append($0) }
-        var schedule = MomentSchedule()
-        schedule.brain(long, Pending(), now: 0)
-        XCTAssertEqual(schedule.due(now: 0, connected: true).play.queued, long)
-        XCTAssertGreaterThan(schedule.brainFree, 5501, "four loops of a finish")
-        schedule.brain(next, pending, now: 500)
-        let early = schedule.due(now: 1000, connected: true)
-        XCTAssertNil(early.play)
-        XCTAssertEqual(schedule.next, 500 + MomentSchedule.maxWaitMs + 1, "when it has waited too long")
-        let due = schedule.due(now: 5501, connected: true)
-        XCTAssertEqual(due.dropped, [next])
-        XCTAssertEqual(ends, [.failed("waited too long")])
-        XCTAssertNil(schedule.next, "nothing waits")
-    }
-
-    /// ARCHITECTURE.md §3.2: each tick drops a reaction that has waited
-    /// 5 s, before the harness's ceiling could end it, whatever the pump's
-    /// timer does (a clock jump, or the Mac asleep).
-    func testTheScheduleFollowsTicks() throws {
+    /// linkkit/SPEC.md §5: each tick gives up on a reaction whose `ended`
+    /// hasn't come by its ttl plus 60 s, before the harness's ceiling could
+    /// end it, however far the clock jumped.
+    func testATickGivesUpOnAnEndedThatNeverCame() throws {
         let transport = FakeTransport()
         var options = try options(transport, brain: ScriptedBrain(always: [:]))
         let clock = VirtualClock(harnessT0)
@@ -1544,60 +1288,24 @@ final class RuntimeTests: XCTestCase {
         let runtime = try Runtime(options)
         try runtime.start()
         defer { runtime.stop() }
-        transport.onConnection?(true)
-        runtime.home.sync {}
-        let line = DeviceMoment.Say.test(ms: 100)
+        connect(transport, runtime)
         var ends: [Pending.End] = []
         let pending = Pending()
         pending.bind { ends.append($0) }
-        runtime.home.sync {
-            runtime.schedule.brain(DeviceMoment(say: line, mood: "sad"), pending, now: clock.now)
-        }
-        clock.now += 60_000  // the clock jumps; the pump's timer runs on uptime and hasn't fired
+        runtime.home.sync { runtime.queue(DeviceMoment(say: .test(ms: 100), mood: "sad"), pending) }
+        XCTAssertEqual(transport.dos("react").count, 1)
+        clock.now += 70_000  // the clock jumps
         runtime.home.sync { runtime.tick() }
-        XCTAssertEqual(ends, [.failed("waited too long")])
+        XCTAssertEqual(ends, [.failed("the device never said it ended")])
     }
 
-    /// ARCHITECTURE.md §3.2: the device ends a face on its design's loop
-    /// boundary, up to a loop sooner than the app reckons. Its `ended` for
-    /// the moment holding the turn frees the turn then, so the next
-    /// reaction plays at once; an `ended` for another id doesn't.
-    func testTheDevicesEndedFreesTheTurn() throws {
-        let transport = FakeTransport()
-        var options = try options(transport)
-        let clock = VirtualClock(harnessT0)
-        options.clock = { clock.now }
-        let runtime = try Runtime(options)
-        try runtime.start()
-        defer { runtime.stop() }
-        transport.onConnection?(true)
-        runtime.home.sync {}
-        let line = DeviceMoment.Say.test(ms: 100)
-        let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) } }
-        runtime.home.sync {
-            runtime.schedule.brain(DeviceMoment(say: line, mood: "proud", loops: 4), Pending(), now: clock.now)
-            runtime.schedule.brain(DeviceMoment(say: line, mood: "happy"), Pending(), now: clock.now)
-            runtime.pump()
-        }
-        let first = try XCTUnwrap(transport.momentIds.first)
-        XCTAssertEqual(moments().count, 1)
-        clock.now += 1000  // before its mumble has played, when the next could replace its face
-        transport.onLine?(#"{"t":"ended","id":\#(first + 99),"how":"done"}"#)
-        runtime.home.sync {}
-        XCTAssertEqual(moments().count, 1, "not the moment holding the turn")
-        transport.onLine?(#"{"t":"ended","id":\#(first),"how":"done"}"#)
-        runtime.home.sync {}
-        XCTAssertEqual(moments().count, 2, "its turn came when the device said the first was over")
-        XCTAssertTrue(moments().last?.contains(#""mood":"happy""#) == true)
-    }
-
-    /// ARCHITECTURE.md §3.2: a link that drops for a moment (the USB
-    /// bridge reconnecting, or a Bluetooth blip) doesn't stop what the
-    /// device plays, so the reaction on it keeps the line after the link is
-    /// back, until the device's `ended` for it, though HISTORY already says
-    /// it didn't happen (§8). Before, the drop freed the line, and the next
-    /// reaction cut the one still playing.
-    func testALinkBlipKeepsTheLineForTheReactionPlaying() throws {
+    /// BEHAVIORS.md §3.3, ARCHITECTURE.md §3.2: a link that drops for a
+    /// moment (the USB bridge reconnecting, or a Bluetooth blip) doesn't
+    /// stop what the device plays, so a tap on the brain's finish still
+    /// playing once the link is back still opens its thread, though HISTORY
+    /// already says it didn't happen (§8). Once the device says it ended, a
+    /// tap is a poke.
+    func testALinkBlipKeepsATapOnTheFinishPlaying() throws {
         let transport = FakeTransport()
         var options = try options(transport)
         let clock = VirtualClock(harnessT0)
@@ -1608,68 +1316,34 @@ final class RuntimeTests: XCTestCase {
         func connection(_ up: Bool) {
             transport.onConnection?(up)
             runtime.home.sync {}
+            runtime.home.sync {}
         }
-        func react(_ mood: String) {
-            runtime.home.sync { _ = runtime.harness.force(["react.mood": mood, "react.loops": "twice"], by: Runtime.forcedBy) }
-        }
-        let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
-        func ends() -> [Pending.End] {
-            runtime.home.sync {
-                self.recorded().filter { $0.actionPhase == .end && $0.actionName == "react" }.map(Self.end)
-            }
-        }
-        connection(true)
-        react("proud")
-        XCTAssertEqual(moments(), 1)
-        let first = try XCTUnwrap(transport.momentIds.first)
-        clock.now += 600
-        connection(false)
-        XCTAssertEqual(ends(), [.failed("the device disconnected")])
-        clock.now += 1000
-        connection(true)
-        clock.now += 50
-        react("happy")
-        XCTAssertEqual(moments(), 1, "the first still plays on the device")
-        transport.onLine?(#"{"t":"ended","id":\#(first),"how":"done"}"#)
-        runtime.home.sync {}
-        XCTAssertEqual(moments(), 2, "its turn came when the device said the first was over")
-    }
-
-    /// ARCHITECTURE.md §3.2: the Mac hears a tap after sending what it
-    /// thought was playing then, so a reaction it sent just before may
-    /// have reached the device after the tap, and plays on there. A tap
-    /// leaves a reaction sent with an id holding the line: the device's
-    /// `ended` for it frees the line when it ends. Before, the tap freed the line, and the next reaction
-    /// cut the one the device had only just started.
-    func testATapLeavesTheLineToTheDevicesEnded() throws {
-        let transport = FakeTransport()
-        var options = try options(transport)
-        let clock = VirtualClock(harnessT0)
-        options.clock = { clock.now }
-        let runtime = try Runtime(options)
-        try runtime.start()
-        defer { runtime.stop() }
-        transport.onConnection?(true)
-        runtime.home.sync {}
         func device(_ line: String) {
             transport.onLine?(line)
             runtime.home.sync {}
         }
-        let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
+        connection(true)
+        let thread = ThreadRef(agent: "claude", session: "s1", app: "com.anthropic.claudefordesktop", appSession: "local_7db5")
+        var ends: [Pending.End] = []
+        let pending = Pending()
+        pending.bind { ends.append($0) }
         runtime.home.sync {
-            for mood in ["excited", "proud", "grumpy"] { _ = runtime.harness.force(["react.mood": mood], by: Runtime.forcedBy) }
+            runtime.queue(DeviceMoment(anim: "task_complete", say: .init(takes: []), mood: "proud", variant: 1,
+                                       who: .init(agent: "claude", thread: "jetpack", opens: thread), outcome: "success"), pending)
         }
-        XCTAssertEqual(moments(), 1)
-        clock.now += 2000
-        device(#"{"t":"ended","id":\#(transport.momentIds[0]),"how":"done"}"#)
-        XCTAssertEqual(moments(), 2, "the second goes")
-        clock.now += 20
-        device(#"{"t":"input","k":"tap"}"#)  // on the device before the second arrived
-        XCTAssertEqual(moments(), 2, "the second may be playing: the third waits for its ended")
-        XCTAssertGreaterThan(runtime.home.sync { runtime.schedule.holder?.until ?? 0 }, clock.now)
-        clock.now += 1500
-        device(#"{"t":"ended","id":\#(transport.momentIds[1]),"how":"done"}"#)
-        XCTAssertEqual(moments(), 3)
+        let id = FakeTransport.id(try XCTUnwrap(transport.dos("task_complete").first))
+        clock.now += 600
+        connection(false)
+        XCTAssertEqual(ends, [.failed("the device disconnected")])
+        clock.now += 1000
+        connection(true)
+        device(#"{"t":"ev","kind":"tap","did":"dip","data":{"on":\#(id)}}"#)
+        eventually("the finished thread opened") { opened.all == ["claude://code/continue?session=local_7db5"] }
+        device(FakeTransport.ended(id, "done"))
+        XCTAssertFalse(runtime.home.sync { self.recorded().contains { $0.actionName == Core.wiggle } })
+        device(#"{"t":"ev","kind":"tap","did":"dip","data":{"on":\#(id)}}"#)
+        XCTAssertEqual(opened.all.count, 1, "over")
+        XCTAssertTrue(runtime.home.sync { self.recorded().contains { $0.actionName == Core.wiggle } }, "a poke")
     }
 
     /// How an action's `end` event says it went.
@@ -1752,53 +1426,22 @@ final class RuntimeTests: XCTestCase {
                       "with the brain it would have asked, apart from the passes the brain dropped")
     }
 
-    /// ARCHITECTURE.md §3.2: the pump's timer counts the Mac's uptime,
-    /// which stops while the Mac sleeps, and the moments' clock doesn't. A
-    /// timer set for a time the clock has already passed is late, so the
-    /// next moment to wait sets a timer of its own rather than wait for it.
-    func testATimerTheClockHasPassedIsReplaced() throws {
-        let transport = FakeTransport()
-        var options = try options(transport)
-        let clock = VirtualClock(harnessT0)
-        options.clock = { clock.now }
-        let runtime = try Runtime(options)
-        try runtime.start()
-        defer { runtime.stop() }
-        transport.onConnection?(true)
-        runtime.home.sync {}
-        func react(_ mood: String) {
-            runtime.home.sync { _ = runtime.harness.force(["react.mood": mood, "react.loops": "twice"], by: Runtime.forcedBy) }
-        }
-        let pumpAt = { runtime.home.sync { runtime.pumpAt } }
-
-        react("proud")
-        clock.now += 1000
-        react("happy")
-        let free = { runtime.home.sync { runtime.schedule.brainFree } }
-        XCTAssertEqual(pumpAt(), free(), "the second waits for the first's mumble")
-        XCTAssertGreaterThan(free(), clock.now)
-        clock.now += 60_000  // the Mac slept, and the timer with it
-        react("grumpy")  // the second is dropped, and this one plays
-        XCTAssertEqual(runtime.home.sync { runtime.schedule.waiting.count }, 0)
-        clock.now += 1000
-        react("excited")
-        XCTAssertEqual(pumpAt(), free(), "a timer of its own, not the late one")
-        XCTAssertGreaterThan(free(), clock.now)
-    }
-
-    /// PROTOCOL.md §3: moment ids start somewhere random at every launch
-    /// and count up, so an earlier launch's moment still on the device
-    /// can't share one; they stay within 1...Int32.max for the device.
-    func testMomentIdsDifferEachLaunch() {
-        let firsts = Set((0..<8).map { _ in MomentSchedule().lastId })
+    /// PROTOCOL.md §3: `do` ids start somewhere random at every launch and
+    /// count up, so an earlier launch's call still on the device can't
+    /// share one (linkkit/SPEC.md §3; LinkKit's own tests pin the rest).
+    func testDoIdsDifferEachLaunch() {
+        let firsts = Set((0..<8).map { _ -> Int in
+            let link = BoopDevice.link(FakeTransport())
+            link.connection(true, now: 0)
+            link.receive(FakeTransport.hello, now: 0)
+            return link.do("react", now: 0) { _ in } ?? 0
+        })
         XCTAssertGreaterThan(firsts.count, 1, "random")
-        XCTAssertTrue(firsts.allSatisfy { (0..<Int(Int32.max)).contains($0) })
-        XCTAssertEqual(MomentSchedule.nextId(after: 41), 42)
-        XCTAssertEqual(MomentSchedule.nextId(after: Int(Int32.max)), 1, "back to 1, never 0")
+        XCTAssertTrue(firsts.allSatisfy { (1...Wire.maxId).contains($0) })
     }
 
     /// PROTOCOL.md §3: a launch numbers its requests from somewhere random,
-    /// as it does its moments, so a relaunched app's first request can't
+    /// as the link does its `do`s, so a relaunched app's first request can't
     /// share `attn.id` with the one the device still shows from the last
     /// launch: with the same agent and project, a new request would carry
     /// on the amber with no chirp (BEHAVIORS.md §3.2). The numbers wrap to
@@ -1903,14 +1546,4 @@ func eventually(_ what: String, timeout: TimeInterval = 3, _ condition: () -> Bo
     let deadline = Date().addingTimeInterval(timeout)
     while !condition() && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
     XCTAssertTrue(condition(), what)
-}
-
-extension Optional where Wrapped == DeviceMoment {
-    /// The moment as it was queued, without the id `due` sent it with.
-    var queued: DeviceMoment? { map { var m = $0; m.id = nil; return m } }
-}
-
-extension MomentEnded {
-    /// The device's `ended` for `id`, played to the end.
-    static func done(_ id: Int) -> MomentEnded { MomentEnded(id: id, how: .done) }
 }

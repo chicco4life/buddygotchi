@@ -14,10 +14,13 @@ public enum MoodAction {
     /// How long Boop has been in its mood, for the line that closes HISTORY
     /// (harness/HARNESS.md §5.3): `Boop has been proud for 7 min.`, so
     /// the mood files' minutes need no sums. Nil while calm, the resting
-    /// mood every other fades toward, and before any change in the log.
+    /// mood every other fades toward, before any change in the log, and
+    /// for a mood carried over from the `mood` file, whose change has no
+    /// time.
     public static func sinceLine(_ mood: Choice, _ log: LogView, at now: Int64) -> String? {
         let current = value(mood, log)
-        guard current != initial, let at = mood.since(log) else { return nil }
+        guard current != initial, let latest = mood.latest(log), latest["by"]?.string != carriedBy else { return nil }
+        let at = latest.at
         let ms = now - at
         let span = ms < 60_000 ? "under a minute" : ms < 60 * 60_000 ? "\(ms / 60_000) min" : "\(ms / 3_600_000) h"
         return "Boop has been \(current) for \(span)."
@@ -85,6 +88,42 @@ public enum MoodAction {
     public static func value(_ mood: Choice, _ log: LogView) -> String { known(mood.value(log)) }
 
     static func known(_ word: String) -> String { moods.contains { $0.name == word } ? word : initial }
+
+    /// The state directory's file where Boop kept its mood before the log
+    /// did: one word.
+    public static let fileName = "mood"
+
+    /// Who logs a mood carried over from the `mood` file (`carryOver`).
+    public static let carriedBy = "upgrade"
+
+    /// Carries the mood an older Boop saved in the state directory's `mood`
+    /// file into the log, at the first launch after the log took over
+    /// (harness/DECISIONS.md §2): when the log's last day has no change of
+    /// its own, Boop comes back in the mood it left, however long ago, as
+    /// it did when the file kept it. The change is logged for no event and
+    /// with no message, so HISTORY doesn't show it and no time counts from
+    /// it. The file goes either way: from then on the log alone keeps the
+    /// mood. It read `cheerful`, happy's old name, as happy, and a word that
+    /// isn't a mood as calm. On the harness's queue, after the read-back.
+    public static func carryOver(_ mood: Choice, stateDir: URL, harness: Harness, note: (String) -> Void = { _ in }) {
+        let file = stateDir.appendingPathComponent(fileName)
+        guard let saved = try? String(contentsOf: file, encoding: .utf8) else { return }
+        defer { try? FileManager.default.removeItem(at: file) }
+        let log = harness.log.view(now: harness.clock.now())
+        guard mood.latest(log) == nil else { return }
+        let word = saved.trimmingCharacters(in: .whitespacesAndNewlines)
+        let to = word == "cheerful" ? "happy" : word
+        guard moods.contains(where: { $0.name == to }) else {
+            if !word.isEmpty { note("mood: the mood file says \(word), which isn't a mood; reading it as \(initial)") }
+            return
+        }
+        let from = value(mood, log)
+        guard to != from else { return }
+        harness.emit(Event(source: Event.harness, kind: Event.did,
+                           data: ["for": .null, "by": .string(carriedBy), "action": .string(actionName), "ok": true,
+                                  "from": .string(from), "to": .string(to)]))
+        note("mood: \(to), carried over from the mood file")
+    }
 
     /// Changes the mood now to any of the moods, off the graph, with a
     /// result for the current mood or one that isn't a mood: the dashboard

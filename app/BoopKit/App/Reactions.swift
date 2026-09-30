@@ -1,0 +1,100 @@
+import AgentHooks
+import Foundation
+import JHarness
+import LinkKit
+
+/// The brain's reactions on the device, until each ends (ARCHITECTURE.md
+/// §3.2). The device decides what plays when (linkkit/SPEC.md §4): each
+/// reaction goes out at once, a `do` that waits its turn there, and the
+/// link hands back how it came out. This makes that its handle's end
+/// (harness/DECISIONS.md §5), holds a reaction your tap cut short in
+/// progress until the pokes stop, and keeps where a tap on the brain's
+/// finish opens its thread (BEHAVIORS.md §3.3) while the finish may still
+/// play, a link that drops for a moment included, since the device plays
+/// on.
+///
+/// On the runtime's queue and clock. Its bookkeeping is done before any
+/// handle is finished, so what an end sets off may call back in.
+public final class Reactions {
+    /// How a reaction your tap cut short reads while the pokes go on, in
+    /// the logs: the eval's steps say it so (EVALS.md §1).
+    public static let tapCut = "cut short: you tapped Boop"
+
+    /// The handles of reactions your tap cut short: in progress while the
+    /// pokes go on, so the pokes after it don't get it again, and done
+    /// once they stop (`pokesStopped`, harness/DECISIONS.md §5).
+    public private(set) var cutByTap: [Pending] = []
+    /// Where a tap on each finish sent opens its thread, by its `do` id,
+    /// until its `ended` comes or the link would have given up on it.
+    public private(set) var opens: [Int: (thread: ThreadRef, until: Int64)] = [:]
+
+    public init() {}
+
+    /// The finish sent as `id` at `now`, waiting up to `ttl` for its turn:
+    /// a tap on it opens `thread`.
+    public func sent(_ id: Int, opens thread: ThreadRef, ttl: Int, now: Int64) {
+        opens[id] = (thread, now + Int64(ttl) + Link.answerGraceMs)
+    }
+
+    /// The device said the `do` `id` ended, even one the link had failed
+    /// when it dropped: a tap can't land on it any more.
+    public func ended(_ id: Int) {
+        opens[id] = nil
+    }
+
+    /// Once a second: forgets the finishes the link has given up on.
+    public func tick(now: Int64) {
+        opens = opens.filter { $0.value.until > now }
+    }
+
+    /// The thread a tap on the finish `id` opens: the device said the tap
+    /// landed on it (BEHAVIORS.md §3.3). Nil once it's over.
+    public func opens(finish id: Int) -> ThreadRef? { opens[id]?.thread }
+
+    /// How the reaction whose handle is `pending` came out: its end, or
+    /// held while the pokes go on when your tap cut it.
+    public func finish(_ pending: Pending, _ outcome: Link.Outcome) {
+        guard let end = Self.end(outcome) else {
+            cutByTap.append(pending)
+            return
+        }
+        pending.finish(end)
+    }
+
+    /// The pokes stopped, or something else happened: the reactions a tap
+    /// cut short end as done, since you saw them begin.
+    public func pokesStopped() {
+        let held = cutByTap
+        cutByTap = []
+        for pending in held { pending.finish(.done) }
+    }
+
+    /// How a reaction ended (harness/DECISIONS.md §5), from the device's
+    /// `ended` or the link's failure; nil for a cut by your tap, which is
+    /// held until the pokes stop.
+    public static func end(_ outcome: Link.Outcome) -> Pending.End? {
+        switch outcome {
+        case .ended(let ended):
+            switch (ended.how, ended.why) {
+            case (.done, _): return .done
+            case (.cut, "tap"): return nil
+            case (.cut, let why): return .failed("cut short" + (why.flatMap { cutBy[$0] }.map { ": " + $0 } ?? ""))
+            case (.skipped, "late"): return .failed("waited too long")
+            case (.skipped, BoopDevice.micOn): return .failed("the mic went on")
+            // Boop's own refusals (PROTOCOL.md §3), worded as main said any skip.
+            case (.skipped, nil), (.skipped, "needs_you"), (.skipped, BoopDevice.listening), (.skipped, "no_app"),
+                 (.skipped, "not_listening"), (.skipped, "nothing"):
+                return .failed("something needed you")
+            case (.skipped, let why?): return .failed("skipped: " + why)
+            }
+        case .failed(let failure):
+            // No device connected, the device disconnected, or it never
+            // said it ended: in the link's own words.
+            return .failed(failure.description)
+        }
+    }
+
+    /// What cut a reaction short, as its end says it; a tap's holds it
+    /// until the pokes stop, and `reset` is a tool's.
+    static let cutBy = ["now": "something newer played", "needs_you": "something needed you"]
+}

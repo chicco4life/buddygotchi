@@ -256,7 +256,7 @@ void Device::onDo(const Call& c, uint32_t t) {
     case kReplyReady:
       break;
     case kListening:
-      kit().dropWaiting("listening", c.from);  // the mic went on: the reactions waiting would end it
+      kit().dropWaiting("mic_on", c.from);  // the mic went on: the reactions waiting would end it
       kit().rest(c.key);
       break;
     case kStopListening:
@@ -486,7 +486,7 @@ void Device::readInputs(uint32_t t) {
       b_.pressUp();
       // The reactions waiting would end it: dropped for every Mac that
       // hears talk_on, which for a tool's dbg.press is only USB's.
-      kit().dropWaiting("listening", bootInjected_ ? Link::kUsb : Link::kNone);
+      kit().dropWaiting("mic_on", bootInjected_ ? Link::kUsb : Link::kNone);
       b_.talkOn(t, kit().rng());
       input("talk_on", t);
       kit().emit("talk_on", "listening", nullptr, bootInjected_);

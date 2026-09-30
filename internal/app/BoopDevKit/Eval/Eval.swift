@@ -1,6 +1,7 @@
 import BoopKit
 import Foundation
 import JHarness
+import LinkKit
 
 /// The harness evals (plan/EVALS.md): scenarios of hook-level steps on a
 /// virtual clock, run through a fresh core, the real harness and the real
@@ -452,28 +453,23 @@ public struct Eval {
         // loop (`respond`), on the virtual clock.
         let pipeline = Pipeline(core: core, view: view, time: time, clock: Harness.Clock(now: { clock.now }), queue: home,
                                 loop: false)
-        // No device: a reaction's moment goes nowhere and ends as the step
-        // says, played at once by default, so HISTORY reads as the app's
-        // does once it has; one left in progress stays so.
+        // A fake device: a reaction goes nowhere and ends as the step says,
+        // played at once by default, its `ended` read as the app reads the
+        // device's (`Reactions`), so HISTORY reads as the app's does once it
+        // has; one left in progress stays so.
         let ending = Ending()
+        let reactions = Reactions()
         let (harness, mood) = Runtime.harness(
             pipeline: pipeline, steering: steering, personality: { scenario.personality },
             queue: { moment, pending in
                 ending.said = moment.say?.text
                 ending.takes = moment.say?.takes.map(\.text) ?? []
-                if ending.end == .failed(MomentSchedule.tapCut) {
-                    ending.cut.append(pending)
-                } else if let end = ending.end {
-                    pending.finish(end)
-                } else {
-                    ending.open.append(pending)
-                }
+                guard let end = ending.end else { return ending.open.append(pending) }
+                if let ended = Eval.ended(end) { reactions.finish(pending, .ended(ended)) } else { pending.finish(end) }
             })
         harness.on("*") { e in
-            guard !ending.cut.isEmpty, TranscriptView.stopsThePokes(e, harness.log.view(before: e)) else { return }
-            let held = ending.cut
-            ending.cut = []
-            held.forEach { $0.finish(.done) }
+            guard !reactions.cutByTap.isEmpty, TranscriptView.stopsThePokes(e, harness.log.view(before: e)) else { return }
+            reactions.pokesStopped()
         }
         if let url = debugLog {
             let writer = Runtime.debugLines(pipeline: pipeline, emit: { LineFile.append($0, to: url) })
@@ -651,14 +647,24 @@ public struct Eval {
         }
     }
 
+    /// The device's `ended` that the app reads as `end` (`Reactions.end`):
+    /// played to the end, cut by your tap (in progress while the pokes go
+    /// on, done once they stop) or waited too long; nil for another end,
+    /// which the fake device gives as it is.
+    static func ended(_ end: Pending.End) -> Ended? {
+        switch end {
+        case .done: Ended(id: 1, how: .done)
+        case .failed(Reactions.tapCut): Ended(id: 1, how: .cut, why: "tap")
+        case .failed("waited too long"): Ended(id: 1, how: .skipped, why: "late")
+        case .failed: nil
+        }
+    }
+
     /// How the reactions a step starts end, for the queue: nil leaves
     /// them in progress, kept here.
     final class Ending: @unchecked Sendable {
         var end: Pending.End? = .done
         var open: [Pending] = []
-        /// Reactions a tap cut short: in progress while the pokes go on,
-        /// done once they stop, as the moment schedule has them.
-        var cut: [Pending] = []
         /// The line the last pass's reaction said, if any, and its takes'
         /// texts.
         var said: String?

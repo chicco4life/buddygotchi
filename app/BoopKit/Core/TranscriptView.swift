@@ -124,6 +124,10 @@ public final class TranscriptView {
     public private(set) var rules: Personality.Rules
     let place: (String) -> Place
     var fold = Fold()
+    /// How many times the fold started over, asked about an event it had
+    /// already folded (tests): never in the loop, whose transforms come in
+    /// order, and a start over would miss what has aged out of memory.
+    var refolds = 0
 
     /// The working heartbeat's schedule, Boop's own timer (EVENTS.md §4):
     /// when it's next due, nil until work starts and again once Boop starts
@@ -222,7 +226,10 @@ public final class TranscriptView {
     /// Folds the log's events up to (not including) `seq` that the fold
     /// hasn't: all of them from the start again if it's past there.
     func catchUp(before seq: Int, _ log: LogView) {
-        if fold.at >= seq { fold = Fold() }
+        if fold.at >= seq {
+            fold = Fold()
+            refolds += 1
+        }
         for e in log.events(after: fold.at) where e.seq < seq { _ = take(e) }
     }
 
@@ -490,7 +497,8 @@ public final class TranscriptView {
     /// in progress, and the mood hasn't changed since it started: then
     /// another poke of the run doesn't wake the brain (EVENTS.md §6). A
     /// reaction a tap cut short stays in progress while the pokes go on
-    /// (the moment schedule's, harness/DECISIONS.md §5).
+    /// (held by the runtime's `Reactions` and react's `keepOpen`,
+    /// `heldByPokes`; harness/DECISIONS.md §5).
     public func pokesAnswered(_ e: Event, _ log: LogView) -> Bool {
         var run: [Event] = [e]
         for p in log.all(Event.kind(.poke, nil)).reversed() where p.seq < e.seq {
@@ -500,8 +508,8 @@ public final class TranscriptView {
         run.reverse()
         // The pokes the run's reactions can answer: from the third in a row.
         let answering = Set(run.dropFirst(Self.answersRunFrom - 1).map(\.seq))
-        guard let reaction = log.last(Event.did, where: {
-            $0.action == ReactAction.actionName && $0["open"]?.bool == true && $0.about.map(answering.contains) == true
+        guard let reaction = log.lastDid(ReactAction.actionName, where: {
+            $0["open"]?.bool == true && $0.about.map(answering.contains) == true
         }) else { return false }
         guard log.ended(reaction.seq) == nil else { return false }
         return log.count(Event.did, since: reaction) { $0.action == MoodAction.actionName && $0["ok"]?.bool == true } == 0
@@ -515,6 +523,25 @@ public final class TranscriptView {
         guard let type = e.type, type != .needsYou else { return false }
         guard type == .poke else { return true }
         return log.last(Event.kind(.poke, nil)).map { e.ts - $0.ts >= inARowMs } ?? true
+    }
+
+    /// Whether the reaction `did` is one your tap cut short that the pokes
+    /// still hold (harness/DECISIONS.md §5): a poke came after it, and no
+    /// event since that poke has stopped the pokes (`stopsThePokes`). While
+    /// it is, JHarness keeps it open past react's `openFor` (react's
+    /// `keepOpen`), as the app holds its handle, so a run of pokes longer
+    /// than that, or the quiet after one, neither drops it from HISTORY nor
+    /// gets the run a second reaction.
+    public static func heldByPokes(_ did: Event, _ log: LogView) -> Bool {
+        let after = log.events(after: did.seq)
+        guard let cut = after.firstIndex(where: { $0.type == .poke }) else { return false }
+        var lastPoke = after[cut].ts
+        for e in after[after.index(after: cut)...] {
+            guard let type = e.type, type != .needsYou else { continue }
+            guard type == .poke, e.ts - lastPoke < inARowMs else { return false }
+            lastPoke = e.ts
+        }
+        return true
     }
 
     // MARK: Talk
@@ -579,7 +606,7 @@ public final class TranscriptView {
         // Boop started a reaction: the working heartbeat starts its wait
         // again, so it comes after a stretch of work with no reaction,
         // however many events woke the brain in it.
-        if let react = log.last(Event.did, where: { $0.action == ReactAction.actionName && $0["open"]?.bool == true }),
+        if let react = log.lastDid(ReactAction.actionName, where: { $0["open"]?.bool == true }),
            react.seq > reactSeen {
             reactSeen = react.seq
             nextWorkBeatAt = nil

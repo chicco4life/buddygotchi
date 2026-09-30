@@ -248,9 +248,16 @@ transcript ([HARNESS.md](HARNESS.md) §5.1), JHarness's `Choice`
 ([jharness/SPEC.md](../../jharness/SPEC.md) §6): nothing else keeps it, so
 a restart reads it back with the transcript's last 24 hours. A new Boop,
 or one whose mood hasn't changed in 24 hours, starts `calm`
-(`MoodAction.initial`), the resting mood every other fades toward, and a
+(`MoodAction.initial`), the resting mood every other fades toward; a
+running Boop turns calm, on the device too, once its latest change is
+24 hours old (the runtime's tick); and a
 word that isn't a mood reads as calm. A mood change logged before
-JHarness said its mood only in its message, which is read for it. The
+JHarness said its mood only in its message, which is read for it. At the
+first launch after that, a Boop whose transcript has no change in its
+last day comes back in the mood the `mood` file it kept then says,
+however old, as it did when the file kept the mood
+(`MoodAction.carryOver`): the change is logged by `upgrade`, for no event
+and with no message, so HISTORY doesn't show it, and the file goes. The
 core puts the mood in every `state` it sends
 ([PROTOCOL.md](../PROTOCOL.md) §3).
 
@@ -424,7 +431,8 @@ line for the end of HISTORY, its only closing line
 times are (`under a minute` below one, hours past an hour), counted from
 its latest change in the transcript (`MoodAction.sinceLine`), a
 relaunch's included. It's left out while Boop is calm, the resting mood,
-and when no change is in the transcript's last 24 hours, where the
+for a mood carried over from the old `mood` file (§2), whose change has
+no time, and when no change is in the transcript's last 24 hours, where the
 change leaving HISTORY is the mood files' fallback. The mood
 files' minutes ("once Boop has been grumpy for 2 min") are read against
 it: without it, Jev saw `7 min ago: … Boop's mood changed: determined →
@@ -443,9 +451,10 @@ the mood before, and its options were that mood's
 ## 5. The `react` action
 
 `app/BoopKit/Actions/ReactAction.swift`. **Made with** Voice, the takes
-the board has; a queue to the device, which is the runtime's moment
-schedule ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2); and the core's
-gate, which says when something needs you.
+the board has; a queue to the device, which is the runtime's: it sends
+each reaction at once, to wait its turn on the device
+([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2); and the core's gate, which
+says when something needs you.
 
 `run`:
 
@@ -471,30 +480,29 @@ gate, which says when something needs you.
    and the first alone when the two run past 2.8 s. It may find none,
    and then Boop says nothing. Nor does it while the device's card has
    another voice pack (`speaks`, [VOICE.md](../VOICE.md) §8).
-4. **The effect:** it's queued as a `moment` with `say` (the line's one
-   or two takes, or `{}` when it says nothing, which still ends push-to-talk's
-   `listening`), the face as `mood` and `react.loops`' pick as `loops`
-   (1–4, `ReactAction.loops`). A
-   finish (`react.animation` other than `none`) goes as its scene
-   (`ReactAction.finish`): `success` and `failure` as `anim`
-   `task_complete` with that `outcome`, `reply` as `anim`
-   `reply_ready`; with one of that scene's variations in the face's
-   design as `variant`, for the outcome, at random and never the last
-   one of its scene (`Core.pickVariant`); and with `who`, the agent and
-   thread NOW is about (the name its agent's app shows, once an event
-   brought one, else the view's `who(about:)`; none for a forced pass),
-   so the device names them ([PROTOCOL.md](../PROTOCOL.md) §3).
-   Otherwise there's no animation, so it plays over whatever is showing
-   (a tap's animation included). Either way
-   it waits until any take or face playing has finished. A face the last
-   reaction holds on for its loops is the exception: this one replaces
-   it once that one's take has played, or, when it said nothing, once
-   its face has shown as long as a bubble would (1.2 s,
-   `DeviceMoment.faceFirstMs`), so a long hold doesn't make the next
-   reaction wait past its 5 s and be dropped
-   ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2). The last reaction is
-   still `done`. A new `Pending` goes with
-   it, and the action returns without waiting for the moment.
+4. **The effect:** it's sent as a `do` ([PROTOCOL.md](../PROTOCOL.md)
+   §3) with `say` (the line's one or two takes, or `{}` when it says
+   nothing, which still ends push-to-talk's `listening`), the face as
+   `mood` and `react.loops`' pick as `loops` (1–4, `ReactAction.loops`).
+   With no finish its name is `react`, and it plays over whatever is
+   showing (a tap's animation included). A finish (`react.animation`
+   other than `none`) goes as its scene (`ReactAction.finish`):
+   `success` and `failure` as `task_complete` with that `outcome`,
+   `reply` as `reply_ready`; with one of that scene's variations in the
+   face's design as `variant`, for the outcome, at random and never the
+   last one of its scene (`Core.pickVariant`); and with `who`, the agent
+   and thread NOW is about (the name its agent's app shows, once an
+   event brought one, else the view's `who(about:)`; none for a forced
+   pass), so the device names them. Either way it goes with `play: next`
+   and a 5 s `ttl`: the device plays it once any take or face playing
+   has finished, and skips it if that takes longer. A face the last
+   reaction holds on for its loops is the exception: the last one rests
+   once its take has played, or, when it said nothing, once its face has
+   shown as long as a bubble would (1.2 s), and this one then replaces
+   it, so a long hold doesn't make the next reaction wait past its 5 s
+   and be skipped ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2). The last
+   reaction is still `done`. A new `Pending` goes with it, and the
+   action returns without waiting for the device.
 5. **The message:** started (`.started`) with that handle, as
    `Boop made a grumpy face, held twice, and said "Hrr...".`,
    `Boop played a success in a proud face, held twice, and said "Tiny genius".`
@@ -512,51 +520,59 @@ whether the repeats come back ([ARCHITECTURE.md](../ARCHITECTURE.md)'s
 decision log).
 
 **How a reaction ends.** HISTORY shows its line `(in progress)` until
-whoever holds the moment ends the handle ([HARNESS.md](HARNESS.md) §4,
-§5.3). The moment goes to the device with an `id`, and the device says
-how it ended ([PROTOCOL.md](../PROTOCOL.md) §4):
+the handle is ended ([HARNESS.md](HARNESS.md) §4, §5.3). The link gives
+its `do` an `id`, and hands back how it came out: the device's `ended`
+(`done`, `cut` or `skipped`, with why, [PROTOCOL.md](../PROTOCOL.md)
+§4), or why there's none ([linkkit/SPEC.md](../../linkkit/SPEC.md) §5).
+The app's `Reactions` (`app/BoopKit/App/Reactions.swift`) ends the
+handle from that:
 
-| End | When | By |
-| --- | --- | --- |
-| `done` | The device says its take played to the end, and its face its loops, or until a newer moment (the next reaction's included), a tap or "needs you" ended the face after the take: it was seen and heard | The runtime, from the device's `ended` |
-| `done`, once the pokes stop | The device says a tap's poke stopped its take. The moment schedule holds its handle (`MomentSchedule.cutByTap`), so HISTORY keeps its line `(in progress)` while the pokes go on, and ends it done at the next event that isn't another poke of the run: you saw it start, and a barrage of pokes would otherwise get the same face twice ([EVENTS.md](EVENTS.md) §7) | The runtime's rule on every event (`TranscriptView.stopsThePokes`) |
-| `failed`, `cut short: something newer played` | The device says a newer moment stopped its take | The same |
-| `failed`, `cut short: something needed you` | The device says "needs you" started while its take played | The same |
-| `failed`, `cut short` | The device says something else stopped it (`dbg.reset`), or doesn't say what | The same |
-| `failed`, `something needed you` | The device says none of it played: something needed you when it arrived | The same |
-| `failed`, `waited too long` | It waited too long for its turn and was dropped, face and all | The moment schedule |
-| `failed`, `no device connected` | Its turn came with no device connected, so nothing played it | The moment schedule |
-| `failed`, `the device disconnected` | The device dropped before saying how it ended | The runtime |
-| `failed`, `the device never said it ended` | No `ended` came by the moment's longest length, its face's loops of the design showing or its line, plus a grace ([PROTOCOL.md](../PROTOCOL.md) §6): the line was lost, or the firmware is older | The runtime |
+| End | When |
+| --- | --- |
+| `done` | The device says its take played to the end, and its face its loops, or until a newer reaction, a tap or "needs you" ended the face after the take: it was seen and heard (`done`) |
+| `done`, once the pokes stop | The device says a tap's poke stopped its take (`cut`, `tap`). `Reactions` holds its handle (`cutByTap`), so HISTORY keeps its line `(in progress)` while the pokes go on, and ends it done at the next event that isn't another poke of the run: you saw it start, and a barrage of pokes would otherwise get the same face twice ([EVENTS.md](EVENTS.md) §7). JHarness keeps it open past react's `openFor` while the pokes hold it (`TranscriptView.heldByPokes`, react's `keepOpen`), so a run of pokes of any length, or the quiet after one, keeps it. The runtime's rule on every event (`TranscriptView.stopsThePokes`) ends it |
+| `failed`, `cut short: something newer played` | The device says a call that takes the turn at once (the Talk button's `listening`) stopped its take (`cut`, `now`) |
+| `failed`, `cut short: something needed you` | The device says "needs you" started while its take played (`cut`, `needs_you`) |
+| `failed`, `cut short` | The device says something else stopped it (`dbg.reset`), or doesn't say what |
+| `failed`, `something needed you` | The device says none of it played when its turn came: something needed you, the listening face held it, the no-app look showed, or none of it could play (`skipped` with `needs_you`, `listening`, `no_app`, `not_listening`, `nothing`, or no why), as main said for any skip |
+| `failed`, `waited too long` | It waited on the device past its 5 s `ttl` for its turn (`skipped`, `late`) |
+| `failed`, `the mic went on` | Push-to-talk started while it waited, and a reaction would end `listening` (`skipped`, `mic_on`) |
+| `failed`, `skipped: <why>` | The device skipped it for one of the kit's own reasons: `full` (four already waited), `busy`, `unknown` or `reset` |
+| `failed`, `no device connected` | No device was connected when it was sent, so nothing went out. So does a device that hasn't said `hello` (`the device hasn't said hello`: the link asks for one whenever it connects, so only for the moment before it answers), one whose firmware doesn't fit (`the device's firmware doesn't fit this app`), a name its `hello` doesn't list (`the device doesn't play that`), and a line too long for the link (`the line is too long`) |
+| `failed`, `the device disconnected` | The link dropped before the device said how it ended |
+| `failed`, `the device never said it ended` | No `ended` came by its `ttl` plus 60 s: the line was lost (a Bluetooth line dropped, or the board restarted while the USB link stayed up). Until then HISTORY shows it `(in progress)`, up to 65 s, where the Mac's own reckoning used to end it a few seconds after it would have played; `react.mood`'s `none` is for a reaction still in progress, so Boop may stay quiet on that thread meanwhile |
 
 Even the longest hold of the design with the longest loop ends one of
 these ways before its `openFor` could end it
-([HARNESS.md](HARNESS.md) §5.1): its wait for a turn (a late pump
-included), its face and the grace for `ended` add up to less, which
-`RuntimeTests` checks against the designs' loops of all 13 moods, so a
-new design can't break it unnoticed. The 13 moods' longest loop is
-wounded's idle, 13 s: held four times it's 52 s, and with the 5 s wait,
-1 s of a late pump and 3 s of grace, 61 s, past the 60 s ceiling there
-was; the ceiling became 90 s, rather than fewer holds or a cap on a
-face's time, since it's only a backstop for an action that never ends.
+([HARNESS.md](HARNESS.md) §5.1). The 13 moods' longest loop is wounded's
+idle, 13 s: held four times it's 52 s, which the device plays out within
+the 60 s the link waits past the `ttl`, and the link gives up at 65 s,
+under the 90 s ceiling. `RuntimeTests` checks it against the designs'
+loops and voice windows of all 13 moods and the longest line, so a new
+design can't break it unnoticed. The ceiling became 90 s when the Mac
+still timed reactions, rather than fewer holds or a cap on a face's
+time, since it's only a backstop for an action that never ends.
 
 A failed one is left out of HISTORY, so Jev may make it again if NOW
-still calls for it (§2.1). The evals have no device, so
-their queue ends each handle at once, `done` unless a scenario's step
-says otherwise, and holds one a tap cut short as the schedule does
+still calls for it (§2.1). The evals have no device, so their queue
+plays a fake one: it answers each reaction at once with the `ended` a
+scenario's step names, `done` unless it says otherwise, read as the app
+reads the device's, so one a tap cut short is held as in the app
 ([EVALS.md](../EVALS.md) §1, §3).
 [HARNESS.md](HARNESS.md) §9 has a reaction and its end in `debug.jsonl`,
-from a headless run with no device. With the board on USB (firmware
-`6a1cc990`), a forced proud reaction meaning delight, held twice: its
-moment, with the take Voice picked (proud's "Mwahaha", 2.43 s), its
-action, and the end the device's `ended` (`done`) brought 3.6 s later
-(recorded 2026-09-28, before each pass was an event of its own: today
-the forced pass's `pass` event comes first, and these are `seq` 2 and 3):
+from a headless run with no device. From a headless run over the USB
+link (`--link usb:`) to a fake device that answers each `do` with
+`done` 1.5 s after it arrives, a forced proud reaction meaning delight,
+held twice: the forced pass's event, the `do` with the take Voice
+picked (proud's "Mm-hm"), its action, and the end the device's `ended`
+brought (2026-09-30; the run's logs and the fake device are in
+[evidence](../evidence/2026-09-30-link-kit/headless-usb/README.md)):
 
 ```jsonl
-{"sent":{"t":"moment","say":{"take":"new.d20"},"mood":"proud","loops":2,"id":1588780972},"received_at_ms":1790659325407}
-{"event":{"seq":1,"at":1790659325407,"source":"self","kind":"did","data":{"action":"react","by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a proud face, held twice, and said \"Mwahaha...\".","ok":true,"open":true}},"received_at_ms":1790659325407}
-{"event":{"seq":2,"at":1790659329047,"source":"self","kind":"ended","data":{"action":"react","by":"dashboard","for":1,"outcome":"done"}},"received_at_ms":1790659329047}
+{"event":{"seq":1,"at":1790777600428,"source":"self","kind":"pass","data":{"answers":{"react.loops":{"choice":"twice","p":{"twice":1}},"react.mood":{"choice":"proud","p":{"proud":1}},"say.feeling":{"choice":"glad","p":{"glad":1}},"say.kind":{"choice":"phrase","p":{"phrase":1}}},"by":"dashboard","dropped":null,"for":null,"ms":0}},"received_at_ms":1790777600428}
+{"sent":{"t":"do","id":1044930537,"name":"react","play":"next","ttl":5000,"args":{"say":{"take":"phase1.nonverbal.delight.mm-hm__proud__contained"},"mood":"proud","loops":2}},"by":"brain","received_at_ms":1790777600448}
+{"event":{"seq":2,"at":1790777600448,"source":"self","kind":"did","data":{"action":"react","by":"dashboard","for":null,"latency_ms":19,"message":"Boop made a proud face, held twice, and said \"Mm-hm\".","ok":true,"open":true,"takes":["phase1.nonverbal.delight.mm-hm__proud__contained"]}},"received_at_ms":1790777600448}
+{"event":{"seq":3,"at":1790777601953,"source":"self","kind":"ended","data":{"action":"react","by":"dashboard","for":2,"outcome":"done"}},"received_at_ms":1790777601953}
 ```
 
 ## 6. An example

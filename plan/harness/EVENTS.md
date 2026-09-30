@@ -20,8 +20,8 @@ log line (`debug.jsonl`).**
   ([HARNESS.md](HARNESS.md) §5.2).
 - **Out:** hooks Boop ignores, state snapshots and every other line sent to the device (the rules'
   one-shots included: like the look, they show what the agents did, and
-  the view has the events behind them), `status`, the
-  device's `ended` (it arrives only as an action's end), the mic going
+  the view has the events behind them), the device's `hello`, its
+  `ended` (it arrives only as an action's end), the mic going
   on and off, hearing nothing or failing (the app log), and changes of
   settings, brain or connection (the app log).
 
@@ -367,7 +367,7 @@ latest with a line ([jharness/SPEC.md](../../jharness/SPEC.md) §5.2).
 HISTORY shows them in order, a started one marked `(in progress)` until
 its `ended`. A failed action isn't shown, and neither is a started one
 that ended failed. A reaction your tap cut short is you seeing it start,
-so the moment schedule doesn't end it at once: it stays `(in progress)`
+so the app doesn't end it at once (`Reactions`): it stays `(in progress)`
 while the pokes go on (each within 3 s of the last, §6), so the barrage
 doesn't wake the brain for it again, and ends done at the next poke
 after that, or any other event (`TranscriptView.stopsThePokes`,

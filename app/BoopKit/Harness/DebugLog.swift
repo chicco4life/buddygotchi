@@ -1,5 +1,6 @@
 import Foundation
 import JHarness
+import LinkKit
 
 /// Debug mode's record of the brain (harness/HARNESS.md §9): in the state
 /// directory's `debug.jsonl`, every event the transcript records
@@ -19,9 +20,9 @@ public enum DebugLog {
     }
 
     /// A line sent to the device, verbatim, and who sent it: `brain` for
-    /// the brain's moments, `rule` for everything else.
-    public static func sent(_ json: String, by sender: DeviceLink.Sender, at ms: Int64) -> String {
-        "{\"sent\":\(json),\"by\":\"\(sender.rawValue)\",\"received_at_ms\":\(ms)}"
+    /// the brain's reactions, `rule` for everything else.
+    public static func sent(_ json: String, by sender: Link.Sender, at ms: Int64) -> String {
+        "{\"sent\":\(json),\"by\":\"\(sender.name)\",\"received_at_ms\":\(ms)}"
     }
 
     /// An event as the transcript recorded it, as its line there.

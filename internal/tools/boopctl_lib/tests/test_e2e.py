@@ -78,7 +78,7 @@ class OrderTests(unittest.TestCase):
         result = e2e.check_order(run)
         self.assertEqual((result["skipped"], result["cut_by_newer"], result["odd_ends"]), (2, [], []))
         self.assertEqual(run.failed, [])
-        for how in ("skipped (busy)", "skipped (full)", "skipped (listening)", "skipped (not_listening)", "skipped",
+        for how in ("skipped (busy)", "skipped (full)", "skipped (listening)", "skipped (mic_on)", "skipped (not_listening)", "skipped",
                     "cut (tap)", "cut (needs_you)", "cut (reset)", "skipped (reset)", "skipped (no_app)",
                     "skipped (nothing)"):
             with self.subTest(how):

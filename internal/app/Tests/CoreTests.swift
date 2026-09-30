@@ -2028,8 +2028,8 @@ final class CoreFuzzTests: XCTestCase {
             finishes += finished(fx).count
             for moment in moments(fx) {
                 shots += 1
-                XCTAssertFalse(showing, "\(moment.jsonLine) while something needs you\n\(why)")
-                XCTAssertNil(moment.id, why)
+                XCTAssertFalse(showing, "\(moment.name) \(moment.args) while something needs you\n\(why)")
+                XCTAssertNil(moment.mood, why)
                 XCTAssertTrue(["starting", "stopped", "error", "helper_return"].contains(moment.anim ?? ""), why)
                 XCTAssertEqual(moment.ctx != nil, moment.anim == "starting", why)
                 XCTAssertTrue(FaceLoops.variants(mood: rig.core.config.mood, state: moment.anim!, ctx: moment.ctx)

@@ -1746,7 +1746,7 @@ static void test_refused_calls_say_why() {
 }
 
 // PROTOCOL.md §3: push-to-talk, BOOT's or the Mac's `listening`, drops
-// the reactions waiting (they'd end it) with why `listening`; BOOT's also
+// the reactions waiting (they'd end it) with why `mic_on`; BOOT's also
 // cuts the holder, as a tap does, and the Mac's replaces it.
 static void test_the_mic_drops_the_reactions_waiting() {
   Rig r;
@@ -1756,7 +1756,7 @@ static void test_the_mic_drops_the_reactions_waiting() {
   r.usbLine("{\"t\":\"dbg.press\",\"ms\":800}");
   for (uint32_t t = 10; t <= 500; t += 10) clockAt(r, t);
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"talk_on\",\"did\":\"listening\"}\n"));
-  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(2, "skipped", "listening")));
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(2, "skipped", "mic_on")));
   TEST_ASSERT_TRUE(has(r.usb.text, endedLine(1, "cut", "tap")));
   Rig m;
   m.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
@@ -1764,7 +1764,7 @@ static void test_the_mic_drops_the_reactions_waiting() {
   doLine(m, 4, "react", "next", kGo);
   doLine(m, 5, "listening", "now");
   TEST_ASSERT_TRUE(has(m.usb.text, endedLine(3, "cut", "now")));
-  TEST_ASSERT_TRUE(has(m.usb.text, endedLine(4, "skipped", "listening")));
+  TEST_ASSERT_TRUE(has(m.usb.text, endedLine(4, "skipped", "mic_on")));
   TEST_ASSERT_TRUE(has(stateOf(m), "\"holder\":{\"id\":5,\"name\":\"listening\",\"resting\":true}"));
 }
 
@@ -1788,7 +1788,7 @@ static void test_a_tools_press_drops_only_usbs_waiting_calls() {
   for (uint32_t t = 10; t <= 500; t += 10) clockAt(r, t);
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"talk_on\",\"did\":\"listening\"}\n"));
   TEST_ASSERT_FALSE(has(r.ble.text, "talk_on"));
-  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(3, "skipped", "listening")));
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(3, "skipped", "mic_on")));
   TEST_ASSERT_TRUE(has(r.ble.text, endedLine(1, "cut", "tap")));
   TEST_ASSERT_FALSE(has(r.ble.text, "\"id\":2,"));
   std::string st = stateOf(r);

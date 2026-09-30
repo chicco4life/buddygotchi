@@ -263,7 +263,7 @@ holder rests, what it refuses and what it cuts (`firmware/src/app/device.cpp`):
   `listening` excepted). Either way the call ends once nothing of it
   plays: its line plays on over a poke, and then it ends `cut`.
 - **Drop the line.** Push-to-talk ends the calls waiting (`skipped`,
-  `listening`), since a reaction would end listening, but only those of
+  `mic_on`), since a reaction would end listening, but only those of
   a Mac that hears it: BOOT's drops every call waiting, a tool's
   `dbg.press` only those from USB (where its `talk_on` goes, §4), and the
   Mac's `listening` only those from its own link.
@@ -399,7 +399,7 @@ other `kind`.
 | `cut` | `reset` | A tool sent `dbg.reset` |
 | `skipped` | `needs_you`, `no_app`, `listening`, `not_listening`, `nothing` | Boop refused it (§3) |
 | `skipped` | `late`, `busy`, `full`, `unknown`, `reset` | The kit's (SPEC §4): waited past its `ttl`; `if_free` while the turn was busy; a fifth waiting; a name Boop doesn't have; `dbg.reset` while it waited |
-| `skipped` | `listening` | Also: push-to-talk dropped it while it waited (§3) |
+| `skipped` | `mic_on` | Push-to-talk, BOOT's or the Mac's `listening`, dropped it while it waited (§3) |
 
 Muting doesn't stop a call. A `do` whose `id` the device still holds or
 keeps waiting can only be from a later launch of the Mac app: the old one

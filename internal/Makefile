@@ -9,12 +9,12 @@ PIO := firmware/tools/pio.sh
 
 # Swift unit tests through the XCTest shim (there's no Xcode here): the
 # root `build` (one `swift build` of the whole package, the tests' runner
-# included), then the runner. Then the own tests of agent-hooks and
-# jharness, which use Swift Testing and so run under `swift test`, each in
-# a build folder of its own. That build now and then fails with "plugin
+# included), then the runner. Then the own tests of agent-hooks, jharness
+# and linkkit, which use Swift Testing and so run under `swift test`, each
+# in a build folder of its own. That build now and then fails with "plugin
 # for module 'TestingMacros' not found", a toolchain flake that passes
 # when run again, so that failure alone is tried again, up to four times.
-SWIFT_PACKAGES := agent-hooks jharness
+SWIFT_PACKAGES := agent-hooks jharness linkkit
 
 test: voice
 	$(MAKE) -C $(ROOT) build

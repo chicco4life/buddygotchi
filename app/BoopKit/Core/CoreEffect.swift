@@ -1,6 +1,7 @@
 import AgentHooks
 import Foundation
 import JHarness
+import LinkKit
 
 /// What the core decided. The app hands each effect to the part that carries
 /// it out: snapshots and the rules' one-shots to the device link, what it
@@ -27,7 +28,8 @@ public enum CoreEffect: Equatable, Sendable {
     case listen(Bool, by: Core.Talker)
     /// A rule's one-shot for the device (BEHAVIORS.md §3.1), after the
     /// snapshot of the same input: `starting`, `stopped`, `error` or
-    /// `helper_return`, with no `id`, which no brain waits on.
+    /// `helper_return`, which plays only if the device's turn is free
+    /// (`if_free`) and which no brain waits on.
     case moment(DeviceMoment)
     /// Open a thread on the Mac, in the app it runs in: a tap while
     /// something needs you (BEHAVIORS.md §3.2).
@@ -41,7 +43,7 @@ public enum CoreEffect: Equatable, Sendable {
         case .record(let e): "record " + e.summary
         case .newDay(let date): "new-day \(date)"
         case .listen(let on, let by): "listen \(on ? "on" : "off") (\(by.rawValue))"
-        case .moment(let m): "moment " + m.jsonLine
+        case .moment(let m): "do " + JSONObject([("name", .string(m.name)), ("args", .object(m.args))]).json
         case .open(let t): "open \(t.agent) \(t.session)"
         }
     }

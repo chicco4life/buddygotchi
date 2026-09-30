@@ -109,7 +109,7 @@ public final class Core {
     /// Where the session `key` names opens on the Mac, or nil.
     public func thread(about key: String) -> ThreadRef? { sessions[key]?.thread }
 
-    /// The rules' one-shots (PROTOCOL.md §3 `moment`).
+    /// The rules' one-shots (PROTOCOL.md §3 `do`).
     public static let starting = "starting", stopped = "stopped", error = "error", helperReturn = "helper_return"
     /// The failed calls that play the error one-shot: a command that
     /// exited with an error or timed out, never a request you denied.
@@ -225,8 +225,8 @@ public final class Core {
     /// A rule's one-shot (BEHAVIORS.md §3.1), in Boop's mood with a
     /// variation at random, never the one it played last: not while
     /// something needs you or `listening` holds the screen, and the error
-    /// one-shot at most once every `errorEveryMs`. The runtime also holds
-    /// it back while a brain moment's line plays.
+    /// one-shot at most once every `errorEveryMs`. The device also skips
+    /// it while a brain reaction holds its turn (`if_free`).
     func play(_ shot: DeviceMoment, _ now: Int64, _ fx: inout [CoreEffect]) {
         guard let anim = shot.anim, !needsYouShowing, !showsListening(at: now) else { return }
         if anim == Core.error {
@@ -276,7 +276,7 @@ public final class Core {
     }
 
     /// The device stopped showing `listening`: the reply went out, or the
-    /// runtime ended it with the empty moment because none is coming, or
+    /// runtime ended it with `stop_listening` because none is coming, or
     /// the mic couldn't start.
     public func listeningEnded() {
         listening = nil

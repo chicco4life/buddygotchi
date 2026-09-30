@@ -1,6 +1,7 @@
 import AgentHooks
 import AppKit
 import BoopKit
+import LinkKit
 import SwiftUI
 
 /// `Boop --snapshots DIR`: renders the popover's panes and the menu-bar
@@ -60,11 +61,14 @@ enum Snapshots {
                 let stopped = model(installer, status: nil)
                 stopped.startError = AppModel.startProblem(Runtime.OpenError.locked("/tmp/boop"))
                 shot("settings-not-running", stopped, pane: .settings)
-                shot("settings-bluetooth-off", model(installer, status: status(connected: false, linkTrouble: BLETransport.trouble(.poweredOff))),
+                shot("settings-bluetooth-off", model(installer, status: status(connected: false, linkTrouble: BLETransport.trouble(.poweredOff, appName: "Boop"))),
                      pane: .settings)
                 // A card with another pack than the app's, and no card or pack: no voice.
                 shot("settings-old-voice", model(installer, status: status(voice: "0123456789abcdef")), pane: .settings)
                 shot("settings-no-voice", model(installer, status: status(voice: "none")), pane: .settings)
+                // Firmware from before LinkKit: the looks, but no reactions (linkkit/SPEC.md §6).
+                shot("settings-old-firmware", model(installer, status: status(deviceTrouble: "the device's firmware is too old for this app: flash it")),
+                     pane: .settings)
 
                 for step in SetupDraft.Step.allCases {
                     let setup = model(installer, status: nil)
@@ -106,7 +110,7 @@ enum Snapshots {
                        name: String = "Mochi", brain: String = "jev:jev-latest", keyRead: Bool = true,
                        mood: String = MoodAction.initial, brainTrouble: BrainTrouble? = nil,
                        listening: Bool = false, micTrouble: String? = nil, voice: String? = nil,
-                       linkTrouble: String? = nil) -> Runtime.Status {
+                       linkTrouble: String? = nil, deviceTrouble: String? = nil) -> Runtime.Status {
         let statuses: [String: SessionSummary.Status] = ["wait": .waiting, "work": .working, "idle": .idle]
         // Each in its agent's own app, so its row opens it.
         let sessions = rows.enumerated().map { i, row in
@@ -126,8 +130,8 @@ enum Snapshots {
             },
             busy: sessions.filter { $0.status == .working }.count, vol: vol)
         return Runtime.Status(name: name, snapshot: snapshot, sessions: sessions, connected: connected,
-                              device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0", voice: voice) : nil,
-                              linkTrouble: linkTrouble,
+                              device: connected && deviceTrouble == nil ? DeviceInfo(id: "b00p-54fe", fw: "1.0.0", voice: voice) : nil,
+                              linkTrouble: linkTrouble, deviceTrouble: deviceTrouble,
                               personality: personality, brain: brain, keyRead: keyRead, brainTrouble: brainTrouble,
                               listening: listening, micTrouble: micTrouble)
     }
@@ -192,7 +196,7 @@ enum Snapshots {
             ("no-voice", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]], voice: "none"))),
             // Bluetooth refused at the first launch's prompt.
             ("no-bluetooth", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]],
-                                                             connected: false, linkTrouble: BLETransport.trouble(.unauthorized)))),
+                                                             connected: false, linkTrouble: BLETransport.trouble(.unauthorized, appName: "Boop")))),
             ("no-device", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]],
                                                           connected: false), link: .none)),
             // Every chip at once (Chatter and Muted), under the longest kind of name.

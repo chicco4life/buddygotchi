@@ -1,6 +1,7 @@
 import AgentHooks
 import Foundation
 import JHarness
+import LinkKit
 
 /// Everything the app runs, wired together (ARCHITECTURE.md §1): the hook
 /// socket feeds the adapters, and every event goes down the pipeline, into
@@ -14,7 +15,7 @@ public final class Runtime: @unchecked Sendable {
     public struct Options {
         public var stateDir: URL
         public var socketPath: String
-        public var link: DeviceTransport?
+        public var link: Transport?
         /// The static parts of Jev's state: a copy of `plan/steering/`.
         public var steering: Steering
         /// Override the personality in `settings.json` for this run only.
@@ -58,7 +59,7 @@ public final class Runtime: @unchecked Sendable {
         /// needs you, or a click in the popover. Tests pass their own.
         public var open: @Sendable (ThreadLink.Target) -> Bool = ThreadLink.openOnMac
 
-        public init(stateDir: URL, socketPath: String, link: DeviceTransport?, steering: Steering) {
+        public init(stateDir: URL, socketPath: String, link: Transport?, steering: Steering) {
             self.stateDir = stateDir
             self.socketPath = socketPath
             self.link = link
@@ -75,10 +76,14 @@ public final class Runtime: @unchecked Sendable {
         /// Every session, for the popover's list.
         public var sessions: [SessionSummary]
         public var connected: Bool
-        public var device: DeviceStatus?
+        /// What the device said of itself in its `hello`.
+        public var device: DeviceInfo?
         /// Why the link can't look for the device (Bluetooth off), in the
         /// transport's words, for the popover.
         public var linkTrouble: String?
+        /// Why the device connected gets no reactions: its firmware doesn't
+        /// fit the app (linkkit/SPEC.md §6), in the link's words.
+        public var deviceTrouble: String?
         public var personality: Personality
         /// The brain as it runs: `jev:jev-latest`, or `none` without a key.
         public var brain: String
@@ -93,8 +98,8 @@ public final class Runtime: @unchecked Sendable {
         public var micTrouble: String?
 
         public init(name: String, snapshot: StateSnapshot, sessions: [SessionSummary], connected: Bool,
-                    device: DeviceStatus?, linkTrouble: String? = nil, personality: Personality, brain: String,
-                    keyRead: Bool = true, brainTrouble: BrainTrouble? = nil, listening: Bool = false,
+                    device: DeviceInfo?, linkTrouble: String? = nil, deviceTrouble: String? = nil, personality: Personality,
+                    brain: String, keyRead: Bool = true, brainTrouble: BrainTrouble? = nil, listening: Bool = false,
                     micTrouble: String? = nil) {
             self.name = name
             self.snapshot = snapshot
@@ -102,6 +107,7 @@ public final class Runtime: @unchecked Sendable {
             self.connected = connected
             self.device = device
             self.linkTrouble = linkTrouble
+            self.deviceTrouble = deviceTrouble
             self.personality = personality
             self.brain = brain
             self.keyRead = keyRead
@@ -129,7 +135,10 @@ public final class Runtime: @unchecked Sendable {
     /// it went idle.
     public let home = DispatchQueue(label: "boop.home", qos: .userInitiated, autoreleaseFrequency: .workItem)
     public let options: Options
-    public let link: DeviceLink
+    /// LinkKit's link to the device, in Boop's vocabulary (`BoopDevice`).
+    public let link: Link
+    /// The newest snapshot sent to the device.
+    public private(set) var latest: StateSnapshot?
     /// Boop's name, from `long-term.md`.
     let name: String
     public private(set) var settings: AppSettings
@@ -162,15 +171,9 @@ public final class Runtime: @unchecked Sendable {
     /// Jev's key, touched only on `home`: nil until read, and then the key
     /// or none. Until then no event wakes the brain.
     var jevKey: String??
-    /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): the
-    /// tap's poke plays at once, and the brain's moments wait their turn
-    /// in it behind the brain's earlier ones, go to the device with an id
-    /// and hold its line until the device says how they ended.
-    var schedule = MomentSchedule()
-    /// The timer set for the brain's next turn, and the time it's set for;
-    /// nil when none is.
-    var pumpTimer: DispatchSourceTimer?
-    var pumpAt: Int64?
+    /// The brain's reactions on the device until each ends: the device
+    /// decides when each plays (ARCHITECTURE.md §3.2).
+    let reactions = Reactions()
     /// The transport's `trouble` as the status last had it. It changes on
     /// the transport's thread, so the tick looks.
     var linkTrouble: String?
@@ -199,9 +202,9 @@ public final class Runtime: @unchecked Sendable {
     var devIdleMs: Int64 = 0
 
     /// A clock that never steps and keeps counting while the Mac sleeps,
-    /// starting at the wall clock's time: the keepalive and moments'
-    /// turns are measured on it, so setting the Mac's clock back can't stall them
-    /// (ARCHITECTURE.md §3.2).
+    /// starting at the wall clock's time: the keepalive and the link's
+    /// waits for the device's `ended` are measured on it, so setting the
+    /// Mac's clock back can't stall them (ARCHITECTURE.md §3.2).
     public static func steadyClock() -> @Sendable () -> Int64 {
         let wall = Int64(Date().timeIntervalSince1970 * 1000)
         let start = ContinuousClock.now
@@ -228,7 +231,7 @@ public final class Runtime: @unchecked Sendable {
         else { throw OpenError.notSetUp }
         name = longTerm.name
         settings = AppSettings.load(from: options.stateDir)
-        link = DeviceLink(transport: options.link, log: log)
+        link = BoopDevice.link(options.link, log: log)
         let recent = DebugLog.Recent()
         self.recent = recent
         let debugLog = options.debug ? debugLogURL : nil
@@ -243,7 +246,7 @@ public final class Runtime: @unchecked Sendable {
         self.emit = emit
         let clock = options.clock
         // boop.log leaves out a `state` sent again unchanged (the keepalive,
-        // a reply to `status`), which debug.jsonl keeps (harness/HARNESS.md §9).
+        // a reply to `hello`), which debug.jsonl keeps (harness/HARNESS.md §9).
         var lastState: String?
         link.onSend = { line, sender in
             emit(DebugLog.sent(line, by: sender, at: clock()))
@@ -251,6 +254,9 @@ public final class Runtime: @unchecked Sendable {
             if line.hasPrefix(#"{"t":"state""#) { lastState = line }
             log("link \(sender == .brain ? "brain" : "rules") → " + line)
         }
+        // Who the device is, when it first says hello on a link or says
+        // something new.
+        link.onHello = { hello in DeviceInfo(hello).logLines.forEach(log) }
 
         let now = options.clock()
         personality = options.personality ?? settings.personality
@@ -276,7 +282,7 @@ public final class Runtime: @unchecked Sendable {
         let link = self.link
         (harness, mood) = Runtime.harness(
             pipeline: pipeline, steering: options.steering, personality: { personalityNow() },
-            queue: { queued($0, $1) }, speaks: { link.status?.hasTheVoice ?? true })
+            queue: { queued($0, $1) }, speaks: { link.hello.map { DeviceInfo($0).hasTheVoice } ?? true })
         // The questions line is debug.jsonl's first, before the read-back's
         // lines, the socket or the link can add one, so a changed first line
         // means a new launch. The read-back's own lines wait for it.
@@ -285,6 +291,8 @@ public final class Runtime: @unchecked Sendable {
         debugWriter = Runtime.debugLines(pipeline: pipeline, emit: { line in if holding { held.append(line) } else { emit(line) } })
         // The view and the core pick up where the last launch left them.
         let read = home.sync { pipeline.readBack(now: now) }
+        // The mood an older Boop kept in its own file (harness/DECISIONS.md §2).
+        home.sync { MoodAction.carryOver(mood, stateDir: options.stateDir, harness: harness, note: log) }
         let logNow = transcript.view(now: now)
         core.restore(mood: MoodAction.value(mood, logNow))
         let questions = DebugLog.questions(Runtime.outputs(harness), log: logNow, at: now)
@@ -296,6 +304,9 @@ public final class Runtime: @unchecked Sendable {
         presence = PresenceDetector(away: view.away(logNow))
         personalityNow = { [weak self] in self?.personality ?? .boop }
         queued = { [weak self] moment, pending in self?.queue(moment, pending) }
+        // The device's taps and push-to-talk; the link leaves out those of
+        // a device whose firmware doesn't fit.
+        link.onEvent = { [weak self] ev in self?.deviceEvent(ev) }
         // A pass can change the mood, which the device and the menu bar show.
         harness.on(Event.did) { [weak self] e in
             guard e.action == MoodAction.actionName, e["ok"]?.bool == true, let to = e["to"]?.string else { return }
@@ -303,11 +314,11 @@ public final class Runtime: @unchecked Sendable {
         }
         // A reaction your tap cut short is in progress while the pokes go
         // on, and done once anything else happens (harness/DECISIONS.md §5).
-        // The check comes before the schedule is touched: a moment's end,
-        // logged from inside the schedule, never stops the pokes.
-        harness.on("*") { [weak self] e in
-            guard TranscriptView.stopsThePokes(e, transcript.view(before: e)), let self, !schedule.cutByTap.isEmpty else { return }
-            schedule.pokesStopped()
+        // A reaction's end, JHarness's own event, never stops the pokes.
+        let reactions = reactions
+        harness.on("*") { e in
+            guard !reactions.cutByTap.isEmpty, TranscriptView.stopsThePokes(e, transcript.view(before: e)) else { return }
+            reactions.pokesStopped()
         }
         harness.onPass = { [weak self] pass in self?.passed(pass) }
     }
@@ -335,7 +346,7 @@ public final class Runtime: @unchecked Sendable {
             return DeviceMoment.Who(agent: who.agent, thread: core.name(about: key) ?? who.thread, opens: core.thread(about: key))
         }, speaks: speaks)
         h.output(mood)
-        h.output(react, openFor: ReactAction.openForMs)
+        h.output(react, openFor: ReactAction.openForMs, keepOpen: TranscriptView.heldByPokes)
         h.section { _ in steering.guide + "\n" + EventLine.reading + "\n" + EventLine.words }
         h.section { _ in steering.personality(personality()).text }
         h.section { log in steering.mood(MoodAction.value(mood, log)) }
@@ -408,11 +419,6 @@ public final class Runtime: @unchecked Sendable {
         server?.stop()
         server = nil
         options.link?.stop()
-        home.async { [weak self] in
-            self?.pumpTimer?.cancel()
-            self?.pumpTimer = nil
-            self?.pumpAt = nil
-        }
     }
 
     // MARK: Inputs (on `home`)
@@ -430,47 +436,58 @@ public final class Runtime: @unchecked Sendable {
         run(pipeline.agent(event))
     }
 
-    /// The transport connected or dropped. HISTORY says a moment playing
-    /// on a device that dropped didn't happen, since its `ended` may never
-    /// come (ARCHITECTURE.md §8). But the device plays on, and the link may
-    /// be back a second later, so the schedule keeps its reckoning: the
-    /// moment still holds the line until its `ended` comes over the link
-    /// again, or the app gives up on it.
+    /// The transport connected or dropped. On a drop the link fails every
+    /// reaction still waiting for its `ended`, which HISTORY then says
+    /// didn't happen, since that may never come (ARCHITECTURE.md §8). The
+    /// device plays on, though, and the link may be back a second later,
+    /// so a tap on a finish still playing still opens its thread.
     func connection(_ up: Bool) {
         let now = options.clock()
         link.connection(up, now: now)
-        if !up {
-            schedule.failAll("the device disconnected")
-            pump()
-            run(core.linkDown(at: now))
-        }
+        if !up { run(core.linkDown(at: now)) }
         changed()
     }
 
+    /// A line from the device: its `hello`, answered by the link with the
+    /// latest `state`; an `ev` (`deviceEvent`); how a `do` ended, which
+    /// the link hands to whoever asked for it, and which is logged here; or
+    /// the `status` of Boop's firmware from before LinkKit, which is too
+    /// old: it gets `state` but no `do`, and the popover says to flash it.
     func device(_ line: String) {
         let now = options.clock()
         switch link.receive(line, now: now) {
-        case .tap(let finish):
-            options.log("device: input tap" + (finish.map { " on moment \($0)" } ?? ""))
-            // A poke (BEHAVIORS.md §3.3). The device has already poked,
-            // cutting the animation playing but not a reaction's line or face;
-            // on the brain's finish that names whose turn it was it only
-            // dipped, and the tap opens that thread.
-            run(pipeline.poke(at: now, finish: finish.flatMap { schedule.opens(finish: $0) }))
-            pump()
-        case .talk(let on):
-            options.log("device: input talk_\(on ? "on" : "off")")
-            // The device already shows `listening` (BEHAVIORS.md §3.3).
-            run(core.listen(on, by: .device, at: now))
-            pump()
         case .ended(let ended):
-            options.log("device: moment \(ended.id) ended \(ended.how.rawValue)" + (ended.why.map { " (\($0))" } ?? ""))
-            schedule.ended(ended, now: now)
-            pump()
+            options.log("device: do \(ended.id) ended \(ended.how.rawValue)" + (ended.why.map { " (\($0))" } ?? ""))
+            reactions.ended(ended.id)
+        case .other:
+            guard let old = BoopDevice.fromBeforeTheKit(line) else { break }
+            if link.trouble != Link.tooOld { options.log("device: \(old.id) firmware \(old.fw)") }
+            link.incompatible(Link.tooOld, now: now)
         default:
             break
         }
         changed()
+    }
+
+    /// A tap, or BOOT's push-to-talk (PROTOCOL.md §4).
+    func deviceEvent(_ ev: DeviceEvent) {
+        let now = options.clock()
+        switch ev.kind {
+        case "tap":
+            let finish = BoopDevice.finish(tapped: ev)
+            options.log("device: tap" + (ev.did.map { " (\($0))" } ?? "") + (finish.map { " on do \($0)" } ?? ""))
+            // A poke (BEHAVIORS.md §3.3). The device has already poked,
+            // cutting the animation playing but not a reaction's line or face;
+            // on the brain's finish that names whose turn it was it only
+            // dipped, and the tap opens that thread.
+            run(pipeline.poke(at: now, finish: finish.flatMap { reactions.opens(finish: $0) }))
+        case "talk_on", "talk_off":
+            options.log("device: \(ev.kind)")
+            // The device already shows `listening` (BEHAVIORS.md §3.3).
+            run(core.listen(ev.kind == "talk_on", by: .device, at: now))
+        default:
+            break
+        }
     }
 
     /// A `{"dev":…}` line from the socket (VERIFICATION.md §2):
@@ -508,7 +525,6 @@ public final class Runtime: @unchecked Sendable {
             // The device's tap, without a board (VERIFICATION.md §2).
             options.log("dev: tap")
             run(pipeline.poke(at: options.clock()))
-            pump()
             changed()
         case "listen":
             // The app's mic button.
@@ -538,13 +554,13 @@ public final class Runtime: @unchecked Sendable {
         let now = options.clock()
         core.setWallClock(options.wallClock(), at: now)
         run(pipeline.tick(at: now))
+        // A mood whose change has aged out of the log is calm there, and
+        // on the device too (harness/DECISIONS.md §2).
+        if moodNow != core.config.mood { moodChanged(moodNow) }
         if let e = presence.tick(at: now, idleMs: options.idleMs?() ?? devIdleMs) { recordPresence(e) }
+        // The keepalive, and the reactions whose `ended` never came.
         link.tick(now: now)
-        schedule.overdue(now: now)
-        // A reaction that has waited too long is dropped here too, before
-        // the harness's ceiling could end it, even when the pump's timer,
-        // which runs on uptime, hasn't fired (the clock jumped).
-        pump()
+        reactions.tick(now: now)
         let trouble = link.transport?.trouble
         if trouble != linkTrouble {
             linkTrouble = trouble
@@ -603,10 +619,10 @@ public final class Runtime: @unchecked Sendable {
         if stateChanged { changed() }
     }
 
-    /// The core turned the mic on or off (BEHAVIORS.md §3.3). On: the
-    /// brain's moments waiting are dropped, since one would end
-    /// `listening`, and after the app's button the device is told to show
-    /// it (the device's own button already does). Off: what the mic heard
+    /// The core turned the mic on or off (BEHAVIORS.md §3.3). On: after
+    /// the app's button the device is told to show `listening` at once,
+    /// and it drops the reactions waiting there, since one would end it
+    /// (the device's own button does both itself). Off: what the mic heard
     /// comes back to `said` or `heardNothing`.
     func listen(_ on: Bool, by: Core.Talker) {
         options.log("talk: mic \(on ? "on" : "off") (\(by.rawValue))")
@@ -617,10 +633,7 @@ public final class Runtime: @unchecked Sendable {
         talker = by
         micTrouble = nil
         replyFor = nil
-        for moment in schedule.dropWaiting() {
-            options.log("react: dropped a brain moment waiting when the mic went on: \(moment.jsonLine)")
-        }
-        if by == .app { link.play(DeviceMoment(anim: DeviceMoment.listening)) }
+        if by == .app { link.do(BoopDevice.listening, play: .now, now: options.clock()) { _ in } }
         onListen?(true)
     }
 
@@ -679,84 +692,48 @@ public final class Runtime: @unchecked Sendable {
         return "brain \(e.name) \(pass.latencyMs) ms → " + result
     }
 
-    /// Ends `listening` on the device with the empty moment, which ends
+    /// Ends `listening` on the device with `stop_listening`, which ends
     /// nothing else (PROTOCOL.md §3).
     func endListening() {
         core.listeningEnded()
-        link.play(DeviceMoment())
+        link.do(BoopDevice.stopListening, play: .ifFree, now: options.clock()) { _ in }
     }
 
-    /// A snapshot for the device, whose look and mood time the moments
-    /// played over it; "needs you" starting stops them.
+    /// A snapshot for the device.
     func show(_ snapshot: StateSnapshot) {
-        let now = options.clock()
-        link.update(snapshot, now: now)
-        schedule.show(look: snapshot.look, mood: snapshot.mood, attn: snapshot.attn != nil, now: now)
-        pump()
+        latest = snapshot
+        link.update(state: snapshot.fields, now: options.clock())
     }
 
-    /// A rule's one-shot (BEHAVIORS.md §3.1): it plays at once, after the
-    /// `state` of the same input, unless a brain moment's line is playing,
-    /// which it would cut: then it's dropped, since a late one-shot is
-    /// worse than none. The core has already left it out while something
-    /// needs you or `listening` shows.
+    /// A rule's one-shot (BEHAVIORS.md §3.1): sent at once, after the
+    /// `state` of the same input, to play only if the device's turn is free
+    /// or resting (`if_free`): a brain reaction's line holding it would be
+    /// cut, and a late one-shot is worse than none, so the device skips it
+    /// then. The core has already left it out while something needs you or
+    /// `listening` shows.
     func playRule(_ moment: DeviceMoment) {
-        let now = options.clock()
-        guard schedule.rulePlays(now: now) else {
-            options.log("rule: dropped \(moment.anim ?? "a moment") while a brain moment plays")
-            return
-        }
-        link.play(moment)
+        link.do(moment.name, args: moment.args, play: .ifFree, now: options.clock()) { _ in }
     }
 
-    /// A reaction's moment from the brain, to play when its turn comes,
-    /// and its handle to end once it's known how it went. On `home`.
+    /// A reaction from the brain, sent at once to wait its turn on the
+    /// device (`next`, for up to 5 s), and its handle, ended once it's
+    /// known how it went: at once when it can't be sent. On `home`.
     func queue(_ moment: DeviceMoment, _ pending: Pending) {
         core.listeningEnded()  // a reaction ends `listening`: it's the reply (BEHAVIORS.md §3.3)
-        schedule.brain(moment, pending, now: options.clock())
-        pump()
-    }
-
-    /// Plays the brain's next moment if its turn has come, and sets a timer
-    /// for when to look again, unless one is set for no later that the
-    /// clock hasn't passed yet. Whatever frees the line sooner (the
-    /// device's `ended`, "needs you") pumps again at once. The schedule ends a moment's handle when no device is
-    /// connected, and gives one sent to the device its id. On `home`.
-    func pump() {
-        let now = options.clock()
-        let due = schedule.due(now: now, connected: link.connected)
-        for moment in due.dropped {
-            options.log("react: dropped a brain moment that waited over \(MomentSchedule.maxWaitMs / 1000) s: \(moment.jsonLine)")
+        let now = options.clock(), reactions = reactions
+        let id = link.do(moment.name, args: moment.args, play: .next, ttl: BoopDevice.reactionTTL, by: .brain, now: now) {
+            reactions.finish(pending, $0)
         }
-        if let moment = due.play { link.play(moment, by: .brain) }
-        guard let next = schedule.next else { return }
-        // One set for no later will do, unless the clock has passed it: a
-        // timer counts the Mac's uptime, which stops while it sleeps, and
-        // the clock doesn't, so it would come late.
-        if let at = pumpAt, at <= next, at >= now { return }
-        // A timer source, not asyncAfter, whose leeway grows with the wait
-        // (a tenth of it): a turn 3 s away came 0.3 s late.
-        pumpTimer?.cancel()
-        let timer = DispatchSource.makeTimerSource(flags: .strict, queue: home)
-        timer.schedule(deadline: .now() + .milliseconds(Int(max(1, next - now))), leeway: .milliseconds(5))
-        timer.setEventHandler { [weak self] in
-            guard let self else { return }
-            pumpTimer?.cancel()
-            pumpTimer = nil
-            pumpAt = nil
-            pump()
-        }
-        pumpTimer = timer
-        pumpAt = next
-        timer.resume()
+        if let id, let thread = moment.who?.opens { reactions.sent(id, opens: thread, ttl: BoopDevice.reactionTTL, now: now) }
     }
 
     func changed() {
         let now = options.clock()
-        let status = Status(name: name, snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
-                            connected: link.connected, device: link.status, linkTrouble: linkTrouble, personality: personality,
-                            brain: harness.brain?.id ?? "none", keyRead: jevKey != nil, brainTrouble: trouble,
-                            listening: core.listening != nil, micTrouble: micTrouble)
+        let status = Status(name: name, snapshot: latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
+                            connected: link.connected, device: link.hello.map(DeviceInfo.init), linkTrouble: linkTrouble,
+                            deviceTrouble: link.trouble, personality: personality, brain: harness.brain?.id ?? "none",
+                            keyRead: jevKey != nil, brainTrouble: trouble, listening: core.listening != nil,
+                            micTrouble: micTrouble)
         if let line = DebugLog.status(status, at: now, last: &lastStatus) { emit(line) }
         onChange?(status)
     }

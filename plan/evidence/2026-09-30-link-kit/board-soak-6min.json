@@ -1,0 +1,626 @@
+{
+ "minutes": 6.0,
+ "samples": 65,
+ "reset": false,
+ "heap_min_start": 61188,
+ "heap_min_end": 61188,
+ "heap_min_drift": 0,
+ "final_screen": "face",
+ "final_moment": null,
+ "final_expr": null,
+ "answering": true,
+ "sent": {
+  "state": 101,
+  "do": 95
+ },
+ "lost": {
+  "state": 0,
+  "do": 0
+ },
+ "audio_errors": 0,
+ "link_glitches": [],
+ "torn_lines": 0,
+ "reactions": 38,
+ "ended": 38,
+ "ended_how": {
+  "skipped (needs_you)": 18,
+  "cut (tap)": 1,
+  "done": 14,
+  "cut (needs_you)": 3,
+  "skipped (late)": 1,
+  "skipped (no_app)": 1
+ },
+ "ended_missing": [],
+ "ended_twice": [],
+ "ended_unknown": [],
+ "names_unknown": 0,
+ "ended_ok": true,
+ "ok": true,
+ "series": [
+  {
+   "t": 0.0,
+   "up": 322710,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 1,
+   "draw_us": 1151,
+   "push_us": 8803
+  },
+  {
+   "t": 6.1,
+   "up": 328692,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 2,
+   "draw_us": 518,
+   "push_us": 6273
+  },
+  {
+   "t": 11.4,
+   "up": 334016,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 4,
+   "draw_us": 2626,
+   "push_us": 8792
+  },
+  {
+   "t": 17.4,
+   "up": 340011,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 3,
+   "draw_us": 1556,
+   "push_us": 5675
+  },
+  {
+   "t": 23.0,
+   "up": 345652,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 5,
+   "draw_us": 1051,
+   "push_us": 7823
+  },
+  {
+   "t": 28.9,
+   "up": 351517,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 4,
+   "draw_us": 634,
+   "push_us": 7770
+  },
+  {
+   "t": 33.9,
+   "up": 356581,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 12,
+   "draw_us": 1047,
+   "push_us": 7532
+  },
+  {
+   "t": 40.2,
+   "up": 362851,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 0,
+   "draw_us": 3332,
+   "push_us": 8625
+  },
+  {
+   "t": 46.6,
+   "up": 369224,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 1,
+   "draw_us": 749,
+   "push_us": 7903
+  },
+  {
+   "t": 51.8,
+   "up": 374459,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 3,
+   "draw_us": 682,
+   "push_us": 5637
+  },
+  {
+   "t": 58.1,
+   "up": 380746,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 3,
+   "draw_us": 2413,
+   "push_us": 7820
+  },
+  {
+   "t": 63.3,
+   "up": 385972,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 9,
+   "draw_us": 1246,
+   "push_us": 5716
+  },
+  {
+   "t": 69.5,
+   "up": 392149,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 0,
+   "draw_us": 3741,
+   "push_us": 9231
+  },
+  {
+   "t": 75.0,
+   "up": 397625,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 9,
+   "draw_us": 4163,
+   "push_us": 10227
+  },
+  {
+   "t": 80.1,
+   "up": 402747,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 38,
+   "draw_us": 2424,
+   "push_us": 8207
+  },
+  {
+   "t": 86.0,
+   "up": 408583,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 9,
+   "draw_us": 1133,
+   "push_us": 7947
+  },
+  {
+   "t": 91.6,
+   "up": 414209,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 4,
+   "draw_us": 601,
+   "push_us": 8866
+  },
+  {
+   "t": 97.8,
+   "up": 420418,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 34,
+   "draw_us": 1537,
+   "push_us": 9463
+  },
+  {
+   "t": 102.9,
+   "up": 425554,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 0,
+   "draw_us": 5535,
+   "push_us": 10263
+  },
+  {
+   "t": 108.2,
+   "up": 430797,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 19,
+   "draw_us": 3047,
+   "push_us": 8590
+  },
+  {
+   "t": 113.4,
+   "up": 436023,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 6,
+   "draw_us": 859,
+   "push_us": 5927
+  },
+  {
+   "t": 118.5,
+   "up": 441082,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 1,
+   "draw_us": 1101,
+   "push_us": 8460
+  },
+  {
+   "t": 124.2,
+   "up": 446836,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 8,
+   "draw_us": 1333,
+   "push_us": 8088
+  },
+  {
+   "t": 130.4,
+   "up": 453001,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 5,
+   "draw_us": 992,
+   "push_us": 5938
+  },
+  {
+   "t": 136.4,
+   "up": 459079,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 0,
+   "draw_us": 2784,
+   "push_us": 8380
+  },
+  {
+   "t": 141.8,
+   "up": 464510,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 2,
+   "draw_us": 1966,
+   "push_us": 12640
+  },
+  {
+   "t": 147.3,
+   "up": 469981,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 38,
+   "draw_us": 2687,
+   "push_us": 8695
+  },
+  {
+   "t": 153.4,
+   "up": 476019,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 3,
+   "draw_us": 1013,
+   "push_us": 6429
+  },
+  {
+   "t": 158.7,
+   "up": 481332,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 4,
+   "draw_us": 959,
+   "push_us": 5869
+  },
+  {
+   "t": 164.5,
+   "up": 487129,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 1,
+   "draw_us": 1347,
+   "push_us": 14189
+  },
+  {
+   "t": 170.3,
+   "up": 492923,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 1,
+   "draw_us": 644,
+   "push_us": 9131
+  },
+  {
+   "t": 175.9,
+   "up": 498513,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 2,
+   "draw_us": 583,
+   "push_us": 6899
+  },
+  {
+   "t": 182.2,
+   "up": 504801,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 3,
+   "draw_us": 2653,
+   "push_us": 8417
+  },
+  {
+   "t": 188.0,
+   "up": 510645,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 2,
+   "draw_us": 2651,
+   "push_us": 8355
+  },
+  {
+   "t": 193.7,
+   "up": 516299,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 32,
+   "draw_us": 2630,
+   "push_us": 6070
+  },
+  {
+   "t": 198.8,
+   "up": 521429,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 5,
+   "draw_us": 2626,
+   "push_us": 8374
+  },
+  {
+   "t": 204.8,
+   "up": 527459,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 1,
+   "draw_us": 2662,
+   "push_us": 6238
+  },
+  {
+   "t": 210.9,
+   "up": 533525,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 1,
+   "draw_us": 450,
+   "push_us": 6121
+  },
+  {
+   "t": 216.6,
+   "up": 539225,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 22,
+   "draw_us": 2806,
+   "push_us": 8031
+  },
+  {
+   "t": 223.1,
+   "up": 545702,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 2,
+   "draw_us": 1363,
+   "push_us": 8434
+  },
+  {
+   "t": 228.3,
+   "up": 550959,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 1,
+   "draw_us": 495,
+   "push_us": 7104
+  },
+  {
+   "t": 234.2,
+   "up": 556865,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 32,
+   "draw_us": 5007,
+   "push_us": 9377
+  },
+  {
+   "t": 239.4,
+   "up": 562087,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 35,
+   "draw_us": 5451,
+   "push_us": 9859
+  },
+  {
+   "t": 244.8,
+   "up": 567459,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 1,
+   "draw_us": 1267,
+   "push_us": 8353
+  },
+  {
+   "t": 250.9,
+   "up": 573535,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 6,
+   "draw_us": 752,
+   "push_us": 7908
+  },
+  {
+   "t": 256.4,
+   "up": 579075,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 5,
+   "draw_us": 593,
+   "push_us": 6901
+  },
+  {
+   "t": 262.1,
+   "up": 584735,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 3,
+   "draw_us": 960,
+   "push_us": 5675
+  },
+  {
+   "t": 268.1,
+   "up": 590713,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 8,
+   "draw_us": 2991,
+   "push_us": 8472
+  },
+  {
+   "t": 273.7,
+   "up": 596366,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 4,
+   "draw_us": 4019,
+   "push_us": 10267
+  },
+  {
+   "t": 278.8,
+   "up": 601423,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 29,
+   "draw_us": 3046,
+   "push_us": 6093
+  },
+  {
+   "t": 284.0,
+   "up": 606646,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 0,
+   "draw_us": 2845,
+   "push_us": 8914
+  },
+  {
+   "t": 290.0,
+   "up": 612599,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 9,
+   "draw_us": 1026,
+   "push_us": 8721
+  },
+  {
+   "t": 295.3,
+   "up": 617901,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 26,
+   "draw_us": 865,
+   "push_us": 5923
+  },
+  {
+   "t": 300.6,
+   "up": 623264,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 3,
+   "draw_us": 1197,
+   "push_us": 7304
+  },
+  {
+   "t": 306.1,
+   "up": 628683,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 7,
+   "draw_us": 1050,
+   "push_us": 8164
+  },
+  {
+   "t": 312.0,
+   "up": 634657,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 6,
+   "draw_us": 3523,
+   "push_us": 14979
+  },
+  {
+   "t": 317.3,
+   "up": 639933,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 4,
+   "draw_us": 1894,
+   "push_us": 7107
+  },
+  {
+   "t": 322.7,
+   "up": 645361,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 5,
+   "draw_us": 842,
+   "push_us": 6062
+  },
+  {
+   "t": 328.1,
+   "up": 650716,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 3,
+   "draw_us": 1303,
+   "push_us": 7431
+  },
+  {
+   "t": 333.9,
+   "up": 656568,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 4,
+   "draw_us": 1219,
+   "push_us": 9158
+  },
+  {
+   "t": 339.3,
+   "up": 661928,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 3,
+   "draw_us": 945,
+   "push_us": 5809
+  },
+  {
+   "t": 344.8,
+   "up": 667439,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 18,
+   "draw_us": 2595,
+   "push_us": 6395
+  },
+  {
+   "t": 350.0,
+   "up": 672628,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 2,
+   "draw_us": 1074,
+   "push_us": 8115
+  },
+  {
+   "t": 355.3,
+   "up": 677967,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 3,
+   "draw_us": 1003,
+   "push_us": 5815
+  },
+  {
+   "t": 365.3,
+   "up": 687948,
+   "heap": 62808,
+   "heap_min": 61188,
+   "fps": 2,
+   "draw_us": 835,
+   "push_us": 8604
+  }
+ ]
+}

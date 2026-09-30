@@ -19,10 +19,10 @@ run's: replayed today, 14:05 says "Nn... Checking" and 14:07 "Heh...
 Test", since Voice's rules for a line of two takes changed after
 2026-09-29.
 
-The eval has no device, so its queue ends each reaction `done` at once
-([EVALS.md](../EVALS.md) §1): every `react` action's start is followed
-straight away by its end. In the app the end comes when the device says
-how the moment ended ([DECISIONS.md](DECISIONS.md) §5).
+The eval has no device: its fake one answers each reaction `done` at
+once ([EVALS.md](../EVALS.md) §1), so every `react` action's start is
+followed straight away by its end. In the app the end comes when the
+device says how its `do` ended ([DECISIONS.md](DECISIONS.md) §5).
 
 ## 1. The story
 

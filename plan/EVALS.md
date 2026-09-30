@@ -16,12 +16,13 @@ the dashboard would set it just before the first step, so HISTORY can
 say how long Boop has been in it. The runner (`Eval` in
 `internal/app/BoopDevKit/Eval/Eval.swift`) wires them as the app does
 (`Runtime.harness`), with the real `mood` and `react` actions, except
-that a reaction's queue goes nowhere and ends the reaction's handle at
-once, `done` unless the step says otherwise (`reaction`, §3), so HISTORY
-shows it as played ([harness/DECISIONS.md](harness/DECISIONS.md) §5). A
-step's `failed: cut short: you tapped Boop` is held as the moment
-schedule holds a reaction your tap cut short: in progress while the
-pokes go on, done once they stop.
+that a reaction goes to a fake device, which answers at once with the
+`ended` the step names, `done` unless it says otherwise (`reaction`,
+§3), read as the app reads the device's (`Reactions`), so HISTORY shows
+it as played ([harness/DECISIONS.md](harness/DECISIONS.md) §5). A step's
+`failed: cut short: you tapped Boop` is the device's `cut` by a tap,
+held as the app holds it: in progress while the pokes go on, done once
+they stop; `failed: waited too long` is its `skipped`, `late`.
 
 For each step it moves the clock a second at a time to the step's time,
 ticking the pipeline as the app does, so heartbeats and other timers
@@ -291,7 +292,7 @@ heartbeat.
 
 **The run** starts `Boop --headless --brain jev --debug` with a fresh
 state directory and a fake device on a Unix socket (`--link usb:`) that
-says each of the brain's moments played to the end, so HISTORY reads as
+says hello as Boop's device does and each `do` played to the end, so HISTORY reads as
 it would with a board, and whose taps make the pokes. It moves
 the app's clock to 09:00 the next morning, sends each hook line straight
 to the app's socket in `agent-hook`'s wire form, moves the clock between

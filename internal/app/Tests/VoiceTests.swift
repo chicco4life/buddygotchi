@@ -193,7 +193,7 @@ final class VoiceTests: XCTestCase {
         XCTAssertEqual(Voice.line(feeling: nil, about: nil, kind: .sound, face: "calm", finish: nil, rng: &rng), [])
         // Two takes on the wire, and the gap between them in its length.
         let two = DeviceMoment.Say(takes: [.named("previous.tsk"), .named("phase1.word.test.test__annoyed__contained")])
-        XCTAssertEqual(two.json, #"{"take":"previous.tsk","then":"phase1.word.test.test__annoyed__contained"}"#)
+        XCTAssertEqual(two.json.json, #"{"take":"previous.tsk","then":"phase1.word.test.test__annoyed__contained"}"#)
         XCTAssertEqual(two.ms, two.takes[0].ms + Voice.joinGapMs + two.takes[1].ms)
         XCTAssertEqual(two.text, "Tsk... Test")
     }

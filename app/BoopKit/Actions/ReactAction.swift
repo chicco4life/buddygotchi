@@ -9,15 +9,15 @@ import JHarness
 /// its loops (PROTOCOL.md §3). Jev picks what Boop says as a feeling, a
 /// topic and a kind, and Voice finds a recorded take of each in the face's
 /// mood and joins them into a line, or finds none, and then the face plays
-/// in silence. It plays once any line or
-/// reaction's face playing has finished. It's started, not done, until
-/// whoever plays the moment ends its handle.
+/// in silence. It waits its turn on the device until any line or
+/// reaction's face playing there has finished. It's started, not done,
+/// until whoever plays it ends its handle.
 public final class ReactAction: Action {
     public static let actionName = "react"
     public let name = ReactAction.actionName
-    /// Queues a brain moment, which waits its turn behind whatever is
-    /// playing, with the handle to end once the device says how it ended,
-    /// or once it never will.
+    /// Sends a brain reaction, which waits its turn on the device behind
+    /// whatever is playing, with the handle to end once the device says how
+    /// it ended, or once it never will.
     let queue: (DeviceMoment, Pending) -> Void
     /// Why a reaction can't play now (something needs you), or nil.
     let blocked: () -> String?

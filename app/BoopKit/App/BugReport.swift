@@ -36,7 +36,10 @@ extension Runtime {
                                  to: dir.appendingPathComponent(AppSettings.file))
                 let now = options.clock()
                 let about: [String: Any] = [
-                    "app": BoopVersion.current, "firmware": link.status?.fw ?? NSNull(), "device": link.status?.id ?? NSNull(),
+                    "app": BoopVersion.current, "firmware": link.hello?.fw ?? NSNull(), "device": link.hello?.id ?? NSNull(),
+                    // Why the device connected gets no `do`: its firmware
+                    // doesn't fit, and boop.log says whose it is.
+                    "device_trouble": link.trouble ?? NSNull(),
                     "link": options.link?.name ?? "none", "connected": link.connected, "debug": options.debug,
                     "personality": personality.rawValue, "mood": moodNow, "brain": harness.brain?.id ?? "none",
                     "taken_at_ms": now, "taken_at_wall_ms": options.wallClock(),

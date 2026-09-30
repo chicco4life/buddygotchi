@@ -32,7 +32,7 @@ public final class Choice: Action {
 
     /// Its latest change in the log, if any.
     public func latest(_ log: LogView) -> Event? {
-        log.last(Event.did) { $0.action == self.name && $0["ok"]?.bool == true && $0["to"]?.string != nil }
+        log.lastDid(name) { $0["ok"]?.bool == true && $0["to"]?.string != nil }
     }
 
     /// The value it has.

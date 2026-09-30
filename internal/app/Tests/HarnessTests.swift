@@ -1,5 +1,6 @@
 import Foundation
 import JHarness
+import LinkKit
 import XCTest
 @testable import BoopKit
 
@@ -52,7 +53,7 @@ final class HarnessTests: XCTestCase {
             (#"{"event":{"seq":9,"at":9,"source":"self","kind":"did","data":{"action":"wiggle","by":"rule","for":4,"message":"Boop wiggled on its own.","ok":true}},"received_at_ms":9}"#,
              "  ✓ wiggle (rule): Boop wiggled on its own."),
             ("not json", "not json"),
-            (#"{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":9}"#, nil),
+            (#"{"sent":{"t":"do","id":1,"name":"poked","play":"now"},"by":"rule","received_at_ms":9}"#, nil),
             (#"{"status":{"brain":"none","connected":false,"mood":"cheerful","personality":"boop","sessions":[]},"received_at_ms":9}"#, nil),
             (#"{"questions":[],"received_at_ms":9}"#, nil),
             (#"{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react"]},"received_at_ms":10}"#,
@@ -151,7 +152,8 @@ final class HarnessTests: XCTestCase {
         XCTAssertNil(sent[0].anim, "it plays over the face")
         XCTAssertEqual(sent.map(\.mood), ["grumpy", "proud", "happy"], "each wears its face")
         XCTAssertEqual(sent.map(\.loops), [2, 1, 4], "for its loops")
-        XCTAssertTrue(sent[0].jsonLine.hasSuffix(#","mood":"grumpy","loops":2}"#), sent[0].jsonLine)
+        XCTAssertTrue(sent[0].args.json.hasSuffix(#","mood":"grumpy","loops":2}"#), sent[0].args.json)
+        XCTAssertEqual(sent[0].name, "react")
         XCTAssertEqual(react.run(["react.mood": a("sulky")], now: nil, log: Self.log), nil, "not a face")
         starts(["react.mood": a("excited"), "react.loops": a("three times")], "Boop made an excited face, held three times.")
         XCTAssertEqual(queued.last?.moment.loops, 3)
@@ -171,10 +173,10 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(success.anim, "task_complete")
         XCTAssertEqual(success.outcome, "success")
         XCTAssertTrue(FaceLoops.variants(mood: "proud", state: "task_complete", outcome: "success").contains(success.variant!))
-        XCTAssertTrue(success.jsonLine.hasPrefix(#"{"t":"moment","anim":"task_complete","say":"#), success.jsonLine)
-        XCTAssertTrue(success.jsonLine.hasSuffix(#","mood":"proud","loops":2,"variant":"# + "\(success.variant!)"
-                                                 + #","who":{"agent":"codex","thread":"fix-nav"},"outcome":"success"}"#),
-                      success.jsonLine)
+        let line = success.line(id: 7, play: .next)
+        XCTAssertTrue(line.hasPrefix(#"{"t":"do","id":7,"name":"task_complete","play":"next","ttl":5000,"args":{"outcome":"success","variant":"#
+                                     + "\(success.variant!)" + #","who":{"agent":"codex","thread":"fix-nav"},"say":"#), line)
+        XCTAssertTrue(line.hasSuffix(#","mood":"proud","loops":2}}"#), line)
         queued.removeLast()
         starts(["react.mood": a("whiny"), "react.animation": a("failure")], "Boop played a failure in a whiny face, held once.")
         let failure = try! XCTUnwrap(queued.last?.moment)
@@ -242,12 +244,13 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(Set(ReactAction.topics.map(\.name)), Voice.answers(.about), "a topic for every take's, and none without one")
     }
 
-    /// PROTOCOL.md §3: only the brain's moments carry an expression; the
-    /// dashboard's cheer or wiggle never does.
+    /// PROTOCOL.md §3: only the brain's reactions carry an expression; a
+    /// rule's one-shot never does.
     func testRuleMomentsCarryNoExpression() {
-        XCTAssertEqual(DeviceMoment(anim: "cheer").jsonLine, #"{"t":"moment","anim":"cheer"}"#)
-        XCTAssertEqual(DeviceMoment(say: .go).jsonLine, #"{"t":"moment","say":{"take":"new.d02"}}"#)
-        XCTAssertEqual(DeviceMoment(say: .go, mood: "grumpy").jsonLine, #"{"t":"moment","say":{"take":"new.d02"},"mood":"grumpy"}"#)
+        XCTAssertEqual(DeviceMoment(anim: "starting").line(id: 1, play: .ifFree), #"{"t":"do","id":1,"name":"starting","play":"if_free"}"#)
+        XCTAssertEqual(DeviceMoment(say: .go).line(id: 2, play: .next),
+                       #"{"t":"do","id":2,"name":"react","play":"next","ttl":5000,"args":{"say":{"take":"new.d02"}}}"#)
+        XCTAssertEqual(DeviceMoment(say: .go, mood: "grumpy").args.json, #"{"say":{"take":"new.d02"},"mood":"grumpy"}"#)
     }
 
     /// DECISIONS.md §2.3, §4: the 13 moods, in the device's order; a new

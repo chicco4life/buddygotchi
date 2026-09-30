@@ -103,9 +103,10 @@ first emit: it reads the files back into memory, deletes the old ones,
 carries `seq` on, and ends any `did` the last launch left open as
 `restarted` (§5.3). An app that emits without it starts `seq` over at 1
 in today's file. It keeps the last **24 hours** in memory (`keepMs`,
-which an app may raise); older events are let go on
-every event and every tick, so a running app holds just what a launch at
-that moment would read back. A line
+which an app may raise); older events drop out of view on
+every event and every tick, so a running app sees just what a launch at
+that moment would read back, and their memory goes in batches, once
+they're an eighth of what's kept. A line
 that doesn't parse, such as one a crash cut short, is skipped, and a file
 that ends mid-line is ended first so the next line isn't glued to it.
 Without a folder (tests) it's in memory only. An app whose older files
@@ -123,6 +124,7 @@ struct LogView {
     var now: Int64                                                   // the event's `at`, or the clock
     var events: ArraySlice<Event>                                    // everything in view, oldest first
     func last(_ kind: String, where: ((Event) -> Bool)? = nil) -> Event?
+    func lastDid(_ action: String, where: ((Event) -> Bool)? = nil) -> Event? // that output's or rule's newest `did`
     func all(_ kind: String, since: Event? = nil, where: ((Event) -> Bool)? = nil) -> [Event]
     func count(_ kind: String, since: Event? = nil, where: ((Event) -> Bool)? = nil) -> Int
     func count(_ kind: String, within ms: Int64) -> Int              // at or after now - ms
@@ -241,8 +243,8 @@ struct Answer   { choice: String; probabilities: [String: Double] }
 typealias Answers = [String: Answer]                            // question key → answer
 ```
 
-`h.output(action, openFor:)` registers one; they run in registration
-order. `now` is the event the brain is answering, nil for a forced pass.
+`h.output(action, openFor:, keepOpen:)` registers one (§5.3); they run
+in registration order. `now` is the event the brain is answering, nil for a forced pass.
 
 - **Questions are built for every call,** from NOW and the log, so
   options can follow anything: a graph, a streak, the time. Question keys
@@ -290,8 +292,14 @@ ended. An open `did` ends in one of three ways, each an `ended`:
 | How | `ended` |
 | --- | --- |
 | The handle finishes: `p.finish(.done)` or `p.finish(.failed("no device"))`. Only the first call counts, and one that comes before JHarness has logged the `did` is kept until it has | `outcome` as given |
-| Still open `openFor` after it started (**60 s** unless the output says), on the tick | `failed`, `no word it finished` |
+| Still open `openFor` after it started (**60 s** unless the output says), on the tick, unless the output keeps it open | `failed`, `no word it finished` |
 | The app relaunched with it open: its handle went with the last launch, so `h.resume()` ends it (§2.3) | `failed`, `restarted` |
+
+An app that holds one past `openFor` on purpose, such as a reaction a
+run of taps cut short and still holds, registers its output with
+`keepOpen`: a function of the `did` and the log, asked on each tick once
+`openFor` has passed. While it says true, the tick leaves the `did`
+open.
 
 Whether a `did` is in progress is worked out from the log: open, with no
 `ended` yet.

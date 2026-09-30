@@ -49,7 +49,7 @@ public struct Replay {
     /// Runs the steps and returns one line per raw event, core effect and
     /// view event, each effect and view event prefixed with its virtual
     /// time. `statesOnly` keeps only what goes to the device: each `state`
-    /// and each rule `moment`.
+    /// and each rule one-shot's `do`.
     public func run(_ steps: [Step], statesOnly: Bool = false) -> [String] {
         let start = Replay.defaultStart
         var now = start

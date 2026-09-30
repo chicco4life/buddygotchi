@@ -1,11 +1,22 @@
 import AgentHooks
 import CoreBluetooth
 import Foundation
+import LinkKit
 import XCTest
 @testable import BoopKit
 
-/// Records what the link sends, and lets a test play the device.
-final class FakeTransport: DeviceTransport, @unchecked Sendable {
+/// Plays Boop's device over a fake transport, as PROTOCOL.md has it and
+/// linkkit/device's kit does: records what the link sends, says `hello`
+/// when the app speaks on a link where the device doesn't count it as
+/// there yet (for Bluetooth, its first line since connecting) and whenever
+/// the app asks with its own `hello`, and lets a test send the device's
+/// lines. LinkKit's own tests (`linkkit/Tests`) cover the link, its ids and
+/// its transports.
+final class FakeTransport: Transport, @unchecked Sendable {
+    /// Boop's device, playing every name the app sends, with the app's
+    /// voice pack (PROTOCOL.md §4).
+    static let hello = #"{"t":"hello","kit":1,"app":"boop","id":"b00p-54fe","fw":"1.0.0","does":["react","task_complete","reply_ready","starting","stopped","error","helper_return","listening","stop_listening","poked","tap_spam"],"voice":"\#(Take.packVersion)"}"#
+
     let lock = NSLock()
     var lines: [String] = []
     var onLine: (@Sendable (String) -> Void)?
@@ -13,13 +24,42 @@ final class FakeTransport: DeviceTransport, @unchecked Sendable {
     var name: String { "fake" }
     var why: String?
     var trouble: String? { lock.withLock { why } }
+    /// What the device says when the app first speaks on a link; nil says
+    /// nothing. A `hello` also answers the app's ask; firmware from before
+    /// the kit, which says `status`, ignores the ask.
+    var greeting: String? = FakeTransport.hello
+    /// Whether the device sees the link drop, so the app's next line is new
+    /// to it (a Bluetooth connect). False plays a device that still counts
+    /// the app as there: an app relaunched within 30 s over USB, or one
+    /// taking over the Bluetooth link macOS kept.
+    var seesDrops = true
+    /// The link is up, and the device counts the app as there on it.
+    var up = false
+    var heard = false
 
     func start(onLine: @escaping @Sendable (String) -> Void, onConnection: @escaping @Sendable (Bool) -> Void) {
         self.onLine = onLine
-        self.onConnection = onConnection
+        self.onConnection = { [weak self] up in
+            self?.lock.withLock {
+                self?.up = up
+                if self?.seesDrops == true { self?.heard = false }
+            }
+            onConnection(up)
+        }
     }
 
-    func send(_ line: String) { lock.withLock { lines.append(line) } }
+    func send(_ line: String) {
+        let greeting = lock.withLock { () -> String? in
+            lines.append(line)
+            guard up, let greeting else { return nil }
+            let new = !heard
+            heard = true
+            let asked = line == Wire.hello && greeting.hasPrefix(#"{"t":"hello""#)
+            return new || asked ? greeting : nil
+        }
+        if let greeting { onLine?(greeting) }
+    }
+
     func reconnect() {}
     func stop() {}
 
@@ -28,23 +68,28 @@ final class FakeTransport: DeviceTransport, @unchecked Sendable {
         sent.compactMap { (try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])?["t"] as? String }
     }
 
-    /// The ids of the moments sent that the Mac waits on, in order.
-    var momentIds: [Int] {
-        sent.compactMap { line in
-            guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
-                  o["t"] as? String == "moment" else { return nil }
-            return o["id"] as? Int
-        }
+    /// The `do` lines sent, in order.
+    var dos: [String] { sent.filter { $0.hasPrefix(#"{"t":"do""#) } }
+    /// The `do` lines sent for `name`.
+    func dos(_ name: String) -> [String] { dos.filter { $0.contains(#""name":"\#(name)""#) } }
+    /// A `do` line's id.
+    static func id(_ line: String) -> Int {
+        (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int ?? 0
     }
 
     var answered: Set<Int> = []
 
-    /// Answers every moment with an id not answered yet with `ended`, as
-    /// the device does once none of it plays (PROTOCOL.md §4).
-    func endMoments(_ how: String = "done") {
-        for id in momentIds where lock.withLock({ answered.insert(id).inserted }) {
-            onLine?(#"{"t":"ended","id":\#(id),"how":"\#(how)"}"#)
+    /// Answers every `do` not answered yet with its `ended`, as the device
+    /// does once it's over (linkkit/SPEC.md §4).
+    func endDos(_ how: String = "done", why: String? = nil) {
+        for id in dos.map(Self.id) where lock.withLock({ answered.insert(id).inserted }) {
+            onLine?(Self.ended(id, how, why))
         }
+    }
+
+    /// The device's `ended` for `id`.
+    static func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
+        #"{"t":"ev","kind":"ended","data":{"id":\#(id),"how":"\#(how)""# + (why.map { #","why":"\#($0)""# } ?? "") + "}}"
     }
 }
 
@@ -52,206 +97,146 @@ func sampleSnapshot(busy: Int = 0) -> StateSnapshot {
     StateSnapshot(base: busy > 0 ? "working" : "idle", mood: "happy", attn: nil, busy: busy, vol: 6)
 }
 
+/// Boop's vocabulary on LinkKit (PROTOCOL.md): its `state` and `do` lines,
+/// what its `hello` and taps mean, and the `--link` setting.
 final class DeviceLinkTests: XCTestCase {
-    func testFramerReassemblesLinesAcrossPackets() {
-        var framer = LineFramer()
-        XCTAssertEqual(framer.push(Array("{\"t\":\"inp".utf8)), [])
-        XCTAssertEqual(framer.push(Array("ut\",\"k\":\"tap\"}\n{\"t\":".utf8)), ["{\"t\":\"input\",\"k\":\"tap\"}"])
-        XCTAssertEqual(framer.push(Array("\"status\"}\r\n\n".utf8)), ["{\"t\":\"status\"}"])
-    }
-
-    func testFramerDropsAnOverlongLineAndRecovers() {
-        var framer = LineFramer(maxLine: 16)
-        XCTAssertEqual(framer.push(Array(String(repeating: "x", count: 40).utf8)), [])
-        XCTAssertEqual(framer.push(Array("yyyy\nok\n".utf8)), ["ok"])
-    }
-
-    func testChunksFitTheLinkAndReassemble() {
-        let line = sampleSnapshot().jsonLine
-        let chunks = LineFramer.chunks(line, size: 20)
-        XCTAssertTrue(chunks.allSatisfy { $0.count <= 20 })
-        XCTAssertEqual(chunks.reduce(0) { $0 + $1.count }, line.utf8.count + 1)
-        var framer = LineFramer()
-        XCTAssertEqual(chunks.flatMap { framer.push($0) }, [line])
-    }
-
-    /// PROTOCOL.md §2: Bluetooth lines go out whole, one piece at a time as
-    /// CoreBluetooth takes them; a newer `state` replaces one still waiting,
-    /// and a backlog drops its oldest lines that haven't started.
-    func testBluetoothOutboxKeepsLinesWholeAndStatesFresh() {
-        func drain(_ box: inout BLEOutbox) -> String {
-            var bytes = Data()
-            while let chunk = box.next() { bytes.append(chunk) }
-            return String(decoding: bytes, as: UTF8.self)
+    /// PROTOCOL.md §4: the device's `hello` says who it is and which voice
+    /// pack its card has; a tap names the brain's finish it landed on, when
+    /// it only dipped the face.
+    func testWhatTheDeviceSays() throws {
+        let hello = try XCTUnwrap({ if case .hello(let h) = Wire.decode(FakeTransport.hello) { h } else { nil } }())
+        XCTAssertEqual(DeviceInfo(hello), DeviceInfo(id: "b00p-54fe", fw: "1.0.0", voice: Take.packVersion))
+        XCTAssertEqual(hello.app, BoopDevice.app)
+        func tap(_ line: String) -> Int?? {
+            guard case .event(let ev) = Wire.decode(line), ev.kind == "tap" else { return .none }
+            return .some(BoopDevice.finish(tapped: ev))
         }
-        let state1 = #"{"t":"state","base":"working"}"#
-        let state2 = #"{"t":"state","base":"idle"}"#
-        let cheer = #"{"t":"moment","anim":"cheer"}"#
-        var box = BLEOutbox()
-        box.add(state1, size: 8)
-        box.add(cheer, size: 8)
-        box.add(state2, size: 8)
-        XCTAssertEqual(drain(&box), state2 + "\n" + cheer + "\n", "the newer state takes the waiting one's place")
-
-        box.add(state1, size: 8)
-        let started = String(decoding: box.next() ?? Data(), as: UTF8.self)  // state1 has started
-        box.add(state2, size: 8)
-        XCTAssertEqual(started + drain(&box), state1 + "\n" + state2 + "\n",
-                       "a state that has started goes out whole, and the new one after it")
-
-        for i in 0..<200 { box.add(#"{"t":"moment","anim":"wiggle","n":\#(i)}"#, size: 20) }
-        XCTAssertLessThanOrEqual(box.bytes, BLEOutbox.limit)
-        let lines = drain(&box).split(separator: "\n")
-        XCTAssertTrue(lines.last?.contains(#""n":199"#) == true, "the newest is kept")
-        XCTAssertTrue(lines.allSatisfy { $0.hasPrefix("{") && $0.hasSuffix("}") }, "only whole lines")
-        XCTAssertEqual(box.bytes, 0, "all sent")
+        XCTAssertEqual(tap(#"{"t":"ev","kind":"tap","did":"poked"}"#), .some(nil))
+        XCTAssertEqual(tap(#"{"t":"ev","kind":"tap","did":"dip","data":{"on":42}}"#), .some(42))
+        XCTAssertEqual(tap(#"{"t":"ev","kind":"tap","did":"dip","data":{"on":0}}"#), .some(nil), "no finish")
+        XCTAssertEqual(tap(#"{"t":"ev","kind":"tap","did":"dip","data":{"on":"42"}}"#), .some(nil))
+        XCTAssertEqual(Wire.decode(FakeTransport.ended(5, "cut", "tap")), .ended(Ended(id: 5, how: .cut, why: "tap")))
     }
 
-    /// PROTOCOL.md §2 (USB): the USB link sends on the runtime's queue, so a
-    /// bridge that stops reading must cost a reconnect, not a frozen app.
-    func testAUSBBridgeThatStopsReadingCantFreezeTheApp() throws {
-        let path = "/tmp/boop-usb-stall-\(getpid()).sock"
-        unlink(path)
-        let server = socket(AF_UNIX, SOCK_STREAM, 0)
-        defer {
-            close(server)
-            unlink(path)
-        }
-        var address = try XCTUnwrap(HookSocket.unixAddress(path))
-        let bound = withUnsafePointer(to: &address) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(server, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
-        }
-        XCTAssertEqual(bound, 0)
-        XCTAssertEqual(listen(server, 8), 0)  // accepts, never reads
-
-        let transport = USBTransport(path: path)
-        let ups = NSLock()
-        nonisolated(unsafe) var changes: [Bool] = []
-        transport.start(onLine: { _ in }, onConnection: { up in ups.withLock { changes.append(up) } })
-        defer { transport.stop() }
-        eventually("connected", timeout: 2) { !ups.withLock { changes.isEmpty } }
-        XCTAssertEqual(ups.withLock { changes }, [true])
-
-        let line = String(repeating: "x", count: 64 * 1024)
-        let start = Date()
-        for _ in 0..<64 { transport.send(line) }  // 4 MB into a socket nobody reads
-        XCTAssertLessThan(Date().timeIntervalSince(start), 2 * Double(USBTransport.sendTimeoutMs) / 1000 + 1,
-                          "one timed-out write, then the rest are dropped")
-        eventually("dropped", timeout: 2) { ups.withLock { changes.count >= 2 } }
-        XCTAssertEqual(ups.withLock { changes }.prefix(2), [true, false], "it lets go, to reconnect")
-    }
-
-    func testDecodesStatusInputAndIgnoresTheRest() {
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.3.1"}"#),
-                       .status(DeviceStatus(id: "b00p-7f3a", fw: "0.3.1")))
-        // An older board's `bat` and `usb` are ignored.
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.3.1","bat":3910,"usb":1}"#),
-                       .status(DeviceStatus(id: "b00p-7f3a", fw: "0.3.1")))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"tap"}"#), .tap(finish: nil))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"tap","id":42}"#), .tap(finish: 42))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_on"}"#), .talk(true))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_off"}"#), .talk(false))
-        // Focus and touch-and-hold were removed; an older board's are ignored.
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"focus"}"#), .other(#"{"t":"input","k":"focus"}"#))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"feel"}"#), .other(#"{"t":"input","k":"feel"}"#))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"dance"}"#), .other(#"{"t":"input","k":"dance"}"#))
-        // PROTOCOL.md §4: how a moment the app waits on ended.
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"ended","id":5,"how":"done"}"#), .ended(MomentEnded(id: 5, how: .done)))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"ended","id":6,"how":"cut","why":"tap"}"#),
-                       .ended(MomentEnded(id: 6, how: .cut, why: "tap")))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"ended","id":9,"how":"skipped"}"#), .ended(MomentEnded(id: 9, how: .skipped)))
-        for odd in [#"{"t":"ended","id":5,"how":"later"}"#, #"{"t":"ended","how":"done"}"#, #"{"t":"ended","id":0,"how":"done"}"#] {
-            XCTAssertEqual(DeviceMessage.decode(odd), .other(odd))
-        }
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"dbg.ping","up":5}"#), .other(#"{"t":"dbg.ping","up":5}"#))
-        XCTAssertEqual(DeviceMessage.decode("rst:0x1 (POWERON_RESET)"), .other("rst:0x1 (POWERON_RESET)"))
-    }
-
-    /// PROTOCOL.md §3: `anim` is optional, and there's no `size` or `ttl`.
-    /// `loops` goes when whoever plays it says, and a moment the app waits
-    /// on ends with its `id`. The longest one fits in a line.
-    func testMomentEncodingMatchesTheProtocol() {
-        XCTAssertEqual(DeviceMoment(anim: "cheer", say: .go).jsonLine, #"{"t":"moment","anim":"cheer","say":{"take":"new.d02"}}"#)
-        XCTAssertEqual(DeviceMoment(anim: "wiggle").jsonLine, #"{"t":"moment","anim":"wiggle"}"#)
-        XCTAssertEqual(DeviceMoment(say: .go).jsonLine, #"{"t":"moment","say":{"take":"new.d02"}}"#)
-        XCTAssertEqual(DeviceMoment(say: .go, mood: "proud", loops: 3, id: 12).jsonLine,
-                       #"{"t":"moment","say":{"take":"new.d02"},"mood":"proud","loops":3,"id":12}"#)
-        // A reaction that says nothing still has a `say`: the reply that
-        // ends push-to-talk's listening.
-        XCTAssertEqual(DeviceMoment(say: .init(takes: []), mood: "calm", loops: 1, id: 5).jsonLine,
-                       #"{"t":"moment","say":{},"mood":"calm","loops":1,"id":5}"#)
-        XCTAssertEqual(DeviceMoment(anim: "cheer", loops: 1).jsonLine, #"{"t":"moment","anim":"cheer","loops":1}"#)
-        // A cheer names whose turn it cheers, the thread cut as names are.
-        XCTAssertEqual(DeviceMoment(anim: "cheer", loops: 2, variant: 3, who: .init(agent: "codex", thread: "fix-nav"), id: 7).jsonLine,
-                       #"{"t":"moment","anim":"cheer","loops":2,"variant":3,"who":{"agent":"codex","thread":"fix-nav"},"id":7}"#)
+    /// PROTOCOL.md §3: each moment's `do`, with its name and its `args` in
+    /// the protocol's order, every string escaped. A brain reaction with no
+    /// animation is `react`, and still has a `say`: the reply that ends
+    /// push-to-talk's listening. The longest one fits in a line.
+    func testDoLinesMatchTheProtocol() {
+        XCTAssertEqual(DeviceMoment(say: .go, mood: "proud", loops: 1).line(id: 558386700, play: .next),
+                       #"{"t":"do","id":558386700,"name":"react","play":"next","ttl":5000,"args":{"say":{"take":"new.d02"},"mood":"proud","loops":1}}"#)
+        XCTAssertEqual(DeviceMoment(say: .init(takes: []), mood: "calm", loops: 1).line(id: 5, play: .next),
+                       #"{"t":"do","id":5,"name":"react","play":"next","ttl":5000,"args":{"say":{},"mood":"calm","loops":1}}"#)
+        XCTAssertEqual(DeviceMoment(anim: "starting", variant: 3, ctx: "new_task").line(id: 558386701, play: .ifFree),
+                       #"{"t":"do","id":558386701,"name":"starting","play":"if_free","args":{"variant":3,"ctx":"new_task"}}"#)
+        XCTAssertEqual(DeviceMoment(anim: "stopped").line(id: 9, play: .ifFree), #"{"t":"do","id":9,"name":"stopped","play":"if_free"}"#)
+        let finish = DeviceMoment(anim: "task_complete", say: .go, mood: "proud", variant: 2,
+                                  who: .init(agent: "claude", thread: "api"), outcome: "success")
+        XCTAssertEqual(finish.line(id: 558386703, play: .next),
+                       #"{"t":"do","id":558386703,"name":"task_complete","play":"next","ttl":5000,"args":{"outcome":"success","variant":2,"who":{"agent":"claude","thread":"api"},"say":{"take":"new.d02"},"mood":"proud"}}"#)
+        // A finish names whose turn it was, the thread cut as names are and
+        // escaped; the thread it opens isn't sent.
+        let quoted = DeviceMoment(anim: "reply_ready", variant: 1,
+                                  who: .init(agent: "codex", thread: #"fix "nav"\"#, opens: ThreadRef(agent: "codex", session: "s")))
+        XCTAssertEqual(quoted.args.json, #"{"variant":1,"who":{"agent":"codex","thread":"fix \"nav\"\\"}}"#)
         XCTAssertEqual(DeviceMoment.Who(agent: "claude", thread: "claude/cheer-animation-thread-codex").thread, "claude/cheer-animatio..")
         let byLength = Take.all.sorted { $0.id.utf8.count > $1.id.utf8.count }
         let longest = DeviceMoment.Say(takes: [byLength[0], byLength[1]])
-        let longestWho = DeviceMoment.Who(agent: "claude", thread: String(repeating: "\u{1}", count: 23))
-        XCTAssertLessThanOrEqual(DeviceMoment(anim: "wiggle", say: longest, mood: "determined", loops: DeviceMoment.maxLoops,
-                                              variant: 5, who: longestWho, id: Int(Int32.max)).jsonLine.utf8.count,
-                                 StateSnapshot.maxLine)
+        let longestWho = DeviceMoment.Who(agent: "claude", thread: String(repeating: "\"", count: 23))
+        XCTAssertLessThanOrEqual(DeviceMoment(anim: "task_complete", say: longest, mood: "determined", loops: DeviceMoment.maxLoops,
+                                              variant: 5, who: longestWho, outcome: "failure")
+                                     .line(id: Wire.maxId, play: .next).utf8.count, Wire.maxLine)
     }
 
-    /// PROTOCOL.md §3: a `state` on every change, and the latest again
-    /// after 10 s without one.
-    func testStateGoesOutOnChangeAndEveryTenSeconds() {
+    /// linkkit/SPEC.md §5–6 in Boop's words: the link asks for the device's
+    /// `hello` and sends the latest `state` when it connects, answers the
+    /// `hello` with the `state`, and takes only Boop's firmware. Firmware
+    /// from before the kit says `status` where a `hello` would be, which
+    /// Boop spots itself (the kit leaves that to the app): it still gets
+    /// its `state` but no `do`, and the popover says to flash it.
+    func testTheLinkTakesBoopsFirmware() {
         let transport = FakeTransport()
-        let link = DeviceLink(transport: transport)
-        link.update(sampleSnapshot(), now: 0)
-        link.update(sampleSnapshot(), now: 1000)  // nothing changed
-        XCTAssertEqual(transport.sent.count, 1)
-        link.update(sampleSnapshot(busy: 1), now: 2000)
-        XCTAssertEqual(transport.sent.count, 2)
-        link.tick(now: 11_000)
-        XCTAssertEqual(transport.sent.count, 2)
-        link.tick(now: 12_000)
-        XCTAssertEqual(transport.sent.count, 3)
-        XCTAssertEqual(transport.sent[2], transport.sent[1], "the keepalive is the latest line again")
-    }
-
-    func testStatusAndConnectGetTheLatestState() {
-        let transport = FakeTransport()
-        let link = DeviceLink(transport: transport)
-        link.update(sampleSnapshot(busy: 2), now: 0)
+        transport.start(onLine: { _ in }, onConnection: { _ in })
+        let link = BoopDevice.link(transport)
+        link.update(state: sampleSnapshot(busy: 2).fields, now: 0)
         link.connection(true, now: 100)
-        XCTAssertEqual(transport.types(), ["state", "state"])
-        XCTAssertEqual(link.receive(#"{"t":"status","v":1,"id":"b00p-54fe","fw":"1.0.0"}"#, now: 200),
-                       .status(DeviceStatus(id: "b00p-54fe", fw: "1.0.0")))
-        XCTAssertEqual(transport.types(), ["state", "state", "state"])
-        XCTAssertEqual(link.status?.id, "b00p-54fe")
-        XCTAssertTrue(transport.sent.last!.contains("\"busy\":2"))
-        link.connection(false, now: 300)
-        XCTAssertNil(link.status)
-        XCTAssertFalse(link.connected)
+        XCTAssertEqual(link.receive(FakeTransport.hello, now: 200).isHello, true)
+        XCTAssertEqual(transport.types(), ["state", "hello", "state", "state"],
+                       "sent into nothing, then the ask and the state on connect, then the state for the hello")
+        XCTAssertEqual(transport.sent.last, sampleSnapshot(busy: 2).jsonLine)
+        XCTAssertEqual(link.hello.map(DeviceInfo.init)?.id, "b00p-54fe")
+        XCTAssertNotNil(link.do("react", args: DeviceMoment(say: .go).args, now: 300) { _ in })
+
+        let status = #"{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.3.1"}"#
+        XCTAssertEqual(link.receive(status, now: 400), .other(status), "LinkKit leaves it to the app")
+        XCTAssertEqual(BoopDevice.fromBeforeTheKit(status), DeviceInfo(id: "b00p-7f3a", fw: "0.3.1"))
+        XCTAssertNil(BoopDevice.fromBeforeTheKit(FakeTransport.hello))
+        XCTAssertNil(BoopDevice.fromBeforeTheKit("rst:0x1 (POWERON_RESET)"))
+        link.incompatible(Link.tooOld, now: 400)
+        XCTAssertEqual(link.trouble, "the device's firmware is too old for this app: flash it")
+        XCTAssertNil(link.hello)
+        var outcome: Link.Outcome?
+        XCTAssertNil(link.do("react", now: 500) { outcome = $0 })
+        XCTAssertEqual(outcome, .failed(.incompatible))
+        XCTAssertEqual(transport.types().last, "state", "it still gets the state")
+        link.connection(false, now: 600)
+        XCTAssertNil(link.trouble)
+    }
+
+    /// PROTOCOL.md §3–4: the fake device's `hello.does` is the firmware's
+    /// (`kDoNames` in firmware/src/app/device.cpp, in its order), and every
+    /// name the Mac sends is among them: LinkKit fails a `do` whose name the
+    /// `hello` doesn't list, so a name the firmware drops or renames would
+    /// silently cost Boop that one-shot, or every reaction.
+    func testTheMacSendsOnlyNamesTheFirmwarePlays() throws {
+        let device = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../../firmware/src/app/device.cpp").standardizedFileURL
+        let source = try String(contentsOf: device, encoding: .utf8)
+        let from = try XCTUnwrap(source.range(of: "kDoNames[kDoCount] = {"))
+        let to = try XCTUnwrap(source.range(of: "};", range: from.upperBound..<source.endIndex))
+        let re = try NSRegularExpression(pattern: #""([a-z_]+)""#)
+        let body = String(source[from.upperBound..<to.lowerBound])
+        let firmware = re.matches(in: body, range: NSRange(body.startIndex..., in: body))
+            .map { String(body[Range($0.range(at: 1), in: body)!]) }
+        let hello = try XCTUnwrap({ if case .hello(let h) = Wire.decode(FakeTransport.hello) { h } else { nil } }())
+        XCTAssertEqual(hello.does, firmware, "the fake device plays what the firmware does")
+        let sent = DeviceMoment.anims + [DeviceMoment.react, BoopDevice.listening, BoopDevice.stopListening]
+        XCTAssertEqual(Set(sent).subtracting(firmware), [], "every name the Mac sends is one the firmware plays")
     }
 
     /// Bluetooth off, refused or missing is said in plain words, with what
-    /// to do; on, or on its way, is no trouble. Only the words: nothing
-    /// here may start Bluetooth (CLAUDE.md).
+    /// to do, in Boop's name. Only the words: nothing here may start
+    /// Bluetooth (CLAUDE.md).
     func testBluetoothThatCantBeUsedSaysWhy() {
-        XCTAssertEqual(BLETransport.trouble(.poweredOff), "Bluetooth is off. Turn it on in Control Center.")
-        XCTAssertEqual(BLETransport.trouble(.unauthorized)?.hasSuffix("Privacy & Security → Bluetooth."), true)
-        XCTAssertNotNil(BLETransport.trouble(.unsupported))
-        for state in [CBManagerState.poweredOn, .resetting, .unknown] { XCTAssertNil(BLETransport.trouble(state)) }
+        XCTAssertEqual(BLETransport.trouble(.poweredOff, appName: "Boop"), "Bluetooth is off. Turn it on in Control Center.")
+        XCTAssertEqual(BLETransport.trouble(.unauthorized, appName: "Boop"),
+                       "Boop isn't allowed to use Bluetooth. Allow it in System Settings → Privacy & Security → Bluetooth.")
+        for state in [CBManagerState.poweredOn, .resetting, .unknown] { XCTAssertNil(BLETransport.trouble(state, appName: "Boop")) }
     }
 
     /// VOICE.md §8: a card with no pack, or another pack than the app's,
-    /// leaves Boop without its voice, and the log says so once.
+    /// leaves Boop without its voice, and the log says so once for each
+    /// hello that changes.
     func testACardWithoutTheAppsPackHasNoVoice() {
         let lines = Lines()
-        let link = DeviceLink(transport: FakeTransport(), log: { lines.add($0) })
+        let transport = FakeTransport()
+        let link = BoopDevice.link(transport)
+        link.onHello = { DeviceInfo($0).logLines.forEach(lines.add) }
         link.connection(true, now: 0)
-        link.receive(#"{"t":"status","id":"b00p-54fe","fw":"1.0.0","voice":"none"}"#, now: 100)
-        link.receive(#"{"t":"status","id":"b00p-54fe","fw":"1.0.0","voice":"none"}"#, now: 200)
-        XCTAssertEqual(link.status?.hasTheVoice, false)
+        func hello(_ voice: String?) -> String {
+            FakeTransport.hello.replacingOccurrences(of: #","voice":"\#(Take.packVersion)""#, with: voice.map { #","voice":"\#($0)""# } ?? "")
+        }
+        link.receive(hello("none"), now: 100)
+        link.receive(hello("none"), now: 200)
+        XCTAssertEqual(link.hello.map(DeviceInfo.init)?.hasTheVoice, false)
         XCTAssertEqual(lines.all.filter { $0.contains("Boop says nothing until they match") }.count, 1)
-        link.receive(#"{"t":"status","id":"b00p-54fe","fw":"1.0.0","voice":"0123456789abcdef"}"#, now: 300)
-        XCTAssertEqual(link.status?.hasTheVoice, false)
-        link.receive(#"{"t":"status","id":"b00p-54fe","fw":"1.0.0","voice":"\#(Take.packVersion)"}"#, now: 400)
-        XCTAssertEqual(link.status?.hasTheVoice, true)
-        link.receive(#"{"t":"status","id":"b00p-54fe","fw":"1.0.0"}"#, now: 500)
-        XCTAssertEqual(link.status?.hasTheVoice, true, "firmware that doesn't say")
+        XCTAssertEqual(lines.all.first, "device: b00p-54fe firmware 1.0.0 voice none")
+        link.receive(hello("0123456789abcdef"), now: 300)
+        XCTAssertEqual(link.hello.map(DeviceInfo.init)?.hasTheVoice, false)
+        link.receive(hello(Take.packVersion), now: 400)
+        XCTAssertEqual(link.hello.map(DeviceInfo.init)?.hasTheVoice, true)
+        link.receive(hello(nil), now: 500)
+        XCTAssertEqual(link.hello.map(DeviceInfo.init)?.hasTheVoice, true, "firmware that doesn't say")
     }
 
     /// The widest name the Mac sends: 47 bytes that JSON escapes to two
@@ -270,6 +255,7 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertLessThanOrEqual(s.jsonLine.utf8.count, StateSnapshot.maxLine)
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
         XCTAssertEqual(s.jsonLine, #"{"t":"state","base":"working","mood":"determined","attn":{"agent":"claude","project":"\#(esc)","name":"\#(esc)","more":999,"id":2147483647},"busy":999,"vol":10,"variant":5}"#)
+        XCTAssertEqual(s.jsonLine, Wire.state(s.fields), "LinkKit's state, Boop's fields")
     }
 
     /// PROTOCOL.md §3: `act` goes after `base`; the widest line that can
@@ -287,21 +273,18 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertLessThanOrEqual(Act.allCases.map(\.rawValue.utf8.count).max()!, "delegating".utf8.count)
     }
 
-    /// PROTOCOL.md §2, "Reconnecting": 1 s, doubling to 5 s, reset once a
-    /// connection works; an attempt gets 10 s to become ready.
-    func testBluetoothReconnectTiming() {
-        var backoff = ReconnectBackoff()
-        XCTAssertEqual((0..<5).map { _ in backoff.next() }, [1, 2, 4, 5, 5])
-        backoff.reset()
-        XCTAssertEqual(backoff.next(), 1)
-        XCTAssertEqual(BLETransport.connectTimeout, 10)
-    }
-
     func testLinkSettings() {
         XCTAssertEqual(LinkSetting("usb:/tmp/x.sock"), .usb("/tmp/x.sock"))
         XCTAssertEqual(LinkSetting("ble"), .bluetooth)
         XCTAssertEqual(LinkSetting("none"), LinkSetting.none)
         XCTAssertNil(LinkSetting("usb:"))
         XCTAssertNil(LinkSetting("wifi"))
+    }
+}
+
+extension Wire.Message {
+    var isHello: Bool {
+        if case .hello = self { return true }
+        return false
     }
 }

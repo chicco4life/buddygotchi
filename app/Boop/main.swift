@@ -2,6 +2,7 @@ import AppKit
 import BoopKit
 import Foundation
 import JHarness
+import LinkKit
 
 // The Boop app. With no arguments it's the menu-bar app on Bluetooth.
 // `--headless` runs the same runtime with no UI and no Bluetooth, for tests
@@ -53,9 +54,9 @@ func bundledSteering() -> Steering {
 /// §9). The menu-bar app and `--headless` both start from these.
 func runtimeOptions(stateDir: URL, socketPath: String, link: LinkSetting, debug: Bool, devLines: Bool,
                     log: LogFile) -> Runtime.Options {
-    let transport: DeviceTransport? = switch link {
-    case .bluetooth: BLETransport(log: { log.write($0) })
-    case .usb(let path): USBTransport(path: path)
+    let transport: Transport? = switch link {
+    case .bluetooth: BLETransport(prefix: BoopDevice.blePrefix, log: { log.write($0) })
+    case .usb(let path): SocketTransport(path: path)
     case .none: nil
     }
     var options = Runtime.Options(stateDir: stateDir, socketPath: socketPath, link: transport, steering: bundledSteering())

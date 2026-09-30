@@ -270,7 +270,7 @@ def order(log: str) -> list[dict[str, Any]]:
 # before sending), or the device refused it (PROTOCOL.md §3: `nothing` when
 # none of it would play). `skipped (unknown)` means the device doesn't play
 # that name, and a `now` of the brain's own never cuts it: those fail.
-FINE_ENDS = re.compile(r"^(done|cut \((tap|needs_you|now|reset)\)|skipped( \((late|busy|full|needs_you|no_app|listening|"
+FINE_ENDS = re.compile(r"^(done|cut \((tap|needs_you|now|reset)\)|skipped( \((late|busy|full|needs_you|no_app|listening|mic_on|"
                        r"not_listening|nothing|reset)\))?)$")
 
 

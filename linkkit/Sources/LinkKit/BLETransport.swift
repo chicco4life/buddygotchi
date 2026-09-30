@@ -1,26 +1,31 @@
 @preconcurrency import CoreBluetooth
 import Foundation
 
-/// The device over Bluetooth: a Nordic UART central (PROTOCOL.md §2). Finds
-/// a `Boop-*` device, connects without pairing, subscribes to TX, writes
-/// lines to RX in pieces no bigger than the link allows, and reconnects
-/// after a drop (PROTOCOL.md §2, "Reconnecting").
+/// The device over Bluetooth: a Nordic UART central (SPEC.md §8). Finds a
+/// device advertising as `<prefix>-XXXX`, connects without pairing,
+/// subscribes to TX, writes lines to RX in pieces no bigger than the link
+/// allows, and reconnects after a drop: 1 s later, doubling to 5 s while
+/// attempts keep failing.
 ///
-/// Only the menu-bar app creates this. An agent's shell must never start it:
-/// macOS kills a process that touches Bluetooth without the right to
-/// (CLAUDE.md), which is why tests use `USBTransport`.
-public final class BLETransport: NSObject, DeviceTransport, @unchecked Sendable {
+/// Only the app itself creates this. A process started from an agent's or
+/// a test's shell must never start it: macOS kills a process that touches
+/// Bluetooth without the right to, which is why tests use `SocketTransport`.
+public final class BLETransport: NSObject, Transport, @unchecked Sendable {
     public static let service = CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
     /// Mac → device.
     public static let rx = CBUUID(string: "6E400002-B5A3-F393-E0A9-E50E24DCCA9E")
     /// Device → Mac.
     public static let tx = CBUUID(string: "6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
     /// An attempt that can't carry lines this long after it started is
-    /// given up and tried again (PROTOCOL.md §2).
+    /// given up and tried again.
     public static let connectTimeout: TimeInterval = 10
 
     /// The device's own name is in this transport's log lines.
     public let name = "ble"
+    /// Devices advertise as `<prefix>-XXXX` (SPEC.md §8): `Pip` finds `Pip-54fe`.
+    public let prefix: String
+    /// The app's name in the words `trouble` says: `Pip isn't allowed to use Bluetooth.`
+    public let appName: String
     /// Read from any thread, so it's kept apart from `peripheral`.
     public var trouble: String? { troubleLock.withLock { stateTrouble } }
     let troubleLock = NSLock()
@@ -28,7 +33,7 @@ public final class BLETransport: NSObject, DeviceTransport, @unchecked Sendable 
 
     let log: @Sendable (String) -> Void
     // Touched only on `queue`, which is also CoreBluetooth's delegate queue.
-    let queue = DispatchQueue(label: "boop.ble", qos: .userInitiated)
+    let queue = DispatchQueue(label: "linkkit.ble", qos: .userInitiated)
     var central: CBCentralManager?
     /// The device being connected to, or connected. Callbacks about any
     /// other peripheral are left over from an attempt already given up.
@@ -46,10 +51,17 @@ public final class BLETransport: NSObject, DeviceTransport, @unchecked Sendable 
     /// Bumps on every attempt and drop, so an old attempt's timeout does nothing.
     var attempt = 0
 
-    public init(log: @escaping @Sendable (String) -> Void = { _ in }) {
+    /// `prefix` is what the device's advertised name starts with, before
+    /// its `-`; `appName` defaults to it.
+    public init(prefix: String, appName: String? = nil, log: @escaping @Sendable (String) -> Void = { _ in }) {
+        self.prefix = prefix
+        self.appName = appName ?? prefix
         self.log = log
         super.init()
     }
+
+    /// Whether an advertised name is one of this app's devices.
+    func isOurs(_ name: String?) -> Bool { name?.hasPrefix(prefix + "-") == true }
 
     public func start(onLine: @escaping @Sendable (String) -> Void, onConnection: @escaping @Sendable (Bool) -> Void) {
         queue.async { [self] in
@@ -105,8 +117,8 @@ public final class BLETransport: NSObject, DeviceTransport, @unchecked Sendable 
     func findDevice() {
         guard running, let central, central.state == .poweredOn, peripheral == nil else { return }
         let held = central.retrieveConnectedPeripherals(withServices: [Self.service])
-        if let device = held.first(where: { $0.name?.hasPrefix("Boop-") == true }) {
-            log("ble: taking over macOS's connection to \(device.name ?? "Boop")")
+        if let device = held.first(where: { isOurs($0.name) }) {
+            log("ble: taking over macOS's connection to \(device.name ?? prefix)")
             connect(device)
         } else {
             central.scanForPeripherals(withServices: [Self.service], options: nil)
@@ -122,7 +134,7 @@ public final class BLETransport: NSObject, DeviceTransport, @unchecked Sendable 
         let this = attempt
         queue.asyncAfter(deadline: .now() + Self.connectTimeout) { [weak self] in
             guard let self, attempt == this, peripheral === device, !up else { return }
-            log("ble: \(device.name ?? "Boop") not ready after \(Int(Self.connectTimeout)) s, trying again")
+            log("ble: \(device.name ?? prefix) not ready after \(Int(Self.connectTimeout)) s, trying again")
             giveUp(device)
         }
     }
@@ -157,7 +169,7 @@ extension BLETransport {
 /// pieces. A line that has started goes out whole. A newer `state` takes
 /// the place of one still waiting, since only the latest matters, and past
 /// `limit` bytes the oldest lines that haven't started are dropped: the next
-/// `state` catches the device up (PROTOCOL.md §2).
+/// `state` catches the device up (SPEC.md §8).
 struct BLEOutbox {
     static let limit = 4096
     private var lines: [(state: Bool, chunks: [Data])] = []
@@ -192,9 +204,9 @@ struct BLEOutbox {
     }
 }
 
-/// How long the Bluetooth link waits before looking for the device again
-/// (PROTOCOL.md §2): 1 s after a drop, doubling up to 5 s while attempts
-/// keep failing, and back to 1 s once a connection works.
+/// How long the Bluetooth link waits before looking for the device again:
+/// 1 s after a drop, doubling up to 5 s while attempts keep failing, and
+/// back to 1 s once a connection works.
 struct ReconnectBackoff {
     static let first: TimeInterval = 1
     static let longest: TimeInterval = 5
@@ -211,7 +223,7 @@ struct ReconnectBackoff {
 extension BLETransport: CBCentralManagerDelegate, CBPeripheralDelegate {
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
         log("ble: Bluetooth \(Self.words(central.state))")
-        troubleLock.withLock { stateTrouble = Self.trouble(central.state) }
+        troubleLock.withLock { stateTrouble = Self.trouble(central.state, appName: appName) }
         if central.state == .poweredOn {
             findDevice()
         } else if peripheral != nil {
@@ -219,14 +231,14 @@ extension BLETransport: CBCentralManagerDelegate, CBPeripheralDelegate {
         }
     }
 
-    /// What the popover says while Bluetooth can't be used: off, not
-    /// allowed at the first launch's prompt or later, or missing. Nil while
-    /// it's on or on its way.
-    public static func trouble(_ state: CBManagerState) -> String? {
+    /// What the app says while Bluetooth can't be used: off, not allowed
+    /// at the first launch's prompt or later, or missing. Nil while it's on
+    /// or on its way.
+    public static func trouble(_ state: CBManagerState, appName: String) -> String? {
         switch state {
         case .poweredOff: "Bluetooth is off. Turn it on in Control Center."
-        case .unauthorized: "Boop isn't allowed to use Bluetooth. Allow it in System Settings → Privacy & Security → Bluetooth."
-        case .unsupported: "This Mac has no Bluetooth that Boop can use."
+        case .unauthorized: "\(appName) isn't allowed to use Bluetooth. Allow it in System Settings → Privacy & Security → Bluetooth."
+        case .unsupported: "This Mac has no Bluetooth that \(appName) can use."
         default: nil
         }
     }
@@ -246,7 +258,7 @@ extension BLETransport: CBCentralManagerDelegate, CBPeripheralDelegate {
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
                                advertisementData: [String: Any], rssi RSSI: NSNumber) {
         let name = advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? peripheral.name ?? ""
-        guard name.hasPrefix("Boop-"), self.peripheral == nil else { return }
+        guard isOurs(name), self.peripheral == nil else { return }
         log("ble: found \(name)")
         connect(peripheral)
     }
@@ -300,7 +312,7 @@ extension BLETransport: CBCentralManagerDelegate, CBPeripheralDelegate {
         }
         up = true
         backoff.reset()
-        log("ble: connected to \(peripheral.name ?? "Boop")")
+        log("ble: connected to \(peripheral.name ?? prefix)")
         onConnection?(true)
     }
 

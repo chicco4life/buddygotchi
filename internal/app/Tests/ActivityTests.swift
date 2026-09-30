@@ -1,6 +1,7 @@
 import AgentHooks
 import BoopDevKit
 import Foundation
+import LinkKit
 import XCTest
 @testable import BoopKit
 
@@ -328,8 +329,8 @@ final class CoreActivityTests: XCTestCase {
 final class CoreOneShotTests: XCTestCase {
     /// BEHAVIORS.md §3.1: a session starting plays starting, fresh (startup,
     /// clear) or carrying on (resume, compact), and a prompt plays it for a
-    /// new task: a moment of the rules', with no `id` and no face of the
-    /// brain's.
+    /// new task: a one-shot of the rules', with no face of the brain's,
+    /// which plays only if the device's turn is free.
     func testStartsPlayStarting() {
         for (source, ctx) in [("startup", "session"), ("clear", "session"), ("resume", "continuation"),
                               ("compact", "continuation"), (nil, "session")] {
@@ -337,7 +338,6 @@ final class CoreOneShotTests: XCTestCase {
             let fx = rig.send(.sessionStart, source: source)
             XCTAssertEqual(shots(fx), ["starting \(ctx)"], source ?? "no source")
             let moment = moments(fx)[0]
-            XCTAssertNil(moment.id)
             XCTAssertNil(moment.mood)
             XCTAssertTrue(FaceLoops.variants(mood: MoodAction.initial, state: "starting", ctx: ctx).contains(moment.variant ?? 0))
         }
@@ -347,7 +347,8 @@ final class CoreOneShotTests: XCTestCase {
         XCTAssertEqual(start.count, 1)
         let variant = start[0].variant ?? 0
         XCTAssertTrue(FaceLoops.variants(mood: MoodAction.initial, state: "starting", ctx: "new_task").contains(variant))
-        XCTAssertEqual(start[0].jsonLine, #"{"t":"moment","anim":"starting","variant":"# + "\(variant)" + #","ctx":"new_task"}"#)
+        XCTAssertEqual(start[0].line(id: 1, play: .ifFree),
+                       #"{"t":"do","id":1,"name":"starting","play":"if_free","args":{"variant":"# + "\(variant)" + #","ctx":"new_task"}}"#)
         XCTAssertEqual(fx.effects.firstIndex { if case .state = $0 { true } else { false } }, 0, "the look first")
         XCTAssertEqual(shots(CoreRig().send(.sessionStart, .codex, source: "resume")), ["starting continuation"])
         XCTAssertEqual(shots(rig.send(.sessionStart, subagent: "a1")), [], "a subagent's own start")

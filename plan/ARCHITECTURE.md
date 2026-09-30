@@ -32,14 +32,13 @@ approve on the Mac as you normally would.
 │     │                                   ▼                      │    │
 │     │                                Actions ─ mood ─► Core    │    │
 │     │                                   │                      │    │
-│     │                                 react ─► Voice ─► Moment │    │
-│     │                                                schedule  │    │
+│     │                                 react ─► Voice ─► `do`   │    │
 │     ▼                                                   ▼      │    │
-│   Device link (Bluetooth, or USB through `boopctl bridge`) ────┘    │
+│   Device link: LinkKit (Bluetooth, or USB via `boopctl bridge`)┘    │
 └────────────────────────┬──────────────────────────▲─────────────────┘
-                         │ state, moment            │ input, status, ended
+                         │ state, do                │ hello, ev (taps, ended)
                          ▼                          │
-             Device: draws, plays, blinks, alerts, reports taps
+     Device: draws, decides what plays when, blinks, alerts, reports taps
 ```
 
 **Following one event:**
@@ -62,12 +61,13 @@ approve on the Mac as you normally would.
    `say.feeling: glad`, `say.about: done` and `say.kind: phrase`.
 5. The **`react` action** asks **Voice** for a line: a glad phrase in
    proud's mood, fit for a success (*"Nailed it"*), which plays alone,
-   as a phrase does; and queues it as the
-   finish, a success, in proud's face, held twice. No line is playing, so
-   the **device link** sends it at once, and the device plays proud's
-   task_complete scene for a success and says the take at its voice
-   window. When the face and the take are over, the device says so
-   (`ended`), and HISTORY stops showing the reaction as in progress.
+   as a phrase does; and sends it as the finish, a success, in proud's
+   face, held twice. The **device link** sends it at once, a `do` that
+   waits its turn on the device for up to 5 s. No line is playing, so
+   the device plays proud's task_complete scene for a success at once,
+   and says the take at its voice window. When the face and the take are
+   over, the device says so (`ended`), and HISTORY stops showing the
+   reaction as in progress.
 
 Rules keep the screen true at once: the look (working, idle, asleep),
 "needs you" and the tap's poke never wait for the brain. Everything
@@ -80,9 +80,9 @@ needed, but it doesn't celebrate or react (decision log, 2026-09-28).
 
 | Loop | Runs on | Speed | Does | Never does |
 | --- | --- | --- | --- | --- |
-| Reflex | Device | < 20 ms | Tap feedback, blinks, playing moments, the needs-you alert and light | Wait for the Mac |
-| Reactive | Core → device link | < 200 ms p95 | Hook → rule → `state` or moment | Wait for the brain |
-| Deliberative | Harness + Jev → actions | A pass has 1.5 s; its reaction then waits up to 5 s for its turn | A change of mood, every reaction (a face and what Boop says), a finished turn's included | Block the reactive loop |
+| Reflex | Device | < 20 ms | Tap feedback, blinks, what plays when and playing it, the needs-you alert and light | Wait for the Mac |
+| Reactive | Core → device link | < 200 ms p95 | Hook → rule → `state` or a one-shot `do` | Wait for the brain |
+| Deliberative | Harness + Jev → actions | A pass has 1.5 s; its reaction then waits up to 5 s on the device for its turn | A change of mood, every reaction (a face and what Boop says), a finished turn's included | Block the reactive loop |
 
 ## 3. Components and boundaries
 
@@ -104,10 +104,10 @@ talks to the device.
 | Brain | `jharness/Sources/JHarness/JevBrain.swift` | Jev: answers multiple-choice questions about a plain-text state, with probabilities | Everything else |
 | Actions | `Actions/` | `mood` and `react`: carry out one call each, checking their own rules | Whether a rule or the brain called them |
 | Thread link | agent-hooks' `ThreadLink` | Where a thread opens on the Mac: its link in the Claude or Codex app, or its app brought forward ([BEHAVIORS.md](BEHAVIORS.md) §3.2) | Why it's opened |
-| Moment schedule | `App/MomentSchedule.swift` | Decides when each brain moment plays: after any line playing, over an animation, or not at all; numbers the ones sent and ends their handles from the device's `ended` | What's in it |
+| Reactions | `App/Reactions.swift` | Ends each brain reaction's handle from how the device says its `do` ended, or why the link has no end for it; holds one your tap cut short until the pokes stop, and keeps where a tap on a finish opens its thread | When anything plays: the device decides |
 | Voice | `Voice/` | Turns a feeling, a topic, a kind and a face into a line of up to two of the recorded takes the board has, or none | Who asked, or why |
 | Memory store | `Memory/` | Reads and writes `long-term.md` and its copies in `history/` | Models, the device |
-| Device link | `DeviceLink/` | Sends `state` and moments, receives taps and status, over Bluetooth or USB | What any of it means |
+| Device link | LinkKit's `Link` (`linkkit/`, [its spec](../linkkit/SPEC.md)), with Boop's vocabulary in `DeviceLink/BoopDevice.swift` | Sends `state` and `do`s and hands back how each ended, receives the device's `hello`, taps and push-to-talk, over Bluetooth or USB | What any of it means |
 | Presence signals | `app/Boop/PresenceSignals.swift` | Hears the Mac's lock, sleep and wake, and reads its idle time, with no permission asked | What they mean |
 | Presence detector | `Presence/PresenceDetector.swift` | The only code that decides whether you're at the Mac: turns the signals into `presence` events, away and back ([harness/EVENTS.md](harness/EVENTS.md) §2.1) | What they lead to |
 | Hook installer | agent-hooks' `HookInstaller`, as `HookInstaller.boop` in `Adapters/Adapter.swift` sets it up | Adds, repairs and removes Boop's entries in the agents' settings | Anything at runtime |
@@ -115,8 +115,9 @@ talks to the device.
 | Mac app | `app/Boop/` | The menu-bar icon and popover, setup and settings; places `agent-hook`, lists `boop.sock` and repairs hooks at launch | Any rule |
 
 `BoopKit` paths are under `app/BoopKit/`. agent-hooks is its own package
-in `agent-hooks/` ([its spec](../agent-hooks/SPEC.md)), which Boop
-depends on and which depends on nothing of Boop's (§10).
+in `agent-hooks/` ([its spec](../agent-hooks/SPEC.md)), and so are
+JHarness in `jharness/` and LinkKit in `linkkit/`: Boop depends on them,
+and they on nothing of Boop's (§10).
 
 ### 3.1 Adapters
 
@@ -133,7 +134,7 @@ clock.
 
 | Input | From | Effects it can return |
 | --- | --- | --- |
-| `handle(event)` | A hook's raw event, once recorded | `state` or `sessions`, a `needs_you` action, a rule's one-shot `moment`, a new day |
+| `handle(event)` | A hook's raw event, once recorded | `state` or `sessions`, a `needs_you` action, a rule's one-shot (`moment`), a new day |
 | `poke(at:seq:finish:)` | The device's tap, once recorded as a poke, with the thread of the brain's finish it landed on | `state`, the `wiggle` action, or while something needs you, or on a finish, the `open_thread` action and `open` (the runtime opens the waiting thread, or the finish's, on the Mac, [BEHAVIORS.md](BEHAVIORS.md) §3.2–3.3), a new day |
 | `listen(on, by:)`, `linkDown` | BOOT held and let go (`talk_on`, `talk_off`), the popover's Talk button, the link dropping | `listen` (the mic on or off, and whose button); the runtime turns the mic on, tells the device to show `listening` for Talk, and ends it when no reply is coming ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 | `tick(at:)` | The runtime, once a second | `state` or `sessions` (an activity's hold running out, or a call gone quiet, included), a Codex request showing after its grace, a request the safety net clears (their `needs_you` actions), the mic off at 30 s |
@@ -146,7 +147,7 @@ clock.
 | `state(snapshot)`, only when something on it changed | The device link, and the menu bar's status |
 | `sessions`, when the session list changed and the snapshot didn't | The menu bar's status, and `debug.jsonl`'s `status` line |
 | `record(Event)`: what the rules did, as a `did`, or "needs you" as `needs_you_start` and `needs_you_end` | The transcript, right after the event that caused it ([harness/EVENTS.md](harness/EVENTS.md) §2) |
-| `moment(DeviceMoment)`: a rule's one-shot (`starting`, `stopped`, `error`, `helper_return`, [BEHAVIORS.md](BEHAVIORS.md) §3.1), after the `state` of the same input | The device link, unless a brain moment's line plays (Moments, below) |
+| `moment(DeviceMoment)`: a rule's one-shot (`starting`, `stopped`, `error`, `helper_return`, [BEHAVIORS.md](BEHAVIORS.md) §3.1), after the `state` of the same input | The device link, as a `do` that plays only if the device's turn is free (Moments, below) |
 | `newDay(date)`: the first hook, tap or talk of a local day after the one the app opened on or last saw activity | The transcript, which deletes its files past 14 days ([harness/HARNESS.md](harness/HARNESS.md) §5.1) |
 
 **What the core keeps:** the sessions, in agent-hooks' `SessionTracker`
@@ -216,64 +217,49 @@ turn's length is the time between its start and its end in the
 transcript, the time the Mac slept included: a lid closed overnight
 between a turn's two minutes makes it a very long one.
 
-**Moments.** A tap's poke, which the device plays on its own, plays at
-once, replacing the animation playing but not a brain reaction's line or
-face, which play on over it ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
-A rule's one-shot plays at once too, which the runtime sends right after the
-`state` of the same input, except while a brain moment's line plays,
-which it would cut: then it's dropped (`MomentSchedule.rulePlays`), since
-a late one-shot is worse than none. A face held on after its line may be
-replaced, which the device counts as done. A brain moment plays over a
-rule's one-shot as over a poke, without waiting for it.
-The brain's moments wait in the
-moment schedule, one at a time, until no line or reaction's face plays,
-except that a reaction's face held on for its loops after its take
-holds up the brain's next only until that take has played, or for one
-that said nothing until its face has shown for 1.2 s (with the
-link's 0.5 s, below): the next goes then and replaces the face, which the
-device counts as done ([PROTOCOL.md](PROTOCOL.md) §4). One with no
-animation plays over a poke without cutting it, and a poke doesn't stop
-a line, so one waiting behind a line still waits for it. One that has waited longer
-than 5 s for its turn is dropped, since a late reaction is worse than
-none: at once if it's still waiting then, whether or not a face still
-holds the turn, and otherwise when its turn comes. The wait is counted
-to when the turn came, so a pump that runs up to 1 s late
-(`MomentSchedule.lateMs`) doesn't drop it. The schedule is asked again
-when the first waiting one's 5 s run out, and on every tick, so a clock
-jump can't leave one waiting for the harness's ceiling. Each carries its
-reaction's handle. It goes to the device with an `id`, and the device's
-`ended` says how it went: played out, cut short or skipped
-([PROTOCOL.md](PROTOCOL.md) §4). The schedule ends the handle from
-that, or when the moment can't have played (one whose turn came with
-no device connected)
-([harness/DECISIONS.md](harness/DECISIONS.md) §5).
+**Moments.** The device decides what plays when
+([linkkit/SPEC.md](../linkkit/SPEC.md) §4, Boop's rules for it in
+[PROTOCOL.md](PROTOCOL.md) §3), since it's the only one that knows when
+something has finished. The Mac sends each thing to play at once, as a
+`do`, and never times what the device plays:
 
-The app reckons how long each brain moment plays at most, as the device
-times it: a reaction's loops of its design (the animation's when it has one, the
-longest of the variations the device may play for its facts, else the
-look's), and the take's length, then 1.2 s to read the bubble, when
-that's longer; a take
-that comes with an animation counts from the design's voice window
-(`FaceLoops.voiceMs`, [VOICE.md](VOICE.md) §9). The look is the last `state`'s, drawn in the
-reaction's mood; while an agent works it's what the agents are doing
-(`act`), else the base. Its loop is `FaceLoops`' number for it, the one the device has
-([PROTOCOL.md](PROTOCOL.md) §3), for the look's longest variation,
-since the device's variations take turns without telling the app
-([BEHAVIORS.md](BEHAVIORS.md) §2). The device ends a face on a loop
-boundary of its own clock, which the app doesn't know, so the face may
-end up to a loop sooner than the app reckons, never later. So a brain
-moment on the device holds the schedule's line until the device's
-`ended` for it, and only if that never comes until the app gives up on
-it (its reckoning plus `endGraceMs`). The
-brain's next moment waits only until its take has played, or a silent
-face has shown for 1.2 s (`MomentSchedule.brainFree`), or its `ended` if that comes first. The schedule also hears
-"needs you" starting, which stops everything on the device. It doesn't
-hear taps: a tap's poke replaces only an animation, and a brain moment's
-line plays on over it until its `ended`. A reaction whose turn comes with no
-device connected plays nowhere and holds nothing. But a link that drops
-doesn't stop what the device plays (the USB bridge reconnecting, or a
-Bluetooth blip), so a moment sent before the drop still holds the line
-until its `ended` comes once the link is back, or the app gives up on it.
+- **A tap's poke** the device plays on its own, at once, replacing the
+  animation playing but not a brain reaction's line or face, which play
+  on over it ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
+- **A rule's one-shot** goes right after the `state` of the same input,
+  with `play: if_free`: it plays if the turn is free, or held only by a
+  face left on after its line, and the device skips it (`busy`) while a
+  brain reaction's line holds the turn, which it would cut, since a late
+  one-shot is worse than none.
+- **The brain's reactions** go with `play: next` and a `ttl` of 5 s
+  (`BoopDevice.reactionTTL`): each waits on the device behind whatever
+  holds the turn, and takes it the moment that rests. A reaction rests
+  once its take and bubble have played (a silent face once it has shown
+  1.2 s), so the next replaces the face it holds on for its loops; a
+  finish holds the turn to its end. One still waiting after 5 s is
+  skipped (`late`), since a late reaction is worse than none; the mic
+  going on skips the ones waiting (`listening`), and "needs you" cuts
+  what plays. The Talk button's `listening` takes the turn at once
+  (`now`), and push-to-talk ending with no reply sends `stop_listening`
+  (`if_free`).
+- **Every `do` gets exactly one end**: the device's `ended` (`done`,
+  `cut` or `skipped`, with why), or a failure from the link: no device
+  connected, no `hello` yet (the link asks for one whenever it
+  connects, §3.7), firmware that doesn't fit, a name its `hello` doesn't
+  list, or a line too long (it fails at once, and nothing is sent), the
+  link dropping, or no `ended` by its `ttl` plus 60 s
+  (`Link.answerGraceMs`: a line was lost, and until then HISTORY shows
+  the reaction in progress, up to 65 s). Its id is the link's, starting
+  somewhere random each launch and counting up. `Reactions` ends a
+  reaction's handle from that
+  ([harness/DECISIONS.md](harness/DECISIONS.md) §5), holding one your
+  tap cut short until the pokes stop; the rules' `do`s end only in the
+  log.
+- **A link that drops** doesn't stop what the device plays (the USB
+  bridge reconnecting, or a Bluetooth blip). HISTORY says the reactions
+  still waiting for their `ended` didn't happen, but a finish still
+  playing keeps where a tap on it opens its thread until its `ended`
+  comes once the link is back, or the link would have given up on it.
 
 ### 3.3 Harness and brain
 
@@ -304,7 +290,7 @@ order:
 | Action | Effect | Its own rules |
 | --- | --- | --- |
 | `mood` | Logs the new mood, JHarness's `Choice`, whose value is its latest change in the transcript; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the current mood's moves on the mood graph, and only a change |
-| `react` | Queues a moment in the moment schedule: the chosen mood as its face, with the finish Jev judged if NOW is a turn that finished (task_complete for a success or a failure, reply_ready for a reply), held for the loops Jev picked, and the line Voice finds for the feeling, topic and kind Jev picked in that mood, if Jev is sure enough and there are takes. It's started, not done, until the device says how the moment ended | Nothing while something needs you |
+| `react` | Sends a `do` to the device, to wait its turn there: the chosen mood as its face, with the finish Jev judged if NOW is a turn that finished (task_complete for a success or a failure, reply_ready for a reply), held for the loops Jev picked, and the line Voice finds for the feeling, topic and kind Jev picked in that mood, if Jev is sure enough and there are takes. It's started, not done, until the device says how it ended | Nothing while something needs you |
 
 No rule makes a moment on the Mac: every face and take comes through them.
 
@@ -324,16 +310,33 @@ opens it, and writes atomically.
 
 ### 3.7 Device link
 
-The device link sends `state` whenever the snapshot changes and again
-every 10 s, sends moments, answers each `status` with the latest `state`,
-sends it again on reconnect, and hands taps to the pipeline as pokes and
-each moment's `ended` to the runtime ([PROTOCOL.md](PROTOCOL.md)). Its transport is Bluetooth for normal use or
-USB, through `boopctl bridge`'s socket, for development. Both carry
-identical lines, and nothing above the link knows which is in use. A line
-sent while disconnected is dropped; the next `state` catches the device
-up. An agent can't launch the app with Bluetooth, so the whole
-hook-to-screen path is tested over USB ([VERIFICATION.md](VERIFICATION.md)
-L4).
+The device link is LinkKit's `Link`, a package of its own like
+agent-hooks and JHarness ([linkkit/README.md](../linkkit/README.md),
+[its spec](../linkkit/SPEC.md)), with Boop's vocabulary on it in
+`DeviceLink/BoopDevice.swift`: the `hello.app` `boop`, the names its
+device plays, what its `hello` and taps mean, and `StateSnapshot` and
+`DeviceMoment` as a `state`'s fields and a `do`'s name and `args`
+([PROTOCOL.md](PROTOCOL.md)). It sends `state` whenever the snapshot
+changes, again every 10 s, at once when the link comes up and in answer
+to every `hello`; asks for the device's `hello` when the link comes up,
+and every 10 s until one comes, since a device that still counts the app
+as there (an app relaunched within 30 s, or one taking over the
+Bluetooth link macOS kept) says none unasked; sends each `do` with the
+next id and hands its end to whoever asked (§3.2); and hands the
+device's taps and push-to-talk to the runtime. The `hello` says who the
+device is, its firmware, the names it plays and its card's voice pack.
+Firmware that doesn't fit (from before the kit, which says `status`
+where a `hello` would be and which Boop spots itself, another `kit` or
+another `app`) still gets `state`, so its looks and "needs you" show and
+a flash over a link that stays up is heard, but no `do`, and its taps
+are ignored; the popover says to flash it, boop.log names its id and
+firmware, and a bug report says why (`device_trouble`). Its transport is Bluetooth for normal use (`BLETransport`, which
+finds `Boop-XXXX`) or USB, through `boopctl bridge`'s socket
+(`SocketTransport`), for development. Both carry identical lines, and
+nothing above the link knows which is in use. A `state` sent while
+disconnected is dropped; the next catches the device up. An agent can't
+launch the app with Bluetooth, so the whole hook-to-screen path is tested
+over USB ([VERIFICATION.md](VERIFICATION.md) L4).
 
 ### 3.8 Runtime: queues, threads and timers
 
@@ -346,9 +349,9 @@ either would otherwise hold it for good or until the burst ended.
 
 | Where | What runs there |
 | --- | --- |
-| `home` queue | The adapter, the core, the harness's bookkeeping, the actions, the moment schedule, the device link and the memory store |
+| `home` queue | The adapter, the core, the harness's bookkeeping, the actions, the reactions' ends, the device link and the memory store |
 | `boop.hook-server` thread | Accepting hook connections; each line goes to `home` with the time it arrived |
-| `boop.ble` queue or `boop.usb-link` thread | The transport; lines and connection changes go to `home` |
+| `linkkit.ble` queue or `linkkit.socket` thread | The transport; lines and connection changes go to `home` |
 | A Swift task | Jev's request; the answers go back to `home` |
 | A global queue | Reading Jev's key, since the Keychain may stop to ask; the brain is set on `home` |
 | Main thread, for presence | The Mac's lock, sleep and wake notifications, in the app (`app/Boop/PresenceSignals.swift`); each signal goes to `home` |
@@ -357,8 +360,7 @@ either would otherwise hold it for good or until the burst ended.
 
 | Timer | On | Does |
 | --- | --- | --- |
-| Tick, every 1 s | `home` | Reports the wall clock, runs the core's timers, asks the presence detector with the Mac's idle time ([harness/EVENTS.md](harness/EVENTS.md) §2.1), sends the 10 s keepalive, gives up on a brain moment whose `ended` hasn't come in time ([harness/DECISIONS.md](harness/DECISIONS.md) §5), runs the moment pump, ends any action left in progress too long ([harness/HARNESS.md](harness/HARNESS.md) §5.1), and pushes a status when the link's trouble (Bluetooth off) changes |
-| Moment pump | `home` | Plays the next brain moment when its turn comes, and drops one that has waited too long. Whatever frees the line sooner (the device's `ended`, "needs you") runs it at once, and so does a disconnect, though a brain moment still holds the line then (§3.2). Its timer has 5 ms of leeway, and counts the Mac's uptime, which stops while it sleeps, so one the clock has passed is replaced rather than waited for |
+| Tick, every 1 s | `home` | Reports the wall clock, runs the core's timers, asks the presence detector with the Mac's idle time ([harness/EVENTS.md](harness/EVENTS.md) §2.1), sends the 10 s keepalive, gives up on a `do` whose `ended` hasn't come by its `ttl` plus 60 s ([harness/DECISIONS.md](harness/DECISIONS.md) §5), ends any action left in progress too long ([harness/HARNESS.md](harness/HARNESS.md) §5.1), and pushes a status when the link's trouble (Bluetooth off) changes |
 | A pass's deadline | `home` | Drops the pass running if Jev hasn't answered by then; the request goes on to its end, and the log says when it came ([harness/HARNESS.md](harness/HARNESS.md) §7) |
 
 At start the runtime takes the lock, reads `long-term.md` (it won't run
@@ -440,7 +442,7 @@ everyday Boop.
 | `settings.json` | The personality and the volume (0–10), `boop` and 6 while it's missing. Keys it doesn't know, from older versions, are ignored, and an unknown personality reads as `boop` | When you change either in Settings |
 | `boop.sock` | The hook socket, mode 0600, which the everyday app lists as `~/.agent-hooks/sockets/boop.sock` ([ADAPTERS.md](ADAPTERS.md) §2). Headless can put it elsewhere with `--socket` | Replaced at launch, removed at quit |
 | `boop.lock` | Locked while an app runs on this folder; a second copy refuses to start. The file stays, the lock goes with the process | At launch |
-| `boop.log` | The app's log, appended: startup, hook placement and repairs, the link connecting and dropping, the device's id and firmware, taps, memory recoveries and copies, dropped brain moments, one `brain …` line per pass, and hooks only when armed or in debug mode. Never Jev's state ([harness/HARNESS.md](harness/HARNESS.md) §9) | Always; a launch that finds it past 5 MB (`BoopLog.maxBytes`) moves it to `boop.1.log`, replacing the one there, and starts a new one, but only while it holds `boop.lock`: a second copy started on a running app's folder leaves that app's log alone |
+| `boop.log` | The app's log, appended: startup, hook placement and repairs, the link connecting and dropping, the device's id and firmware, taps, how each `do` ended (`device: do N ended HOW (WHY)`), memory recoveries and copies, one `brain …` line per pass, and hooks only when armed or in debug mode. Never Jev's state ([harness/HARNESS.md](harness/HARNESS.md) §9) | Always; a launch that finds it past 5 MB (`BoopLog.maxBytes`) moves it to `boop.1.log`, replacing the one there, and starts a new one, but only while it holds `boop.lock`: a second copy started on a running app's folder leaves that app's log alone |
 | `transcript/<date>.jsonl` | Every raw event of that day, one JSON line each ([harness/HARNESS.md](harness/HARNESS.md) §5) | Appended as events happen; files older than 14 days are deleted at launch and each new day; a launch reads the last 24 hours back |
 | `debug.jsonl` | Debug mode only: a `questions` line first, then every event, every event with a line (`view`) and pass (the state's head in a `head` line when it changes), every line sent to the device and each status change, as JSON lines ([harness/HARNESS.md](harness/HARNESS.md) §9) | Emptied at each launch with `--debug`, after a copy of the last launch's goes to `debug.1.jsonl` |
 | `debug.<n>.jsonl` | Earlier launches' `debug.jsonl`, `debug.1.jsonl` the latest, as many as [harness/HARNESS.md](harness/HARNESS.md) §9 keeps | At each launch with `--debug`; the oldest is let go |
@@ -466,21 +468,21 @@ What crosses each boundary, in the order an event travels:
 | `agent-hook` → hook server | One JSON line of the kept fields | `HookLine` | [agent-hooks SPEC.md](../agent-hooks/SPEC.md) §2 |
 | agent-hooks' `Mapping` → adapter | The hook's event | `AgentEvent` | [agent-hooks SPEC.md](../agent-hooks/SPEC.md) §3 |
 | Adapter → pipeline | A raw event | `Event` | [ADAPTERS.md](ADAPTERS.md) §1, [harness/EVENTS.md](harness/EVENTS.md) §2 |
-| Device link → pipeline | A tap, recorded as a poke; BOOT held and let go, to the core | `DeviceMessage.tap`, `DeviceMessage.talk` | [PROTOCOL.md](PROTOCOL.md) §4 |
+| Device link → pipeline | A tap, recorded as a poke; BOOT held and let go, to the core | `DeviceEvent` (`ev` `tap`, `talk_on`, `talk_off`) | [PROTOCOL.md](PROTOCOL.md) §4 |
 | App's mic → pipeline | What push-to-talk heard, recorded as a `talk` | `String` (`Runtime.said`) | [harness/EVENTS.md](harness/EVENTS.md) §2 |
 | Presence signals → presence detector | A lock, unlock, sleep or wake; the idle time on each tick | `PresenceDetector.Signal`, milliseconds | [harness/EVENTS.md](harness/EVENTS.md) §2.1 |
 | Presence detector → pipeline | You stepped away or came back, recorded as a `presence` start or end | `Event` (`Pipeline.presence`) | [harness/EVENTS.md](harness/EVENTS.md) §2.1 |
 | Pipeline → transcript → view, core | Each event, stamped with its `seq`: its line worked out, then the core has it | `Event` | [harness/HARNESS.md](harness/HARNESS.md) §2 |
-| Device link → runtime | How a brain moment ended, by its `id` | `MomentEnded` | [PROTOCOL.md](PROTOCOL.md) §4 |
+| Device link → reactions | How a reaction's `do` ended, or why the link has no end for it | `Link.Outcome` (`Ended`, `Link.Failure`) | [linkkit/SPEC.md](../linkkit/SPEC.md) §4–5 |
 | Core → runtime | Effects | `CoreEffect` | §3.2 |
 | View → harness | Each event's line and notes, with facts the harness never reads; its kind's wake and hold | `Line` | [harness/EVENTS.md](harness/EVENTS.md) §3–4 |
 | Actions, core → transcript | What Boop did, as a `did` (and "needs you" as `needs_you` events) | `Event` | [harness/EVENTS.md](harness/EVENTS.md) §2 |
 | Harness → Jev | The state as text, and every action's questions | One HTTPS request | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | Jev → actions | Each question's choice and probabilities, only to the action that asked | `Answers` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
 | Actions → harness | `(ok, message)`; a successful message goes into HISTORY. A started one also hands over a handle, and its end comes later | `ActionResult`, `Pending` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
-| `react` → moment schedule → device link | A face (`mood`) with its `loops` and what it says (`say`, one or two takes or nothing), and its handle, which the schedule or the runtime ends; it goes out with an `id` | `DeviceMoment`, `Pending` | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
+| `react` → device link | A face (`mood`) with its `loops` and what it says (`say`, one or two takes or nothing), as a `do` the link gives an `id`, and its handle, which `Reactions` ends | `DeviceMoment`, `Pending` | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
 | `mood` → mood store → core | The new mood | A word | [harness/DECISIONS.md](harness/DECISIONS.md) §4 |
-| Device link ↔ device | `state` and `moment` out; `input`, `ended` and `status` in | JSON lines | [PROTOCOL.md](PROTOCOL.md) |
+| Device link ↔ device | `state` and `do` out; `hello` and `ev` (taps, push-to-talk, `ended`) in | JSON lines | [linkkit/SPEC.md](../linkkit/SPEC.md), [PROTOCOL.md](PROTOCOL.md) |
 | Runtime → Mac app | Name, snapshot, sessions, link, device, personality, brain | `Runtime.Status` | `app/Boop/` |
 
 ## 6. Who keeps which state
@@ -495,22 +497,22 @@ What crosses each boundary, in the order an event travels:
 | The last active day | Core | Memory | Starts as the day the app opened, whose old transcript files the launch deleted |
 | The transcript | Transcript (JHarness's log) | `transcript/<date>.jsonl`, and `debug.jsonl` in debug mode; its last 24 hours in memory | Kept 14 days; the last 24 hours read back |
 | The pass running | Harness | Memory | Gone. The events waiting and the started actions still open are the transcript's: nothing older than 10 s is answered, and an open action is ended as failed at launch |
-| Brain moments waiting with their handles, when the device is free, and the look and mood of the last `state`, which time a moment's loops | Moment schedule | Memory | Gone |
-| Brain moments on the device, by `id`, with their handles and when to give up waiting for their `ended` | Runtime | Memory | Gone |
-| The latest snapshot, the device's status, whether it's connected | Device link | Memory | Rebuilt at start |
+| The `do`s sent, by `id`, with who waits for each end and when to give up waiting for its `ended` | LinkKit's `Link` | Memory | Gone |
+| Where a tap on each finish still playing opens its thread, and the reactions a tap cut short | `Reactions` | Memory | Gone |
+| The device's `hello`, why its firmware doesn't fit, whether it's connected; the latest snapshot | Device link; the runtime | Memory | Rebuilt at start |
 | Project and workspace by folder (up to 512, each for 30 s) | agent-hooks' `Places`, the runtime's | Memory | Read again |
 | Name, hatch day, nature, voice seed | Memory store | `long-term.md` | Kept |
-| Mood | The `mood` action (JHarness's `Choice`) | Its latest change in the transcript | Read back with the last 24 hours, else calm |
+| Mood | The `mood` action (JHarness's `Choice`) | Its latest change in the transcript | Read back with the last 24 hours, else calm; the first launch after the change carries over the old `mood` file's |
 | Volume, personality | Runtime | `settings.json` | Kept |
 | Jev's key | The Keychain | Login Keychain | Kept |
 | Touch calibration | Device | Its flash ([DEVICE.md](DEVICE.md) §5) | Kept |
 
 ## 7. Device
 
-The device is a thin client. It draws what the latest `state` says, plays
-moments, runs its own short timers (blinks, the needs-you alert, the
-no-app look after 30 s without a `state`), reports taps and says how
-each brain reaction ended. It keeps no
+The device is a thin client. It draws what the latest `state` says,
+plays what the Mac asks, deciding when each takes its turn (§3.2), runs
+its own short timers (blinks, the needs-you alert, the no-app look after
+30 s without a `state`), reports taps and says how each `do` ended. It keeps no
 personality or memory, only its touch calibration. What it does is in
 [BEHAVIORS.md](BEHAVIORS.md); the hardware and firmware are in
 [DEVICE.md](DEVICE.md).
@@ -522,7 +524,8 @@ personality or memory, only its touch calibration. What it does is in
 | App not running, or the Mac asleep | Hooks give up within 50 ms and agents carry on. The device shows it has no app after 30 s ([BEHAVIORS.md](BEHAVIORS.md) §3.4) |
 | App restarted | The core and the view fold the transcript's last 24 hours back in (§6), so the sessions, a request still waiting and a turn still running carry on, and that turn's finish is told as usual. A request still waiting shows with this launch's number, so the device announces it again. An action still in progress is ended as failed ([harness/HARNESS.md](harness/HARNESS.md) §5). The mood, settings and memory stay |
 | Bluetooth off, or not allowed | The app logs it, and the popover says so, with where to turn it on or allow it, instead of looking for the device ([PROTOCOL.md](PROTOCOL.md) §2) |
-| Device disconnected | The app keeps going and drops what it would send; on reconnect the latest `state` catches the device up. HISTORY says a reaction playing or sent meanwhile didn't happen ([harness/DECISIONS.md](harness/DECISIONS.md) §5), though one that was playing keeps the line until it ends (§3.2), since the device plays on |
+| Device disconnected | The app keeps going and drops what it would send; on reconnect the link asks for the device's `hello`, which a device that didn't see the drop wouldn't say unasked (§3.7), and the latest `state` catches the device up. HISTORY says a reaction playing or sent meanwhile didn't happen ([harness/DECISIONS.md](harness/DECISIONS.md) §5), though a tap on a finish still playing still opens its thread (§3.2), since the device plays on |
+| Firmware that doesn't fit the app (from before LinkKit, or another `kit` or `app`) | The link still sends `state`, so the looks and "needs you" show, but no `do`, so nothing reacts; the popover says the firmware is too old (or too new) and to flash it (or update the app), boop.log names it and a bug report says why ([linkkit/SPEC.md](../linkkit/SPEC.md) §6) |
 | Jev slow, offline or wrong | Rules still drive every reaction. A pass Jev fails, is late for, or answers off its options is dropped, and no action runs ([harness/HARNESS.md](harness/HARNESS.md) §7) |
 | No Jev key | No pass runs; events are still recorded. The Overview says Boop can't react yet, with a button into Settings, until it's dismissed for the launch |
 | `long-term.md` won't parse | It's kept as `.broken` and recovered (§4) |
@@ -544,7 +547,8 @@ personality or memory, only its touch calibration. What it does is in
 | Hook entry timeout | 5 s in the agent's settings; never reached |
 | Hook server | A connection is read until it closes, is quiet for 200 ms, or reaches 64 KB |
 | Brain, per pass | Jev's answer within 1.5 s, one retry included ([harness/HARNESS.md](harness/HARNESS.md) §7). A late answer is dropped |
-| A brain moment's wait | 5 s, then it's dropped |
+| A brain reaction's wait for its turn | 5 s on the device (its `ttl`), then the device skips it |
+| An `ended` | The link gives up on it at the `do`'s `ttl` plus 60 s |
 | An action | Logged if it takes over 300 ms |
 | `state` keepalive | Every 10 s; the device gives up on the app after 30 s |
 | Protocol line | At most 512 bytes, names at most 23 bytes ([PROTOCOL.md](PROTOCOL.md) §2–3) |
@@ -552,8 +556,10 @@ personality or memory, only its touch calibration. What it does is in
 ## 10. Stack
 
 - **Mac app:** Swift, built with SwiftPM from the repo root's
-  `Package.swift` (sources in `app/`), on the local package
-  `agent-hooks/` for everything about agents' hooks, using CoreBluetooth and TypeSafe's
+  `Package.swift` (sources in `app/`), on the local packages
+  `agent-hooks/` for everything about agents' hooks, `jharness/` for the
+  brain's harness and `linkkit/` for the device link (which uses
+  CoreBluetooth), and on TypeSafe's
   API for Jev when the person has a key. SwiftPM builds no app bundle
   here, so the app's `Info.plist` (the Bluetooth usage description,
   `LSUIElement`) is linked into the `Boop` binary with `-sectcreate`.
@@ -569,22 +575,22 @@ personality or memory, only its touch calibration. What it does is in
   build `firmware/assets/` from it ([DEVICE.md](DEVICE.md) §6,
   [VOICE.md](VOICE.md) §10).
 
-What ships is in `app/`, `agent-hooks/`, `jharness/` and `firmware/`; everything else
+What ships is in `app/`, `agent-hooks/`, `jharness/`, `linkkit/` and `firmware/`; everything else
 (tests, evals, dev tools, skills, the firmware's simulator and unit
 tests) is in `internal/` ([its README](../internal/README.md)). The
 Swift targets:
 
 | Target | Kind | Sources | Ships |
 | --- | --- | --- | --- |
-| `BoopKit` | Library, on `JHarness` and `AgentHooks` | `app/BoopKit/` | Yes |
+| `BoopKit` | Library, on `JHarness`, `AgentHooks` and `LinkKit` | `app/BoopKit/` | Yes |
 | `Boop` | The app | `app/Boop/`, plus `internal/app/Boop/` for `--headless` and `--snapshots`, and `plan/steering/` as a resource | Yes |
 | `BoopDevKit` | Library: the evals and hook replay | `internal/app/BoopDevKit/` | No |
 | `BoopDev` (`boopdev`) | The developer CLI | `internal/app/BoopDev/` | No |
 | `BoopTests` | The unit tests; without Xcode, an executable on the `XCTest` shim target | `internal/app/Tests/` | No |
 
-`BoopKit` and every target on it take agent-hooks' `AgentHooks` and
-JHarness's `JHarness` products, each file importing the one it uses (no
-re-export). agent-hooks is a package of its own,
+`BoopKit` and every target on it take agent-hooks' `AgentHooks`,
+JHarness's `JHarness` and LinkKit's `LinkKit` products, each file
+importing the ones it uses (no re-export). agent-hooks is a package of its own,
 `agent-hooks/Package.swift`, meant to be open-sourced: Foundation only,
 nothing outside its folder, and its own tests in Swift Testing
 ([its README](../agent-hooks/README.md)):
@@ -608,8 +614,22 @@ JHarness, the harness Boop's brain runs on, is one too,
 | `Beacon`, `BeaconDemo` (`beacon`) | The worked example and its runner (SPEC.md §11) | `jharness/Examples/` | No |
 | `JHarnessTests` | Its tests, under `swift test` | `jharness/Tests/JHarnessTests/` | No |
 
-The production targets never depend on internal ones, and neither
-agent-hooks nor JHarness depends on anything of Boop's. The build makes an import of a target that
+LinkKit, the device link, is one too, `linkkit/Package.swift`, on the
+same terms but CoreBluetooth and `../jharness`, which the package needs
+beside it whichever product an app takes: SwiftPM resolves a package's
+dependencies for all its products, and `JHarnessLink` is on JHarness
+(`LinkKit` itself imports nothing of it). Its device half is C++ in
+`linkkit/device/`, which the firmware builds and SwiftPM ignores
+([its README](../linkkit/README.md)):
+
+| Target | Kind | Sources | Ships |
+| --- | --- | --- | --- |
+| `LinkKit` | Library: the four messages, the host's `Link` and the Bluetooth and socket transports ([linkkit/SPEC.md](../linkkit/SPEC.md)) | `linkkit/Sources/LinkKit/` | Yes |
+| `JHarnessLink` | Library, on `LinkKit` and `JHarness` (the one target that looks outside the folder): a `do` that finishes a `Pending`, the device's events in a JHarness log, and `Play`, an output of the device's names | `linkkit/Sources/JHarnessLink/` | Not with Boop |
+| `LinkKitTests`, `JHarnessLinkTests` | Its tests, under `swift test` | `linkkit/Tests/` | No |
+
+The production targets never depend on internal ones, and none of
+agent-hooks, JHarness and LinkKit depends on anything of Boop's. The build makes an import of a target that
 isn't a declared dependency an error (SwiftPM's own default is a
 warning), so a production file can't reach internal code. `Package.swift`
 is at the repo root because SwiftPM takes no target outside the
@@ -618,7 +638,8 @@ package's root.
 The stable contracts are the common event ([ADAPTERS.md](ADAPTERS.md) §1),
 the memory file (§4), the harness's two contracts, events in and actions
 out ([harness/HARNESS.md](harness/HARNESS.md) §3–4), and the protocol
-([PROTOCOL.md](PROTOCOL.md)).
+([linkkit/SPEC.md](../linkkit/SPEC.md), with Boop's vocabulary in
+[PROTOCOL.md](PROTOCOL.md)).
 
 ## 11. Decision log
 
@@ -665,19 +686,16 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-27 | A brain reaction waits only for a line playing, not for an animation: it plays over the cheer, which it doesn't cut. This replaces 2026-09-26's "wait behind the rules' moments" for animations | A mumble with no animation can't cut the cheer on the device, and a proud reaction to a long finish should show the cheer in proud's face, not the idle face after it | §3.2 |
 | 2026-09-27 | An action can report that it started something rather than did it: HISTORY shows its line `(in progress)` until it reports `done`, or `failed` with why (`(didn't happen: …)`), as a `settle` entry; the harness ends any left open too long | HISTORY said Boop made a face that was still waiting its turn, or that the moment schedule had dropped and never showed. Only the action knows when its effect ends, so the harness only waits, with a ceiling in case it never hears | [harness/HARNESS.md](harness/HARNESS.md) §4–5 |
 | 2026-09-27 | `react` is started, not done: its moment's handle ends when the device says how the moment ended, or `failed` when it was dropped, no device was connected or the device dropped. This replaces "HISTORY still says Boop made it" for a dropped reaction. The guide lets Jev make one that didn't happen again, but not repeat one in progress | Jev read reactions that never showed as made, and wouldn't retry them | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
-| 2026-09-27 | A `moment` the Mac waits on carries an `id`, and the device answers it with `ended`: `done`, `cut` (and what cut it) or `skipped`. The Mac gives up on one that doesn't come by the moment's length plus a grace. This replaces the app's own timing, which ended a reaction `done` when it expected the moment to have played. No other moment is answered | Only the device knows whether a tap, "needs you" or a newer moment stopped a reaction, or whether it played at all. The grace keeps older firmware and a lost line from leaving a reaction in progress | [PROTOCOL.md](PROTOCOL.md) §4 |
 | 2026-09-28 | Moments are counted in loops of a design, and whoever plays one says how many (`moment.loops`, 1–6). The cheer plays enough loops of the mood's task-complete design to last at least 2 s, replacing the fixed 2 s; a reaction's face holds the loops Jev picks (`react.loops`, once to four times), ending on a loop boundary of the design showing, and at least as long as its mumble. facegen reads each design's loop from its SVG timing and writes it for the device and the Mac alike | Every animation can loop, and the loopable designs coming next should end where they start rather than be cut mid-motion. A bigger moment can hold its face longer. One set of numbers keeps the Mac's timing of a moment with the device's | [PROTOCOL.md](PROTOCOL.md) §3, [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
 | 2026-09-28 | `state` drops `idle` and `wait`, replacing 2026-09-27's keeping them for the dashboard, which now counts the idle from its `status` line's sessions and the waiting from `attn`. A change to the session list the snapshot doesn't show is the core's `sessions` effect | Nothing read them but the dashboard, and `wait` was always 1 + `attn.more`. The idle count had quietly been what refreshed the popover when a second idle session came or went | [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-28 | Claude's idle notice (`idle_prompt`) clears a request whoever asked, a subagent included. This replaces "a subagent's request stays, since its prompt may still be up" | The notice means Claude sits at its own prompt with the turn over, which it doesn't do while any prompt is up. Keeping a subagent's request, which the notice also restarted the safety net for, left Boop amber about 11 minutes after you pressed Esc on a subagent's prompt, where BEHAVIORS.md §3.2 says a minute | [ADAPTERS.md](ADAPTERS.md) §4 |
 | 2026-09-28 | `state`'s `attn` carries the request's number (`attn.id`), and the device chirps when it changes, not only when the agent or project does. Requests are ordered by when they started showing, then by number | BEHAVIORS.md §3.2 says a different request shown chirps, but the device could only compare agent and project, so two worktrees of one repo, or two subagents in one session, took turns in silence; and two requests in the same millisecond were shown in the order their sessions were first seen | [PROTOCOL.md](PROTOCOL.md) §3, [BEHAVIORS.md](BEHAVIORS.md) §2, §3.2 |
-| 2026-09-28 | A brain moment on the device holds the moment schedule's line until the device's `ended` for it, or until the app gives up on it; the schedule hears taps and "needs you", runs its pump whenever the line frees, and counts a wait to when the turn came. This replaces giving the next one its turn when the app's own reckoning of a face ran out | The reckoning is an upper bound, up to a whole loop (9 s over idle) per hold too long, so a reaction arriving meanwhile was dropped although the face was long over; and a line sent just as the reckoning ran out could still reach the device before its face ended there, and cut it | §3.2 |
 | 2026-09-28 | The needs-you strip names the thread that asks: `boop-hook` reads the thread's name on the hooks that ask for you (Claude's last title in its transcript, Codex's session index), and `state` carries it as `attn.name`, shown in the project's place. The hook client's words are now your prompt, the last message and the thread's name | With several threads in one project, "claude · buddygotchi" didn't say which was asking. Only the title leaves the transcript, it never reaches the brain, and firmware without `name` still shows the project | [ADAPTERS.md](ADAPTERS.md) §2, [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-28 | A reaction's face that something ends early after its mumble has played leaves its moment `done`, not `cut`: only a stopped animation or line cuts a moment | With loops, a face holds up to 36 s past its roughly 2 s mumble, so most cuts came after the line was heard. HISTORY then said the reaction didn't happen, and the guide let Jev make it again: Boop said "…finally!" twice | [PROTOCOL.md](PROTOCOL.md) §4 |
 | 2026-09-28 | `react`'s `none` also covers a reaction HISTORY shows Boop still making, and isn't for an Example Boop isn't already doing. This replaces "not for anything PERSONALITY's Examples react to" | That wording beat the guide's "don't repeat what Boop is still doing": a comeback's finish got a second proud "…finally!" while the first still showed, in every eval run | [harness/DECISIONS.md](harness/DECISIONS.md) §3 |
 | 2026-09-28 | `perf --motion` passes when the board drew a frame in every second it moved and none took over 40 ms, replacing its 10 fps floor | The mood designs step a few times a second, so `fps` follows the design: 6–7 a second through the cheer, in the simulator as on the board, which drew every change in 14 ms at most and still failed the floor | [VERIFICATION.md](VERIFICATION.md) L2 |
 | 2026-09-28 | Boop's mood moves only for something lasting (a run of failures, a fix after one, a turn of 10 minutes or more ending, an hour of nothing) and never for a routine turn, and any mood but happy fades back to happy once HISTORY no longer shows the change. Reactions come to anything that stands out, with strong faces held longer for bigger moments, and small ones to routine finishes. All steering text, except two `mood` options: `excited` no longer means "several wins in a row", and `grumpy` means "poked again right after the last time", with each a `not_for` | On the owner's first evening with faces, Jev changed the mood 11 times in an hour, flipping between happy, proud and excited on routine turns, while its reactions were mostly plain. In a scripted working day the tuning took mood changes from 52–53 to 16 a day, and those on a routine line that weren't a fade from 17–18 to 1, with a reaction to every notable line. The mood files alone didn't stop a turn of a few minutes reading as "several wins in a row", nor a first poke streak turning Boop grumpy; the new `excited` option fixed the first, and the text and the new `grumpy` option together only made Jev less sure of the second (0.93 to 0.8) | [harness/DECISIONS.md](harness/DECISIONS.md) §2, [evidence](evidence/2026-09-28-tonight/tune/README.md) |
 | 2026-09-28 | A session that ended stays ended for a day: its later hooks are ignored until a `session_start` or a prompt | Hooks from just before the end land after it, and each brought the session back as needing you, working or idle | [ADAPTERS.md](ADAPTERS.md) §4 |
-| 2026-09-28 | A link that drops doesn't free the moment schedule's line, and a tap doesn't free a brain moment's: both wait for the device's `ended`, or the app giving up. This replaces "with no device connected nothing holds the line" | The device plays on through a link blip, and a moment may reach it just after a tap: freeing the line on a guess let the next reaction cut one still playing | §3.2 |
 | 2026-09-28 | A pass's request goes on past the deadline, off the pass, so the log says when the brain answered; the answer is still thrown away. This replaces cancelling it | A dropped pass's latency was only the deadline's timer, so the night's evidence took the timer's 1.3 s for Jev's | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | 2026-09-28 | A routine finish gets a face only when it has something to show (40 s of work or more, or checks passing), and the faces lean strong: excited at a clean win, proud at a hard-won one, curious with "hmm" at a stopped turn, and never grumpy at a win. "yay" is kept for bigger wins; a routine face says its topic, or no word. Proud's file ties its staying to HISTORY still showing the change. All steering text | The first tuning left 68% of a working day's faces happy and "yay" in 80% of reactions, where the owner asked for vivid reactions that use grumpy, sad, proud, excited and determined where they fit. In the scripted day happy went to 35% of the faces, those five to 64%, and "yay" to 34% of the reactions with a word, while every notable line still got a face and the mood changed 16–18 times a day (16 before). Without the change to proud's file, the new personality kept Boop proud past its HISTORY in `13-proud-fades` | [harness/DECISIONS.md](harness/DECISIONS.md) §2, [evidence](evidence/2026-09-28-tonight/tune2/README.md) |
 | 2026-09-28 | A sad Boop stays sad through more failures, and leaves only for proud when what failed works, or back to happy as it fades; it no longer turns determined at the next failure. Steering text | In the scripted working day, Jev took sad's old way out to determined at the next failure in 3 of 6 runs of the second tuning, a coin flip in the check's reruns (determined 0.45 and 0.53 against sad 0.49 and 0.39), one mood change a day over the calm the owner asked for. With the change it stays sad there at 0.96–0.97, goes straight to proud at the fix, and both reruns changed mood 16 times | [harness/DECISIONS.md](harness/DECISIONS.md) §2.3, [evidence](evidence/2026-09-28-tonight/tune2-check/README.md) |
@@ -686,7 +704,6 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-28 | Jev chooses among six moods: curious is gone from the `mood` and `react` options and its steering file. The device keeps its curious designs and draws them if a state or moment names it; the Mac never sends it, and a saved `mood` file saying curious reads as happy | Nothing in the steering led to the curious mood, and its face was only ever the stopped turn's; an option with no way in is only noise to the other choices. boop's stopped turn is now a happy face with "hmm" | [harness/DECISIONS.md](harness/DECISIONS.md) §2.3, [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-28 | HISTORY ends with a line naming Boop's last reaction and how long ago it started (`Boop's last reaction, just now: an excited face and "…tests!".`), before the status line. `react` supplies it through the runtime's `parts`, so the harness only places it | Once a reaction had played out, Jev made the same one at the next line that called for it (an excited "…tests!" up to 8 times in a row; a comeback's "…finally!" twice within a minute), and steering text alone didn't stop it. The owner chose naming the last reaction over giving quick passes no face (decision 8a) | [harness/DECISIONS.md](harness/DECISIONS.md) §5, [harness/HARNESS.md](harness/HARNESS.md) §5.3 |
 | 2026-09-28 | A routine finish gets a face from 20 s of work, down from 40 s. Steering text | Round 2 reacted to 0.47–0.49 of finished turns, and the owner wanted Boop less quiet (decision 9) | [harness/DECISIONS.md](harness/DECISIONS.md) §2.2 |
-| 2026-09-28 | Once a brain reaction's mumble has played (and the link's 0.5 s), the next brain reaction may be sent, and replaces the face the first holds on for its loops; the first still ends `done`. Rule moments and working chatter still wait for the device's `ended`. This replaces "a brain moment holds the line until its `ended`" for the brain's own next moment | A face held two to four times kept the line 16–36 s (9 s for one loop over the idle look), and a reaction waits at most 5 s, so another thread's failure meanwhile got no face. The owner chose this over a shorter idle loop or a cap on the first loop (decision 5c) | §3.2, [PROTOCOL.md](PROTOCOL.md) §3–4 |
 | 2026-09-28 | A finished turn no longer cheers by rule: the cheer is the brain's, a reaction's `react.animation`, played in the reaction's face, and with no brain a finish gets none. The tap's wiggle stays the device's. This replaces 2026-09-27's "every finished turn cheers", and loosens "the brain is never on the event path" to the screen's truth (looks, needs you, the wiggle) | A rule cheer gave a 5-second turn and a 40-minute comeback the same moment, and the brain could only paint a face over it. The finalized scenes make the cheer Boop's biggest moment, so it should mean something | [BEHAVIORS.md](BEHAVIORS.md) §3.1, §5, [harness/DECISIONS.md](harness/DECISIONS.md) §3 |
 | 2026-09-28 | No rule mumbles: working chatter becomes a working heartbeat, an event that wakes the brain after a quiet stretch of work (the personality's `working_heartbeat`, restarted by Boop's reactions since the row below), and Jev decides whether Boop mumbles, with which face and word. With no brain, Boop works silently | Chatter was the last expressive thing a rule did; a mumble that ignores Boop's mood and what just happened reads as filler. The timer stays a rule so the brain is asked at a steady pace | [BEHAVIORS.md](BEHAVIORS.md) §2, [harness/EVENTS.md](harness/EVENTS.md) §4 |
 | 2026-09-28 | The device draws the finalized animation pack: 7 moods × 6 states, with three variations each and working five, which the core (the look) and `react` (the cheer) pick at random, never the last one, and send as `variant`. Needs you's performance plays once, then holds. facegen bakes the pack's scaling, fades and translucency into whole-pixel steps and a blend table, and checks it against Chrome (a blended pixel within one RGB565 step). The partition stays as it is. Its sound came next (the row below) | The owner accepted the pack as Boop's look. A rule picks the variation for now so it can move into the harness later without a device change; the tables (278 KB) fit the current app slot | [BEHAVIORS.md](BEHAVIORS.md) §2, [DEVICE.md](DEVICE.md) §6, [PROTOCOL.md](PROTOCOL.md) §3 |
@@ -716,7 +733,7 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-29 | Each mood × state has its own variations (1–9), some made for a result (task_complete's success or failure) or a start (new task, session, carrying on); the Mac and the device pick among those that fit, never the last. A flip-book design uses the face and mouth of the step that shows, blinks on its own clock, and a switch to or from one shows its blink step | The bank's V4 art: the older moods have one or two of the newer states, the new ones three; its flip-books can't shut their eyes on the device's clock, so switches would cut hard | [DEVICE.md](DEVICE.md) §6, [BEHAVIORS.md](BEHAVIORS.md) §2, [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-29 | Sound effects take the bank's voice-first mix for every mood: quiet states silent, routine contacts thinned and picked per loop (8 loops baked, seed 53), sparse counted in loops, and ducking by design (needs you, the finish and an error never; the rest to a quarter) instead of by `alert*` clip names. 49 clips, 157,609 bytes | D6: the voice comes first, and the bank's player is the reference | [VOICE.md](VOICE.md) §10 |
 | 2026-09-29 | The `state` line carries `act`, what the agents are doing while working (testing, delegating, terminal, searching, analyzing, tool_use, waiting, planning), from running calls, helpers and plan mode, in that priority, held at least 1.5 s; the working session heard from last picks. Waiting (a call quiet 20 s, or Codex's grace) replaces the call's own look | The spectrum's sustained states; the hooks already say which tool runs, and a floor keeps quick tools from flickering. Ranked below the tool states with a running tool as its evidence, waiting could never show | [BEHAVIORS.md](BEHAVIORS.md) §2, [PROTOCOL.md](PROTOCOL.md) §3 |
-| 2026-09-29 | The rules play one-shots as moments with no `id`: starting (with its context), stopped, error (exit code or timeout, at most every 30 s) and helper_return. They play at once, a brain moment plays over one without waiting, one is dropped while a brain line plays, and they stay out of the transcript like the look. This replaces "the rules add no moment" | They're facts of the hooks, not the brain's to choose; waiting behind one would drop most reactions to a prompt, and cutting a brain line would break its `ended` | [BEHAVIORS.md](BEHAVIORS.md) §3.1, §3.2, [PROTOCOL.md](PROTOCOL.md) §3 |
+| 2026-09-29 | The rules play one-shots: starting (with its context), stopped, error (exit code or timeout, at most every 30 s) and helper_return. They play at once, a brain moment plays over one without waiting, one is skipped while a brain line plays, and they stay out of the transcript like the look. This replaces "the rules add no moment" | They're facts of the hooks, not the brain's to choose; waiting behind one would drop most reactions to a prompt, and cutting a brain line would break its `ended` | [BEHAVIORS.md](BEHAVIORS.md) §3.1, §3.2, [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-29 | Claude's `SubagentStart` is hooked (14 hooks), `boop-hook` keeps SessionStart's `source` and the hooks' `permission_mode`, a shell command that only reads gets the topic `inspect`, and a request answered by anything but its call's result drops that call from the look | Delegating, helper_return, starting's context and planning need them; Codex's reads come through its shell; Claude sends no hook for a denial, so the call would show until the turn ends | [ADAPTERS.md](ADAPTERS.md) §3–5, [BEHAVIORS.md](BEHAVIORS.md) §2 |
 | 2026-09-29 | The mood question is built on every pass from the saved mood: staying, plus that mood's moves on the owner's graph, dramatic ones with a "not for" a fresh, big event; the action takes nothing else. No timer in code: how long a mood lasts stays the steering's. The dashboard may set any of the 13. This replaces the fixed list of six | The owner's graph (D3) and pacing in steering (D5): Jev picks only a step the graph allows, so grumpy never goes straight to happy | [harness/DECISIONS.md](harness/DECISIONS.md) §2.3, §4 |
 | 2026-09-29 | Calm is the resting mood: a new Boop starts calm, fades go one step toward it, HISTORY's closing line is quiet while calm, and a missing or unknown saved word reads as calm (logged). This replaces happy as the mood every mood fades to | The handover's suggestion (D4, D11): a settled creature, with happy a mood that means something | [harness/DECISIONS.md](harness/DECISIONS.md) §2.3, §4 |
@@ -725,13 +742,13 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-29 | A tap plays the mood's `poked` design, and `tap_spam` from the third tap within 3 s, which the device counts itself with the Mac's numbers; the sway and heart are gone, and a `wiggle` moment means poked. The screen's priority is no app, listening, needs you, a poke and the moments, then the look | The bank has a poke for each mood; counting on the device keeps a barrage instant | [BEHAVIORS.md](BEHAVIORS.md) §3.3, §5 |
 | 2026-09-29 | The rules' action for a poke keeps its name, `wiggle`, and its words, `Boop wiggled on its own.`, which Jev reads, though the device now plays a poke | Jev ran out of credit before new words could be checked; the poke evals pass with these | [harness/EVENTS.md](harness/EVENTS.md) §2 |
 | 2026-09-29 | A line that comes with an animation starts in the design's voice window (after its attention cue, about 5 s into a finish) and the animation holds until the line and its bubble end; the Mac reckons the same from `FaceLoops.voiceMs`. A brain moment that has waited over 5 s is still dropped, so a reaction just after a finish can be | The bank's handover: the voice enters after the cue, never sped up to fit | [VOICE.md](VOICE.md) §9, §3.2 |
-| 2026-09-29 | The bubble takes the bottom lane (y ≥ 192) in place of the strip while a line plays, and props are no longer hidden under it; only a `say` or the empty moment ends `listening` | The new designs keep that lane free and their props are the action (D10); a rule's one-shot must not end push-to-talk | [DEVICE.md](DEVICE.md) §4, [PROTOCOL.md](PROTOCOL.md) §3 |
+| 2026-09-29 | The bubble takes the bottom lane (y ≥ 192) in place of the strip while a line plays, and props are no longer hidden under it; only a `say` or `stop_listening` ends `listening` | The new designs keep that lane free and their props are the action (D10); a rule's one-shot must not end push-to-talk | [DEVICE.md](DEVICE.md) §4, [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-29 | Evals cost fewer Jev requests: an `always` scenario runs 3 times (was 5) and the rest once (was 3), a scenario can set its own `runs` (`53` runs once), and `boopdev eval` counts a run's requests with the scripted brain first and stops over a budget of 100 unless `--budget N` or `--no-budget` (`make eval`, the final pass) says. A full eval goes from about 1,340 requests to about 620 | The owner's call: evals ran too often against a limited API budget (Jev ran out of credit the same day). While developing, run only the scenarios a change touches; the whole eval is the final pass | [EVALS.md](EVALS.md) §1–3, [VERIFICATION.md](VERIFICATION.md) L5 |
 | 2026-09-29 | What the person says to Boop moves its mood at once: the guide lets talk move the mood in its first minute, as a poke does; saying sorry moves grumpy to irritated or annoyed, irritated to annoyed and annoyed to calm; sad news moves most moods to sad and keeps Boop there, and taking it back or cheering it up leaves sad for calm or happy. The mood question's meanings (`MoodAction.moods`) and a dramatic move's "not for" say the same, and PERSONALITY answers sad news with a sad face | The owner's brief: the mood should change faster while the person talks to Boop, and one apology should do. Before, the first-minute hold and grumpy's rules (it cooled only after 2 min or at thanks) meant saying sorry twice. Scenarios `56`–`59` check it; all passed, and `make eval` passed but for the known gap `20` ([evidence](evidence/2026-09-29-talk-moves-mood/README.md)) | [harness/DECISIONS.md](harness/DECISIONS.md) §2.1, §2.3, [EVALS.md](EVALS.md) §4 |
 | 2026-09-29 | Boop says recorded takes, not gibberish: Jev picks a meaning (the takes' intents, each naming the faces that can say it) and a kind (sound, word, phrase, swear), and Voice finds a take of that meaning performed in the face's mood, fit for the finish (success takes only on a success, swears only on a failure), stepping down to a plainer kind, never the last take again while another fits; with none, the face plays in silence. All 40 of the bank's takes go on the board unreviewed; the six in moods Boop lacks are mapped to the nearest. The gibberish, dialects, unintelligibility check and one-real-word rule go | The owner's choice (2026-09-29) of option B: Jev picks from a dozen meanings and four kinds, however many recordings there are; silence rather than another mood's voice, with the steering asking for a face that can speak; swears by personality | [VOICE.md](VOICE.md), [harness/DECISIONS.md](harness/DECISIONS.md) §3, §5 |
 | 2026-09-29 | A tap's poke replaces only the animation playing: a brain reaction's line, bubble and face play on over it, the poke drawn in the reaction's mood, where before the poke cut the whole reaction. A finish's animation is still replaced, and reported `cut` by `tap`; "needs you", a newer moment and push-to-talk still cut the line | In a barrage the brain answers once (EVENTS.md §6), and that answer usually landed mid-barrage, so the next tap cut it and you never heard it. The taps still get their animation at once | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
 | 2026-09-29 | The screen turns half a turn: `kRotation` 3, USB-C on the left seen from the front (was 1, on the right). The test pattern's USB-C bar, its colour blocks and the webcam check move with it; a touch calibration saved at rotation 1 is ignored until `boopctl calibrate` runs again | The owner holds Boop the other way up, and the picture had the face upside down that way | [DEVICE.md](DEVICE.md) §4, [VERIFICATION.md](VERIFICATION.md) L3 |
-| 2026-09-29 | Boop's whole voice is on the board's microSD card: all 2,722 of Federico's takes, the 40 before them included, in one pack voicegen builds (`.build/voice/voice.bin`, not checked in), which the board reads at 10 MHz on SPI3 and the Mac checks by version (`status`'s `voice`). With no card, or another pack, Boop has no voice; its faces and sound effects, still in flash, carry on. Touch moves to bit-banged SPI so the card can have the second bus. `Takes.swift` is written as one `append` per take | The owner wanted every take, even overlapping ones, for more choice, and no difference between the old and the new; at 30.5 MB they can't fit the 4 MB flash, and the card reads about eighty times faster than a line needs (probe, [evidence](evidence/2026-09-29-voice-sd/PLAN.md)). One array literal of 2,722 takes ran the Swift compiler out of memory (63 GB) | [VOICE.md](VOICE.md) §3, §8, [DEVICE.md](DEVICE.md) §2, §5, [PROTOCOL.md](PROTOCOL.md) §3–5 |
+| 2026-09-29 | Boop's whole voice is on the board's microSD card: all 2,722 of Federico's takes, the 40 before them included, in one pack voicegen builds (`.build/voice/voice.bin`, not checked in), which the board reads at 10 MHz on SPI3 and the Mac checks by version (`hello`'s `voice`). With no card, or another pack, Boop has no voice; its faces and sound effects, still in flash, carry on. Touch moves to bit-banged SPI so the card can have the second bus. `Takes.swift` is written as one `append` per take | The owner wanted every take, even overlapping ones, for more choice, and no difference between the old and the new; at 30.5 MB they can't fit the 4 MB flash, and the card reads about eighty times faster than a line needs (probe, [evidence](evidence/2026-09-29-voice-sd/PLAN.md)). One array literal of 2,722 takes ran the Swift compiler out of memory (63 GB) | [VOICE.md](VOICE.md) §3, §8, [DEVICE.md](DEVICE.md) §2, §5, [PROTOCOL.md](PROTOCOL.md) §3–5 |
 | 2026-09-29 | What Boop says is two answers again, as the mumble's exclamation and topic word were: how it feels (`say.feeling`: upset, glad, tickled) and what NOW is about (`say.about`: 15 topics), played as a line of up to two takes, 180 ms apart, at most 2.8 s, a phrase alone; `say.meaning` goes. Every face has takes for every answer. Voice takes the nearest kind either way, never a swear nobody asked for. A failed turn's face is irritated, which swears; sad is for an agent giving up. The bubble drops to the small font for a line too long for the large one | The owner's rule: every face and every answer has something to play, and the topic words (Launch, Rerun, Cleared, Test) are the content half of the old pair. Sad and wounded were silent at the failures that matter most. The changed scenarios pass once each (15 of 15) | [VOICE.md](VOICE.md) §4, [harness/DECISIONS.md](harness/DECISIONS.md) §3, §5, [DEVICE.md](DEVICE.md) §4, [evidence](evidence/2026-09-29-voice-sd/eval.txt) |
 | 2026-09-29 | The free-heap floor is 50 KB, was 60 KB: the microSD mount costs about 18 KB even with one file open at a time, and the audio task's stack grows to 6 KB to read the card. `boopctl card` can copy the pack over USB, but at about 0.7 KB/s; a card reader is the way | Measured on the bench board: 38.8 KB with Arduino `File`s and four files allowed, 51.3 KB with one POSIX descriptor under a mutex. The voice needs the card; the rest of the budget is unchanged | [DEVICE.md](DEVICE.md) §6, [VOICE.md](VOICE.md) §8, [evidence](evidence/2026-09-29-voice-sd/README.md) |
 | 2026-09-29 | A tap while something needs you opens the waiting thread on the Mac (the `open_thread` rule action), and a click on the popover's card or a session's row opens that one: the Claude app's session by `claude://code/continue`, the Codex app's thread by `codex://threads/`, else the agent's app (its terminal) brought forward. The hook client keeps the app from the hook's environment. That tap no longer wakes the brain, reversing 2026-09-28's "every poke wakes the brain" while something needs you | The owner wanted a tap on the sign to take them to the thread, and only that: a poke's reaction couldn't play until the request cleared anyway |
@@ -742,7 +759,7 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-29 | A view event waits behind a running pass by its priority (`ViewEvent.passPriority`, which the view sets): a finished turn (1) keeps its pass, and what you said (2) goes ahead of the finishes waiting; a newer view event replaces only a waiting one at 0. This replaces "a newer view event replaces the one waiting" | With several agents at work, another agent's routine event arriving during a pass took a waiting finish's pass, so that finish never got its face, or took the pass that answers what you said. What you said waiting behind a finish ended `listening` on that finish's reaction, and the reply waited its turn: so it goes first (2026-09-30). The waiting ones that keep their pass are rare and each pass takes about 0.3 s, so the queue stays short | [harness/HARNESS.md](harness/HARNESS.md) §2, [harness/EVENTS.md](harness/EVENTS.md) §3 |
 | 2026-09-30 | When one of a line's two takes is a phrase and a phrase was asked for, the topic's phrase plays alone if the feeling's take isn't one; otherwise the feeling's take plays alone, as it always did | A phrase asked for where only the topic has one lost it to the feeling's sound or word: a happy win said "Sweet", not a done phrase such as "Job done", in 106 of the 1,509 face, finish, feeling and topic combinations with takes for both. Taking the take of the nearer kind for every ask would also have changed 106 swear asks with no swear to say, 43 of them upset: a calm face upset about a start said "Tiny steps", not "Drat". Other asks keep the feeling's take, so nothing but phrase asks changes | [VOICE.md](VOICE.md) §4 |
 | 2026-09-30 | `short-term.md` goes, with the memory store's part in a new day: the core starts each launch on the day the app opened, so its first activity then isn't a new day, and a new day only prunes the transcript. The memory store reads `long-term.md` once, when the app opens it, not again when it changes on disk, and since 2026-09-29, no longer copies it to `history/` each active day. An existing `short-term.md` is left where it is, unread | Its date only fed itself: the core read it to tell a new day, and a new day wrote it back. Nothing the brain, the popover or the tools read came from it, and the launch prunes the transcript already, so starting the launch's day again did nothing. `long-term.md` never changes after setup but by hand, so each day's copy was the same file again, and the runtime read it once at launch anyway: an edit takes effect at the next launch | §3.2, §4, §4.4, §6 |
-| 2026-09-30 | A tap on the brain's finish that names whose turn it was opens that thread on the Mac, as a tap on the needs-you sign does: the device only dips the face and sends the finish's moment `id` with the tap, the Mac looks up the thread it sent with that `id`, records `open_thread`, and doesn't wake the brain. It no longer pokes or cuts that finish | The owner wanted to tap Boop to go to the thread that just finished, not only click it in the popover. The device's `id` says which finish was on screen, so a tap as one finish gives way to the next can't open the wrong thread | [PROTOCOL.md](PROTOCOL.md) §4 |
+| 2026-09-30 | A tap on the brain's finish that names whose turn it was opens that thread on the Mac, as a tap on the needs-you sign does: the device only dips the face and sends the finish's `do` `id` with the tap, the Mac looks up the thread it sent with that `id`, records `open_thread`, and doesn't wake the brain. It no longer pokes or cuts that finish | The owner wanted to tap Boop to go to the thread that just finished, not only click it in the popover. The device's `id` says which finish was on screen, so a tap as one finish gives way to the next can't open the wrong thread | [PROTOCOL.md](PROTOCOL.md) §4 |
 | 2026-09-30 | A launch copies `long-term.md` to `history/<today>/` when it reads and isn't the newest copy there: a hand edit gets a backup, and a broken file comes back as the edit, not as setup wrote it | The daily copies (above) were the only backup of a hand edit, the one way to rename a Boop: without one, a renamed Boop whose file later broke came back under its hatch name. A launch reads one more small file, and history/ gains a folder only when the file changed | §4, §4.3 |
 | 2026-09-30 | The app bundles `plan/steering/` itself, as a resource of the `Boop` target, and the copy in `app/Boop/Resources/steering/` goes, with the test that kept the two the same | One source and no hand sync: every steering edit needed an rsync to the copy, or the test failed and `make run` read the old text. The copy was there because the target couldn't reach `plan/`; its path has been the repo root since ae7f6b13 | §4.1 |
 | 2026-09-29 | Boop records you stepping away from the Mac and coming back as `presence` events, decided only by the presence detector from the Mac's lock, sleep and idle time (no permission asked). Only coming back wakes the brain, and Boop cheers at it; being away changes nothing. A lock or sleep counts after 10 minutes (30 s until 2026-09-30), idle alone only after 30 minutes | A wrong away (a long video, a long read) must never make Boop go quiet, and a wrong 'welcome back' is the cost of a wrong away, so idle, the unsure signal, waits much longer than a lock. The owner (2026-09-30): no hello after a minute away, but one after ten, so a shorter lock records nothing at all. Everything downstream only records and folds what the detector says, so the rules can change in one place. A personality's token budget goes from 700 to 750 for boop's Example of coming back (about 24 tokens, under 1% of a request) rather than trim Examples the evals pin | [harness/EVENTS.md](harness/EVENTS.md) §2.1 |
@@ -751,5 +768,8 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-30 | Boop's events are JHarness's (then the `BrainKit` target, [jharness/SPEC.md](../jharness/SPEC.md)): `seq`, `at`, `source`, `kind` (the type and phase, `tool_end`) and `data`, which now holds `specific_type`, `session`, `subagent` and `cwd`. Actions are JHarness's `did` (open while a reaction plays) and `ended`, source `self`; "needs you" is Boop's own `needs_you_start` and `needs_you_end`. The transcript is JHarness's log, which keeps the last 24 hours in memory; a launch reads those back, where it read the last two days' files. Older lines are still read | Step 2 of moving Boop's brain onto the generic kit (piece B of three): JHarness's events are free strings, and anything Boop-specific lives in `data`. The read-back window is JHarness's: sessions are forgotten after a day's silence anyway, so only a thread busy for over a day numbers its turns from the window's start after a relaunch | [harness/EVENTS.md](harness/EVENTS.md) §1–2, [harness/HARNESS.md](harness/HARNESS.md) §5, [ADAPTERS.md](ADAPTERS.md) §1, §3 |
 | 2026-09-30 | Boop's harness is JHarness's, with Boop's lines, rules, outputs and sections registered on it ([harness/HARNESS.md](harness/HARNESS.md) §1.1). Which event the brain answers next is worked out from the transcript when the brain is free: one at 0 gives way to any newer event that wakes the brain, answered or not, and none older than 10 s is answered. The gates are holds, asked only when an event's turn comes, and an event held back gets a `pass` with `held` and why, where it used to be gated at arrival with no pass. Every pass is an event in the transcript | Step 3 of moving Boop's brain onto the generic kit: the queue's state is the log's, so a relaunch or a sleep needs no code, and the log says why each event was answered, passed over or held. Every eval scenario's 387 states came out byte for byte the same (`GoldenStateTests`), so no steering eval was needed. An event held at arrival but let through by its turn is now answered | [harness/HARNESS.md](harness/HARNESS.md) §2, §5, [harness/EVENTS.md](harness/EVENTS.md) §3, §6 |
 | 2026-09-30 | The mood is the `to` of its latest change in the transcript (JHarness's `Choice`), and the `mood` file is gone: a relaunch reads it back with the transcript's last 24 hours, and after a day with no change Boop starts calm. How long Boop has been in its mood now survives a relaunch. The first launch after the change starts calm, unless the transcript's last day has a change | The log is JHarness's only state (the owner: "very functional style, avoid state"). Calm is where every mood fades anyway | [harness/DECISIONS.md](harness/DECISIONS.md) §2, §4 |
-| 2026-09-30 | A reaction your tap cut short is held by the moment schedule, in progress, until the pokes stop, then ended done; it used to be ended failed at once and held by the view. The working heartbeat keeps its random waits as the view's own timer, reset when it sees a reaction start in the transcript | JHarness shows only what the log says, so the hold moved to where the handle is. The heartbeat's waits stay drawn as before, so every eval scenario's states stayed the same | [harness/DECISIONS.md](harness/DECISIONS.md) §5, [harness/EVENTS.md](harness/EVENTS.md) §4, §7 |
+| 2026-09-30 | A reaction your tap cut short is held by the app (now `Reactions`), in progress, until the pokes stop, then ended done; it used to be ended failed at once and held by the view. The working heartbeat keeps its random waits as the view's own timer, reset when it sees a reaction start in the transcript | JHarness shows only what the log says, so the hold moved to where the handle is. The heartbeat's waits stay drawn as before, so every eval scenario's states stayed the same | [harness/DECISIONS.md](harness/DECISIONS.md) §5, [harness/EVENTS.md](harness/EVENTS.md) §4, §7 |
 | 2026-09-30 | The brain's harness moves into a package of its own, `jharness/` (JHarness, which was the `BrainKit` target), with its worked example Beacon, `jharness-emit` (which was `kit-emit`) and its own tests in Swift Testing. Boop's files import it where they use it, as they do agent-hooks, where BoopKit re-exported it. Question keys asked twice drop the pass, a forced one too, with why, where they stopped the app; a relaunch answers nothing it read back, however recent, where it answered what was under 10 s old | The owner's three pieces: B as cleanly apart as A, open-sourceable, nothing outside its folder. Both rules were the spec's already (it said the harness refuses repeated keys, and that nothing from before a relaunch is answered), but the code crashed and answered. Boop's keys are fixed and every golden state came out byte for byte the same | [jharness/SPEC.md](../jharness/SPEC.md) §5.1, §9, [harness/HARNESS.md](harness/HARNESS.md) §1.1, §10 |
+| 2026-09-30 | The device decides what plays when: the link is LinkKit, a package of its own (`linkkit/`), and its turn ([linkkit/SPEC.md](../linkkit/SPEC.md) §4) replaces the Mac's moment schedule, its pump, its reckoning of each design's length and its 0.5 s slack for the link. Every `do` from the Mac has an `id` and gets exactly one `ended` (`done`, `cut` or `skipped`, with why), and the Mac gives up on one only at its `ttl` plus 60 s. The brain's reactions go at once with `play: next` and a 5 s `ttl`, and the next takes the turn once the one before rests (its take and bubble played), replacing a face held on for its loops, which still ends `done`; a finish holds the turn to its end; a rule's one-shot goes with `if_free`, so it never cuts a brain line; the Talk button's `listening` goes with `now`. The link asks for the device's `hello` on every connect (the host's `{"t":"hello"}`, which the device kit answers on that link), since a device that still counts the app as there, after a relaunch within 30 s or on a Bluetooth link macOS kept, says none unasked. Firmware from before the kit gets `state` but no `do`, and the popover says to flash it; Boop spots it (`status`) itself, since LinkKit leaves that to the app. A lost `ended` (a Bluetooth line dropped, or the board restarting while the USB link stays up) leaves its reaction in progress in HISTORY for up to 65 s, where the Mac's reckoning ended it a few seconds after it would have played. This replaces 2026-09-27's `ended` given up at a moment's length plus a grace, and 2026-09-28's rows on the schedule's line, a link blip holding it, and the next reaction after the mumble plus the link's 0.5 s | Only the device knows when something has finished. The Mac's reckoning was an upper bound that needed the designs' loops, a guess at the link's delay and a timer of its own, and a device that rebooted blocked reactions for up to a minute. A held face still gives way to the next reaction as soon as its take has played, as the owner chose (decision 5c) | §3.2, §3.7, [PROTOCOL.md](PROTOCOL.md) §3 |
+| 2026-09-30 | The first launch after the transcript took over the mood carries the old `mood` file's mood into it when its last day has no change, however old the file is, and deletes the file (`MoodAction.carryOver`); the change is logged by `upgrade` with no message, so HISTORY doesn't show it and the line on how long Boop has been in its mood leaves it out. This replaces the morning's "the first launch after the change starts calm" | The owner's rule for the refactor: behave like main. Main's Boop came back in the mood its file kept, however old, with no time in it; a relaunch after upgrading forgot it. From then on the transcript alone keeps the mood, and a day with no change still starts calm | [harness/DECISIONS.md](harness/DECISIONS.md) §2, §4, [evidence](evidence/2026-09-30-link-kit/parity.md) |
+| 2026-09-30 | An output can keep what it started open past its `openFor` (JHarness's `keepOpen`, asked from the `did` and the log on the tick), and react keeps a reaction your tap cut short open while the pokes hold it (`TranscriptView.heldByPokes`): a poke came after it, and nothing since has stopped the pokes | The tick ended such a reaction as failed 90 s after it started: a run of pokes that long, or a few pokes and then 90 s with nothing else happening, dropped it from HISTORY, and a run that long got a second reaction. Main held it in progress however long the pokes went on, then done | [jharness/SPEC.md](../jharness/SPEC.md) §5.3, [harness/DECISIONS.md](harness/DECISIONS.md) §5, [evidence](evidence/2026-09-30-link-kit/parity.md) |

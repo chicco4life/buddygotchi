@@ -161,6 +161,7 @@ public final class Harness: @unchecked Sendable {
     struct Output {
         var action: any Action
         var openForMs: Int64
+        var keepOpen: ((Event, LogView) -> Bool)?
     }
     var outputs: [Output] = []
     var sections: [(LogView) -> String?] = []
@@ -176,6 +177,9 @@ public final class Harness: @unchecked Sendable {
     var loose: [Int: [Int]] = [:]
     /// The latest event with a line.
     var lastLined: Int?
+    /// The oldest `seq` those two may still hold: what has aged out of the
+    /// log goes from them once it's a thousand events' worth.
+    var linesFrom = 0
 
     // The loop's own (§9).
     var running: (id: Int, seq: Int)?
@@ -269,9 +273,11 @@ public final class Harness: @unchecked Sendable {
     }
 
     /// An output; they run in registration order. What it starts is ended
-    /// after `openFor` if nothing ends it first.
-    public func output(_ action: any Action, openFor: Int64? = nil) {
-        outputs.append(Output(action: action, openForMs: openFor ?? options.openForMs))
+    /// after `openFor` if nothing ends it first, unless `keepOpen`, asked
+    /// from its `did` and the log once `openFor` has passed, says the app
+    /// still holds it on purpose (§5.3).
+    public func output(_ action: any Action, openFor: Int64? = nil, keepOpen: ((Event, LogView) -> Bool)? = nil) {
+        outputs.append(Output(action: action, openForMs: openFor ?? options.openForMs, keepOpen: keepOpen))
     }
 
     /// The outputs, in the order they run.
@@ -343,6 +349,11 @@ public final class Harness: @unchecked Sendable {
     /// An event's line, and where a `did` for no event shows: worked out
     /// once, in order, as it's emitted or read back.
     func place(_ e: Event) {
+        if let first = log.events.first?.seq, first > linesFrom + 1000 {
+            lines = lines.filter { $0.key >= first }
+            loose = loose.filter { $0.key >= first }
+            linesFrom = first
+        }
         if e.fromHarness {
             if e.kind == Event.did, e.about == nil, let target = lastLined { loose[target, default: []].append(e.seq) }
             return
@@ -357,10 +368,6 @@ public final class Harness: @unchecked Sendable {
         guard let line else { return }
         lines[e.seq] = line
         lastLined = e.seq
-        if lines.count > log.events.count + 1000, let first = log.events.first?.seq {
-            lines = lines.filter { $0.key >= first }
-            loose = loose.filter { $0.key >= first }
-        }
     }
 
     /// The line worked out for the event `seq`, if it has one.
@@ -424,7 +431,7 @@ public final class Harness: @unchecked Sendable {
     /// HISTORY for a call about `e` at `now` (§7.2).
     func history(before e: Event, now: Int64, view: LogView) -> String {
         let from = min(now - options.historyMs, reachBackTo?(e, now, view) ?? Int64.max)
-        let inRange = log.events.filter { $0.seq < e.seq && $0.at >= from && lines[$0.seq] != nil }
+        let inRange = log.events(before: e.seq, from: from).filter { lines[$0.seq] != nil }
         let picked = inRange.dropLast(options.historyLimit).filter { didLines($0.seq, view).contains { $0.open } }
             + inRange.suffix(options.historyLimit)
         var out = [Harness.historyHeading]
@@ -697,8 +704,9 @@ public final class Harness: @unchecked Sendable {
         timer = nil
     }
 
-    /// One tick: ends every `did` open past its output's `openFor`, then
-    /// runs the timed checks, emitting what they return.
+    /// One tick: ends every `did` open past its output's `openFor` that
+    /// the output doesn't keep open, then runs the timed checks, emitting
+    /// what they return.
     public func tick() {
         dispatchPrecondition(condition: .onQueue(queue))
         let now = clock.now()
@@ -706,8 +714,9 @@ public final class Harness: @unchecked Sendable {
         depth += 1
         for seq in log.openDids.sorted() {
             guard let d = log.event(seq) else { continue }
-            let openFor = outputs.first { $0.action.name == d.action }?.openForMs ?? options.openForMs
-            guard now - d.at >= openFor else { continue }
+            let output = outputs.first { $0.action.name == d.action }
+            guard now - d.at >= output?.openForMs ?? options.openForMs,
+                  output?.keepOpen?(d, log.view(now: now)) != true else { continue }
             note("harness: \(d.action ?? "?") was still in progress after \(now - d.at) ms; ended it")
             emit(Event.ended(seq, action: d.action ?? "", by: d["by"]?.string ?? "brain", failed: Harness.noWord))
         }

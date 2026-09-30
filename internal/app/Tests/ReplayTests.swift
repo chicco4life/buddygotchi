@@ -5,21 +5,22 @@ import XCTest
 @testable import BoopKit
 
 /// `boopdev replay` on the fixtures prints the expected `state` snapshots
-/// and rule moments.
+/// and rules' one-shots.
 final class ReplayTests: XCTestCase {
     /// Each snapshot as `+time base attn waiting`, e.g. `+3.0s idle claude/jetpack 1`,
     /// counting 1 + `attn.more` waiting, with `/act` after the base while
-    /// there's one (`+2.0s working/terminal - 0`); each rule moment as
-    /// `+time anim`, with its `ctx` (`+1.0s starting new_task`).
+    /// there's one (`+2.0s working/terminal - 0`); each rule's one-shot as
+    /// `+time name`, with its `ctx` (`+1.0s starting new_task`).
     func summary(_ fixture: String, agent: String) throws -> [String] {
         let path = HookFixtures.agentHooks.appendingPathComponent(fixture).path
         let lines = Replay(agent: agent).run(try Replay.steps(fromFile: path), statesOnly: true)
         return try lines.map { line in
             let parts = line.split(separator: " ", maxSplits: 2).map(String.init)
             let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(parts[2].utf8)) as? [String: Any])
-            if parts[1] == "moment" {
-                XCTAssertNil(object["id"], "no brain waits on a rule's one-shot")
-                return ([parts[0], object["anim"] as? String ?? "-"] + [object["ctx"] as? String].compactMap { $0 })
+            if parts[1] == "do" {
+                let args = object["args"] as? [String: Any] ?? [:]
+                XCTAssertNil(args["mood"], "a rule's one-shot has no face of the brain's")
+                return ([parts[0], object["name"] as? String ?? "-"] + [args["ctx"] as? String].compactMap { $0 })
                     .joined(separator: " ")
             }
             XCTAssertEqual(parts[1], "state")
@@ -182,7 +183,7 @@ final class ReplayTests: XCTestCase {
         replay.gapMs = 5000
         let lines = replay.run(try Replay.steps(fromFile: path))
         let effects = lines.filter { $0.hasPrefix("+") }.map { $0.split(separator: " ", maxSplits: 1)[1] }
-        XCTAssertEqual(effects.filter { $0.hasPrefix("moment") }.map { $0.contains(#""anim":"starting""#) }, [true, true],
+        XCTAssertEqual(effects.filter { $0.hasPrefix("do ") }.map { $0.contains(#""name":"starting""#) }, [true, true],
                        "the rules play the starts; the finish is the brain's")
         XCTAssertTrue(effects.contains(#"view turn end · claude finished turn 1 on "fixture-project": done, a long turn, 10 tool calls. · Its last message: "PRIVATE_CLOSING_7182 fixed the failing tests""#), "\(effects)")
         let states = effects.filter { $0.hasPrefix("state") }
@@ -205,6 +206,6 @@ final class ReplayTests: XCTestCase {
         XCTAssertFalse(lines.contains { $0.hasPrefix("# skipped") })
         XCTAssertTrue(lines.contains { $0.contains("view turn end") && $0.contains(": done, a ") })
         XCTAssertTrue(lines.contains { $0.contains(": failed, a ") })
-        XCTAssertFalse(lines.contains { $0.contains("moment oops") }, "a failed turn has no moment")
+        XCTAssertFalse(lines.contains { $0.contains(#"do {"name":"stopped""#) }, "a failed turn has no one-shot")
     }
 }

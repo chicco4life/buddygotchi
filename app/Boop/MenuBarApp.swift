@@ -191,6 +191,11 @@ final class AppModel: ObservableObject {
             if let why = status.linkTrouble { return DeviceState(connected: false, trouble: true, short: "No \(how)", detail: why) }
             return DeviceState(connected: false, short: "Looking…", detail: "Looking for it over \(how). Plug it into USB power.")
         }
+        // Its firmware doesn't fit the app, so it gets the looks but no
+        // reactions (linkkit/SPEC.md §6).
+        if let why = status.deviceTrouble {
+            return DeviceState(connected: true, trouble: true, short: "Wrong firmware", detail: "Connected over \(how), but \(why).")
+        }
         // Its card's voice isn't the app's, so it gets no takes (VOICE.md §8).
         // `none` is no card, one it can't read, or no pack on it.
         if let voice = status.device?.voice, status.device?.hasTheVoice == false {

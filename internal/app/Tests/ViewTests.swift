@@ -281,7 +281,7 @@ final class ViewTests: XCTestCase {
 
     /// harness/DECISIONS.md §5: a reaction a tap cut short stays in
     /// progress while the pokes go on (3 s apart at most), so the barrage
-    /// gets it once: the moment schedule holds it, and ends it as done once
+    /// gets it once: `Reactions` holds it, and ends it as done once
     /// an event stops the pokes: anything but another poke of the run,
     /// "needs you", or JHarness's own events.
     func testWhatStopsThePokes() {
@@ -321,8 +321,8 @@ final class ViewTests: XCTestCase {
                                              "why": why.map { .string($0) } ?? .null]))
         }
         let answering = "Boop is answering these pokes"
-        // A reaction a tap cut short stays open while the pokes go on (the
-        // moment schedule's, harness/DECISIONS.md §5).
+        // A reaction a tap cut short stays open while the pokes go on
+        // (`Reactions`', harness/DECISIONS.md §5).
         let single = events(rig.poke())[0]
         XCTAssertTrue(single.wakesBrain)
         _ = react(to: single)
