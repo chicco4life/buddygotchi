@@ -166,7 +166,7 @@ public final class Core {
             return
         }
         advance(to: event.ts)
-        if event.type == .action, event.specificType == Core.needsYou, let session = event.session,
+        if event.type == .needsYou, let session = event.session,
            let agent = event["agent"]?.string.flatMap(Agent.init(rawValue:)) {
             let key = SessionFold.key(agent, session)
             shownNeeds[key] = event.phase == .start ? (agent, session) : nil
@@ -425,17 +425,14 @@ public final class Core {
     /// (BEHAVIORS.md §3.3).
     func poked(_ now: Int64, seq: Int?, finish: ThreadRef?, _ fx: inout [CoreEffect]) {
         guard !showsListening(at: now) else { return }
-        let seq: JSONValue = seq.map { .int(Int64($0)) } ?? .null
         func open(_ thread: ThreadRef, _ message: String) {
-            fx.append(.record(Event(ts: now, source: .boop, type: .action, specificType: Core.openThread,
-                                    data: ["for": seq, "by": "rule", "ok": true, "agent": .string(thread.agent),
-                                           "message": .string(message)])))
+            fx.append(.record(Event.did(message, for: seq, action: Core.openThread, by: "rule",
+                                        facts: ["agent": .string(thread.agent)], at: now)))
             fx.append(.open(thread))
         }
         if let waiting = grouped(at: now).waiting.first { return open(waiting.thread, Core.openedThread) }
         if let finish { return open(finish, Core.openedFinished) }
-        fx.append(.record(Event(ts: now, source: .boop, type: .action, specificType: Core.wiggle,
-                                data: ["for": seq, "by": "rule", "ok": true, "message": .string(Core.wiggled)])))
+        fx.append(.record(Event.did(Core.wiggled, for: seq, action: Core.wiggle, by: "rule", at: now)))
     }
 
     func startListening(by talker: Talker, _ now: Int64, _ fx: inout [CoreEffect]) {
@@ -479,7 +476,7 @@ public final class Core {
         where shownNeeds[key] == nil {
             shownNeeds[key] = (s.agent, s.id)
             tracker.clearedWhy[key] = nil
-            fx.append(.record(Event(ts: now, source: .boop, type: .action, phase: .start, specificType: Core.needsYou,
+            fx.append(.record(Event(ts: now, source: .boop, type: .needsYou, phase: .start, specificType: Core.needsYou,
                                     session: s.id,
                                     data: ["for": s.requestRef.map { .int(Int64($0)) } ?? .null, "by": "rule",
                                            "agent": .string(s.agent.rawValue), "ok": true,
@@ -491,7 +488,7 @@ public final class Core {
             var data: [String: JSONValue] = ["by": "rule", "agent": .string(was.agent.rawValue),
                                              "outcome": why == nil ? "done" : "failed"]
             if let why { data["why"] = .string(why) }
-            fx.append(.record(Event(ts: now, source: .boop, type: .action, phase: .end, specificType: Core.needsYou,
+            fx.append(.record(Event(ts: now, source: .boop, type: .needsYou, phase: .end, specificType: Core.needsYou,
                                     session: was.id, data: data)))
         }
     }

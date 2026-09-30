@@ -11,7 +11,7 @@ final class AdapterTests: XCTestCase {
 
     /// A hook's type and phase, as `turn end`, or nil for one ignored.
     func kind(_ agent: String, _ hook: String, kind k: String? = nil) -> String? {
-        Adapter.event(from: line(agent, hook, kind: k)).map { e in e.type.rawValue + (e.phase.map { " " + $0.rawValue } ?? "") }
+        Adapter.event(from: line(agent, hook, kind: k)).map { e in e.type!.rawValue + (e.phase.map { " " + $0.rawValue } ?? "") }
     }
 
     func testClaudeMapping() {
@@ -58,7 +58,7 @@ final class AdapterTests: XCTestCase {
                          hook)
         }
         XCTAssertEqual(Adapter.event(from: line("claude", "Notification", kind: "permission_prompt"))?.jsonLine,
-                       #"{"seq":0,"ts":7,"source":"claude","type":"tool","phase":"wait","specific_type":"Notification","session":"s1","cwd":"/w/landing","data":{"for":"permission","notice":"permission_prompt"}}"#)
+                       #"{"seq":0,"at":7,"source":"claude","kind":"tool_wait","data":{"cwd":"/w/landing","for":"permission","notice":"permission_prompt","session":"s1","specific_type":"Notification"}}"#)
         XCTAssertEqual(Adapter.event(from: line("claude", "Elicitation"))?["for"], "input")
         XCTAssertEqual(Adapter.event(from: line("claude", "Notification", kind: "elicitation_dialog"))?["for"], "input")
         XCTAssertEqual(Adapter.event(from: line("codex", "PermissionRequest", tool: "shell"))?["for"], "permission")
@@ -111,7 +111,7 @@ final class AdapterTests: XCTestCase {
         stop.agentID = "a1"
         stop.agentType = "Explore"
         let event = try XCTUnwrap(Adapter.event(from: stop))
-        XCTAssertEqual(event.jsonLine, #"{"seq":0,"ts":7,"source":"claude","type":"subagent","phase":"end","specific_type":"SubagentStop","session":"s1","subagent":"a1","cwd":"/w/landing","data":{"agent_type":"Explore"}}"#)
+        XCTAssertEqual(event.jsonLine, #"{"seq":0,"at":7,"source":"claude","kind":"subagent_end","data":{"agent_type":"Explore","cwd":"/w/landing","session":"s1","specific_type":"SubagentStop","subagent":"a1"}}"#)
         XCTAssertEqual(event.summary, "subagent end SubagentStop claude s1 · agent_type Explore")
         XCTAssertNil(Adapter.event(from: line("claude", "SubagentStop")), "no agent_id")
         var codex = line("codex", "SubagentStop")
@@ -126,7 +126,7 @@ final class AdapterTests: XCTestCase {
         start.agentID = "a1"
         start.agentType = "Explore"
         let event = try XCTUnwrap(Adapter.event(from: start))
-        XCTAssertEqual(event.jsonLine, #"{"seq":0,"ts":7,"source":"claude","type":"subagent","phase":"start","specific_type":"SubagentStart","session":"s1","subagent":"a1","cwd":"/w/landing","data":{"agent_type":"Explore"}}"#)
+        XCTAssertEqual(event.jsonLine, #"{"seq":0,"at":7,"source":"claude","kind":"subagent_start","data":{"agent_type":"Explore","cwd":"/w/landing","session":"s1","specific_type":"SubagentStart","subagent":"a1"}}"#)
         var codex = line("codex", "SubagentStart")
         codex.agentID = "a1"
         XCTAssertNil(Adapter.event(from: codex))
@@ -163,15 +163,15 @@ final class AdapterTests: XCTestCase {
             XCTAssertEqual(kind("codex", hook), expected, hook)
         }
         XCTAssertEqual(Adapter.event(from: line("codex", "Stop"))?.agent, .codex)
-        XCTAssertEqual(Adapter.event(from: line("codex", "Stop"))?.source, .codex)
+        XCTAssertEqual(Adapter.event(from: line("codex", "Stop"))?.from, .codex)
         XCTAssertNil(Adapter.event(from: line("cursor", "Stop")))
     }
 
     func testDataCarriesToolTopicAndErrorClassOnly() throws {
         let start = try XCTUnwrap(Adapter.event(from: line("claude", "PreToolUse", tool: "Bash", topic: "tests")))
-        XCTAssertEqual(start.data, ["tool": "Bash", "topic": "tests"])
+        XCTAssertEqual(start.fields, ["tool": "Bash", "topic": "tests"])
         let asking = try XCTUnwrap(Adapter.event(from: line("claude", "PermissionRequest", tool: "Bash")))
-        XCTAssertEqual(asking.data, ["tool": "Bash", "for": "permission"])
+        XCTAssertEqual(asking.fields, ["tool": "Bash", "for": "permission"])
         let failed = try XCTUnwrap(Adapter.event(from: line("claude", "StopFailure", error: "rate_limit")))
         XCTAssertEqual(failed["error"], "rate_limit")
         XCTAssertEqual(Adapter.event(from: line("claude", "StopFailure", error: "weird thing"))?["error"], "other")
@@ -188,7 +188,7 @@ final class AdapterTests: XCTestCase {
         XCTAssertEqual(Adapter.event(from: prompt)?["prompt"], "fix the nav")
         var stop = line("codex", "Stop")
         stop.message = "Fixed it."
-        XCTAssertEqual(Adapter.event(from: stop)?.data, ["outcome": "done", "message": "Fixed it."])
+        XCTAssertEqual(Adapter.event(from: stop)?.fields, ["outcome": "done", "message": "Fixed it."])
     }
 
     /// ADAPTERS.md §2: every `error` Claude's StopFailure can carry maps to
@@ -222,7 +222,7 @@ final class AdapterTests: XCTestCase {
         XCTAssertNil(failed("codex", "PostToolUse"))
         let event = try XCTUnwrap(Adapter.event(from: line("claude", "PostToolUseFailure", tool: "Bash", topic: "tests")))
         XCTAssertEqual(event.type, .tool)
-        XCTAssertTrue(event.jsonLine.contains(#""data":{"error":"other","failed":true,"tool":"Bash","topic":"tests"}"#), event.jsonLine)
+        XCTAssertEqual(event.fields, ["error": "other", "failed": true, "tool": "Bash", "topic": "tests"], event.jsonLine)
     }
 
     /// ADAPTERS.md §1's example is this adapter output.
@@ -231,7 +231,7 @@ final class AdapterTests: XCTestCase {
                             tool: "Bash", topic: "tests", toolUseID: "toolu_1", ts: 1_790_000_000_123)
         var event = try XCTUnwrap(Adapter.event(from: line))
         event.seq = 102
-        XCTAssertEqual(event.jsonLine, #"{"seq":102,"ts":1790000000123,"source":"claude","type":"tool","phase":"start","specific_type":"PreToolUse","session":"a1b2","cwd":"/Users/me/src/landing","data":{"tool":"Bash","tool_use_id":"toolu_1","topic":"tests"}}"#)
+        XCTAssertEqual(event.jsonLine, #"{"seq":102,"at":1790000000123,"source":"claude","kind":"tool_start","data":{"cwd":"/Users/me/src/landing","session":"a1b2","specific_type":"PreToolUse","tool":"Bash","tool_use_id":"toolu_1","topic":"tests"}}"#)
         XCTAssertEqual(Event(jsonLine: event.jsonLine), event, "it reads back")
     }
 
@@ -257,7 +257,7 @@ final class AdapterTests: XCTestCase {
             .split(separator: "\n").compactMap { raw in
                 HookLine.extract(agent: "claude", payload: Data(raw.utf8), ts: 0).flatMap { Adapter.event(from: $0) }
             }
-        XCTAssertEqual(failures.map { $0["outcome"]?.string ?? $0.type.rawValue }, ["session", "failed", "failed", "failed"])
+        XCTAssertEqual(failures.map { $0["outcome"]?.string ?? $0.type!.rawValue }, ["session", "failed", "failed", "failed"])
         XCTAssertEqual(failures[1]["error"], "rate_limit")
     }
 

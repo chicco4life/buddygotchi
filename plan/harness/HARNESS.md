@@ -58,7 +58,7 @@ recorded after it, and the view events it made are gated
                            ▼                                                   back on `home`
                     a `pass` line in debug.jsonl: the answers, or why it was dropped
                            ▼ not dropped
-                    each action in order: run(its own answers) ─► an `action` event
+                    each action in order: run(its own answers) ─► a `did`         
                         mood  ─► `mood` file ─► Core.setMood ─► next `state`
                         react ─► Voice line ─► MomentSchedule (waits its turn) ─► device link
 ```
@@ -187,7 +187,7 @@ final class Pending {
   with slow work hands it off and returns at once. One that takes over
   **300 ms** (`Harness.actionSlowMs`) is logged, since it holds up
   everything behind it.
-- A result becomes an `action` event in the transcript
+- A result becomes a `did` in the transcript
   ([EVENTS.md](EVENTS.md) §2), `for` the raw event its view event came
   from, `by` `brain`; `nil` records nothing. The result's `facts`, for
   the tools, join the event's data as they are (the harness's own keys
@@ -225,27 +225,29 @@ the state from the view, for each pass; neither is ever kept.
 | A poke | The runtime, before the core has it |
 | What you said on push-to-talk | The runtime, once the mic is off and macOS has turned it into words |
 | A heartbeat | The runtime, when the view says one is due (on the 1 s tick) |
-| A rule's action (`wiggle`, `needs_you`) | The core, as an effect of the event that caused it, recorded right after that event |
+| A rule's action (`wiggle`, `open_thread`) and "needs you" (`needs_you_start`, `needs_you_end`) | The core, as an effect of the event that caused it, recorded right after that event |
 | An action's result, and a started one's end | The harness, right after the action runs, and when the end reaches it or it's left open too long (below) |
 | The dashboard's forced actions | The harness, `by` `dashboard`, for no event |
 
 - **Append-only.** Each event gets the next `seq`, which counts on across
   days and launches, and is never changed.
-- **On disk,** one file a day: `<state-dir>/transcript/<date>.jsonl`
-  (`Transcript.folderName`), each event its line, written as it's
-  appended. Files older than **14 days** (`Transcript.keptDays`, today
-  included) are deleted at launch and at each new day
+- **It's the brain kit's log** ([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md)
+  §2.3, `Transcript.log`). On disk, one file a day:
+  `<state-dir>/transcript/<date>.jsonl` (`Transcript.folderName`), the
+  day in Boop's time zone, each event its line, written as it's appended.
+  Files older than **14 days** (`Transcript.keptDays`, today included)
+  are deleted at launch and at each new day
   ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2), so an app left running
-  for weeks keeps no more. A launch reads the last **2** days' back
-  (`Transcript.replayDays`) and folds them into the view and the core one
-  at a time as each line is read, so turn numbers, failure runs, the
+  for weeks keeps no more. The last **24 hours** of events stay in
+  memory (`Log.Options.keepMs`). A launch reads them back and folds them
+  into the view and the core in order, so turn numbers, failure runs, the
   sessions and a request still waiting carry on. A line that doesn't
   parse, such as one a crash cut short, is skipped (a file that ends
   mid-line is ended there first, so the next line written isn't glued to
   it; a cut inside a character spoils only that line), and `seq` goes on
-  from the newest file's last event. Nothing else of it is kept in
-  memory; the view keeps what it needs. A transcript with no folder (the
-  evals, tests) keeps its events in memory instead.
+  from the newest file's last event. A line written before the brain kit
+  is read as the event it would be now ([EVENTS.md](EVENTS.md) §2). A
+  transcript with no folder (the evals, tests) is in memory only.
 - **A started action that was still in progress** when the last launch
   quit can't end now, since its handle went with that launch, so the
   launch records its end as failed, `Boop restarted`.
@@ -254,7 +256,7 @@ the state from the view, for each pass; neither is ever kept.
   to Boop on push-to-talk are the only words in it
   ([EVENTS.md](EVENTS.md) §9).
 - **Started actions stay open** until their end is recorded. The harness
-  keeps the open ones by their `action` event's `seq`, and records only
+  keeps the open ones by their `did`'s `seq`, and records only
   the first end of each. One still open **90 s**
   (`Harness.pendingMaxMs`) after its result is ended as failed with
   `no word it finished`, on the runtime's 1 s tick (`Harness.tick`), and
@@ -553,8 +555,8 @@ never played ([DECISIONS.md](DECISIONS.md) §5):
 
 ```jsonl
 {"pass":{"answers":{"react.animation":{"choice":"success","p":{"success":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"react.mood":{"choice":"proud","p":{"proud":1}},"say.feeling":{"choice":"glad","p":{"glad":1}},"say.kind":{"choice":"phrase","p":{"phrase":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react.mood","react.animation","react.loops","say.feeling","say.kind"]},"received_at_ms":1790676534950}
-{"event":{"seq":1,"ts":1790676534958,"source":"boop","type":"action","phase":"start","specific_type":"react","data":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop played a success in a proud face, held twice, and said \"Smooth operator\".","ok":true,"takes":["phase1.phrase.pride.smooth-operator__proud__contained"]}},"received_at_ms":1790676534958}
-{"event":{"seq":2,"ts":1790676534958,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"dashboard","for":1,"outcome":"failed","why":"no device connected"}},"received_at_ms":1790676534958}
+{"event":{"seq":1,"at":1790676534958,"source":"self","kind":"did","data":{"action":"react","by":"dashboard","for":null,"latency_ms":0,"message":"Boop played a success in a proud face, held twice, and said \"Smooth operator\".","ok":true,"open":true,"takes":["phase1.phrase.pride.smooth-operator__proud__contained"]}},"received_at_ms":1790676534958}
+{"event":{"seq":2,"at":1790676534958,"source":"self","kind":"ended","data":{"action":"react","by":"dashboard","for":1,"outcome":"failed","why":"no device connected"}},"received_at_ms":1790676534958}
 ```
 
 **A bug report.** The ladybug button in the popover's footer (⌘B)

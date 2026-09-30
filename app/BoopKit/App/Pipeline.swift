@@ -8,7 +8,7 @@ import Foundation
 /// `home`; replays, evals and tests drive their own.
 public final class Pipeline {
     public let core: Core
-    public let transcript: Transcript
+    public let transcript: Log
     public let view: TranscriptView
     /// Whether there's a brain to wake (Jev's key): without one, no view
     /// event wakes it (harness/EVENTS.md §6).
@@ -31,7 +31,7 @@ public final class Pipeline {
         public var waking: [ViewEvent] { views.filter(\.wakesBrain) }
     }
 
-    public init(core: Core, transcript: Transcript = Transcript(), view: TranscriptView) {
+    public init(core: Core, transcript: Log = Transcript.log(), view: TranscriptView) {
         self.core = core
         self.transcript = transcript
         self.view = view
@@ -111,20 +111,21 @@ public final class Pipeline {
     /// last launch), so it's ended here as failed.
     @discardableResult
     public func readBack(now: Int64) -> Int {
-        let read = transcript.load(now: now) { e in
+        let read = transcript.load(now: now)
+        for e in read {
             view.take(e)
             core.replay(e)
         }
         for (seq, name) in view.openActions() {
-            record(Event(ts: now, source: .boop, type: .action, phase: .end, specificType: name,
-                         data: ["for": .int(Int64(seq)), "outcome": "failed", "why": "Boop restarted"]))
+            record(Event.ended(seq, action: name, by: transcript.event(seq)?["by"]?.string ?? "brain",
+                               failed: "Boop restarted", at: now))
         }
-        return read
+        return read.count
     }
 
     @discardableResult
     func record(_ event: Event, _ step: inout Step) -> Event {
-        let e = transcript.append(event)
+        let e = transcript.append(event, now: event.at)
         step.recorded.append(e)
         onRecord?(e)
         step.views += view.take(e)

@@ -67,7 +67,7 @@ final class PresenceTests: XCTestCase {
         rig.wait(1000)
         XCTAssertEqual(rig.names, ["start locked"])
         let away = try XCTUnwrap(rig.made.first)
-        XCTAssertEqual(away.source, .mac)
+        XCTAssertEqual(away.from, .mac)
         XCTAssertEqual(away.type, .presence)
         XCTAssertEqual(away.ts, lockedAt + 10 * minute)
         XCTAssertEqual(away["since"]?.int, rig.lastInput, "when you last touched the Mac, not when it was noticed")
@@ -164,8 +164,8 @@ final class PresenceTests: XCTestCase {
         _ = detector.signal(.unlocked, at: 1_790_003_599_000)
         var back = detector.tick(at: 1_790_003_600_000, idleMs: 1000)!
         back.seq = 41
-        XCTAssertEqual(away.jsonLine, #"{"seq":40,"ts":1790000600000,"source":"mac","type":"presence","phase":"start","specific_type":"locked","data":{"since":1790000000000}}"#)
-        XCTAssertEqual(back.jsonLine, #"{"seq":41,"ts":1790003600000,"source":"mac","type":"presence","phase":"end","specific_type":"unlocked","data":{}}"#)
+        XCTAssertEqual(away.jsonLine, #"{"seq":40,"at":1790000600000,"source":"mac","kind":"presence_start","data":{"since":1790000000000,"specific_type":"locked"}}"#)
+        XCTAssertEqual(back.jsonLine, #"{"seq":41,"at":1790003600000,"source":"mac","kind":"presence_end","data":{"specific_type":"unlocked"}}"#)
         XCTAssertEqual(Event(jsonLine: away.jsonLine), away)
     }
 

@@ -86,28 +86,49 @@ def view_name(view: Line) -> str:
     return view.get("type", "?") + (f" {view['phase']}" if view.get("phase") else "")
 
 
-def action(event: Line) -> Line | None:
-    """A raw `action` event's start, or its only line, as the dashboard reads
-    it: its name, whether it worked, its message, whether it's still going,
-    who it's by (`dashboard`, `rule` or none for the brain), what it's for,
-    and for a reaction the takes it sent (harness/EVENTS.md §2). None for
-    any other event, and for an action's end."""
-    if event.get("type") != "action" or event.get("phase") == "end":
-        return None
+def _as_action(event: Line) -> tuple[str, str | None, Line] | None:
+    """An action as (name, phase, data): the kit's `did` (its start while
+    `open`) and `ended` (kit/BRAIN-KIT.md §2.2), and "needs you"
+    (`needs_you_start`, `needs_you_end`), harness/EVENTS.md §2; or, in logs
+    from before the brain kit, an event of type `action`. None for any
+    other event."""
     data = event.get("data", {})
+    k = event.get("kind")
+    if k == "did":
+        return data.get("action"), "start" if data.get("open") else None, data
+    if k == "ended":
+        return data.get("action"), "end", data
+    if k in ("needs_you_start", "needs_you_end"):
+        return "needs_you", k.removeprefix("needs_you_"), {**data, "session": data.get("session")}
+    if event.get("type") == "action":
+        return event.get("specific_type"), event.get("phase"), {**data, "session": event.get("session")}
+    return None
+
+
+def action(event: Line) -> Line | None:
+    """An action's start, or its only line, as the dashboard reads it: its
+    name, whether it worked, its message, whether it's still going, who
+    it's by (`dashboard`, `rule` or none for the brain), what it's for, and
+    for a reaction the takes it sent (harness/EVENTS.md §2). None for any
+    other event, and for an action's end."""
+    got = _as_action(event)
+    if got is None or got[1] == "end":
+        return None
+    name, phase, data = got
     by = data.get("by")
-    return {"name": event.get("specific_type"), "ok": bool(data.get("ok")), "message": data.get("message", ""),
-            "pending": event.get("phase") == "start", "by": None if by == "brain" else by, "for": data.get("for"),
-            "session": event.get("session"), "takes": data.get("takes")}
+    return {"name": name, "ok": bool(data.get("ok")), "message": data.get("message", ""),
+            "pending": phase == "start", "by": None if by == "brain" else by, "for": data.get("for"),
+            "session": data.get("session"), "takes": data.get("takes")}
 
 
 def action_end(event: Line) -> Line | None:
-    """A raw `action` event's end: how the action it's `for` went."""
-    if event.get("type") != "action" or event.get("phase") != "end":
+    """An action's end: how the action it's `for` went."""
+    got = _as_action(event)
+    if got is None or got[1] != "end":
         return None
-    data = event.get("data", {})
+    name, _, data = got
     by = data.get("by")
-    return {"name": event.get("specific_type"), "for": data.get("for"), "end": data.get("outcome"), "why": data.get("why"),
+    return {"name": name, "for": data.get("for"), "end": data.get("outcome"), "why": data.get("why"),
             "by": None if by == "brain" else by}
 
 

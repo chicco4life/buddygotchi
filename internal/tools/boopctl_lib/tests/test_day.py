@@ -177,8 +177,10 @@ def a_pass(t: int, seq: int, for_: int | None, **choices: str) -> dict:
 
 
 def raw_action(t: int, seq: int, name: str, phase: str | None, data: dict) -> dict:
-    e = {"seq": seq, "ts": t, "source": "boop", "type": "action", **({"phase": phase} if phase else {}),
-         "specific_type": name, "data": data}
+    """An action as the log has it (kit/BRAIN-KIT.md §2.2): a `did`, open
+    while it plays, or its `ended`."""
+    data = {**data, "action": name, **({"open": True} if phase == "start" else {})}
+    e = {"seq": seq, "at": t, "source": "self", "kind": "ended" if phase == "end" else "did", "data": data}
     return {"event": e, "received_at_ms": t}
 
 

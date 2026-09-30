@@ -8,7 +8,7 @@ import time
 from typing import Any, Callable
 
 from boopctl_lib.common import takes
-from boopctl_lib.dash.feed import Line, kind
+from boopctl_lib.dash.feed import Line, action, kind
 
 CONFIRM_S = 2.0
 # Preview's looks: the device's bases, and something needing you.
@@ -28,8 +28,8 @@ def confirms(line: Line) -> Callable[[Line], bool]:
     """Which debug.jsonl line shows that a dev line landed."""
     if line["dev"] == "answer":
         return lambda o: kind(o) == "pass" and o["pass"].get("by") == "dashboard"
-    return lambda o: (kind(o) == "event" and o["event"].get("type") == "action"
-                      and o["event"].get("data", {}).get("by") == "dashboard" and o["event"].get("specific_type") == "mood")
+    return lambda o: (kind(o) == "event" and (a := action(o["event"])) is not None
+                      and a["by"] == "dashboard" and a["name"] == "mood")
 
 
 class Pending:

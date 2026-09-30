@@ -20,22 +20,22 @@ deny or block anything (SPEC.md §1).
 
 ### The raw event
 
-Every agent event becomes the transcript's shape
-([harness/EVENTS.md](harness/EVENTS.md) §2), `Event(AgentEvent)`: the
-agent as `source`, the kind as `type`, the `phase`, the hook's name as
-`specific_type`, and `session`, `subagent` and `cwd` at the top; its facts
-go in `data` under the same names, except that `asking` is `for` and
-`subagent_type` is `agent_type`. This is a `PreToolUse` that runs tests,
-once the transcript has given it its `seq`
-(`AdapterTests.testEventJSONShape`):
+Every agent event becomes the transcript's shape, which is the brain
+kit's event ([harness/EVENTS.md](harness/EVENTS.md) §2), `Event(AgentEvent)`:
+`seq`, `at`, the agent as `source`, the kind and phase together as `kind`
+(`tool_start`), and in `data` the hook's name as `specific_type`, and
+`session`, `subagent` and `cwd`. The event's facts go in `data` under the
+same names, except that `asking` is `for` and `subagent_type` is
+`agent_type`. This is a `PreToolUse` that runs tests, once the transcript
+has given it its `seq` (`AdapterTests.testEventJSONShape`):
 
 ```json
-{"seq":102,"ts":1790000000123,"source":"claude","type":"tool","phase":"start","specific_type":"PreToolUse","session":"a1b2","cwd":"/Users/me/src/landing","data":{"tool":"Bash","tool_use_id":"toolu_1","topic":"tests"}}
+{"seq":102,"at":1790000000123,"source":"claude","kind":"tool_start","data":{"cwd":"/Users/me/src/landing","session":"a1b2","specific_type":"PreToolUse","tool":"Bash","tool_use_id":"toolu_1","topic":"tests"}}
 ```
 
-The generic `type` and `phase` are what the core and the view read;
-`specific_type` keeps the hook's own name, so the transcript can be read
-again if the mapping changes. `ts` is when the app received it, on its
+The generic type and phase, in `kind`, are what the core and the view
+read; `data.specific_type` keeps the hook's own name, so the transcript
+can be read again if the mapping changes. `at` is when the app received it, on its
 steady clock ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2, "Clocks");
 `boopdev replay` uses the hook line's own `ts`. The project and workspace
 aren't sent: the core and the view work them out from `cwd` (§3). The

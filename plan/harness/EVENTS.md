@@ -14,9 +14,9 @@ log line (`debug.jsonl`).**
 
 - **In:** agent hooks that map to a type (§2), pokes, what you say to
   Boop on push-to-talk, you stepping away from the Mac and coming back
-  (§2.1), heartbeats, and
-  actions: the brain's and the dashboard's (`react`, `mood`) and the
-  rules' (`wiggle`, `open_thread`, and `needs_you` starting and ending).
+  (§2.1), heartbeats, "needs you" starting and ending, and actions: the
+  brain's and the dashboard's (`react`, `mood`) and the rules' (`wiggle`,
+  `open_thread`).
 - **Out:** hooks Boop ignores, passes (`debug.jsonl` only), state
   snapshots and every other line sent to the device (the rules'
   one-shots included: like the look, they show what the agents did, and
@@ -30,24 +30,28 @@ say Boop did? If not, it's a log line.
 
 ## 2. Raw events
 
-Every raw event has the same metadata at the top level, and `data` for
-what only its type has (`Event` in `app/BoopKit/Core/Event.swift`). A
-Claude `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
+Every event is the brain kit's ([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md)
+§2.1): `seq`, `at`, `source`, `kind` and `data`. For Boop, `kind` is the
+event's type and phase together (`tool_start`, `poke`), and the rest of
+what used to be at the top (the source's own name for it, the session,
+subagent and working directory) is in `data` (Boop's reading of an event,
+`type`, `phase`, `specificType`, `session`, is in
+`app/BoopKit/Core/Event.swift`). A Claude `PreToolUse` that runs tests
+(`AdapterTests.testEventJSONShape`):
 
 ```json
-{"seq":102,"ts":1790000000123,"source":"claude","type":"tool","phase":"start","specific_type":"PreToolUse","session":"a1b2","cwd":"/Users/me/src/landing","data":{"tool":"Bash","tool_use_id":"toolu_1","topic":"tests"}}
+{"seq":102,"at":1790000000123,"source":"claude","kind":"tool_start","data":{"cwd":"/Users/me/src/landing","session":"a1b2","specific_type":"PreToolUse","tool":"Bash","tool_use_id":"toolu_1","topic":"tests"}}
 ```
 
 | Field | Meaning |
 | --- | --- |
 | `seq` | Its place in the transcript. It counts on across days and launches |
-| `ts` | When it happened, in unix milliseconds (the app's steady clock, which starts at the wall clock's time: [ARCHITECTURE.md](../ARCHITECTURE.md) §3.2) |
-| `source` | `claude`, `codex`, `device`, `clock`, `boop`, `mic` or `mac` |
-| `type` | One of the nine generic types below |
-| `phase` | `start`, `wait` or `end` for a type with a lifetime; left out for one that just happens |
-| `specific_type` | The source's own name for it: the hook (`UserPromptSubmit`, `Interrupt`), the device's message (`input`), the clock's reason (`idle`, `working`), the button that turned the mic on (`device` or `app`), why you're away or back (§2.1) or the action's name (`react`, `wiggle`) |
-| `session`, `subagent`, `cwd` | An agent's session, the Claude subagent's `agent_id`, and the working directory; an action about a session names it too. Left out when there's none |
-| `data` | The type's own fields, below. Every agent event can also carry `name`, the thread's name as its agent's app shows it, when the hook found one ([ADAPTERS.md](../ADAPTERS.md) §2): for the strip, the popover and a cheer; and `app` and `app_session`, the app the agent runs in and that app's ID for the session, when the hook's environment said: where a tap opens the thread ([BEHAVIORS.md](../BEHAVIORS.md) §3.2). The view leaves them out. The core carries each on, so an event is recorded without the ones its session already has (and `mode` while plan mode hasn't changed): the first event of a session each day, so each day's file has them for a launch's read-back ([HARNESS.md](HARNESS.md) §5), or of one the core doesn't hold, after a launch, the session's end or a day's silence, has them all (`Core.unrepeated`) |
+| `at` | When it happened, in unix milliseconds (the app's steady clock, which starts at the wall clock's time: [ARCHITECTURE.md](../ARCHITECTURE.md) §3.2) |
+| `source` | `claude`, `codex`, `device`, `clock`, `boop`, `mic` or `mac`, and `self` for the kit's own events (below) |
+| `kind` | One of the nine types below, and for a type with a lifetime its phase after an underscore, `start`, `wait` or `end`: `turn_end`, `tool_wait`, `presence_start`. A type that just happens is its name alone: `poke` |
+| `data.specific_type` | The source's own name for it: the hook (`UserPromptSubmit`, `Interrupt`), the device's message (`input`), the clock's reason (`idle`, `working`), the button that turned the mic on (`device` or `app`) or why you're away or back (§2.1) |
+| `data.session`, `data.subagent`, `data.cwd` | An agent's session, the Claude subagent's `agent_id`, and the working directory; "needs you" names its session too. Left out when there's none |
+| `data` | Those, and the type's own fields, below. Every agent event can also carry `name`, the thread's name as its agent's app shows it, when the hook found one ([ADAPTERS.md](../ADAPTERS.md) §2): for the strip, the popover and a cheer; and `app` and `app_session`, the app the agent runs in and that app's ID for the session, when the hook's environment said: where a tap opens the thread ([BEHAVIORS.md](../BEHAVIORS.md) §3.2). The view leaves them out. The core carries each on, so an event is recorded without the ones its session already has (and `mode` while plan mode hasn't changed): the first event of a session each day, so each day's file has them for a launch's read-back ([HARNESS.md](HARNESS.md) §5), or of one the core doesn't hold, after a launch, the session's end or a day's silence, has them all (`Core.unrepeated`) |
 
 | `type` | `source` | `phase` | `data` |
 | --- | --- | --- | --- |
@@ -59,13 +63,13 @@ Claude `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | `talk` | mic | — | `words`: what the Mac's mic heard, as macOS transcribed it, up to 2,000 characters (`HookLine.maxMessage`). Only when it heard something |
 | `presence` | mac | start / end | start (you stepped away): `since`, when you last touched the Mac, in unix milliseconds. end (you're back): — (§2.1) |
 | `heartbeat` | clock | — | — (the view says what it's about, §4) |
-| `action` | boop | start / end, or none | `for` (the `seq` of the event it's about, or null), `by` (`brain`, `dashboard` or `rule`), `ok`, `message`, and the action's own facts: `react`'s start has `takes` (the ids of the takes it queued, in the order said, `[]` when it says nothing), so a tool can say what it said. end: `for` (its start's `seq`), `outcome` (`done` or `failed`), `why` |
+| `needs_you` | boop | start / end | "Needs you" showing for a session and clearing, which the core records (below) |
 
 What you said after the popover's Talk button (a headless run with
 `{"dev":"said",…}`, [VERIFICATION.md](../VERIFICATION.md) §2):
 
 ```json
-{"seq":1,"ts":1790580772176,"source":"mic","type":"talk","specific_type":"app","data":{"words":"hey Boop, are the tests passing?"}}
+{"seq":1,"at":1790580772176,"source":"mic","kind":"talk","data":{"specific_type":"app","words":"hey Boop, are the tests passing?"}}
 ```
 
 Any Claude event from inside a subagent also carries the subagent's
@@ -80,29 +84,41 @@ you coming back an hour after you locked it (the shape
 `PresenceTests` pins):
 
 ```jsonl
-{"seq":40,"ts":1790000600000,"source":"mac","type":"presence","phase":"start","specific_type":"locked","data":{"since":1790000000000}}
-{"seq":41,"ts":1790003600000,"source":"mac","type":"presence","phase":"end","specific_type":"unlocked","data":{}}
+{"seq":40,"at":1790000600000,"source":"mac","kind":"presence_start","data":{"since":1790000000000,"specific_type":"locked"}}
+{"seq":41,"at":1790003600000,"source":"mac","kind":"presence_end","data":{"specific_type":"unlocked"}}
 ```
 
-**Actions.** One that finishes at once is a single event with no phase.
-One that starts something that takes time (a reaction playing on the
-device) is a `start`, and its `end` comes later, with `for` naming the
-start (HarnessTests):
+**What Boop did** is the brain kit's own events, `self`'s
+([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md) §2.2): a `did` for each action,
+the brain's, the dashboard's (`react`, `mood`) and the rules' (`wiggle`,
+`open_thread`), with `for` (the `seq` of the event it's about, or null),
+`action` (its name), `by` (`brain`, `dashboard` or `rule`), `ok`,
+`message`, and the action's own facts: `react`'s has `takes` (the ids of
+the takes it queued, in the order said, `[]` when it says nothing), so a
+tool can say what it said. One that starts something that takes time (a
+reaction playing on the device) is `open`, and its `ended` comes later,
+with `for` naming the `did`, `outcome` (`done` or `failed`) and `why`
+(HarnessTests):
 
 ```jsonl
-{"seq":2,"ts":1790000000000,"source":"boop","type":"action","phase":"start","specific_type":"a","data":{"by":"brain","for":1,"latency_ms":0,"message":"Boop did it.","ok":true}}
-{"seq":3,"ts":1790000000000,"source":"boop","type":"action","phase":"end","specific_type":"a","data":{"by":"brain","for":2,"outcome":"done"}}
+{"seq":2,"at":1790000000000,"source":"self","kind":"did","data":{"action":"a","by":"brain","for":1,"latency_ms":0,"message":"Boop did it.","ok":true,"open":true}}
+{"seq":3,"at":1790000000000,"source":"self","kind":"ended","data":{"action":"a","by":"brain","for":2,"outcome":"done"}}
 ```
 
-The rules record three actions of their own (`Core`), each after the
-event that caused it:
+The rules record three of their own (`Core`), each after the event that
+caused it: two actions, and "needs you" as events of its own type:
 
 | Action | When | `data` |
 | --- | --- | --- |
 | `wiggle` | A poke, unless something needs you or `listening` shows: the device played its poke by itself (the mood's `poked` design, `tap_spam` from the third in a row, [BEHAVIORS.md](../BEHAVIORS.md) §3.3). The action keeps its older name and message, which Jev reads, until the evals can check new wording | `for` the poke, `message` `Boop wiggled on its own.` |
 | `open_thread` | A poke while something needs you and `listening` doesn't show: the Mac opens the thread the sign names ([BEHAVIORS.md](../BEHAVIORS.md) §3.2). Or a poke on the brain's finish that names whose turn it was: the Mac opens that thread (§3.3) | `for` the poke, `agent`, `message` `Boop opened the thread that needs you on the Mac.`, or for a finish `Boop opened the thread that finished on the Mac.` |
-| `needs_you`, start | "Needs you" starts showing for a session, after Codex's grace ([ADAPTERS.md](../ADAPTERS.md) §4) | `for` the request's `tool` wait, `agent`, `message` |
-| `needs_you`, end | It clears | `agent`, `outcome`: `done` when answered, else `failed` with `why` (`nothing for 10 minutes`, `the session ended`, `forgotten`) |
+| `needs_you_start` | "Needs you" starts showing for a session, after Codex's grace ([ADAPTERS.md](../ADAPTERS.md) §4) | `for` the request's `tool` wait, `agent`, `session`, `by` `rule`, `message` |
+| `needs_you_end` | It clears | `agent`, `session`, `by` `rule`, `outcome`: `done` when answered, else `failed` with `why` (`nothing for 10 minutes`, `the session ended`, `forgotten`) |
+
+A transcript line written before the brain kit (2026-09-30), with `ts`,
+`type`, `phase` and `specific_type` at the top and actions as a type of
+their own, is still read, as the event it would be now (`Event.legacy`),
+so the launch after the change picks up where the last one left.
 
 ### 2.1 Here and away
 
@@ -163,7 +179,7 @@ and what Boop did about it (§7). It points back to the raw events it came from
 (`from`, the last is the one that made it).
 
 The same events always make the same view, so a launch replays the
-transcript's last two days to pick up where it left off
+transcript's last 24 hours to pick up where it left off
 ([HARNESS.md](HARNESS.md) §5): turn numbers and failure runs carry on.
 The one thing it decides from the clock is when a heartbeat is due (§4).
 
@@ -264,7 +280,7 @@ working heartbeat and no finish, though its notable tool ends count.
 A turn's end with no turn open (a second `Stop`, or one after the turn
 stopped) makes no view event, and neither does the end of a turn the view
 never saw start. With the transcript read back at launch, that's only a
-turn older than the two days it reads.
+turn older than the 24 hours it reads.
 
 **A notable tool end** is a finished `tests`, `build` or `deploy` call
 whose result is known: one that failed, or one that passed with

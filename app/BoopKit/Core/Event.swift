@@ -1,12 +1,14 @@
 import AgentHooks
 import Foundation
 
-/// One thing that happened, as the transcript keeps it (harness/EVENTS.md
-/// §1): the same metadata for every event, and `data` for what only its
-/// type has. Agents' hooks, the device, the clock and Boop's own actions
-/// all arrive as these. Nothing reads meaning into one but the core and
-/// the view.
-public struct Event: Equatable, Sendable {
+/// Boop's view of an event (harness/EVENTS.md §1): what the kit's event
+/// (kit/BRAIN-KIT.md §2.1) holds for Boop. An agent's hook, a poke, what
+/// you said, away and back, a heartbeat and "needs you" are each a type,
+/// and a type with a lifetime a phase: the event's `kind` is the two
+/// together (`tool_end`, `poke`). The source's own name for it, the
+/// session, subagent and working directory are in `data`. The kit's own
+/// events (`did`, `ended`, `pass`) have no type.
+extension Event {
     /// Where it came from.
     public enum Source: String, Sendable {
         case claude, codex, device, clock, boop
@@ -22,7 +24,9 @@ public struct Event: Equatable, Sendable {
 
     /// What it is, whatever agent it came from (EVENTS.md §2).
     public enum Kind: String, Sendable, CaseIterable {
-        case session, turn, tool, subagent, poke, talk, presence, heartbeat, action
+        case session, turn, tool, subagent, poke, talk, presence, heartbeat
+        /// "Needs you" showing for a session, and clearing: the core's.
+        case needsYou = "needs_you"
     }
 
     /// Where in its life a thing with a start and an end is: a tool call
@@ -31,82 +35,64 @@ public struct Event: Equatable, Sendable {
         case start, wait, end
     }
 
-    /// Its place in the transcript, counting on across days and launches;
-    /// 0 until it's recorded.
-    public var seq: Int
-    /// When it happened, in unix milliseconds.
-    public var ts: Int64
-    public var source: Source
-    public var type: Kind
-    public var phase: Phase?
-    /// The source's own name for it: `PreToolUse`, `Interrupt`, `input`,
-    /// an action's name.
-    public var specificType: String
-    /// The agent's session; for Boop's action about a session, that one.
-    public var session: String?
-    /// The Claude subagent it came from, by `agent_id`.
-    public var subagent: String?
-    public var cwd: String?
-    /// What only this type has (EVENTS.md §2).
-    public var data: [String: JSONValue]
+    /// The `data` keys Boop's own fields take (EVENTS.md §2).
+    static let metaKeys: Set<String> = ["specific_type", "session", "subagent", "cwd"]
 
     public init(seq: Int = 0, ts: Int64, source: Source, type: Kind, phase: Phase? = nil, specificType: String,
                 session: String? = nil, subagent: String? = nil, cwd: String? = nil, data: [String: JSONValue] = [:]) {
-        self.seq = seq
-        self.ts = ts
-        self.source = source
-        self.type = type
-        self.phase = phase
-        self.specificType = specificType
-        self.session = session
-        self.subagent = subagent
-        self.cwd = cwd
-        self.data = data
+        var data = data
+        data["specific_type"] = .string(specificType)
+        if let session { data["session"] = .string(session) }
+        if let subagent { data["subagent"] = .string(subagent) }
+        if let cwd { data["cwd"] = .string(cwd) }
+        self.init(seq: seq, at: ts, source: source.rawValue, kind: Event.kind(type, phase), data: data)
     }
+
+    /// A type and phase's `kind`: `tool_end`, `poke`.
+    public static func kind(_ type: Kind, _ phase: Phase?) -> String {
+        phase.map { "\(type.rawValue)_\($0.rawValue)" } ?? type.rawValue
+    }
+
+    /// When it happened, in unix milliseconds: its `at`.
+    public var ts: Int64 {
+        get { at }
+        set { at = newValue }
+    }
+
+    /// Where it came from, for one of Boop's sources.
+    public var from: Source? { Source(rawValue: source) }
+
+    /// Its type and phase, from its `kind`; nil for the kit's own events.
+    public var type: Kind? { Event.split(kind).type }
+    public var phase: Phase? { Event.split(kind).phase }
+
+    static func split(_ kind: String) -> (type: Kind?, phase: Phase?) {
+        if let type = Kind(rawValue: kind) { return (type, nil) }
+        guard let cut = kind.lastIndex(of: "_"), let type = Kind(rawValue: String(kind[..<cut])),
+              let phase = Phase(rawValue: String(kind[kind.index(after: cut)...])) else { return (nil, nil) }
+        return (type, phase)
+    }
+
+    /// The source's own name for it: `PreToolUse`, `Interrupt`, `input`.
+    public var specificType: String { data["specific_type"]?.string ?? "" }
+    /// The agent's session; for "needs you", the session's.
+    public var session: String? { data["session"]?.string }
+    /// The Claude subagent it came from, by `agent_id`.
+    public var subagent: String? { data["subagent"]?.string }
+    public var cwd: String? { data["cwd"]?.string }
 
     /// The agent it came from, for an agent's event.
-    public var agent: Agent? { Agent(rawValue: source.rawValue) }
+    public var agent: Agent? { Agent(rawValue: source) }
 
-    public subscript(_ key: String) -> JSONValue? { data[key] }
-
-    // MARK: The transcript's line
-
-    /// The event as one JSON line, metadata first in a fixed order, then
-    /// `data` with its keys sorted.
-    public var jsonLine: String {
-        var parts = ["\"seq\":\(seq)", "\"ts\":\(ts)", "\"source\":\(Event.json(source.rawValue))",
-                     "\"type\":\(Event.json(type.rawValue))"]
-        if let phase { parts.append("\"phase\":\(Event.json(phase.rawValue))") }
-        parts.append("\"specific_type\":\(Event.json(specificType))")
-        if let session { parts.append("\"session\":\(Event.json(session))") }
-        if let subagent { parts.append("\"subagent\":\(Event.json(subagent))") }
-        if let cwd { parts.append("\"cwd\":\(Event.json(cwd))") }
-        parts.append("\"data\":" + Event.json(data.mapValues(\.foundation)))
-        return "{" + parts.joined(separator: ",") + "}"
-    }
-
-    /// The event a transcript line holds, or nil for a line that isn't one.
-    public init?(jsonLine line: some StringProtocol) {
-        guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else { return nil }
-        self.init(json: o)
-    }
-
-    public init?(json o: [String: Any]) {
-        guard let seq = (o["seq"] as? NSNumber)?.intValue, let ts = (o["ts"] as? NSNumber)?.int64Value,
-              let source = (o["source"] as? String).flatMap(Source.init(rawValue:)),
-              let type = (o["type"] as? String).flatMap(Kind.init(rawValue:)),
-              let specific = o["specific_type"] as? String else { return nil }
-        let data = (o["data"] as? [String: Any] ?? [:]).mapValues { JSONValue(foundation: $0) }
-        self.init(seq: seq, ts: ts, source: source, type: type, phase: (o["phase"] as? String).flatMap(Phase.init(rawValue:)),
-                  specificType: specific, session: o["session"] as? String, subagent: o["subagent"] as? String,
-                  cwd: o["cwd"] as? String, data: data)
-    }
+    /// The name of the kit event's output or rule: `react`, `wiggle`.
+    public var action: String? { data["action"]?.string }
 
     /// `12 tool end PostToolUse claude s1 · tool Bash, failed true`, for
     /// debug mode and replays.
     public var summary: String {
-        let what = [type.rawValue, phase?.rawValue, specificType, source.rawValue, session].compactMap { $0 }
-        let facts = data.keys.sorted().compactMap { key -> String? in
+        let what = [type.map { [$0.rawValue, phase?.rawValue].compactMap { $0 }.joined(separator: " ") } ?? kind,
+                    specificType.isEmpty ? action : specificType, source, session].compactMap { $0 }
+        let facts = data.keys.sorted().filter { !Event.metaKeys.contains($0) && $0 != "action" }.compactMap { key -> String? in
             guard let value = data[key] else { return nil }
             switch value {
             case .string(let s): return "\(key) \(s.count > 60 ? String(s.prefix(60)) + "…" : s)"
@@ -119,10 +105,36 @@ public struct Event: Equatable, Sendable {
     }
 
     /// `value` as JSON, keys sorted: a string comes back quoted.
-    static func json(_ value: Any) -> String {
-        let data = (try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed]))
-            ?? Data()
-        return String(decoding: data, as: UTF8.self)
+    static func json(_ value: Any) -> String { JSONLine.encode(value) }
+
+    /// A transcript line from before the brain kit (harness/EVENTS.md §2.2):
+    /// `ts`, `type`, `phase`, `specific_type`, `session`, `subagent` and
+    /// `cwd` at the top, and actions as a type of their own. Read so a
+    /// launch just after the change picks up where the last one left.
+    public static func legacy(_ line: some StringProtocol) -> Event? {
+        guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+              let seq = (o["seq"] as? NSNumber)?.intValue, let ts = (o["ts"] as? NSNumber)?.int64Value,
+              let source = o["source"] as? String, let type = o["type"] as? String,
+              let specific = o["specific_type"] as? String else { return nil }
+        var data = (o["data"] as? [String: Any] ?? [:]).mapValues { JSONValue(foundation: $0) }
+        let phase = o["phase"] as? String
+        if type == "action" {
+            if specific == Core.needsYou {
+                if let session = o["session"] as? String { data["session"] = .string(session) }
+                data["specific_type"] = .string(specific)
+                return Event(seq: seq, at: ts, source: Source.boop.rawValue,
+                             kind: phase == "end" ? "needs_you_end" : "needs_you_start", data: data)
+            }
+            data["action"] = .string(specific)
+            if phase == "end" { return Event(seq: seq, at: ts, source: Event.kit, kind: Event.ended, data: data) }
+            if phase == "start" { data["open"] = true }
+            return Event(seq: seq, at: ts, source: Event.kit, kind: Event.did, data: data)
+        }
+        data["specific_type"] = .string(specific)
+        for key in ["session", "subagent", "cwd"] {
+            if let value = o[key] as? String { data[key] = .string(value) }
+        }
+        return Event(seq: seq, at: ts, source: source, kind: phase.map { "\(type)_\($0)" } ?? type, data: data)
     }
 }
 

@@ -318,11 +318,9 @@ public final class Harness: @unchecked Sendable {
     /// too, unread; the harness's keys win a clash.
     func record(_ name: String, _ result: ActionResult, forSeq: Int?, by: String, latencyMs: Int) -> ActionRecord {
         let started = result.ok && result.pending != nil
-        let data: [String: JSONValue] = ["for": forSeq.map { .int(Int64($0)) } ?? .null, "by": .string(by),
-                                         "ok": .bool(result.ok), "message": .string(result.message),
-                                         "latency_ms": .int(Int64(latencyMs))]
-        let e = pipeline.record(Event(ts: clock(), source: .boop, type: .action, phase: started ? .start : nil,
-                                      specificType: name, data: data.merging(result.facts) { mine, _ in mine }))
+        let facts = result.facts.merging(["latency_ms": .int(Int64(latencyMs))]) { _, mine in mine }
+        let e = pipeline.record(Event.did(result.message, for: forSeq, action: name, by: by, ok: result.ok, open: started,
+                                          facts: facts, at: clock()))
         if started, let pending = result.pending {
             open[e.seq] = Open(name: name, since: e.ts, by: by)
             pending.bind { [weak self] end in self?.settle(e.seq, end) }
@@ -335,12 +333,8 @@ public final class Harness: @unchecked Sendable {
     func settle(_ seq: Int, _ end: Pending.End) {
         dispatchPrecondition(condition: .onQueue(home))
         guard let item = open.removeValue(forKey: seq) else { return }
-        var data: [String: JSONValue] = ["for": .int(Int64(seq)), "by": .string(item.by)]
-        switch end {
-        case .done: data["outcome"] = "done"
-        case .failed(let why): data["outcome"] = "failed"; data["why"] = .string(why)
-        }
-        pipeline.record(Event(ts: clock(), source: .boop, type: .action, phase: .end, specificType: item.name, data: data))
+        let why: String? = if case .failed(let why) = end { why } else { nil }
+        pipeline.record(Event.ended(seq, action: item.name, by: item.by, failed: why, at: clock()))
     }
 
     /// Ends every action still in progress `pendingMaxMs` after its result,

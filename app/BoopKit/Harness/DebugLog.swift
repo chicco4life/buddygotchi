@@ -24,7 +24,7 @@ public enum DebugLog {
     }
 
     /// An event as the transcript recorded it, as its line there.
-    public static func event(_ e: Event) -> String { line("event", e.jsonLine, at: e.ts) }
+    public static func event(_ e: Event) -> String { line("event", e.jsonLine, at: e.at) }
 
     /// A view event, gated.
     public static func view(_ v: ViewEvent) -> String { line("view", Event.json(v.json), at: v.ts) }
@@ -182,8 +182,6 @@ public enum DebugLog {
         var shownFullState = false
         /// The latest `head` line's before the first pass, which prints it.
         var head = ""
-        /// Each started action's name by its `seq`, for its end's line.
-        var names: [Int: String] = [:]
 
         public init() {}
 
@@ -233,20 +231,21 @@ public enum DebugLog {
                 }
                 return out
             }
-            if let raw = o["event"] as? [String: Any], let e = Event(json: raw) {
-                guard e.type == .action else { return nil }
-                let by = e["by"]?.string == "rule" ? " (rule)" : ""
-                if e.phase == .end {
-                    guard let action = e["for"]?.int.map(Int.init) else {
-                        return "  · \(e.specificType)\(by) ended" + (e["why"]?.string.map { ": \($0)" } ?? "")
-                    }
-                    let name = "\(names[action] ?? e.specificType) (\(action))"
-                    return e["outcome"]?.string == "done" ? "  ✓ \(name) done"
-                        : "  ✗ \(name) didn't happen: \(e["why"]?.string ?? "?")"
+            if let raw = o["event"] as? [String: Any], let e = Event(json: raw) ?? Event.legacy(JSONLine.encode(raw)) {
+                let by = e["by"]?.string == "rule" || e.type == .needsYou ? " (rule)" : ""
+                if e.type == .needsYou {
+                    return e.phase == .end ? "  · \(Core.needsYou)\(by) ended" + (e["why"]?.string.map { ": \($0)" } ?? "")
+                        : "  … \(Core.needsYou)\(by): \(e["message"]?.string ?? "")"
                 }
-                if e.phase == .start { names[e.seq] = e.specificType }
-                let mark = e["ok"]?.bool != true ? "✗" : e.phase == .start ? "…" : "✓"
-                return "  \(mark) \(e.specificType)\(by): \(e["message"]?.string ?? "")"
+                guard e.isKit, let name = e.action else { return nil }
+                if e.kind == Event.ended {
+                    let what = "\(name) (\(e.about ?? 0))"
+                    return e["outcome"]?.string == "done" ? "  ✓ \(what) done"
+                        : "  ✗ \(what) didn't happen: \(e["why"]?.string ?? "?")"
+                }
+                guard e.kind == Event.did else { return nil }
+                let mark = e["ok"]?.bool != true ? "✗" : e["open"]?.bool == true ? "…" : "✓"
+                return "  \(mark) \(name)\(by): \(e["message"]?.string ?? "")"
             }
             return nil
         }

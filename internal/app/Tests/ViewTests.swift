@@ -261,7 +261,7 @@ final class ViewTests: XCTestCase {
         XCTAssertEqual(said[0].facts["words"], "are the tests\npassing yet?")
         XCTAssertEqual(said[0].facts["by"], "device")
         let raw = try XCTUnwrap(rig.pipeline.transcript.events.last)
-        XCTAssertEqual(raw.source, .mic)
+        XCTAssertEqual(raw.from, .mic)
         XCTAssertEqual(raw.type, .talk)
         XCTAssertEqual(raw.specificType, "device")
 
@@ -283,12 +283,12 @@ final class ViewTests: XCTestCase {
     /// it reads as done once they stop, or once anything else happens.
     func testAReactionATapCutStaysInProgressWhileThePokesGoOn() {
         func react(to poke: ViewEvent) -> Int {
-            rig.pipeline.record(Event(ts: rig.now, source: .boop, type: .action, phase: .start, specificType: "react",
+            rig.pipeline.record(Event.action(ts: rig.now, phase: .start, name: "react",
                                       data: ["for": .int(Int64(poke.seq)), "by": "brain", "ok": true,
                                              "message": "Boop made a grumpy face."])).seq
         }
         func cut(_ seq: Int) {
-            rig.pipeline.record(Event(ts: rig.now, source: .boop, type: .action, phase: .end, specificType: "react",
+            rig.pipeline.record(Event.action(ts: rig.now, phase: .end, name: "react",
                                       data: ["for": .int(Int64(seq)), "by": "brain", "outcome": "failed",
                                              "why": .string(TranscriptView.cutByTap)]))
         }
@@ -311,7 +311,7 @@ final class ViewTests: XCTestCase {
 
         rig.wait(1000)
         let other = events(rig.poke())[0]
-        rig.pipeline.record(Event(ts: rig.now, source: .boop, type: .action, phase: .end, specificType: "react",
+        rig.pipeline.record(Event.action(ts: rig.now, phase: .end, name: "react",
                                   data: ["for": .int(Int64(react(to: other))), "by": "brain", "outcome": "failed",
                                          "why": "cut short: something newer played"]))
         XCTAssertEqual(state(other), [], "any other cut is gone")
@@ -325,12 +325,12 @@ final class ViewTests: XCTestCase {
     func testAPokeWaitsWhileItsRunIsBeingAnswered() {
         XCTAssertEqual(TranscriptView.answersRunFrom, 3)
         func react(to poke: ViewEvent, _ name: String = "react", started: Bool = true) -> Int {
-            rig.pipeline.record(Event(ts: rig.now, source: .boop, type: .action, phase: started ? .start : nil,
-                                      specificType: name, data: ["for": .int(Int64(poke.seq)), "by": "brain", "ok": true,
+            rig.pipeline.record(Event.action(ts: rig.now, phase: started ? .start : nil,
+                                      name: name, data: ["for": .int(Int64(poke.seq)), "by": "brain", "ok": true,
                                                                  "message": "Boop did it."])).seq
         }
         func end(_ seq: Int, _ why: String? = nil) {
-            rig.pipeline.record(Event(ts: rig.now, source: .boop, type: .action, phase: .end, specificType: "react",
+            rig.pipeline.record(Event.action(ts: rig.now, phase: .end, name: "react",
                                       data: ["for": .int(Int64(seq)), "by": "brain", "outcome": why == nil ? "done" : "failed",
                                              "why": why.map { .string($0) } ?? .null]))
         }
@@ -414,12 +414,12 @@ final class ViewTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dir) }
         let time = rig.time
         func pipeline() -> Pipeline {
-            Pipeline(core: Core(config: .init(time: time)), transcript: Transcript(folder: dir, time: time), view: TranscriptView())
+            Pipeline(core: Core(config: .init(time: time)), transcript: Transcript.log(folder: dir, time: time), view: TranscriptView())
         }
         let first = pipeline()
         rig = CoreRig()
         first.agent(rig.event(.turnStart))
-        let start = first.record(Event(ts: rig.now, source: .boop, type: .action, phase: .start, specificType: "react",
+        let start = first.record(Event.action(ts: rig.now, phase: .start, name: "react",
                                        data: ["for": 1, "by": "brain", "ok": true, "message": "Boop smiled."]))
         XCTAssertEqual(start.seq, 2)
         first.agent(rig.event(.turnEnd))
@@ -429,8 +429,8 @@ final class ViewTests: XCTestCase {
         let file = dir.appendingPathComponent(time.day(rig.now) + ".jsonl")
         let lines = try String(contentsOf: file, encoding: .utf8).split(separator: "\n")
         XCTAssertEqual(lines.count, 3)
-        XCTAssertTrue(lines[0].hasPrefix(#"{"seq":1,"ts":"#), String(lines[0]))
-        try (String(contentsOf: file, encoding: .utf8) + #"{"seq":4,"ts":"#).write(to: file, atomically: true, encoding: .utf8)
+        XCTAssertTrue(lines[0].hasPrefix(#"{"seq":1,"at":"#), String(lines[0]))
+        try (String(contentsOf: file, encoding: .utf8) + #"{"seq":4,"at":"#).write(to: file, atomically: true, encoding: .utf8)
 
         let second = pipeline()
         var recorded: [Event] = []
@@ -441,7 +441,7 @@ final class ViewTests: XCTestCase {
         XCTAssertEqual(restarted.data["why"], "Boop restarted")
         XCTAssertEqual(restarted.seq, 4, "seq goes on")
         XCTAssertEqual(second.transcript.lastSeq, 4)
-        XCTAssertEqual(second.transcript.events, [], "a transcript with a folder keeps none in memory")
+        XCTAssertEqual(second.transcript.events.map(\.seq), [1, 2, 3, 4], "the last day stays in memory, the end included")
         XCTAssertEqual(second.view.events.first?.did, [], "a reaction that can't end now isn't shown")
         rig.wait(1000)
         let next = second.agent(rig.event(.turnStart)).views
@@ -456,9 +456,9 @@ final class ViewTests: XCTestCase {
     func testATearInsideACharacterLosesOnlyItsLine() throws {
         let dir = tempDir("boop-tr")
         defer { try? FileManager.default.removeItem(at: dir) }
-        let written = Transcript(folder: dir, time: rig.time)
-        written.append(rig.event(.turnStart, prompt: "a café"))
-        written.append(rig.event(.turnEnd))
+        let written = Transcript.log(folder: dir, time: rig.time)
+        written.append(rig.event(.turnStart, prompt: "a café"), now: rig.now)
+        written.append(rig.event(.turnEnd), now: rig.now)
         var torn = rig.event(.turnStart, prompt: "un café")
         torn.seq = 3
         let whole = Data(torn.jsonLine.utf8)
@@ -469,14 +469,12 @@ final class ViewTests: XCTestCase {
         try handle.write(contentsOf: whole[...cut])
         try handle.close()
 
-        let read = Transcript(folder: dir, time: rig.time)
-        var seqs: [Int] = []
-        XCTAssertEqual(read.load(now: rig.now) { seqs.append($0.seq) }, 2)
-        XCTAssertEqual(seqs, [1, 2])
+        let read = Transcript.log(folder: dir, time: rig.time)
+        XCTAssertEqual(read.load(now: rig.now).map(\.seq), [1, 2])
         XCTAssertEqual(read.lastSeq, 2, "seq goes on from the day's file")
         try XCTAssertEqual(try Data(contentsOf: file).last, 0x0A, "the torn line is ended")
-        XCTAssertEqual(read.append(rig.event(.turnEnd)).seq, 3)
-        XCTAssertEqual(Transcript(folder: dir, time: rig.time).load(now: rig.now) { _ in }, 3)
+        XCTAssertEqual(read.append(rig.event(.turnEnd), now: rig.now).seq, 3)
+        XCTAssertEqual(Transcript.log(folder: dir, time: rig.time).load(now: rig.now).count, 3)
     }
 
     /// A relaunch folds the transcript into the core too (ARCHITECTURE.md
@@ -492,7 +490,7 @@ final class ViewTests: XCTestCase {
         rig = CoreRig()
         func pipeline() -> Pipeline {
             Pipeline(core: Core(config: .init(time: time), lastActiveDay: time.day(rig.now)),
-                     transcript: Transcript(folder: dir, time: time), view: TranscriptView())
+                     transcript: Transcript.log(folder: dir, time: time), view: TranscriptView())
         }
         func needs(_ step: Pipeline.Step) -> [Event] { step.recorded.filter { $0.specificType == Core.needsYou } }
         let first = pipeline()
@@ -540,7 +538,7 @@ final class ViewTests: XCTestCase {
         rig = CoreRig()
         func pipeline() -> Pipeline {
             Pipeline(core: Core(config: .init(time: time), lastActiveDay: time.day(rig.now)),
-                     transcript: Transcript(folder: dir, time: time), view: TranscriptView())
+                     transcript: Transcript.log(folder: dir, time: time), view: TranscriptView())
         }
         func needs(_ step: Pipeline.Step) -> [Event] { step.recorded.filter { $0.specificType == Core.needsYou } }
         let first = pipeline()
@@ -548,7 +546,8 @@ final class ViewTests: XCTestCase {
         first.agent(rig.event(.activity, tool: "Bash", id: "t1"))
         XCTAssertEqual(needs(first.agent(rig.event(.needsYou, tool: "Bash"))).map(\.phase), [.start])
         rig.now += 1000
-        let emptyCore = pipeline()  // no read-back
+        let emptyCore = pipeline()  // the log read back, but not into the core or the view
+        emptyCore.transcript.load(now: rig.now)
         XCTAssertEqual(needs(emptyCore.agent(rig.event(.activity, tool: "Bash", id: "t1", done: true))), [])
         rig.now += 1000
         let third = pipeline()
@@ -574,7 +573,7 @@ final class ViewTests: XCTestCase {
         rig = CoreRig()
         func pipeline() -> Pipeline {
             Pipeline(core: Core(config: .init(time: time), lastActiveDay: time.day(rig.now)),
-                     transcript: Transcript(folder: dir, time: time), view: TranscriptView())
+                     transcript: Transcript.log(folder: dir, time: time), view: TranscriptView())
         }
         func needs(_ step: Pipeline.Step) -> [Event] { step.recorded.filter { $0.specificType == Core.needsYou } }
         let first = pipeline()
@@ -582,7 +581,8 @@ final class ViewTests: XCTestCase {
         first.agent(rig.event(.activity, tool: "Bash", id: "t1"))
         XCTAssertEqual(needs(first.agent(rig.event(.needsYou, tool: "Bash"))).map(\.phase), [.start])
         rig.now += SessionFold.safetyNetMs + 1000
-        let emptyCore = pipeline()  // no read-back
+        let emptyCore = pipeline()  // the log read back, but not into the core or the view
+        emptyCore.transcript.load(now: rig.now)
         XCTAssertEqual(needs(emptyCore.agent(rig.event(.turnStart, session: "s2"))), [])
         rig.now += 1000
         let third = pipeline()
@@ -609,7 +609,7 @@ final class ViewTests: XCTestCase {
         rig = CoreRig()
         func pipeline() -> Pipeline {
             Pipeline(core: Core(config: .init(time: time), lastActiveDay: time.day(rig.now)),
-                     transcript: Transcript(folder: dir, time: time), view: TranscriptView())
+                     transcript: Transcript.log(folder: dir, time: time), view: TranscriptView())
         }
         let first = pipeline()
         func hook(_ kind: Hook, tool: String? = nil, done: Bool? = nil) {

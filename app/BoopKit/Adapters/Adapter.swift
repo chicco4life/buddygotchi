@@ -7,7 +7,7 @@ import Foundation
 /// names, so the transcript reads as it always has.
 public enum Adapter {
     /// The raw event for a hook line, or nil for hooks agent-hooks ignores.
-    /// `ts` is when the app received it, or the line's own time.
+    /// Its `at` is when the app received it, or the line's own time.
     public static func event(from line: HookLine, receivedAt: Int64? = nil) -> Event? {
         Mapping.event(from: line, receivedAt: receivedAt).map(Event.init)
     }
@@ -46,7 +46,7 @@ extension AgentEvent {
     /// transcript with agent-hooks' session bookkeeping.
     public init?(_ e: Event) {
         guard let agent = e.agent, let session = e.session, let phase = e.phase.flatMap({ Phase(rawValue: $0.rawValue) }),
-              let kind = Kind(rawValue: e.type.rawValue) else { return nil }
+              let kind = e.type.flatMap({ Kind(rawValue: $0.rawValue) }) else { return nil }
         self.init(agent: agent, kind: kind, phase: phase, hook: e.specificType, session: session, at: e.ts,
                   subagent: e.subagent, subagentType: e["agent_type"]?.string, cwd: e.cwd, name: e["name"]?.string,
                   app: e["app"]?.string, appSession: e["app_session"]?.string, mode: e["mode"]?.string,

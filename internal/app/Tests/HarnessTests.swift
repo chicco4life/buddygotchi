@@ -61,7 +61,7 @@ final class HarnessTests: XCTestCase {
     @discardableResult
     static func did(_ p: Pipeline, _ about: ViewEvent?, _ message: String, name: String = "react", ok: Bool = true,
                     started: Bool = false, by: String = "brain") -> Event {
-        p.record(Event(ts: t0, source: .boop, type: .action, phase: started ? .start : nil, specificType: name,
+        p.record(Event.action(ts: t0, phase: started ? .start : nil, name: name,
                        data: ["for": about.map { .int(Int64($0.seq)) } ?? .null, "by": .string(by), "ok": .bool(ok),
                               "message": .string(message)]))
     }
@@ -173,7 +173,7 @@ final class HarnessTests: XCTestCase {
 
     /// The actions recorded, as `name phase: for`.
     func actions(_ h: Harness, _ home: DispatchQueue) -> [Event] {
-        home.sync { h.pipeline.transcript.events.filter { $0.type == .action } }
+        home.sync { h.pipeline.transcript.events.filter { $0.isAction } }
     }
 
     /// HARNESS.md §2–4: one request with every action's questions; each
@@ -202,8 +202,8 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(recorded.count, 1, "one action; the pass isn't in the transcript")
         XCTAssertEqual(recorded.first?["for"], .int(Int64(now.seq)))
         XCTAssertEqual(recorded.first?["by"], "brain")
-        XCTAssertEqual(recorded.first?.specificType, "first")
-        XCTAssertNil(recorded.first?.phase, "done at once")
+        XCTAssertEqual(recorded.first?.actionName, "first")
+        XCTAssertNil(recorded.first?.actionPhase, "done at once")
     }
 
     /// EVENTS.md §6, DECISIONS.md §4: a poke's pass asks the mood question
@@ -617,7 +617,7 @@ final class HarnessTests: XCTestCase {
         let (h, home) = harness(ScriptedBrain(always: [:]), [a])
         _ = await h.respond(to: event(h, home, "it started"))
         let start = try XCTUnwrap(actions(h, home).last)
-        XCTAssertEqual(start.jsonLine, #"{"seq":2,"ts":1790000000000,"source":"boop","type":"action","phase":"start","specific_type":"a","data":{"by":"brain","for":1,"latency_ms":0,"message":"Boop did it.","ok":true}}"#)
+        XCTAssertEqual(start.jsonLine, #"{"seq":2,"at":1790000000000,"source":"self","kind":"did","data":{"action":"a","by":"brain","for":1,"latency_ms":0,"message":"Boop did it.","ok":true,"open":true}}"#)
         XCTAssertEqual(home.sync { Array(h.open.keys) }, [2])
         XCTAssertEqual(history(h, home), """
             HISTORY (oldest first; indented lines add to the line above)
@@ -633,11 +633,11 @@ final class HarnessTests: XCTestCase {
         let (h2, home2) = harness(ScriptedBrain(always: [:]), [told])
         _ = await h2.respond(to: event(h2, home2, "it spoke"))
         try XCTAssertEqual(try XCTUnwrap(actions(h2, home2).last).jsonLine,
-                       #"{"seq":2,"ts":1790000000000,"source":"boop","type":"action","phase":"start","specific_type":"b","data":{"by":"brain","face":"happy","for":1,"latency_ms":0,"message":"Boop said it.","ok":true,"takes":["t1","t2"]}}"#)
+                       #"{"seq":2,"at":1790000000000,"source":"self","kind":"did","data":{"action":"b","by":"brain","face":"happy","for":1,"latency_ms":0,"message":"Boop said it.","ok":true,"open":true,"takes":["t1","t2"]}}"#)
 
         home.sync { first.finish(.done) }
         XCTAssertEqual(actions(h, home).last?.jsonLine,
-                       #"{"seq":3,"ts":1790000000000,"source":"boop","type":"action","phase":"end","specific_type":"a","data":{"by":"brain","for":2,"outcome":"done"}}"#)
+                       #"{"seq":3,"at":1790000000000,"source":"self","kind":"ended","data":{"action":"a","by":"brain","for":2,"outcome":"done"}}"#)
         XCTAssertTrue(home.sync { h.open.isEmpty })
         XCTAssertTrue(history(h, home).contains("\n  Boop did it.\nBoop has been grumpy"), "the marker is gone")
         home.sync { first.finish(.failed("too late")) }
@@ -647,7 +647,7 @@ final class HarnessTests: XCTestCase {
         a.result = .started("Boop did it again.", second)
         _ = await h.respond(to: event(h, home, "it ended"))
         home.sync { second.finish(.failed("waited too long")) }
-        XCTAssertEqual(actions(h, home).last?.data, ["by": "brain", "for": 5, "outcome": "failed", "why": "waited too long"])
+        XCTAssertEqual(actions(h, home).last?.fields, ["by": "brain", "for": 5, "outcome": "failed", "why": "waited too long"])
         XCTAssertEqual(history(h, home), """
             HISTORY (oldest first; indented lines add to the line above)
             1 min ago: it started
@@ -680,7 +680,7 @@ final class HarnessTests: XCTestCase {
         let (h, home) = harness(ScriptedBrain(always: [:]), [Recorder("a", keys: ["k"], result: .started("Boop did it.", pending))])
         _ = await h.respond(to: event(h, home, "it started"))
         let recorded = actions(h, home)
-        XCTAssertEqual(recorded.map { $0.phase }, [.start, .end], "the action and its end")
+        XCTAssertEqual(recorded.map { $0.actionPhase }, [.start, .end], "the action and its end")
         XCTAssertEqual(recorded.last?["why"], "no device connected")
         XCTAssertTrue(home.sync { h.open.isEmpty })
         XCTAssertTrue(history(h, home).contains("it started\nBoop has been grumpy"), "one that didn't happen isn't shown")
@@ -698,13 +698,13 @@ final class HarnessTests: XCTestCase {
         let (h, home) = harness(nil, [a], log: { log.add($0) })
         _ = event(h, home, "it started")
         home.sync { XCTAssertEqual(h.force(["k": "a"]).count, 1) }
-        XCTAssertEqual(actions(h, home).last?.phase, .start)
+        XCTAssertEqual(actions(h, home).last?.actionPhase, .start)
         XCTAssertTrue(history(h, home).contains("\n  Boop did it. (in progress)\n"), "a forced one too")
         home.sync { h.tick(now: harnessT0 + 89_999) }
         XCTAssertEqual(home.sync { Array(h.open.keys) }, [2], "still open at 89,999 ms")
         home.sync { h.tick(now: harnessT0 + 90_000) }
         XCTAssertTrue(home.sync { h.open.isEmpty }, "ended at 90,000 ms")
-        XCTAssertEqual(actions(h, home).last?.data, ["by": "dashboard", "for": 2, "outcome": "failed", "why": "no word it finished"])
+        XCTAssertEqual(actions(h, home).last?.fields, ["by": "dashboard", "for": 2, "outcome": "failed", "why": "no word it finished"])
         XCTAssertEqual(log.all, ["harness: a was still in progress after 90000 ms; ended it"])
         XCTAssertTrue(history(h, home).contains("it started\nBoop has been grumpy"), "ended, it didn't happen")
         home.sync {
@@ -719,7 +719,7 @@ final class HarnessTests: XCTestCase {
             XCTAssertNotNil(h.force(a) { .started("Boop did that.", alone) })
             alone.finish(.done)
         }
-        XCTAssertEqual(actions(h, home).last?.data, ["by": "dashboard", "for": 4, "outcome": "done"])
+        XCTAssertEqual(actions(h, home).last?.fields, ["by": "dashboard", "for": 4, "outcome": "done"])
     }
 
     /// §5.3, §9: a replay rebuilds a logged pass's state exactly: the
@@ -770,7 +770,7 @@ final class HarnessTests: XCTestCase {
                       "one that didn't happen isn't shown: \(logged)")
         XCTAssertTrue(logged.contains("  Boop did more. (in progress)\n"), "its end came while the brain answered: \(logged)")
         let before = objects[..<i].compactMap { ($0?["event"] as? [String: Any]).flatMap(Event.init(json:)) }
-        XCTAssertTrue(before.contains { $0["outcome"] == "done" && $0.type == .action }, "logged before the pass")
+        XCTAssertTrue(before.contains { $0["outcome"] == "done" && $0.isAction }, "logged before the pass")
         let seen = try XCTUnwrap(pass["seen"] as? Int)
         func rebuilt(_ events: [Event]) -> String {
             let view = TranscriptView()
@@ -795,16 +795,16 @@ final class HarnessTests: XCTestCase {
              "▸ 1 turn end: claude finished turn 1.\n    Its last message: \"ok\""),
             (#"{"view":{"facts":{},"from":[4],"id":2,"line":"claude needs you.","notes":[],"phase":"wait","type":"tool","wakes_brain":false},"received_at_ms":6}"#,
              "▸ 2 tool wait (no pass): claude needs you."),
-            (#"{"event":{"seq":4,"ts":6,"source":"claude","type":"turn","phase":"end","specific_type":"Stop","session":"s","data":{}},"received_at_ms":6}"#, nil),
+            (#"{"event":{"seq":4,"at":6,"source":"claude","kind":"turn_end","data":{"session":"s","specific_type":"Stop"}},"received_at_ms":6}"#, nil),
             (#"{"pass":{"answers":{"mood":{"choice":"cheerful","p":{"cheerful":0.9,"grumpy":0.1}},"react":{"choice":"excited","p":{"excited":1}}},"brain":"scripted","dropped":null,"for":3,"latency_ms":12,"questions":["mood","react"],"state":""# + stateJSON + #""},"received_at_ms":7}"#,
              "  pass scripted 12 ms: mood cheerful 0.90 · react excited 1.00\n    │ You are.\n    │ PERSONALITY\n    │ x\n    │ \n    │ HISTORY (oldest first)\n    │ h\n    │ \n    │ NOW (14:23, Tuesday)\n    │ n"),
             (#"{"pass":{"answers":{},"brain":"jev:jev-latest","dropped":"late: no answer within 1500 ms","for":3,"latency_ms":1500,"questions":["mood"],"state":""# + stateJSON + #""},"received_at_ms":8}"#,
              "  pass jev:jev-latest 1500 ms: dropped: late: no answer within 1500 ms\n    │ HISTORY (oldest first)\n    │ h\n    │ \n    │ NOW (14:23, Tuesday)\n    │ n"),
-            (#"{"event":{"seq":7,"ts":9,"source":"boop","type":"action","specific_type":"react","data":{"by":"brain","for":3,"message":"Boop made an excited face, held once, and said \"Go\".","ok":true}},"received_at_ms":9}"#,
+            (#"{"event":{"seq":7,"at":9,"source":"self","kind":"did","data":{"action":"react","by":"brain","for":3,"message":"Boop made an excited face, held once, and said \"Go\".","ok":true}},"received_at_ms":9}"#,
              "  ✓ react: Boop made an excited face, held once, and said \"Go\"."),
-            (#"{"event":{"seq":8,"ts":9,"source":"boop","type":"action","specific_type":"mood","data":{"by":"brain","for":3,"message":"changed 3 min ago","ok":false}},"received_at_ms":9}"#,
+            (#"{"event":{"seq":8,"at":9,"source":"self","kind":"did","data":{"action":"mood","by":"brain","for":3,"message":"changed 3 min ago","ok":false}},"received_at_ms":9}"#,
              "  ✗ mood: changed 3 min ago"),
-            (#"{"event":{"seq":9,"ts":9,"source":"boop","type":"action","specific_type":"wiggle","data":{"by":"rule","for":4,"message":"Boop wiggled on its own.","ok":true}},"received_at_ms":9}"#,
+            (#"{"event":{"seq":9,"at":9,"source":"self","kind":"did","data":{"action":"wiggle","by":"rule","for":4,"message":"Boop wiggled on its own.","ok":true}},"received_at_ms":9}"#,
              "  ✓ wiggle (rule): Boop wiggled on its own."),
             ("not json", "not json"),
             (#"{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":9}"#, nil),
@@ -812,13 +812,13 @@ final class HarnessTests: XCTestCase {
             (#"{"questions":[],"received_at_ms":9}"#, nil),
             (#"{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react"]},"received_at_ms":10}"#,
              "  pass dashboard 0 ms: react grumpy 1.00"),
-            (#"{"event":{"seq":10,"ts":11,"source":"boop","type":"action","phase":"start","specific_type":"react","data":{"by":"brain","for":3,"message":"Boop made an excited face, held once, and said \"Go\".","ok":true}},"received_at_ms":11}"#,
+            (#"{"event":{"seq":10,"at":11,"source":"self","kind":"did","data":{"action":"react","by":"brain","for":3,"message":"Boop made an excited face, held once, and said \"Go\".","ok":true,"open":true}},"received_at_ms":11}"#,
              "  … react: Boop made an excited face, held once, and said \"Go\"."),
-            (#"{"event":{"seq":11,"ts":12,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"brain","for":10,"outcome":"done"}},"received_at_ms":12}"#,
+            (#"{"event":{"seq":11,"at":12,"source":"self","kind":"ended","data":{"action":"react","by":"brain","for":10,"outcome":"done"}},"received_at_ms":12}"#,
              "  ✓ react (10) done"),
-            (#"{"event":{"seq":12,"ts":13,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"dashboard","for":10,"outcome":"failed","why":"waited too long"}},"received_at_ms":13}"#,
+            (#"{"event":{"seq":12,"at":13,"source":"self","kind":"ended","data":{"action":"react","by":"dashboard","for":10,"outcome":"failed","why":"waited too long"}},"received_at_ms":13}"#,
              "  ✗ react (10) didn't happen: waited too long"),
-            (#"{"event":{"seq":13,"ts":14,"source":"boop","type":"action","phase":"end","specific_type":"needs_you","session":"s","data":{"by":"rule","outcome":"done"}},"received_at_ms":14}"#,
+            (#"{"event":{"seq":13,"at":14,"source":"boop","kind":"needs_you_end","data":{"by":"rule","outcome":"done","session":"s","specific_type":"needs_you"}},"received_at_ms":14}"#,
              "  · needs_you (rule) ended"),
         ]
         for (line, readable) in lines { XCTAssertEqual(printer.readable(line), readable, line) }
@@ -1193,11 +1193,11 @@ final class HarnessTests: XCTestCase {
     }
 
     /// HARNESS.md §5.1: a transcript without a folder (tests, the evals)
-    /// keeps its events in memory; one with a folder keeps none
+    /// keeps its events in memory; one with a folder too, the last day's
     /// (`testTheTranscriptPersistsAndReplays`).
     func testATranscriptWithoutAFolderKeepsItsEvents() {
-        let t = Transcript()
-        for _ in 0..<3 { t.append(Event(ts: 0, source: .device, type: .poke, specificType: "input")) }
+        let t = Transcript.log()
+        for _ in 0..<3 { t.append(Event(ts: 1, source: .device, type: .poke, specificType: "input"), now: 1) }
         XCTAssertEqual(t.events.map(\.seq), [1, 2, 3])
         XCTAssertEqual(t.lastSeq, 3)
     }

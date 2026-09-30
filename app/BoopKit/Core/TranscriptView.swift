@@ -191,12 +191,13 @@ public final class TranscriptView {
         let first = nextID
         if !heldByPokes.isEmpty && !continuesThePokes(e) { releasePokes() }
         switch e.type {
-        case .session, .turn, .tool, .subagent: agentEvent(e)
-        case .poke: poke(e)
-        case .talk: talk(e)
-        case .presence: presence(e)
-        case .heartbeat: heartbeat(e)
-        case .action: action(e)
+        case .session?, .turn?, .tool?, .subagent?: agentEvent(e)
+        case .poke?: poke(e)
+        case .talk?: talk(e)
+        case .presence?: presence(e)
+        case .heartbeat?: heartbeat(e)
+        case .needsYou?: needs(e)
+        case nil: if e.isKit { action(e) }
         }
         return events.suffix(nextID - first)
     }
@@ -236,11 +237,11 @@ public final class TranscriptView {
     /// notable, or every one with `allToolEnds` (the personality's
     /// `tool_uses: all`, BEHAVIORS.md §6). The rest are read, for what
     /// they tell the view, and dropped.
-    public static func keeps(_ type: Event.Kind, _ phase: Event.Phase?, notable: Bool, allToolEnds: Bool) -> Bool {
+    public static func keeps(_ type: Event.Kind?, _ phase: Event.Phase?, notable: Bool, allToolEnds: Bool) -> Bool {
         switch (type, phase) {
-        case (.turn, .start?), (.turn, .end?), (.tool, .wait?), (.poke, nil), (.talk, nil), (.heartbeat, nil),
-             (.presence, .start?), (.presence, .end?): true
-        case (.tool, .end?): notable || allToolEnds
+        case (.turn?, .start?), (.turn?, .end?), (.tool?, .wait?), (.poke?, nil), (.talk?, nil), (.heartbeat?, nil),
+             (.presence?, .start?), (.presence?, .end?): true
+        case (.tool?, .end?): notable || allToolEnds
         default: false
         }
     }
@@ -249,8 +250,9 @@ public final class TranscriptView {
     func add(_ e: Event, from: [Int]? = nil, notable: Bool = true, line: @autoclosure () -> String,
              notes: [String] = [], wakes: Bool, passPriority: Int = 0, about: String? = nil,
              facts: @autoclosure () -> [String: JSONValue] = [:]) {
-        guard TranscriptView.keeps(e.type, e.phase, notable: notable, allToolEnds: rules.toolUses == .all) else { return }
-        events.append(ViewEvent(id: nextID, type: e.type, phase: e.phase, from: from ?? [e.seq], ts: e.ts, line: line(),
+        guard TranscriptView.keeps(e.type, e.phase, notable: notable, allToolEnds: rules.toolUses == .all),
+              let type = e.type else { return }
+        events.append(ViewEvent(id: nextID, type: type, phase: e.phase, from: from ?? [e.seq], ts: e.ts, line: line(),
                                 notes: notes, wakesBrain: wakes, passPriority: passPriority, about: about, facts: facts()))
         nextID += 1
         if events.count > TranscriptView.limit {
@@ -575,12 +577,8 @@ public final class TranscriptView {
     /// any other goes under the view event it's `for`, or, forced by the
     /// dashboard for none, the latest (EVENTS.md §7).
     func action(_ e: Event) {
-        if e.specificType == Core.needsYou {
-            needs(e)
-            return
-        }
-        switch e.phase {
-        case .end?:
+        switch e.kind {
+        case Event.ended:
             // How a started action ended: plain if done, gone if not. One
             // a tap cut short you saw begin: it stays in progress while
             // the pokes go on, so they don't get it again.
@@ -594,14 +592,14 @@ public final class TranscriptView {
                 events[at.view].did.remove(at: at.did)
                 for (k, v) in started where v.view == at.view && v.did > at.did { started[k] = (v.view, v.did - 1, v.name) }
             }
-        default:
+        case Event.did:
             guard e["ok"]?.bool == true, let message = e["message"]?.string else { return }
-            let started = e.phase == .start
+            let started = e["open"]?.bool == true
             // Boop started a reaction: the working heartbeat starts its
             // wait again, so it comes after a stretch of work with no
             // reaction, however many view events woke the brain in it
             // (EVENTS.md §4).
-            if started, e.specificType == ReactAction.actionName { nextWorkBeatAt = nil }
+            if started, e.action == ReactAction.actionName { nextWorkBeatAt = nil }
             let target: Int?
             if let about = e["for"]?.int.map(Int.init) {
                 target = events.lastIndex { $0.seq == about }
@@ -611,15 +609,17 @@ public final class TranscriptView {
             guard let target else { return }
             events[target].did.append(ViewEvent.Did(message: message, by: e["by"]?.string ?? "brain",
                                                     state: started ? .inProgress : .done, seq: e.seq))
-            if started { self.started[e.seq] = (target, events[target].did.count - 1, e.specificType) }
+            if started { self.started[e.seq] = (target, events[target].did.count - 1, e.action ?? "") }
             // A reaction to the run's first pokes doesn't answer it: the
             // pokes after them are new to the brain.
             if started, events[target].type == .poke, let first = pokes.first, events[target].ts >= first,
                (events[target].facts["in_a_row"]?.int ?? 1) >= Self.answersRunFrom {
                 runReaction = (e.seq, false)
-            } else if e.specificType == MoodAction.actionName {
+            } else if e.action == MoodAction.actionName {
                 runReaction?.moodChanged = true
             }
+        default:
+            break
         }
     }
 
@@ -632,8 +632,9 @@ public final class TranscriptView {
     /// a poke in the same run.
     func continuesThePokes(_ e: Event) -> Bool {
         switch e.type {
-        case .action: true
-        case .poke: pokes.last.map { e.ts - $0 < Self.inARowMs } ?? false
+        case .needsYou?: true
+        case .poke?: pokes.last.map { e.ts - $0 < Self.inARowMs } ?? false
+        case nil: e.isKit
         default: false
         }
     }

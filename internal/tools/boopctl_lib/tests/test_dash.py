@@ -41,9 +41,11 @@ def fixture_lines(path: Path = FIXTURE) -> list[dict]:
 
 
 def dashboard_action(line: dict) -> dict:
-    """A raw action event's data, if the dashboard forced it."""
-    data = line.get("event", {}).get("data", {})
-    return data if line.get("event", {}).get("type") == "action" and data.get("by") == "dashboard" else {}
+    """An action's start, if the dashboard forced it: the fixture is a
+    launch from before the brain kit, so it also checks that older logs'
+    actions still read (harness/HARNESS.md §9)."""
+    a = feed.action(line["event"]) if "event" in line else None
+    return a if a and a["by"] == "dashboard" else {}
 
 
 def at_by_seq(lines: list[dict]) -> dict[int, int]:
@@ -152,23 +154,21 @@ class FeedTests(unittest.TestCase):
         lines = [
             '{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}}},"by":"dashboard","dropped":null,"for":null,'
             '"latency_ms":0,"questions":["react"]},"received_at_ms":1}',
-            '{"event":{"seq":2,"ts":2,"source":"boop","type":"action","phase":"start","specific_type":"react","data":'
-            '{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a grumpy face and mumbled.","ok":true}},'
-            '"received_at_ms":2}',
+            '{"event":{"seq":2,"at":2,"source":"self","kind":"did","data":{"action":"react","by":"dashboard","for":null,'
+            '"latency_ms":0,"message":"Boop made a grumpy face and mumbled.","ok":true,"open":true}},"received_at_ms":2}',
         ]
         rows = [board.apply(json.loads(line)) for line in lines]
         self.assertEqual(rows[1], ("dim", "  … react (by dashboard): Boop made a grumpy face and mumbled."))
         self.assertEqual(board.decided_column()[-1], ("playing", "  ▶ playing"))
         self.assertEqual(dict(board.facts(2))["showing"], "a grumpy reaction face")
-        row = board.apply(json.loads('{"event":{"seq":3,"ts":3,"source":"boop","type":"action","phase":"end",'
-                                     '"specific_type":"react","data":{"by":"dashboard","outcome":"failed","for":2,'
-                                     '"why":"waited too long"}},"received_at_ms":3}'))
+        row = board.apply(json.loads('{"event":{"seq":3,"at":3,"source":"self","kind":"ended","data":{"action":"react",'
+                                     '"by":"dashboard","outcome":"failed","for":2,"why":"waited too long"}},'
+                                     '"received_at_ms":3}'))
         self.assertEqual(row, ("fail", "  ✗ react (2) didn't happen: waited too long"))
         self.assertEqual(board.decided_column()[-1], ("fail", "  ✗ didn't happen: waited too long"))
         self.assertEqual(dict(board.facts(3))["showing"], "its ? look", "no state yet")
-        row = board.apply(json.loads('{"event":{"seq":4,"ts":4,"source":"boop","type":"action","phase":"end",'
-                                     '"specific_type":"react","data":{"by":"brain","outcome":"done","for":2}},'
-                                     '"received_at_ms":4}'))
+        row = board.apply(json.loads('{"event":{"seq":4,"at":4,"source":"self","kind":"ended","data":{"action":"react",'
+                                     '"by":"brain","outcome":"done","for":2}},"received_at_ms":4}'))
         self.assertEqual(row, ("ok", "  ✓ react (2) done"))
         self.assertEqual(board.decided_column()[-1], ("ok", "  ✓ played"))
 
@@ -604,8 +604,8 @@ class AppTests(unittest.TestCase):
                                                                      "word.about": "none"}}])
                 self.assertEqual(len(app.pending.waiting), 2)
                 with log.open("a") as f:
-                    f.write('{"event":{"seq":28,"ts":1790498700000,"source":"boop","type":"action","specific_type":"mood",'
-                            '"data":{"by":"dashboard","for":null,"latency_ms":0,"message":"already grumpy","ok":false}},'
+                    f.write('{"event":{"seq":28,"at":1790498700000,"source":"self","kind":"did","data":{"action":"mood",'
+                            '"by":"dashboard","for":null,"latency_ms":0,"message":"already grumpy","ok":false}},'
                             '"received_at_ms":1790498700000}\n')
                     f.write('{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":1790498700001}\n')
                 app.poll()

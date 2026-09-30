@@ -276,7 +276,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(HookSocket.send(hook("PreToolUse", tool: "Bash"), to: socketPath))
         eventually("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
-        eventually("the pass in debug.jsonl") { self.debugLines().contains { ($0["event"] as? [String: Any])?["type"] as? String == "action" } }
+        eventually("the pass in debug.jsonl") { self.debugLines().contains { ($0["event"] as? [String: Any])?["kind"] as? String == "did" } }
         let log = lines.lock.withLock { lines.log }
         let printed = lines.lock.withLock { lines.printed }
         XCTAssertTrue(log.contains("hook: claude SessionStart s1 → session start SessionStart claude s1"), "\(log)")
@@ -331,11 +331,11 @@ final class RuntimeTests: XCTestCase {
         var options = try options(FakeTransport())
         options.debug = true
         let now = options.clock()
-        let last = Pipeline(core: Core(config: .init()), transcript: Transcript(folder: dir.appendingPathComponent(Transcript.folderName)),
+        let last = Pipeline(core: Core(config: .init()), transcript: Transcript.log(folder: dir.appendingPathComponent(Transcript.folderName)),
                             view: TranscriptView())
         let line = HookLine(agent: "claude", hook: "UserPromptSubmit", session: "s1", cwd: "/tmp/jetpack", ts: now - 1000)
         let prompt = try XCTUnwrap(last.agent(XCTUnwrap(Adapter.event(from: line, receivedAt: now - 1000))).recorded.first)
-        last.record(Event(ts: now - 900, source: .boop, type: .action, phase: .start, specificType: "react",
+        last.record(Event.action(ts: now - 900, phase: .start, name: "react",
                           data: ["for": .int(Int64(prompt.seq)), "by": "brain", "ok": true, "message": "Boop smiled."]))
         let runtime = try Runtime(options)
         try runtime.start()
@@ -450,7 +450,7 @@ final class RuntimeTests: XCTestCase {
 
     /// The actions this runtime's debug.jsonl recorded, as events.
     func debugActions() -> [Event] {
-        debugLines().compactMap { ($0["event"] as? [String: Any]).flatMap(Event.init(json:)) }.filter { $0.type == .action }
+        debugLines().compactMap { ($0["event"] as? [String: Any]).flatMap(Event.init(json:)) }.filter { $0.isAction }
     }
 
     var socketPath: String { dir.appendingPathComponent("boop.sock").path }
@@ -612,14 +612,14 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(pass["by"] as? String, "dashboard")
         XCTAssertEqual(pass["questions"] as? [String], ["react.mood", "say.about"])
         XCTAssertEqual((pass["answers"] as? [String: [String: Any]])?["react.mood"]?["p"] as? [String: Double], ["grumpy": 1])
-        let actions = debugActions().filter { $0.phase != .end && $0["by"] == "dashboard" }
+        let actions = debugActions().filter { $0.actionPhase != .end && $0["by"] == "dashboard" }
         let worked = try XCTUnwrap(actions.first?["message"]?.string)
         XCTAssertTrue(Take.all.contains { worked == "Boop made a grumpy face, held once, and said \"\($0.text)\"." && $0.meaning == "work"
             && $0.mood == "grumpy" }, worked)
         XCTAssertEqual(actions.dropFirst().map { $0["message"]?.string }, ["Boop's mood changed: calm → grumpy.",
                                                               "Boop's mood changed: grumpy → happy.",
                                                               "Boop's mood changed: happy → excited."])
-        XCTAssertEqual(actions.map(\.specificType), ["react", "mood", "mood", "mood"])
+        XCTAssertEqual(actions.map(\.actionName), ["react", "mood", "mood", "mood"])
         for action in actions { XCTAssertEqual(action["for"], .null) }
         let moods = lines.compactMap { ($0["sent"] as? [String: Any])?["mood"] as? String }
         XCTAssertEqual(moods.reduce(into: [String]()) { if $0.last != $1 { $0.append($1) } }, ["calm", "grumpy", "happy", "excited"],
@@ -690,7 +690,7 @@ final class RuntimeTests: XCTestCase {
         eventually("needs you") { transport.sent.contains { $0.contains(#""attn":"#) } }
         dev(#"{"dev":"answer","answers":{"react.mood":"happy"}}"#)
         eventually("the refusal") { self.debugActions().contains { $0["message"] == "something needs you" } }
-        let action = try XCTUnwrap(debugActions().last { $0.specificType == "react" })
+        let action = try XCTUnwrap(debugActions().last { $0.actionName == "react" })
         XCTAssertEqual(action["ok"], false)
         XCTAssertFalse(transport.sent.contains { $0.contains(#""say":"#) })
     }
@@ -877,13 +877,13 @@ final class RuntimeTests: XCTestCase {
         let id = try XCTUnwrap(finish.range(of: #"(?<="id":)\d+"#, options: .regularExpression).map { finish[$0] })
         transport.onLine?(#"{"t":"input","k":"tap","id":\#(id)}"#)
         eventually("the finished thread opened") { opened.all == ["claude://code/continue?session=local_7db5"] }
-        let action = try XCTUnwrap(recorded().last { $0.specificType == Core.openThread })
+        let action = try XCTUnwrap(recorded().last { $0.actionName == Core.openThread })
         XCTAssertEqual(action["message"]?.string, Core.openedFinished)
         let poke = try XCTUnwrap(runtime.home.sync { runtime.view.events.last })
         XCTAssertEqual(poke.type, .poke)
         XCTAssertFalse(poke.wakesBrain, "it doesn't wake the brain")
         transport.onLine?(#"{"t":"input","k":"tap","id":1}"#)  // a moment the app isn't waiting on: a poke
-        eventually("a poke") { recorded().contains { $0.specificType == Core.wiggle } }
+        eventually("a poke") { recorded().contains { $0.actionName == Core.wiggle } }
         XCTAssertEqual(opened.all.count, 1)
     }
 
@@ -972,13 +972,13 @@ final class RuntimeTests: XCTestCase {
             clock.now = max(clock.now, runtime.home.sync { runtime.schedule.lineUntil })
             return try runtime.home.sync {
                 XCTAssertEqual(runtime.harness.force(["react.mood": "happy"]).map(\.name), ["react"])
-                let seq = try XCTUnwrap(self.recorded().last { $0.type == .action && $0.specificType == "react" && $0.phase != .end }?.seq)
+                let seq = try XCTUnwrap(self.recorded().last { $0.isAction && $0.actionName == "react" && $0.actionPhase != .end }?.seq)
                 return (seq, try XCTUnwrap(transport.sent.last { $0.hasPrefix(#"{"t":"moment""#) }))
             }
         }
         func end(of seq: Int) -> Pending.End? {
             runtime.home.sync {
-                self.recorded().first { $0.phase == .end && $0["for"] == .int(Int64(seq)) }.map(Self.end)
+                self.recorded().first { $0.actionPhase == .end && $0["for"] == .int(Int64(seq)) }.map(Self.end)
             }
         }
 
@@ -1441,7 +1441,7 @@ final class RuntimeTests: XCTestCase {
         }
         func ends() -> [Pending.End] {
             runtime.home.sync {
-                self.recorded().filter { $0.phase == .end && $0.specificType == "react" }.map(Self.end)
+                self.recorded().filter { $0.actionPhase == .end && $0.actionName == "react" }.map(Self.end)
             }
         }
 
@@ -1608,7 +1608,7 @@ final class RuntimeTests: XCTestCase {
         let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
         func ends() -> [Pending.End] {
             runtime.home.sync {
-                self.recorded().filter { $0.phase == .end && $0.specificType == "react" }.map(Self.end)
+                self.recorded().filter { $0.actionPhase == .end && $0.actionName == "react" }.map(Self.end)
             }
         }
         connection(true)

@@ -407,7 +407,7 @@ turn's `task_complete` or `reply_ready` is the brain's
 
 Only a turn that's open finishes: a second `Stop`, or one after the turn
 stopped, does nothing. The brain hears only of turns the view saw
-start. A launch reads the last two days of the transcript back, so a
+start. A launch reads the transcript's last 24 hours back, so a
 turn that ran across a relaunch still finishes, its length counting the
 time the app was down; one older than that just goes idle when it
 finishes, and the brain isn't told ([harness/EVENTS.md](harness/EVENTS.md)

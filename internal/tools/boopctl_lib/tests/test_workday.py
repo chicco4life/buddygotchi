@@ -74,12 +74,11 @@ def entry(seq: int, at_min: int, view: dict | None = None, action: dict | None =
     elif action is not None:
         data = {"for": action["for"], "ok": action["ok"], "message": "not a fact → sad held four times, said \"Nope\".",
                 "by": action.get("by", "brain"), **({"takes": action["takes"]} if "takes" in action else {})}
-        body = {"event": {"seq": seq, "ts": at, "source": "boop", "type": "action",
-                          **({"phase": "start"} if action.get("pending") else {}), "specific_type": action["name"],
-                          "data": data}}
+        data.update({"action": action["name"], **({"open": True} if action.get("pending") else {})})
+        body = {"event": {"seq": seq, "at": at, "source": "self", "kind": "did", "data": data}}
     elif settle is not None:
-        body = {"event": {"seq": seq, "ts": at, "source": "boop", "type": "action", "phase": "end", "specific_type": "react",
-                          "data": {"for": settle["for"], "outcome": settle["end"], "by": "brain"}}}
+        body = {"event": {"seq": seq, "at": at, "source": "self", "kind": "ended",
+                          "data": {"for": settle["for"], "outcome": settle["end"], "by": "brain", "action": "react"}}}
     return json.dumps({"received_at_ms": at, **body})
 
 

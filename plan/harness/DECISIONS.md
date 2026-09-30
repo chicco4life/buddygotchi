@@ -551,8 +551,8 @@ action, and the end the device's `ended` (`done`) brought 3.6 s later:
 
 ```jsonl
 {"sent":{"t":"moment","say":{"take":"new.d20"},"mood":"proud","loops":2,"id":1588780972},"received_at_ms":1790659325407}
-{"event":{"seq":1,"ts":1790659325407,"source":"boop","type":"action","phase":"start","specific_type":"react","data":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a proud face, held twice, and said \"Mwahaha...\".","ok":true}},"received_at_ms":1790659325407}
-{"event":{"seq":2,"ts":1790659329047,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"dashboard","for":1,"outcome":"done"}},"received_at_ms":1790659329047}
+{"event":{"seq":1,"at":1790659325407,"source":"self","kind":"did","data":{"action":"react","by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a proud face, held twice, and said \"Mwahaha...\".","ok":true,"open":true}},"received_at_ms":1790659325407}
+{"event":{"seq":2,"at":1790659329047,"source":"self","kind":"ended","data":{"action":"react","by":"dashboard","for":1,"outcome":"done"}},"received_at_ms":1790659329047}
 ```
 
 ## 6. An example

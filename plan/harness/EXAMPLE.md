@@ -44,7 +44,7 @@ raw `tool` events ([ADAPTERS.md](../ADAPTERS.md) §1–3); the eval hands
 the pipeline the same events ([EVALS.md](../EVALS.md) §1). The end:
 
 ```json
-{"event":{"seq":3,"ts":1791986460000,"source":"claude","type":"tool","phase":"end","specific_type":"PostToolUseFailure","session":"s1","cwd":"/eval/landing/.worktrees/fix-nav","data":{"error":"exit_code","failed":true,"tool":"Bash","topic":"tests"}},"received_at_ms":1791986460000}
+{"event":{"seq":3,"at":1791986460000,"source":"claude","kind":"tool_end","data":{"cwd":"/eval/landing/.worktrees/fix-nav","error":"exit_code","failed":true,"session":"s1","specific_type":"PostToolUseFailure","tool":"Bash","topic":"tests"}},"received_at_ms":1791986460000}
 ```
 
 The view folds it into view event 2, with its line and facts. A failed
@@ -115,13 +115,13 @@ Jev answered in 200 ms:
 ## 6. From answers to Boop (14:01)
 
 The harness gave each action its own answers, in order
-([DECISIONS.md](DECISIONS.md) §4–5), and recorded what each did as an
-`action` event:
+([DECISIONS.md](DECISIONS.md) §4–5), and recorded what each did as a
+`did` (a started one's end as its `ended`, [EVENTS.md](EVENTS.md) §2):
 
 ```jsonl
-{"event":{"seq":4,"ts":1791986460000,"source":"boop","type":"action","specific_type":"mood","data":{"by":"brain","for":3,"latency_ms":0,"message":"Boop's mood changed: calm → annoyed.","ok":true}},"received_at_ms":1791986460000}
-{"event":{"seq":5,"ts":1791986460000,"source":"boop","type":"action","phase":"start","specific_type":"react","data":{"by":"brain","for":3,"latency_ms":1,"message":"Boop made an annoyed face, held once, and said \"Huh... Verify\".","ok":true}},"received_at_ms":1791986460000}
-{"event":{"seq":6,"ts":1791986460000,"source":"boop","type":"action","phase":"end","specific_type":"react","data":{"by":"brain","for":5,"outcome":"done"}},"received_at_ms":1791986460000}
+{"event":{"seq":4,"at":1791986460000,"source":"self","kind":"did","data":{"action":"mood","by":"brain","for":3,"latency_ms":0,"message":"Boop's mood changed: calm → annoyed.","ok":true}},"received_at_ms":1791986460000}
+{"event":{"seq":5,"at":1791986460000,"source":"self","kind":"did","data":{"action":"react","by":"brain","for":3,"latency_ms":1,"message":"Boop made an annoyed face, held once, and said \"Huh... Verify\".","ok":true,"open":true}},"received_at_ms":1791986460000}
+{"event":{"seq":6,"at":1791986460000,"source":"self","kind":"ended","data":{"action":"react","by":"brain","for":5,"outcome":"done"}},"received_at_ms":1791986460000}
 ```
 
 1. **`mood` got** `annoyed`, one of calm's moves, so it saved it. From

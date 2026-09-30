@@ -252,8 +252,8 @@ public final class Runtime: @unchecked Sendable {
         core = Core(config: config, lastActiveDay: today, place: places.place)
         core.setWallClock(wall, at: wallAt)
         view = TranscriptView(rules: rules, seed: longTerm.seed ^ UInt64(now), place: places.place)
-        let transcript = Transcript(folder: options.stateDir.appendingPathComponent(Transcript.folderName),
-                                    time: options.time, log: log)
+        let transcript = Transcript.log(folder: options.stateDir.appendingPathComponent(Transcript.folderName),
+                                        time: options.time, note: log)
         pipeline = Pipeline(core: core, transcript: transcript, view: view)
         pipeline.brain = false  // until Jev's key is read
         for over in options.steering.overBudget() { log("steering: over budget: \(over)") }

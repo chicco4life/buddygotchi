@@ -173,7 +173,7 @@ final class CoreRig {
 
     /// Boop starts a reaction, as the harness records one.
     func react() {
-        pipeline.record(Event(ts: now, source: .boop, type: .action, phase: .start, specificType: ReactAction.actionName,
+        pipeline.record(Event.action(ts: now, phase: .start, name: ReactAction.actionName,
                               data: ["for": .null, "by": "brain", "ok": true, "message": "Boop made a happy face."]))
     }
 
@@ -209,8 +209,8 @@ final class CoreRig {
     var sessions: [[String]] { core.sessionList(at: now).map { [$0.agent, $0.project, $0.status.rawValue] } }
     /// The rule actions recorded, by name, in order.
     var ruleActions: [String] {
-        pipeline.transcript.events.filter { $0.type == .action && $0["by"]?.string == "rule" }
-            .map { $0.specificType + ($0.phase.map { " " + $0.rawValue } ?? "") }
+        pipeline.transcript.events.filter { $0.isAction && $0["by"]?.string == "rule" }
+            .map { $0.actionName + ($0.actionPhase.map { " " + $0.rawValue } ?? "") }
     }
 }
 
@@ -1468,7 +1468,7 @@ final class CoreYouAndBoopTests: XCTestCase {
                                   appSession: "local_s1")
             event.data["name"] = "Fix the nav"
             rig.send(event)
-            let data = rig.pipeline.transcript.events.last { $0.source == .claude }!.data
+            let data = rig.pipeline.transcript.events.last { $0.from == .claude }!.data
             return constants.filter { data[$0] != nil }
         }
         XCTAssertEqual(recorded(.turnStart), constants, "a session the core doesn't hold yet")
