@@ -53,8 +53,8 @@ else the line's own `ts`, when the client started.
 ## 2. The hook client and the socket
 
 Every hook entry runs one small compiled binary, `agent-hook claude` or
-`agent-hook codex` (any other agent sends nothing), followed by
-`--keep-text` if the install asked for it (§5).
+`agent-hook codex` (with no agent it's `claude`; any other sends nothing),
+followed by `--keep-text` if the install asked for it (§5).
 
 1. **Read.** The hook's JSON from stdin, up to 256 KB; the rest is
    drained and ignored. A 1 s alarm exits 0 whatever happens, even if
@@ -492,7 +492,7 @@ or `$AGENT_HOOKS_DIR`, not `--home`.
 
 | Command | What it does |
 | --- | --- |
-| `install [claude\|codex] [--keep-text] [--hook PATH]` | Installs for the agent named, or every one detected (§5). `--hook` is the client the entries run; the default is the `agent-hook` next to `agent-hooks`. Then prints each agent's health and asks you to restart open sessions |
+| `install [claude\|codex] [--keep-text] [--hook PATH]` | Installs for the agent named, or every one detected (§5). `--hook` is the client the entries run; the default is the `agent-hook` next to the `agent-hooks` executable, links followed, however it was run. Then prints each agent's health and asks you to restart open sessions |
 | `remove [claude\|codex]` | Takes the entries out (§5) |
 | `status [--hook PATH]` | Each agent's health (`installed`, `installed, keeping text`, `not installed`, `outdated`…, or `not found` when it isn't detected), then the sockets listening in the socket folder |
 | `tail [--sessions] [--name NAME]` | Listens in the socket folder as `NAME.sock` (default `tail-<pid>`) and prints every event as a JSON line (§1). With `--sessions` it also keeps a `SessionTracker` and prints each session's state as it changes. Ctrl-C stops it and removes its socket |

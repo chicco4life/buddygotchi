@@ -26,18 +26,22 @@ macOS 13 or later:
 ```sh
 cd agent-hooks
 swift build -c release
-.build/release/agent-hooks install          # or: install claude, install --keep-text
+mkdir -p ~/.local/bin && cp .build/release/agent-hooks .build/release/agent-hook ~/.local/bin/
+~/.local/bin/agent-hooks install            # or: install claude, install --keep-text
 ```
 
-`install` adds an entry that runs `.build/release/agent-hook` to every
-hook agent-hooks uses, in `~/.claude/settings.json` and
-`~/.codex/hooks.json` (and turns Codex's hooks on in
-`~/.codex/config.toml`), and never touches anyone else's hooks. Restart
-open agent sessions: they read their hooks when they start. Keep the
-client where it is, or copy it somewhere stable and pass `--hook PATH`.
-`agent-hooks remove` takes the entries out again.
+`install` adds an entry that runs the `agent-hook` next to `agent-hooks`
+(here `~/.local/bin/agent-hook`) to every hook agent-hooks uses, in
+`~/.claude/settings.json` and `~/.codex/hooks.json` (and turns Codex's
+hooks on in `~/.codex/config.toml`), and never touches anyone else's
+hooks. Copy the two somewhere stable first, as above: the entries keep
+the client's path, and cleaning the build folder would take its copy
+away. `--hook PATH` names another client. Restart open agent sessions:
+they read their hooks when they start. `agent-hooks remove` takes the
+entries out again.
 
-Then watch with `agent-hooks tail --sessions`. It prints each event as a
+Then, with `~/.local/bin` on your `PATH`, watch with
+`agent-hooks tail --sessions`. It prints each event as a
 JSON line, and with `--sessions` each session's state as it changes. This
 is Claude asking to run the tests, from a real run:
 

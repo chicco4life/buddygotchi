@@ -11,10 +11,18 @@ PIO := firmware/tools/pio.sh
 # root `build` (one `swift build` of the whole package, the tests' runner
 # included), then the runner. Then agent-hooks' own tests, which use Swift
 # Testing and so run under `swift test`, in a build folder of their own.
+# That build now and then fails with "plugin for module 'TestingMacros'
+# not found", a toolchain flake that passes when run again, so that
+# failure alone is tried again, up to twice.
 test: voice
 	$(MAKE) -C $(ROOT) build
 	cd $(ROOT) && .build/debug/BoopTests
-	cd $(ROOT)/agent-hooks && swift test --scratch-path .build/tests
+	cd $(ROOT)/agent-hooks && mkdir -p .build && for try in 1 2 3; do \
+	  swift test --scratch-path .build/tests > .build/test.log 2>&1; status=$$?; cat .build/test.log; \
+	  [ $$status -eq 0 ] && exit 0; \
+	  grep -q "plugin for module 'TestingMacros' not found" .build/test.log || exit $$status; \
+	  echo "agent-hooks: the TestingMacros flake; trying again"; \
+	done; exit 1
 
 # The voice pack, .build/voice/voice.bin, which the board plays from its SD
 # card and the simulator and tests read from here (plan/VOICE.md §8), and

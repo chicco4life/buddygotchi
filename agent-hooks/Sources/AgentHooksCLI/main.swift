@@ -58,9 +58,10 @@ guard args.count > 1, !["-h", "--help", "help"].contains(args[1]) else {
 let command = args[1]
 let given = Arguments(args.dropFirst(2), options: ["--hook", "--home", "--name"], flags: ["--keep-text", "--sessions"])
 
-/// The `agent-hook` built next to this command.
+/// The `agent-hook` built next to this command: next to the executable
+/// itself, since run from `PATH` its `argv[0]` is only its name.
 func builtClient() -> String {
-    let me = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+    let me = (Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])).resolvingSymlinksInPath()
     return me.deletingLastPathComponent().appendingPathComponent(HookInstaller.client).path
 }
 

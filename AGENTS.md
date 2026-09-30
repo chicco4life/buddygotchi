@@ -66,8 +66,9 @@ make -C internal test                                 # Swift unit tests, Boop's
   XCTest shim's runner and builds the package in one `swift build`, then
   runs `.build/debug/BoopTests`. Then it runs agent-hooks' tests, which
   use Swift Testing, as `swift test --scratch-path .build/tests` in
-  `agent-hooks/`. If that build fails with "TestingMacros plugin not
-  found", delete `agent-hooks/.build/tests` and rerun it.
+  `agent-hooks/`. That build now and then fails with "plugin for module
+  'TestingMacros' not found", a toolchain flake, even from a clean build
+  folder; it passes when run again, and the target retries it.
 - Command Line Tools lack some Swift macro plugins, so SwiftUI's `@State`
   doesn't compile. Write `@ViewState` (the alias in
   `app/Boop/Views/ViewState.swift`).

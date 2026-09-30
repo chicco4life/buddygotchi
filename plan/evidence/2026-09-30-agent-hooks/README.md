@@ -35,6 +35,17 @@ Boop depends on it ([ADAPTERS.md](../../ADAPTERS.md), decision log
   Boop's first launch from this branch replaces both kinds with its own.
 - The moved `InstallerTests` had 29 `try #expect(try …)` warnings; the
   outer `try` went.
+- **Review, the same day.** Run from `PATH`, the command line looked for
+  `agent-hook` in the current folder (`argv[0]` is only its name there), so
+  `install`, `status` and `doctor` failed; it now finds it next to its own
+  executable, links followed, which a copy on `PATH` and a link to it both
+  showed in a temporary home. The README installs the two into
+  `~/.local/bin`. `AdapterTests` now pins Boop's first-launch migration
+  from `boop-hook` entries and that an agent event reads back whole from
+  the transcript (Boop 303 of 303). The TestingMacros flake struck from a
+  clean build folder too, so `make -C internal test` retries that failure
+  alone, up to twice (checked with a stand-in `swift`: a flake passes on
+  the second run, a real failure fails at once).
 - Main moved during the work (4bea7b21, a tap on a finished turn opens its
   thread); the branch was rebased onto it, its `ThreadRef(session)` became
   the tracker's `Session.thread`, and two files it added import

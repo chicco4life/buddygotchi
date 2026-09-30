@@ -287,6 +287,53 @@ final class AdapterTests: XCTestCase {
         XCTAssertEqual(Adapter.event(from: sub)?["agent_type"], "Explore")
     }
 
+    /// ADAPTERS.md §1: the transcript keeps every fact of an agent's event,
+    /// so a launch that folds the sessions again from it (§4) reads back the
+    /// same event.
+    func testAnAgentEventReadsBackWholeFromTheTranscript() throws {
+        let full = AgentEvent(agent: .claude, kind: .tool, phase: .wait, hook: "PermissionRequest", session: "s1", at: 7,
+                              subagent: "a1", subagentType: "Explore", cwd: "/w/landing", name: "Fix the nav",
+                              app: "com.anthropic.claudefordesktop", appSession: "local_1", mode: "plan", source: "startup",
+                              prompt: "Run the tests", tool: "Bash", toolUseID: "toolu_1", topic: "tests", failed: true,
+                              error: "timeout", asking: .input, notice: "elicitation_dialog", outcome: .stopped,
+                              message: "Done.")
+        var event = Event(full)
+        event.seq = 3
+        let read = try XCTUnwrap(Event(jsonLine: event.jsonLine))
+        XCTAssertEqual(AgentEvent(read), full)
+    }
+
+    /// ADAPTERS.md §5: Boop's installer counts the entries Boop wrote before
+    /// agent-hooks as its own, so the first launch's repair replaces them
+    /// with `agent-hook … --keep-text`, and leaves everyone else's alone.
+    func testTheFirstLaunchReplacesBoopHookEntries() throws {
+        let home = tempDir("migrate")
+        let fm = FileManager.default
+        let hook = home.appendingPathComponent("Boop/bin/agent-hook")
+        try fm.createDirectory(at: hook.deletingLastPathComponent(), withIntermediateDirectories: true)
+        fm.createFile(atPath: hook.path, contents: Data("#!/bin/sh\n".utf8), attributes: [.posixPermissions: 0o755])
+        let old = #""/Users/me/Library/Application Support/Boop/bin/boop-hook" claude"#
+        let older = "~/.boop/boop-hook.sh claude"
+        let theirs = "/usr/local/bin/other-tool --hook"
+        let settings: [String: Any] = ["hooks": [
+            "Stop": [["hooks": [["type": "command", "command": old, "timeout": 5], ["type": "command", "command": theirs]]]],
+            "PreToolUse": [["hooks": [["type": "command", "command": older]]]],
+        ]]
+        let url = home.appendingPathComponent(".claude/settings.json")
+        try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: settings).write(to: url)
+
+        let installer = HookInstaller.boop(home: home, hookPath: hook.path)
+        XCTAssertEqual(installer.health(.claude), .outdated)
+        XCTAssertEqual(installer.repair(), [.claude])
+        XCTAssertEqual(installer.health(.claude), .installed)
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let groups = (root["hooks"] as? [String: Any] ?? [:]).values.flatMap { $0 as? [[String: Any]] ?? [] }
+        let commands = groups.flatMap { ($0["hooks"] as? [[String: Any]] ?? []).compactMap { $0["command"] as? String } }
+        XCTAssertEqual(Set(commands), [installer.command(.claude), theirs])
+        XCTAssertEqual(commands.filter { $0 == installer.command(.claude) }.count, Mapping.claude.count)
+        XCTAssertTrue(installer.command(.claude).hasSuffix(" claude --keep-text"), installer.command(.claude))
+    }
 }
 
 final class Received: @unchecked Sendable {
