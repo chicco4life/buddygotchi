@@ -138,6 +138,7 @@ class Day:
     misses: list[Miss] = field(default_factory=list)
     drops: list[Miss] = field(default_factory=list)
     forced: int = 0  # passes forced from the dashboard
+    held: Counter = field(default_factory=Counter)  # events held back when their turn came, by why
     forced_reacts: int = 0  # the reactions they asked for
     quiet: int = 0
     skipped: int = 0
@@ -233,6 +234,11 @@ def summarise(launches: list[Launch], date: str) -> Day:
                     continue
                 if not body.get("brain"):
                     day.forced += 1
+                    continue
+                if body.get("held"):
+                    # Held back when its turn came (something needed you):
+                    # the brain wasn't asked (kit/BRAIN-KIT.md §9).
+                    day.held[body["held"]] += 1
                     continue
                 h.passes += 1
                 if not body.get("dropped"):
@@ -385,6 +391,8 @@ def render(day: Day) -> str:
     out.append(f"Brain: {passes} passes{lat}, {len(day.drops)} dropped, {day.quiet} chose no reaction; {forced}")
     for why, n in Counter(d.why for d in day.drops).most_common():
         out.append(f"  dropped {n}×: {why}")
+    for why, n in day.held.most_common():
+        out.append(f"  held back {n}×, the brain not asked: {why}")
     if day.skipped:
         out.append(f"  {day.skipped} events woke it but got no pass: a newer one took their place while a pass ran")
 

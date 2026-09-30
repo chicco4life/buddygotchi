@@ -84,8 +84,10 @@ extension Event {
     /// The agent it came from, for an agent's event.
     public var agent: Agent? { Agent(rawValue: source) }
 
-    /// The name of the kit event's output or rule: `react`, `wiggle`.
-    public var action: String? { data["action"]?.string }
+    /// `turn end`, `poke`: its type and phase, or its kind for the kit's own.
+    public var name: String {
+        type.map { t in [t.rawValue, phase?.rawValue].compactMap { $0 }.joined(separator: " ") } ?? kind
+    }
 
     /// `12 tool end PostToolUse claude s1 · tool Bash, failed true`, for
     /// debug mode and replays.
@@ -127,6 +129,16 @@ extension Event {
             }
             data["action"] = .string(specific)
             if phase == "end" { return Event(seq: seq, at: ts, source: Event.kit, kind: Event.ended, data: data) }
+            // A mood change said what it changed from and to only in its
+            // message; the mood is its latest `to` now (DECISIONS.md §4).
+            if specific == MoodAction.actionName, let message = data["message"]?.string,
+               message.hasPrefix("Boop's mood changed: "), message.hasSuffix(".") {
+                let parts = message.dropFirst("Boop's mood changed: ".count).dropLast().components(separatedBy: " → ")
+                if parts.count == 2 {
+                    data["from"] = .string(parts[0])
+                    data["to"] = .string(parts[1])
+                }
+            }
             if phase == "start" { data["open"] = true }
             return Event(seq: seq, at: ts, source: Event.kit, kind: Event.did, data: data)
         }

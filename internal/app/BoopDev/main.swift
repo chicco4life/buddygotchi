@@ -302,7 +302,7 @@ func eval(_ raw: [String]) async {
     print(Eval.summary(results, gaps: gapsFailed) + " in every run with \(brain.id)")
     let latencies = results.flatMap { $0.flatMap { $0.checks.map(\.latencyMs) } }.sorted()
     if !latencies.isEmpty {
-        print("latency: median \(latencies[latencies.count / 2]) ms, slowest \(latencies.last!) ms (deadline \(Harness.deadlineMs) ms)")
+        print("latency: median \(latencies[latencies.count / 2]) ms, slowest \(latencies.last!) ms (deadline \(Harness.Options().deadlineMs) ms)")
     }
     print("to read them: boopdev watch \(log.path)")
     exit(failed ? 1 : 0)

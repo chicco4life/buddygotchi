@@ -1,37 +1,25 @@
 import Foundation
 
-/// Whether Boop's mood changes, and to what (harness/DECISIONS.md §4). The
-/// mood's file becomes MOOD in Jev's state from the next pass, and the
-/// device gets it in the next `state`. Jev can only keep the mood or move
-/// it one step along the mood graph (`MoodGraph`); how long a mood lasts,
-/// and which move fits NOW, is the steering's to say, not a rule's.
-public final class MoodAction: Action {
+/// Boop's mood (harness/DECISIONS.md §4): the brain kit's `Choice`
+/// (kit/BRAIN-KIT.md §6), its value the latest change in the log. MOOD in
+/// Jev's state is the mood's file from the next pass, and the device gets
+/// it in the next `state` (the runtime's rule on the change). Jev can only
+/// keep the mood or move it one step along the mood graph (`MoodGraph`):
+/// those are all it's offered. How long a mood lasts, and which move fits
+/// NOW, is the steering's to say, not a rule's.
+public enum MoodAction {
     public static let actionName = "mood"
-    public let name = MoodAction.actionName
-    let store: MoodStore
-    /// Called with the new mood once it's saved, so the device hears of it.
-    let changed: (String) -> Void
-    /// The time, on the harness's clock.
-    let clock: () -> Int64
-    /// When this action last changed the mood, on `clock`; nil before it
-    /// has since launch.
-    var changedAt: Int64?
 
-    public init(store: MoodStore, clock: @escaping () -> Int64 = { 0 }, changed: @escaping (String) -> Void = { _ in }) {
-        self.store = store
-        self.clock = clock
-        self.changed = changed
-    }
-
-    /// How long Boop has been in its mood, for the lines that close HISTORY
+    /// How long Boop has been in its mood, for the line that closes HISTORY
     /// (harness/HARNESS.md §5.3): `Boop has been proud for 7 min.`, so
     /// the mood files' minutes need no sums. Nil while calm, the resting
-    /// mood every other fades toward, and before a change since launch.
-    public func sinceLine(at now: Int64) -> String? {
-        guard store.current != MoodAction.initial, let at = changedAt else { return nil }
+    /// mood every other fades toward, and before any change in the log.
+    public static func sinceLine(_ mood: Choice, _ log: LogView, at now: Int64) -> String? {
+        let current = value(mood, log)
+        guard current != initial, let at = mood.since(log) else { return nil }
         let ms = now - at
         let span = ms < 60_000 ? "under a minute" : ms < 60 * 60_000 ? "\(ms / 60_000) min" : "\(ms / 3_600_000) h"
-        return "Boop has been \(store.current) for \(span)."
+        return "Boop has been \(current) for \(span)."
     }
 
     /// Each mood and its meaning, the `mood` question's criterion, in the
@@ -81,68 +69,29 @@ public final class MoodAction: Action {
             }
     }
 
-    /// Built on every pass from the saved mood, so the options are always
-    /// that mood's own.
-    public func questions() -> [Question] {
-        [Question(key: "mood", text: "After NOW, what is Boop's mood?", about: "the NOW and HISTORY sections",
-                  judgeBy: "the MOOD section, its reason to leave", options: Self.options(from: store.current))]
+    /// Boop's mood as the kit's `Choice`: its question, offered stay and
+    /// the mood graph's moves from the mood it has (`options(from:)`), and
+    /// the line a change shows.
+    public static func choice() -> Choice {
+        Choice(name: actionName, start: initial, question: "After NOW, what is Boop's mood?",
+               about: "the NOW and HISTORY sections", judgeBy: "the MOOD section, its reason to leave",
+               said: { from, to in "Boop's mood changed: \(from) → \(to)." },
+               options: { current, _, _ in options(from: known(current)) })
     }
 
-    /// Jev's answer: staying, or a move the graph has from the mood as it
-    /// is. Anything else changes nothing.
-    public func run(_ answers: Answers) -> ActionResult? {
-        guard let to = answers["mood"]?.choice, to != store.current, MoodGraph.isMove(from: store.current, to: to) else {
-            return nil
-        }
-        return change(to: to)
-    }
+    /// The mood as the log has it: the choice's value, read as the resting
+    /// mood if it isn't one of the moods.
+    public static func value(_ mood: Choice, _ log: LogView) -> String { known(mood.value(log)) }
 
-    /// Changes the mood now to any of the moods, as `run` does for Jev but
-    /// off the graph, with a result for the current mood or one that isn't
-    /// a mood: the dashboard sets one through here.
-    public func change(to: String) -> ActionResult {
-        guard Self.moods.contains(where: { $0.name == to }) else { return .failed("\(to) isn't a mood") }
-        guard to != store.current else { return .failed("already \(to)") }
-        let from = store.current
-        do {
-            try store.set(to)
-        } catch {
-            return .failed("couldn't save the mood: \(error)")
-        }
-        changedAt = clock()
-        changed(to)
-        return .done("Boop's mood changed: \(from) → \(to).")
-    }
-}
+    static func known(_ word: String) -> String { moods.contains { $0.name == word } ? word : initial }
 
-/// The only reader and writer of the state directory's `mood` file: one
-/// word. A missing file reads as the resting mood; so does a word that
-/// isn't a mood, which is logged; and `cheerful`, happy's old name, reads
-/// as happy.
-public final class MoodStore: @unchecked Sendable {
-    public static let fileName = "mood"
-    let file: URL
-    public private(set) var current: String
-
-    public init(stateDir: URL, log: (String) -> Void = { _ in }) {
-        file = stateDir.appendingPathComponent(Self.fileName)
-        let saved = (try? String(contentsOf: file, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let word = saved, !word.isEmpty {
-            if word == "cheerful" {
-                current = "happy"
-            } else if MoodAction.moods.contains(where: { $0.name == word }) {
-                current = word
-            } else {
-                current = MoodAction.initial
-                log("mood: the mood file says \(word), which isn't a mood; reading it as \(MoodAction.initial)")
-            }
-        } else {
-            current = MoodAction.initial
-        }
-    }
-
-    public func set(_ mood: String) throws {
-        try Data((mood + "\n").utf8).write(to: file, options: .atomic)
-        current = mood
+    /// Changes the mood now to any of the moods, off the graph, with a
+    /// result for the current mood or one that isn't a mood: the dashboard
+    /// sets one through here.
+    public static func change(_ mood: Choice, to: String, log: LogView) -> ActionResult {
+        guard moods.contains(where: { $0.name == to }) else { return .failed("\(to) isn't a mood") }
+        let from = value(mood, log)
+        guard to != from else { return .failed("already \(to)") }
+        return mood.set(to, log: log) ?? .failed("already \(to)")
     }
 }

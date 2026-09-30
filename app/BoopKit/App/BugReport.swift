@@ -11,7 +11,7 @@ extension Runtime {
     /// `bug-reports/`. `debug.jsonl` is this launch's debug lines, debug
     /// mode or not (`recent`, or in debug mode the file's end, up to
     /// `DebugLog.Recent.maxBytes`), which `boopdev watch` reads; `boop.log`
-    /// is the log's end; `settings.json` and `mood` are copied;
+    /// is the log's end; `settings.json` is copied;
     /// `about.json` is the versions and the status now. Calls `done` on
     /// `home` with the folder, or nil if it couldn't be made.
     public func saveReport(_ done: @escaping @Sendable (URL?) -> Void) {
@@ -31,14 +31,13 @@ extension Runtime {
                 }
                 try? Self.end(of: options.stateDir.appendingPathComponent("boop.log"), bytes: Self.reportLogBytes)?
                     .write(to: dir.appendingPathComponent("boop.log"))
-                for name in [AppSettings.file, MoodStore.fileName] {
-                    try? fm.copyItem(at: options.stateDir.appendingPathComponent(name), to: dir.appendingPathComponent(name))
-                }
+                try? fm.copyItem(at: options.stateDir.appendingPathComponent(AppSettings.file),
+                                 to: dir.appendingPathComponent(AppSettings.file))
                 let now = options.clock()
                 let about: [String: Any] = [
                     "app": BoopVersion.current, "firmware": link.status?.fw ?? NSNull(), "device": link.status?.id ?? NSNull(),
                     "link": options.link?.name ?? "none", "connected": link.connected, "debug": options.debug,
-                    "personality": personality.rawValue, "mood": mood.current, "brain": harness.brain?.id ?? "none",
+                    "personality": personality.rawValue, "mood": moodNow, "brain": harness.brain?.id ?? "none",
                     "taken_at_ms": now, "taken_at_wall_ms": options.wallClock(),
                     "sessions": core.sessionList(at: now).map { ["agent": $0.agent, "project": $0.project, "status": $0.status.rawValue] },
                 ]

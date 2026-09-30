@@ -244,7 +244,12 @@ gets at least one scenario. Their pictures are the golden images in
   against `internal/app/Tests/Fixtures/golden-states/`, byte for byte, so
   a change to how the prompt is built can't pass unnoticed without Jev.
   A deliberate change rewrites them:
-  `BOOP_GOLDEN_RECORD=1 BOOP_TEST_FILTER=Golden .build/debug/BoopTests`.
+  `BOOP_GOLDEN_RECORD=1 BOOP_TEST_FILTER=Golden .build/debug/BoopTests`
+  (`BOOP_GOLDEN_OUT=DIR` keeps what a failing run built, to diff).
+  `BrainKitTests` checks the brain kit on its own, with toy outputs and
+  no Boop ([kit/BRAIN-KIT.md](kit/BRAIN-KIT.md)): the log, lines, rules,
+  the prompt's layout, the loop, what takes a while, forced passes,
+  `Choice`, the tick and the socket in.
 - **Firmware (`make -C internal fw-test`):** line reassembly across
   Bluetooth packets, screenshot encoding, the clock and gestures
   (`test_link`); the messages, debug channel and inputs (`test_device`);

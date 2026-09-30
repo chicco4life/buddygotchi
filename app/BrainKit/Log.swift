@@ -38,6 +38,8 @@ public final class Log: @unchecked Sendable {
     var didsFor: [Int: [Int]] = [:]
     var endedFor: [Int: Int] = [:]
     var passed: Set<Int> = []
+    /// The `did`s still open: `open`, with no `ended` yet (§5.3).
+    public private(set) var openDids: Set<Int> = []
 
     public init(folder: URL? = nil, options: Options = Options(), note: @escaping (String) -> Void = { _ in }) {
         self.folder = folder
@@ -75,12 +77,18 @@ public final class Log: @unchecked Sendable {
     func keep(_ e: Event) {
         events.append(e)
         byKind[e.kind, default: []].append(e.seq)
+        if e.kind == Event.did, e.source == Event.kit, e["open"]?.bool == true, e["ok"]?.bool != false { openDids.insert(e.seq) }
         guard e.source == Event.kit, let about = e.about else { return }
         switch e.kind {
-        case Event.did: didsFor[about, default: []].append(e.seq)
-        case Event.ended: if endedFor[about] == nil { endedFor[about] = e.seq }
-        case Event.pass: passed.insert(about)
-        default: break
+        case Event.did:
+            didsFor[about, default: []].append(e.seq)
+        case Event.ended:
+            if endedFor[about] == nil { endedFor[about] = e.seq }
+            openDids.remove(about)
+        case Event.pass:
+            passed.insert(about)
+        default:
+            break
         }
     }
 
@@ -99,6 +107,7 @@ public final class Log: @unchecked Sendable {
         didsFor = didsFor.filter { $0.key > last }
         endedFor = endedFor.filter { $0.key > last }
         passed = passed.filter { $0 > last }
+        openDids = openDids.filter { $0 > last }
     }
 
     /// The days that have a file, oldest first.

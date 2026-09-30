@@ -2,7 +2,7 @@
 
 Updated 2026-09-30. How we check that Jev decides as Boop should: short
 scenarios of agent work, run through the real pipeline (the transcript,
-the core and the view), harness and actions,
+the core and the view), the brain kit's harness and Boop's actions,
 each pass checked against what it should come to. The harness is
 [harness/HARNESS.md](harness/HARNESS.md), and the decisions checked are
 [harness/DECISIONS.md](harness/DECISIONS.md).
@@ -11,15 +11,17 @@ each pass checked against what it should come to. The harness is
 
 A scenario is a few hook-level steps on a virtual clock. Each run starts
 fresh: a new core and view, an empty transcript kept in memory, and the
-scenario's mood (`calm`, the resting mood, unless the file says) in a
-temporary state directory, set as the dashboard would set it just
-before the first step, so HISTORY can say how long Boop has been in it.
-The runner (`Eval` in
-`internal/app/BoopDevKit/Eval/Eval.swift`) wires them as the app does,
-with the real `mood` and `react` actions, except that a reaction's queue
-goes nowhere and ends the reaction's handle at once, `done` unless the
-step says otherwise (`reaction`, §3), so HISTORY shows it as played
-([harness/DECISIONS.md](harness/DECISIONS.md) §5).
+scenario's mood (`calm`, the resting mood, unless the file says), set as
+the dashboard would set it just before the first step, so HISTORY can
+say how long Boop has been in it. The runner (`Eval` in
+`internal/app/BoopDevKit/Eval/Eval.swift`) wires them as the app does
+(`Runtime.harness`), with the real `mood` and `react` actions, except
+that a reaction's queue goes nowhere and ends the reaction's handle at
+once, `done` unless the step says otherwise (`reaction`, §3), so HISTORY
+shows it as played ([harness/DECISIONS.md](harness/DECISIONS.md) §5). A
+step's `failed: cut short: you tapped Boop` is held as the moment
+schedule holds a reaction your tap cut short: in progress while the
+pokes go on, done once they stop.
 
 For each step it moves the clock a second at a time to the step's time,
 ticking the pipeline as the app does, so heartbeats and other timers
@@ -27,7 +29,8 @@ fire on the way, and hands each tick's view events that wake the brain
 to the harness at that tick, so a heartbeat is answered when it comes.
 Then it feeds the step's raw events to the pipeline, one input at a
 time, and hands every view event that wakes the brain to the harness as
-it's made, straight through without the queue (`Harness.respond`). The
+it's made, straight through without the kit's loop (`Harness.respond`,
+with `loop` off). The
 clock starts at a fixed
 Wednesday 14:00 UTC and stands still while Jev answers.
 

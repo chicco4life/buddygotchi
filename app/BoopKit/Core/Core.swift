@@ -296,6 +296,10 @@ public final class Core {
         return fx
     }
 
+    /// The mood the log has at launch, before anything is published
+    /// (harness/DECISIONS.md §4).
+    public func restore(mood: String) { config.mood = mood }
+
     /// The mood action saved a new mood: the next `state` carries it.
     public func setMood(_ mood: String, at now: Int64) -> [CoreEffect] {
         config.mood = mood

@@ -138,9 +138,20 @@ public final class Runtime: @unchecked Sendable {
     let core: Core
     let view: TranscriptView
     let pipeline: Pipeline
+    /// The brain kit's harness: Boop's brain (kit/BRAIN-KIT.md).
     let harness: Harness
-    let mood: MoodStore
-    let moodAction: MoodAction
+    /// Boop's mood, the kit's `Choice` (harness/DECISIONS.md §4).
+    let mood: Choice
+    /// Whether the brain has failed for long enough to say so
+    /// (harness/HARNESS.md §7), and how many passes that asked it have
+    /// dropped in a row.
+    var trouble: BrainTrouble?
+    var droppedInARow = 0
+    /// Writes `debug.jsonl`'s event, view and pass lines, in order.
+    var debugWriter: DebugLog.Writer?
+    /// Each question's option names as the launch's `questions` line gave
+    /// them (harness/HARNESS.md §9).
+    var launchOptions: [String: [String]] = [:]
     let lock: InstanceLock
     var server: HookServer?
     var timer: DispatchSourceTimer?
@@ -243,9 +254,7 @@ public final class Runtime: @unchecked Sendable {
         let now = options.clock()
         personality = options.personality ?? settings.personality
         let rules = options.steering.personality(personality).rules
-        mood = MoodStore(stateDir: options.stateDir, log: log)
         var config = Core.Config(volume: settings.volume, time: options.time, seed: longTerm.seed ^ UInt64(now))
-        config.mood = mood.current
         config.firstAsk = Core.randomFirstAsk()
         let places = self.places
         // The launch's read-back prunes the transcript, so today isn't a new day.
@@ -254,86 +263,98 @@ public final class Runtime: @unchecked Sendable {
         view = TranscriptView(rules: rules, seed: longTerm.seed ^ UInt64(now), place: places.place)
         let transcript = Transcript.log(folder: options.stateDir.appendingPathComponent(Transcript.folderName),
                                         time: options.time, note: log)
-        pipeline = Pipeline(core: core, transcript: transcript, view: view)
+        pipeline = Pipeline(core: core, view: view, transcript: transcript, time: options.time,
+                            clock: Harness.Clock(now: options.clock, wall: options.wallClock), queue: home, note: log)
         pipeline.brain = false  // until Jev's key is read
         for over in options.steering.overBudget() { log("steering: over budget: \(over)") }
 
         // The actions' closures are only ever called on `home`, and reach
         // `self` once it's whole.
         var personalityNow: () -> Personality = { .boop }
-        var moodSaved: (String) -> Void = { _ in }
         var queued: (DeviceMoment, Pending) -> Void = { _, _ in }
         let link = self.link
-        let home = self.home
-        (harness, moodAction) = Runtime.harness(
-            brain: nil, pipeline: pipeline, mood: mood, steering: options.steering,
-            personality: { personalityNow() }, time: options.time, clock: clock, wall: options.wallClock,
-            queue: { queued($0, $1) }, moodChanged: { moodSaved($0) }, speaks: { link.status?.hasTheVoice ?? true },
-            home: home, emit: emit, log: log)
-        // The questions line is debug.jsonl's first, before the read-back
-        // below, the socket or the link can add one, so a changed first
-        // line means a new launch.
-        emit(DebugLog.questions(harness.actions, at: now))
+        (harness, mood) = Runtime.harness(
+            pipeline: pipeline, steering: options.steering, personality: { personalityNow() },
+            queue: { queued($0, $1) }, speaks: { link.status?.hasTheVoice ?? true })
+        // The questions line is debug.jsonl's first, before the read-back's
+        // lines, the socket or the link can add one, so a changed first line
+        // means a new launch. The read-back's own lines wait for it.
+        var held: [String] = []
+        var holding = true
+        debugWriter = Runtime.debugLines(pipeline: pipeline, emit: { line in if holding { held.append(line) } else { emit(line) } })
         // The view and the core pick up where the last launch left them.
-        let read = pipeline.readBack(now: now)
-        if read > 0 { log("transcript: read back \(read) events, the view has \(view.events.count)") }
-        presence = PresenceDetector(away: view.away)
+        let read = home.sync { pipeline.readBack(now: now) }
+        let logNow = transcript.view(now: now)
+        core.restore(mood: MoodAction.value(mood, logNow))
+        let questions = DebugLog.questions(Runtime.outputs(harness), log: logNow, at: now)
+        emit(questions)
+        launchOptions = DebugLog.options(questions)
+        holding = false
+        held.forEach(emit)
+        if read > 0 { log("transcript: read back \(read) events") }
+        presence = PresenceDetector(away: view.away(logNow))
         personalityNow = { [weak self] in self?.personality ?? .boop }
-        moodSaved = { [weak self] in self?.moodChanged($0) }
         queued = { [weak self] moment, pending in self?.queue(moment, pending) }
-        // A pass can change the mood, which the menu bar shows.
-        harness.onRecord = { [weak self] record in
-            log(record.logLine)
-            self?.replied(record)
-            self?.changed()
+        // A pass can change the mood, which the device and the menu bar show.
+        harness.on(Event.did) { [weak self] e in
+            guard e.action == MoodAction.actionName, e["ok"]?.bool == true, let to = e["to"]?.string else { return }
+            self?.moodChanged(to)
         }
+        // A reaction your tap cut short is in progress while the pokes go
+        // on, and done once anything else happens (harness/DECISIONS.md §5).
+        // The check comes before the schedule is touched: a moment's end,
+        // logged from inside the schedule, never stops the pokes.
+        harness.on("*") { [weak self] e in
+            guard TranscriptView.stopsThePokes(e, transcript.view(before: e)), let self, !schedule.cutByTap.isEmpty else { return }
+            schedule.pokesStopped()
+        }
+        harness.onPass = { [weak self] pass in self?.passed(pass) }
     }
 
-    /// Boop's actions (harness/DECISIONS.md), in the order they run, and
-    /// the harness that asks for them on `pipeline`'s view events: the
-    /// app's, and the evals', so the two can't drift apart. `queue` plays
-    /// a reaction's moment, `moodChanged` hears a new mood saved, and
-    /// `speaks` says whether the device plays Voice's takes. Jev's state
-    /// is built at each pass (harness/HARNESS.md §6) from the steering
-    /// files, `personality()`, the line that closes HISTORY (the mood's
-    /// time in the mood), the oldest working turn at `clock()` and the
-    /// time of day at wall-clock time `wall()`. `emit` gets the
-    /// `debug.jsonl` lines (harness/HARNESS.md §9): every pass's, and every
-    /// event's and view event's as it happens; nil writes none.
-    public static func harness(brain: (any Brain)?, pipeline: Pipeline, mood: MoodStore, steering: Steering,
-                               personality: @escaping () -> Personality, time: LocalTime,
-                               clock: @escaping @Sendable () -> Int64, wall: @escaping () -> Int64,
-                               queue: @escaping (DeviceMoment, Pending) -> Void,
-                               moodChanged: @escaping (String) -> Void = { _ in }, speaks: @escaping () -> Bool = { true },
-                               home: DispatchQueue, emit: ((String) -> Void)? = nil,
-                               log: @escaping (String) -> Void = { _ in })
-        -> (harness: Harness, mood: MoodAction) {
+    /// Boop's brain on the kit's harness (harness/HARNESS.md): its outputs
+    /// (harness/DECISIONS.md), mood then react, and the sections of Jev's
+    /// state (§6): the guide with how to read the rest, PERSONALITY and
+    /// MOOD, then HISTORY, closed by how long Boop has been in its mood and
+    /// reaching back to the oldest working turn. The app's, and the evals',
+    /// so the two can't drift apart. `queue` plays a reaction's moment, and
+    /// `speaks` says whether the device plays Voice's takes. The brain is
+    /// the caller's to set (`harness.use`).
+    public static func harness(pipeline: Pipeline, steering: Steering, personality: @escaping () -> Personality,
+                               queue: @escaping (DeviceMoment, Pending) -> Void, speaks: @escaping () -> Bool = { true })
+        -> (harness: Harness, mood: Choice) {
+        let h = pipeline.harness
         let core = pipeline.core
         let view = pipeline.view
-        let moodAction = MoodAction(store: mood, clock: clock, changed: moodChanged)
-        var acting: () -> ViewEvent? = { nil }
-        let react = ReactAction(queue: queue, blocked: { core.reactionBlock }, who: {
+        let mood = MoodAction.choice()
+        let react = ReactAction(queue: queue, blocked: { core.reactionBlock }, who: { now in
             // The thread's name as its agent's app shows it, once an event
             // brought one, else the view's: its workspace, else its project.
-            guard let key = acting()?.about, let who = view.who(about: key) else { return nil }
-            return DeviceMoment.Who(agent: who.agent, thread: core.name(about: key) ?? who.thread,
-                                    opens: core.thread(about: key))
+            guard let now, let key = TranscriptView.about(now, facts: h.line(now.seq)?.facts),
+                  let who = view.who(about: key, h.log.view(now: h.clock.now())) else { return nil }
+            return DeviceMoment.Who(agent: who.agent, thread: core.name(about: key) ?? who.thread, opens: core.thread(about: key))
         }, speaks: speaks)
-        let harness = Harness(brain: brain, actions: [moodAction, react], pipeline: pipeline, parts: {
-            let now = clock()
-            let wall = wall()
-            return StateText.Parts(guide: steering.guide, personality: steering.personality(personality()).text,
-                                   mood: steering.mood(mood.current), closing: moodAction.sinceLine(at: now),
-                                   workingSince: view.workingSince(at: now),
-                                   clock: "\(time.clock(wall)), \(time.weekday(wall))")
-        }, home: home, clock: clock, log: log)
-        acting = { [weak harness] in harness?.acting }
-        if let emit {
-            harness.onDebugLine = emit
-            pipeline.onRecord = { emit(DebugLog.event($0)) }
-            pipeline.onView = { emit(DebugLog.view($0)) }
-        }
-        return (harness, moodAction)
+        h.output(mood)
+        h.output(react, openFor: ReactAction.openForMs)
+        h.section { _ in steering.guide + "\n" + EventLine.reading + "\n" + EventLine.words }
+        h.section { _ in steering.personality(personality()).text }
+        h.section { log in steering.mood(MoodAction.value(mood, log)) }
+        h.closing { now, log in MoodAction.sinceLine(mood, log, at: now) }
+        h.reachBack { now, log in view.workingSince(at: now, log) }
+        return (h, mood)
+    }
+
+    /// The outputs registered on `h`, in order: for `debug.jsonl`'s
+    /// `questions` line.
+    static func outputs(_ h: Harness) -> [any Action] { h.actions }
+
+    /// `debug.jsonl`'s lines (§9) from `pipeline`, to `emit`: its events
+    /// and view events, and the passes the returned writer is handed.
+    @discardableResult
+    public static func debugLines(pipeline: Pipeline, emit: @escaping (String) -> Void) -> DebugLog.Writer {
+        let writer = DebugLog.Writer(emit: emit)
+        pipeline.onRecord = { writer.event($0) }
+        pipeline.onView = { writer.view($0) }
+        return writer
     }
 
     // MARK: Running
@@ -372,7 +393,7 @@ public final class Runtime: @unchecked Sendable {
             changed()
             options.log("boop: running on \(options.stateDir.path), socket \(options.socketPath), "
                         + "link \(options.link?.name ?? "none"), personality \(personality.rawValue), "
-                        + "mood \(mood.current), brain \(harness.brain?.id ?? "none (reading Jev's key)")"
+                        + "mood \(moodNow), brain \(harness.brain?.id ?? "none (reading Jev's key)")"
                         + (options.debug ? ", debug log \(debugLogURL.path)" : ""))
         }
     }
@@ -465,13 +486,15 @@ public final class Runtime: @unchecked Sendable {
         case "answer":
             // A forced pass: the actions keep their own rules.
             guard let choices = object["answers"] as? [String: String] else { return }
-            options.log("dev: forced pass → " + Harness.ActionRecord.names(harness.force(choices)))
+            options.log("dev: forced pass → " + Harness.ActionRecord.names(harness.force(choices, by: Runtime.forcedBy)))
             changed()
         case "mood":
             // The mood action's own change, which tells the device too
             // (harness/DECISIONS.md §4).
             guard let to = object["mood"] as? String else { return }
-            let result = harness.force(moodAction) { moodAction.change(to: to) }
+            let result = harness.force(mood, by: Runtime.forcedBy) {
+                MoodAction.change(mood, to: to, log: harness.log.view(now: options.clock()))
+            }
             options.log("dev: mood \(to)" + (result.map { $0.ok ? "" : ": \($0.message)" } ?? ""))
             changed()
         case "said":
@@ -521,7 +544,6 @@ public final class Runtime: @unchecked Sendable {
         // the harness's ceiling could end it, even when the pump's timer,
         // which runs on uptime, hasn't fired (the clock jumped).
         pump()
-        harness.tick(now: now)
         let trouble = link.transport?.trouble
         if trouble != linkTrouble {
             linkTrouble = trouble
@@ -549,9 +571,7 @@ public final class Runtime: @unchecked Sendable {
 
     /// Carries out the core's effects from a call outside the pipeline.
     func run(_ effects: [CoreEffect]) {
-        var step = Pipeline.Step()
-        pipeline.run(effects, &step)
-        run(step)
+        run(pipeline.effects(effects, at: options.clock()))
     }
 
     /// Carries out what an input did (ARCHITECTURE.md §3.2): the core's
@@ -579,7 +599,6 @@ public final class Runtime: @unchecked Sendable {
                 open(thread, by: "tap")
             }
         }
-        harness.take(step.views)
         if stateChanged { changed() }
     }
 
@@ -620,10 +639,43 @@ public final class Runtime: @unchecked Sendable {
     /// The first pass on what you said, or on anything newer, is over: if
     /// it queued no reaction, none is coming, so `listening` ends now
     /// (BEHAVIORS.md §3.3).
-    func replied(_ record: Harness.Record) {
-        guard let seq = replyFor, record.now.seq >= seq else { return }
+    func replied(_ pass: Harness.Pass) {
+        guard let seq = replyFor, let e = pass.event, e.seq >= seq else { return }
         replyFor = nil
-        if !record.actions.contains(where: { $0.name == "react" && $0.result.ok }) { endListening() }
+        if !pass.actions.contains(where: { $0.name == ReactAction.actionName && $0.result.ok }) { endListening() }
+    }
+
+    /// Who forces passes and actions, for no event: the dashboard's
+    /// (harness/HARNESS.md §9).
+    public static let forcedBy = "dashboard"
+
+    /// Boop's mood now, as the log has it.
+    var moodNow: String { MoodAction.value(mood, harness.log.view(now: options.clock())) }
+
+    /// Every pass the harness made (harness/HARNESS.md §9): its app log line
+    /// (the brain's only), whether the brain is in trouble, its
+    /// `debug.jsonl` lines, and what it means for push-to-talk's reply.
+    func passed(_ pass: Harness.Pass) {
+        let now = options.clock()
+        if let line = Runtime.logLine(pass) { options.log(line) }
+        if pass.prompt != nil, pass.current {
+            // Only a pass that asked the brain in use says how it's doing.
+            (droppedInARow, trouble) = BrainTrouble.after(pass.error, previous: droppedInARow)
+        }
+        // The head is logged only when it changes; the pass, HISTORY and NOW.
+        debugWriter?.pass(pass, launchOptions: launchOptions, at: now)
+        replied(pass)
+        changed()
+    }
+
+    /// The app log's line for a pass the brain was asked, or held back for
+    /// (§9): its event's type and phase, the time and which actions returned
+    /// a result, never their messages. Nil for a forced pass.
+    static func logLine(_ pass: Harness.Pass) -> String? {
+        guard let e = pass.event else { return nil }
+        let result = pass.dropped.map { "dropped: \($0)" } ?? pass.held.map { "held: \($0)" }
+            ?? Harness.ActionRecord.names(pass.actions)
+        return "brain \(e.name) \(pass.latencyMs) ms → " + result
     }
 
     /// Ends `listening` on the device with the empty moment, which ends
@@ -702,7 +754,7 @@ public final class Runtime: @unchecked Sendable {
         let now = options.clock()
         let status = Status(name: name, snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
                             connected: link.connected, device: link.status, linkTrouble: linkTrouble, personality: personality,
-                            brain: harness.brain?.id ?? "none", keyRead: jevKey != nil, brainTrouble: harness.trouble,
+                            brain: harness.brain?.id ?? "none", keyRead: jevKey != nil, brainTrouble: trouble,
                             listening: core.listening != nil, micTrouble: micTrouble)
         if let line = DebugLog.status(status, at: now, last: &lastStatus) { emit(line) }
         onChange?(status)
@@ -823,6 +875,8 @@ public final class Runtime: @unchecked Sendable {
         let brain = options.brain(jevKey ?? nil)
         harness.use(brain)
         pipeline.brain = brain != nil
+        trouble = nil
+        droppedInARow = 0
         options.log("brain \(brain?.id ?? "none")" + (brain == nil ? ": no Jev key, so Boop does only its rule reactions" : ""))
     }
 

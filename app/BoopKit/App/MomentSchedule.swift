@@ -77,6 +77,10 @@ public struct MomentSchedule {
     /// its handle, when the app stops waiting for its `ended`, and for a
     /// finish, the thread a tap on it opens.
     public private(set) var playing: [(id: Int, pending: Pending, deadline: Int64, opens: ThreadRef?)] = []
+    /// The handles of reactions your tap cut short: in progress while the
+    /// pokes go on, so the pokes after it don't get it again, and done
+    /// once they stop (`pokesStopped`, harness/DECISIONS.md §5).
+    public private(set) var cutByTap: [Pending] = []
 
     /// A launch's ids start after `lastId`, somewhere random by default.
     public init(lastId: Int = Int.random(in: 0..<MomentSchedule.maxId)) {
@@ -139,7 +143,24 @@ public struct MomentSchedule {
             lineUntil = now
         }
         guard let i = playing.firstIndex(where: { $0.id == ended.id }) else { return }
-        playing.remove(at: i).pending.finish(Self.end(ended))
+        let pending = playing.remove(at: i).pending
+        if ended.how == .cut && ended.why == "tap" {
+            cutByTap.append(pending)
+        } else {
+            pending.finish(Self.end(ended))
+        }
+    }
+
+    /// How a reaction your tap cut short reads while the pokes go on, in
+    /// the logs: the eval's steps say it so (EVALS.md §1).
+    public static let tapCut = "cut short: you tapped Boop"
+
+    /// The pokes stopped, or something else happened: the reactions a tap
+    /// cut short end as done, since you saw them begin.
+    public mutating func pokesStopped() {
+        let held = cutByTap
+        cutByTap = []
+        for pending in held { pending.finish(.done) }
     }
 
     /// The thread a tap on the finish `id` opens: the device said the tap
@@ -153,14 +174,13 @@ public struct MomentSchedule {
     static func end(_ ended: MomentEnded) -> Pending.End {
         switch ended.how {
         case .done: .done
-        case .cut where ended.why == "tap": .failed(TranscriptView.cutByTap)
         case .cut: .failed("cut short" + (ended.why.flatMap { cutBy[$0] }.map { ": " + $0 } ?? ""))
         case .skipped: .failed("something needed you")
         }
     }
 
-    /// What cut a moment short, as its end says it; a tap's is
-    /// `TranscriptView.cutByTap`, and `reset` is a tool's.
+    /// What cut a moment short, as its end says it; a tap's holds it until
+    /// the pokes stop (`cutByTap`), and `reset` is a tool's.
     static let cutBy = ["moment": "something newer played",
                         "needs_you": "something needed you"]
 

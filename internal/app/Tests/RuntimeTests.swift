@@ -3,6 +3,7 @@ import Foundation
 import XCTest
 @testable import BoopDevKit
 @testable import BoopKit
+@testable import BrainKit
 
 /// The runtime end to end in-process: real hook socket, real core, the
 /// harness with a scripted brain, and memory in a temporary state
@@ -161,9 +162,10 @@ final class RuntimeTests: XCTestCase {
         eventually("the brain") { runtime.home.sync { statuses.last?.brain == "scripted" } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
         eventually("a mumble") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) } }
-        eventually("annoyed") { runtime.home.sync { runtime.mood.current == "annoyed" } }
+        eventually("annoyed") { runtime.home.sync { runtime.moodNow == "annoyed" } }
         eventually("the device hears it") { transport.sent.contains { $0.hasPrefix(#"{"t":"state""#) && $0.contains(#""mood":"annoyed""#) } }
-        try XCTAssertEqual(try String(contentsOf: dir.appendingPathComponent(MoodStore.fileName), encoding: .utf8), "annoyed\n")
+        XCTAssertTrue(runtime.home.sync { runtime.harness.log.events.contains { $0.action == MoodAction.actionName && $0["to"] == "annoyed" } },
+                      "the mood is its latest change in the log")
         eventually("the log line") { lines.lock.withLock { lines.log.contains { $0.hasPrefix("brain turn start ") && $0.hasSuffix("→ mood, react") } } }
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
         let debugLog = dir.appendingPathComponent(DebugLog.fileName)
@@ -283,7 +285,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(log.contains("hook: claude PreToolUse s1 → tool start PreToolUse claude s1 · tool Bash"), "\(log)")
         XCTAssertTrue(log.contains { $0.hasPrefix("link rules → ") })
         XCTAssertFalse(log.contains { $0.contains("How to read HISTORY") }, "the state stays out of boop.log")
-        XCTAssertTrue(printed.contains { $0.hasPrefix("▸ 1 turn start: claude started turn 1") }, "\(printed)")
+        XCTAssertTrue(printed.contains { $0.hasPrefix("▸ ") && $0.contains(" turn start: claude started turn 1") }, "\(printed)")
         let pass = try XCTUnwrap(printed.first { $0.hasPrefix("  pass scripted") })
         XCTAssertTrue(pass.contains("react.mood excited 1.00"), pass)
         XCTAssertTrue(pass.contains("    │ You are the mind of Boop"), "the first state in full")
@@ -331,8 +333,8 @@ final class RuntimeTests: XCTestCase {
         var options = try options(FakeTransport())
         options.debug = true
         let now = options.clock()
-        let last = Pipeline(core: Core(config: .init()), transcript: Transcript.log(folder: dir.appendingPathComponent(Transcript.folderName)),
-                            view: TranscriptView())
+        let last = Pipeline(core: Core(config: .init()), view: TranscriptView(),
+                            transcript: Transcript.log(folder: dir.appendingPathComponent(Transcript.folderName)))
         let line = HookLine(agent: "claude", hook: "UserPromptSubmit", session: "s1", cwd: "/tmp/jetpack", ts: now - 1000)
         let prompt = try XCTUnwrap(last.agent(XCTUnwrap(Adapter.event(from: line, receivedAt: now - 1000))).recorded.first)
         last.record(Event.action(ts: now - 900, phase: .start, name: "react",
@@ -343,7 +345,7 @@ final class RuntimeTests: XCTestCase {
         let lines = debugLines()
         XCTAssertNotNil(lines.first?["questions"], "\(lines.first ?? [:])")
         let end = try XCTUnwrap(lines.compactMap { ($0["event"] as? [String: Any]).flatMap(Event.init(json:)) }.first)
-        XCTAssertEqual(end.data["why"], "Boop restarted")
+        XCTAssertEqual(end.data["why"], .string(Harness.restarted))
     }
 
     /// harness/HARNESS.md §5.1: transcript files older than 14 days go at
@@ -600,11 +602,11 @@ final class RuntimeTests: XCTestCase {
         dev(#"{"dev":"answer","answers":{"react.mood":"grumpy","say.about":"work"}}"#)
         eventually("a take with no brain") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":{"take":"#) && $0.contains(#""mood":"grumpy""#) } }
         dev(#"{"dev":"mood","mood":"grumpy"}"#)
-        eventually("grumpy") { runtime.home.sync { runtime.mood.current == "grumpy" } }
+        eventually("grumpy") { runtime.home.sync { runtime.moodNow == "grumpy" } }
         dev(#"{"dev":"mood","mood":"happy"}"#)
-        eventually("happy, off the graph") { runtime.home.sync { runtime.mood.current == "happy" } }
+        eventually("happy, off the graph") { runtime.home.sync { runtime.moodNow == "happy" } }
         dev(#"{"dev":"answer","answers":{"mood":"excited"}}"#)
-        eventually("excited, a move from happy") { runtime.home.sync { runtime.mood.current == "excited" } }
+        eventually("excited, a move from happy") { runtime.home.sync { runtime.moodNow == "excited" } }
 
         let lines = debugLines()
         let pass = try XCTUnwrap(lines.compactMap { $0["pass"] as? [String: Any] }.first)
@@ -709,9 +711,9 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
         eventually("the hook after them") { transport.sent.contains { $0.contains(#""base":"working""#) } }
         runtime.home.sync {}
-        XCTAssertEqual(runtime.home.sync { runtime.mood.current }, "calm")
+        XCTAssertEqual(runtime.home.sync { runtime.moodNow }, "calm")
         XCTAssertFalse(transport.sent.contains { $0.contains("task_complete\"") })
-        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent(MoodStore.fileName).path))
+        XCTAssertFalse(runtime.home.sync { runtime.harness.log.events.contains { $0.action == MoodAction.actionName && $0["ok"]?.bool == true } })
     }
 
     /// ADAPTERS.md §6: while the doctor has armed the app it logs every
@@ -879,7 +881,7 @@ final class RuntimeTests: XCTestCase {
         eventually("the finished thread opened") { opened.all == ["claude://code/continue?session=local_7db5"] }
         let action = try XCTUnwrap(recorded().last { $0.actionName == Core.openThread })
         XCTAssertEqual(action["message"]?.string, Core.openedFinished)
-        let poke = try XCTUnwrap(runtime.home.sync { runtime.view.events.last })
+        let poke = try XCTUnwrap(runtime.home.sync { runtime.pipeline.views.last })
         XCTAssertEqual(poke.type, .poke)
         XCTAssertFalse(poke.wakesBrain, "it doesn't wake the brain")
         transport.onLine?(#"{"t":"input","k":"tap","id":1}"#)  // a moment the app isn't waiting on: a poke
@@ -971,7 +973,7 @@ final class RuntimeTests: XCTestCase {
         func react() throws -> (seq: Int, moment: String) {
             clock.now = max(clock.now, runtime.home.sync { runtime.schedule.lineUntil })
             return try runtime.home.sync {
-                XCTAssertEqual(runtime.harness.force(["react.mood": "happy"]).map(\.name), ["react"])
+                XCTAssertEqual(runtime.harness.force(["react.mood": "happy"], by: Runtime.forcedBy).map(\.name), ["react"])
                 let seq = try XCTUnwrap(self.recorded().last { $0.isAction && $0.actionName == "react" && $0.actionPhase != .end }?.seq)
                 return (seq, try XCTUnwrap(transport.sent.last { $0.hasPrefix(#"{"t":"moment""#) }))
             }
@@ -1005,9 +1007,14 @@ final class RuntimeTests: XCTestCase {
         device(#"{"t":"ended","id":\#(id + 99),"how":"done"}"#)
         XCTAssertNil(end(of: tapped.seq), "another id: ignored")
         device(#"{"t":"ended","id":\#(id + 2),"how":"cut","why":"tap"}"#)
-        XCTAssertEqual(end(of: tapped.seq), .failed("cut short: you tapped Boop"))
+        XCTAssertNil(end(of: tapped.seq), "your tap cut it: in progress while the pokes go on (harness/DECISIONS.md §5)")
         device(#"{"t":"ended","id":\#(id + 2),"how":"done"}"#)
-        XCTAssertEqual(end(of: tapped.seq), .failed("cut short: you tapped Boop"), "only the first end counts")
+        XCTAssertNil(end(of: tapped.seq), "only the first end counts")
+        runtime.home.sync {  // anything but another poke, and nothing that wakes the brain
+            runtime.run(runtime.pipeline.presence(Event(ts: clock.now, source: .mac, type: .presence, phase: .start,
+                                                        specificType: "locked", data: ["since": .int(clock.now)])))
+        }
+        XCTAssertEqual(end(of: tapped.seq), .done, "you saw it begin: done once something else happens")
 
         let skipped = try react()
         device(#"{"t":"ended","id":\#(id + 3),"how":"skipped"}"#)
@@ -1040,7 +1047,6 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(MomentSchedule.endGraceMs, 3000)
         let end = { (how: MomentEnded.How, why: String?) in MomentSchedule.end(MomentEnded(id: 1, how: how, why: why)) }
         XCTAssertEqual(end(.done, nil), .done)
-        XCTAssertEqual(end(.cut, "tap"), .failed("cut short: you tapped Boop"))
         XCTAssertEqual(end(.cut, "moment"), .failed("cut short: something newer played"))
         XCTAssertEqual(end(.cut, "needs_you"), .failed("cut short: something needed you"))
         XCTAssertEqual(end(.cut, "reset"), .failed("cut short"))
@@ -1071,7 +1077,7 @@ final class RuntimeTests: XCTestCase {
         }.max() ?? 0
         XCTAssertGreaterThanOrEqual(longest, Int64(held) * longestLoop)
         XCTAssertLessThan(MomentSchedule.maxWaitMs + MomentSchedule.lateMs + longest + MomentSchedule.endGraceMs,
-                          Harness.pendingMaxMs)
+                          ReactAction.openForMs)
     }
 
     /// PROTOCOL.md §3, VOICE.md §10: the Mac and the device time the
@@ -1433,7 +1439,7 @@ final class RuntimeTests: XCTestCase {
         runtime.home.sync {}
         let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
         func react(_ mood: String) {
-            runtime.home.sync { _ = runtime.harness.force(["react.mood": mood, "react.loops": "twice"]) }
+            runtime.home.sync { _ = runtime.harness.force(["react.mood": mood, "react.loops": "twice"], by: Runtime.forcedBy) }
         }
         func device(_ line: String) {
             transport.onLine?(line)
@@ -1460,7 +1466,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(moments(), 2, "the tap's poke may have come before the second arrived")
         device(#"{"t":"ended","id":\#(transport.momentIds[1]),"how":"cut","why":"tap"}"#)
         XCTAssertEqual(moments(), 3, "the device says the tap stopped the second")
-        XCTAssertEqual(ends(), [.done, .failed("cut short: you tapped Boop")])
+        XCTAssertEqual(ends(), [.done], "the tap's cut is in progress while the pokes go on")
 
         clock.now += 300
         react("sad")
@@ -1474,7 +1480,7 @@ final class RuntimeTests: XCTestCase {
 
         transport.onConnection?(false)
         runtime.home.sync {}
-        XCTAssertEqual(ends().count, 4, "the two it was waiting on didn't happen")
+        XCTAssertEqual(ends().count, 3, "the two it was waiting on didn't happen; the tap's cut waits for the pokes to stop")
         // The fourth may play on the device, and holds the line until the
         // app gives up on it; after that nothing is playing.
         clock.now = try XCTUnwrap(runtime.home.sync { runtime.schedule.holder?.until })
@@ -1603,7 +1609,7 @@ final class RuntimeTests: XCTestCase {
             runtime.home.sync {}
         }
         func react(_ mood: String) {
-            runtime.home.sync { _ = runtime.harness.force(["react.mood": mood, "react.loops": "twice"]) }
+            runtime.home.sync { _ = runtime.harness.force(["react.mood": mood, "react.loops": "twice"], by: Runtime.forcedBy) }
         }
         let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
         func ends() -> [Pending.End] {
@@ -1650,7 +1656,7 @@ final class RuntimeTests: XCTestCase {
         }
         let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
         runtime.home.sync {
-            for mood in ["excited", "proud", "grumpy"] { _ = runtime.harness.force(["react.mood": mood]) }
+            for mood in ["excited", "proud", "grumpy"] { _ = runtime.harness.force(["react.mood": mood], by: Runtime.forcedBy) }
         }
         XCTAssertEqual(moments(), 1)
         clock.now += 2000
@@ -1685,7 +1691,7 @@ final class RuntimeTests: XCTestCase {
                              received: clock.now)
             }
         }
-        func lastLine() -> String? { runtime.home.sync { runtime.view.events.last?.line } }
+        func lastLine() -> String? { runtime.home.sync { runtime.pipeline.views.last?.line } }
         hook("UserPromptSubmit")
         clock.now += 60_000
         clock.now += 8 * 3_600_000  // the lid closed overnight
@@ -1736,13 +1742,13 @@ final class RuntimeTests: XCTestCase {
         }
         XCTAssertEqual(asked.all.count, 1, "\(asked.all)")
         let logged = try String(contentsOf: runtime.debugLogURL, encoding: .utf8)
-        let dropped = logged.split(separator: "\n").compactMap { line -> String? in
+        let held = logged.split(separator: "\n").compactMap { line -> String? in
             let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any]
-            return (o?["pass"] as? [String: Any])?["dropped"] as? String
+            return (o?["pass"] as? [String: Any])?["held"] as? String
         }
-        XCTAssertEqual(dropped, ["something needs you"])
-        XCTAssertTrue(logged.contains(#""brain":"scripted","dropped":"something needs you""#),
-                      "counted with the brain's dropped passes, not the dashboard's")
+        XCTAssertEqual(held, ["something needs you"], "held back when its turn came, so the brain wasn't asked")
+        XCTAssertTrue(logged.contains(#""brain":"scripted","dropped":null,"for":"#) && logged.contains(#""held":"something needs you""#),
+                      "with the brain it would have asked, apart from the passes the brain dropped")
     }
 
     /// ARCHITECTURE.md §3.2: the pump's timer counts the Mac's uptime,
@@ -1760,7 +1766,7 @@ final class RuntimeTests: XCTestCase {
         transport.onConnection?(true)
         runtime.home.sync {}
         func react(_ mood: String) {
-            runtime.home.sync { _ = runtime.harness.force(["react.mood": mood, "react.loops": "twice"]) }
+            runtime.home.sync { _ = runtime.harness.force(["react.mood": mood, "react.loops": "twice"], by: Runtime.forcedBy) }
         }
         let pumpAt = { runtime.home.sync { runtime.pumpAt } }
 
@@ -1814,31 +1820,63 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(core.snapshot(at: 1000).attn?.id, 1, "back to 1, never 0")
     }
 
+    /// HARNESS.md §7: the popover says Jev isn't answering at once for a
+    /// status only the person can fix (401, 402, 403), and for anything
+    /// else after 3 dropped passes in a row. A pass that runs clears it, a
+    /// pass that never asked Jev (one held back) doesn't count, nor does
+    /// one that asked the brain before a new key, and a new key starts over.
+    func testBrainTroubleShowsAtOnceForTheAccountAndAfterThreeInARowElse() throws {
+        XCTAssertEqual(BrainTrouble.showAfter, 3)
+        let runtime = try Runtime(options(nil))
+        let e = Event(seq: 1, ts: 1, source: .device, type: .poke, specificType: "input")
+        func pass(_ status: Int?, asked: Bool = true, current: Bool = true) -> BrainTrouble? {
+            let error = status.map { BrainError("jev: HTTP \($0)", status: $0) }
+            let p = Harness.Pass(event: e, line: "You poked Boop.", seq: 2, answers: [:], dropped: error?.description, held: nil,
+                                 latencyMs: 1, brain: "jev:jev-latest", by: nil, prompt: asked ? "state" : nil, questions: [],
+                                 seen: 1, actions: [], error: error, current: current)
+            return runtime.home.sync {
+                runtime.passed(p)
+                return runtime.trouble
+            }
+        }
+        XCTAssertEqual(pass(402), BrainTrouble(kind: .credit, why: "jev: HTTP 402", inARow: 1))
+        XCTAssertNil(pass(nil))
+        XCTAssertEqual(pass(401)?.kind, .key)
+        XCTAssertNil(pass(nil))
+        XCTAssertNil(pass(503))
+        XCTAssertNil(pass(503))
+        XCTAssertEqual(pass(503), BrainTrouble(kind: .failing, why: "jev: HTTP 503", inARow: 3))
+        XCTAssertEqual(pass(nil, asked: false)?.inARow, 3, "a pass held back never asked Jev")
+        XCTAssertEqual(pass(401, current: false)?.kind, .failing, "one that asked the brain before a new key says nothing")
+        runtime.home.sync { runtime.useBrain() }
+        XCTAssertNil(runtime.home.sync { runtime.trouble }, "a new key starts over")
+    }
+
     /// harness/HARNESS.md §5.3: HISTORY closes with `mood`'s time in a mood
     /// other than calm, the resting mood (DECISIONS.md §4), and nothing
     /// else; the harness only places it.
     func testHistoryClosesWithTheMoodsTime() throws {
         let clock = VirtualClock(1_790_000_000_000)
-        let dir = tempDir("boop-since")
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let (harness, moodAction) = Runtime.harness(
-            brain: nil, pipeline: Pipeline(core: Core(config: .init()), view: TranscriptView()),
-            mood: MoodStore(stateDir: dir), steering: Self.steering,
-            personality: { .boop }, time: LocalTime(timeZone: TimeZone(identifier: "UTC")!),
-            clock: { clock.now }, wall: { clock.now }, queue: { _, _ in }, home: DispatchQueue(label: "boop.test"))
-        func closing() -> String? { harness.parts().closing }
+        let pipeline = Pipeline(core: Core(config: .init()), view: TranscriptView(), clock: Harness.Clock(now: { clock.now }))
+        let (harness, mood) = Runtime.harness(pipeline: pipeline, steering: Self.steering, personality: { .boop }, queue: { _, _ in })
+        func log() -> LogView { harness.log.view(now: clock.now) }
+        func closing() -> String? { MoodAction.sinceLine(mood, log(), at: clock.now) }
+        func change(_ to: String) { harness.force(mood, by: Runtime.forcedBy) { MoodAction.change(mood, to: to, log: log()) } }
         XCTAssertNil(closing(), "calm says nothing")
-        _ = moodAction.change(to: "grumpy")
+        change("grumpy")
         clock.now += 30_000
         XCTAssertEqual(closing(), "Boop has been grumpy for under a minute.")
         clock.now += 2 * 60_000
-        XCTAssertEqual(moodAction.sinceLine(at: clock.now), "Boop has been grumpy for 2 min.", "whole minutes, as HISTORY's")
-        XCTAssertNil(MoodAction(store: MoodStore(stateDir: dir)).sinceLine(at: clock.now),
-                     "grumpy on disk, but nothing before a change since launch")
-        _ = moodAction.change(to: "happy")
-        XCTAssertEqual(moodAction.sinceLine(at: clock.now), "Boop has been happy for under a minute.", "happy is a mood like any other")
-        _ = moodAction.change(to: "calm")
-        XCTAssertNil(moodAction.sinceLine(at: clock.now), "back to calm")
+        XCTAssertEqual(closing(), "Boop has been grumpy for 2 min.", "whole minutes, as HISTORY's")
+        let relaunched = Pipeline(core: Core(config: .init()), view: TranscriptView(), transcript: harness.log,
+                                  clock: Harness.Clock(now: { clock.now }))
+        let (_, again) = Runtime.harness(pipeline: relaunched, steering: Self.steering, personality: { .boop }, queue: { _, _ in })
+        XCTAssertEqual(MoodAction.sinceLine(again, log(), at: clock.now), "Boop has been grumpy for 2 min.",
+                       "the mood and its time are the log's, so a relaunch keeps both")
+        change("happy")
+        XCTAssertEqual(closing(), "Boop has been happy for under a minute.", "happy is a mood like any other")
+        change("calm")
+        XCTAssertNil(closing(), "back to calm")
     }
 }
 

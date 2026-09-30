@@ -2,6 +2,9 @@ import Foundation
 @testable import BoopKit
 @testable import BrainKit
 
+/// When the harness tests start, in unix milliseconds.
+let harnessT0: Int64 = 1_790_000_000_000
+
 /// Actions as the tests name them: before the brain kit an action was an
 /// event of its own type, with a phase; now it's the kit's `did` (open
 /// while it plays), its `ended`, or, for "needs you", Boop's own

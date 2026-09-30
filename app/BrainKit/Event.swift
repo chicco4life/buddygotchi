@@ -64,6 +64,9 @@ public struct Event: Equatable, Sendable {
     /// The `seq` a kit event is `for`, or nil.
     public var about: Int? { data["for"]?.int.map(Int.init) }
 
+    /// The output's or rule's name, on a `did` or an `ended`.
+    public var action: String? { data["action"]?.string }
+
     // MARK: The line (§2.1)
 
     /// The event as one JSON line: `seq`, `at`, `source`, `kind`, `line`

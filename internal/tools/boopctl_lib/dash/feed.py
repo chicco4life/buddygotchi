@@ -211,6 +211,9 @@ class Board:
             if body.get("brain"):
                 self.latency_ms = body.get("latency_ms")
             who = body.get("brain") or f"forced by {body.get('by')}"
+            if body.get("held"):
+                # Held back when its turn came: the brain wasn't asked (kit/BRAIN-KIT.md §9).
+                return "dim", f"  pass {who} for {body.get('for')}: held: {body['held']}"
             if body.get("dropped"):
                 self.dropped += 1
                 return "fail", f"  pass {who} for {body.get('for')}: dropped: {body['dropped']}"
@@ -428,7 +431,7 @@ class Board:
         out = []
         for r in reversed(self.decided):
             p = r["pass"]
-            if not p.get("dropped") and choice(p, FACE) is None:
+            if p.get("held") or not p.get("dropped") and choice(p, FACE) is None:
                 continue  # a pass that asked no reaction couldn't react
             if r["event"]:
                 out.append(("event", f"{clock(r['at'])} ▸ {r['event']['line']}"))

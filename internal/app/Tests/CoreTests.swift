@@ -166,9 +166,7 @@ final class CoreRig {
     /// go (`talk_off`).
     @discardableResult
     func talk(_ on: Bool) -> Fx {
-        var step = Pipeline.Step()
-        pipeline.run(core.listen(on, by: .device, at: now), &step)
-        return note(Fx(step))
+        note(Fx(pipeline.effects(core.listen(on, by: .device, at: now), at: now)))
     }
 
     /// Boop starts a reaction, as the harness records one.

@@ -192,7 +192,7 @@ final class PresenceTests: XCTestCase {
         XCTAssertEqual(a.name, "presence start")
         XCTAssertFalse(a.wakesBrain)
         XCTAssertEqual(a.facts["why"], "locked")
-        XCTAssertTrue(rig.view.away)
+        XCTAssertTrue(rig.pipeline.away)
 
         rig.now = left + 3 * 60 * minute
         let b = try XCTUnwrap(back().first)
@@ -203,7 +203,7 @@ final class PresenceTests: XCTestCase {
         XCTAssertEqual(b.facts["away"], "very long")
         XCTAssertEqual(b.facts["away_ms"]?.int, 3 * 60 * minute, "from when you left, not from the away's event")
         XCTAssertEqual(b.from, [a.seq, rig.pipeline.transcript.events.last!.seq])
-        XCTAssertFalse(rig.view.away)
+        XCTAssertFalse(rig.pipeline.away)
         XCTAssertEqual(rig.log.filter { if case .record = $0 { false } else { true } }.count, 0, "the core never hears of it")
     }
 
@@ -316,7 +316,7 @@ final class PresenceRuntimeTests: XCTestCase {
         }
 
         let runtime = try makeRuntime(clock: clock)
-        XCTAssertTrue(runtime.home.sync { runtime.view.away }, "read back from the transcript")
+        XCTAssertTrue(runtime.home.sync { runtime.pipeline.away }, "read back from the transcript")
         dev(runtime, #"{"dev":"presence","idle_ms":3600000}"#)
         dev(runtime, #"{"dev":"advance","ms":3600000}"#)
         XCTAssertEqual(presence(runtime), ["start locked"], "not back until touched")
@@ -324,7 +324,7 @@ final class PresenceRuntimeTests: XCTestCase {
         dev(runtime, #"{"dev":"presence","idle_ms":0}"#)
         dev(runtime, #"{"dev":"advance","ms":1000}"#)
         XCTAssertEqual(presence(runtime), ["start locked", "end unlocked"])
-        let back = try XCTUnwrap(runtime.home.sync { runtime.view.events.last })
+        let back = try XCTUnwrap(runtime.home.sync { runtime.pipeline.views.last })
         XCTAssertEqual(back.line, "You came back to the Mac after a long break.")
         XCTAssertTrue(back.wakesBrain == false, "gated: headless here has no brain")
 

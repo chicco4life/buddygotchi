@@ -436,11 +436,9 @@ public struct Eval {
         try await Eval(brain: ScriptedBrain.pipelineCheck, steering: steering).run(scenario).timeline.count
     }
 
-    /// One run of a scenario, from a fresh core, transcript and mood.
+    /// One run of a scenario, from a fresh core and transcript, the mood
+    /// in it.
     public func run(_ scenario: Scenario) async throws -> Result {
-        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-eval-\(UUID().uuidString.prefix(8))")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
         let time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
         let start = Replay.defaultStart
         let clock = VirtualClock(start)
@@ -448,23 +446,48 @@ public struct Eval {
         let core = Core(config: .init(time: time, seed: 1), lastActiveDay: time.day(start))
         core.setWallClock(start, at: start)
         let view = TranscriptView(rules: rules, seed: 1)
-        let pipeline = Pipeline(core: core, view: view)
-        let mood = MoodStore(stateDir: dir)
         let home = DispatchQueue(label: "boop.eval")
+        // The brain is asked for each event straight through, not by the
+        // loop (`respond`), on the virtual clock.
+        let pipeline = Pipeline(core: core, view: view, time: time, clock: Harness.Clock(now: { clock.now }), queue: home,
+                                loop: false)
         // No device: a reaction's moment goes nowhere and ends as the step
         // says, played at once by default, so HISTORY reads as the app's
         // does once it has; one left in progress stays so.
         let ending = Ending()
-        let (harness, moodAction) = Runtime.harness(
-            brain: brain, pipeline: pipeline, mood: mood, steering: steering,
-            personality: { scenario.personality }, time: time, clock: { clock.now }, wall: { clock.now },
+        let (harness, mood) = Runtime.harness(
+            pipeline: pipeline, steering: steering, personality: { scenario.personality },
             queue: { moment, pending in
                 ending.said = moment.say?.text
                 ending.takes = moment.say?.takes.map(\.text) ?? []
-                if let end = ending.end { pending.finish(end) } else { ending.open.append(pending) }
-            }, home: home, emit: debugLog.map { url in { LineFile.append($0, to: url) } })
-        // The mood it starts in, as the dashboard would set it just before.
-        if scenario.mood != mood.current { _ = moodAction.change(to: scenario.mood) }
+                if ending.end == .failed(MomentSchedule.tapCut) {
+                    ending.cut.append(pending)
+                } else if let end = ending.end {
+                    pending.finish(end)
+                } else {
+                    ending.open.append(pending)
+                }
+            })
+        harness.on("*") { e in
+            guard !ending.cut.isEmpty, TranscriptView.stopsThePokes(e, harness.log.view(before: e)) else { return }
+            let held = ending.cut
+            ending.cut = []
+            held.forEach { $0.finish(.done) }
+        }
+        if let url = debugLog {
+            let writer = Runtime.debugLines(pipeline: pipeline, emit: { LineFile.append($0, to: url) })
+            harness.onPass = { pass in writer.pass(pass, launchOptions: [:], at: clock.now) }
+        }
+        func moodNow() -> String { home.sync { MoodAction.value(mood, harness.log.view(now: clock.now)) } }
+        home.sync {
+            harness.use(brain)
+            // The mood it starts in, as the dashboard would set it just before.
+            if scenario.mood != MoodAction.initial {
+                harness.force(mood, by: Runtime.forcedBy) {
+                    MoodAction.change(mood, to: scenario.mood, log: harness.log.view(now: clock.now))
+                }
+            }
+        }
 
         var checks: [Check] = []
         var timeline: [Pass] = []
@@ -475,26 +498,27 @@ public struct Eval {
         for (i, step) in scenario.steps.enumerated() {
             // Time passes a second at a time, as the app ticks, and what a
             // tick brings (a heartbeat) is answered then, as in the app.
-            var last: Harness.Record?
+            var last: Harness.Pass?
             var lastSaid: String?  // the line its reaction said
             var lastTakes: [String] = []  // and its takes' texts
             func respond(_ views: [ViewEvent]) async {
-                for view in views {
+                for view in views where view.wakesBrain {
                     ending.said = nil
                     ending.takes = []
-                    guard let record = await harness.respond(to: view) else { continue }
+                    guard let e = home.sync(execute: { harness.log.event(view.seq) }),
+                          let record = await harness.respond(to: e) else { continue }
                     lastSaid = ending.said
                     lastTakes = ending.takes
                     last = record
-                    let ran = record.actions.contains { $0.name == "react" && $0.result.ok }
-                    let answers = record.pass.answers
+                    let ran = record.actions.contains { $0.name == ReactAction.actionName && $0.result.ok }
+                    let answers = record.answers
                     timeline.append(Pass(
-                        atMs: clock.now - start, line: record.now.line,
+                        atMs: clock.now - start, line: view.line,
                         reaction: ran ? Reaction(face: answers["react.mood"]?.choice ?? "none",
                                                  animation: ReactAction.animation(answers) ?? "none",
                                                  said: ending.said ?? "none") : nil,
                         loops: ran ? ReactAction.holds[ReactAction.loops(answers) - 1].name : nil,
-                        mood: mood.current, dropped: record.pass.dropped,
+                        mood: moodNow(), dropped: record.dropped,
                         offered: record.questions.first { $0.key == MoodAction.actionName }?.options.map(\.name) ?? [],
                         answer: answers[MoodAction.actionName]?.choice))
                 }
@@ -524,17 +548,17 @@ public struct Eval {
             guard let record = last else {
                 throw EvalError("\(scenario.file) step \(i + 1): expects a pass, but nothing woke the brain")
             }
-            let react = record.pass.answers["react.mood"]?.choice
-            let ran = record.actions.contains { $0.name == "react" && $0.result.ok }
-            checks.append(Check(step: i + 1, line: record.now.line, expected: expect, react: react,
-                                animation: ran ? ReactAction.animation(record.pass.answers) : nil,
-                                feeling: ran ? ReactAction.feeling(record.pass.answers) : nil,
-                                about: ran ? ReactAction.about(record.pass.answers) : nil,
-                                kind: ran ? ReactAction.kind(record.pass.answers).rawValue : nil,
+            let react = record.answers["react.mood"]?.choice
+            let ran = record.actions.contains { $0.name == ReactAction.actionName && $0.result.ok }
+            checks.append(Check(step: i + 1, line: record.line ?? "", expected: expect, react: react,
+                                animation: ran ? ReactAction.animation(record.answers) : nil,
+                                feeling: ran ? ReactAction.feeling(record.answers) : nil,
+                                about: ran ? ReactAction.about(record.answers) : nil,
+                                kind: ran ? ReactAction.kind(record.answers).rawValue : nil,
                                 said: ran ? lastSaid : nil, saidTakes: ran ? lastTakes : [],
-                                loops: ran ? ReactAction.holds[ReactAction.loops(record.pass.answers) - 1].name : nil,
-                                mood: mood.current, offered: timeline.last?.offered ?? [], dropped: record.pass.dropped,
-                                latencyMs: record.pass.latencyMs))
+                                loops: ran ? ReactAction.holds[ReactAction.loops(record.answers) - 1].name : nil,
+                                mood: moodNow(), offered: timeline.last?.offered ?? [], dropped: record.dropped,
+                                latencyMs: record.latencyMs))
         }
         if let s = since, let end = scenario.steps.last?.atMs { working.append((s, end)) }
         let runChecks = scenario.checks.map { Eval.judge($0, timeline: timeline, working: working, start: scenario.mood) } ?? []
@@ -631,6 +655,9 @@ public struct Eval {
     final class Ending: @unchecked Sendable {
         var end: Pending.End? = .done
         var open: [Pending] = []
+        /// Reactions a tap cut short: in progress while the pokes go on,
+        /// done once they stop, as the moment schedule has them.
+        var cut: [Pending] = []
         /// The line the last pass's reaction said, if any, and its takes'
         /// texts.
         var said: String?

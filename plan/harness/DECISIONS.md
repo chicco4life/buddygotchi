@@ -17,7 +17,7 @@ Two actions, registered in this order (`Runtime`):
 
 | Action | Decides | Its questions | Effect |
 | --- | --- | --- | --- |
-| `mood` (§4) | Whether Boop's mood stays or moves one step along the mood graph, and to which neighbour | `mood` | The `mood` file; MOOD from the next pass; the device's set of faces |
+| `mood` (§4) | Whether Boop's mood stays or moves one step along the mood graph, and to which neighbour | `mood` | The mood, which is its latest change in the transcript; MOOD from the next pass; the device's set of faces |
 | `react` (§5) | Whether Boop reacts, with which mood's face, for how long, what it says and how, and, for a turn that finished, how it ended | `react.mood`, `react.animation`, `react.loops`, `say.feeling`, `say.about`, `say.kind` | The device draws the look, or the finish's scene when there is one, in that mood's design for the loops picked, and says a recorded take in that mood if Voice has one ([VOICE.md](../VOICE.md) §4) |
 
 All seven questions go in one request, and Jev answers each on its own
@@ -243,13 +243,15 @@ determined.
 Each "after N minutes" counts from Boop's mood changing to it, or ends
 sooner if the change has dropped out of HISTORY.
 
-**The current mood** is one word in the state directory's `mood` file
-([ARCHITECTURE.md](../ARCHITECTURE.md) §4.4), which only the mood store
-(`MoodStore`) reads and writes, so it survives a restart. A new state
-directory starts `calm` (`MoodAction.initial`); a missing file reads as
-calm, and so does a word that isn't a mood, which the app log records
-(`mood: the mood file says …`); `cheerful`, happy's old name, reads as
-happy. The core puts the mood in every `state` it sends
+**The current mood** is the `to` of the mood's latest change in the
+transcript ([HARNESS.md](HARNESS.md) §5.1), the brain kit's `Choice`
+([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md) §6): nothing else keeps it, so
+a restart reads it back with the transcript's last 24 hours. A new Boop,
+or one whose mood hasn't changed in 24 hours, starts `calm`
+(`MoodAction.initial`), the resting mood every other fades toward, and a
+word that isn't a mood reads as calm. A mood change logged before the
+brain kit said its mood only in its message, which is read for it. The
+core puts the mood in every `state` it sends
 ([PROTOCOL.md](../PROTOCOL.md) §3).
 
 ## 3. The questions
@@ -259,7 +261,7 @@ meaning is its criterion.
 
 | Key | Asked by | Text | About | Judged by | Options |
 | --- | --- | --- | --- | --- | --- |
-| `mood` | `mood` | After NOW, what is Boop's mood? | the NOW and HISTORY sections | the MOOD section, its reason to leave | Staying in the saved mood, and exactly that mood's moves on the graph (§2.3, §4), built on every pass |
+| `mood` | `mood` | After NOW, what is Boop's mood? | the NOW and HISTORY sections | the MOOD section, its reason to leave | Staying in the current mood, and exactly that mood's moves on the graph (§2.3, §4), built on every pass |
 | `react.mood` | `react` | How should Boop react to NOW, if at all? It makes this mood's face for a moment, and may say something. | the NOW section | the PERSONALITY and MOOD sections, PERSONALITY's Examples first | `none` and the 13 moods' faces |
 | `react.animation` | `react` | If Boop reacts and NOW's line is a turn that finished, how did the turn end? | the NOW section | NOW's line and the agent's last message under it | `none`, `success`, `failure` and `reply` |
 | `react.loops` | `react` | If Boop reacts, how long does it hold the face? | the NOW section | as `react.mood` | Four lengths, once to four times |
@@ -402,17 +404,16 @@ which are `hello`'s.
 ## 4. The `mood` action
 
 `app/BoopKit/Actions/MoodAction.swift`, with the graph in
-`MoodGraph.swift`. **Made with** the mood store and a callback the
-runtime gives it, which hands a saved mood to the core so the next
-`state` carries it. Its question is built from the saved mood on every
-pass (§3), which the generic harness asks for when it prepares one
-([HARNESS.md](HARNESS.md) §2), so the harness needed no change for it.
+`MoodGraph.swift`: the brain kit's `Choice` (`MoodAction.choice()`),
+its options the current mood's own (`MoodAction.options(from:)`), built
+on every pass (§3), as the kit asks for all questions. A change is a
+`did` with `from` and `to`; the runtime's rule on it hands the new mood
+to the core, so the next `state` carries it.
 
 | Jev's `mood` answer | Result |
 | --- | --- |
 | Missing, the current mood (staying), or anything that isn't one of the current mood's moves on the graph | `nil`: nothing to do |
-| One of the current mood's moves | Saves it, tells the core, and returns `ok`, `Boop's mood changed: annoyed → grumpy.` MOOD is the new mood's file from the next pass, and a new `state` goes to the device at once |
-| A move, but the file can't be written | `ok: false`, `couldn't save the mood: …`, and nothing changes |
+| One of the current mood's moves | Returns `ok`, `Boop's mood changed: annoyed → grumpy.`, logged as the mood's change, which the core hears of. MOOD is the new mood's file from the next pass, and a new `state` goes to the device at once |
 
 A mood can move on any pass, a poke's included, even straight after
 another move, but only one step each time.
@@ -421,10 +422,10 @@ another move, but only one step each time.
 line for the end of HISTORY, its only closing line
 ([HARNESS.md](HARNESS.md) §5.3): `Boop has been proud for 7 min.`, in whole minutes as HISTORY's
 times are (`under a minute` below one, hours past an hour), counted from
-the change it last made (`MoodAction.sinceLine`). It's left out while
-Boop is calm, the resting mood, and before the action has changed the
-mood since launch, where the change leaving HISTORY is the mood files'
-fallback. The mood
+its latest change in the transcript (`MoodAction.sinceLine`), a
+relaunch's included. It's left out while Boop is calm, the resting mood,
+and when no change is in the transcript's last 24 hours, where the
+change leaving HISTORY is the mood files' fallback. The mood
 files' minutes ("once Boop has been grumpy for 2 min") are read against
 it: without it, Jev saw `7 min ago: … Boop's mood changed: determined →
 proud` and kept Boop proud at 0.68–0.75, where its 5 minutes were up
@@ -518,7 +519,7 @@ how it ended ([PROTOCOL.md](../PROTOCOL.md) §4):
 | End | When | By |
 | --- | --- | --- |
 | `done` | The device says its take played to the end, and its face its loops, or until a newer moment (the next reaction's included), a tap or "needs you" ended the face after the take: it was seen and heard | The runtime, from the device's `ended` |
-| `failed`, `cut short: you tapped Boop` | The device says a tap's poke stopped its take. HISTORY keeps its line, `(in progress)` while the pokes go on and plain after: you saw it start, and a barrage of pokes would otherwise get the same face twice ([EVENTS.md](EVENTS.md) §7) | The same |
+| `done`, once the pokes stop | The device says a tap's poke stopped its take. The moment schedule holds its handle (`MomentSchedule.cutByTap`), so HISTORY keeps its line `(in progress)` while the pokes go on, and ends it done at the next event that isn't another poke of the run: you saw it start, and a barrage of pokes would otherwise get the same face twice ([EVENTS.md](EVENTS.md) §7) | The runtime's rule on every event (`TranscriptView.stopsThePokes`) |
 | `failed`, `cut short: something newer played` | The device says a newer moment stopped its take | The same |
 | `failed`, `cut short: something needed you` | The device says "needs you" started while its take played | The same |
 | `failed`, `cut short` | The device says something else stopped it (`dbg.reset`), or doesn't say what | The same |
@@ -529,7 +530,7 @@ how it ended ([PROTOCOL.md](../PROTOCOL.md) §4):
 | `failed`, `the device never said it ended` | No `ended` came by the moment's longest length, its face's loops of the design showing or its line, plus a grace ([PROTOCOL.md](../PROTOCOL.md) §6): the line was lost, or the firmware is older | The runtime |
 
 Even the longest hold of the design with the longest loop ends one of
-these ways before the harness's ceiling could end it
+these ways before its `openFor` could end it
 ([HARNESS.md](HARNESS.md) §5.1): its wait for a turn (a late pump
 included), its face and the grace for `ended` add up to less, which
 `RuntimeTests` checks against the designs' loops of all 13 moods, so a
@@ -542,7 +543,8 @@ face's time, since it's only a backstop for an action that never ends.
 A failed one is left out of HISTORY, so Jev may make it again if NOW
 still calls for it (§2.1). The evals have no device, so
 their queue ends each handle at once, `done` unless a scenario's step
-says otherwise ([EVALS.md](../EVALS.md) §1, §3).
+says otherwise, and holds one a tap cut short as the schedule does
+([EVALS.md](../EVALS.md) §1, §3).
 [HARNESS.md](HARNESS.md) §9 has a reaction and its end in `debug.jsonl`,
 from a headless run with no device. With the board on USB (firmware
 `6a1cc990`), a forced proud reaction meaning delight, held twice: its

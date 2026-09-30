@@ -35,13 +35,35 @@ public enum DebugLog {
     /// NOW.
     public static func head(_ head: String, at ms: Int64) -> String { line("head", Event.json(head), at: ms) }
 
-    /// A pass: what was asked and answered for a view event, with `extra`
-    /// (its state's HISTORY and NOW, questions, brain and the last event
-    /// its state saw), or the dashboard's forced answers.
-    public static func pass(_ p: Harness.Pass, extra: [String: Any], at ms: Int64) -> String {
-        var pass: [String: Any] = ["for": p.forSeq ?? NSNull(), "latency_ms": p.latencyMs, "dropped": p.dropped ?? NSNull(),
-                                   "answers": answers(p.answers)]
-        for (k, v) in extra { pass[k] = v }
+    /// A pass (§5.2): what was asked and answered for an event, with its
+    /// state's HISTORY and NOW, questions, brain, the last event its state
+    /// saw and the event itself; one held back, with why and the brain it
+    /// would have asked; or the dashboard's forced answers, with who forced
+    /// them. Each names the options it asked where they differ from the
+    /// launch's (`launchOptions`, from the `questions` line).
+    public static func pass(_ p: Harness.Pass, launchOptions: [String: [String]], at ms: Int64) -> String {
+        var pass: [String: Any] = ["for": p.event.map { $0.seq as Any } ?? NSNull(), "latency_ms": p.latencyMs,
+                                   "dropped": p.dropped ?? NSNull(), "answers": answers(p.answers)]
+        if let e = p.event {
+            var now: [String: Any] = ["id": e.seq, "type": e.type?.rawValue ?? e.kind, "line": p.line ?? ""]
+            if let phase = e.phase { now["phase"] = phase.rawValue }
+            pass["now"] = now
+            pass["brain"] = p.brain ?? "none"
+        }
+        if let held = p.held { pass["held"] = held }
+        if let prompt = p.prompt {
+            pass["state"] = split(prompt).last
+            pass["questions"] = p.questions.map(\.key)
+            pass["seen"] = p.seen
+        }
+        if let by = p.by {
+            pass["by"] = by
+            pass["questions"] = p.questions.map(\.key)
+        }
+        let changed = p.questions.filter { launchOptions[$0.key] != $0.options.map(\.name) }
+        if !changed.isEmpty {
+            pass["options"] = Dictionary(uniqueKeysWithValues: changed.map { ($0.key, $0.options.map(\.name)) })
+        }
         return line("pass", Event.json(pass), at: ms)
     }
 
@@ -54,14 +76,27 @@ public enum DebugLog {
     /// The file's first line at every launch: every action's questions,
     /// which the dashboard builds its pickers from. A pass line names the
     /// options it asked where they differ (`Harness.changedOptions`).
-    public static func questions(_ actions: [any Action], at ms: Int64) -> String {
+    public static func questions(_ actions: [any Action], log: LogView, at ms: Int64) -> String {
         line("questions", Event.json(actions.flatMap { action in
-            action.questions().map { q in
+            action.questions(now: nil, log: log).map { q in
                 ["action": action.name, "key": q.key, "text": q.text,
                  "options": q.options.map { ["name": $0.name, "what": $0.what, "not_for": $0.notFor ?? NSNull()] as [String: Any] }]
                     as [String: Any]
             }
         }), at: ms)
+    }
+
+    /// Each question's option names, by key, as a `questions` line gives
+    /// them.
+    public static func options(_ questionsLine: String) -> [String: [String]] {
+        guard let o = try? JSONSerialization.jsonObject(with: Data(questionsLine.utf8)) as? [String: Any],
+              let qs = o["questions"] as? [[String: Any]] else { return [:] }
+        var out: [String: [String]] = [:]
+        for q in qs {
+            guard let key = q["key"] as? String, let options = q["options"] as? [[String: Any]] else { continue }
+            out[key] = options.compactMap { $0["name"] as? String }
+        }
+        return out
     }
 
     /// What the device lines don't carry: the personality, the brain, the
@@ -127,6 +162,59 @@ public enum DebugLog {
         /// What a report writes, in order: the `questions` and `head` lines
         /// let go, then the kept lines.
         public var pieces: [ArraySlice<UInt8>] { [questions, head].compactMap { $0?[...] } + [bytes] }
+    }
+
+    /// Writes `debug.jsonl`'s `event`, `view`, `head` and `pass` lines in
+    /// the order a reader expects: a pass's line before the lines of what
+    /// its outputs did. The kit logs a pass, then runs its outputs, then
+    /// hands the pass on (`onPass`), so those lines wait for it.
+    public final class Writer: @unchecked Sendable {
+        let emit: (String) -> Void
+        /// The head last written, which the passes after it share.
+        var head: String?
+        /// A pass is logged and its outputs running: their lines wait.
+        var holding = false
+        var held: [String] = []
+
+        public init(emit: @escaping (String) -> Void) { self.emit = emit }
+
+        public func event(_ e: Event) {
+            let line = DebugLog.event(e)
+            if e.isKit && e.kind == Event.pass {
+                flush()
+                emit(line)
+                holding = true
+            } else if holding {
+                held.append(line)
+            } else {
+                emit(line)
+            }
+        }
+
+        public func view(_ v: ViewEvent) {
+            if holding { held.append(DebugLog.view(v)) } else { emit(DebugLog.view(v)) }
+        }
+
+        /// A pass: its state's head when it changed, its line, then what
+        /// waited for it.
+        public func pass(_ pass: Harness.Pass, launchOptions: [String: [String]], at ms: Int64) {
+            if let prompt = pass.prompt {
+                let (head, _) = DebugLog.split(prompt)
+                if head != self.head {
+                    emit(DebugLog.head(head, at: ms))
+                    self.head = head
+                }
+            }
+            emit(DebugLog.pass(pass, launchOptions: launchOptions, at: ms))
+            flush()
+        }
+
+        func flush() {
+            holding = false
+            let lines = held
+            held = []
+            lines.forEach(emit)
+        }
     }
 
     /// How a `questions` line and a `head` line start.
@@ -212,7 +300,9 @@ public enum DebugLog {
             }
             if let p = o["pass"] as? [String: Any] {
                 var out = "  pass \(p["brain"] as? String ?? p["by"] as? String ?? "?") \(p["latency_ms"] as? Int ?? 0) ms: "
-                if let dropped = p["dropped"] as? String {
+                if let held = p["held"] as? String {
+                    out += "held: \(held)"
+                } else if let dropped = p["dropped"] as? String {
                     out += "dropped: \(dropped)"
                 } else {
                     let answers = p["answers"] as? [String: [String: Any]] ?? [:]
@@ -225,7 +315,7 @@ public enum DebugLog {
                 }
                 if let state = p["state"] as? String {
                     // Older logs' passes carry the whole state.
-                    let shown = shownFullState ? StateText.split(state).last : head + state
+                    let shown = shownFullState ? DebugLog.split(state).last : head + state
                     shownFullState = true
                     out += "\n" + shown.split(separator: "\n", omittingEmptySubsequences: false).map { "    │ " + $0 }.joined(separator: "\n")
                 }
@@ -252,7 +342,7 @@ public enum DebugLog {
     }
 }
 
-extension StateText {
+extension DebugLog {
     /// The state's head (the guide, PERSONALITY and MOOD), which changes
     /// only with the personality or the mood, and its HISTORY and NOW,
     /// which `debug.jsonl` logs apart.

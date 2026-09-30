@@ -3,786 +3,31 @@ import XCTest
 @testable import BoopKit
 @testable import BrainKit
 
-/// The harness, its state text, the actions and Jev's wire format
-/// (harness/HARNESS.md, harness/DECISIONS.md).
-let harnessT0: Int64 = 1_790_000_000_000
-
-/// An action that records the answers it gets. Not nested in a test: the
-/// shim's runner generator would take it for the test class.
-final class Recorder: Action {
-    let name: String
-    let keys: [String]
-    var got: [Answers] = []
-    var result: ActionResult?
-    init(_ name: String, keys: [String], result: ActionResult?) {
-        self.name = name
-        self.keys = keys
-        self.result = result
-    }
-    func questions() -> [Question] {
-        keys.map { Question(key: $0, text: "?", about: "the NOW section", judgeBy: "x", options: [Option("a", "A"), Option("b", "B")]) }
-    }
-    func run(_ answers: Answers) -> ActionResult? {
-        got.append(answers)
-        return result
-    }
-}
-
-struct SlowBrain: Brain {
-    let id = "slow"
-    let ms: Int
-    func answer(state: String, questions: [Question], deadline: Duration) async throws -> Answers {
-        try await Task.sleep(for: .milliseconds(ms))
-        return [:]
-    }
-}
-
+/// Boop's outputs on the brain kit (harness/DECISIONS.md): react and mood,
+/// their questions and how they read answers; Jev's wire format
+/// (harness/HARNESS.md §7); and debug mode's printer (§9). The kit itself
+/// is `BrainKitTests`'.
 final class HarnessTests: XCTestCase {
-    static var t0: Int64 { harnessT0 }
+    /// An empty log's view, for outputs that don't look back.
+    static let log = Transcript.log().view(now: 0)
 
-    static let parts = StateText.Parts(guide: "You are the mind of Boop.", personality: "PERSONALITY\nCurious.",
-                                       mood: "MOOD\nHappy.", closing: "Boop has been grumpy for 2 min.",
-                                       workingSince: nil, clock: "14:23, Tuesday")
-
-    static func pipeline() -> Pipeline {
-        Pipeline(core: Core(config: .init(time: LocalTime(timeZone: TimeZone(identifier: "UTC")!))), view: TranscriptView())
+    /// §9: a pass held back when its event's turn came says why, and asked
+    /// no brain.
+    func testThePrinterSaysWhyAPassWasHeld() {
+        let line = #"{"pass":{"answers":{},"brain":"jev:jev-latest","dropped":null,"for":3,"held":"something needs you","latency_ms":0},"received_at_ms":7}"#
+        XCTAssertEqual(DebugLog.Printer().readable(line), "  pass jev:jev-latest 0 ms: held: something needs you")
     }
 
-    /// A view event with any line, `minutes` after `t0`: a raw event the
-    /// view reads nothing from, kept with that line.
-    @discardableResult
-    static func happen(_ p: Pipeline, at minutes: Int64, _ line: String, notes: [String] = [], wakes: Bool = true) -> ViewEvent {
-        let e = p.record(Event(ts: t0 + minutes * 60_000, source: .claude, type: .turn, phase: .start, specificType: "test"))
-        p.view.add(e, line: line, notes: notes, wakes: wakes)
-        return p.view.events.last!
+    /// DECISIONS.md §3: seven questions, their keys unique across Boop's
+    /// outputs, as the kit needs.
+    func testQuestionKeysMustBeUniqueAcrossActions() {
+        let pipeline = Pipeline(core: Core(config: .init()), view: TranscriptView())
+        let (harness, _) = Runtime.harness(pipeline: pipeline, steering: RuntimeTests.steering, personality: { .boop },
+                                           queue: { _, _ in })
+        let keys = harness.actions.flatMap { $0.questions(now: nil, log: Self.log).map(\.key) }
+        XCTAssertEqual(keys, ["mood", "react.mood", "react.animation", "react.loops", "say.feeling", "say.about", "say.kind"])
+        XCTAssertEqual(Set(keys).count, 7)
     }
-
-    /// An action about the view event `about`, as the harness records one.
-    @discardableResult
-    static func did(_ p: Pipeline, _ about: ViewEvent?, _ message: String, name: String = "react", ok: Bool = true,
-                    started: Bool = false, by: String = "brain") -> Event {
-        p.record(Event.action(ts: t0, phase: started ? .start : nil, name: name,
-                       data: ["for": about.map { .int(Int64($0.seq)) } ?? .null, "by": .string(by), "ok": .bool(ok),
-                              "message": .string(message)]))
-    }
-
-    /// harness/HARNESS.md §5.3: HISTORY and NOW, built step by step from
-    /// the view: oldest first, relative times, notes then what Boop did
-    /// indented under what it answered (rule actions and the brain's, in
-    /// order), failed actions left out.
-    func testTheTextFormFollowsTheSteps() {
-        let p = Self.pipeline()
-        let start = Self.happen(p, at: 5, #"claude started turn 7 on "fix-nav" (landing)."#, notes: [#"You asked: "fix the nav""#])
-        let failed = Self.happen(p, at: 14, #"claude's tests failed on "fix-nav" (landing)."#)
-        Self.did(p, failed, #"Boop made an annoyed face, held once, and said "Tsk..."."#)
-        Self.did(p, failed, "couldn't save the mood: disk full", name: "mood", ok: false)
-        let poke = Self.happen(p, at: 19, "You poked Boop.")
-        Self.did(p, poke, "Boop wiggled on its own.", name: "wiggle", by: "rule")
-        let end = Self.happen(p, at: 23, #"claude finished turn 7 on "fix-nav" (landing): done, a very long turn, 12 tool calls."#,
-                              notes: [#"Its last message: "Done.""#])
-        _ = start
-        var parts = Self.parts
-        parts.workingSince = Self.t0 + 5 * 60_000  // the turn is still working, so HISTORY reaches back to its start
-        let state = StateText.build(p.view.events, now: p.view.event(end.id)!, at: Self.t0 + 23 * 60_000 + 5000, parts)
-        XCTAssertEqual(state, """
-            You are the mind of Boop.
-            \(StateText.reading)
-            \(EventLine.words)
-
-            PERSONALITY
-            Curious.
-
-            MOOD
-            Happy.
-
-            HISTORY (oldest first; indented lines add to the line above)
-            18 min ago: claude started turn 7 on "fix-nav" (landing).
-              You asked: "fix the nav"
-            9 min ago: claude's tests failed on "fix-nav" (landing).
-              Boop made an annoyed face, held once, and said "Tsk...".
-            4 min ago: You poked Boop.
-              Boop wiggled on its own.
-            Boop has been grumpy for 2 min.
-
-            NOW (14:23, Tuesday)
-            claude finished turn 7 on "fix-nav" (landing): done, a very long turn, 12 tool calls.
-              Its last message: "Done."
-            Boop did nothing on its own.
-            """)
-        let poked = StateText.nowSection(p.view.event(poke.id)!, clock: "c")
-        XCTAssertEqual(poked, "NOW (c)\nYou poked Boop.\nBoop wiggled on its own.", "a rule's action is NOW's last line")
-    }
-
-    /// §5.3: HISTORY reaches back 10 minutes, or to the oldest working
-    /// turn, whichever is further, and holds at most 40 events.
-    func testHistoryReachesBackTenMinutesOrToTheOldestWorkingTurn() {
-        XCTAssertEqual(StateText.historyMs, 600_000)
-        XCTAssertEqual(StateText.historyLimit, 40)
-        let p = Self.pipeline()
-        Self.happen(p, at: 0, "old")
-        for i in 1...50 { Self.happen(p, at: 20, "poke \(i)", wakes: false) }
-        let now = Self.happen(p, at: 21, "now")
-        let recent = StateText.history(p.view.events, now: now, at: Self.t0 + 21 * 60_000, closing: "s", workingSince: nil)
-        XCTAssertFalse(recent.contains(": old"), "21 minutes ago is past the 10")
-        XCTAssertEqual(recent.split(separator: "\n").count, 1 + 40 + 1, "a heading, 40 events, the closing line")
-        XCTAssertTrue(recent.contains("poke 50") && !recent.contains("poke 10\n"), "the newest 40")
-        let working = StateText.history(p.view.events, now: now, at: Self.t0 + 21 * 60_000, closing: "s", workingSince: Self.t0)
-        XCTAssertTrue(working.contains("21 min ago: old") || !working.contains("poke 1\n"), "the working turn's start counts, within the 40")
-        XCTAssertEqual(StateText.ago(59_999), "just now")
-        XCTAssertEqual(StateText.ago(9 * 60_000), "9 min ago")
-        XCTAssertEqual(StateText.ago(2 * 3_600_000 + 5), "2 h ago")
-    }
-
-    /// §5.3 step 2: a view event whose started action is still in progress
-    /// stays in HISTORY past the newest 40, so a pass still sees the face
-    /// Boop is making. With chatter's `tool_uses: all`, 40 routine calls
-    /// can land during one face held four times, and the reaction dropped
-    /// out of HISTORY: Jev could call for the same face again
-    /// (harness/DECISIONS.md §5, react's `none`).
-    func testAReactionInProgressStaysInHistory() {
-        let p = Self.pipeline()
-        let failed = Self.happen(p, at: 20, "tests failed")
-        Self.did(p, failed, "Boop made a proud face.", started: true)
-        let done = Self.happen(p, at: 20, "tests failed again")
-        Self.did(p, done, "Boop made a calm face, held once.")
-        for i in 1...45 { Self.happen(p, at: 20, "read \(i)") }
-        let now = Self.happen(p, at: 20, "now")
-        let history = StateText.history(p.view.events, now: now, at: now.ts + 30_000, closing: "s", workingSince: nil)
-        let lines = history.split(separator: "\n").map(String.init)
-        XCTAssertEqual(lines[1], "just now: tests failed", "the oldest, kept for its reaction")
-        XCTAssertEqual(lines[2], "  Boop made a proud face. (in progress)")
-        XCTAssertEqual(lines[3], "just now: read 6", "then the newest 40")
-        XCTAssertFalse(history.contains("tests failed again"), "a finished one isn't kept")
-        XCTAssertEqual(lines.count, 1 + 2 + 40 + 1)
-    }
-
-    // MARK: The harness
-
-    func harness(_ brain: (any Brain)?, _ actions: [any Action], log: @escaping (String) -> Void = { _ in })
-        -> (Harness, DispatchQueue) {
-        let home = DispatchQueue(label: "test.home")
-        let h = Harness(brain: brain, actions: actions, pipeline: Self.pipeline(), parts: { Self.parts }, home: home,
-                        clock: { harnessT0 }, log: log)
-        return (h, home)
-    }
-
-    /// A view event with `line` in the harness's view.
-    func event(_ h: Harness, _ home: DispatchQueue, at minutes: Int64 = 0, _ line: String, wakes: Bool = true) -> ViewEvent {
-        home.sync { Self.happen(h.pipeline, at: minutes, line, wakes: wakes) }
-    }
-
-    /// The actions recorded, as `name phase: for`.
-    func actions(_ h: Harness, _ home: DispatchQueue) -> [Event] {
-        home.sync { h.pipeline.transcript.events.filter { $0.isAction } }
-    }
-
-    /// HARNESS.md §2–4: one request with every action's questions; each
-    /// action gets only its own answers, in order; a nil result records
-    /// nothing, and every result is recorded as an action for its view
-    /// event's raw event.
-    func testAPassAsksEveryQuestionAndHandsEachActionItsOwn() async throws {
-        let seen = Lines()
-        let brain = ScriptedBrain { state, questions in
-            seen.add(questions.map(\.key).joined(separator: ","))
-            XCTAssertTrue(state.hasSuffix("NOW (14:23, Tuesday)\nit happened\nBoop did nothing on its own."))
-            return ["one": Answer(choice: "a"), "two": Answer(choice: "b"), "three": Answer(choice: "a")]
-        }
-        let first = Recorder("first", keys: ["one", "two"], result: .done("Boop did one."))
-        let second = Recorder("second", keys: ["three"], result: nil)
-        let (h, home) = harness(brain, [first, second])
-        let now = event(h, home, "it happened")
-        let recordResult = await h.respond(to: now)
-        let record = try XCTUnwrap(recordResult)
-        XCTAssertEqual(seen.all, ["one,two,three"], "one request")
-        XCTAssertEqual(first.got, [["one": Answer(choice: "a"), "two": Answer(choice: "b")]])
-        XCTAssertEqual(second.got, [["three": Answer(choice: "a")]])
-        XCTAssertEqual(record.actions.map(\.name), ["first"], "nil is nothing to record")
-        XCTAssertEqual(record.logLine, "brain turn start \(record.pass.latencyMs) ms → first")
-        let recorded = actions(h, home)
-        XCTAssertEqual(recorded.count, 1, "one action; the pass isn't in the transcript")
-        XCTAssertEqual(recorded.first?["for"], .int(Int64(now.seq)))
-        XCTAssertEqual(recorded.first?["by"], "brain")
-        XCTAssertEqual(recorded.first?.actionName, "first")
-        XCTAssertNil(recorded.first?.actionPhase, "done at once")
-    }
-
-    /// EVENTS.md §6, DECISIONS.md §4: a poke's pass asks the mood question
-    /// like any other, so it can move Boop's mood: from calm, to annoyed.
-    func testAPokeCanMoveBoopsMood() async throws {
-        let dir = tempDir("boop-mood")
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let store = MoodStore(stateDir: dir)
-        let seen = Lines()
-        let brain = ScriptedBrain { _, questions in
-            seen.add(questions.map(\.key).joined(separator: ","))
-            return ["mood": Answer(choice: "annoyed")]
-        }
-        let (h, home) = harness(brain, [MoodAction(store: store)])
-        let poke = try XCTUnwrap(home.sync { h.pipeline.poke(at: Self.t0).views.first })
-        XCTAssertEqual(poke.name, "poke")
-        let pass = await h.respond(to: poke)
-        let poked = try XCTUnwrap(pass)
-        XCTAssertEqual(seen.all, ["mood"], "the mood question is asked")
-        XCTAssertEqual(poked.actions.map(\.name), ["mood"])
-        XCTAssertEqual(store.current, "annoyed")
-    }
-
-    /// A view event that doesn't wake the brain, or no brain, gets no pass;
-    /// a brain that fails drops the pass and runs no action.
-    func testNoPassWithoutWakingOrABrainAndNoActionWhenItFails() async throws {
-        let a = Recorder("a", keys: ["k"], result: .done("x"))
-        let (h, home) = harness(ScriptedBrain(always: [:]), [a])
-        let quiet = await h.respond(to: event(h, home, "needs you", wakes: false))
-        XCTAssertNil(quiet)
-        let (none, noneHome) = harness(nil, [a])
-        let nothing = await none.respond(to: event(none, noneHome, "x"))
-        XCTAssertNil(nothing)
-        let (broken, brokenHome) = harness(ScriptedBrain { _, _ in throw BrainError("jev: HTTP 500") }, [a])
-        let recordResult = await broken.respond(to: event(broken, brokenHome, "x"))
-        let record = try XCTUnwrap(recordResult)
-        XCTAssertEqual(record.pass.dropped, "jev: HTTP 500")
-        XCTAssertEqual(record.actions, [])
-        XCTAssertEqual(a.got.count, 0)
-        XCTAssertEqual(record.logLine, "brain turn start \(record.pass.latencyMs) ms → dropped: jev: HTTP 500")
-    }
-
-    /// HARNESS.md §7: the popover says Jev isn't answering at once for a
-    /// status only the person can fix (401, 402, 403), and for anything
-    /// else after 3 dropped passes in a row. A pass that runs clears it, a
-    /// pass that never asked Jev doesn't count, and a new key starts over.
-    func testBrainTroubleShowsAtOnceForTheAccountAndAfterThreeInARowElse() async throws {
-        XCTAssertEqual(BrainTrouble.showAfter, 3)
-        let fail = Lines()
-        let brain = ScriptedBrain { _, _ in
-            guard let status = fail.all.last.flatMap(Int.init) else { return [:] }
-            throw BrainError("jev: HTTP \(status)", status: status)
-        }
-        let (h, home) = harness(brain, [Recorder("a", keys: ["k"], result: .done("x"))])
-        func pass(_ status: Int?) async -> BrainTrouble? {
-            fail.add(status.map(String.init) ?? "ok")
-            _ = await h.respond(to: event(h, home, "x"))
-            return home.sync { h.trouble }
-        }
-        let credit = await pass(402)
-        XCTAssertEqual(credit, BrainTrouble(kind: .credit, why: "jev: HTTP 402", inARow: 1))
-        let ok = await pass(nil)
-        XCTAssertNil(ok)
-        let key = await pass(401)
-        XCTAssertEqual(key?.kind, .key)
-        _ = await pass(nil)
-        let first = await pass(503)
-        let second = await pass(503)
-        let third = await pass(503)
-        XCTAssertNil(first)
-        XCTAssertNil(second)
-        XCTAssertEqual(third, BrainTrouble(kind: .failing, why: "jev: HTTP 503", inARow: 3))
-        // A waiting pass that never asked Jev leaves it as it was.
-        let waited = event(h, home, "x")
-        home.sync { _ = h.finish(waited, nil, .failure(BrainError("something needs you")), latencyMs: 0) }
-        XCTAssertEqual(home.sync { h.trouble }?.inARow, 3)
-        home.sync { h.use(brain) }
-        XCTAssertNil(home.sync { h.trouble })
-    }
-
-    /// HARNESS.md §7: a pass that asked the brain before a new key, or
-    /// none, doesn't say how the new one is doing. Before, a 401 that came
-    /// back after you fixed the key showed the notice again, and after you
-    /// cleared it the notice stayed until a relaunch.
-    func testAPassFromBeforeANewKeyLeavesTheTroubleAlone() throws {
-        let gate = DispatchSemaphore(value: 0)
-        let brain = ScriptedBrain { _, _ in
-            gate.wait()
-            throw BrainError("jev: HTTP 401", status: 401)
-        }
-        let (h, home) = harness(brain, [Recorder("a", keys: ["k"], result: .done("x"))])
-        var records: [Harness.Record] = []
-        let now = event(h, home, "x")
-        home.sync {
-            h.onRecord = { records.append($0) }
-            h.take([now])
-            h.use(nil)
-        }
-        gate.signal()
-        eventually("the pass ends") { home.sync { records.count } == 1 }
-        XCTAssertEqual(home.sync { records.first?.pass.dropped }, "jev: HTTP 401")
-        XCTAssertNil(home.sync { h.trouble }, "the key was cleared while it ran")
-    }
-
-    /// HARNESS.md §7: the deadline cuts a pass off at 1.5 s. Its timer
-    /// had the system's default leeway, so it fired up to 7% late: an
-    /// answer just past it was kept or dropped by chance, and every dropped
-    /// pass logged the timer's time as the brain's.
-    func testTheDeadlineComesOnTime() async {
-        let runs = (0..<4).map { _ in
-            let (h, home) = harness(SlowBrain(ms: 3000), [Recorder("a", keys: ["k"], result: .done("x"))])
-            return (h, event(h, home, "x"))
-        }
-        let ms = await withTaskGroup(of: Int.self) { group in
-            for (h, now) in runs {
-                group.addTask {
-                    let started = ContinuousClock.now
-                    _ = await h.respond(to: now)
-                    return (ContinuousClock.now - started).ms
-                }
-            }
-            var all: [Int] = []
-            for await one in group { all.append(one) }
-            return all
-        }
-        XCTAssertLessThan(ms.max() ?? 0, Harness.deadlineMs + 40, "\(ms)")
-    }
-
-    /// HARNESS.md §7: a pass that runs past 1.5 s is dropped, and the
-    /// request goes on to its end, off the pass, so the app log says when
-    /// the brain did answer: the pass's latency is the deadline's, and says
-    /// nothing about the brain. Its answer is still thrown away.
-    func testALateAnswerIsStillTimed() async throws {
-        XCTAssertEqual(Harness.deadlineMs, 1500)
-        let logged = Lines()
-        let a = Recorder("a", keys: ["k"], result: .done("x"))
-        let (h, home) = harness(SlowBrain(ms: 1700), [a], log: { logged.add($0) })
-        var records: [Harness.Record] = []
-        let now = event(h, home, "x")
-        home.sync {
-            h.onRecord = { records.append($0) }
-            h.take([now])
-        }
-        eventually("the late answer's line", timeout: 4) {
-            logged.all.contains { line in
-                line.hasPrefix("harness: slow answered after ")
-                    && (Int(line.dropFirst(29).prefix { $0.isNumber }).map { $0 >= 1700 } ?? false)
-            }
-        }
-        XCTAssertTrue(logged.all.contains { $0.hasSuffix("dropped: late: no answer within 1500 ms") }, "\(logged.all)")
-        home.sync {
-            XCTAssertEqual(records.count, 1)
-            XCTAssertLessThan(records.first?.pass.latencyMs ?? .max, Harness.deadlineMs + 40, "the deadline's timer, on time")
-            XCTAssertTrue(h.idle)
-        }
-        XCTAssertEqual(a.got.count, 0, "its answer is thrown away")
-    }
-
-    /// HARNESS.md §2: one pass runs at a time, and a newer view event
-    /// replaces one that's waiting; the replaced one is still in the view.
-    func testOnePassAtATimeAndTheNewestWaits() throws {
-        let seen = Lines()
-        let gate = DispatchSemaphore(value: 0)
-        let brain = ScriptedBrain { state, _ in
-            seen.add(String(state.split(separator: "\n").reversed()[1]))
-            if seen.all.count == 1 { gate.wait() }
-            return [:]
-        }
-        let (h, home) = harness(brain, [Recorder("a", keys: ["k"], result: nil)])
-        var records: [Harness.Record] = []
-        let views = ["first", "second", "third"].map { event(h, home, $0) }
-        home.sync {
-            h.onRecord = { records.append($0) }
-            for v in views { h.take([v]) }
-        }
-        Thread.sleep(forTimeInterval: 0.1)
-        gate.signal()
-        eventually("two passes") { home.sync { records.count } >= 2 }
-        XCTAssertEqual(seen.all, ["first", "third"], "second was replaced while it waited")
-        home.sync {
-            XCTAssertTrue(h.idle)
-            XCTAssertEqual(h.pipeline.view.events.count, 3)
-        }
-    }
-
-    /// HARNESS.md §2: a finished turn and what you said keep their pass
-    /// while they wait (priority above 0): a newer view event waits
-    /// behind them, and only replaces one waiting at 0. Before, the one
-    /// waiting was always replaced, so another agent's routine event
-    /// could take a finish's pass (it never animated), or the pass that
-    /// answered what you said.
-    func testAFinishAndWhatYouSaidKeepTheirPass() throws {
-        let seen = Lines()
-        let gate = DispatchSemaphore(value: 0)
-        let brain = ScriptedBrain { state, _ in
-            seen.add(String(state.split(separator: "\n").reversed()[1]))
-            if seen.all.count == 1 { gate.wait() }
-            return [:]
-        }
-        let (h, home) = harness(brain, [Recorder("a", keys: ["k"], result: nil)])
-        var records: [Harness.Record] = []
-        let views = ["first", "finished", "routine", "said", "routine 2", "routine 3"].map { line in
-            var v = event(h, home, line)
-            v.passPriority = line == "finished" ? 1 : line == "said" ? 2 : 0
-            return v
-        }
-        home.sync {
-            h.onRecord = { records.append($0) }
-            for v in views { h.take([v]) }
-        }
-        Thread.sleep(forTimeInterval: 0.1)
-        gate.signal()
-        eventually("four passes") { home.sync { records.count } >= 4 }
-        XCTAssertEqual(seen.all, ["first", "said", "finished", "routine 3"])
-        home.sync { XCTAssertTrue(h.idle) }
-    }
-
-    /// HARNESS.md §2: what you said goes ahead of the finished turns
-    /// waiting, so the next pass answers you: another agent's finish
-    /// neither ends `listening` with its reaction nor makes the reply
-    /// wait. Two things you said keep their order, and one replaces a
-    /// routine view event waiting, as any newer one does. Before, the
-    /// finish waiting ran first.
-    func testWhatYouSaidGoesAheadOfAWaitingFinish() throws {
-        let seen = Lines()
-        let gate = DispatchSemaphore(value: 0)
-        let brain = ScriptedBrain { state, _ in
-            seen.add(String(state.split(separator: "\n").reversed()[1]))
-            if seen.all.count == 1 { gate.wait() }
-            return [:]
-        }
-        let (h, home) = harness(brain, [Recorder("a", keys: ["k"], result: nil)])
-        var records: [Harness.Record] = []
-        let views = ["first", "finished", "routine", "said", "routine 2", "said 2"].map { line in
-            var v = event(h, home, line)
-            v.passPriority = line == "finished" ? 1 : line.hasPrefix("said") ? 2 : 0
-            return v
-        }
-        home.sync {
-            h.onRecord = { records.append($0) }
-            for v in views { h.take([v]) }
-        }
-        Thread.sleep(forTimeInterval: 0.1)
-        gate.signal()
-        eventually("four passes") { home.sync { records.count } >= 4 }
-        XCTAssertEqual(seen.all, ["first", "said", "said 2", "finished"])
-        home.sync { XCTAssertTrue(h.idle) }
-    }
-
-    /// HARNESS.md §2, EVENTS.md §6: no view event but a poke wakes the brain
-    /// while something needs you. One that woke it before, and waited
-    /// behind a running pass, doesn't start its pass once something needs
-    /// you: it's logged as a pass dropped for that. Before, it asked Jev
-    /// with the amber showing, and its mood answer changed the face of the
-    /// request on screen.
-    func testAWaitingPassDoesntStartWhileSomethingNeedsYou() throws {
-        let seen = Lines()
-        let gate = DispatchSemaphore(value: 0)
-        let brain = ScriptedBrain { state, _ in
-            seen.add(String(state.split(separator: "\n").reversed()[1]))
-            gate.wait()
-            return [:]
-        }
-        let (h, home) = harness(brain, [Recorder("a", keys: ["k"], result: nil)])
-        let rig = CoreRig()
-        var records: [Harness.Record] = []
-        let first = event(h, home, "first"), second = event(h, home, "second")
-        home.sync {
-            h.onRecord = { records.append($0) }
-            h.take([first])
-            h.take([second])
-            h.pipeline.agent(rig.event(.needsYou, tool: "Bash"))
-        }
-        gate.signal()
-        eventually("both recorded") { home.sync { records.count } == 2 }
-        XCTAssertEqual(seen.all, ["first"], "no request for the second")
-        XCTAssertEqual(records.last?.pass.dropped, "something needs you")
-        XCTAssertEqual(records.last?.logLine, "brain turn start 0 ms → dropped: something needs you")
-        let third = event(h, home, at: 1, "third")
-        home.sync {
-            XCTAssertTrue(h.idle)
-            h.pipeline.agent(rig.event(.activity, tool: "Bash", failed: false))  // you approved
-            h.take([third])
-        }
-        gate.signal()
-        eventually("the next pass, once nothing needs you") { home.sync { records.count } == 3 }
-        XCTAssertEqual(seen.all, ["first", "third"])
-    }
-
-    // MARK: Forced passes
-
-    /// A forced pass needs no brain: each choice gets probability 1 and
-    /// goes to the action that asked it, as Jev's answers would; a choice
-    /// that isn't an option is left out. Its pass is logged for no view
-    /// event, by the dashboard, its actions are `by` it, and its results
-    /// show in the next state's HISTORY as Boop's own, under the latest
-    /// view event before them, with no marker.
-    func testAForcedPassRunsWithNoBrain() throws {
-        let a = Recorder("a", keys: ["one"], result: .done("Boop did one."))
-        let b = Recorder("b", keys: ["two"], result: .failed("not now"))
-        let (h, home) = harness(nil, [a, b])
-        let lines = Lines()
-        _ = event(h, home, at: 1, "it started")
-        let ran = home.sync {
-            h.onDebugLine = { lines.add($0) }
-            return h.force(["one": "b", "two": "nope", "three": "a"])
-        }
-        XCTAssertEqual(a.got, [["one": Answer(choice: "b", probabilities: ["b": 1])]])
-        XCTAssertEqual(b.got, [[:]], "its answer wasn't an option")
-        XCTAssertEqual(ran.map(\.name), ["a", "b"])
-        let recorded = actions(h, home)
-        XCTAssertEqual(recorded.map { $0["by"] }, ["dashboard", "dashboard"])
-        XCTAssertEqual(recorded.map { $0["for"] }, [.null, .null])
-        let pass = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(lines.all[0].utf8)) as? [String: Any])["pass"] as? [String: Any]
-        XCTAssertTrue(pass?["for"] is NSNull)
-        XCTAssertEqual(pass?["by"] as? String, "dashboard")
-
-        let next = event(h, home, at: 2, "it ended")
-        let state = StateText.build(home.sync { h.pipeline.view.events }, now: next, at: Self.t0 + 2 * 60_000, Self.parts)
-        XCTAssertTrue(state.contains("1 min ago: it started\n  Boop did one.\nBoop has been grumpy"), state)
-        XCTAssertFalse(state.contains("dashboard") || state.contains("not now"))
-    }
-
-    /// A forced pass runs at once, on `home`, and leaves the pass running
-    /// and the one waiting alone.
-    func testAForcedPassLeavesTheRunningAndWaitingPassesAlone() throws {
-        let gate = DispatchSemaphore(value: 0)
-        let brain = ScriptedBrain { _, _ in
-            gate.wait()
-            return [:]
-        }
-        let a = Recorder("a", keys: ["k"], result: .done("Boop did it."))
-        let (h, home) = harness(brain, [a])
-        var records: [Harness.Record] = []
-        let first = event(h, home, "first"), second = event(h, home, "second")
-        home.sync {
-            h.onRecord = { records.append($0) }
-            h.take([first])
-            h.take([second])
-            let (running, waiting) = (h.running, h.waiting.map(\.id))
-            XCTAssertEqual(h.force(["k": "a"]).count, 1)
-            XCTAssertEqual(h.running, running)
-            XCTAssertEqual(h.waiting.map(\.id), waiting)
-            XCTAssertEqual(waiting, [second.id])
-            XCTAssertEqual(records.count, 0, "a forced pass isn't one of Jev's")
-        }
-        gate.signal()
-        gate.signal()
-        eventually("two passes") { home.sync { records.count } >= 2 }
-        XCTAssertEqual(records.map(\.now.line), ["first", "second"], "both of Jev's passes still ran")
-        XCTAssertTrue(home.sync { h.idle })
-    }
-
-    /// HARNESS.md §2: a pass's state is fixed when it starts, so an action
-    /// the dashboard makes act while the pass runs (a mood it sets, or a
-    /// forced pass's) has changed since the state the pass's answers are
-    /// about. That action sits the pass's answers out: "stay happy" from a
-    /// state that showed happy would otherwise undo the dashboard's grumpy.
-    /// The other actions, and the next pass, get theirs as usual.
-    func testAnActionTheDashboardChangedDuringAPassSitsItOut() throws {
-        let gate = DispatchSemaphore(value: 0)
-        let brain = ScriptedBrain { _, _ in
-            gate.wait()
-            return ["k": Answer(choice: "a"), "j": Answer(choice: "b")]
-        }
-        let a = Recorder("a", keys: ["k"], result: .done("Boop did a."))
-        let b = Recorder("b", keys: ["j"], result: .done("Boop did b."))
-        let refused = Recorder("refused", keys: ["r"], result: .failed("not now"))
-        let (h, home) = harness(brain, [a, b, refused])
-        var records: [Harness.Record] = []
-        let first = event(h, home, "first")
-        home.sync {
-            h.onRecord = { records.append($0) }
-            h.take([first])
-            XCTAssertEqual(h.force(a) { .done("The dashboard did a.") }, .done("The dashboard did a."))
-            XCTAssertEqual(h.force(refused) { .failed("not now") }, .failed("not now"), "refused, so it changed nothing")
-        }
-        gate.signal()
-        eventually("the pass") { home.sync { records.count } == 1 }
-        XCTAssertEqual(a.got, [], "a sat it out")
-        XCTAssertEqual(b.got.count, 1)
-        XCTAssertEqual(refused.got.count, 1)
-        XCTAssertEqual(records.first?.actions.map(\.name), ["b", "refused"])
-        let next = event(h, home, at: 1, "next")
-        home.sync { h.take([next]) }
-        gate.signal()
-        eventually("the next pass") { home.sync { records.count } == 2 }
-        XCTAssertEqual(a.got.count, 1, "the next pass's state saw the change")
-    }
-
-    // MARK: Started actions (HARNESS.md §4–5)
-
-    /// HISTORY as a pass a minute after `t0` would show it, for a NOW that
-    /// comes after every view event.
-    func history(_ h: Harness, _ home: DispatchQueue) -> String {
-        home.sync {
-            let now = ViewEvent(id: Int.max, type: .heartbeat, phase: nil, from: [], ts: Self.t0 + 60_000, line: "now",
-                                wakesBrain: true)
-            return StateText.history(h.pipeline.view.events, now: now, at: Self.t0 + 60_000,
-                                     closing: "Boop has been grumpy for 2 min.", workingSince: nil)
-        }
-    }
-
-    /// §4, §5.2–5.3: a started result is recorded as an action `start` and
-    /// shows `(in progress)` until its handle ends; the end is an action
-    /// `end` for the start's `seq`, after which the line is plain if it was
-    /// done, or gone if it didn't happen. Only the first end counts.
-    func testAStartedActionIsInProgressUntilItEnds() async throws {
-        let first = Pending()
-        let a = Recorder("a", keys: ["k"], result: .started("Boop did it.", first))
-        let (h, home) = harness(ScriptedBrain(always: [:]), [a])
-        _ = await h.respond(to: event(h, home, "it started"))
-        let start = try XCTUnwrap(actions(h, home).last)
-        XCTAssertEqual(start.jsonLine, #"{"seq":2,"at":1790000000000,"source":"self","kind":"did","data":{"action":"a","by":"brain","for":1,"latency_ms":0,"message":"Boop did it.","ok":true,"open":true}}"#)
-        XCTAssertEqual(home.sync { Array(h.open.keys) }, [2])
-        XCTAssertEqual(history(h, home), """
-            HISTORY (oldest first; indented lines add to the line above)
-            1 min ago: it started
-              Boop did it. (in progress)
-            Boop has been grumpy for 2 min.
-            """)
-
-        // An action's own facts join its event's data unread; the
-        // harness's keys win a clash.
-        let told = Recorder("b", keys: ["j"], result: .started("Boop said it.", Pending(),
-                                                               facts: ["takes": .array(["t1", "t2"]), "face": "happy", "ok": false]))
-        let (h2, home2) = harness(ScriptedBrain(always: [:]), [told])
-        _ = await h2.respond(to: event(h2, home2, "it spoke"))
-        try XCTAssertEqual(try XCTUnwrap(actions(h2, home2).last).jsonLine,
-                       #"{"seq":2,"at":1790000000000,"source":"self","kind":"did","data":{"action":"b","by":"brain","face":"happy","for":1,"latency_ms":0,"message":"Boop said it.","ok":true,"open":true,"takes":["t1","t2"]}}"#)
-
-        home.sync { first.finish(.done) }
-        XCTAssertEqual(actions(h, home).last?.jsonLine,
-                       #"{"seq":3,"at":1790000000000,"source":"self","kind":"ended","data":{"action":"a","by":"brain","for":2,"outcome":"done"}}"#)
-        XCTAssertTrue(home.sync { h.open.isEmpty })
-        XCTAssertTrue(history(h, home).contains("\n  Boop did it.\nBoop has been grumpy"), "the marker is gone")
-        home.sync { first.finish(.failed("too late")) }
-        XCTAssertEqual(actions(h, home).count, 2, "only the first end counts")
-
-        let second = Pending()
-        a.result = .started("Boop did it again.", second)
-        _ = await h.respond(to: event(h, home, "it ended"))
-        home.sync { second.finish(.failed("waited too long")) }
-        XCTAssertEqual(actions(h, home).last?.fields, ["by": "brain", "for": 5, "outcome": "failed", "why": "waited too long"])
-        XCTAssertEqual(history(h, home), """
-            HISTORY (oldest first; indented lines add to the line above)
-            1 min ago: it started
-              Boop did it.
-            1 min ago: it ended
-            Boop has been grumpy for 2 min.
-            """)
-        XCTAssertEqual(a.result, .started("Boop did it again.", second), "the same handle")
-        XCTAssertNotEqual(a.result, .started("Boop did it again.", Pending()), "results compare their handle")
-        XCTAssertNotEqual(a.result, .done("Boop did it again."))
-    }
-
-    /// §4: an end that comes before the harness has the result is kept
-    /// and recorded right after it; a handle ends once.
-    func testAnEndBeforeTheResultIsKept() async throws {
-        var got: [Pending.End] = []
-        let early = Pending()
-        early.finish(.failed("first"))
-        early.finish(.done)
-        early.bind { got.append($0) }
-        XCTAssertEqual(got, [.failed("first")])
-        let late = Pending()
-        late.bind { got.append($0) }
-        late.finish(.done)
-        late.finish(.failed("second"))
-        XCTAssertEqual(got, [.failed("first"), .done])
-
-        let pending = Pending()
-        pending.finish(.failed("no device connected"))
-        let (h, home) = harness(ScriptedBrain(always: [:]), [Recorder("a", keys: ["k"], result: .started("Boop did it.", pending))])
-        _ = await h.respond(to: event(h, home, "it started"))
-        let recorded = actions(h, home)
-        XCTAssertEqual(recorded.map { $0.actionPhase }, [.start, .end], "the action and its end")
-        XCTAssertEqual(recorded.last?["why"], "no device connected")
-        XCTAssertTrue(home.sync { h.open.isEmpty })
-        XCTAssertTrue(history(h, home).contains("it started\nBoop has been grumpy"), "one that didn't happen isn't shown")
-    }
-
-    /// §5.1: a started action still in progress a minute and a half
-    /// (`Harness.pendingMaxMs`) after its result is ended as failed, and
-    /// logged; its own end after that is ignored. A forced one is started
-    /// and ended as Jev's are, and its end is by the dashboard too.
-    func testAnActionStillInProgressAfterAMinuteAndAHalfIsEnded() {
-        XCTAssertEqual(Harness.pendingMaxMs, 90_000)
-        let pending = Pending()
-        let a = Recorder("a", keys: ["k"], result: .started("Boop did it.", pending))
-        let log = Lines()
-        let (h, home) = harness(nil, [a], log: { log.add($0) })
-        _ = event(h, home, "it started")
-        home.sync { XCTAssertEqual(h.force(["k": "a"]).count, 1) }
-        XCTAssertEqual(actions(h, home).last?.actionPhase, .start)
-        XCTAssertTrue(history(h, home).contains("\n  Boop did it. (in progress)\n"), "a forced one too")
-        home.sync { h.tick(now: harnessT0 + 89_999) }
-        XCTAssertEqual(home.sync { Array(h.open.keys) }, [2], "still open at 89,999 ms")
-        home.sync { h.tick(now: harnessT0 + 90_000) }
-        XCTAssertTrue(home.sync { h.open.isEmpty }, "ended at 90,000 ms")
-        XCTAssertEqual(actions(h, home).last?.fields, ["by": "dashboard", "for": 2, "outcome": "failed", "why": "no word it finished"])
-        XCTAssertEqual(log.all, ["harness: a was still in progress after 90000 ms; ended it"])
-        XCTAssertTrue(history(h, home).contains("it started\nBoop has been grumpy"), "ended, it didn't happen")
-        home.sync {
-            pending.finish(.done)
-            h.tick(now: harnessT0 + 180_000)
-        }
-        XCTAssertEqual(actions(h, home).count, 2, "ended once")
-
-        // One forced action on its own, as the dashboard's mood is.
-        let alone = Pending()
-        home.sync {
-            XCTAssertNotNil(h.force(a) { .started("Boop did that.", alone) })
-            alone.finish(.done)
-        }
-        XCTAssertEqual(actions(h, home).last?.fields, ["by": "dashboard", "for": 4, "outcome": "done"])
-    }
-
-    /// §5.3, §9: a replay rebuilds a logged pass's state exactly: the
-    /// log's events up to the pass line's `seen`, folded into a fresh view,
-    /// an action's end included, and none recorded while the brain
-    /// answered, which lands before the pass line but wasn't in its state.
-    func testALoggedStateIsRebuiltFromTheLogWithItsEnds() async throws {
-        let pending = Pending(), during = Pending()
-        let home = DispatchQueue(label: "test.home")
-        // The second pass's brain hears the first action end while it answers.
-        let brain = ScriptedBrain { state, _ in
-            if state.contains("\nclaude finished turn 1 on") { home.sync { during.finish(.done) } }
-            return [:]
-        }
-        let started = Recorder("a", keys: ["k"], result: .started("Boop did it.", pending))
-        let p = Self.pipeline()
-        let h = Harness(brain: brain, actions: [started], pipeline: p, parts: { Self.parts }, home: home, clock: { harnessT0 })
-        let lines = Lines()
-        home.sync {
-            h.onDebugLine = { lines.add($0) }
-            p.onRecord = { lines.add(DebugLog.event($0)) }
-        }
-        func hook(_ type: Event.Kind, _ phase: Event.Phase, _ specific: String, at minutes: Int64,
-                  _ data: [String: JSONValue] = [:]) async {
-            let views = home.sync {
-                p.agent(Event(ts: Self.t0 + minutes * 60_000, source: .claude, type: type, phase: phase, specificType: specific,
-                              session: "s1", cwd: "/w/landing", data: data)).waking
-            }
-            for v in views { _ = await h.respond(to: v) }
-        }
-        await hook(.turn, .start, "UserPromptSubmit", at: -3)
-        home.sync { pending.finish(.failed("the device disconnected")) }
-        started.result = .started("Boop did more.", during)
-        await hook(.tool, .start, "PreToolUse", at: -2, ["tool": "Bash", "topic": "tests", "tool_use_id": "t"])
-        await hook(.tool, .end, "PostToolUseFailure", at: -2, ["tool": "Bash", "tool_use_id": "t", "failed": true])
-        started.result = nil
-        await hook(.turn, .end, "Stop", at: 0, ["outcome": "done"])
-        let objects = lines.all.map { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
-        let (i, pass) = try XCTUnwrap(objects.enumerated().compactMap { i, o in (o?["pass"] as? [String: Any]).map { (i, $0) } }.last)
-        // The head is logged once, before the first pass: it didn't change.
-        let heads = objects[..<i].compactMap { $0?["head"] as? String }
-        XCTAssertEqual(heads.count, 1)
-        XCTAssertTrue(lines.all.firstIndex { $0.hasPrefix(#"{"head":"#) }! < lines.all.firstIndex { $0.hasPrefix(#"{"pass":"#) }!)
-        let last = try XCTUnwrap(pass["state"] as? String)
-        XCTAssertTrue(last.hasPrefix("HISTORY ("), last)
-        let logged = heads[0] + last
-        XCTAssertTrue(logged.contains("3 min ago: claude started turn 1 on \"landing\".\n2 min ago: claude's tests failed on"),
-                      "one that didn't happen isn't shown: \(logged)")
-        XCTAssertTrue(logged.contains("  Boop did more. (in progress)\n"), "its end came while the brain answered: \(logged)")
-        let before = objects[..<i].compactMap { ($0?["event"] as? [String: Any]).flatMap(Event.init(json:)) }
-        XCTAssertTrue(before.contains { $0["outcome"] == "done" && $0.isAction }, "logged before the pass")
-        let seen = try XCTUnwrap(pass["seen"] as? Int)
-        func rebuilt(_ events: [Event]) -> String {
-            let view = TranscriptView()
-            for e in events { view.take(e) }
-            let now = view.events.last { $0.seq == pass["for"] as? Int }!
-            return StateText.build(view.events, now: now, at: harnessT0, Self.parts)
-        }
-        XCTAssertEqual(rebuilt(before.filter { $0.seq <= seen }), logged)
-        XCTAssertNotEqual(rebuilt(before), logged, "without `seen`, not exact")
-    }
-
-    // MARK: The debug log (HARNESS.md §9)
 
     /// The printer reads view events, passes and actions, a started action
     /// with `…` and an end by its action's name, and skips the other raw
@@ -835,7 +80,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(printer.readable(pass), "  pass scripted 1 ms: \n    │ You are.\n    │ MOOD\n    │ calm\n    │ \n    │ HISTORY (oldest first)\n    │ h\n    │ \n    │ NOW (14:23, Tuesday)\n    │ n")
         XCTAssertNil(printer.readable(DebugLog.head("You are.\nMOOD\ngrumpy\n\n", at: 8)))
         XCTAssertEqual(printer.readable(pass), "  pass scripted 1 ms: \n    │ HISTORY (oldest first)\n    │ h\n    │ \n    │ NOW (14:23, Tuesday)\n    │ n")
-        XCTAssertEqual(StateText.split("You are.\n\nHISTORY (oldest first)\nh").head, "You are.\n\n")
+        XCTAssertEqual(DebugLog.split("You are.\n\nHISTORY (oldest first)\nh").head, "You are.\n\n")
     }
 
     /// §9: `boopdev watch --new` starts at the file's end, and the first
@@ -852,16 +97,6 @@ final class HarnessTests: XCTestCase {
         older.skip(Data((pass + "\n").utf8))
         XCTAssertEqual(older.readable(pass), "  pass scripted 1 ms: \n    │ HISTORY (oldest first)\n    │ h\n    │ \n    │ NOW (14:23, Tuesday)\n    │ n",
                        "no head skipped: an older log's passes carry the whole state")
-    }
-
-    func testQuestionKeysMustBeUniqueAcrossActions() {
-        XCTAssertEqual(Set(Self.realActions().flatMap { $0.questions().map(\.key) }).count, 7)
-    }
-
-    static func realActions() -> [any Action] {
-        let dir = tempDir("boop-mood")
-        return [MoodAction(store: MoodStore(stateDir: dir)),
-                ReactAction(queue: { _, _ in }, blocked: { nil })]
     }
 
     // MARK: The actions (DECISIONS.md §4–5)
@@ -881,12 +116,12 @@ final class HarnessTests: XCTestCase {
         var sent: [DeviceMoment] { queued.map(\.moment) }
         var why: String?
         let react = ReactAction(queue: { queued.append(($0, $1)) }, blocked: { why },
-                                who: { .init(agent: "codex", thread: "fix-nav") })
+                                who: { _ in .init(agent: "codex", thread: "fix-nav") })
         /// Runs `answers`, and checks the result is started with `message`
         /// and the handle its moment was queued with.
         func starts(_ answers: Answers, _ message: String, line: UInt = #line) {
             let before = queued.count
-            let result = react.run(answers)
+            let result = react.run(answers, now: nil, log: Self.log)
             XCTAssertEqual(queued.count, before + 1, "one moment queued", line: line)
             // `SAID` stands for the line the take picked at random says.
             // EVENTS.md §2: the start carries the takes' ids.
@@ -896,7 +131,7 @@ final class HarnessTests: XCTestCase {
                          facts: ["takes": .array((q.moment.say?.takes ?? []).map { .string($0.id) })])
             }, line: line)
         }
-        XCTAssertNil(react.run(["react.mood": a("none")]))
+        XCTAssertNil(react.run(["react.mood": a("none")], now: nil, log: Self.log))
         starts(["react.mood": a("grumpy"), "say.feeling": a("upset", 0.57), "say.about": a("tests", 0.8), "say.kind": a("sound"),
                 "react.loops": a("twice")],
                #"Boop made a grumpy face, held twice, and said "SAID"."#)
@@ -917,7 +152,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(sent.map(\.mood), ["grumpy", "proud", "happy"], "each wears its face")
         XCTAssertEqual(sent.map(\.loops), [2, 1, 4], "for its loops")
         XCTAssertTrue(sent[0].jsonLine.hasSuffix(#","mood":"grumpy","loops":2}"#), sent[0].jsonLine)
-        XCTAssertEqual(react.run(["react.mood": a("sulky")]), nil, "not a face")
+        XCTAssertEqual(react.run(["react.mood": a("sulky")], now: nil, log: Self.log), nil, "not a face")
         starts(["react.mood": a("excited"), "react.loops": a("three times")], "Boop made an excited face, held three times.")
         XCTAssertEqual(queued.last?.moment.loops, 3)
         queued.removeLast()
@@ -961,7 +196,7 @@ final class HarnessTests: XCTestCase {
         // never the last one of its animation again.
         var finishes: [Int] = []
         for _ in 0..<30 {
-            _ = react.run(["react.mood": a("calm"), "react.animation": a("success")])
+            _ = react.run(["react.mood": a("calm"), "react.animation": a("success")], now: nil, log: Self.log)
             finishes.append(queued.removeLast().moment.variant!)
         }
         XCTAssertEqual(Set(finishes), Set(FaceLoops.variants(mood: "calm", state: "task_complete", outcome: "success")))
@@ -972,10 +207,10 @@ final class HarnessTests: XCTestCase {
             XCTAssertNil(queued.last?.moment.who, "only a finish names whose turn")
             queued.removeLast()
         }
-        XCTAssertNil(react.run(["react.mood": a("proud-success")]), "a face and an animation are separate questions")
+        XCTAssertNil(react.run(["react.mood": a("proud-success")], now: nil, log: Self.log), "a face and an animation are separate questions")
         why = "something needs you"
         for expression in ReactAction.expressions.map(\.name) {
-            XCTAssertEqual(react.run(["react.mood": a(expression)]), .failed("something needs you"))
+            XCTAssertEqual(react.run(["react.mood": a(expression)], now: nil, log: Self.log), .failed("something needs you"))
         }
         XCTAssertEqual(sent.count, 3, "no face or take while something needs you")
         why = nil
@@ -986,19 +221,19 @@ final class HarnessTests: XCTestCase {
                #"Boop made an irritated face, held once, and said "SAID"."#)
         XCTAssertEqual(queued.last?.moment.say?.takes.first?.kind, .phrase)
         let swore = react.run(["react.mood": a("irritated"), "react.animation": a("failure"), "say.feeling": a("upset"),
-                               "say.kind": a("swear")])
+                               "say.kind": a("swear")], now: nil, log: Self.log)
         XCTAssertEqual(queued.last?.moment.say?.takes.first?.kind, .swear, "\(String(describing: swore))")
         starts(["react.mood": a("happy"), "say.about": a("done"), "say.kind": a("word")], "Boop made a happy face, held once.")
         queued.removeAll()
-        XCTAssertEqual(react.questions().map(\.key), ["react.mood", "react.animation", "react.loops", "say.feeling", "say.about", "say.kind"])
-        XCTAssertEqual(react.questions()[0].options.map(\.name), ["none"] + MoodAction.moods.map(\.name),
+        XCTAssertEqual(react.questions(now: nil, log: Self.log).map(\.key), ["react.mood", "react.animation", "react.loops", "say.feeling", "say.about", "say.kind"])
+        XCTAssertEqual(react.questions(now: nil, log: Self.log)[0].options.map(\.name), ["none"] + MoodAction.moods.map(\.name),
                        "the faces are the 13 moods'")
-        XCTAssertEqual(react.questions()[1].options.map(\.name), ["none", "success", "failure", "reply"])
-        XCTAssertEqual(react.questions()[2].options.map(\.name), ["once", "twice", "three times", "four times"])
-        XCTAssertEqual(react.questions()[3].options.map(\.name), ["none", "upset", "glad", "tickled"])
-        XCTAssertEqual(react.questions()[4].options.map(\.name), ["none"] + ReactAction.topics.map(\.name))
-        XCTAssertEqual(react.questions()[4].options.count, 17, "none and the 16 topics, hello included")
-        XCTAssertEqual(react.questions()[5].options.map(\.name), ["sound", "word", "phrase", "swear"])
+        XCTAssertEqual(react.questions(now: nil, log: Self.log)[1].options.map(\.name), ["none", "success", "failure", "reply"])
+        XCTAssertEqual(react.questions(now: nil, log: Self.log)[2].options.map(\.name), ["once", "twice", "three times", "four times"])
+        XCTAssertEqual(react.questions(now: nil, log: Self.log)[3].options.map(\.name), ["none", "upset", "glad", "tickled"])
+        XCTAssertEqual(react.questions(now: nil, log: Self.log)[4].options.map(\.name), ["none"] + ReactAction.topics.map(\.name))
+        XCTAssertEqual(react.questions(now: nil, log: Self.log)[4].options.count, 17, "none and the 16 topics, hello included")
+        XCTAssertEqual(react.questions(now: nil, log: Self.log)[5].options.map(\.name), ["sound", "word", "phrase", "swear"])
         XCTAssertEqual(ReactAction.holds.indices.map { ReactAction.loops(["react.loops": a(ReactAction.holds[$0].name)]) },
                        [1, 2, 3, 4])
         XCTAssertEqual(ReactAction.loops([:]), 1)
@@ -1016,28 +251,32 @@ final class HarnessTests: XCTestCase {
     }
 
     /// DECISIONS.md §2.3, §4: the 13 moods, in the device's order; a new
-    /// state directory starts calm, the resting mood; the `mood` question
-    /// offers, on every pass, staying in the saved mood and exactly that
-    /// mood's moves on the graph, each with its mood's meaning, the
-    /// dramatic ones also saying they need a fresh, big event. Staying is
-    /// nothing to do, and so is an answer the graph doesn't have from the
-    /// mood; any move changes the file, and MOOD with it, however recently
-    /// it last changed (how long a mood lasts is the steering's call).
+    /// Boop starts calm, the resting mood; the `mood` question offers, on
+    /// every pass, staying in the mood the log has and exactly that mood's
+    /// moves on the graph, each with its mood's meaning, the dramatic ones
+    /// also saying they need a fresh, big event. Staying is nothing to do,
+    /// and so is an answer the graph doesn't have from the mood; any move
+    /// is a change in the log, which is the mood from then on, and MOOD with
+    /// it, however recently it last changed (how long a mood lasts is the
+    /// steering's call). It's the brain kit's `Choice` (kit/BRAIN-KIT.md §6).
     func testMood() throws {
         XCTAssertEqual(MoodAction.moods.map(\.name), ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad",
                                                       "calm", "engaged", "annoyed", "irritated", "whiny", "wounded"])
         XCTAssertEqual(MoodAction.moods.map(\.name), MoodGraph.moods)
         XCTAssertEqual(MoodAction.initial, "calm")
-        let dir = tempDir("boop-mood")
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let store = MoodStore(stateDir: dir)
-        XCTAssertEqual(store.current, "calm", "a new state directory starts calm")
-        var told: [String] = []
-        let mood = MoodAction(store: store, changed: { told.append($0) })
-        func offered() -> [String] { mood.questions()[0].options.map(\.name) }
-        XCTAssertEqual(mood.questions().map(\.key), ["mood"])
+        let log = Transcript.log()
+        let mood = MoodAction.choice()
+        func view() -> LogView { log.view(now: 1) }
+        func run(_ answers: Answers) -> ActionResult? {
+            let result = mood.run(answers, now: nil, log: view())
+            if let result { log.append(Event.did(result.message, for: nil, action: mood.name, by: "brain", facts: result.facts), now: 1) }
+            return result
+        }
+        XCTAssertEqual(MoodAction.value(mood, view()), "calm", "a new Boop starts calm")
+        func offered() -> [String] { mood.questions(now: nil, log: view())[0].options.map(\.name) }
+        XCTAssertEqual(mood.questions(now: nil, log: view()).map(\.key), ["mood"])
         XCTAssertEqual(offered(), ["calm", "happy", "curious", "engaged", "annoyed", "excited", "wounded", "sad"])
-        let stay = try XCTUnwrap(mood.questions()[0].options.first)
+        let stay = try XCTUnwrap(mood.questions(now: nil, log: view())[0].options.first)
         XCTAssertEqual(stay, Option("calm", "Stay calm: NOW is no reason MOOD gives to leave it, nor are its minutes up. No change is fine."))
         for m in MoodGraph.moods {
             let options = MoodAction.options(from: m)
@@ -1055,29 +294,25 @@ final class HarnessTests: XCTestCase {
                        "grumpy is never offered happy or excited")
         XCTAssertFalse(MoodAction.options(from: "sad").contains { $0.name == "proud" }, "sad is never offered proud")
 
-        XCTAssertNil(mood.run(["mood": a("calm")]), "staying is nothing to do")
-        XCTAssertNil(mood.run(["mood": a("grumpy")]), "not a move from calm")
-        XCTAssertNil(mood.run(["mood": a("sulky")]), "not a mood")
-        XCTAssertNil(mood.run([:]), "no answer")
-        XCTAssertEqual(store.current, "calm")
-        XCTAssertEqual(mood.run(["mood": a("annoyed")]), .done("Boop's mood changed: calm → annoyed."))
+        XCTAssertNil(run(["mood": a("calm")]), "staying is nothing to do")
+        XCTAssertNil(run(["mood": a("grumpy")]), "not a move from calm")
+        XCTAssertNil(run(["mood": a("sulky")]), "not a mood")
+        XCTAssertNil(run([:]), "no answer")
+        XCTAssertEqual(MoodAction.value(mood, view()), "calm")
+        XCTAssertEqual(run(["mood": a("annoyed")]),
+                       .done("Boop's mood changed: calm → annoyed.", facts: ["from": "calm", "to": "annoyed"]))
         XCTAssertEqual(offered(), ["annoyed", "calm", "engaged", "determined", "irritated", "whiny", "grumpy", "wounded", "sad"],
                        "the next pass is offered annoyed's moves")
-        XCTAssertEqual(mood.run(["mood": a("grumpy")]), .done("Boop's mood changed: annoyed → grumpy."), "straight after, a jump too")
-        XCTAssertNil(mood.run(["mood": a("happy")]), "grumpy never moves straight to happy")
-        XCTAssertNil(mood.run(["mood": a("excited")]), "nor to excited")
-        try XCTAssertEqual(try String(contentsOf: dir.appendingPathComponent("mood"), encoding: .utf8), "grumpy\n")
-        XCTAssertEqual(told, ["annoyed", "grumpy"], "each saved change is passed on, for the device")
-        try Data("whiny\n".utf8).write(to: dir.appendingPathComponent("mood"))
-        XCTAssertEqual(MoodStore(stateDir: dir).current, "whiny", "it survives a restart")
-        try Data("curious\n".utf8).write(to: dir.appendingPathComponent("mood"))
-        XCTAssertEqual(MoodStore(stateDir: dir).current, "curious", "curious is a mood again")
-        let logged = Lines()
-        try Data("cheerful\n".utf8).write(to: dir.appendingPathComponent("mood"))
-        XCTAssertEqual(MoodStore(stateDir: dir, log: { logged.add($0) }).current, "happy", "cheerful, its old name, reads as happy")
-        try Data("delighted\n".utf8).write(to: dir.appendingPathComponent("mood"))
-        XCTAssertEqual(MoodStore(stateDir: dir, log: { logged.add($0) }).current, "calm", "an unknown one reads as calm")
-        XCTAssertEqual(logged.all, ["mood: the mood file says delighted, which isn't a mood; reading it as calm"])
+        XCTAssertEqual(run(["mood": a("grumpy")])?.message, "Boop's mood changed: annoyed → grumpy.", "straight after, a jump too")
+        XCTAssertNil(run(["mood": a("happy")]), "grumpy never moves straight to happy")
+        XCTAssertNil(run(["mood": a("excited")]), "nor to excited")
+        XCTAssertEqual(MoodAction.value(mood, view()), "grumpy", "the latest change in the log")
+        XCTAssertEqual(MoodAction.value(MoodAction.choice(), view()), "grumpy", "so it survives a restart")
+        log.append(Event.did("Boop's mood changed: grumpy → delighted.", for: nil, action: mood.name, by: "brain",
+                             facts: ["from": "grumpy", "to": "delighted"]), now: 1)
+        XCTAssertEqual(MoodAction.value(mood, view()), "calm", "one that isn't a mood reads as calm")
+        XCTAssertEqual(Event.legacy(#"{"seq":9,"ts":1,"source":"boop","type":"action","specific_type":"mood","data":{"by":"brain","for":3,"message":"Boop's mood changed: calm → curious.","ok":true}}"#)?["to"],
+                       "curious", "a change logged before the brain kit said its mood in its message only")
     }
 
     /// DECISIONS.md §4: the mood the dashboard sets changes as Jev's does,
@@ -1085,15 +320,20 @@ final class HarnessTests: XCTestCase {
     /// told why when it can't: the mood it already is, or one that isn't a
     /// mood.
     func testAForcedMoodChangesItAsJevsDoes() throws {
-        let dir = tempDir("boop-mood")
-        defer { try? FileManager.default.removeItem(at: dir) }
+        let pipeline = Pipeline(core: Core(config: .init()), view: TranscriptView())
+        let (harness, mood) = Runtime.harness(pipeline: pipeline, steering: RuntimeTests.steering, personality: { .boop },
+                                              queue: { _, _ in })
         var told: [String] = []
-        let mood = MoodAction(store: MoodStore(stateDir: dir), changed: { told.append($0) })
-        XCTAssertEqual(mood.change(to: "grumpy"), .done("Boop's mood changed: calm → grumpy."), "off the graph")
-        XCTAssertEqual(mood.change(to: "grumpy"), .failed("already grumpy"))
-        XCTAssertEqual(mood.change(to: "sulky"), .failed("sulky isn't a mood"))
-        try XCTAssertEqual(try String(contentsOf: dir.appendingPathComponent("mood"), encoding: .utf8), "grumpy\n")
-        XCTAssertEqual(mood.run(["mood": a("proud")]), .done("Boop's mood changed: grumpy → proud."), "Jev's, right after")
+        harness.on(Event.did) { e in if e.action == MoodAction.actionName, e["ok"]?.bool == true { told.append(e["to"]!.string!) } }
+        func change(_ to: String) -> ActionResult? {
+            harness.force(mood, by: Runtime.forcedBy) { MoodAction.change(mood, to: to, log: harness.log.view(now: 1)) }
+        }
+        XCTAssertEqual(change("grumpy")?.message, "Boop's mood changed: calm → grumpy.", "off the graph")
+        XCTAssertEqual(change("grumpy"), .failed("already grumpy"))
+        XCTAssertEqual(change("sulky"), .failed("sulky isn't a mood"))
+        XCTAssertEqual(MoodAction.value(mood, harness.log.view(now: 1)), "grumpy")
+        XCTAssertEqual(harness.force(["mood": "proud"], by: Runtime.forcedBy).map(\.result.message),
+                       ["Boop's mood changed: grumpy → proud."], "Jev's, right after")
         XCTAssertEqual(told, ["grumpy", "proud"], "the device hears each change")
     }
 
@@ -1144,7 +384,7 @@ final class HarnessTests: XCTestCase {
             calls.add(request.value(forHTTPHeaderField: "Authorization") ?? "")
             return calls.all.count == 1 ? (Data("PRIVATE".utf8), 429) : (good, 200)
         }
-        let answers = try await jev.answer(state: "s", questions: q, deadline: .milliseconds(Harness.deadlineMs))
+        let answers = try await jev.answer(state: "s", questions: q, deadline: .milliseconds(Harness.Options().deadlineMs))
         XCTAssertEqual(answers["react"]?.choice, "proud")
         XCTAssertEqual(calls.all, ["Bearer k", "Bearer k"])
         // No retry the deadline would cut off: it would only cost a request.
@@ -1163,7 +403,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(slow.all, ["sent"], "150 ms, and 300 more, is past the 400")
         let down = JevBrain(key: "k") { _ in (Data("PRIVATE".utf8), 500) }
         do {
-            _ = try await down.answer(state: "s", questions: q, deadline: .milliseconds(Harness.deadlineMs))
+            _ = try await down.answer(state: "s", questions: q, deadline: .milliseconds(Harness.Options().deadlineMs))
             XCTFail("no answer")
         } catch let error as BrainError {
             XCTAssertEqual(error.description, "jev: HTTP 500", "only the status")
@@ -1182,7 +422,7 @@ final class HarnessTests: XCTestCase {
             throw URLError(.notConnectedToInternet)
         }
         do {
-            _ = try await offline.answer(state: "s", questions: q, deadline: .milliseconds(Harness.deadlineMs))
+            _ = try await offline.answer(state: "s", questions: q, deadline: .milliseconds(Harness.Options().deadlineMs))
             XCTFail("no answer")
         } catch let error as BrainError {
             XCTAssertEqual(error.description, "jev: can't reach the server")
@@ -1190,15 +430,5 @@ final class HarnessTests: XCTestCase {
         }
         XCTAssertEqual(calls.all, ["sent", "sent"], "tried once more")
         XCTAssertEqual(BrainTrouble.after(BrainError("jev: can't reach the server"), previous: 2).trouble?.kind, .failing)
-    }
-
-    /// HARNESS.md §5.1: a transcript without a folder (tests, the evals)
-    /// keeps its events in memory; one with a folder too, the last day's
-    /// (`testTheTranscriptPersistsAndReplays`).
-    func testATranscriptWithoutAFolderKeepsItsEvents() {
-        let t = Transcript.log()
-        for _ in 0..<3 { t.append(Event(ts: 1, source: .device, type: .poke, specificType: "input"), now: 1) }
-        XCTAssertEqual(t.events.map(\.seq), [1, 2, 3])
-        XCTAssertEqual(t.lastSeq, 3)
     }
 }

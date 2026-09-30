@@ -80,7 +80,7 @@ the event they answer.
 | --- | --- | --- |
 | `did` | A rule or an output did something (§4, §5) | `for` (or null), `by` (`rule`, `brain`, or who forced it), `action` (the output's or rule's name), `message` (the line HISTORY shows), `ok`, `open` (true while something that takes a while plays, §5.3), `latency_ms` for an output, and the output's own facts, which the kit never reads |
 | `ended` | Something that took a while finished, or never will (§5.3) | `for` (the `did`), `action`, `by`, `outcome` (`done` or `failed`) and, when failed, `why` |
-| `pass` | Every call to the brain, dropped ones included, and every forced pass (§9) | `for` (or null), `brain` (its `id`) or `by` (who forced it), `answers` (each key's `choice`, and `p`, every option's probability to three places), `dropped` (why no output ran, or null), `ms` |
+| `pass` | Every call to the brain, dropped ones included; every event held back when its turn came; and every forced pass (§9) | `for` (or null), `brain` (its `id`, or the one it would have asked) or `by` (who forced it), `answers` (each key's `choice`, and `p`, every option's probability to three places), `dropped` (why no output ran, or null), `held` (why the event was held back, only when it was), `ms` |
 
 ```json
 {"seq":409,"at":1790676542312,"source":"self","kind":"did","data":{"action":"flash","by":"rule","for":408,"message":"Beacon flashed red on its own.","ok":true}}
@@ -130,10 +130,11 @@ h.input("build_failed", wake: 1) { e, log in
     return streak == 0 ? "The build on \(e["branch"]!) failed."
                        : "The build on \(e["branch"]!) failed again, \(streak + 1) in a row."
 }
-h.input("press", wake: 0, when: { e, log in !link.playing }) { e, log in
+h.input("press", wake: 0) { e, log in
     let n = log.count("press", within: 3000)
     return n == 0 ? "You pressed the button." : "You pressed the button \(n + 1) times in a row."
 }
+h.hold("press") { e, log in link.playing ? "Beacon is playing" : nil }
 ```
 
 - **The transform** returns `nil` (the event is hidden: no line, and it
@@ -150,8 +151,9 @@ h.input("press", wake: 0, when: { e, log in !link.playing }) { e, log in
 - **`wake`** is the kind's priority. Left out, the kind never wakes the
   brain. A higher number goes ahead of lower ones waiting; one at `0`
   gives way to any newer event that wakes the brain (§9).
-- **`when`** is an optional check, asked when the event's turn to wake
-  the brain comes (§9). It can read your live state as well as the log.
+- **`h.hold(kind) { e, log in … }`** is an optional check, asked when an
+  event's turn to wake the brain comes (§9): a reason to hold it back, or
+  nil. It can read your live state as well as the log.
 
 ### 3.2 The file form
 
@@ -191,8 +193,12 @@ h.on("build_failed") { e in
 
 - `h.on("*")` runs for every event, the kit's own included.
 - Rules run in the order they were registered, right after the event is
-  logged and before the kit looks at waking the brain, so a `when` sees
-  what the rule changed.
+  logged and before the kit looks at waking the brain, so a hold sees
+  what the rule changed. An event a rule emits runs its own rules at
+  once, inside the first's.
+- `h.batch { … }` runs several emits and your own code, and only then
+  wakes the brain: for an app whose rules need more than the event (Boop
+  hands the core an agent's event and a poke this way, §13).
 - `h.did(message, for:, action:, by: "rule")` records what a rule did as
   a `did`. NOW shows the rule's `did`s for its event; HISTORY shows them
   under their event, as it does the brain's (§7).
@@ -237,7 +243,7 @@ order. `now` is the event the brain is answering, nil for a forced pass.
 A `did` that's `ok` shows under its event: plainly once done, with
 ` (in progress)` while open. One that failed, or that ended failed, isn't
 shown: HISTORY shows only what was done or is being done. A `did` for no
-event (a forced one) shows under the latest line before it.
+event (a forced one) shows under the latest event with a line before it.
 
 ### 5.3 Things that take a while
 
@@ -271,9 +277,10 @@ Whether a `did` is in progress is worked out from the log: open, with no
 without asking the brain, each at probability 1, for no event. It needs
 no brain, runs at once and leaves a call that's running alone; a choice
 that isn't one of its question's options is left out. It's logged as a
-`pass` with `by`. An output that acts outside a pass while a call runs
-(`h.force(action) { … }`, or a forced pass) sits that call's answers out,
-since they were about the state before.
+`pass` with `by`. `h.force(action, by: "dashboard") { … }` logs one
+output's result, made outside any pass. An output that acts outside a
+pass while a call runs sits that call's answers out, since they were
+about the state before.
 
 ## 6. `Choice`
 
@@ -300,14 +307,16 @@ h.section { log in steering["tone/\(tone.value(log))"] }
 
 - **Staying put isn't special.** Your options include the current value,
   worded as staying. If the brain picks it, nothing changes and nothing
-  is logged.
+  is logged. A pick that isn't one of the options it offered changes
+  nothing either.
 - **A change** is a `did` with `from` and `to`. Its `at` is
   `tone.since(log)`.
 - **After a relaunch** nothing needs restoring: the value is read from the
   log the same way. After a quiet day (no change in the log's 24 hours) it
   starts over at `start`.
-- `tone.set("grim")` returns the result for a change forced from outside
-  the brain, through `h.force(tone) { tone.set("grim") }`.
+- `tone.set("grim", log:)` returns the result for a change made outside
+  the brain, whatever the options, through
+  `h.force(tone, by: "dashboard") { tone.set("grim", log: log) }`.
 
 ## 7. The prompt
 
@@ -403,12 +412,12 @@ brain is free (a call ended, or an event that wakes it arrived):
    not the one running, and no older than **10 s** (`maxWaitMs`). So
    nothing from before a relaunch, and no backlog after the Mac slept, is
    ever answered.
-2. **Stale:** one at `0` with any newer waiting event after it is passed
-   over, and never answered.
+2. **Stale:** one at `0` with any newer event that wakes the brain after
+   it, answered or not, is passed over, and never answered. The app log
+   says so once: `harness: press passed over for a newer build_failed`.
 3. **Next:** the highest `wake`, the oldest first within it.
-4. Its **`when`** is asked now. If it says no, the kit logs a `pass` with
-   `dropped` `when` (and the reason the check gives, if it gives one) and
-   picks again.
+4. Its **hold** is asked now. If it gives a reason, the kit logs a `pass`
+   with `held` and the reason, the brain isn't asked, and it picks again.
 
 Then one call: the prompt (§7) for that event and every output's
 questions, fixed when the call starts, off the kit's queue to the brain,
@@ -417,7 +426,9 @@ dropped: its `pass` says `late: no answer within 1500 ms`, and the answer,
 when it comes, is only logged. A call that fails is dropped with the
 brain's error. Either way no output runs. Otherwise each output's `run`
 gets its answers, in order, and each result is logged. `onPass` hears of
-every pass with the prompt it sent, for your own logs.
+every pass, held and forced ones included, once its outputs have run,
+with the prompt it sent and what each output did, for your own logs;
+`onLine` hears of every line as it's worked out.
 
 ## 10. The tick and the clock
 
@@ -532,9 +543,9 @@ Nothing Boop-specific is in the kit. What each of Boop's parts became:
 | Boop | On the kit |
 | --- | --- |
 | Hooks, pokes, what you say, away and back | Events Boop emits: `kind` is the old type and phase (`turn_end`, `tool_wait`, `poke`, `presence_start`), and the old `specific_type`, `session`, `subagent` and `cwd` are in `data` ([harness/EVENTS.md](../harness/EVENTS.md) §1) |
-| The core (screen, "needs you", one-shots, the mic) | Rules: the core takes every agent event and poke, and records `did`s for its wiggle and opened threads and `needs_you_start`/`needs_you_end` events of its own |
-| The view (`TranscriptView`) | Transforms for the kinds with lines, and `when` checks for the gates. The agent lines need each thread's turn history: `Threads`, a fold of the log that catches up to the event it's asked about, so its answer depends on the log alone |
-| Heartbeats | Timed checks |
+| The core (screen, "needs you", one-shots, the mic) | Rules: the pipeline hands the core every agent event and poke in the same batch (§4), and the core records `did`s for its wiggle and opened threads, and `needs_you_start`/`needs_you_end` events of its own |
+| The view (`TranscriptView`) | Transforms for the kinds with lines, their wakes, and holds for the gates. The agent lines need each thread's turn history: a fold of the log (`TranscriptView.Fold`) that catches up to the event it's asked about, so its answer depends on the log alone |
+| Heartbeats | Timed checks. The working heartbeat's random wait is the view's own timer, reset when it sees a reaction start in the log |
 | Mood | A `Choice`, its options Boop's mood graph |
 | React | An output that returns `.started`, its handle finished by the moment schedule when the device's `ended` comes. A reaction your tap cut short is finished `done` once the pokes stop, so HISTORY shows it in progress while they go on |
 | Jev's state | Sections: the guide (with Boop's own "how to read" and words), PERSONALITY and MOOD; the closing line; reach-back to the oldest working turn |
@@ -566,6 +577,6 @@ tracks them.
 | Wake is registration, not a field | An event says what happened; whether it's worth waking the brain is the app's call |
 | Messages are whole sentences, not phrases after the name | Boop's HISTORY stays byte-identical: rewording its lines is a steering change only an interleaved A/B eval with Jev could check |
 | The queue is worked out from the log | Testable as a pure function; the log shows why each event was answered, passed over or dropped; relaunch and sleep need no code |
-| `when` is asked only when an event's turn comes | One check instead of two. An event held back at arrival but allowed by its turn is now answered |
+| A hold is asked only when an event's turn comes, and logged as a `held` pass | One check instead of two, and the log says why the brain wasn't asked. An event held back at arrival but allowed by its turn is now answered |
 | One ready-made output, `Choice` | Nearly every personality has a named value that picks a Markdown section. A device's one-shots (`Play`) belong with piece C |
 | No key-value store | A `Choice`'s value is already readable by sections and rules |

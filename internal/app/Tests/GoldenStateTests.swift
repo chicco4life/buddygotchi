@@ -67,7 +67,7 @@ final class GoldenStateTests: XCTestCase {
         var out = ""
         var lastHead: String?
         for (i, state) in states.enumerated() {
-            let (head, rest) = StateText.split(state)
+            let (head, rest) = DebugLog.split(state)
             out += "=== pass \(i + 1)\n"
             if head != lastHead {
                 out += "--- head\n" + head
@@ -103,6 +103,11 @@ final class GoldenStateTests: XCTestCase {
             }
             let pinned = try String(contentsOf: file, encoding: .utf8)
             guard text != pinned else { continue }
+            // BOOP_GOLDEN_OUT=DIR keeps what it built, to diff by hand.
+            if let out = ProcessInfo.processInfo.environment["BOOP_GOLDEN_OUT"] {
+                try? text.write(to: URL(fileURLWithPath: out).appendingPathComponent(file.lastPathComponent), atomically: true,
+                                encoding: .utf8)
+            }
             // The first line that differs, so a failure says where.
             let a = text.components(separatedBy: "\n"), b = pinned.components(separatedBy: "\n")
             let at = Array(zip(a, b)).firstIndex { $0 != $1 } ?? min(a.count, b.count)

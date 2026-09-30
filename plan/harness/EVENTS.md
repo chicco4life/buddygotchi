@@ -169,23 +169,30 @@ wrong away (a long video) must not make Boop go quiet (decision log in
 
 ## 3. The view
 
-The view (`TranscriptView` in `app/BoopKit/Core/TranscriptView.swift`)
-folds raw events, one at a time and in order, into view events. A view
-event is a raw type and phase with what the view worked out about it: its
-facts (§4.1), its line (§8), whether it wakes the brain (§6), how its
-pass waits behind a running one (its priority: a finished turn keeps its
-pass, and what you said goes ahead of it, [HARNESS.md](HARNESS.md) §2),
-and what Boop did about it (§7). It points back to the raw events it came from
-(`from`, the last is the one that made it).
+The view (`TranscriptView` in `app/BoopKit/Core/TranscriptView.swift`) is
+Boop's lines on the brain kit ([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md)
+§3): for each kind the brain hears of, a transform that works out the
+event's line from the log up to it, the kind's `wake` (how its pass
+waits behind a running one: a finished turn keeps its pass, and what you
+said goes ahead of it, [HARNESS.md](HARNESS.md) §2) and a hold (§6). A
+**view event** is one of those events with what the view worked out
+about it: its facts (§4.1), its line (§8), whether it wakes the brain
+(§6), and what Boop did about it (§7), the log's. It points back to the
+raw events it came from (`from`, the last is the one that made it).
 
-The same events always make the same view, so a launch replays the
-transcript's last 24 hours to pick up where it left off
-([HARNESS.md](HARNESS.md) §5): turn numbers and failure runs carry on.
-The one thing it decides from the clock is when a heartbeat is due (§4).
+The agents' lines need each thread's turn so far: which turn it is, how
+long it has run, its tool calls, failure runs. A fold of the log keeps
+them (`TranscriptView.Fold`), caught up to whatever event it's asked
+about, so a line depends on the log alone: the same events always make
+the same lines, and a launch reads the transcript's last 24 hours back
+to pick up where it left off ([HARNESS.md](HARNESS.md) §5): turn numbers
+and failure runs carry on. The rest look back at the log: pokes in a
+row, what an away was, whether Boop is answering the pokes. The
+heartbeats are the view's timed checks (§4), run on the kit's tick.
 
-**What it keeps** goes by type and phase (`TranscriptView.keeps`): all
+**What has a line** goes by type and phase (`TranscriptView.keeps`): all
 of them, or only the notable ones. The rest are read for what they tell
-the view and dropped.
+the lines after them, and never shown.
 
 | Type and phase | Kept by default |
 | --- | --- |
@@ -196,7 +203,8 @@ the view and dropped.
 | `poke`, `talk`, `heartbeat` | All |
 | `presence` start, `presence` end | All |
 | `session`, `subagent` | None: they only tell the view when a session ends or a subagent's hook isn't the session's turn |
-| `action` | Not as view events: as the `did` lines of the view event it's `for` (§7). A `needs_you` start is kept as the `tool` wait it shows |
+| `needs_you` start | All, as the `tool` wait it shows |
+| The kit's `did`, `ended`, `pass` | None: a `did` is a line under the view event it's `for` (§7) |
 
 ### 3.1 The thread
 
@@ -222,19 +230,19 @@ thread's key, `<agent>/<session>`, such as `claude/s1`.
 | --- | --- | --- | --- |
 | `turn` start | A turn starts | The thread and its turn number; your prompt | Yes |
 | `turn` end | A turn the view saw start ends | Its outcome, length band, tool calls and last message | Yes |
-| `tool` wait | "Needs you" starts showing (the core's `needs_you` action), after Codex's 2 s grace | The thread | Never |
+| `tool` wait | "Needs you" starts showing (the core's `needs_you_start`), after Codex's 2 s grace | The thread | Never |
 | `tool` end | A tool call finishes and is notable, or any with `tool_uses: all` | Its result, whether it passed after failing, its time's band and its category | Yes |
 | `poke` | Every poke | How many pokes in a row: each within 3 s of the one before (`TranscriptView.inARowMs`) | Yes, but not while something needs you (the tap opens the thread) or while Boop is answering its run (§6) |
 | `talk` | You said something to Boop on push-to-talk ([BEHAVIORS.md](../BEHAVIORS.md) §3.3) | Your words | Always, even while something needs you (§6) |
 | `presence` start | The detector says you stepped away (§2.1) | Why, and since when | Never |
 | `presence` end | You're back from an away the view saw start | How long you were away, from its `since`, as a band (§5) | Yes |
-| `heartbeat` | While no thread works, each whole hour since the last agent event, poke, what you said or your coming back (`TranscriptView.heartbeatMs`). While any thread works, once the personality's `working_heartbeat` wait has passed since Boop last started a reaction (the view sees `react`'s `action` start, §7), however many view events woke the brain in it ([BEHAVIORS.md](../BEHAVIORS.md) §2) | The idle hours, or the thread working longest | Yes |
+| `heartbeat` | While no thread works, each whole hour since the last agent event, poke, what you said or your coming back (`TranscriptView.heartbeatMs`). While any thread works, once the personality's `working_heartbeat` wait has passed since Boop last started a reaction (the check sees `react`'s open `did`, §7), however many view events woke the brain in it ([BEHAVIORS.md](../BEHAVIORS.md) §2) | The idle hours, or the thread working longest | Yes |
 
 A thread **works** while its turn is open, nothing waits on you, and it
 has had an event within the hour; within 10 minutes if its last event
 asked for you (the core's safety net, [ADAPTERS.md](../ADAPTERS.md) §4).
 
-"Yes" is always subject to the gates in §6.
+"Yes" is always subject to the holds in §6.
 
 ### 4.1 What each carries
 
@@ -312,8 +320,8 @@ No number reaches Jev that it would have to compare
 
 ## 6. Which view events wake the brain
 
-Every kept view event gets its line in later HISTORY. One wakes the brain
-only when its kind says so (§4), and never:
+Every event with a line gets it in later HISTORY. One wakes the brain
+only when its kind says so (§4, `TranscriptView.wakes`), and never:
 
 - while there's no brain: before Jev's key is read, or without one
   ([HARNESS.md](HARNESS.md) §7);
@@ -333,15 +341,16 @@ only when its kind says so (§4), and never:
   pokes don't count, so each poke can take Boop a step further: glad,
   then miffed, then grumpy.
 
-The pipeline checks these once the core has had the event
-(`Pipeline.whyNotWake`), so an event that answers a request wakes it: tests
-that fail right after you approved them, or the turn Claude's idle
-notice stops after you pressed Esc on its prompt. The harness checks
-again when a view event that waited behind a running pass would start
-its own ([HARNESS.md](HARNESS.md) §2): a poke that came during the pass
-whose reaction now answers its run is dropped. There's no cooldown: Jev decides
-every time whether Boop reacts, and a view event that wakes it starts
-the working heartbeat's wait again.
+The last three are the view's hold (`TranscriptView.hold`), which the kit
+asks when the event's turn to wake the brain comes
+([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md) §9), always once the core has
+had the event, so an event that answers a request wakes it: tests that
+fail right after you approved them, or the turn Claude's idle notice
+stops after you pressed Esc on its prompt. One held back gets a `pass`
+that says why (`held`), and the brain isn't asked. A poke that came
+during the pass whose reaction now answers its run is held when its turn
+comes. There's no cooldown: Jev decides every time whether Boop reacts,
+and a reaction Boop starts starts the working heartbeat's wait again.
 
 **Pokes can make Boop grumpy.** A poke's pass asks every question, the
 mood's included, as any pass does. The mood files say two pokes in a
@@ -352,15 +361,17 @@ Boop reacts to one poke and to a barrage.
 
 ## 7. What Boop did
 
-Every action is a raw event (§2), and the view puts it under the view
-event it's `for`, as a `did` line; one forced by the dashboard, for none,
-goes under the latest. HISTORY shows the lines in order, a started one
-marked `(in progress)` until its end. A failed action isn't shown, and
-neither is a started one that ended failed, but for a reaction your tap
-cut short (`cut short: you tapped Boop`): you saw it start, so its line
-stays, and stays `(in progress)` while the pokes go on (each within 3 s
-of the last, §6), so the barrage doesn't wake the brain for it again. The next poke
-after that, or any other event, makes it plain. NOW's last line is what the
+Every action is the kit's `did` (§2), and HISTORY puts it under the
+event it's `for`; one forced by the dashboard, for none, goes under the
+latest with a line ([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md) §5.2).
+HISTORY shows them in order, a started one marked `(in progress)` until
+its `ended`. A failed action isn't shown, and neither is a started one
+that ended failed. A reaction your tap cut short is you seeing it start,
+so the moment schedule doesn't end it at once: it stays `(in progress)`
+while the pokes go on (each within 3 s of the last, §6), so the barrage
+doesn't wake the brain for it again, and ends done at the next poke
+after that, or any other event (`TranscriptView.stopsThePokes`,
+[DECISIONS.md](DECISIONS.md) §5). NOW's last line is what the
 rules did (the `wiggle` or `open_thread`), or `Boop did nothing on its own.`
 ([HARNESS.md](HARNESS.md) §5.3).
 

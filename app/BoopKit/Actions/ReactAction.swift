@@ -20,9 +20,9 @@ public final class ReactAction: Action {
     let queue: (DeviceMoment, Pending) -> Void
     /// Why a reaction can't play now (something needs you), or nil.
     let blocked: () -> String?
-    /// The agent and thread NOW is about, or nil (a poke, an idle
-    /// heartbeat): a finish names it on the device.
-    let who: () -> DeviceMoment.Who?
+    /// The agent and thread the event the brain answers is about, or nil
+    /// (a poke, an idle heartbeat): a finish names it on the device.
+    let who: (Event?) -> DeviceMoment.Who?
     /// Whether the device plays the takes Voice picks from: false while its
     /// card has another pack, or none (VOICE.md §8), and then Boop says
     /// nothing.
@@ -36,7 +36,7 @@ public final class ReactAction: Action {
     var variants = SplitMix64(seed: 0xB00B)
     var lastVariant: [String: Int] = [:]
     public init(queue: @escaping (DeviceMoment, Pending) -> Void, blocked: @escaping () -> String?,
-                who: @escaping () -> DeviceMoment.Who? = { nil }, speaks: @escaping () -> Bool = { true }) {
+                who: @escaping (Event?) -> DeviceMoment.Who? = { _ in nil }, speaks: @escaping () -> Bool = { true }) {
         self.queue = queue
         self.blocked = blocked
         self.who = who
@@ -164,6 +164,11 @@ public final class ReactAction: Action {
         (holds.firstIndex { $0.name == answers["react.loops"]?.choice } ?? 0) + 1
     }
 
+    /// A reaction still in progress this long after it started is ended as
+    /// failed (harness/HARNESS.md §5.1): past the longest reaction, held
+    /// four times in the design with the longest loop.
+    public static let openForMs: Int64 = 90_000
+
     /// Below this, Jev is guessing, and silence beats a guessed meaning
     /// (DECISIONS.md §5).
     public static let sayFloor = 0.35
@@ -187,7 +192,7 @@ public final class ReactAction: Action {
         answers["say.kind"].flatMap { Take.Kind(rawValue: $0.choice) } ?? .sound
     }
 
-    public func questions() -> [Question] { Self.asked }
+    public func questions(now: Event?, log: LogView) -> [Question] { Self.asked }
 
     /// The questions, built once: none of them changes.
     static let asked: [Question] = {
@@ -216,7 +221,7 @@ public final class ReactAction: Action {
         ]
     }()
 
-    public func run(_ answers: Answers) -> ActionResult? {
+    public func run(_ answers: Answers, now: Event?, log: LogView) -> ActionResult? {
         // 1. Does Jev want a reaction at all, and with which face?
         guard let choice = answers["react.mood"]?.choice, Self.expressions.contains(where: { $0.name == choice }) else {
             return nil
@@ -242,7 +247,7 @@ public final class ReactAction: Action {
             moment.anim = anim
             moment.outcome = outcome
             moment.variant = variant
-            moment.who = who()
+            moment.who = who(now)
         }
         let pending = Pending()
         queue(moment, pending)

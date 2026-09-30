@@ -2,9 +2,10 @@ import Foundation
 
 /// A JSON value: an event's `data` (kit/BRAIN-KIT.md §2.1).
 public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, ExpressibleByDictionaryLiteral,
-    ExpressibleByBooleanLiteral, ExpressibleByIntegerLiteral {
+    ExpressibleByBooleanLiteral, ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral {
     case string(String)
     case int(Int64)
+    case double(Double)
     case bool(Bool)
     case array([JSONValue])
     case object([String: JSONValue])
@@ -13,6 +14,7 @@ public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, Expressi
     public init(stringLiteral value: String) { self = .string(value) }
     public init(booleanLiteral value: Bool) { self = .bool(value) }
     public init(integerLiteral value: Int64) { self = .int(value) }
+    public init(floatLiteral value: Double) { self = .double(value) }
     public init(dictionaryLiteral elements: (String, JSONValue)...) {
         self = .object(Dictionary(elements, uniquingKeysWith: { $1 }))
     }
@@ -25,6 +27,7 @@ public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, Expressi
         switch self {
         case .string(let s): s
         case .int(let n): NSNumber(value: n)
+        case .double(let d): NSNumber(value: d)
         case .bool(let b): b
         case .array(let a): a.map(\.foundation)
         case .object(let o): o.mapValues(\.foundation)
@@ -32,13 +35,18 @@ public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, Expressi
         }
     }
 
-    /// A value from what `JSONSerialization` read. Fractions are cut to
-    /// whole numbers: nothing Boop writes has any.
+    /// A value from what `JSONSerialization` read: a whole number is an
+    /// `int`, a fraction a `double`.
     public init(foundation value: Any?) {
         switch value {
         case let s as String: self = .string(s)
         case let n as NSNumber:
-            self = CFGetTypeID(n) == CFBooleanGetTypeID() ? .bool(n.boolValue) : .int(n.int64Value)
+            switch String(cString: n.objCType) {
+            case "c", "B": self = .bool(n.boolValue)
+            case "d", "f": self = n.doubleValue.rounded() == n.doubleValue && abs(n.doubleValue) < 9e15
+                ? .int(n.int64Value) : .double(n.doubleValue)
+            default: self = .int(n.int64Value)
+            }
         case let a as [Any]: self = .array(a.map { JSONValue(foundation: $0) })
         case let o as [String: Any]: self = .object(o.mapValues { JSONValue(foundation: $0) })
         default: self = .null
@@ -48,11 +56,21 @@ public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, Expressi
     public var string: String? { if case .string(let s) = self { s } else { nil } }
     public var int: Int64? { if case .int(let n) = self { n } else { nil } }
     public var bool: Bool? { if case .bool(let b) = self { b } else { nil } }
+    /// A number, whole or not.
+    public var double: Double? {
+        switch self {
+        case .double(let d): d
+        case .int(let n): Double(n)
+        default: nil
+        }
+    }
+    public var object: [String: JSONValue]? { if case .object(let o) = self { o } else { nil } }
+    public var array: [JSONValue]? { if case .array(let a) = self { a } else { nil } }
 }
 
 // MARK: - Outputs: the output contract (kit/BRAIN-KIT.md §5)
 
-/// One option of a question, with its meaning: Jev's criterion.
+/// One option of a question, with its meaning: what the brain judges it by.
 public struct Option: Equatable, Sendable {
     public let name: String
     public let what: String
@@ -66,14 +84,15 @@ public struct Option: Equatable, Sendable {
     }
 }
 
-/// A multiple-choice question an action asks Jev.
+/// A multiple-choice question an output asks the brain (kit/BRAIN-KIT.md
+/// §5.1).
 public struct Question: Equatable, Sendable {
-    /// Unique across all actions: `react`, `say.feeling`.
+    /// Unique across all outputs: `tone`, `say.feeling`.
     public let key: String
     public let text: String
-    /// The part of the state it's about: `the NOW section`.
+    /// The part of the prompt it's about: `the NOW section`.
     public let about: String
-    /// What to judge it by: `the PERSONALITY and MOOD sections, …`.
+    /// What to judge it by: `the TONE section, its reason to leave`.
     public let judgeBy: String
     public let options: [Option]
 
@@ -86,7 +105,8 @@ public struct Question: Equatable, Sendable {
     }
 }
 
-/// Jev's answer to one question: its pick, and every option's probability.
+/// The brain's answer to one question: its pick, and every option's
+/// probability. A brain with none gives its pick 1.
 public struct Answer: Equatable, Sendable {
     public let choice: String
     public let probabilities: [String: Double]
@@ -103,32 +123,31 @@ public struct Answer: Equatable, Sendable {
 /// Answers by question key.
 public typealias Answers = [String: Answer]
 
-/// What an action did: its line in HISTORY when `ok`, the reason when not.
-/// A started one finishes later: HISTORY shows it in progress until its
-/// `pending` ends (harness/HARNESS.md §4).
+/// What an output did (kit/BRAIN-KIT.md §5.1): its `message` is the whole
+/// line HISTORY shows when `ok`, the reason when not. A started one
+/// finishes later: HISTORY shows it in progress until its `pending` ends
+/// (§5.3).
 public struct ActionResult: Equatable, Sendable {
     public let ok: Bool
     public let message: String
-    /// How a started action tells the harness it ended; nil for one that
+    /// How a started output tells the kit it ended; nil for one that
     /// finished when `run` returned.
     public let pending: Pending?
-    /// What the action says of its effect beyond its line, for the tools
-    /// (react's `takes` and `face`): the harness puts them in its `action`
-    /// event's data as they are and never reads them (harness/EVENTS.md §2).
+    /// What the output says of its effect beyond its line, for your tools:
+    /// the kit puts them in its `did`'s data as they are and never reads
+    /// them.
     public let facts: [String: JSONValue]
 
-    public init(ok: Bool, message: String) {
-        self.init(ok: ok, message: message, pending: nil)
-    }
-
-    init(ok: Bool, message: String, pending: Pending?, facts: [String: JSONValue] = [:]) {
+    public init(ok: Bool, message: String, pending: Pending? = nil, facts: [String: JSONValue] = [:]) {
         self.ok = ok
         self.message = message
         self.pending = pending
         self.facts = facts
     }
 
-    public static func done(_ message: String) -> ActionResult { ActionResult(ok: true, message: message) }
+    public static func done(_ message: String, facts: [String: JSONValue] = [:]) -> ActionResult {
+        ActionResult(ok: true, message: message, facts: facts)
+    }
     public static func failed(_ why: String) -> ActionResult { ActionResult(ok: false, message: why) }
     /// Started, and ends when `pending` is finished.
     public static func started(_ message: String, _ pending: Pending, facts: [String: JSONValue] = [:]) -> ActionResult {
@@ -141,11 +160,11 @@ public struct ActionResult: Equatable, Sendable {
     }
 }
 
-/// A started action's end, still to come (harness/HARNESS.md §4): the
-/// action, or whatever it hands this to, finishes it once it knows how
+/// A started output's end, still to come (kit/BRAIN-KIT.md §5.3): the
+/// output, or whatever it hands this to, finishes it once it knows how
 /// things went. Only the first `finish` counts, and one that comes before
-/// the harness has recorded the result is kept until it has. Touched only
-/// on the harness's queue.
+/// the kit has logged the result is kept until it has. Touched only on
+/// the kit's queue.
 public final class Pending: @unchecked Sendable {
     public enum End: Equatable, Sendable {
         case done
@@ -168,24 +187,25 @@ public final class Pending: @unchecked Sendable {
         }
     }
 
-    /// The harness's, once: where the end goes. One that came first goes
-    /// at once.
+    /// The kit's, once: where the end goes. One that came first goes at
+    /// once.
     package func bind(_ deliver: @escaping (End) -> Void) {
         if let end { deliver(end) } else { self.deliver = deliver }
     }
 }
 
-/// Something Boop can do when the brain wakes. It declares its questions,
-/// reads Jev's answers to them, and reports what it did, or what it
-/// started. Its body can call anything; the harness asks, records and
-/// places the result.
+/// An output (kit/BRAIN-KIT.md §5): something your app can do when the
+/// brain wakes. It builds its questions for every call, reads the brain's
+/// answers to them, and reports what it did, or what it started. Its body
+/// can call anything; the kit asks, logs and places the result.
 public protocol Action: AnyObject {
     var name: String { get }
-    /// Asked on every pass, all in one request (harness/HARNESS.md §4), so
-    /// they can depend on live state (the mood's moves); ones that never
-    /// change can be built once.
-    func questions() -> [Question]
-    /// Jev's answers to this action's own questions. Nil means "do nothing".
-    /// Called on the harness's queue; slow work is handed off.
-    func run(_ answers: Answers) -> ActionResult?
+    /// Built for every call, all asked in one request, from the event the
+    /// brain is answering (nil for a forced pass) and the log, so options
+    /// can follow anything. Keys never change; options may.
+    func questions(now: Event?, log: LogView) -> [Question]
+    /// The brain's answers to this output's own questions, for `now` (nil
+    /// for a forced pass). Nil means "did nothing". Called on the kit's
+    /// queue; slow work is handed off.
+    func run(_ answers: Answers, now: Event?, log: LogView) -> ActionResult?
 }

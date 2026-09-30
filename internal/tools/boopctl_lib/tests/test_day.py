@@ -354,6 +354,20 @@ class RuleTests(unittest.TestCase):
         self.assertIn("  dropped 1×: timed out after 8000 ms", text)
         self.assertIn("  1 events woke it but got no pass", text)
 
+    def test_held_passes_asked_no_brain(self):
+        # kit/BRAIN-KIT.md §9: an event held back when its turn came has a
+        # pass that says why, and the brain wasn't asked: not a brain pass,
+        # not dropped, and not an event that got no pass.
+        t = at("10:00:00")
+        d = day.summarise([launch(
+            state(t),
+            event(t, 1, "turn start"),
+            {"pass": {"brain": "jev:jev-latest", "for": 1, "dropped": None, "held": "something needs you", "answers": {},
+                      "latency_ms": 0}, "received_at_ms": t + 10},
+        )], "2026-09-28")
+        self.assertEqual((d.total().passes, d.total().dropped, d.skipped), (0, 0, 0))
+        self.assertIn("  held back 1×, the brain not asked: something needs you", day.render(d))
+
     def test_an_hour_with_no_lines_is_one_boop_wasnt_logging(self):
         d = day.summarise([launch(state(at("09:00:00"))), launch(state(at("11:30:00")))], "2026-09-28")
         row = next(x for x in day.render(d).splitlines() if x.startswith("10"))
