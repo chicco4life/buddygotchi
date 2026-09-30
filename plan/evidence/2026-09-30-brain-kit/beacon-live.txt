@@ -1,0 +1,13 @@
+beacon: listening on /tmp/bk-beacon.sock
+▸ 1 build_failed: The build on main failed.
+  ✓ flash: Beacon flashed red on its own.
+  pass scripted: play none · tone calm
+▸ 4 build_failed: The build on main failed again, 2 in a row.
+  ✓ flash: Beacon flashed red on its own.
+  pass scripted: play none · tone calm
+▸ 7 deploy: Ana deployed api.
+  pass scripted: play none · tone calm
+▸ 9 build_passed: The build on main passed after 2 failures.
+  ✓ flash: Beacon flashed green on its own.
+  … play: Beacon cheered.
+  pass scripted: play cheer · tone calm

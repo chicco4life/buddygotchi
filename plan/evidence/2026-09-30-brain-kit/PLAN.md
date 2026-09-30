@@ -25,7 +25,7 @@ without stopping until done. The spec is [plan/kit/BRAIN-KIT.md](../../kit/BRAIN
 | 4 | The kit's harness: inputs and transforms, rules and `did`, outputs and `ended`, `Choice`, the prompt builder, the loop, the tick, with its own tests | Done with 5, f38a766c |
 | 5 | Boop on the kit: the view as transforms, the pipeline as rules, mood as a `Choice`, react's `run(now:)`, the runtime, evals, headless and boopdev rewired; specs | Done, f38a766c |
 | 6 | Beacon, the second tiny example, in `internal/examples/`, with `beacon` and `kit-emit` | Done |
-| 7 | Checks: build, tests, tools tests, headless run with the scripted brain, golden states; the evidence below | |
+| 7 | Checks: build, tests, tools tests, headless run with the scripted brain, golden states; the evidence below | Done, 906c446f |
 
 ## Decisions made while building
 
@@ -59,4 +59,40 @@ without stopping until done. The spec is [plan/kit/BRAIN-KIT.md](../../kit/BRAIN
 
 ## Evidence
 
-(Added at the end.)
+All run on 2026-09-30 at 906c446f, on the owner's Mac, with no Jev key
+and no board.
+
+- **Commits**, on top of `main` at the time: 2cad8ddd (golden states),
+  58c89b30 (the spec), 8c7dcdf6, 0575fa37, f38a766c (steps 1–4, Boop on
+  the kit), 67a76046 (Beacon), 906c446f (the sweep), and this one.
+- **`make build`**: passes, with its check that nothing shipped imports
+  an internal target.
+- **`make -C internal test`**: 357 of 357 passed. Among them
+  `GoldenStateTests`, whose 387 states from the 60 eval scenarios are
+  byte-for-byte those 2cad8ddd recorded before anything moved, 16
+  `BrainKitTests` (the kit on its own, the deadline and the socket
+  included) and 2 `BeaconTests` (the worked example, as §11 quotes it).
+- **`make -C internal tools-test`**: 94 and 3 tests, OK.
+- **A scripted working day** (`internal/tools/boopctl workday run
+  --state /tmp/bk-day --brain scripted`, seed 1), twice on this branch
+  and twice on 2cad8ddd built in a scratch worktree. All four runs
+  answered the same 412 events, in the same order, with the same lines
+  and the same answers. What differs is the number of working heartbeats
+  (14 to 20), which varies from run to run on either side: the headless
+  app ticks on real time while the day moves its clock in jumps. The
+  branch also writes 2 held passes ("something needs you", a turn on
+  `api` while `fix-nav` asked for permission), where 2cad8ddd wrote
+  nothing. The first branch run's report is
+  [workday-scripted.md](workday-scripted.md): 429 passes, 2 of them
+  held, none dropped.
+- **A forced pass, headless** (`--link none`): the lines in
+  [HARNESS.md](../../harness/HARNESS.md) §9, the pass's event at `seq`
+  1, its action at 2 and the action's end at 3.
+- **Beacon**: `.build/debug/beacon` prints the worked example (pinned by
+  `BeaconTests`). `beacon listen --socket /tmp/bk-beacon.sock`, driven by
+  four `kit-emit` calls (two failures, a deploy from `events.json`, a
+  pass), is in [beacon-live.txt](beacon-live.txt).
+
+Not checked here: anything with Jev (no key, so no steering eval; the
+prompts are pinned byte-for-byte instead), the board over USB or
+Bluetooth, and a Linux build of `BrainKit`.
