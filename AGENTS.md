@@ -161,6 +161,7 @@ unpushed local `main`.
 | `firmware/src/render/`, `firmware/src/app/gesture.*` | `DEVICE.md` |
 | `agent-hooks/` (its sources, tests, fixtures and command line) | `agent-hooks/SPEC.md`, `agent-hooks/README.md`, and `ADAPTERS.md` where Boop's use changes |
 | `app/BoopKit/Adapters/`, the hook setup in `app/Boop/MenuBarApp.swift` | `ADAPTERS.md` |
+| `app/BrainKit/`, `internal/examples/`, `internal/app/KitEmit/` | `kit/BRAIN-KIT.md` |
 | `app/BoopKit/Harness/`, `app/BoopKit/Brains/`, `app/BoopKit/App/Pipeline.swift` | `harness/HARNESS.md` |
 | `app/BoopKit/Core/Event.swift`, `app/BoopKit/Core/TranscriptView.swift`, what the core records | `harness/EVENTS.md` |
 | `app/BoopKit/Presence/`, `app/Boop/PresenceSignals.swift` | `harness/EVENTS.md` §2.1 |
