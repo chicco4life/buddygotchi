@@ -34,7 +34,7 @@ talks in sentences: at most a feeling and a topic, "Pfft... Test".
 | Play it whole from the SD card, with the mouth and bubble in time | The device (§8) |
 
 Voice is the only code that knows what Boop can say. The brain never
-picks a recording: it picks from three feelings, fifteen topics and four
+picks a recording: it picks from three feelings, sixteen topics and four
 kinds, and Voice maps them onto however many takes there are. So the
 brain's questions stay the same size as the bank grows.
 
@@ -69,9 +69,15 @@ the bank's intent (voicegen's `FEELING` and `ABOUT`):
 | | `looking`, `planning` | search, analyze and ponder; plan |
 | | `done`, `answer` | success, reply |
 | | `stopped`, `waiting`, `quiet` | stop, wait, idle |
+| | `hello` | none: the greetings, by their words (below) |
 | needs you's | `attention` | attention: in the pack, but Boop never says them (§7) |
 
-"Passed" is the one word moved: it's about `tests`, not `done`.
+A few words are filed by what they say, not by their intent (voicegen's
+`ABOUT_OF_ENTRY`): "Passed" is about `tests`, not `done`, and the
+greetings, recorded for needs you (Hello, Hey, Hello hello) and for
+pokes (Hi, Howdy, Salut, Oh hello, Hey hey), are `hello`, Boop's hello
+when you come back to the Mac ([harness/EVENTS.md](harness/EVENTS.md)
+§2.1). Every face has four or more: Hello, Hey, Hi and Howdy in all 13.
 
 **Every face can say everything.** Each of the 13 faces has at least
 four takes for every feeling and every topic. The one gap is on
@@ -174,7 +180,8 @@ an agent giving up gets a sigh.
 
 - Nothing while something needs you: the ding is needs you's only sound
   (§9, [BEHAVIORS.md](BEHAVIORS.md) §3.2). The bank's needs-you takes
-  (Hello, Oi, Knock knock) are in the pack but no reaction says them.
+  (Oi, Psst, Knock knock) are in the pack but no reaction says them;
+  its Hello and Hey are `hello` (§3).
 - Nothing while the mic is on.
 - No take borrowed from another mood, and none made up: when the bank
   has nothing for the face, Boop is silent.

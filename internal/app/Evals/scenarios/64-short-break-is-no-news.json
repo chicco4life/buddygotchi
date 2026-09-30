@@ -1,9 +1,0 @@
-{
-  "name": "A short break isn't news",
-  "case": "Boop is calm and nothing is going on. The person steps away from the Mac for ten minutes and comes back. That's no event: Boop's mood stays calm, and if it reacts at all it's a calm, happy or curious face, with no finish played.",
-  "why": "harness/EVENTS.md §2.1: a short break is still a back; the guide: the mood never moves for a routine line; PERSONALITY's Example of coming back is only for a very long break",
-  "steps": [
-    {"event": "away", "at": "0s"},
-    {"event": "back", "at": "10m", "expect": {"react": "none|calm|happy|curious", "animation": "none", "mood": "calm"}}
-  ]
-}

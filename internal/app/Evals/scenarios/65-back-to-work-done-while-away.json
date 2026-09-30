@@ -7,6 +7,6 @@
     {"event": "away", "at": "1m"},
     {"event": "command", "at": "20m", "topic": "tests", "failed": false},
     {"event": "turn finished", "at": "30m", "message": "Dark mode is in: the settings page has a toggle, it follows the system by default, and the tests pass.", "expect": {"animation": "success"}},
-    {"event": "back", "at": "1h30m", "expect": {"react": "happy|excited|curious|proud", "animation": "none"}}
+    {"event": "back", "at": "1h30m", "expect": {"react": "happy|excited|curious|proud", "animation": "none", "feeling": "glad", "about": "hello"}}
   ]
 }

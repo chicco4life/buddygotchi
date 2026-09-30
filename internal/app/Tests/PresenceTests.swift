@@ -41,29 +41,35 @@ final class PresenceTests: XCTestCase {
         var names: [String] { made.map { "\($0.phase?.rawValue ?? "") \($0.specificType)" } }
     }
 
-    /// EVENTS.md §2.1: a lock counts after 30 s (`lockGraceMs`), from when
-    /// you last touched the Mac; the back comes with your first touch once
-    /// it's unlocked, named by the unlock. A shorter lock is nothing.
-    func testALockIsAnAwayAfterItsGrace() throws {
+    /// EVENTS.md §2.1: a lock counts after 10 minutes (`lockAwayMs`), from
+    /// when you last touched the Mac; the back comes with your first touch
+    /// once it's unlocked, named by the unlock. A shorter lock is nothing:
+    /// a minute away, or nine, gets no hello.
+    func testALockIsAnAwayOnlyAfterTenMinutes() throws {
         var rig = Rig()
         rig.wait(5000)
         rig.signal(.locked)
-        rig.wait(29_000)
+        rig.wait(minute)
         rig.signal(.unlocked)
         rig.touch()
-        XCTAssertEqual(rig.names, [], "a lock under 30 s records nothing")
+        XCTAssertEqual(rig.names, [], "a minute's lock records nothing")
+        rig.signal(.locked)
+        rig.wait(10 * minute - 1000)
+        rig.signal(.unlocked)
+        rig.touch()
+        XCTAssertEqual(rig.names, [], "nor does one just under 10 minutes")
 
         rig.wait(3000)
         let lockedAt = rig.now
         rig.signal(.locked)
-        rig.wait(29_000)
+        rig.wait(10 * minute - 1000)
         XCTAssertEqual(rig.names, [])
         rig.wait(1000)
         XCTAssertEqual(rig.names, ["start locked"])
         let away = try XCTUnwrap(rig.made.first)
         XCTAssertEqual(away.source, .mac)
         XCTAssertEqual(away.type, .presence)
-        XCTAssertEqual(away.ts, lockedAt + 30_000)
+        XCTAssertEqual(away.ts, lockedAt + 10 * minute)
         XCTAssertEqual(away["since"]?.int, rig.lastInput, "when you last touched the Mac, not when it was noticed")
         XCTAssertTrue(rig.detector.away)
 
@@ -100,10 +106,10 @@ final class PresenceTests: XCTestCase {
     func testSleepingThroughIsAnAwayAtTheWake() throws {
         var rig = Rig()
         rig.signal(.asleep)
-        rig.now += 20_000  // no ticks while asleep
+        rig.now += 9 * minute  // no ticks while asleep
         rig.signal(.woke)
         rig.touch()
-        XCTAssertEqual(rig.names, [])
+        XCTAssertEqual(rig.names, [], "a sleep under 10 minutes is nothing")
 
         let asleepAt = rig.now
         rig.signal(.asleep)
@@ -115,9 +121,9 @@ final class PresenceTests: XCTestCase {
         XCTAssertEqual(rig.names, ["start asleep", "end woke"])
 
         // The displays sleeping with the app still ticking: an away after
-        // the grace, like a lock.
+        // 10 minutes, like a lock.
         rig.signal(.asleep)
-        rig.wait(30_000)
+        rig.wait(10 * minute)
         XCTAssertEqual(rig.names.last, "start asleep")
     }
 
@@ -128,7 +134,7 @@ final class PresenceTests: XCTestCase {
     func testOneAwayAtATime() throws {
         var rig = Rig()
         rig.signal(.locked)
-        rig.wait(30_000)
+        rig.wait(10 * minute)
         rig.signal(.asleep)
         rig.wait(minute)
         rig.touch()
@@ -153,12 +159,12 @@ final class PresenceTests: XCTestCase {
     func testThePresenceEventsShape() {
         var detector = PresenceDetector()
         _ = detector.signal(.locked, at: 1_790_000_000_000)
-        var away = detector.tick(at: 1_790_000_030_000, idleMs: 30_000)!
+        var away = detector.tick(at: 1_790_000_600_000, idleMs: 600_000)!
         away.seq = 40
         _ = detector.signal(.unlocked, at: 1_790_003_599_000)
         var back = detector.tick(at: 1_790_003_600_000, idleMs: 1000)!
         back.seq = 41
-        XCTAssertEqual(away.jsonLine, #"{"seq":40,"ts":1790000030000,"source":"mac","type":"presence","phase":"start","specific_type":"locked","data":{"since":1790000000000}}"#)
+        XCTAssertEqual(away.jsonLine, #"{"seq":40,"ts":1790000600000,"source":"mac","type":"presence","phase":"start","specific_type":"locked","data":{"since":1790000000000}}"#)
         XCTAssertEqual(back.jsonLine, #"{"seq":41,"ts":1790003600000,"source":"mac","type":"presence","phase":"end","specific_type":"unlocked","data":{}}"#)
         XCTAssertEqual(Event(jsonLine: away.jsonLine), away)
     }
@@ -209,6 +215,28 @@ final class PresenceTests: XCTestCase {
         XCTAssertEqual(Band.away(ms: 120 * minute - 1), "long")
         XCTAssertEqual(Band.away(ms: 120 * minute), "very long")
         XCTAssertEqual(EventLine.back(ms: 5 * minute), "You came back to the Mac after a short break.")
+    }
+
+    /// VOICE.md §3, harness/DECISIONS.md §3: `hello` is a topic Jev is
+    /// offered, every face has four or more of its takes, all greetings,
+    /// and a glad sound then hello, as boop's Example asks, is a sound and
+    /// a greeting in a happy face.
+    func testEveryFaceCanSayHello() {
+        let greetings: Set = ["Hello", "Hey", "Hi", "Howdy", "Salut", "Hello hello", "Oh, hello", "Hey hey"]
+        XCTAssertTrue(ReactAction.topics.map(\.name).contains("hello"))
+        let hello = Take.all.filter { $0.part == .about && $0.meaning == "hello" }
+        XCTAssertEqual(Set(hello.map(\.text)), greetings)
+        XCTAssertTrue(hello.allSatisfy { $0.finish == nil })
+        for mood in MoodAction.moods.map(\.name) {
+            XCTAssertGreaterThanOrEqual(hello.filter { $0.mood == mood }.count, 4, mood)
+        }
+        var rng = SplitMix64(seed: 1)
+        for _ in 0..<20 {
+            let line = Voice.line(feeling: "glad", about: "hello", kind: .sound, face: "happy", finish: nil, rng: &rng)
+            XCTAssertEqual(line.count, 2, "\(line.map(\.text))")
+            XCTAssertEqual(line.first?.kind, .sound)
+            XCTAssertTrue(greetings.contains(line.last?.text ?? ""), "\(line.map(\.text))")
+        }
     }
 
     /// EVENTS.md §4: coming back is activity, so the idle heartbeat counts
@@ -271,7 +299,7 @@ final class PresenceRuntimeTests: XCTestCase {
         .filter { $0.type == .presence }.map { "\($0.phase?.rawValue ?? "") \($0.specificType)" }
     }
 
-    /// A lock from a dev line becomes an away 30 s later, on the tick; the
+    /// A lock from a dev line becomes an away 10 minutes later, on the tick; the
     /// unlock and the next tick the back, which the view keeps as waking.
     /// Relaunched while away, the next touch is the back, not a second
     /// away. Idle set by a dev line makes the idle away.
@@ -280,7 +308,7 @@ final class PresenceRuntimeTests: XCTestCase {
         do {
             let first = try makeRuntime(clock: clock)
             dev(first, #"{"dev":"presence","signal":"locked"}"#)
-            dev(first, #"{"dev":"advance","ms":29000}"#)
+            dev(first, #"{"dev":"advance","ms":599000}"#)
             XCTAssertEqual(presence(first), [])
             dev(first, #"{"dev":"advance","ms":1000}"#)
             XCTAssertEqual(presence(first), ["start locked"])

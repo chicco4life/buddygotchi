@@ -95,7 +95,7 @@ event. It has two parts:
 
 | Personality | For | Its text |
 | --- | --- | --- |
-| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted, a little smug and lively: it never sits still for long, and it all shows on its face. It reacts to anything that stands out, with a strong face, held longer for bigger moments, and almost always says how it feels, what NOW is about, or both, but never just to speak: mostly a sound or a word, a phrase for a big moment, and a swear, irritated, at a failed turn that really stings. A failed check is annoyed, upset in a sound, then tests, held once; a build passing after failing proud, glad in a sound, then command, twice; a very long turn done excited, a success, glad in a phrase, three times; a failed turn irritated, a failure, upset in a swear, once; an agent giving up sad, a failure, upset in a sound. A stopped turn has no Example: the device shows the stop on its own. Every turn that finishes done or failed gets a face and its outcome: a success when the work is done and working, a failure when it failed or the agent couldn't finish, a reply when it only answered or asked back (curious, answer in a word). A turn start gets nothing, unless the person sounds frustrated (determined, retry in a word) or thanks the agent (excited, glad in a word, then start). Work still going gets an engaged face held twice at every working heartbeat, never none, with work in a word, or in a sound for a very long turn. Poked, it's curious, then miffed: a single poke gets a curious, tickled word, two in a row an annoyed, upset sound, four a grumpy, upset phrase. Talked to, it always answers with a face, never none: proud and glad at kind words, wounded and upset at rude ones, sad at sad news. Back at the Mac after a very long break, happy with a glad sound, twice |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Loyal, easily delighted, a little smug and lively: it never sits still for long, and it all shows on its face. It reacts to anything that stands out, with a strong face, held longer for bigger moments, and almost always says how it feels, what NOW is about, or both, but never just to speak: mostly a sound or a word, a phrase for a big moment, and a swear, irritated, at a failed turn that really stings. A failed check is annoyed, upset in a sound, then tests, held once; a build passing after failing proud, glad in a sound, then command, twice; a very long turn done excited, a success, glad in a phrase, three times; a failed turn irritated, a failure, upset in a swear, once; an agent giving up sad, a failure, upset in a sound. A stopped turn has no Example: the device shows the stop on its own. Every turn that finishes done or failed gets a face and its outcome: a success when the work is done and working, a failure when it failed or the agent couldn't finish, a reply when it only answered or asked back (curious, answer in a word). A turn start gets nothing, unless the person sounds frustrated (determined, retry in a word) or thanks the agent (excited, glad in a word, then start). Work still going gets an engaged face held twice at every working heartbeat, never none, with work in a word, or in a sound for a very long turn. Poked, it's curious, then miffed: a single poke gets a curious, tickled word, two in a row an annoyed, upset sound, four a grumpy, upset phrase. Talked to, it always answers with a face, never none: proud and glad at kind words, wounded and upset at rude ones, sad at sad news. Back at the Mac after a very long break, happy with a glad sound, then hello, twice |
 | [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses, heartbeats, what you say and your coming back included, always says something, how it feels and what NOW is about whenever both fit, a phrase whenever it can, swears at every failed turn, and holds its faces long: twice for routine lines, up to four times for a fix or a very long turn done, a success |
 
 "Never stays quiet" is still Jev's call: `none` stays an option, and the
@@ -362,7 +362,8 @@ exclamation and topic word. `say.feeling` and `say.about` offer every
 answer (`ReactAction.feelings` and `ReactAction.topics`): tests check
 that each take's answer is one of them and that every face has takes
 of each ([VOICE.md](../VOICE.md) §3). Needs you's takes, `attention`,
-are never offered ([VOICE.md](../VOICE.md) §7).
+are never offered ([VOICE.md](../VOICE.md) §7), but for its greetings,
+which are `hello`'s.
 
 | `say.feeling` | Meaning |
 | --- | --- |
@@ -389,6 +390,7 @@ are never offered ([VOICE.md](../VOICE.md) §7).
 | `stopped` | A turn stopped: interrupted, or the agent giving up. Not for a turn that finished done |
 | `waiting` | Waiting: a long command, or the agent waiting on something slow. Not for something that needs the person: the ding says that |
 | `quiet` | Nothing going on: a quiet check-in, or words to Boop about nothing in particular |
+| `hello` | The person back at the Mac after a break: a hello. Not for anything else: a poke, words to Boop, a turn starting |
 
 | `say.kind` | Meaning |
 | --- | --- |

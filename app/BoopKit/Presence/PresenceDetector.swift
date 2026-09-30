@@ -8,8 +8,9 @@ import Foundation
 /// it; the runtime keeps one on `home`.
 public struct PresenceDetector {
     public struct Config: Sendable {
-        /// A lock or sleep this long is an away; a shorter one is nothing.
-        public var lockGraceMs: Int64 = 30_000
+        /// A lock or sleep this long is an away; a shorter one is nothing,
+        /// so a minute away to fetch a coffee isn't worth a hello.
+        public var lockAwayMs: Int64 = 10 * 60_000
         /// No key or mouse for this long is an away. Idle alone can be a
         /// video or a long read, so it waits much longer than a lock.
         public var idleAwayMs: Int64 = 30 * 60_000
@@ -43,7 +44,7 @@ public struct PresenceDetector {
     }
 
     /// A signal from the Mac at `now`. An unlock or a wake after a lock or
-    /// sleep that outlasted the grace makes the away it was, if no tick
+    /// sleep that lasted `lockAwayMs` makes the away it was, if no tick
     /// saw it first: the Mac doesn't tick while it sleeps.
     public mutating func signal(_ signal: Signal, at now: Int64) -> Event? {
         switch signal {
@@ -57,7 +58,7 @@ public struct PresenceDetector {
             let since = signal == .unlocked ? lockedAt : asleepAt
             let why: Signal = signal == .unlocked ? .locked : .asleep
             var out: Event?
-            if !away, let since, now - since >= config.lockGraceMs {
+            if !away, let since, now - since >= config.lockAwayMs {
                 out = goAway(why.rawValue, since: since, at: now)
             }
             if signal == .unlocked { lockedAt = nil } else { asleepAt = nil }
@@ -67,7 +68,7 @@ public struct PresenceDetector {
     }
 
     /// Every tick, with the Mac's idle time: an away once a lock or sleep
-    /// has outlasted the grace or you've been idle long enough, and a back
+    /// has lasted `lockAwayMs` or you've been idle long enough, and a back
     /// once you touch the Mac while it's unlocked and awake. At most one.
     public mutating func tick(at now: Int64, idleMs: Int64) -> Event? {
         let lastInput = now - max(0, idleMs)
@@ -78,10 +79,10 @@ public struct PresenceDetector {
             cleared = nil
             return Event(ts: now, source: .mac, type: .presence, phase: .end, specificType: why)
         }
-        if let at = lockedAt, now - at >= config.lockGraceMs {
+        if let at = lockedAt, now - at >= config.lockAwayMs {
             return goAway(Signal.locked.rawValue, since: min(at, lastInput), at: now)
         }
-        if let at = asleepAt, now - at >= config.lockGraceMs {
+        if let at = asleepAt, now - at >= config.lockAwayMs {
             return goAway(Signal.asleep.rawValue, since: min(at, lastInput), at: now)
         }
         if idleMs >= config.idleAwayMs {

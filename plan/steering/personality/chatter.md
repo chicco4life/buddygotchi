@@ -43,4 +43,4 @@ Examples:
 - NOW: Nothing has happened for 1 hour.
   → calm, quiet in a word, twice
 - NOW: You came back to the Mac after a short break.
-  → excited, glad in a sound, three times
+  → excited, glad in a sound, then hello, three times

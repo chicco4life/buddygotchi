@@ -103,6 +103,8 @@ public final class ReactAction: Action {
         Option("waiting", "Waiting: a long command, or the agent waiting on something slow.",
                notFor: "Something that needs the person: the ding says that."),
         Option("quiet", "Nothing going on: a quiet check-in, or words to Boop about nothing in particular."),
+        Option("hello", "The person back at the Mac after a break: a hello.",
+               notFor: "Anything else: a poke, words to Boop, a turn starting."),
     ]
 
     /// How big what it says is (DECISIONS.md §3), plainest first:

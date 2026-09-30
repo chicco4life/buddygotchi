@@ -40,9 +40,9 @@ new.d05	Again	about	retry	word	annoyed		1137
 new.d06	Again	about	retry	word	irritated		1127
 new.d07	Again	about	retry	word	whiny		1486
 new.d08	Again	about	retry	word	determined		928
-new.d09	Hello	attention	attention	word	curious		758
-new.d10	Hello	attention	attention	word	calm		668
-new.d11	Hello	attention	attention	word	wounded		1007
+new.d09	Hello	about	hello	word	curious		758
+new.d10	Hello	about	hello	word	calm		668
+new.d11	Hello	about	hello	word	wounded		1007
 new.d12	Hrr...	about	work	sound	grumpy		898
 new.d13	Phew...	feeling	glad	sound	happy	success	987
 new.d14	Mamma mia	feeling	upset	phrase	grumpy		1656
@@ -1244,29 +1244,29 @@ phase1.word.retry.rewind__happy__contained	Rewind	about	retry	word	happy		1117
 phase1.word.retry.rewind__excited__contained	Rewind	about	retry	word	excited		1187
 phase1.word.retry.rewind__proud__contained	Rewind	about	retry	word	proud		1446
 phase1.word.retry.rewind__curious__contained	Rewind	about	retry	word	curious		1067
-phase1.word.attention.hello__engaged__contained	Hello	attention	attention	word	engaged		698
-phase1.word.attention.hello__determined__contained	Hello	attention	attention	word	determined		738
-phase1.word.attention.hello__annoyed__contained	Hello	attention	attention	word	annoyed		928
-phase1.word.attention.hello__irritated__contained	Hello	attention	attention	word	irritated		1037
-phase1.word.attention.hello__grumpy__contained	Hello	attention	attention	word	grumpy		1037
-phase1.word.attention.hello__whiny__contained	Hello	attention	attention	word	whiny		1267
-phase1.word.attention.hello__sad__contained	Hello	attention	attention	word	sad		908
-phase1.word.attention.hello__happy__contained	Hello	attention	attention	word	happy		748
-phase1.word.attention.hello__excited__contained	Hello	attention	attention	word	excited		788
-phase1.word.attention.hello__proud__contained	Hello	attention	attention	word	proud		1067
-phase1.word.attention.hey__calm__contained	Hey	attention	attention	word	calm		718
-phase1.word.attention.hey__engaged__contained	Hey	attention	attention	word	engaged		818
-phase1.word.attention.hey__determined__contained	Hey	attention	attention	word	determined		678
-phase1.word.attention.hey__annoyed__contained	Hey	attention	attention	word	annoyed		898
-phase1.word.attention.hey__irritated__contained	Hey	attention	attention	word	irritated		928
-phase1.word.attention.hey__grumpy__contained	Hey	attention	attention	word	grumpy		918
-phase1.word.attention.hey__whiny__contained	Hey	attention	attention	word	whiny		1137
-phase1.word.attention.hey__wounded__contained	Hey	attention	attention	word	wounded		948
-phase1.word.attention.hey__sad__contained	Hey	attention	attention	word	sad		818
-phase1.word.attention.hey__happy__contained	Hey	attention	attention	word	happy		758
-phase1.word.attention.hey__excited__contained	Hey	attention	attention	word	excited		818
-phase1.word.attention.hey__proud__contained	Hey	attention	attention	word	proud		1077
-phase1.word.attention.hey__curious__contained	Hey	attention	attention	word	curious		628
+phase1.word.attention.hello__engaged__contained	Hello	about	hello	word	engaged		698
+phase1.word.attention.hello__determined__contained	Hello	about	hello	word	determined		738
+phase1.word.attention.hello__annoyed__contained	Hello	about	hello	word	annoyed		928
+phase1.word.attention.hello__irritated__contained	Hello	about	hello	word	irritated		1037
+phase1.word.attention.hello__grumpy__contained	Hello	about	hello	word	grumpy		1037
+phase1.word.attention.hello__whiny__contained	Hello	about	hello	word	whiny		1267
+phase1.word.attention.hello__sad__contained	Hello	about	hello	word	sad		908
+phase1.word.attention.hello__happy__contained	Hello	about	hello	word	happy		748
+phase1.word.attention.hello__excited__contained	Hello	about	hello	word	excited		788
+phase1.word.attention.hello__proud__contained	Hello	about	hello	word	proud		1067
+phase1.word.attention.hey__calm__contained	Hey	about	hello	word	calm		718
+phase1.word.attention.hey__engaged__contained	Hey	about	hello	word	engaged		818
+phase1.word.attention.hey__determined__contained	Hey	about	hello	word	determined		678
+phase1.word.attention.hey__annoyed__contained	Hey	about	hello	word	annoyed		898
+phase1.word.attention.hey__irritated__contained	Hey	about	hello	word	irritated		928
+phase1.word.attention.hey__grumpy__contained	Hey	about	hello	word	grumpy		918
+phase1.word.attention.hey__whiny__contained	Hey	about	hello	word	whiny		1137
+phase1.word.attention.hey__wounded__contained	Hey	about	hello	word	wounded		948
+phase1.word.attention.hey__sad__contained	Hey	about	hello	word	sad		818
+phase1.word.attention.hey__happy__contained	Hey	about	hello	word	happy		758
+phase1.word.attention.hey__excited__contained	Hey	about	hello	word	excited		818
+phase1.word.attention.hey__proud__contained	Hey	about	hello	word	proud		1077
+phase1.word.attention.hey__curious__contained	Hey	about	hello	word	curious		628
 phase1.word.attention.psst__calm__contained	Psst	attention	attention	word	calm		479
 phase1.word.attention.psst__engaged__contained	Psst	attention	attention	word	engaged		548
 phase1.word.attention.psst__determined__contained	Psst	attention	attention	word	determined		598
@@ -1787,32 +1787,32 @@ phase1.word.poke.oh__happy__contained	Oh	feeling	tickled	word	happy		718
 phase1.word.poke.oh__excited__contained	Oh	feeling	tickled	word	excited		748
 phase1.word.poke.oh__proud__contained	Oh	feeling	tickled	word	proud		1017
 phase1.word.poke.oh__curious__contained	Oh	feeling	tickled	word	curious		738
-phase1.word.poke.hi__calm__contained	Hi	feeling	tickled	word	calm		668
-phase1.word.poke.hi__engaged__contained	Hi	feeling	tickled	word	engaged		728
-phase1.word.poke.hi__determined__contained	Hi	feeling	tickled	word	determined		698
-phase1.word.poke.hi__annoyed__contained	Hi	feeling	tickled	word	annoyed		818
-phase1.word.poke.hi__irritated__contained	Hi	feeling	tickled	word	irritated		928
-phase1.word.poke.hi__grumpy__contained	Hi	feeling	tickled	word	grumpy		938
-phase1.word.poke.hi__whiny__contained	Hi	feeling	tickled	word	whiny		1247
-phase1.word.poke.hi__wounded__contained	Hi	feeling	tickled	word	wounded		878
-phase1.word.poke.hi__sad__contained	Hi	feeling	tickled	word	sad		698
-phase1.word.poke.hi__happy__contained	Hi	feeling	tickled	word	happy		658
-phase1.word.poke.hi__excited__contained	Hi	feeling	tickled	word	excited		768
-phase1.word.poke.hi__proud__contained	Hi	feeling	tickled	word	proud		1007
-phase1.word.poke.hi__curious__contained	Hi	feeling	tickled	word	curious		658
-phase1.word.poke.howdy__calm__contained	Howdy	feeling	tickled	word	calm		658
-phase1.word.poke.howdy__engaged__contained	Howdy	feeling	tickled	word	engaged		828
-phase1.word.poke.howdy__determined__contained	Howdy	feeling	tickled	word	determined		658
-phase1.word.poke.howdy__annoyed__contained	Howdy	feeling	tickled	word	annoyed		908
-phase1.word.poke.howdy__irritated__contained	Howdy	feeling	tickled	word	irritated		1087
-phase1.word.poke.howdy__grumpy__contained	Howdy	feeling	tickled	word	grumpy		1117
-phase1.word.poke.howdy__whiny__contained	Howdy	feeling	tickled	word	whiny		1327
-phase1.word.poke.howdy__wounded__contained	Howdy	feeling	tickled	word	wounded		977
-phase1.word.poke.howdy__sad__contained	Howdy	feeling	tickled	word	sad		868
-phase1.word.poke.howdy__happy__contained	Howdy	feeling	tickled	word	happy		718
-phase1.word.poke.howdy__excited__contained	Howdy	feeling	tickled	word	excited		768
-phase1.word.poke.howdy__proud__contained	Howdy	feeling	tickled	word	proud		1037
-phase1.word.poke.howdy__curious__contained	Howdy	feeling	tickled	word	curious		668
+phase1.word.poke.hi__calm__contained	Hi	about	hello	word	calm		668
+phase1.word.poke.hi__engaged__contained	Hi	about	hello	word	engaged		728
+phase1.word.poke.hi__determined__contained	Hi	about	hello	word	determined		698
+phase1.word.poke.hi__annoyed__contained	Hi	about	hello	word	annoyed		818
+phase1.word.poke.hi__irritated__contained	Hi	about	hello	word	irritated		928
+phase1.word.poke.hi__grumpy__contained	Hi	about	hello	word	grumpy		938
+phase1.word.poke.hi__whiny__contained	Hi	about	hello	word	whiny		1247
+phase1.word.poke.hi__wounded__contained	Hi	about	hello	word	wounded		878
+phase1.word.poke.hi__sad__contained	Hi	about	hello	word	sad		698
+phase1.word.poke.hi__happy__contained	Hi	about	hello	word	happy		658
+phase1.word.poke.hi__excited__contained	Hi	about	hello	word	excited		768
+phase1.word.poke.hi__proud__contained	Hi	about	hello	word	proud		1007
+phase1.word.poke.hi__curious__contained	Hi	about	hello	word	curious		658
+phase1.word.poke.howdy__calm__contained	Howdy	about	hello	word	calm		658
+phase1.word.poke.howdy__engaged__contained	Howdy	about	hello	word	engaged		828
+phase1.word.poke.howdy__determined__contained	Howdy	about	hello	word	determined		658
+phase1.word.poke.howdy__annoyed__contained	Howdy	about	hello	word	annoyed		908
+phase1.word.poke.howdy__irritated__contained	Howdy	about	hello	word	irritated		1087
+phase1.word.poke.howdy__grumpy__contained	Howdy	about	hello	word	grumpy		1117
+phase1.word.poke.howdy__whiny__contained	Howdy	about	hello	word	whiny		1327
+phase1.word.poke.howdy__wounded__contained	Howdy	about	hello	word	wounded		977
+phase1.word.poke.howdy__sad__contained	Howdy	about	hello	word	sad		868
+phase1.word.poke.howdy__happy__contained	Howdy	about	hello	word	happy		718
+phase1.word.poke.howdy__excited__contained	Howdy	about	hello	word	excited		768
+phase1.word.poke.howdy__proud__contained	Howdy	about	hello	word	proud		1037
+phase1.word.poke.howdy__curious__contained	Howdy	about	hello	word	curious		668
 phase1.word.poke.tickles__calm__contained	Tickles	feeling	tickled	word	calm		918
 phase1.word.poke.tickles__engaged__contained	Tickles	feeling	tickled	word	engaged		918
 phase1.word.poke.tickles__determined__contained	Tickles	feeling	tickled	word	determined		948
@@ -2159,7 +2159,7 @@ phase1.phrase.attention.your-turn__curious__contained	Your turn	attention	attent
 phase1.phrase.attention.over-here__curious__contained	Over here	attention	attention	phrase	curious		1067
 phase1.phrase.attention.little-help__whiny__contained	Little help?	attention	attention	phrase	whiny		1646
 phase1.phrase.attention.quick-peek__curious__contained	Quick peek?	attention	attention	phrase	curious		928
-phase1.phrase.attention.hello-hello__curious__contained	Hello hello	attention	attention	phrase	curious		1177
+phase1.phrase.attention.hello-hello__curious__contained	Hello hello	about	hello	phrase	curious		1177
 phase1.phrase.attention.psst-here__curious__contained	Psst, here	attention	attention	phrase	curious		1207
 phase1.phrase.delegate.tiny-squad__determined__contained	Tiny squad	about	helpers	phrase	determined		1267
 phase1.phrase.delegate.roll-out__determined__contained	Roll out	about	helpers	phrase	determined		1067
@@ -2194,12 +2194,12 @@ phase1.phrase.stop.rest-mode__calm__contained	Rest mode	about	stopped	phrase	cal
 phase1.phrase.stop.pause-button__calm__contained	Pause button	about	stopped	phrase	calm		948
 phase1.phrase.stop.catch-you-later__calm__contained	Catch you later	about	stopped	phrase	calm		958
 phase1.phrase.poke.boop-back__happy__contained	Boop back	feeling	tickled	phrase	happy		1087
-phase1.phrase.poke.oh-hello__curious__contained	Oh, hello	feeling	tickled	phrase	curious		1377
+phase1.phrase.poke.oh-hello__curious__contained	Oh, hello	about	hello	phrase	curious		1377
 phase1.phrase.poke.easy-there__calm__contained	Easy there	feeling	tickled	phrase	calm		1197
 phase1.phrase.poke.personal-space__annoyed__contained	Personal space	feeling	tickled	phrase	annoyed		1436
 phase1.phrase.poke.you-rang__happy__contained	You rang?	feeling	tickled	phrase	happy		997
 phase1.phrase.poke.tickle-alert__happy__contained	Tickle alert	feeling	tickled	phrase	happy		1087
-phase1.phrase.poke.hey-hey__happy__contained	Hey hey	feeling	tickled	phrase	happy		948
+phase1.phrase.poke.hey-hey__happy__contained	Hey hey	about	hello	phrase	happy		948
 phase1.phrase.poke.bonk-patrol__happy__contained	Bonk patrol	feeling	tickled	phrase	happy		1247
 phase1.phrase.reply.here-you-go__happy__contained	Here you go	about	answer	phrase	happy		987
 phase1.phrase.reply.little-answer__happy__contained	Little answer	about	answer	phrase	happy		1197
@@ -2712,13 +2712,13 @@ phase1.borrowed.tadaima__curious__contained	Tadaima	about	helper back	word	curio
 phase1.borrowed.jawohl__determined__contained	Jawohl	about	helper back	word	determined		1017
 phase1.borrowed.jawohl__proud__contained	Jawohl	about	helper back	word	proud		1317
 phase1.borrowed.jawohl__engaged__contained	Jawohl	about	helper back	word	engaged		878
-phase1.borrowed.salut__calm__contained	Salut	feeling	tickled	word	calm		688
-phase1.borrowed.salut__engaged__contained	Salut	feeling	tickled	word	engaged		658
-phase1.borrowed.salut__determined__contained	Salut	feeling	tickled	word	determined		738
-phase1.borrowed.salut__happy__contained	Salut	feeling	tickled	word	happy		728
-phase1.borrowed.salut__excited__contained	Salut	feeling	tickled	word	excited		918
-phase1.borrowed.salut__proud__contained	Salut	feeling	tickled	word	proud		1347
-phase1.borrowed.salut__curious__contained	Salut	feeling	tickled	word	curious		738
+phase1.borrowed.salut__calm__contained	Salut	about	hello	word	calm		688
+phase1.borrowed.salut__engaged__contained	Salut	about	hello	word	engaged		658
+phase1.borrowed.salut__determined__contained	Salut	about	hello	word	determined		738
+phase1.borrowed.salut__happy__contained	Salut	about	hello	word	happy		728
+phase1.borrowed.salut__excited__contained	Salut	about	hello	word	excited		918
+phase1.borrowed.salut__proud__contained	Salut	about	hello	word	proud		1347
+phase1.borrowed.salut__curious__contained	Salut	about	hello	word	curious		738
 phase1.explicit.shit__annoyed__contained	Shit	feeling	upset	swear	annoyed	failure	1007
 phase1.explicit.shit__irritated__contained	Shit	feeling	upset	swear	irritated	failure	1007
 phase1.explicit.shit__grumpy__contained	Shit	feeling	upset	swear	grumpy	failure	1057

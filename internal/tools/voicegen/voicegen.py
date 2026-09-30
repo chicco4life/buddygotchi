@@ -21,8 +21,9 @@ changes:
 
 Every take answers one of the brain's two questions (harness/DECISIONS.md
 §3): how Boop feels (`say.feeling`) or what NOW is about (`say.about`),
-by the bank's intent (FEELING, ABOUT). Needs you's takes (`attention`)
-are in the pack, but Boop never says them. Six takes were recorded in
+by the bank's intent (FEELING, ABOUT), or for a few entries by their
+words (ABOUT_OF_ENTRY): the greetings are the `hello` topic. Needs you's
+other takes (`attention`) are in the pack, but Boop never says them. Six takes were recorded in
 moods Boop doesn't have; MOOD_OF gives them one, by the owner's word
 (2026-09-29).
 
@@ -82,9 +83,15 @@ ABOUT = {"begin": "start", "delegate": "helpers", "return": "helper back", "retr
          "work": "work", "effort": "work", "test": "tests", "terminal": "command", "tool": "tool",
          "search": "looking", "analyze": "looking", "ponder": "looking", "plan": "planning",
          "success": "done", "reply": "answer", "stop": "stopped", "wait": "waiting", "idle": "quiet"}
-# Entries whose words name a fact that belongs to another topic: "Passed"
-# is about tests, so it's only said about them (and only on a success).
-ABOUT_OF_ENTRY = {"word.success.passed": "tests"}
+# Entries whose words name a fact that belongs to another topic, whatever
+# the bank's intent: "Passed" is about tests, so it's only said about them
+# (and only on a success); the greetings, recorded for pokes and needs you,
+# are Boop's hello when you come back to the Mac (harness/EVENTS.md §2.1).
+ABOUT_OF_ENTRY = {"word.success.passed": "tests",
+                  "word.attention.hello": "hello", "word.attention.hey": "hello",
+                  "phrase.attention.hello-hello": "hello", "word.poke.hi": "hello",
+                  "word.poke.howdy": "hello", "borrowed.salut": "hello",
+                  "phrase.poke.oh-hello": "hello", "phrase.poke.hey-hey": "hello"}
 # The facts the bank says a take needs that the Mac can check: a success
 # word only on a success. Swears play only on a failed turn (VOICE.md §6).
 SUCCESS = {"success_confirmed", "fix_confirmed", "tests_passed", "insight_confirmed"}
@@ -99,10 +106,12 @@ def kind(entry: dict) -> str:
 def answer(entry: dict) -> tuple[str, str]:
     """The take's part (feeling, about or attention) and its answer."""
     intent = entry["intent"]
+    if entry["id"] in ABOUT_OF_ENTRY:
+        return "about", ABOUT_OF_ENTRY[entry["id"]]
     if intent in FEELING:
         return "feeling", FEELING[intent]
     if intent in ABOUT:
-        return "about", ABOUT_OF_ENTRY.get(entry["id"], ABOUT[intent])
+        return "about", ABOUT[intent]
     if intent == "attention":
         return "attention", "attention"
     raise SystemExit(f"voicegen: {entry['id']} has intent {intent!r}, which answers neither question; map it in FEELING or ABOUT")

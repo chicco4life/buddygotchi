@@ -60,4 +60,4 @@ Examples:
 - NOW: You said to Boop: "you're useless".
   → wounded, upset in a sound, once
 - NOW: You came back to the Mac after a very long break.
-  → happy, glad in a sound, twice
+  → happy, glad in a sound, then hello, twice

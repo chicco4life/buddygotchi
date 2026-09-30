@@ -8,7 +8,8 @@ away (a long video) must never make Boop go quiet.
 ## What changed
 
 - **The detector** (`app/BoopKit/Presence/PresenceDetector.swift`) is the
-  only code that decides. Away after a 30 s lock or sleep, or 30 minutes
+  only code that decides. Away after a 10-minute lock or sleep (30 s
+  until 2026-09-30), or 30 minutes
   of idle; back on a touch within 5 s once unlocked and awake.
   [harness/EVENTS.md](../../harness/EVENTS.md) §2.1.
 - **The signals** (`app/Boop/PresenceSignals.swift`): lock, unlock,
@@ -82,9 +83,56 @@ away (a long video) must never make Boop go quiet.
   working check-in likelier. Not yet tried: `15` and `63`–`65` without
   the Example.
 - The menu-bar app's real signals haven't been checked on the Mac: that
-  takes the owner running `make run`, locking the screen for over 30 s
+  takes the owner running `make run`, locking the screen for over 10 minutes
   and unlocking it, then reading `boop.log` for `presence: away
   (locked)` and `presence: back (unlocked)`.
 - `64` shows Boop still smiles at a short break. The mood holds, which is
   what the scenario asks; whether a short break should get no face at
   all is the owner's call.
+
+## 2026-09-30: no hello after a minute
+
+The owner: coming back should get a cheer, but not after a minute away;
+after ten minutes is right. So the detector counts a lock or sleep as
+an away only after 10 minutes (`lockAwayMs`, was 30 s); a shorter one
+records nothing, so there's nothing to greet. `PresenceTests` pins a
+minute's lock, one just under 10 minutes and a 9-minute sleep as
+nothing, and 10 minutes as an away.
+
+`64` is now "back after ten minutes gets a cheer", and `63` and `64`
+are `always`; every back step expects a glad feeling. With Jev:
+
+| Scenario | Runs | Boop |
+| --- | --- | --- |
+| `63` back after 3 hours | 5/5 | happy, "Eep!", twice |
+| `64` back after 10 minutes | 5/5 | happy, "Eep!", twice; mood stays calm |
+| `65` back after work finished while away | 1/1 | happy, "Hehehe...", twice |
+
+Every run says "Eep!" at the first greeting because each eval run is a
+fresh launch and `ReactAction` seeds its take picks with a fixed
+number; in the app the picks move on with every reaction.
+
+The full `make eval` before this change, on main at `4d479011`: 54/60,
+with `20` the known gap and none of the failures about coming back
+(`13`, `15`, `24`, `40`, `52`).
+
+
+## 2026-09-30: a hello, not just "Eep!"
+
+The owner wanted something more concrete than a glad sound. The bank had
+greetings Boop never said: Hello, Hey and Hello hello, recorded for needs
+you (which never says them), and Hi, Howdy, Salut, Oh hello and Hey hey,
+recorded for pokes. Voicegen now files these 62 takes under a new
+`say.about` topic, `hello` (four or more in every face); the pack's
+version stays `1aace295d219`, so the card doesn't change. boop's
+Example is now "happy, glad in a sound, then hello, twice".
+
+`make -C internal test`: 358 passed (`testEveryFaceCanSayHello` new).
+With Jev:
+
+| Scenario | Runs | Boop |
+| --- | --- | --- |
+| `63` back after 3 hours | 5/5 | happy, "Eep! Howdy", twice |
+| `64` back after 10 minutes | 5/5 | happy, "Eep! Howdy", twice; mood stays calm |
+| `65` back after work finished while away | 1/1 | happy, "Mwahaha... Howdy", twice |
+| `05`, `16`, `35`, `49` (pokes and talk) | 1/1 each | pokes say "Whoa", "Aww...", "Argh", never a greeting |

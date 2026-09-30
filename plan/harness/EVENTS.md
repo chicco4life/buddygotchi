@@ -75,11 +75,12 @@ carries its permission mode as `mode` (`plan` shows as planning,
 `mode`; the view leaves them out. Which hook becomes which type and
 phase is [ADAPTERS.md](../ADAPTERS.md) §3.
 
-You locking the screen, then coming back an hour later (the shape
+You locking the screen, it counting as an away 10 minutes later, and
+you coming back an hour after you locked it (the shape
 `PresenceTests` pins):
 
 ```jsonl
-{"seq":40,"ts":1790000030000,"source":"mac","type":"presence","phase":"start","specific_type":"locked","data":{"since":1790000000000}}
+{"seq":40,"ts":1790000600000,"source":"mac","type":"presence","phase":"start","specific_type":"locked","data":{"since":1790000000000}}
 {"seq":41,"ts":1790003600000,"source":"mac","type":"presence","phase":"end","specific_type":"unlocked","data":{}}
 ```
 
@@ -120,16 +121,20 @@ since the last key press or mouse move: a number, never the keys.
 
 | | When (`PresenceDetector.Config`) | `specific_type` |
 | --- | --- | --- |
-| Away (`start`) | The screen stays locked 30 s (`lockGraceMs`) | `locked` |
-| | The Mac or its displays stay asleep 30 s (`lockGraceMs`) | `asleep` |
+| Away (`start`) | The screen stays locked 10 minutes (`lockAwayMs`) | `locked` |
+| | The Mac or its displays stay asleep 10 minutes (`lockAwayMs`) | `asleep` |
 | | No key or mouse for 30 minutes (`idleAwayMs`) | `idle` |
 | Back (`end`) | While away: a key or mouse within the last 5 s (`backInputMs`), the screen unlocked and awake | `unlocked` or `woke` if that came since the away, else `input` |
 
-**How sure each is.** A lock or sleep almost always means you left, so
-it counts after a short grace. Idle alone can be a video or a long read,
-so it waits much longer; displays that sleep on their own usually come
-sooner, and a playing video keeps them awake. A lock or sleep shorter
-than the grace, or idle shorter than 30 minutes, records nothing.
+**Only a break worth a hello.** Every back wakes the brain, and Boop
+cheers at it, so the detector records only a break long enough to be
+greeted: a minute away to fetch a coffee gets nothing, ten minutes gets
+a hello. A lock or sleep almost always means you left, so it counts
+after 10 minutes. Idle alone can be a video or a long read, so it waits
+longer; displays that sleep on their own usually come sooner, and a
+playing video keeps them awake. A lock or sleep shorter than 10
+minutes, or idle shorter than 30, records nothing, and nothing shows
+it happened.
 
 **`since`** is the tick's time minus the idle time, so an away noticed
 after 30 minutes of idle starts when you left, not when it was noticed.
