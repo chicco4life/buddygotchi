@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: Self-diagnose whether the current agent harness (Claude Code or Codex) is correctly wired to Boop — hook registration, the boop-hook binary, the running app's socket, a synthetic round trip, and a live check that this harness's own hooks fire. Use when asked "is Boop working", "check my hooks", "/doctor", or before trusting any hook-dependent test.
+description: Self-diagnose whether the current agent harness (Claude Code or Codex) is correctly wired to Boop — hook registration, the agent-hook binary, the running app's socket and its listing, a synthetic round trip, and a live check that this harness's own hooks fire. Use when asked "is Boop working", "check my hooks", "/doctor", or before trusting any hook-dependent test.
 ---
 
 # Boop doctor
@@ -64,13 +64,16 @@ HOME="$H" internal/skills/doctor/doctor.sh --headless
 - **No socket, or the socket doesn't accept.** The app isn't running. Ask
   the owner to start Boop (`make run`). Don't launch it yourself: an
   agent-launched Boop is killed on its first Bluetooth use.
-- **Hooks old, or calling another `boop-hook`.** Common after a new
+- **Not listed for agent-hook.** `agent-hook` sends to every socket in
+  `~/.agent-hooks/sockets/`, and the everyday Boop lists its own there
+  as `boop.sock`, a link, when it starts. Ask the owner to restart Boop.
+- **Hooks old, or calling another `agent-hook`.** Common after a new
   build: Boop repairs them when it next starts, so ask the owner to
   restart it (`make run`), then restart the agent's sessions so they
   reload their hook config.
 - **Hooks missing.** Boop → Settings → Agents → Connect for this agent,
   then restart the agent's sessions.
-- **The app's `boop-hook` is missing.** The app copies it into
+- **The app's `agent-hook` is missing.** The app copies it into
   `~/Library/Application Support/Boop/bin/` at launch, from the one built
   next to it. Run `make build` if it isn't built, then ask the owner to
   restart Boop.

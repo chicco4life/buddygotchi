@@ -1,7 +1,8 @@
 import Foundation
 
-/// Topic tags (ADAPTERS.md §3): a glance at a tool's input, so Boop's one real
-/// word can be about the work. Only the tag leaves this function.
+/// Topic tags (SPEC.md §3): a glance at a tool's input, so an app knows
+/// what the work is (tests, a build, a deploy) without the command. Only
+/// the tag leaves this function.
 public enum Topic {
     /// Command shapes, as whole words in order. Deploy is checked first, then
     /// tests, then build, so `make test` is tests and `make` alone is build.
@@ -37,16 +38,43 @@ public enum Topic {
     /// Any tool that isn't an edit and has a command (Claude's `Bash`,
     /// Codex's `shell` or `exec_command`) is tagged by what it runs: its
     /// check, else `inspect` when it only looks (`inspects`).
-    public static func tag(tool: String?, input: Any?) -> String? {
+    /// `extra` adds command patterns to the check topics (`topics.json`,
+    /// `extraPatterns`).
+    public static func tag(tool: String?, input: Any?, extra: [String: [[String]]] = [:]) -> String? {
         guard let tool else { return nil }
         if editTools.contains(tool) {
             return paths(in: input).contains(where: isDoc) ? "docs" : nil
         }
-        return commands(in: input).flatMap { tag($0) ?? (inspects($0) ? inspect : nil) }
+        let rules = extra.isEmpty ? rules : merged(extra)
+        return commands(in: input).flatMap { tag($0, rules) ?? (inspects($0) ? inspect : nil) }
     }
 
-    /// The tag of a command that only looks at files (ADAPTERS.md §3), so
-    /// the look shows it as analyzing rather than a terminal (BEHAVIORS.md §2).
+    /// The built-in rules with `extra`'s patterns added to their topics,
+    /// which keep their order. A topic that isn't a check, a pattern with
+    /// no words or a blank word is left out. A pattern's program is matched
+    /// by its name, as a command's is, so `./scripts/ci.sh` is `ci.sh`.
+    static func merged(_ extra: [String: [[String]]]) -> [(topic: String, patterns: [[String]])] {
+        rules.map { rule in
+            let more = (extra[rule.topic] ?? []).filter { !$0.isEmpty && !$0.contains(where: \.isEmpty) }
+                .map { [($0[0] as NSString).lastPathComponent] + $0.dropFirst() }
+            return (rule.topic, rule.patterns + more)
+        }
+    }
+
+    /// More command patterns, from `topics.json` in the agent-hooks folder
+    /// (`$AGENT_HOOKS_DIR`, else `~/.agent-hooks`): `{"tests": [["just",
+    /// "check"]], "build": [["./build.sh"]]}`. Empty when there's none or it
+    /// doesn't read.
+    public static func extraPatterns(environment: [String: String] = ProcessInfo.processInfo.environment) -> [String: [[String]]] {
+        let root = environment["AGENT_HOOKS_DIR"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? (environment["HOME"] ?? NSHomeDirectory()) + "/.agent-hooks"
+        guard let data = FileManager.default.contents(atPath: root + "/topics.json"),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+        return object.compactMapValues { $0 as? [[String]] }
+    }
+
+    /// The tag of a command that only looks at files (SPEC.md §3), so an
+    /// app can tell reading from running.
     public static let inspect = "inspect"
 
     /// The topic of what a shell command runs: its program and the words
@@ -59,8 +87,8 @@ public enum Topic {
         tag(commands(command))
     }
 
-    static func tag(_ commands: [[String]]) -> String? {
-        commands.compactMap(rule).min().map { rules[$0].topic }
+    static func tag(_ commands: [[String]], _ rules: [(topic: String, patterns: [[String]])] = rules) -> String? {
+        commands.compactMap { rule($0, rules) }.min().map { rules[$0].topic }
     }
 
     // MARK: Looking
@@ -128,13 +156,13 @@ public enum Topic {
     /// The first rule one simple command matches: the pattern's first word
     /// is the program, and the rest appear in order among its arguments
     /// that aren't flags (`make -C firmware test`).
-    static func rule(_ words: [String]) -> Int? {
+    static func rule(_ words: [String], _ rules: [(topic: String, patterns: [[String]])] = rules) -> Int? {
         guard let (program, args) = unwrap(words) else { return nil }
         if shells.contains(program), let at = args.firstIndex(where: isDashC), at + 1 < args.count {
             // `bash -lc "cargo test -q"`: the script is the command.
-            return commands(args[at + 1]).compactMap(rule).min()
+            return commands(args[at + 1]).compactMap { rule($0, rules) }.min()
         }
-        if let inside = containerCommand(program, args) { return rule(inside) }
+        if let inside = containerCommand(program, args) { return rule(inside, rules) }
         let operands = args.filter { !$0.hasPrefix("-") }
         for (index, rule) in rules.enumerated() {
             for pattern in rule.patterns where pattern[0] == program && inOrder(Array(pattern.dropFirst()), operands) {

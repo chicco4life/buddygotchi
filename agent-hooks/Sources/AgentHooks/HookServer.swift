@@ -1,9 +1,11 @@
+import AgentHooksWire
 import Darwin
 import Foundation
-import HookWire
 
-/// The app side of the hook socket: accepts `boop-hook` connections and hands
-/// each line on. It never writes anything back, so a hook can't be answered.
+/// An app's hook socket (SPEC.md §2): accepts `agent-hook` connections and
+/// hands each line on. It never writes anything back, so a hook can't be
+/// answered. List its path in `HookSocket.directory` (`HookSocket.register`)
+/// so the client sends to it.
 public final class HookServer: @unchecked Sendable {
     public let path: String
     private let onLine: @Sendable (HookLine) -> Void
@@ -13,8 +15,8 @@ public final class HookServer: @unchecked Sendable {
     private var thread: Thread?
 
     /// `onLine` gets each line on the server's own thread. `onOther` gets
-    /// lines that aren't hook lines (headless mode's dev lines, such as
-    /// `{"dev":"advance"}`); without it they're dropped.
+    /// lines that aren't hook lines, for an app's own commands; without it
+    /// they're dropped.
     public init(path: String, onLine: @escaping @Sendable (HookLine) -> Void,
                 onOther: (@Sendable (Data) -> Void)? = nil) {
         self.path = path
@@ -49,7 +51,7 @@ public final class HookServer: @unchecked Sendable {
         }
         lock.withLock { listener = fd }
         let thread = Thread { [weak self] in self?.acceptLoop(fd) }
-        thread.name = "boop.hook-server"
+        thread.name = "agent-hooks.server"
         thread.qualityOfService = .userInteractive
         self.thread = thread
         thread.start()

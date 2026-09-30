@@ -1,7 +1,8 @@
 # Internal code
 
 Everything in the repo that doesn't ship. What ships is in `app/` (the Mac
-app, `boop-hook` and their libraries) and `firmware/` (the board's
+app and its library), `agent-hooks/` (the hook client and its library, a
+package of its own with its own tests) and `firmware/` (the board's
 firmware, its generated assets and the scripts that build it). This folder
 has the tests, evals, dev tools and skills that check them.
 
@@ -10,7 +11,7 @@ has the tests, evals, dev tools and skills that check them.
 | `app/Boop/` | `Headless.swift` and `Snapshots.swift`: the sources of `Boop --headless` and `Boop --snapshots`, which are compiled into the shipped `Boop` target |
 | `app/BoopDevKit/` | A library for `boopdev` and the tests: the harness evals (`Eval/`, [plan/EVALS.md](../plan/EVALS.md)) and hook replay (`Replay.swift`) |
 | `app/BoopDev/` | `boopdev`, the developer CLI ([plan/VERIFICATION.md](../plan/VERIFICATION.md) §2) |
-| `app/Tests/` | The Swift unit tests (`BoopTests`) and their fixtures |
+| `app/Tests/` | The Swift unit tests (`BoopTests`) and their fixtures; the hook fixtures are agent-hooks' (`agent-hooks/Tests/AgentHooksTests/Fixtures/`), and only the pipeline check's are here (`Fixtures/hooks/e2e/`) |
 | `app/TestSupport/XCTestShim/` | A stand-in XCTest for Command Line Tools, which has none |
 | `app/Evals/scenarios/` | The eval scenarios `boopdev eval` runs against Jev |
 | `app/tools/` | `gen-test-runner.py`, which writes the tests' `main` for the shim (`make build` runs it) |
@@ -24,9 +25,9 @@ has the tests, evals, dev tools and skills that check them.
 
 - **Swift.** `Package.swift` is at the repo root, because SwiftPM takes no
   target outside the package's root and the targets live in both `app/`
-  and here. The production targets (`HookWire`, `BoopKit`, `Boop`,
-  `BoopHook`) never depend on the internal ones (`BoopDevKit`, `BoopDev`,
-  `BoopTests`, `XCTest`). SwiftPM alone only warns about an import of a
+  and here. The production targets (`BoopKit`, `Boop`, and agent-hooks',
+  a local package the root one depends on) never depend on the internal
+  ones (`BoopDevKit`, `BoopDev`, `BoopTests`, `XCTest`). SwiftPM alone only warns about an import of a
   target that isn't a dependency, so `make build`, `make app` and
   `make -C internal test` build with
   `--explicit-target-dependency-import-check error`, and code in

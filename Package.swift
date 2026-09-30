@@ -4,12 +4,15 @@ import PackageDescription
 
 // The package sits at the repo root because SwiftPM won't take a target
 // outside its root, and the app's targets live in both app/ (what ships)
-// and internal/ (what doesn't). Production targets (HookWire, BoopKit, Boop,
-// BoopHook) never depend on internal ones (internal/README.md).
+// and internal/ (what doesn't). Production targets (BoopKit, Boop) never
+// depend on internal ones (internal/README.md).
 
 // There's no Xcode here, so the tests are an executable that `@testable
 // import`s the libraries, which must be built with testability enabled.
 let testable: [SwiftSetting] = [.unsafeFlags(["-enable-testing"])]
+
+/// agent-hooks' library, which every Boop target that sees agents imports.
+let agentHooks: Target.Dependency = .product(name: "AgentHooks", package: "agent-hooks")
 
 /// Everything in the repo except `kept` and the directories leading to them,
 /// for a target whose path is the repo root: SwiftPM warns about each file
@@ -35,19 +38,12 @@ func excludingAllBut(_ kept: [String]) -> [String] {
 }
 
 var packageTargets: [Target] = [
-    // What boop-hook and the app share: the hook line, topic tags and the
-    // socket. Foundation only, so the hook client stays small and fast.
-    .target(
-        name: "HookWire",
-        path: "app/HookWire",
-        swiftSettings: testable
-    ),
     // Everything that isn't the app shell: Adapters, Core, Harness, Brains,
     // Actions, Voice, Memory, DeviceLink, the hook installer (Install) and
     // the Runtime that wires them together (App) (plan/ARCHITECTURE.md §3).
     .target(
         name: "BoopKit",
-        dependencies: ["HookWire"],
+        dependencies: [agentHooks],
         path: "app/BoopKit",
         swiftSettings: testable
     ),
@@ -61,7 +57,7 @@ var packageTargets: [Target] = [
     // single source.
     .executableTarget(
         name: "Boop",
-        dependencies: ["BoopKit"],
+        dependencies: ["BoopKit", agentHooks],
         path: ".",
         exclude: excludingAllBut(["app/Boop", "internal/app/Boop", "plan/steering"])
             + ["app/Boop/Info.plist"],
@@ -72,20 +68,13 @@ var packageTargets: [Target] = [
             "-Xlinker", Context.packageDirectory + "/app/Boop/Info.plist",
         ])]
     ),
-    // The hook client agents call. Never prints, always exits 0.
-    .executableTarget(
-        name: "BoopHook",
-        dependencies: ["HookWire"],
-        path: "app/BoopHook"
-    ),
-
     // Internal from here on: none of it ships.
 
     // What boopdev and the tests share: the harness evals (Eval) and hook
     // replay.
     .target(
         name: "BoopDevKit",
-        dependencies: ["BoopKit", "HookWire"],
+        dependencies: ["BoopKit", agentHooks],
         path: "internal/app/BoopDevKit",
         swiftSettings: testable
     ),
@@ -93,7 +82,7 @@ var packageTargets: [Target] = [
     // and the hook installer (hooks).
     .executableTarget(
         name: "BoopDev",
-        dependencies: ["BoopKit", "HookWire", "BoopDevKit"],
+        dependencies: ["BoopKit", "BoopDevKit", agentHooks],
         path: "internal/app/BoopDev"
     ),
 ]
@@ -105,7 +94,7 @@ var packageTargets: [Target] = [
 packageTargets += [
     .executableTarget(
         name: "BoopTests",
-        dependencies: ["BoopKit", "HookWire", "BoopDevKit", "XCTest"],
+        dependencies: ["BoopKit", "BoopDevKit", "XCTest", agentHooks],
         path: "internal/app/Tests",
         exclude: ["Fixtures"],
         swiftSettings: [.define("BOOP_SHIM_RUNNER")]
@@ -121,8 +110,11 @@ let package = Package(
     platforms: [.macOS(.v26)],
     products: [
         .executable(name: "Boop", targets: ["Boop"]),
-        .executable(name: "boop-hook", targets: ["BoopHook"]),
         .executable(name: "boopdev", targets: ["BoopDev"]),
     ],
+    // The hook layer is its own package (agent-hooks/README.md): Boop
+    // depends on it, and it on nothing here. Its hook client, agent-hook,
+    // is built from it by name (`swift build --product agent-hook`).
+    dependencies: [.package(path: "agent-hooks")],
     targets: packageTargets
 )

@@ -1,7 +1,7 @@
+import AgentHooksWire
 import Foundation
-import HookWire
 
-/// Where a thread opens on the Mac (BEHAVIORS.md §3.2): the thread itself
+/// Where a thread opens on the Mac (SPEC.md §2): the thread itself
 /// in the Claude or Codex app, else the app the agent runs in, such as its
 /// terminal, brought to the front.
 public enum ThreadLink {
@@ -52,5 +52,25 @@ public enum ThreadLink {
         open.standardOutput = FileHandle.nullDevice
         open.standardError = FileHandle.nullDevice
         return (try? open.run()) != nil
+    }
+}
+
+/// One agent thread, as much as opening it on the Mac needs
+/// (`ThreadLink`): the agent's session ID, the app it runs in and that
+/// app's own ID for it.
+public struct ThreadRef: Equatable, Sendable {
+    /// `claude` or `codex`.
+    public var agent: String
+    public var session: String
+    /// The app's bundle ID (`HostApp`), when the hooks said.
+    public var app: String?
+    /// The Claude app's `local_…` ID.
+    public var appSession: String?
+
+    public init(agent: String, session: String, app: String? = nil, appSession: String? = nil) {
+        self.agent = agent
+        self.session = session
+        self.app = app
+        self.appSession = appSession
     }
 }

@@ -1,8 +1,8 @@
 import Darwin
 import Foundation
 
-/// A thread's name, as the agent's own app shows it (ADAPTERS.md §2), so the
-/// popover and the device name threads as you do. Only the name leaves this
+/// A thread's name, as the agent's own app shows it (SPEC.md §2), so the
+/// apps name threads as you do. Only the name leaves this
 /// type: the transcript it's read from is looked at in memory and dropped.
 public enum ThreadName {
     /// Where Codex keeps names, in `session_index.jsonl`: `$CODEX_HOME`,

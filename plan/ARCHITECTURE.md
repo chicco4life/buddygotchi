@@ -16,8 +16,8 @@ approve on the Mac as you normally would.
   Claude Code, Codex
     │ hook: JSON on stdin
     ▼
-  boop-hook: one line on boop.sock, 50 ms budget, always exits 0
-    │
+  agent-hook (agent-hooks): one line to each socket listed,
+    │ boop.sock among them; 50 ms budget, always exits 0
 ┌───┼───────────────────────── Boop Mac app ──────────────────────────┐
 │   ▼                                                                 │
 │ Hook server ─► Adapter ─► Pipeline ◄─────────── poke ◄─────────┐    │
@@ -44,11 +44,12 @@ approve on the Mac as you normally would.
 
 **Following one event:**
 
-1. Codex finishes a task. Its hook runs `boop-hook codex`, which sends one
-   line to the app and exits at once.
-2. The Codex **adapter** turns it into a raw event, a `turn` end from
-   `Stop` in session a1b2 with its working directory and Codex's last
-   message, and the **transcript** records it.
+1. Codex finishes a task. Its hook runs agent-hooks' client,
+   `agent-hook codex --keep-text`, which sends one line to the app and
+   exits at once.
+2. agent-hooks maps it to an event, and the **adapter** turns that into a
+   raw event, a `turn` end from `Stop` in session a1b2 with its working
+   directory and Codex's last message, which the **transcript** records.
 3. The **core** marks the session idle, so the device drops the working
    look well under a second after the hook. No rule celebrates a finish:
    that's the brain's call.
@@ -92,17 +93,17 @@ talks to the device.
 
 | Part | Code | Does | Doesn't know about |
 | --- | --- | --- | --- |
-| Hook client | `app/BoopHook/`, `app/HookWire/` | Turns a hook's JSON, and the app its agent runs in, into one hook line on the socket and exits 0 | Anything past the socket |
-| Hook server | `Adapters/HookServer.swift` | Accepts hook lines on `boop.sock` and hands them to the runtime; never replies | What they mean |
-| Adapter | `Adapters/Adapter.swift` | Turns a hook line into a raw event: the agent's mapping to a type and phase, and the error class | Boop's state, the brain, the device |
+| Hook client | agent-hooks' `agent-hook` | Turns a hook's JSON, and the app its agent runs in, into one hook line to every app listening, and exits 0 | Anything past the socket |
+| Hook server | agent-hooks' `HookServer` | Accepts hook lines on `boop.sock` and hands them to the runtime; never replies | What they mean |
+| Adapter | `Adapters/Adapter.swift`, with agent-hooks' `Mapping` | Turns a hook line into a raw event: agent-hooks maps the hook to a kind and phase with its facts and error class, and the adapter puts that in the transcript's shape | Boop's state, the brain, the device |
 | Transcript | `Harness/Transcript.swift` | Every raw event, in order, one file a day, read back at launch | What any of it means |
 | Pipeline | `App/Pipeline.swift` | Records each input, hands it to the core and the view, records what the core did, and gates the view events | Any rule |
-| Core | `Core/Core.swift`, `Core/Activity.swift` | Keeps the session table and each session's running calls; decides what the device shows, what the agents are doing included, and the rules' one-shots, and records its rule actions (the wiggle, opening the thread, "needs you") | Minion speech, models, hook formats, files, the brain |
+| Core | `Core/Core.swift`, `Core/Activity.swift` | Keeps the session table (agent-hooks' `SessionTracker`) with each session's running calls; decides what the device shows, what the agents are doing included, and the rules' one-shots, and records its rule actions (the wiggle, opening the thread, "needs you") | Minion speech, models, hook formats, files, the brain |
 | View | `Core/TranscriptView.swift` | Folds the transcript into view events, with their lines: turns, checks, pokes, what you said, heartbeats, who needs you, what Boop did | The device, what an action does |
 | Harness | `Harness/` | For each view event that wakes the brain, builds the state, asks every action's questions in one request, hands each action its answers and records what it did | What Boop says, the device, a view event's facts, what an action does |
 | Brain | `Brains/JevBrain.swift` | Jev: answers multiple-choice questions about a plain-text state, with probabilities | Everything else |
 | Actions | `Actions/` | `mood` and `react`: carry out one call each, checking their own rules | Whether a rule or the brain called them |
-| Thread link | `App/ThreadLink.swift` | Where a thread opens on the Mac: its link in the Claude or Codex app, or its app brought forward ([BEHAVIORS.md](BEHAVIORS.md) §3.2) | Why it's opened |
+| Thread link | agent-hooks' `ThreadLink` | Where a thread opens on the Mac: its link in the Claude or Codex app, or its app brought forward ([BEHAVIORS.md](BEHAVIORS.md) §3.2) | Why it's opened |
 | Moment schedule | `App/MomentSchedule.swift` | Decides when each brain moment plays: after any line playing, over an animation, or not at all; numbers the ones sent and ends their handles from the device's `ended` | What's in it |
 | Voice | `Voice/` | Turns a feeling, a topic, a kind and a face into a line of up to two of the recorded takes the board has, or none | Who asked, or why |
 | Memory store | `Memory/` | Reads and writes `long-term.md` and its copies in `history/` | Models, the device |
@@ -110,16 +111,19 @@ talks to the device.
 | Device link | `DeviceLink/` | Sends `state` and moments, receives taps and status, over Bluetooth or USB | What any of it means |
 | Presence signals | `app/Boop/PresenceSignals.swift` | Hears the Mac's lock, sleep and wake, and reads its idle time, with no permission asked | What they mean |
 | Presence detector | `Presence/PresenceDetector.swift` | The only code that decides whether you're at the Mac: turns the signals into `presence` events, away and back ([harness/EVENTS.md](harness/EVENTS.md) §2.1) | What they lead to |
-| Hook installer | `Install/` | Adds, repairs and removes Boop's entries in the agents' settings | Anything at runtime |
+| Hook installer | agent-hooks' `HookInstaller`, as `HookInstaller.boop` in `Adapters/Adapter.swift` sets it up | Adds, repairs and removes Boop's entries in the agents' settings | Anything at runtime |
 | Runtime | `App/Runtime.swift`, with bug reports in `App/BugReport.swift` and the doctor's arm in `App/DoctorArm.swift` | Wires the parts together, owns the queue and the timers, and carries out the core's effects | Any rule |
-| Mac app | `app/Boop/` | The menu-bar icon and popover, setup and settings; places `boop-hook` and repairs hooks at launch | Any rule |
+| Mac app | `app/Boop/` | The menu-bar icon and popover, setup and settings; places `agent-hook`, lists `boop.sock` and repairs hooks at launch | Any rule |
 
-`BoopKit` paths are under `app/BoopKit/`.
+`BoopKit` paths are under `app/BoopKit/`. agent-hooks is its own package
+in `agent-hooks/` ([its spec](../agent-hooks/SPEC.md)), which Boop
+depends on and which depends on nothing of Boop's (§10).
 
 ### 3.1 Adapters
 
-Each adapter turns one agent's hook calls into raw events. Hooks only
-report, so the agent carries on as normal ([ADAPTERS.md](ADAPTERS.md)).
+agent-hooks turns each agent's hook calls into events, and the adapter
+turns those into raw events. Hooks only report, so the agent carries on
+as normal ([ADAPTERS.md](ADAPTERS.md)).
 
 ### 3.2 Core
 
@@ -146,35 +150,37 @@ clock.
 | `moment(DeviceMoment)`: a rule's one-shot (`starting`, `stopped`, `error`, `helper_return`, [BEHAVIORS.md](BEHAVIORS.md) §3.1), after the `state` of the same input | The device link, unless a brain moment's line plays (Moments, below) |
 | `newDay(date)`: the first hook, tap or talk of a local day after the one the app opened on or last saw activity | The transcript, which deletes its files past 14 days ([harness/HARNESS.md](harness/HARNESS.md) §5.1) |
 
-**What the core keeps:** the sessions ([ADAPTERS.md](ADAPTERS.md) §4 has
-their states), each with its running calls, the helpers it saw start,
-its plan mode and its activity held; the sessions "needs you" showed for
+**What the core keeps:** the sessions, in agent-hooks' `SessionTracker`
+([ADAPTERS.md](ADAPTERS.md) §4 has their states), each with its running
+calls, the helpers it saw start and its plan mode; each one's activity
+held; the sessions "needs you" showed for
 when last published, the visual showing, the activity showing and since
 when, the variation each visual and one-shot showed last, when the
 error one-shot last played, the last active day, and its config:
-volume, mood and the Codex grace. What
+volume, mood and where request numbers start. What
 the brain hears (turn numbers, lengths, checks, pokes, heartbeats) is the
 view's ([harness/EVENTS.md](harness/EVENTS.md) §3–4).
 
 **The session bookkeeping** both fold from the same events is one piece
-of code, `SessionFold` in `Core/SessionFold.swift`: what an agent's event
-means, which sessions ended (so a late hook of theirs is let go), a
-session's turn and its tool calls (a stale idle notice, a result that
-lands after its turn ended), and the session timings below. The core
-adds who asks, "needs you" and what the look shows; the view, what each
-turn did. Each keeps its own copy: the core forgets a silent session on
+of code, agent-hooks' `SessionFold` and `Turn`
+([SPEC.md](../agent-hooks/SPEC.md) §4): what an agent's event means,
+which sessions ended (so a late hook of theirs is let go), a session's
+turn and its tool calls (a stale idle notice, a result that lands after
+its turn ended), and the session timings below. The core's
+`SessionTracker` adds who asks and "needs you", and the core what the
+look shows; the view, what each turn did. Each keeps its own copy: the core forgets a silent session on
 its tick, the view at the session's next event.
 
-**Its timers**, run by the tick: the safety net and the idle and forget
-times in `SessionFold`, and the rest, the Codex grace included, on
-`Core`:
+**Its timers**, run by the tick: the Codex grace in agent-hooks'
+`SessionTracker`, the safety net and the idle and forget times in its
+`SessionFold`, and the rest on `Core`:
 
 | Timer | Value | Spec |
 | --- | --- | --- |
-| Codex grace before "needs you" shows | 2 s | [ADAPTERS.md](ADAPTERS.md) §4 |
-| Safety net: a request clears after no events | 10 min | [ADAPTERS.md](ADAPTERS.md) §4 |
-| A working session counts as idle after no events | 1 h | [ADAPTERS.md](ADAPTERS.md) §4 |
-| A session is forgotten after no events | 24 h | [ADAPTERS.md](ADAPTERS.md) §4 |
+| Codex grace before "needs you" shows | 2 s | [agent-hooks SPEC.md](../agent-hooks/SPEC.md) §4 |
+| Safety net: a request clears after no events | 10 min | [agent-hooks SPEC.md](../agent-hooks/SPEC.md) §4 |
+| A working session counts as idle after no events | 1 h | [agent-hooks SPEC.md](../agent-hooks/SPEC.md) §4 |
+| A session is forgotten after no events | 24 h | [agent-hooks SPEC.md](../agent-hooks/SPEC.md) §4 |
 | Push-to-talk: the mic is on at most | 30 s (`Core.listenLimitMs`) | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
 | `listening` waits for the reply after the mic is off | 8 s (`Core.replyWaitMs`, the device's own too) | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
 | An activity shows at least | 1.5 s (`Core.actHoldMs`) | [BEHAVIORS.md](BEHAVIORS.md) §2 |
@@ -432,7 +438,7 @@ everyday Boop.
 | `long-term.md.broken` | The last `long-term.md` that wouldn't parse, kept for you to look at | When one doesn't parse |
 | `settings.json` | The personality and the volume (0–10), `boop` and 6 while it's missing. Keys it doesn't know, from older versions, are ignored, and an unknown personality reads as `boop` | When you change either in Settings |
 | `mood` | Boop's mood, one word and a newline; missing or unknown reads as `calm`, the resting mood, an unknown one logged, and `cheerful` as `happy` ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3) | By the `mood` action, on a change |
-| `boop.sock` | The hook socket, mode 0600 ([ADAPTERS.md](ADAPTERS.md) §2). Headless can put it elsewhere with `--socket` | Replaced at launch, removed at quit |
+| `boop.sock` | The hook socket, mode 0600, which the everyday app lists as `~/.agent-hooks/sockets/boop.sock` ([ADAPTERS.md](ADAPTERS.md) §2). Headless can put it elsewhere with `--socket` | Replaced at launch, removed at quit |
 | `boop.lock` | Locked while an app runs on this folder; a second copy refuses to start. The file stays, the lock goes with the process | At launch |
 | `boop.log` | The app's log, appended: startup, hook placement and repairs, the link connecting and dropping, the device's id and firmware, taps, memory recoveries and copies, dropped brain moments, one `brain …` line per pass, and hooks only when armed or in debug mode. Never Jev's state ([harness/HARNESS.md](harness/HARNESS.md) §9) | Always; a launch that finds it past 5 MB (`BoopLog.maxBytes`) moves it to `boop.1.log`, replacing the one there, and starts a new one, but only while it holds `boop.lock`: a second copy started on a running app's folder leaves that app's log alone |
 | `transcript/<date>.jsonl` | Every raw event of that day, one JSON line each ([harness/HARNESS.md](harness/HARNESS.md) §5) | Appended as events happen; files older than 14 days are deleted at launch and each new day; a launch reads the last 2 back |
@@ -440,14 +446,15 @@ everyday Boop.
 | `debug.<n>.jsonl` | Earlier launches' `debug.jsonl`, `debug.1.jsonl` the latest, as many as [harness/HARNESS.md](harness/HARNESS.md) §9 keeps | At each launch with `--debug`; the oldest is let go |
 | `bug-reports/<yyyy-MM-dd-HHmmss>/` | A bug report: this launch's debug lines, Jev's states included, the log's end, the settings, the mood and `about.json` ([harness/HARNESS.md](harness/HARNESS.md) §9) | When you press the bug button in the popover |
 | `doctor-armed` | While it's under 10 minutes old, the app logs every hook ([ADAPTERS.md](ADAPTERS.md) §6) | By the `doctor` skill; the app removes an older one |
-| `bin/boop-hook` | The copy of the hook client every hook entry calls ([ADAPTERS.md](ADAPTERS.md) §5) | By the everyday menu-bar app, at launch, when it differs |
+| `bin/agent-hook` | The copy of agent-hooks' client every hook entry calls ([ADAPTERS.md](ADAPTERS.md) §5) | By the everyday menu-bar app, at launch, when it differs |
 
 Outside the folder, Jev's key is in the login Keychain (service
 `com.boopcomputer.boop`, account `jev`), read and written through
 `/usr/bin/security`; `BOOP_JEV_KEY` wins over it
 ([harness/HARNESS.md](harness/HARNESS.md) §7). The hooks are in
 `~/.claude/settings.json`, `~/.codex/hooks.json` and
-`~/.codex/config.toml` ([ADAPTERS.md](ADAPTERS.md) §5).
+`~/.codex/config.toml`, and the link to `boop.sock` in
+`~/.agent-hooks/sockets/` ([ADAPTERS.md](ADAPTERS.md) §2, §5).
 
 ## 5. Data flow
 
@@ -455,8 +462,9 @@ What crosses each boundary, in the order an event travels:
 
 | From → to | What | Type | Spec |
 | --- | --- | --- | --- |
-| Agent → `boop-hook` | The hook's JSON on stdin | The agent's own | [ADAPTERS.md](ADAPTERS.md) §2 |
-| `boop-hook` → hook server | One JSON line of the kept fields | `HookLine` | [ADAPTERS.md](ADAPTERS.md) §2 |
+| Agent → `agent-hook` | The hook's JSON on stdin | The agent's own | [agent-hooks SPEC.md](../agent-hooks/SPEC.md) §2 |
+| `agent-hook` → hook server | One JSON line of the kept fields | `HookLine` | [agent-hooks SPEC.md](../agent-hooks/SPEC.md) §2 |
+| agent-hooks' `Mapping` → adapter | The hook's event | `AgentEvent` | [agent-hooks SPEC.md](../agent-hooks/SPEC.md) §3 |
 | Adapter → pipeline | A raw event | `Event` | [ADAPTERS.md](ADAPTERS.md) §1, [harness/EVENTS.md](harness/EVENTS.md) §2 |
 | Device link → pipeline | A tap, recorded as a poke; BOOT held and let go, to the core | `DeviceMessage.tap`, `DeviceMessage.talk` | [PROTOCOL.md](PROTOCOL.md) §4 |
 | App's mic → pipeline | What push-to-talk heard, recorded as a `talk` | `String` (`Runtime.said`) | [harness/EVENTS.md](harness/EVENTS.md) §2 |
@@ -489,7 +497,7 @@ What crosses each boundary, in the order an event travels:
 | Brain moments waiting with their handles, when the device is free, and the look and mood of the last `state`, which time a moment's loops | Moment schedule | Memory | Gone |
 | Brain moments on the device, by `id`, with their handles and when to give up waiting for their `ended` | Runtime | Memory | Gone |
 | The latest snapshot, the device's status, whether it's connected | Device link | Memory | Rebuilt at start |
-| Project and workspace by folder (up to 512, each for 30 s) | Adapter | Memory | Read again |
+| Project and workspace by folder (up to 512, each for 30 s) | agent-hooks' `Places`, the runtime's | Memory | Read again |
 | Name, hatch day, nature, voice seed | Memory store | `long-term.md` | Kept |
 | Mood | Mood store | `mood` | Kept |
 | Volume, personality | Runtime | `settings.json` | Kept |
@@ -519,7 +527,7 @@ personality or memory, only its touch calibration. What it does is in
 | `long-term.md` won't parse | It's kept as `.broken` and recovered (§4) |
 | A second copy of Boop on the same state directory | It refuses to start (`boop.lock`), and the popover says another copy is running. As for any start that fails, the menu-bar icon's eyes turn to crosses, and its tooltip and VoiceOver say "Not running": they always say the popover's status line |
 | The hook socket can't open | The popover says Boop can't listen for hooks. Headless refuses a socket path over 103 bytes before starting |
-| `bin/boop-hook` missing, or an agent's settings file unreadable | Nothing is installed or repaired, and Settings says why ([ADAPTERS.md](ADAPTERS.md) §5) |
+| `bin/agent-hook` missing, or an agent's settings file unreadable | Nothing is installed or repaired, and Settings says why ([ADAPTERS.md](ADAPTERS.md) §5) |
 | No agent's hooks connected, or a change to them failed | The Overview says so, with a button into Settings: with no sessions it says Boop isn't listening to any agent instead of promising to notice them, and a change that failed, at setup or in Settings, shows why until it's dismissed or the agent's hooks change. The agent's row in Settings keeps saying why until they change, through its next Connect, Repair or Remove or any other way |
 | The bundled steering folder missing or broken | The app exits with a message before the runtime starts |
 | The Keychain asks for access | Only the key's reader waits; hooks, ticks and the device carry on. Until the key is read, the popover doesn't say there's none |
@@ -531,7 +539,7 @@ personality or memory, only its touch calibration. What it does is in
 | --- | --- |
 | Agent event → pixel | < 200 ms p95 |
 | Tap → visible feedback | < 20 ms, on the device |
-| Hook overhead | Single-digit ms. Connecting and writing share 50 ms, then the hook gives up; it exits within 1 s whatever happens. It reads at most 256 KB and keeps fields of at most 200 characters |
+| Hook overhead | Single-digit ms. Connecting and writing share 50 ms for each app listening, then the hook gives up on it; it exits within 1 s whatever happens. It reads at most 256 KB and keeps fields of at most 200 characters |
 | Hook entry timeout | 5 s in the agent's settings; never reached |
 | Hook server | A connection is read until it closes, is quiet for 200 ms, or reaches 64 KB |
 | Brain, per pass | Jev's answer within 1.5 s, one retry included ([harness/HARNESS.md](harness/HARNESS.md) §7). A late answer is dropped |
@@ -543,7 +551,8 @@ personality or memory, only its touch calibration. What it does is in
 ## 10. Stack
 
 - **Mac app:** Swift, built with SwiftPM from the repo root's
-  `Package.swift` (sources in `app/`), using CoreBluetooth and TypeSafe's
+  `Package.swift` (sources in `app/`), on the local package
+  `agent-hooks/` for everything about agents' hooks, using CoreBluetooth and TypeSafe's
   API for Jev when the person has a key. SwiftPM builds no app bundle
   here, so the app's `Info.plist` (the Bluetooth usage description,
   `LSUIElement`) is linked into the `Boop` binary with `-sectcreate`.
@@ -559,25 +568,39 @@ personality or memory, only its touch calibration. What it does is in
   build `firmware/assets/` from it ([DEVICE.md](DEVICE.md) §6,
   [VOICE.md](VOICE.md) §10).
 
-What ships is in `app/` and `firmware/`; everything else (tests, evals,
-dev tools, skills, the firmware's simulator and unit tests) is in
-`internal/` ([its README](../internal/README.md)). The Swift targets:
+What ships is in `app/`, `agent-hooks/` and `firmware/`; everything else
+(tests, evals, dev tools, skills, the firmware's simulator and unit
+tests) is in `internal/` ([its README](../internal/README.md)). The
+Swift targets:
 
 | Target | Kind | Sources | Ships |
 | --- | --- | --- | --- |
-| `HookWire` | Library | `app/HookWire/` | Yes |
-| `BoopKit` | Library, on `HookWire` | `app/BoopKit/` | Yes |
+| `BoopKit` | Library, on `AgentHooks` | `app/BoopKit/` | Yes |
 | `Boop` | The app | `app/Boop/`, plus `internal/app/Boop/` for `--headless` and `--snapshots`, and `plan/steering/` as a resource | Yes |
-| `BoopHook` (`boop-hook`) | The hook client, on `HookWire` | `app/BoopHook/` | Yes |
 | `BoopDevKit` | Library: the evals and hook replay | `internal/app/BoopDevKit/` | No |
 | `BoopDev` (`boopdev`) | The developer CLI | `internal/app/BoopDev/` | No |
 | `BoopTests` | The unit tests; without Xcode, an executable on the `XCTest` shim target | `internal/app/Tests/` | No |
 
-The production targets never depend on internal ones. The build makes an
-import of a target that isn't a declared dependency an error (SwiftPM's
-own default is a warning), so a production file can't reach internal
-code. `Package.swift` is at the repo root because SwiftPM takes no target
-outside the package's root.
+`BoopKit` and every target on it take agent-hooks' `AgentHooks`
+product. agent-hooks is a
+package of its own, `agent-hooks/Package.swift`, meant to be
+open-sourced: Foundation only, nothing outside its folder, and its own
+tests in Swift Testing ([its README](../agent-hooks/README.md)):
+
+| Target | Kind | Sources | Ships |
+| --- | --- | --- | --- |
+| `AgentHooksWire` | Library: what the client and the library share | `agent-hooks/Sources/AgentHooksWire/` | Yes |
+| `AgentHooks` | Library, on `AgentHooksWire`, which it re-exports | `agent-hooks/Sources/AgentHooks/` | Yes |
+| `AgentHookClient` (`agent-hook`) | The hook client, on `AgentHooksWire` | `agent-hooks/Sources/AgentHookClient/` | Yes |
+| `AgentHooksCLI` (`agent-hooks`) | Its command line | `agent-hooks/Sources/AgentHooksCLI/` | Not with Boop |
+| `AgentHooksTests` | Its tests, under `swift test` | `agent-hooks/Tests/AgentHooksTests/` | No |
+
+The production targets never depend on internal ones, and agent-hooks
+depends on nothing of Boop's. The build makes an import of a target that
+isn't a declared dependency an error (SwiftPM's own default is a
+warning), so a production file can't reach internal code. `Package.swift`
+is at the repo root because SwiftPM takes no target outside the
+package's root.
 
 The stable contracts are the common event ([ADAPTERS.md](ADAPTERS.md) §1),
 the memory file (§4), the harness's two contracts, events in and actions
@@ -711,3 +734,4 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-30 | The app bundles `plan/steering/` itself, as a resource of the `Boop` target, and the copy in `app/Boop/Resources/steering/` goes, with the test that kept the two the same | One source and no hand sync: every steering edit needed an rsync to the copy, or the test failed and `make run` read the old text. The copy was there because the target couldn't reach `plan/`; its path has been the repo root since ae7f6b13 | §4.1 |
 | 2026-09-29 | Boop records you stepping away from the Mac and coming back as `presence` events, decided only by the presence detector from the Mac's lock, sleep and idle time (no permission asked). Only coming back wakes the brain, and Boop cheers at it; being away changes nothing. A lock or sleep counts after 10 minutes (30 s until 2026-09-30), idle alone only after 30 minutes | A wrong away (a long video, a long read) must never make Boop go quiet, and a wrong 'welcome back' is the cost of a wrong away, so idle, the unsure signal, waits much longer than a lock. The owner (2026-09-30): no hello after a minute away, but one after ten, so a shorter lock records nothing at all. Everything downstream only records and folds what the detector says, so the rules can change in one place. A personality's token budget goes from 700 to 750 for boop's Example of coming back (about 24 tokens, under 1% of a request) rather than trim Examples the evals pin | [harness/EVENTS.md](harness/EVENTS.md) §2.1 |
 | 2026-09-30 | Boop's hello when you come back is a word: a new `say.about` topic, `hello`, holds the bank's greetings (Hello, Hey and Hello hello, recorded for needs you; Hi, Howdy, Salut, Oh hello and Hey hey, recorded for pokes), 62 takes, four or more in every face. Voicegen files them by their words; the pack and its version don't change | The owner wanted something more concrete than "Eep!" when you come back. Needs you never said its Hello or Hey, and the pokes keep Boop, Oh, Whoa, Yep and the rest | [VOICE.md](VOICE.md) §3, §7, [harness/DECISIONS.md](harness/DECISIONS.md) §3 |
+| 2026-09-30 | The hook layer moves into a package of its own, `agent-hooks/`, meant to be open-sourced: the hook client (`agent-hook`, which was `boop-hook`), the hook line, the mapping to generic events (a kind and a phase), the session and "needs you" rules (`SessionTracker`, out of the core, with the Codex grace and `noticeFirstMs`), the installer, thread links, and a command line (`agent-hooks install\|remove\|status\|tail\|doctor`). The client sends each line to every socket listed in `~/.agent-hooks/sockets/`, where the everyday Boop lists `boop.sock`, rather than to Boop's socket alone; it keeps your prompt and the agent's last message only with `--keep-text`, which Boop's entries pass; and `~/.agent-hooks/topics.json` can add command shapes to the topics. Boop's installer counts `boop-hook` entries as its own, so the first launch replaces them. Earlier rows' `boop-hook` is now `agent-hook` | What Boop learned about agents' hooks is useful without Boop: other apps and people can use it, and it holds nothing of Boop's. One set of entries serves every app listening, and without the flag no words of yours leave the client | [ADAPTERS.md](ADAPTERS.md), [agent-hooks SPEC.md](../agent-hooks/SPEC.md) |

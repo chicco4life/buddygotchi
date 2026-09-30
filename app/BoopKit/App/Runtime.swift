@@ -1,5 +1,5 @@
+import AgentHooks
 import Foundation
-import HookWire
 
 /// Everything the app runs, wired together (ARCHITECTURE.md §1): the hook
 /// socket feeds the adapters, and every event goes down the pipeline, into
@@ -146,7 +146,7 @@ public final class Runtime: @unchecked Sendable {
     var timer: DispatchSourceTimer?
     /// Keeps macOS from napping the app while it runs.
     var activity: NSObjectProtocol?
-    let places = Adapter.Places()
+    let places = Places()
     /// Jev's key, touched only on `home`: nil until read, and then the key
     /// or none. Until then no event wakes the brain.
     var jevKey: String??

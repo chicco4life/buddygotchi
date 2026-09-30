@@ -1,3 +1,4 @@
+import AgentHooks
 import Foundation
 
 /// What the agents are doing, sustained, which the working look shows
@@ -36,18 +37,9 @@ public enum Act: String, CaseIterable, Sendable {
 }
 
 extension Core {
-    /// A tool call running, for the look (BEHAVIORS.md §2).
-    struct Call {
-        let act: Act
-        /// The order calls started in, for a result that names no call.
-        let order: Int
-        /// `""` for the main agent, else the subagent's `agent_id`.
-        let by: String
-        /// The tool, which a request names.
-        let tool: String
-        /// A `Task` or `Agent` call during which a helper was seen starting:
-        /// that helper's `SubagentStop` is its return, not this call's end.
-        var sawHelper = false
+    /// What a running call shows (BEHAVIORS.md §2).
+    static func act(_ call: SessionTracker.Call) -> Act {
+        Act.of(tool: call.tool, topic: call.topic, byMainAgent: call.by.isEmpty)
     }
 
     /// An activity and its time: for a session's, when its evidence was
@@ -75,7 +67,10 @@ extension Core {
     static func activity(_ s: Session, _ now: Int64) -> Act? {
         if s.pendingSince != nil { return .waiting }
         let quiet = now - s.lastEventAt >= waitingMs
-        var acts = s.calls.values.map { quiet && $0.act != .delegating ? Act.waiting : $0.act }
+        var acts = s.calls.values.map { call -> Act in
+            let act = Core.act(call)
+            return quiet && act != .delegating ? .waiting : act
+        }
         if !s.helpers.isEmpty { acts.append(.delegating) }
         if s.planMode { acts.append(.planning) }
         return acts.min { $0.beats($1) }
@@ -101,81 +96,20 @@ extension Core {
     /// "needs you" or idle with what it does then; with no session working
     /// the look has none at once.
     func updateActs(_ now: Int64) {
-        var working: [Session] = []
-        for (key, s) in sessions {
-            let shows = s.needsSince == nil && isWorking(s, now)
-            sessions[key]!.held = shows ? Core.settle(s.held, Core.activity(s, now), now: now, refresh: true) : nil
-            if shows { working.append(sessions[key]!) }
+        var working: [(s: Session, held: Timed?)] = []
+        var kept: [String: Timed] = [:]
+        for (key, s) in sessions where s.needsSince == nil && isWorking(s, now) {
+            let next = Core.settle(held[key], Core.activity(s, now), now: now, refresh: true)
+            kept[key] = next
+            working.append((s, next))
         }
+        held = kept
         guard !working.isEmpty else {
             shownAct = nil
             return
         }
-        let latest = working.filter { $0.held != nil }.max { ($0.lastEventAt, $0.order) < ($1.lastEventAt, $1.order) }
+        let latest = working.filter { $0.held != nil }
+            .max { ($0.s.lastEventAt, $0.s.order) < ($1.s.lastEventAt, $1.s.order) }
         shownAct = Core.settle(shownAct, latest?.held?.act, now: now, refresh: false)
-    }
-
-    /// A call starting: what it shows, from the main agent or a subagent.
-    func startCall(_ s: inout Session, _ event: Event, tool: String) {
-        let by = event.subagent ?? ""
-        callOrder += 1
-        let key = event["tool_use_id"]?.string ?? "#\(callOrder)"
-        s.calls[key] = Call(act: Act.of(tool: tool, topic: event["topic"]?.string, byMainAgent: by.isEmpty),
-                            order: callOrder, by: by, tool: tool)
-    }
-
-    /// A call's result: the call it ends, by `tool_use_id`, else the last
-    /// one started without one, of the same tool by the same agent if
-    /// there's one. The activity it showed holds from now.
-    func endCall(_ s: inout Session, _ event: Event, _ now: Int64) -> Call? {
-        let key: String?
-        if let id = event["tool_use_id"]?.string {
-            key = s.calls[id] != nil ? id : nil
-        } else {
-            let by = event.subagent ?? "", tool = event["tool"]?.string
-            let unnamed = s.calls.filter { $0.key.hasPrefix("#") }
-            let same = unnamed.filter { $0.value.by == by && $0.value.tool == tool }
-            key = (same.isEmpty ? unnamed : same).max { $0.value.order < $1.value.order }?.key
-        }
-        guard let key, let call = s.calls.removeValue(forKey: key) else { return nil }
-        if s.held?.act == call.act { s.held?.at = now }
-        return call
-    }
-
-    /// Requests answered by something other than their call's result: the
-    /// agent moved on, so you denied the call, which sends no hook
-    /// (ADAPTERS.md §4). Each asker's latest call of the tool it asked for
-    /// never runs, so it shows nothing more. `before` is who asked, and for
-    /// which tool, before `event`.
-    func denied(_ s: inout Session, before: [String: String], _ event: Event) {
-        for (asker, tool) in before where !tool.isEmpty && s.askers[asker] == nil {
-            let result = event.type == .tool && event.phase == .end && (event.subagent ?? "") == asker
-                && event["tool"]?.string == tool
-            guard !result else { continue }
-            let latest = s.calls.filter { $0.value.by == asker && $0.value.tool == tool }
-                .max { $0.value.order < $1.value.order }
-            if let key = latest?.key { s.calls[key] = nil }
-        }
-    }
-
-    /// A subagent ended: none of its calls runs any more.
-    func subagentEnded(_ s: inout Session, _ id: String) {
-        s.calls = s.calls.filter { $0.value.by != id }
-    }
-
-    /// A helper starting (`SubagentStart`): the main agent is delegating
-    /// until it ends, and the `Task` or `Agent` calls running are waiting
-    /// on it, so their ends aren't its return.
-    func helperStarted(_ s: inout Session, _ id: String) {
-        s.helpers.insert(id)
-        for (key, call) in s.calls where call.act == .delegating { s.calls[key]?.sawHelper = true }
-    }
-
-    /// A turn starting or ending: its calls and helpers are over, and the
-    /// session's look starts plain.
-    func clearWork(_ s: inout Session) {
-        s.calls.removeAll()
-        s.helpers.removeAll()
-        s.held = nil
     }
 }

@@ -1,19 +1,49 @@
 import Darwin
 import Foundation
 
-/// The app's hook socket, as seen from the client side.
+/// Where hook lines go (SPEC.md §2). Every app that listens has a socket,
+/// or a link to one, in one folder, and the client sends each line to
+/// all of them, so any number of apps can listen with nothing else
+/// running.
 public enum HookSocket {
-    /// `~/Library/Application Support/Boop/boop.sock`, or `BOOP_SOCKET`.
-    public static func defaultPath(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
-        if let path = environment["BOOP_SOCKET"], !path.isEmpty { return path }
-        let home = environment["HOME"] ?? NSHomeDirectory()
-        return home + "/Library/Application Support/Boop/boop.sock"
+    /// The folder apps listen in: `$AGENT_HOOKS_DIR/sockets`, else
+    /// `~/.agent-hooks/sockets`. Short, since a socket's path has room for
+    /// 103 bytes.
+    public static func directory(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
+        let root = environment["AGENT_HOOKS_DIR"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? (environment["HOME"] ?? NSHomeDirectory()) + "/.agent-hooks"
+        return root + "/sockets"
+    }
+
+    /// Where a hook line goes: `$AGENT_HOOKS_SOCKET` alone when it's set
+    /// (tests and checks), else every `*.sock` in `directory`, in name order.
+    public static func destinations(environment: [String: String] = ProcessInfo.processInfo.environment) -> [String] {
+        if let path = environment["AGENT_HOOKS_SOCKET"], !path.isEmpty { return [path] }
+        let dir = directory(environment: environment)
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []
+        return names.filter { $0.hasSuffix(".sock") }.sorted().map { dir + "/" + $0 }
+    }
+
+    /// Lists an app's socket at `path` in `directory` as `name.sock`, a
+    /// link unless it's there already, so the client sends to it. Once is
+    /// enough: a link left behind while the app is closed costs a hook
+    /// nothing, since connecting fails at once.
+    public static func register(_ path: String, as name: String,
+                                environment: [String: String] = ProcessInfo.processInfo.environment) throws {
+        let dir = directory(environment: environment)
+        let link = dir + "/" + name + ".sock"
+        guard link != path else { return }
+        let fm = FileManager.default
+        if (try? fm.destinationOfSymbolicLink(atPath: link)) == path { return }
+        try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        try? fm.removeItem(atPath: link)
+        try fm.createSymbolicLink(atPath: link, withDestinationPath: path)
     }
 
     /// Writes `data` to the socket and returns whether it was sent. Gives up
     /// if the socket is missing or doesn't accept within `timeoutMs`; never
     /// blocks longer than that. Connecting and writing share the one
-    /// budget (ADAPTERS.md §2, ARCHITECTURE.md §9).
+    /// budget (SPEC.md §2).
     @discardableResult
     public static func send(_ data: Data, to path: String, timeoutMs: Int32 = 50) -> Bool {
         send(data, to: path, deadline: DispatchTime.now().uptimeNanoseconds + UInt64(max(0, timeoutMs)) * 1_000_000)

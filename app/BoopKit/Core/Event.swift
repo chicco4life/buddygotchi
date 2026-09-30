@@ -1,14 +1,5 @@
+import AgentHooks
 import Foundation
-
-/// The agents Boop listens to, by the name `boop-hook` is called with,
-/// which is also their events' `source` and how lines and the device name
-/// them.
-public enum Agent: String, CaseIterable, Sendable {
-    case claude, codex
-
-    /// For the menu bar: `Claude Code`, `Codex`.
-    public var displayName: String { self == .claude ? "Claude Code" : "Codex" }
-}
 
 /// One thing that happened, as the transcript keeps it (harness/EVENTS.md
 /// §1): the same metadata for every event, and `data` for what only its

@@ -1,3 +1,4 @@
+import AgentHooks
 import Foundation
 
 /// A `moment` message: something for the device to play (PROTOCOL.md §3).

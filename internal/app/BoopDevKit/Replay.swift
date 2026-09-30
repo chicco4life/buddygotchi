@@ -1,10 +1,10 @@
+import AgentHooks
 import BoopKit
 import Foundation
-import HookWire
 
 /// Replays recorded hook payloads through the same field picking as
-/// `boop-hook`, the adapter and a fresh core, on a virtual clock. Used by
-/// `boopdev replay` and by tests.
+/// `agent-hook` (with Boop's `--keep-text`), the adapter and a fresh core,
+/// on a virtual clock. Used by `boopdev replay` and by tests.
 public struct Replay {
     /// A payload, a `{"wait_ms": N}` line that waits, or an
     /// `{"advance_ms": N}` line that jumps a live app's clock; on the virtual
@@ -83,7 +83,7 @@ public struct Replay {
             case .wait(let ms), .advance(let ms):
                 advance(ms)
             case .payload(let data):
-                guard let line = HookLine.extract(agent: agent, payload: data, ts: now) else {
+                guard let line = HookLine.extract(agent: agent, payload: data, ts: now, keepText: true) else {
                     if !statesOnly { out.append("# skipped: not a hook payload") }
                     continue
                 }

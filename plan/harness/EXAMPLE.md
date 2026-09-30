@@ -1,6 +1,6 @@
 # Boop: harness example, end to end
 
-Updated 2026-09-29. One turn of failing tests, from the raw events to
+Updated 2026-09-30. One turn of failing tests, from the raw events to
 what Boop does: the view events, the state and questions Jev gets, its
 answers, and what the actions did. How it works is in
 [HARNESS.md](HARNESS.md), [EVENTS.md](EVENTS.md) and
@@ -39,8 +39,8 @@ briefly (§7). Each answer came back in 200–264 ms.
 ## 2. The events (14:01)
 
 In the app, the failure arrives as Claude's `PreToolUse` and
-`PostToolUseFailure` hooks, which `boop-hook` and the adapter turn into
-raw `tool` events ([ADAPTERS.md](../ADAPTERS.md) §2–3); the eval hands
+`PostToolUseFailure` hooks, which agent-hooks and the adapter turn into
+raw `tool` events ([ADAPTERS.md](../ADAPTERS.md) §1–3); the eval hands
 the pipeline the same events ([EVALS.md](../EVALS.md) §1). The end:
 
 ```json

@@ -1,12 +1,13 @@
 import Foundation
 
-/// The one line `boop-hook` sends to the app: only the fields ADAPTERS.md §2
-/// keeps. Prompt text, tool input and file contents never get this far; the
-/// topic tag is worked out from the tool input in memory, then the input is
-/// dropped with the rest of the payload. The words it keeps are your
-/// prompt (`UserPromptSubmit`) and the agent's last message (`Stop`).
+/// The one line `agent-hook` sends to the apps listening: only the fields
+/// SPEC.md §2 keeps. Tool input and file contents never get this far; the
+/// topic tag is worked out from the tool input in memory, then the input
+/// is dropped with the rest of the payload. The only words it can keep are
+/// your prompt (`UserPromptSubmit`) and the agent's last message (`Stop`),
+/// and only with `--keep-text`.
 public struct HookLine: Equatable, Sendable {
-    /// `claude` or `codex`, from `boop-hook <agent>`.
+    /// `claude` or `codex`, from `agent-hook <agent>`.
     public var agent: String
     /// The agent's hook name, e.g. `PreToolUse`.
     public var hook: String
@@ -21,7 +22,7 @@ public struct HookLine: Equatable, Sendable {
     /// `PostToolUseFailure` because you interrupted the call.
     public var interrupt: Bool
     /// `PostToolUseFailure`'s error as a short class (`ToolError`); the
-    /// error's text never leaves `boop-hook`.
+    /// error's text never leaves `agent-hook`.
     public var toolError: String?
     /// The tool call's ID, to pair its `PreToolUse` with its result.
     public var toolUseID: String?
@@ -32,10 +33,10 @@ public struct HookLine: Equatable, Sendable {
     /// nil for the main agent.
     public var agentID: String?
     /// `Stop`'s `last_assistant_message`: what the agent said as it
-    /// finished, up to `maxMessage` characters.
+    /// finished, up to `maxMessage` characters, with `--keep-text`.
     public var message: String?
     /// `UserPromptSubmit`'s `prompt`: what you asked, up to `maxMessage`
-    /// characters.
+    /// characters, with `--keep-text`.
     public var prompt: String?
     /// The thread's name as its agent's app shows it (`ThreadName`), on
     /// every hook that finds one.
@@ -98,19 +99,22 @@ public struct HookLine: Equatable, Sendable {
     /// payload has no hook name or session. With `codexHome`, the line also
     /// gets the thread's name (`ThreadName`); without it, neither agent's
     /// is looked up. `env` is the hook's environment, which says what app
-    /// the agent runs in (`HostApp`).
+    /// the agent runs in (`HostApp`). `keepText` keeps your prompt and the
+    /// agent's last message; `topics` adds command patterns to the topic
+    /// tags (`Topic.extraPatterns`).
     public static func extract(agent: String, payload: Data, ts: Int64, codexHome: String? = nil,
-                               env: [String: String] = [:]) -> HookLine? {
+                               env: [String: String] = [:], keepText: Bool = false,
+                               topics: [String: [[String]]] = [:]) -> HookLine? {
         var line = (try? JSONSerialization.jsonObject(with: payload) as? [String: Any])
-            .flatMap { extract(agent: agent, json: $0, ts: ts, codexHome: codexHome) }
+            .flatMap { extract(agent: agent, json: $0, ts: ts, codexHome: codexHome, keepText: keepText, topics: topics) }
             ?? salvage(agent: agent, payload: payload, ts: ts)
         line?.app = HostApp.bundleID(agent: agent, env: env)
         line?.appSession = HostApp.session(agent: agent, env: env)
         return line
     }
 
-    public static func extract(agent: String, json: [String: Any], ts: Int64,
-                               codexHome: String? = nil) -> HookLine? {
+    public static func extract(agent: String, json: [String: Any], ts: Int64, codexHome: String? = nil,
+                               keepText: Bool = false, topics: [String: [[String]]] = [:]) -> HookLine? {
         guard let hook = string(json["hook_event_name"]) ?? string(json["hookEventName"]),
               let session = string(json["session_id"]) ?? string(json["thread_id"]) ?? string(json["conversation_id"])
         else { return nil }
@@ -124,16 +128,16 @@ public struct HookLine: Equatable, Sendable {
             line.tool = string(json["tool_name"])
             line.toolUseID = string(json["tool_use_id"])
             if hook != "PermissionRequest" {
-                line.topic = Topic.tag(tool: line.tool, input: json["tool_input"])
+                line.topic = Topic.tag(tool: line.tool, input: json["tool_input"], extra: topics)
             }
             line.interrupt = hook == "PostToolUseFailure" && json["is_interrupt"] as? Bool == true
             if hook == "PostToolUseFailure" && !line.interrupt {
                 line.toolError = ToolError.classify(json["error"] as? String)
             }
         case "UserPromptSubmit":
-            line.prompt = string(json["prompt"], max: maxMessage)
+            if keepText { line.prompt = string(json["prompt"], max: maxMessage) }
         case "Stop":
-            line.message = string(json["last_assistant_message"], max: maxMessage)
+            if keepText { line.message = string(json["last_assistant_message"], max: maxMessage) }
         case "StopFailure":
             line.error = string(json["error"]) ?? string(json["error_type"])
         case "Notification":

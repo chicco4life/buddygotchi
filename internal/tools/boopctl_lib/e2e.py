@@ -1,9 +1,10 @@
 """The pipeline check (plan/VERIFICATION.md L4): hook → app → USB → device.
 
 Starts `boopctl bridge` and a headless app with throwaway state, sends each
-fixture's payloads through the real `boop-hook`, and checks the device's
-`dbg.state` at every checkpoint. Latency is hook launch to the device having
-received the new `state` (its `rx.state` count going up), on the host clock.
+fixture's payloads through the real `agent-hook`, run as Boop installs it
+(`--keep-text`), and checks the device's `dbg.state` at every checkpoint.
+Latency is hook launch to the device having received the new `state` (its
+`rx.state` count going up), on the host clock.
 
 Fixture lines, besides hook payloads:
   {"wait_ms": N}                         sleep
@@ -77,7 +78,7 @@ class Run:
             shutil.rmtree(self.root)
         self.root.mkdir(parents=True)
         self.out.mkdir(parents=True, exist_ok=True)
-        for name in ("Boop", "boop-hook"):
+        for name in ("Boop", "agent-hook"):
             if not (BIN / name).exists():
                 raise DeviceError(f"no {BIN / name}; run make build")
         bridge = [str(REPO / "internal" / "tools" / "boopctl")] + (["--port", self.port] if self.port else [])
@@ -85,11 +86,11 @@ class Run:
         self.bridge = subprocess.Popen(bridge, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.app.wait_for(lambda: os.path.exists(self.bridge_sock), 10, "the bridge's socket")
         self.app.start()
-        # The first launch of a freshly built boop-hook is slow (~270 ms) while
+        # The first launch of a freshly built agent-hook is slow (~270 ms) while
         # macOS checks the new binary; agents run it hundreds of times a day.
         # Warm it once, against a socket nobody listens on.
-        subprocess.run([str(BIN / "boop-hook"), "claude"], input=b"{}",
-                       env=dict(os.environ, BOOP_SOCKET=str(self.root / "none.sock")))
+        subprocess.run([str(BIN / "agent-hook"), "claude"], input=b"{}",
+                       env=dict(os.environ, AGENT_HOOKS_SOCKET=str(self.root / "none.sock")))
         self.say(f"bridge and headless app up (brain {self.brain}, state {self.state})")
 
     def stop(self) -> None:
@@ -103,14 +104,14 @@ class Run:
 
     def hook(self, dev: Device, agent: str, payload: str) -> None:
         before = dev.request({"t": "dbg.state"})["rx"]["state"]
-        env = dict(os.environ, BOOP_SOCKET=self.hook_sock)
+        env = dict(os.environ, AGENT_HOOKS_SOCKET=self.hook_sock)
         t0 = self.last_hook = time.monotonic()
-        proc = subprocess.run([str(BIN / "boop-hook"), agent], input=payload.encode(), env=env,
+        proc = subprocess.run([str(BIN / "agent-hook"), agent, "--keep-text"], input=payload.encode(), env=env,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         hook_ms = (time.monotonic() - t0) * 1000
         name = json.loads(payload).get("hook_event_name", "?")
         if proc.returncode != 0 or proc.stdout or proc.stderr:
-            self.fail(f"boop-hook {name}: exit {proc.returncode}, printed {len(proc.stdout) + len(proc.stderr)} bytes")
+            self.fail(f"agent-hook {name}: exit {proc.returncode}, printed {len(proc.stdout) + len(proc.stderr)} bytes")
         latency = None
         while time.monotonic() - t0 < STATE_WAIT:
             if dev.request({"t": "dbg.state"})["rx"]["state"] > before:
@@ -118,7 +119,7 @@ class Run:
                 break
         self.hooks.append({"agent": agent, "hook": name, "hook_ms": round(hook_ms, 1),
                            "state_ms": None if latency is None else round(latency, 1)})
-        self.say(f"  {agent} {name}: boop-hook {hook_ms:.0f} ms, " +
+        self.say(f"  {agent} {name}: agent-hook {hook_ms:.0f} ms, " +
                  (f"state on the device after {latency:.0f} ms" if latency is not None else "no new state"))
 
     def advance(self, ms: int) -> None:
@@ -188,7 +189,8 @@ def check_after(run: Run, events: list[str]) -> None:
         (run.say if want in brain_log else run.fail)(f"the harness saw an event with {want!r}: {want in brain_log}")
     # Nothing private may reach the app's files, debug.jsonl and the
     # transcript included, but your prompt and the agent's last message
-    # (ADAPTERS.md §2): the fixtures mark them PRIVATE_PROMPT and PRIVATE_CLOSING.
+    # (ADAPTERS.md §2), which `--keep-text` keeps: the fixtures mark them
+    # PRIVATE_PROMPT and PRIVATE_CLOSING.
     leaks = []
     for f in run.state.rglob("*"):
         if f.is_file() and set(re.findall(r"PRIVATE_[A-Z]*", f.read_text(errors="replace"))) - KEPT_WORDS:

@@ -15,7 +15,7 @@ room for 103 bytes), a fake device on a Unix socket that says each of the
 brain's moments played to the end, and the brain (`--brain jev`, the
 default, needs `BOOP_JEV_KEY`; `--brain scripted` needs nothing). It moves
 the app's clock to 09:00 the next morning, then sends each hook line
-straight to the app's socket in the wire form `boop-hook` sends, moving the
+straight to the app's socket in the wire form `agent-hook` sends, moving the
 clock between them with `{"dev":"advance"}`, and waits for every brain
 pass and every reaction to finish before moving on, so no event is
 replaced while Jev thinks.

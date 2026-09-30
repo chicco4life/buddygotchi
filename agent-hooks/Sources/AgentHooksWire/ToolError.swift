@@ -1,7 +1,7 @@
 import Foundation
 
-/// A failed tool call's error as a short class (harness/EVENTS.md §4):
-/// `boop-hook` reads the error's text in memory and keeps only this. A
+/// A failed tool call's error as a short class (SPEC.md §2):
+/// `agent-hook` reads the error's text in memory and keeps only this. A
 /// failed command's text is "Exit code N" then its own output, so the exit
 /// code counts before the words a command's output often has.
 public enum ToolError {

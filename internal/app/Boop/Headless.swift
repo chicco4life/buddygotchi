@@ -1,6 +1,6 @@
+import AgentHooks
 import BoopKit
 import Foundation
-import HookWire
 import os
 
 /// `Boop --headless`: the whole runtime with isolated state, no UI and no

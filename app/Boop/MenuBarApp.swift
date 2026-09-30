@@ -1,3 +1,4 @@
+import AgentHooks
 import AppKit
 import BoopKit
 import SwiftUI
@@ -260,8 +261,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // everyday Boop keeps them, so settings shows how they stand.
         let everyday = AppSettings.isEveryday(stateDir)
         let hookDir = everyday ? stateDir : AppSettings.defaultStateDir()
-        model = AppModel(installer: HookInstaller(home: URL(fileURLWithPath: NSHomeDirectory()),
-                                                  hookPath: hookDir.appendingPathComponent("bin/boop-hook").path),
+        model = AppModel(installer: .boop(home: URL(fileURLWithPath: NSHomeDirectory()),
+                                          hookPath: hookDir.appendingPathComponent("bin/\(HookInstaller.client)").path),
                          ownsHooks: everyday, link: link)
         super.init()
     }
@@ -291,6 +292,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         NSApp.mainMenu = AppDelegate.editMenu()
         if model.ownsHooks {
             placeHookClient()
+            // agent-hook sends to every socket listed in agent-hooks' folder
+            // (ADAPTERS.md §2): Boop's is listed as a link.
+            do {
+                try HookSocket.register(stateDir.appendingPathComponent("boop.sock").path, as: "boop")
+            } catch {
+                log.write("hooks: can't list boop.sock in \(HookSocket.directory()): \(error)")
+            }
             let repaired = model.installer.repair()
             if !repaired.isEmpty {
                 log.write("hooks: repaired \(repaired.map(\.rawValue).joined(separator: ", "))")
@@ -336,14 +344,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         model.runtime?.stop()
     }
 
-    /// The hooks call a stable copy of `boop-hook` in the state directory, so
-    /// a rebuilt or moved app doesn't break them.
+    /// The hooks call a stable copy of agent-hooks' `agent-hook` in the
+    /// state directory, so a rebuilt or moved app doesn't break them.
     func placeHookClient() {
         let fm = FileManager.default
-        guard let built = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("boop-hook"),
+        guard let built = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent(HookInstaller.client),
               fm.isExecutableFile(atPath: built.path) else {
             let placed = model.installer.clientInPlace ? "keeping the copy in place" : "hooks can't be installed or repaired"
-            log.write("hooks: no boop-hook next to the app; \(placed)")
+            log.write("hooks: no \(HookInstaller.client) next to the app; \(placed)")
             return
         }
         let target = URL(fileURLWithPath: model.installer.hookPath)
@@ -355,7 +363,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             try fm.copyItem(at: built, to: staged)
             _ = try fm.replaceItemAt(target, withItemAt: staged)
         } catch {
-            log.write("hooks: can't place boop-hook: \(error)")
+            log.write("hooks: can't place \(HookInstaller.client): \(error)")
         }
     }
 

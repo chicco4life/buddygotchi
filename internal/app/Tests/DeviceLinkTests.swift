@@ -1,6 +1,6 @@
+import AgentHooks
 import CoreBluetooth
 import Foundation
-import HookWire
 import XCTest
 @testable import BoopKit
 

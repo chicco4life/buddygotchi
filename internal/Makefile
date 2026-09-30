@@ -9,10 +9,12 @@ PIO := firmware/tools/pio.sh
 
 # Swift unit tests through the XCTest shim (there's no Xcode here): the
 # root `build` (one `swift build` of the whole package, the tests' runner
-# included), then the runner.
+# included), then the runner. Then agent-hooks' own tests, which use Swift
+# Testing and so run under `swift test`, in a build folder of their own.
 test: voice
 	$(MAKE) -C $(ROOT) build
 	cd $(ROOT) && .build/debug/BoopTests
+	cd $(ROOT)/agent-hooks && swift test --scratch-path .build/tests
 
 # The voice pack, .build/voice/voice.bin, which the board plays from its SD
 # card and the simulator and tests read from here (plan/VOICE.md §8), and

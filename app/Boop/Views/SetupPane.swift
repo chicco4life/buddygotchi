@@ -1,3 +1,4 @@
+import AgentHooks
 import BoopKit
 import SwiftUI
 
@@ -161,7 +162,7 @@ struct SetupPane: View {
             }
             .padding(.top, Theme.gapTight)
             if !model.installer.clientInPlace {
-                Text("boop-hook isn't built, so I can't add hooks yet. Run make build, restart Boop, then connect them in Settings.")
+                Text("agent-hook isn't built, so I can't add hooks yet. Run make build, restart Boop, then connect them in Settings.")
                     .font(.system(size: 11)).foregroundStyle(Theme.clayInk).multilineTextAlignment(.center)
             } else if !detected.isEmpty {
                 // A disclosure of our own: the system's chevron ignores the

@@ -1,3 +1,4 @@
+import AgentHooks
 import Foundation
 import XCTest
 @testable import BoopDevKit
@@ -11,7 +12,7 @@ final class ReplayTests: XCTestCase {
     /// there's one (`+2.0s working/terminal - 0`); each rule moment as
     /// `+time anim`, with its `ctx` (`+1.0s starting new_task`).
     func summary(_ fixture: String, agent: String) throws -> [String] {
-        let path = HookWireTests.fixtures.appendingPathComponent(fixture).path
+        let path = HookFixtures.agentHooks.appendingPathComponent(fixture).path
         let lines = Replay(agent: agent).run(try Replay.steps(fromFile: path), statesOnly: true)
         return try lines.map { line in
             let parts = line.split(separator: " ", maxSplits: 2).map(String.init)
@@ -176,7 +177,7 @@ final class ReplayTests: XCTestCase {
     }
 
     func testRecordedClaudeSession() throws {
-        let path = HookWireTests.fixtures.appendingPathComponent("claude-code/2026-09-08/tenth-try.jsonl").path
+        let path = HookFixtures.agentHooks.appendingPathComponent("claude-code/2026-09-08/tenth-try.jsonl").path
         var replay = Replay(agent: "claude")
         replay.gapMs = 5000
         let lines = replay.run(try Replay.steps(fromFile: path))
@@ -197,7 +198,7 @@ final class ReplayTests: XCTestCase {
     /// The J1 fixtures carry boopctl e2e checkpoints; replay skips them and
     /// treats a clock jump as time passing.
     func testE2ECheckpointsAreSkipped() throws {
-        let path = HookWireTests.fixtures.appendingPathComponent("e2e/claude/session.jsonl").path
+        let path = HookFixtures.e2e.appendingPathComponent("claude/session.jsonl").path
         let steps = try Replay.steps(fromFile: path)
         XCTAssertTrue(steps.contains(.advance(400_000)))
         let lines = Replay(agent: "claude").run(steps)

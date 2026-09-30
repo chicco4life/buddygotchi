@@ -1,3 +1,4 @@
+import AgentHooks
 import AppKit
 import BoopKit
 import SwiftUI

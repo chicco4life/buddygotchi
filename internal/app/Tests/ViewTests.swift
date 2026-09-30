@@ -1,3 +1,4 @@
+import AgentHooks
 import Foundation
 import XCTest
 @testable import BoopDevKit

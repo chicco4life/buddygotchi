@@ -1,3 +1,4 @@
+import AgentHooks
 import AppKit
 import BoopKit
 import SwiftUI
@@ -19,13 +20,13 @@ enum Snapshots {
             let home = FileManager.default.temporaryDirectory.appendingPathComponent("boop-snapshots-\(getpid())")
             try FileManager.default.createDirectory(at: home.appendingPathComponent(".claude"), withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: home) }
-            // The installer refuses without a boop-hook to call, so give it one.
-            let hook = home.appendingPathComponent("bin/boop-hook")
+            // The installer refuses without an agent-hook to call, so give it one.
+            let hook = home.appendingPathComponent("bin/\(HookInstaller.client)")
             try FileManager.default.createDirectory(at: hook.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data("#!/bin/sh\n".utf8).write(to: hook)
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: hook.path)
-            let installer = HookInstaller(home: home, hookPath: hook.path)
-            let unbuilt = HookInstaller(home: home, hookPath: home.appendingPathComponent("bin/missing").path)
+            let installer = HookInstaller.boop(home: home, hookPath: hook.path)
+            let unbuilt = HookInstaller.boop(home: home, hookPath: home.appendingPathComponent("bin/missing").path)
 
             for dark in [false, true] {
                 /// The popover on `pane`, tall enough for all of it.

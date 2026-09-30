@@ -1,5 +1,5 @@
+import AgentHooks
 import Foundation
-import HookWire
 
 /// The way every event goes (harness/HARNESS.md §2), with no queue: it's
 /// recorded in the transcript and folded into the view; an agent's event or

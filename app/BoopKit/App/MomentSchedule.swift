@@ -1,3 +1,4 @@
+import AgentHooks
 import Foundation
 
 /// When the brain's moments play on the device (ARCHITECTURE.md §3.2).

@@ -1,7 +1,7 @@
 import Foundation
 
-/// The app an agent runs in, from its hook's environment (ADAPTERS.md §2),
-/// so a tap can open the thread there. Only these few variables are read.
+/// The app an agent runs in, from its hook's environment (SPEC.md §2),
+/// so an app can open the thread there. Only these few variables are read.
 public enum HostApp {
     public static let claude = "com.anthropic.claudefordesktop"
     public static let codex = "com.openai.codex"

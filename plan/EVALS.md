@@ -291,7 +291,7 @@ state directory and a fake device on a Unix socket (`--link usb:`) that
 says each of the brain's moments played to the end, so HISTORY reads as
 it would with a board, and whose taps make the pokes. It moves
 the app's clock to 09:00 the next morning, sends each hook line straight
-to the app's socket in `boop-hook`'s wire form, moves the clock between
+to the app's socket in `agent-hook`'s wire form, moves the clock between
 them with `{"dev":"advance"}` (a minute at a time over a long gap, so the
 heartbeat comes when it would), and waits for every pass and the brain's
 reactions to end before the next line, so no view event waits behind

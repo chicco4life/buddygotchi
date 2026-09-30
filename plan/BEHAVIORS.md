@@ -436,8 +436,8 @@ change the mood, which shows once nothing needs you (the sign is the
 same in every mood), and no reaction plays until then.
 
 **Where a thread opens.** The hook client notes the app each agent runs
-in ([ADAPTERS.md](ADAPTERS.md) §2), and `ThreadLink` picks where its
-thread opens, with `open`:
+in ([ADAPTERS.md](ADAPTERS.md) §2), and agent-hooks' `ThreadLink` picks
+where its thread opens, with `open`:
 
 | The agent runs in | What opens |
 | --- | --- |

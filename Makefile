@@ -5,8 +5,9 @@
 
 PIO := firmware/tools/pio.sh
 
-# The whole package in one `swift build`: the Mac app, boop-hook, boopdev
-# and the BoopTests runner, whose main is generated first.
+# The whole package in one `swift build`: the Mac app, boopdev and the
+# BoopTests runner, whose main is generated first; then agent-hooks' hook
+# client, agent-hook, which the app copies from next to it.
 # SWIFT_CHECK makes importing a target that isn't a declared dependency an
 # error, not a warning, so app/ can't reach internal/ code (internal/README.md).
 # `make -C internal test` runs this target, then the tests.
@@ -14,13 +15,14 @@ SWIFT_CHECK := --explicit-target-dependency-import-check error
 build:
 	python3 internal/app/tools/gen-test-runner.py
 	swift build $(SWIFT_CHECK)
+	swift build $(SWIFT_CHECK) --product agent-hook
 
-# The Mac app, the boop-hook it copies from next to it and boopdev, without
+# The Mac app, the agent-hook it copies from next to it and boopdev, without
 # the tests' generated runner, which is most of `build`'s time after a
 # change to what BoopKit declares.
 app:
 	swift build $(SWIFT_CHECK) --product Boop
-	swift build $(SWIFT_CHECK) --product boop-hook
+	swift build $(SWIFT_CHECK) --product agent-hook
 	swift build $(SWIFT_CHECK) --product boopdev  # the doctor skill checks the hooks with it
 
 # The Mac app with Bluetooth. The owner runs this, not agents. Builds the

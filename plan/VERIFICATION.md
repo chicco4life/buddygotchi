@@ -70,8 +70,8 @@ launch the menu-bar app or run the whole eval.
 
 | Target | What it does |
 | --- | --- |
-| `make build` | Builds the Mac app, `boop-hook` and `boopdev` in one `swift build`. Importing a target that isn't a declared dependency fails it, so `app/` can't use `internal/` code ([ARCHITECTURE.md](ARCHITECTURE.md) §10) |
-| `make app` | Builds the Mac app, `boop-hook` and `boopdev` (the doctor skill checks the hooks with it), not the tests, with the same import check: what `make run` needs |
+| `make build` | Builds the Mac app, agent-hooks' `agent-hook` and `boopdev` in one `swift build`. Importing a target that isn't a declared dependency fails it, so `app/` can't use `internal/` code ([ARCHITECTURE.md](ARCHITECTURE.md) §10) |
+| `make app` | Builds the Mac app, `agent-hook` and `boopdev` (the doctor skill checks the hooks with it), not the tests, with the same import check: what `make run` needs |
 | `make run` | `make app`, then runs the menu-bar app with Bluetooth. The owner's; never from an agent's shell |
 | `make debug` | The same with `--debug` |
 | `make dash` | The dashboard for the app `make debug` started, in a second terminal |
@@ -80,7 +80,7 @@ launch the menu-bar app or run the whole eval.
 | `make eval` | Builds, then runs every eval scenario against Jev with no request budget, 3 runs each for an `always` scenario and 1 for the rest (L5): the final pass ([EVALS.md](EVALS.md) §2 counts its requests); fails without `BOOP_JEV_KEY` |
 | `make clean` | Deletes `.build` and `firmware/.pio` |
 | `make -C internal voice` | Builds the voice pack, `.build/voice/voice.bin`, and `Takes.swift` with voicegen (below) when the bank or voicegen changed. `test`, `fw-test` and `sim` make it first, since they read it |
-| `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim, since there's no Xcode: `make build`, then `.build/debug/BoopTests` |
+| `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim, since there's no Xcode: `make build`, then `.build/debug/BoopTests`. Then agent-hooks' own tests, in Swift Testing: `swift test --scratch-path .build/tests` in `agent-hooks/` |
 | `make -C internal fw` | Builds the firmware for the board |
 | `make -C internal fw-test` | The firmware's unit tests on the Mac (`pio test -e native`) |
 | `make -C internal sim` | Every scenario in the simulator, against the goldens (L1) |
@@ -119,12 +119,12 @@ commands go through the bridge.
 
 | Command | What it does |
 | --- | --- |
-| `replay <hooks.jsonl> [--agent claude\|codex] [--gap-ms N] [--states]` | Runs recorded hook payloads through `boop-hook`'s field picking, the adapter and the pipeline (the core and the view) on a virtual clock, and prints each raw event, the core's decisions and the view events. `{"wait_ms":N}` and `{"advance_ms":N}` lines move the clock. `--states` prints only what goes to the device: each `state` and each rule `moment` |
-| `replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]` | Sends each payload through the real `boop-hook` to a running app, in real time, and times each `boop-hook` from launch to exit. `{"advance_ms":N}` moves a headless app's clock |
+| `replay <hooks.jsonl> [--agent claude\|codex] [--gap-ms N] [--states]` | Runs recorded hook payloads through `agent-hook`'s field picking (with `--keep-text`, as Boop installs it), the adapter and the pipeline (the core and the view) on a virtual clock, and prints each raw event, the core's decisions and the view events. `{"wait_ms":N}` and `{"advance_ms":N}` lines move the clock. `--states` prints only what goes to the device: each `state` and each rule `moment` |
+| `replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]` | Sends each payload through the real `agent-hook --keep-text` to a running app, in real time, and times each `agent-hook` from launch to exit. `{"advance_ms":N}` moves a headless app's clock |
 | `say [--feeling F] [--about TOPIC] [--face MOOD] [--kind K] [--finish success\|failure]` | Prints the takes the board has that fit ([VOICE.md](VOICE.md) §3), and with a face and a feeling or topic, the line `react` would say ([VOICE.md](VOICE.md) §4); `--kind` is `sound` by default |
 | `eval [--runs N] [--only TEXT] [--always] [--budget N \| --no-budget] [--timeline] [--scenarios DIR] [--steering DIR]`, `eval --list` | The eval scenarios against Jev (L5, [EVALS.md](EVALS.md)), stopping first if they'd send more than the budget of requests (100 by default); `--list` prints each one's case, runs and requests with no key |
 | `watch [FILE] [--new]` | Prints a `debug.jsonl`'s view events, passes and actions readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's. `--new` skips what's already there, though the first pass still prints the state's head in force ([harness/HARNESS.md](harness/HARNESS.md) §9) |
-| `hooks status\|install\|remove [claude\|codex] --home DIR [--hook PATH]` | The hook installer, against any HOME ([ADAPTERS.md](ADAPTERS.md)) |
+| `hooks status\|install\|remove [claude\|codex] --home DIR [--hook PATH]` | Boop's hook installer, against any HOME ([ADAPTERS.md](ADAPTERS.md) §5) |
 
 **`.build/debug/Boop`**, the app.
 
@@ -145,6 +145,7 @@ commands go through the bridge.
 | `internal/tools/.venv/bin/python internal/tools/facegen/facegen.py [--check]` | What `make -C internal faces` runs; without `--check` it skips the comparison with Chrome |
 | `internal/tools/webcam/webcam.sh list\|record\|analyze` | The camera recorder ([its README](../internal/tools/webcam/README.md)); `boopctl cam` wraps it |
 | `internal/skills/doctor/doctor.sh` | Checks from inside an agent that its hooks reach Boop; `--headless` against a throwaway app ([ADAPTERS.md](ADAPTERS.md) §6) |
+| `agent-hooks install\|remove\|status\|tail\|doctor` | agent-hooks' own command line, built in `agent-hooks/` with `swift build` ([its spec](../agent-hooks/SPEC.md) §6). `tail --sessions` prints every hook's event and each session's state as it changes. Give it a temporary `HOME` and `--home` together in tests, as for `boopdev hooks`: without `--keep-text` its install makes Boop's entries outdated ([ADAPTERS.md](ADAPTERS.md) §5) |
 
 **Sharing the port.** Only one process can open the serial port, so
 `boopctl bridge` owns it and shares it on a Unix socket (`--socket`,
@@ -346,13 +347,14 @@ does all of it:
    The scripted brain makes runs repeatable; `boopctl e2e --brain jev`
    asks Jev, with `BOOP_JEV_KEY`.
 3. The fixtures in `internal/app/Tests/Fixtures/hooks/e2e/` go through the
-   real `boop-hook`: a Claude session, a Codex approval answered within
-   the 2 s grace period, and one left for 10 s. Between payloads they hold
+   real `agent-hook`, run as Boop installs it (`--keep-text`): a Claude
+   session, a Codex approval answered within the 2 s grace period, and one
+   left for 10 s. Between payloads they hold
    checkpoints: `expect` (poll `dbg.state` until it matches, within
    `within_ms`, 2000 by default; `shot` on the line saves a screenshot),
    `expect_not` (no match for `for_ms`, or until `until_ms` after the last
    hook), `wait_ms`, and `advance_ms` (moves the app's clock).
-4. Latency runs from launching `boop-hook` to the board's `rx.state` going
+4. Latency runs from launching `agent-hook` to the board's `rx.state` going
    up. A hook that changes nothing sends no `state` and is left out.
 5. Afterwards it checks the view events' lines in `debug.jsonl` against
    the fixtures' `expect.json` (for the whole run, not named fixtures or

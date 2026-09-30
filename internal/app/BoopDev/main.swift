@@ -1,7 +1,7 @@
+import AgentHooks
 import BoopDevKit
 import BoopKit
 import Foundation
-import HookWire
 
 // Developer CLI (VERIFICATION.md §2): replay, say, eval, watch and hooks,
 // as `usage` describes.
@@ -10,13 +10,13 @@ import HookWire
 let usages: [(command: String, text: String)] = [
     ("replay", """
     boopdev replay <hooks.jsonl> [--agent claude|codex] [--gap-ms N] [--states]
-        Runs recorded hook payloads through boop-hook's field picking, the adapter and the pipeline (the
+        Runs recorded hook payloads through agent-hook's field picking, the adapter and the pipeline (the
         core and the view) on a virtual clock, and prints each raw event, what the core decides and the
         view events. {"wait_ms":N} and {"advance_ms":N} move the clock. --states prints only what goes to
         the device: each state and each rule moment.
     boopdev replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]
-        Sends each payload through the real boop-hook binary to a running app's socket, in real time, and
-        prints how long each boop-hook took: {"wait_ms":N} waits, and {"advance_ms":N} jumps a headless
+        Sends each payload through the real agent-hook binary to a running app's socket, in real time, and
+        prints how long each agent-hook took: {"wait_ms":N} waits, and {"advance_ms":N} jumps a headless
         app's clock.
     """),
     ("say", """
@@ -53,7 +53,7 @@ let usages: [(command: String, text: String)] = [
     """),
     ("hooks", """
     boopdev hooks status|install|remove [claude|codex] --home DIR [--hook PATH]
-        The installer, against any HOME (tests use a temporary one). --hook defaults to the boop-hook
+        Boop's installer, against any HOME (tests use a temporary one). --hook defaults to the agent-hook
         next to boopdev.
     """),
 ]
@@ -66,8 +66,9 @@ func indented(_ text: String) -> String {
 let usage = "usage:\n" + usages.map { indented($0.text) }.joined(separator: "\n") + "\n"
     + "Each command prints its own usage with --help, and stops on a flag it doesn't take.\n" + version
 
-/// The `boop-hook` built next to boopdev.
-let builtHook = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("boop-hook")
+/// The `agent-hook` built next to boopdev.
+let builtHook = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
+    .appendingPathComponent(HookInstaller.client)
 
 /// Sends one line to a running app's socket, or stops if nobody answers.
 func sendDev(_ line: Data, to socket: String) {
@@ -99,15 +100,16 @@ func replay(_ raw: [String]) {
     for line in replay.run(steps, statesOnly: args.has("--states")) { print(line) }
 }
 
-/// Sends payloads through the real `boop-hook`, as agents would, and prints
-/// when each was sent and how long `boop-hook` took, from launch to exit.
-/// `boop-hook` fails open, so the app is asked first: with nobody
-/// listening, every hook would still exit 0.
+/// Sends payloads through the real `agent-hook`, as agents would, with
+/// Boop's `--keep-text`, and prints when each was sent and how long
+/// `agent-hook` took, from launch to exit. `agent-hook` fails open, so the
+/// app is asked first: with nobody listening, every hook would still exit
+/// 0.
 func replayLive(_ steps: [Replay.Step], agent: String, gapMs: Int64, socket: String) {
-    guard FileManager.default.isExecutableFile(atPath: builtHook.path) else { fail("no boop-hook next to boopdev; run make build") }
+    guard FileManager.default.isExecutableFile(atPath: builtHook.path) else { fail("no agent-hook next to boopdev; run make build") }
     sendDev(Data(#"{"dev":"probe"}"#.utf8), to: socket)
     var environment = ProcessInfo.processInfo.environment
-    environment["BOOP_SOCKET"] = socket
+    environment["AGENT_HOOKS_SOCKET"] = socket
     for step in steps {
         switch step {
         case .wait(let ms):
@@ -118,7 +120,7 @@ func replayLive(_ steps: [Replay.Step], agent: String, gapMs: Int64, socket: Str
             print("advanced the app's clock \(ms) ms")
         case .payload(let data):
             let sent = Date()
-            guard let (ms, status) = spawn(builtHook.path, [agent], stdin: data, environment: environment) else {
+            guard let (ms, status) = spawn(builtHook.path, [agent, "--keep-text"], stdin: data, environment: environment) else {
                 fail("can't run \(builtHook.path): \(String(cString: strerror(errno)))")
             }
             let name = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["hook_event_name"] as? String
@@ -130,7 +132,7 @@ func replayLive(_ steps: [Replay.Step], agent: String, gapMs: Int64, socket: Str
 
 /// Runs `path` with `stdin`, and returns how long it took from launch to
 /// exit, in ms, and its exit status. Foundation's `Process` adds about
-/// 60 ms of its own waiting, which would swamp `boop-hook`'s few.
+/// 60 ms of its own waiting, which would swamp `agent-hook`'s few.
 func spawn(_ path: String, _ args: [String], stdin: Data, environment: [String: String]) -> (Double, Int32)? {
     var fds: [Int32] = [0, 0]
     guard pipe(&fds) == 0 else { return nil }
@@ -384,7 +386,7 @@ func hooks(_ raw: [String]) {
     }
     // Never the real HOME by default: tests use a temporary one.
     guard let home = args["--home"] else { fail("boopdev hooks: pass --home DIR") }
-    let installer = HookInstaller(home: URL(fileURLWithPath: home), hookPath: args["--hook"] ?? builtHook.path)
+    let installer = HookInstaller.boop(home: URL(fileURLWithPath: home), hookPath: args["--hook"] ?? builtHook.path)
     var agents = Agent.allCases
     if args.words.count > 1 {
         guard let agent = Agent(rawValue: args.words[1]) else { fail("boopdev hooks: the agent is claude or codex") }

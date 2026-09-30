@@ -1,3 +1,4 @@
+import AgentHooks
 import Foundation
 
 /// What the core decided. The app hands each effect to the part that carries

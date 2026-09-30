@@ -75,7 +75,9 @@ internal/tools/boopctl dash --state-dir /tmp/boop
 
 ## Where things are
 
-What ships is in `app/` (the Mac app and its hook) and `firmware/`.
+What ships is in `app/` (the Mac app), `firmware/` and `agent-hooks/`,
+the hook layer: a package of its own that installs the agents' hooks and
+tells Boop what they're doing ([its README](agent-hooks/README.md)).
 Tests, the simulator and the other dev tools are in
 [internal/](internal/README.md), run as `make -C internal <target>`
 ([plan/VERIFICATION.md](plan/VERIFICATION.md) lists them). The specs start

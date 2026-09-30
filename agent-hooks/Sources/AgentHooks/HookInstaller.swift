@@ -1,53 +1,71 @@
 import Foundation
 
-/// Installs, repairs and removes Boop's hook entries (ADAPTERS.md §5):
+/// Installs, repairs and removes agent-hooks' entries (SPEC.md §5):
 /// Claude's in `~/.claude/settings.json`, Codex's in `~/.codex/hooks.json`.
 ///
-/// Every entry Boop adds calls `boop-hook`, and that's how it recognises its
-/// own. It never touches anyone else's hooks, but it does remove the previous
-/// generation's, which call `~/.boop/boop-hook.sh`. Nothing is written when
-/// nothing would change, so installing twice is the same as once.
+/// Every entry it adds calls `agent-hook`, and that's how it recognises its
+/// own, along with any older client an app names (`formerClients`), whose
+/// entries it replaces. It never touches anyone else's hooks. Nothing is
+/// written when nothing would change, so installing twice is the same as
+/// once. One installed client serves every app listening (`HookSocket`).
 public struct HookInstaller {
+    /// Why a change was refused, in words for the person.
+    public struct Refusal: LocalizedError, Equatable, CustomStringConvertible {
+        public var description: String
+        public init(_ description: String) { self.description = description }
+        public var errorDescription: String? { description }
+    }
+
     public enum Health: Equatable, Sendable {
         case notInstalled
         case installed
-        /// Some of Boop's entries are missing, old or point elsewhere.
+        /// Some of its entries are missing, old or point elsewhere.
         case outdated
         /// The file can't be read or isn't a JSON object, or Codex's
         /// `config.toml` can't be read; it's left alone.
         case unreadable(String)
-        /// The `boop-hook` the entries call isn't there, so they'd drop every
+        /// The `agent-hook` the entries call isn't there, so they'd drop every
         /// event. Nothing is installed or repaired until it is.
         case clientMissing
-        /// Boop's entries are there, but the person turned the agent's hooks
-        /// off in this file, so none run. Boop never turns them back on:
-        /// repair skips them, installing Codex refuses, and Settings offers
-        /// only Remove.
+        /// Its entries are there, but the person turned the agent's hooks off
+        /// in this file, so none run. It never turns them back on: repair
+        /// skips them and installing Codex refuses.
         case hooksOff(String)
     }
 
-    /// The hooks each agent gets, the adapter's (ADAPTERS.md §3) in its
-    /// order, with a matcher where one is needed. Claude matches
-    /// `Notification` on its type, so the matcher lists every type the
-    /// adapter maps (ADAPTERS.md §5). A new order would make every install
-    /// look outdated.
+    /// The hooks each agent gets, `Mapping`'s (SPEC.md §3) in its order,
+    /// with a matcher where one is needed. Claude matches `Notification` on
+    /// its type, so the matcher lists every type `Mapping` maps (SPEC.md
+    /// §5). A new order would make every install look outdated.
     static let events: [Agent: [(event: String, matcher: String?)]] = Dictionary(
-        uniqueKeysWithValues: Agent.allCases.map { agent in (agent, Adapter.hooks(agent).map { ($0, matchers[agent]?[$0]) }) })
+        uniqueKeysWithValues: Agent.allCases.map { agent in (agent, Mapping.hooks(agent).map { ($0, matchers[agent]?[$0]) }) })
     /// Each agent's matchers, by hook.
     static let matchers: [Agent: [String: String]] = [
-        .claude: ["Notification": Adapter.notificationTypes.joined(separator: "|")],
+        .claude: ["Notification": Mapping.notificationTypes.joined(separator: "|")],
         .codex: ["SessionStart": "startup|resume|clear"],
     ]
-    /// Seconds. `boop-hook` finishes in milliseconds and gives up after one.
+    /// Seconds. `agent-hook` finishes in milliseconds and gives up after one.
     static let timeout = 5
 
-    public let home: URL
-    /// The `boop-hook` binary the entries call.
-    public let hookPath: String
+    /// The client's name, which every entry runs.
+    public static let client = "agent-hook"
 
-    public init(home: URL, hookPath: String) {
+    public let home: URL
+    /// The `agent-hook` binary the entries call.
+    public let hookPath: String
+    /// What each entry passes after the agent's name: `--keep-text` keeps
+    /// your prompt and the agent's last message (SPEC.md §2).
+    public let arguments: [String]
+    /// Commands an app's older hook client ran, as a program's name or a
+    /// path's ending (`old-hook`, `/old-hook.sh`): entries that run them
+    /// are its own too, and installing replaces them.
+    public let formerClients: [String]
+
+    public init(home: URL, hookPath: String, arguments: [String] = [], formerClients: [String] = []) {
         self.home = home
         self.hookPath = hookPath
+        self.arguments = arguments
+        self.formerClients = formerClients
     }
 
     public func configURL(_ agent: Agent) -> URL {
@@ -62,17 +80,21 @@ public struct HookInstaller {
         FileManager.default.fileExists(atPath: configURL(agent).deletingLastPathComponent().path)
     }
 
-    /// Whether the `boop-hook` the entries call is in place.
+    /// Whether the `agent-hook` the entries call is in place.
     public var clientInPlace: Bool { FileManager.default.isExecutableFile(atPath: hookPath) }
 
     public func command(_ agent: Agent) -> String {
-        "\"\(hookPath)\" \(agent.rawValue)"
+        (["\"\(hookPath)\"", agent.rawValue] + arguments).joined(separator: " ")
     }
 
-    /// A Boop entry, current or from the previous generation.
-    public static func isBoopCommand(_ command: String) -> Bool {
-        if command.contains("/boop-hook.sh") { return true }
-        return command.range(of: #"(^|/)boop-hook"?(\s|$)"#, options: .regularExpression) != nil
+    /// Whether an entry's command is one of ours: it runs `agent-hook`, or
+    /// one of `formerClients`.
+    public func isOurs(_ command: String) -> Bool {
+        if formerClients.contains(where: { $0.hasPrefix("/") && command.contains($0) }) { return true }
+        return ([Self.client] + formerClients.filter { !$0.hasPrefix("/") }).contains { name in
+            let program = NSRegularExpression.escapedPattern(for: name)
+            return command.range(of: #"(^|/)"# + program + #""?(\s|$)"#, options: .regularExpression) != nil
+        }
     }
 
     // MARK: Reading
@@ -85,7 +107,7 @@ public struct HookInstaller {
         }
         if agent == .codex, case .failure(let why) = codexConfig { return .unreadable(why.description) }
         guard clientInPlace else { return .clientMissing }
-        let ours = Self.boopGroups(in: root["hooks"] as? [String: Any] ?? [:])
+        let ours = ourGroups(in: root["hooks"] as? [String: Any] ?? [:])
         if ours.isEmpty { return .notInstalled }
         switch agent {
         case .claude where root["disableAllHooks"] as? Bool == true: return .hooksOff(configURL(agent).path)
@@ -121,27 +143,27 @@ public struct HookInstaller {
 
     // MARK: Changing
 
-    /// Adds Boop's entries, replacing any older ones. For Codex it also turns
+    /// Adds its entries, replacing any older ones. For Codex it also turns
     /// hooks on in `config.toml`, and writes nothing at all when it won't edit
     /// that file or the person turned the hooks off there. Refuses while
-    /// `boop-hook` isn't in place.
+    /// `agent-hook` isn't in place.
     public func install(_ agent: Agent) throws {
-        guard clientInPlace else { throw Refusal("there's no boop-hook at \(hookPath)") }
+        guard clientInPlace else { throw Refusal("there's no \(Self.client) at \(hookPath)") }
         let root = try read(agent).get()
         let config = agent == .codex ? try Self.enablingCodexHooks(in: codexConfig.get()) : nil
         try write(installing(agent, into: root), agent)
         if let config { try config.write(to: codexConfigURL.resolvingSymlinksInPath(), atomically: true, encoding: .utf8) }
     }
 
-    /// Removes Boop's entries, current and old, and nothing else.
+    /// Removes its entries, current and old, and nothing else.
     public func remove(_ agent: Agent) throws {
         let root = try read(agent).get()
         try write(removing(from: root), agent)
     }
 
-    /// On launch: brings back missing or outdated entries for agents that
-    /// already have Boop's. Returns the agents it repaired; none while
-    /// `boop-hook` isn't in place.
+    /// Brings back missing or outdated entries for agents that already have
+    /// some of its own, as an app does at launch. Returns the agents it
+    /// repaired; none while `agent-hook` isn't in place.
     @discardableResult
     public func repair() -> [Agent] {
         Agent.allCases.filter { agent in
@@ -177,7 +199,7 @@ public struct HookInstaller {
                     kept.append(group)
                     continue
                 }
-                let others = entries.filter { !Self.isBoopCommand($0["command"] as? String ?? "") }
+                let others = entries.filter { !isOurs($0["command"] as? String ?? "") }
                 if others.count == entries.count {
                     kept.append(group)
                     continue
@@ -198,14 +220,14 @@ public struct HookInstaller {
         return root
     }
 
-    /// Boop's entries by hook, each in a group of its own with its group's
+    /// Its entries by hook, each in a group of its own with its group's
     /// matcher, as a fresh install writes them. Where a group sits, and
     /// what else is in it, doesn't matter: the agent runs every hook.
-    static func boopGroups(in hooks: [String: Any]) -> [String: [[String: Any]]] {
+    func ourGroups(in hooks: [String: Any]) -> [String: [[String: Any]]] {
         var ours: [String: [[String: Any]]] = [:]
         for (event, value) in hooks {
             for group in value as? [[String: Any]] ?? [] {
-                for entry in group["hooks"] as? [[String: Any]] ?? [] where isBoopCommand(entry["command"] as? String ?? "") {
+                for entry in group["hooks"] as? [[String: Any]] ?? [] where isOurs(entry["command"] as? String ?? "") {
                     var alone: [String: Any] = ["hooks": [entry]]
                     alone["matcher"] = group["matcher"]
                     ours[event, default: []].append(alone)
@@ -218,7 +240,7 @@ public struct HookInstaller {
     // MARK: Files
 
     /// Only a file that isn't there reads as empty. One that's there but
-    /// can't be read is refused, so it's never replaced with Boop's hooks.
+    /// can't be read is refused, so it's never replaced with our hooks.
     func read(_ agent: Agent) -> Result<[String: Any], Refusal> {
         let url = configURL(agent)
         let data: Data
@@ -255,14 +277,14 @@ public struct HookInstaller {
     }
 
     /// Codex runs hooks only with `codex_hooks = true` under `[features]`.
-    /// Boop adds the line if it's missing and never removes it: other hooks
-    /// may rely on it.
+    /// Installing adds the line if it's missing and never removes it: other
+    /// hooks may rely on it.
     ///
     /// `toml` with `codex_hooks = true` in `features`, or nil if it's
     /// already there. It finds the table however it's written (`[features]`,
     /// `[ features ] # note`, or top-level `features.x = …` keys) and never
     /// declares it twice, which Codex refuses to load. It throws while the
-    /// person has the hooks turned off there, which Boop never undoes, and
+    /// person has the hooks turned off there, which is never undone, and
     /// for a shape it won't edit (an inline `features = {…}` without the
     /// key), so the line is added by hand.
     static func enablingCodexHooks(in toml: String) throws -> String? {

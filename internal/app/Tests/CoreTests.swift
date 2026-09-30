@@ -1,3 +1,4 @@
+import AgentHooks
 import BoopDevKit
 import Foundation
 import XCTest
@@ -750,7 +751,7 @@ final class CoreNeedsYouTests: XCTestCase {
     /// ADAPTERS.md §4: Codex's request waits 2 s before it shows; in
     /// that grace the look is waiting (BEHAVIORS.md §2).
     func testCodexWaitsTwoSeconds() {
-        XCTAssertEqual(Core.codexGraceMs, 2000)
+        XCTAssertEqual(SessionTracker.codexGraceMs, 2000)
         let rig = CoreRig()
         rig.send(.turnStart, .codex)
         XCTAssertEqual(states(rig.send(.needsYou, .codex, tool: "shell")).map(\.visual), ["waiting"])
@@ -1070,7 +1071,7 @@ final class CoreNeedsYouTests: XCTestCase {
     /// hook answered it, and the hook showed it again: amber flickered, and
     /// the device announced one prompt twice.
     func testANotificationAloneIsAnsweredByAnyEventButNotACallAtOnce() {
-        XCTAssertEqual(Core.noticeFirstMs, 1000)
+        XCTAssertEqual(SessionTracker.noticeFirstMs, 1000)
         let rig = CoreRig()
         rig.send(.turnStart)
         rig.send(.activity, subagent: "a1", tool: "Bash")
@@ -1092,7 +1093,7 @@ final class CoreNeedsYouTests: XCTestCase {
         rig.send(.activity, subagent: "a1", tool: "Bash")
         rig.send(.needsYou)  // its own hook never comes
         XCTAssertNotNil(rig.state.attn)
-        rig.now += Core.noticeFirstMs - 1
+        rig.now += SessionTracker.noticeFirstMs - 1
         rig.send(.activity, subagent: "a2", tool: "Read")
         XCTAssertNotNil(rig.state.attn, "its own hook may still come")
         rig.now += 1
@@ -1989,7 +1990,7 @@ final class CoreFuzzTests: XCTestCase {
             let why = trail.joined(separator: "\n")
             let now = rig.core.snapshot(at: rig.now)
             let showing = rig.core.needsYouShowing
-            if rig.sent.count > sentBefore, let e = rig.sent.last, SessionFold.step(e) == .subagentStart, let agent = e.agent,
+            if rig.sent.count > sentBefore, let e = rig.sent.last, AgentEvent(e).map(SessionFold.step) == .subagentStart, let agent = e.agent,
                let session = e.session, let b = before[SessionFold.key(agent, session)] {
                 let a = rig.core.sessions[SessionFold.key(agent, session)]
                 XCTAssertEqual(a?.lastEventAt, b.lastEventAt, "a subagent's start isn't activity\n\(why)")
@@ -1997,7 +1998,7 @@ final class CoreFuzzTests: XCTestCase {
                 XCTAssertEqual(a?.needsSince, b.needsSince, why)
                 XCTAssertEqual(a?.askers, b.askers, why)
             }
-            if rig.sent.count > sentBefore, let e = rig.sent.last, let id = e.subagent, let step = SessionFold.step(e),
+            if rig.sent.count > sentBefore, let e = rig.sent.last, let id = e.subagent, let step = AgentEvent(e).map(SessionFold.step),
                step == .subagentEnd || SessionFold.turnLevel.contains(step), let agent = e.agent, let session = e.session {
                 let key = SessionFold.key(agent, session)
                 // Only when no timer of the session's could have acted first.

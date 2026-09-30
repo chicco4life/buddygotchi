@@ -1,6 +1,6 @@
 # Boop spec
 
-Updated 2026-09-28. The index of Boop v1's specs. They're the contract the
+Updated 2026-09-30. The index of Boop v1's specs. They're the contract the
 code implements, so a change to one goes in the same commit as the code
 ([CLAUDE.md](../CLAUDE.md) says which spec goes with which code). Start
 with the vision.
@@ -11,7 +11,8 @@ with the vision.
 | [BEHAVIORS.md](BEHAVIORS.md) | What Boop does when things happen, with its sound and light, and how each personality changes it |
 | [VOICE.md](VOICE.md) | What Boop says: the recorded takes, how one is picked and played |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | The parts and their boundaries, the data flow, queues and timers, what Boop keeps on disk, budgets, and the decisions in force |
-| [ADAPTERS.md](ADAPTERS.md) | The hook client, the event each hook becomes, session states and "needs you", and installing the hooks |
+| [ADAPTERS.md](ADAPTERS.md) | How Boop uses agent-hooks: the raw event each hook becomes, Boop's socket, what it adds to the session rules, and when it installs the hooks |
+| [../agent-hooks/SPEC.md](../agent-hooks/SPEC.md) | agent-hooks, the hook layer as a package of its own: the hook client, the event each hook becomes, session states and "needs you", installing the hooks, and its command line |
 | [harness/HARNESS.md](harness/HARNESS.md) | The harness: how a view event becomes a question for Jev and an answer becomes an action; the transcript and the state |
 | [harness/EVENTS.md](harness/EVENTS.md) | What goes in the transcript: raw events, their seven types and their data; and the view over it: view events, their facts and lines, what's kept, and which wake the brain |
 | [harness/DECISIONS.md](harness/DECISIONS.md) | What Boop decides: the steering files, the questions, how answers are read, and the actions |

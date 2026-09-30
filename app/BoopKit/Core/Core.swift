@@ -1,7 +1,9 @@
+import AgentHooks
 import Foundation
 
-/// The core (ARCHITECTURE.md §3.2): plain rules with no queue. It keeps the
-/// session table and decides which visual the device shows, what the
+/// The core (ARCHITECTURE.md §3.2): plain rules with no queue. It reads the
+/// session table agent-hooks keeps (`SessionTracker`, ADAPTERS.md §1) and
+/// decides which visual the device shows, what the
 /// agents are doing included (`act`), and which one-shots the rules play
 /// (BEHAVIORS.md §3.1). What it does by rule it records as `action`
 /// events: "needs you" showing and ending, and a poke (the `wiggle`
@@ -24,10 +26,10 @@ public final class Core {
         public var time: LocalTime
         public var seed: UInt64
         /// Where this launch's request numbers start: the first request
-        /// shown gets the one after it (`Core.nextAsk`). The app starts each
-        /// launch somewhere random (`Core.randomFirstAsk`), so a request can't
-        /// share `attn.id` with one the device still shows from the last
-        /// launch (PROTOCOL.md §3).
+        /// shown gets the one after it (`SessionTracker.nextRequest`). The
+        /// app starts each launch somewhere random (`Core.randomFirstAsk`),
+        /// so a request can't share `attn.id` with one the device still
+        /// shows from the last launch (PROTOCOL.md §3).
         public var firstAsk = 0
 
         public init(volume: Int = 6, time: LocalTime = LocalTime(), seed: UInt64 = 1) {
@@ -37,74 +39,17 @@ public final class Core {
         }
     }
 
-    /// A session: its `Turn`, as the view keeps it too, and what the rules
-    /// add.
-    struct Session {
-        var agent: Agent
-        var id: String
-        var project: String
-        /// The thread's name as its agent's app shows it, the last an
-        /// event brought: the strip shows it in the project's place
-        /// (BEHAVIORS.md §3.2).
-        var name: String?
-        /// The thread's workspace: a linked worktree's folder or the
-        /// branch, which tells two sessions in one project apart.
-        var workspace: String?
-        /// The app the agent runs in and that app's ID for the session, the
-        /// last an event brought: where a tap opens the thread.
-        var app: String?
-        var appSession: String?
-        /// Working on a turn: not idle, and not waiting on "needs you".
-        var working = false
-        var turn = Turn()
-        var lastEventAt: Int64
-        /// When "needs you" started showing.
-        var needsSince: Int64?
-        /// The event that made it show (its `seq`): a Claude request's, or
-        /// a Codex request's that its grace let through.
-        var askSeq: Int?
-        /// The number of the request it shows (`Core.takeAsk`), for the
-        /// order requests arrived in and for `attn.id`.
-        var ask = 0
-        /// Codex: when "needs you" arrived, during the grace period.
-        var pendingSince: Int64?
-        /// When "needs you" last cleared, to drop its late `Notification`.
-        var clearedAt: Int64?
-        /// A tool call has started since then: a new request follows one.
-        var calledSinceClear = false
-        /// The `Notification` types the waiting request's askers send, and
-        /// those of the request that last cleared: only a late one of those
-        /// is a copy.
-        var notices: Set<String> = []
-        var clearedNotices: Set<String> = []
-        /// Who is asking, while "needs you" waits: `""` for the main agent,
-        /// a Claude subagent's id, or `Core.anyone` for a `Notification` whose
-        /// request's own hook hasn't come; each with the tool it asks for,
-        /// or `""` for none. Only an asker's own next event answers it
-        /// (ADAPTERS.md §4).
-        var askers: [String: String] = [:]
-        let order: Int
-        /// The tool calls running this turn, for the look, by
-        /// `tool_use_id` or a key of their own (BEHAVIORS.md §2).
-        var calls: [String: Call] = [:]
-        /// The helpers seen starting this turn (`SubagentStart`) that
-        /// haven't ended, by `agent_id`: the main agent is delegating.
-        var helpers: Set<String> = []
-        /// Claude's plan mode, as the last event that said had it.
-        var planMode = false
-        /// Its activity as it shows, held (`Core.settle`).
-        var held: Timed?
-
-        var key: String { SessionFold.key(agent, id) }
-    }
+    /// A session, as agent-hooks keeps it.
+    typealias Session = SessionTracker.Session
 
     public private(set) var config: Config
 
-    var sessions: [String: Session] = [:]
-    /// Which sessions ended, and the order sessions were first seen in.
-    var fold = SessionFold()
+    /// Every agent session, what it's doing and who needs you
+    /// (ADAPTERS.md §4).
+    let tracker: SessionTracker
+    var sessions: [String: Session] { tracker.sessions }
     /// The last request's number: they count up from `config.firstAsk`.
-    var lastAsk: Int
+    var lastAsk: Int { tracker.lastRequest }
     var rng: SplitMix64
     /// The last day with any activity, or the day the app opened: the first
     /// activity of a later one is a new day.
@@ -117,22 +62,18 @@ public final class Core {
     /// variation each visual showed, which the next one there avoids.
     var shown: (visual: String, variant: Int) = ("", 1)
     var lastVariant: [String: Int] = [:]
-    /// The activity the working look shows (`updateActs`).
+    /// The activity the working look shows (`updateActs`), and each
+    /// working session's, held.
     var shownAct: Timed?
-    /// Calls started, counted, so a result that names no call ends the
-    /// last one.
-    var callOrder = 0
+    var held: [String: Timed] = [:]
     /// When the rules last played the error one-shot: at most one every
     /// `errorEveryMs`.
     var lastErrorAt: Int64?
     /// The wall clock less the steady one, for days and times of day.
     var wallOffsetMs: Int64 = 0
-    /// Where a working directory is: its project and workspace.
-    let place: (String) -> Adapter.Place
-    /// The sessions "needs you" showed for when last published, and why
-    /// each that has cleared since did, for their `needs_you` actions.
+    /// The sessions "needs you" showed for when last published, for their
+    /// `needs_you` actions.
     var shownNeeds: [String: (agent: Agent, id: String)] = [:]
-    var clearedWhy: [String: String] = [:]
 
     // Push-to-talk (BEHAVIORS.md §3.3).
     /// Who turned the Mac's mic on: the device's BOOT button or the app's
@@ -153,11 +94,10 @@ public final class Core {
     /// started already, or nil to make the first activity a new day.
     /// `place` names a working directory's project (ADAPTERS.md §3).
     public init(config: Config, lastActiveDay: String? = nil,
-                place: @escaping (String) -> Adapter.Place = { Adapter.place(cwd: $0) }) {
+                place: @escaping (String) -> Place = { Place.at(cwd: $0) }) {
         self.config = config
         self.lastActiveDay = lastActiveDay
-        self.place = place
-        lastAsk = config.firstAsk
+        tracker = SessionTracker(firstRequest: config.firstAsk, place: place)
         rng = SplitMix64(seed: config.seed)
     }
 
@@ -166,23 +106,7 @@ public final class Core {
     public func name(about key: String) -> String? { sessions[key]?.name }
 
     /// Where the session `key` names opens on the Mac, or nil.
-    public func thread(about key: String) -> ThreadRef? { sessions[key].map(ThreadRef.init) }
-
-    /// The asker of a request that came as a `Notification` alone, which
-    /// doesn't say who asked: any event from the session answers it.
-    static let anyone = "*"
-
-    /// How far apart a request's own hook and its `Notification` may land,
-    /// either way round (ADAPTERS.md §4).
-    static let noticeLagMs: Int64 = 5000
-
-    /// Codex's grace period before "needs you" shows (ADAPTERS.md §4).
-    static let codexGraceMs: Int64 = 2000
-
-    /// In its first second, a request from "anyone" isn't answered by a
-    /// call: its own hook may still be coming, and nobody answers a prompt
-    /// that fast (ADAPTERS.md §4).
-    static let noticeFirstMs: Int64 = 1000
+    public func thread(about key: String) -> ThreadRef? { sessions[key]?.thread }
 
     /// The rules' one-shots (PROTOCOL.md §3 `moment`).
     public static let starting = "starting", stopped = "stopped", error = "error", helperReturn = "helper_return"
@@ -198,10 +122,10 @@ public final class Core {
     /// ignored. Its time is now.
     @discardableResult
     public func handle(_ event: Event) -> [CoreEffect] {
-        guard let agent = event.agent, let session = event.session, let step = SessionFold.step(event) else { return [] }
+        guard let agentEvent = AgentEvent(event) else { return [] }
         let now = event.ts
         var fx: [CoreEffect] = []
-        let shot = take(event, step, agent, session)
+        let shot = take(agentEvent, ref: event.seq)
         startDayIfNew(now, &fx)
         if let shot { play(shot, now, &fx) }
         publish(now, &fx)
@@ -237,8 +161,8 @@ public final class Core {
     /// first publish records the start or end that's missing, with why a
     /// request the read-back cleared did.
     public func replay(_ event: Event) {
-        if let agent = event.agent, let session = event.session, let step = SessionFold.step(event) {
-            _ = take(event, step, agent, session)
+        if let agentEvent = AgentEvent(event) {
+            _ = take(agentEvent, ref: event.seq)
             return
         }
         advance(to: event.ts)
@@ -246,230 +170,55 @@ public final class Core {
            let agent = event["agent"]?.string.flatMap(Agent.init(rawValue:)) {
             let key = SessionFold.key(agent, session)
             shownNeeds[key] = event.phase == .start ? (agent, session) : nil
-            if event.phase == .start { clearedWhy[key] = nil }
+            if event.phase == .start { tracker.clearedWhy[key] = nil }
         }
     }
 
     /// An agent's event folded into the session table, the timers due by
-    /// its time run first: the one-shot it plays, if any.
-    private func take(_ event: Event, _ step: SessionFold.Step, _ agent: Agent, _ session: String) -> DeviceMoment? {
-        let now = event.ts
-        let key = SessionFold.key(agent, session)
-        // The event's own session is left until after the event: a Codex
-        // request past its grace that the event answers was never shown,
-        // so it isn't recorded as needing you either (ADAPTERS.md §4).
-        advance(to: now, sparing: key)
-        let shot = apply(event, step, agent, session, key, now)
-        if var s = sessions[key] {
-            promote(&s, now)
-            sessions[key] = s
-        }
-        return shot
-    }
-
-    /// The event's changes to its session, before the snapshot goes out,
-    /// and the one-shot it plays, if any (BEHAVIORS.md §3.1).
-    private func apply(_ event: Event, _ step: SessionFold.Step, _ agent: Agent, _ session: String, _ key: String,
-                       _ now: Int64) -> DeviceMoment? {
-        let tool = event["tool"]?.string
-        let notice = event["notice"]?.string
-        // A finished call: a result with a tool (an `ElicitationResult` has none).
-        let done = event.type == .tool && event.phase == .end && tool != nil
-        guard fold.admits(event, step, key: key, known: sessions[key] != nil) else { return nil }
-        let place = event.cwd.map(self.place)
-        var s = sessions[key] ?? Session(agent: agent, id: session, project: place?.project ?? "unknown",
-                                         lastEventAt: now, order: fold.takeOrder())
-        let waiting = s.needsSince != nil || s.pendingSince != nil
-        if s.turn.isStaleNotice(event, step) { return nil }
-        // A session is where its events come from, except while a request
-        // waits: the strip names where that was made, whatever folder a
-        // sibling subagent works in meanwhile (BEHAVIORS.md §3.2).
-        if let place, place.project != "unknown", !waiting {
-            s.project = place.project
-            s.workspace = place.workspace
-        }
-        if let name = event["name"]?.string { s.name = name }
-        if let app = event["app"]?.string { s.app = app }
-        if let appSession = event["app_session"]?.string { s.appSession = appSession }
-        if let mode = event["mode"]?.string { s.planMode = mode == "plan" }
-
-        if step == .needsYou {
-            // A request's own hook (`PermissionRequest`, `Elicitation`) says
-            // which agent asks; its `Notification` doesn't, so it's from
-            // "anyone" until the hook comes. While a request waits, a
-            // Notification is the same request, and a hook joins it: a
-            // sibling subagent asking too, or, within 5 s of a Notification
-            // that came alone, that request's own hook. With nothing
-            // waiting, a Notification of the kind the request that last
-            // cleared sends is its late copy if it comes within 5 s of the
-            // clear, or before any tool call has started since
-            // (ADAPTERS.md §4).
-            let asker = notice == nil ? event.subagent ?? "" : Core.anyone
-            let kind = notice ?? (tool == nil ? "elicitation_dialog" : "permission_prompt")
-            let lateCopy = notice.map(s.clearedNotices.contains) == true
-                && s.clearedAt.map { now - $0 < Core.noticeLagMs || !s.calledSinceClear } == true
-            if !lateCopy { s.notices.insert(kind) }
-            if waiting {
-                if notice == nil {
-                    if Array(s.askers.keys) == [Core.anyone], s.needsSince.map({ now - $0 < Core.noticeLagMs }) == true {
-                        s.askers = [:]
-                    }
-                    s.askers[asker] = tool ?? ""
-                }
-            } else if !lateCopy {
-                s.askers = [asker: tool ?? ""]
-                s.askSeq = event.seq
-                if agent == .codex {
-                    s.pendingSince = now
-                    s.working = true
-                } else {
-                    s.needsSince = now
-                    s.ask = takeAsk()
-                    s.working = false
-                }
-            }
-            s.lastEventAt = now
-            sessions[key] = s
-            return nil
-        }
-
-        if step == .subagentStart {
-            // A helper starting: the main agent delegates until it ends. Like
-            // its end, it isn't activity, and answers no request.
-            if let id = event.subagent { helperStarted(&s, id) }
-            sessions[key] = s
-            return nil
-        }
-
-        if SessionFold.subagentsOwn(event, step) {
-            // A subagent that has finished can't be waiting on a prompt, so
-            // its end answers its own request: denied, it carried on and
-            // ended without another tool call. It answers nobody else, not
-            // even "anyone". It isn't activity either: the session doesn't
-            // start working and its clock doesn't move, so it can't make an
-            // idle or stale session look busy. Once no asker is left, the
-            // session works again only if its turn is still going
-            // (ADAPTERS.md §4). A turn-level hook from inside a subagent
-            // (its `agent_id` on a `StopFailure`, say) is that subagent's
-            // alone too, not the session's turn, but only its end ends it:
-            // a helper that worked on with no turn open (in the
-            // background, after the main agent's `Stop`) is done once none
-            // of its calls runs.
-            if step == .subagentEnd, let id = event.subagent {
-                subagentEnded(&s, id)
-                if s.turn.startedAt == nil, s.calls.isEmpty, s.pendingSince == nil { s.working = false }
-            }
-            if waiting, let id = event.subagent, s.askers.removeValue(forKey: id) != nil {
-                if s.askers.isEmpty {
-                    clearRequest(&s, now)
-                    s.working = s.turn.startedAt != nil
-                } else {
-                    anotherRequest(&s)
-                }
-            }
-            // A helper Boop saw start returns, while its turn goes on.
-            let returned = step == .subagentEnd && event.subagent.map { s.helpers.remove($0) != nil } == true
-            sessions[key] = s
-            return returned && s.turn.startedAt != nil ? DeviceMoment(anim: Core.helperReturn) : nil
-        }
-
-        // The asker's next event means it moved on, and so does any
-        // turn-level event. A sibling subagent's tool calls don't answer
-        // another agent's request. Claude's idle notice (a stopped `turn` end with
-        // no tool) is turn-level too: Claude sits at its own prompt with the
-        // turn over, which it never does while a prompt is up, a subagent's
-        // included, so you pressed Esc on it, which sends no hook
-        // (ADAPTERS.md §4).
-        // An asker's result for another tool is a call it made alongside
-        // the one that asks (Claude runs read-only calls in parallel, and
-        // the main agent's Agent call runs on), so it isn't the answer. An
-        // `Elicitation` (no tool) isn't a call: its answer is its
-        // `ElicitationResult` or the agent's next call, never a result. A
-        // request from "anyone" is answered by any event, but by a call only
-        // after its first second: a sibling's can land between a
-        // `Notification` and its request's own hook.
-        if waiting {
-            let asker = event.subagent ?? ""
-            let before = s.askers
-            defer { denied(&s, before: before, event) }
-            let alongside = done && s.askers[asker].map { asked in
-                asked.isEmpty || tool.map { $0 != asked } == true
-            } == true
-            let anyoneAnswered = s.askers[Core.anyone] != nil
-                && s.needsSince.map { now - $0 >= Core.noticeFirstMs } != false
-            if step != .activity || anyoneAnswered {
-                s.askers.removeAll()
-            } else if !alongside, s.askers.removeValue(forKey: asker) != nil, !s.askers.isEmpty {
-                anotherRequest(&s)
-            }
-            if s.askers.isEmpty {
-                clearRequest(&s, now)
-                s.working = true
-            }
-        }
-        s.lastEventAt = now
-        // The table has the answer before the event applies, so whether
-        // its event wakes the brain sees what it answered (EVENTS.md §6).
-        sessions[key] = s
-
-        var shot: DeviceMoment?
-        switch step {
-        case .sessionStart:
+    /// its time run first: the one-shot it plays, if any (BEHAVIORS.md
+    /// §3.1). `ref` is its `seq`, which a request it starts keeps.
+    private func take(_ event: AgentEvent, ref: Int) -> DeviceMoment? {
+        let key = event.key
+        guard let change = tracker.handle(event, ref: ref) else { return nil }
+        let now = event.at
+        switch change {
+        case .sessionStarted(let source):
             // Resumed or compacted, the work goes on; started or cleared,
             // it's a fresh session (BEHAVIORS.md §3.1).
-            let source = event["source"]?.string
-            shot = DeviceMoment(anim: Core.starting, ctx: source == "resume" || source == "compact" ? "continuation" : "session")
-            sessions[key] = s
-        case .turnStart:
-            s.working = true
-            s.turn.prompted(at: now)
-            clearWork(&s)
-            shot = DeviceMoment(anim: Core.starting, ctx: "new_task")
-            sessions[key] = s
-        case .activity:
-            // A result that landed late leaves the turn over (ADAPTERS.md §4).
-            var late = false
-            if done {
-                late = s.turn.callEnded(event).late
-                let call = endCall(&s, event, now)
-                let failed = event["failed"]?.bool == true
-                if !late, failed, event["error"]?.string.map(Core.errorClasses.contains) == true {
-                    // A command that failed or timed out, not a request
-                    // you denied (BEHAVIORS.md §3.1).
-                    shot = DeviceMoment(anim: Core.error)
-                } else if !late, !failed, let call, call.act == .delegating, !call.sawHelper {
-                    // A helper's call returned, from hooks that don't say
-                    // when helpers start: its `SubagentStop` can't.
-                    shot = DeviceMoment(anim: Core.helperReturn)
-                }
-            } else if let tool {
-                s.turn.callStarted(event)
-                s.calledSinceClear = true
-                startCall(&s, event, tool: tool)
+            return DeviceMoment(anim: Core.starting,
+                                ctx: source == "resume" || source == "compact" ? "continuation" : "session")
+        case .turnStarted:
+            held[key] = nil
+            return DeviceMoment(anim: Core.starting, ctx: "new_task")
+        case .callEnded(let call, let late):
+            // The activity the call showed holds from now.
+            if let call, held[key]?.act == Core.act(call) { held[key]?.at = now }
+            let failed = event.failed == true
+            if !late, failed, event.error.map(Core.errorClasses.contains) == true {
+                // A command that failed or timed out, not a request you
+                // denied (BEHAVIORS.md §3.1).
+                return DeviceMoment(anim: Core.error)
             }
-            if !late {
-                s.working = true
-                s.turn.openTurn(event)
+            if !late, !failed, let call, Core.act(call) == .delegating, !call.sawSubagent {
+                // A helper's call returned, from hooks that don't say when
+                // helpers start: its `SubagentStop` can't.
+                return DeviceMoment(anim: Core.helperReturn)
             }
-            sessions[key] = s
-        case .turnEnd, .turnFailed, .turnStopped:
-            // Over, done, failed or stopped: a working session goes idle.
-            // A stop ends a turn even once the safety net has made the
-            // session idle: its turn went on (you approved, which sends no
-            // hook), so a call's result after the stop is a late one. Only
-            // a stop that ends a turn plays its one-shot: Claude's idle
+            return nil
+        case .turnEnded(let outcome, let endedTurn):
+            // Only a stop that ends a turn plays its one-shot: Claude's idle
             // notice after a turn that finished doesn't.
-            s.working = false
-            if s.turn.endTurn(at: now) != nil, step == .turnStopped { shot = DeviceMoment(anim: Core.stopped) }
-            clearWork(&s)
-            sessions[key] = s
-        case .sessionEnd:
-            sessions[key] = nil
-            fold.end(key, at: now)
-        case .needsYou, .subagentStart, .subagentEnd:
-            break
+            held[key] = nil
+            return outcome == .stopped && endedTurn ? DeviceMoment(anim: Core.stopped) : nil
+        case .subagentEnded(let returned):
+            // A helper Boop saw start returns, while its turn goes on.
+            return returned ? DeviceMoment(anim: Core.helperReturn) : nil
+        case .sessionEnded:
+            held[key] = nil
+            return nil
+        case .callStarted, .asked, .subagentStarted, .other:
+            return nil
         }
-        return shot
     }
 
     /// A rule's one-shot (BEHAVIORS.md §3.1), in Boop's mood with a
@@ -580,10 +329,7 @@ public final class Core {
     /// The sessions in the order the popover lists them: those that need
     /// you (oldest first), then working, then idle.
     func grouped(at now: Int64) -> (waiting: [Session], working: [Session], idle: [Session]) {
-        let waiting = sessions.values.filter { $0.needsSince != nil }.sorted { ($0.needsSince!, $0.ask) < ($1.needsSince!, $1.ask) }
-        let working = sessions.values.filter { $0.needsSince == nil && isWorking($0, now) }.sorted { $0.order < $1.order }
-        let idle = sessions.values.filter { $0.needsSince == nil && !isWorking($0, now) }.sorted { $0.order < $1.order }
-        return (waiting, working, idle)
+        tracker.grouped(at: now)
     }
 
     public func snapshot(at now: Int64) -> StateSnapshot {
@@ -593,7 +339,7 @@ public final class Core {
             StateSnapshot.Attention(
                 agent: $0.agent.rawValue, project: StateSnapshot.clip($0.project, marked: true, max: StateSnapshot.maxSignBytes),
                 name: $0.name.map { StateSnapshot.clip($0, marked: true, max: StateSnapshot.maxSignBytes) } ?? "",
-                more: waiting.count - 1, id: $0.ask)
+                more: waiting.count - 1, id: $0.request)
         }
         // What the agents are doing shows only in the working look, and
         // not while something needs you (BEHAVIORS.md §2).
@@ -647,59 +393,16 @@ public final class Core {
     /// sees steady time.
     private func day(_ now: Int64) -> String { config.time.day(wall(now)) }
 
-    func isWorking(_ s: Session, _ now: Int64) -> Bool {
-        s.working && now - s.lastEventAt < SessionFold.staleWorkMs
-    }
+    func isWorking(_ s: Session, _ now: Int64) -> Bool { tracker.isWorking(s, at: now) }
 
     /// Whether "needs you" shows: then no event's pass starts
     /// (harness/EVENTS.md §6).
-    public var needsYouShowing: Bool { sessions.values.contains { $0.needsSince != nil } }
+    public var needsYouShowing: Bool { tracker.needsYou }
 
-    /// A Codex request whose grace is over, and nothing answered, shows,
-    /// dated 2 s after it arrived (ADAPTERS.md §4).
-    func promote(_ s: inout Session, _ now: Int64) {
-        guard let pending = s.pendingSince, now - pending >= Core.codexGraceMs else { return }
-        s.pendingSince = nil
-        s.needsSince = pending + Core.codexGraceMs
-        s.ask = takeAsk()
-        s.working = false
-    }
-
-    /// A request's number, in the order requests start showing.
-    func takeAsk() -> Int {
-        lastAsk = Core.nextAsk(after: lastAsk)
-        return lastAsk
-    }
-
-    /// The largest request number: the device keeps `attn.id` in 32 bits.
-    static let maxAsk = Int(Int32.max)
-
-    /// The number after `ask`, back to 1 past `maxAsk`: never 0, which
-    /// means no number (PROTOCOL.md §3).
-    static func nextAsk(after ask: Int) -> Int { ask >= maxAsk ? 1 : ask + 1 }
-
-    /// A random place for a launch's request numbers to start.
-    public static func randomFirstAsk() -> Int { Int.random(in: 0..<maxAsk) }
-
-    /// One of several askers in a session was answered, so Claude shows
-    /// another's prompt now: a different request, with its own number, so
-    /// the device alerts again if it's the one shown (BEHAVIORS.md §3.2).
-    func anotherRequest(_ s: inout Session) {
-        if s.needsSince != nil { s.ask = takeAsk() }
-    }
-
-    /// Nobody is waiting on the session any more; `why` it cleared if
-    /// nobody answered.
-    func clearRequest(_ s: inout Session, _ now: Int64, why: String? = nil) {
-        if s.needsSince != nil, let why { clearedWhy[s.key] = why }
-        s.needsSince = nil
-        s.pendingSince = nil
-        s.askers.removeAll()
-        s.clearedAt = now
-        s.calledSinceClear = false
-        s.clearedNotices = s.notices
-        s.notices = []
-    }
+    /// A random place for a launch's request numbers to start, so
+    /// `attn.id` doesn't repeat one the device still shows from the last
+    /// launch (PROTOCOL.md §3).
+    public static func randomFirstAsk() -> Int { SessionTracker.randomFirstRequest() }
 
     /// The first activity of a new day, for the transcript's pruning.
     func startDayIfNew(_ now: Int64, _ fx: inout [CoreEffect]) {
@@ -729,7 +432,7 @@ public final class Core {
                                            "message": .string(message)])))
             fx.append(.open(thread))
         }
-        if let waiting = grouped(at: now).waiting.first { return open(ThreadRef(waiting), Core.openedThread) }
+        if let waiting = grouped(at: now).waiting.first { return open(waiting.thread, Core.openedThread) }
         if let finish { return open(finish, Core.openedFinished) }
         fx.append(.record(Event(ts: now, source: .boop, type: .action, specificType: Core.wiggle,
                                 data: ["for": seq, "by": "rule", "ok": true, "message": .string(Core.wiggled)])))
@@ -760,30 +463,10 @@ public final class Core {
     public static let openedFinished = "Boop opened the thread that finished on the Mac."
     public static let needsYou = "needs_you"
 
-    /// Runs every timer due by `now`, in order, but shows no Codex request
-    /// of `sparing`'s session: its event comes first. Only a session with a
-    /// Codex request in its grace, or silent 10 minutes, has one.
-    func advance(to now: Int64, sparing: String? = nil) {
-        for (key, var s) in sessions where s.pendingSince != nil || now - s.lastEventAt >= SessionFold.safetyNetMs {
-            let silent = now - s.lastEventAt >= SessionFold.safetyNetMs
-            if !silent && key != sparing { promote(&s, now) }
-            if silent && (s.needsSince != nil || s.pendingSince != nil) {
-                // Ten silent minutes, even for a Codex request no tick saw
-                // through its grace (the Mac slept): the agent is still
-                // waiting on its prompt, or gone. Either way it isn't
-                // working. Its turn, if it goes on, still
-                // counts from its start.
-                clearRequest(&s, now, why: "nothing for 10 minutes")
-                s.working = false
-            }
-            if SessionFold.forgotten(s.lastEventAt, at: now) {
-                if s.needsSince != nil { clearedWhy[key] = "forgotten" }
-                sessions[key] = nil
-            } else {
-                sessions[key] = s
-            }
-        }
-        fold.forgetEnds(at: now)
+    /// Runs the session table's timers due by `now` (ADAPTERS.md §4): a
+    /// Codex request past its grace shows, the safety net, and forgetting.
+    func advance(to now: Int64) {
+        tracker.advance(to: now)
     }
 
     /// "Needs you" starting or clearing for a session, as a rule action:
@@ -792,19 +475,19 @@ public final class Core {
     /// waited clears too.
     func recordNeeds(_ now: Int64, _ fx: inout [CoreEffect]) {
         let showing = sessions.filter { $0.value.needsSince != nil }
-        for (key, s) in showing.sorted(by: { ($0.value.needsSince!, $0.value.ask) < ($1.value.needsSince!, $1.value.ask) })
+        for (key, s) in showing.sorted(by: { ($0.value.needsSince!, $0.value.request) < ($1.value.needsSince!, $1.value.request) })
         where shownNeeds[key] == nil {
             shownNeeds[key] = (s.agent, s.id)
-            clearedWhy[key] = nil
+            tracker.clearedWhy[key] = nil
             fx.append(.record(Event(ts: now, source: .boop, type: .action, phase: .start, specificType: Core.needsYou,
                                     session: s.id,
-                                    data: ["for": s.askSeq.map { .int(Int64($0)) } ?? .null, "by": "rule",
+                                    data: ["for": s.requestRef.map { .int(Int64($0)) } ?? .null, "by": "rule",
                                            "agent": .string(s.agent.rawValue), "ok": true,
                                            "message": .string("Boop showed that \(s.agent.rawValue) needs you.")])))
         }
         for (key, was) in shownNeeds.sorted(by: { $0.key < $1.key }) where showing[key] == nil {
             shownNeeds[key] = nil
-            let why = clearedWhy.removeValue(forKey: key) ?? (sessions[key] == nil ? "the session ended" : nil)
+            let why = tracker.clearedWhy.removeValue(forKey: key) ?? (sessions[key] == nil ? "the session ended" : nil)
             var data: [String: JSONValue] = ["by": "rule", "agent": .string(was.agent.rawValue),
                                              "outcome": why == nil ? "done" : "failed"]
             if let why { data["why"] = .string(why) }
@@ -865,30 +548,6 @@ public struct SessionSummary: Equatable, Sendable {
 
     init(_ s: Core.Session, _ status: Status) {
         self.init(agent: s.agent.rawValue, project: s.project, name: s.name, workspace: s.workspace, status: status,
-                  thread: ThreadRef(s))
-    }
-}
-
-/// One agent thread, as much as opening it on the Mac needs
-/// (`ThreadLink`): the agent's session ID, the app it runs in and that
-/// app's own ID for it.
-public struct ThreadRef: Equatable, Sendable {
-    /// `claude` or `codex`.
-    public var agent: String
-    public var session: String
-    /// The app's bundle ID (HookWire's `HostApp`), when the hooks said.
-    public var app: String?
-    /// The Claude app's `local_…` ID.
-    public var appSession: String?
-
-    public init(agent: String, session: String, app: String? = nil, appSession: String? = nil) {
-        self.agent = agent
-        self.session = session
-        self.app = app
-        self.appSession = appSession
-    }
-
-    init(_ s: Core.Session) {
-        self.init(agent: s.agent.rawValue, session: s.id, app: s.app, appSession: s.appSession)
+                  thread: s.thread)
     }
 }

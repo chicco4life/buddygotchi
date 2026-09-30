@@ -1,3 +1,4 @@
+import AgentHooks
 import Foundation
 
 /// One thing the brain may hear of (harness/EVENTS.md §3): a raw event's
@@ -108,7 +109,7 @@ public final class TranscriptView {
     /// The personality's settings: how often the working heartbeat comes
     /// and which tool uses wake the brain (BEHAVIORS.md §6).
     public private(set) var rules: Personality.Rules
-    let place: (String) -> Adapter.Place
+    let place: (String) -> Place
 
     /// The view events, oldest first, up to `limit`.
     public private(set) var events: [ViewEvent] = []
@@ -148,7 +149,7 @@ public final class TranscriptView {
     var runReaction: (seq: Int, moodChanged: Bool)?
 
     public init(rules: Personality.Rules = Personality.Rules(), seed: UInt64 = 1,
-                place: @escaping (String) -> Adapter.Place = { Adapter.place(cwd: $0) }) {
+                place: @escaping (String) -> Place = { Place.at(cwd: $0) }) {
         self.rules = rules
         self.place = place
         rng = SplitMix64(seed: seed)
@@ -262,16 +263,19 @@ public final class TranscriptView {
     // MARK: Agents
 
     func agentEvent(_ e: Event) {
-        guard let agent = e.agent, let session = e.session, let step = SessionFold.step(e) else { return }
+        // The session bookkeeping is agent-hooks', as the core's is
+        // (ADAPTERS.md §4): it reads the event as agent-hooks has it.
+        guard let a = AgentEvent(e), let agent = e.agent, let session = e.session else { return }
+        let step = SessionFold.step(a)
         let now = e.ts
         let key = SessionFold.key(agent, session)
         // Threads silent for a day are let go, as the core lets their
         // sessions go: one that comes back starts again from turn 0.
         for (k, t) in threads where SessionFold.forgotten(t.lastEventAt, at: now) { threads[k] = nil }
         fold.forgetEnds(at: now)
-        guard fold.admits(e, step, key: key, known: threads[key] != nil) else { return }
+        guard fold.admits(a, step, key: key, known: threads[key] != nil) else { return }
         var t = threads[key] ?? newThread(agent, session, now)
-        if t.turn.isStaleNotice(e, step) { return }
+        if t.turn.isStaleNotice(a, step) { return }
         if let cwd = e.cwd, !t.waiting {
             let place = self.place(cwd)
             if place.project != "unknown" {
@@ -289,7 +293,7 @@ public final class TranscriptView {
             threads[key] = t
             return
         }
-        if SessionFold.subagentsOwn(e, step) {
+        if SessionFold.subagentsOwn(a, step) {
             threads[key] = t
             return
         }
@@ -317,14 +321,14 @@ public final class TranscriptView {
                 // `PreToolUse`'s. One that landed after its turn ended
                 // counts, but the turn stays over.
                 let started: ToolStart?
-                (started, late) = t.turn.callEnded(e)
+                (started, late) = t.turn.callEnded(a)
                 if topic == nil { topic = started?.topic }
                 toolDone(&t, e, tool: tool, topic: topic, started: started?.at)
             } else if tool != nil {
-                t.turn.callStarted(e)
+                t.turn.callStarted(a)
             }
             // A turn a call opens has counts of its own (EVENTS.md §4.1).
-            if !late && t.turn.openTurn(e) { resetCounts(&t) }
+            if !late && t.turn.openTurn(a) { resetCounts(&t) }
             if let topic { t.topic = topic }
             if let topic, let failed = e["failed"]?.bool, TranscriptView.checks.contains(topic) { t.check = (topic, failed) }
             threads[key] = t

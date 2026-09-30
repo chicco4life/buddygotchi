@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Boop doctor (plan/ADAPTERS.md §6): will Boop see this agent's hooks?
 #
-#   1. Hooks are registered for each agent and point at an existing boop-hook
+#   1. Hooks are registered for each agent and point at an existing agent-hook
 #      (the installer's own check, through boopdev: run make build first).
 #   2. The app is running and its socket accepts.
-#   3. A synthetic event goes from boop-hook to the app (seen in its log).
+#   3. A synthetic event goes from agent-hook to the app (seen in its log).
 #   4. A harmless command run in the agent shows up in Boop as a hook from
 #      this agent's own session (--confirm).
 #
@@ -101,7 +101,7 @@ hdr "Boop doctor (agent: $AGENT, state: $STATE)"
 # --- 1. hook registration ---------------------------------------------------
 # The installer is the one source of which hooks each agent gets, so its own
 # health check decides (boopdev hooks status). Hooks call the copy of
-# boop-hook the app keeps in its state directory, or, after
+# agent-hooks' agent-hook the app keeps in its state directory, or, after
 # `boopdev hooks install`, the one built next to boopdev.
 hdr "Hooks"
 BOOPDEV="$REPO/.build/debug/boopdev"
@@ -116,7 +116,7 @@ for agent in claude codex; do
     continue
   fi
   health=""; first=""
-  for bin in "$HOME/Library/Application Support/Boop/bin/boop-hook" "$REPO/.build/debug/boop-hook"; do
+  for bin in "$HOME/Library/Application Support/Boop/bin/agent-hook" "$REPO/.build/debug/agent-hook"; do
     health=$("$BOOPDEV" hooks status $agent --home "$HOME" --hook "$bin" 2>&1 | sed "s/^$agent: //")
     if [ "$health" = installed ]; then HOOK_BIN="$bin"; break; fi
     first="${first:-$health}"
@@ -129,13 +129,13 @@ for agent in claude codex; do
   case "$health" in
     installed) ok "$name: every hook registered, calling $HOOK_BIN"; hooked=1 ;;
     notInstalled) bad "$name: no Boop hooks in $file" ;;
-    outdated) bad "$name: Boop's hooks in $file are missing, old or point at another boop-hook$repair" ;;
-    clientMissing) bad "$name: the app's boop-hook ($HOME/Library/Application Support/Boop/bin) is missing" ;;
+    outdated) bad "$name: Boop's hooks in $file are missing, old or point at another agent-hook$repair" ;;
+    clientMissing) bad "$name: the app's agent-hook ($HOME/Library/Application Support/Boop/bin) is missing" ;;
     *) bad "$name: $health" ;;
   esac
 done
 [ $hooked -eq 1 ] || [ $fail -gt $before ] || bad "no agent has Boop's hooks"
-[ -n "$HOOK_BIN" ] || HOOK_BIN="$REPO/.build/debug/boop-hook"
+[ -n "$HOOK_BIN" ] || HOOK_BIN="$REPO/.build/debug/agent-hook"
 
 # --- 2. the app -------------------------------------------------------------
 hdr "App"
@@ -149,6 +149,16 @@ else
   bad "socket at $SOCK doesn't accept (stale socket? restart Boop)"
   exit 1
 fi
+# agent-hook sends to every socket listed in agent-hooks' folder, and the
+# everyday Boop lists its own there as a link (ADAPTERS.md §2).
+if [ $HEADLESS -eq 0 ]; then
+  listed="${AGENT_HOOKS_DIR:-$HOME/.agent-hooks}/sockets/boop.sock"
+  if [ "$(readlink "$listed" 2>/dev/null)" = "$SOCK" ]; then
+    ok "listed for agent-hook at $listed"
+  else
+    bad "$listed doesn't lead to $SOCK, so hooks never reach Boop; Boop lists it when it starts, so ask the owner to restart it"
+  fi
+fi
 
 # --- 3. synthetic round trip ------------------------------------------------
 hdr "Round trip"
@@ -158,9 +168,9 @@ size=0; [ -f "$LOG" ] && size=$(wc -c < "$LOG" | tr -d ' ')
 echo "$size" > "$ARM"
 session="doctor-$$"
 printf '{"hook_event_name":"SessionEnd","session_id":"%s","cwd":"/tmp"}' "$session" \
-  | BOOP_SOCKET="$SOCK" "$HOOK_BIN" claude
+  | AGENT_HOOKS_SOCKET="$SOCK" "$HOOK_BIN" claude
 code=$?
-[ $code -eq 0 ] && ok "boop-hook exited 0" || bad "boop-hook exited $code"
+[ $code -eq 0 ] && ok "agent-hook exited 0" || bad "agent-hook exited $code"
 seen=0
 for _ in $(seq 20); do grep -q "hook: claude SessionEnd $session" "$LOG" 2>/dev/null && { seen=1; break; }; sleep 0.1; done
 [ $seen -eq 1 ] && ok "the app received the synthetic event" || bad "the app didn't log the synthetic event (is $LOG this app's log?)"

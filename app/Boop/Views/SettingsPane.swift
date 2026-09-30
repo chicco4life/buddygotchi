@@ -1,3 +1,4 @@
+import AgentHooks
 import BoopKit
 import SwiftUI
 
@@ -101,7 +102,7 @@ struct SettingsPane: View {
             case .installed?: ("Connected", Theme.sageInk)
             case .outdated?: ("Needs a repair", Theme.clayInk)
             case .unreadable(let why)?: ("Can't read its settings: \(why)", Theme.clayInk)
-            case .clientMissing?: ("boop-hook isn't built. Run make build, then restart Boop.", Theme.clayInk)
+            case .clientMissing?: ("agent-hook isn't built. Run make build, then restart Boop.", Theme.clayInk)
             case .hooksOff(let file)?: ("Its hooks are turned off in \((file as NSString).abbreviatingWithTildeInPath)", Theme.clayInk)
             default: ("Not connected", Theme.inkSoft)
             }

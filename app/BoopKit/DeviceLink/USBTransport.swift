@@ -1,6 +1,6 @@
+import AgentHooks
 import Darwin
 import Foundation
-import HookWire
 
 /// The device over USB, through `boopctl bridge`'s Unix socket
 /// (VERIFICATION.md §2, L4). The bridge owns the serial port and passes lines
