@@ -78,7 +78,7 @@ make -C internal test                                 # Swift unit tests: Boop's
   That build now and then fails with "plugin for module 'TestingMacros'
   not found", a toolchain flake, even from a clean build folder; it
   passes when run again, so the target tries that failure alone again, up
-  to four times (five tries in all). LinkKit's device library has no
+  to seven times (eight tries in all). LinkKit's device library has no
   Swift: its own tests (`linkkit/device/test/`) run after the firmware's
   in `make -C internal fw-test`.
 - Command Line Tools lack some Swift macro plugins, so SwiftUI's `@State`

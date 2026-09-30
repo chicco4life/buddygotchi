@@ -13,18 +13,19 @@ PIO := firmware/tools/pio.sh
 # and linkkit, which use Swift Testing and so run under `swift test`, each
 # in a build folder of its own. That build now and then fails with "plugin
 # for module 'TestingMacros' not found", a toolchain flake that passes
-# when run again, so that failure alone is tried again, up to four times.
+# when run again, so that failure alone is tried again, up to seven times
+# (it has failed five times running for one package).
 SWIFT_PACKAGES := agent-hooks jharness linkkit
 
 test: voice
 	$(MAKE) -C $(ROOT) build
 	cd $(ROOT) && .build/debug/BoopTests
 	for pkg in $(SWIFT_PACKAGES); do \
-	  cd $(ROOT)/$$pkg && mkdir -p .build && for try in 1 2 3 4 5; do \
+	  cd $(ROOT)/$$pkg && mkdir -p .build && for try in 1 2 3 4 5 6 7 8; do \
 	    swift test --scratch-path .build/tests > .build/test.log 2>&1; status=$$?; cat .build/test.log; \
 	    [ $$status -eq 0 ] && break; \
 	    grep -q "plugin for module 'TestingMacros' not found" .build/test.log || exit $$status; \
-	    [ $$try -eq 5 ] && exit 1; \
+	    [ $$try -eq 8 ] && exit 1; \
 	    echo "$$pkg: the TestingMacros flake; trying again"; \
 	  done; \
 	done
