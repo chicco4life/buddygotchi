@@ -1,8 +1,9 @@
 """boopctl e2e's order check (plan/VERIFICATION.md L4) on a made-up app
-log: a brain moment comes after the rules' reaction, and the device's
-`ended` says whether a newer moment cut it short: the brain's next one
-mustn't, a rule's one-shot may. And e2e and soak --pipeline when the run
-can't start. Needs no board or app."""
+log: a brain reaction comes after the rules' reaction, and the device's
+`ended` says how it went: waiting its turn behind another's line, or being
+skipped for waiting too long, is fine; being cut short by the brain's own
+next request, or a name the device doesn't play, isn't. And e2e and soak
+--pipeline when the run can't start. Needs no board or app."""
 import contextlib
 import io
 import json
@@ -18,19 +19,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from boopctl_lib import e2e  # noqa: E402
 from boopctl_lib.device import DeviceError  # noqa: E402
 
+# The app's boop.log lines as the Mac writes them (`link brain|rules → <line>`,
+# `device: do N ended HOW (WHY)`), with the vocabulary's `do` lines.
 LOG = """\
 10:00:00.000 hook: claude UserPromptSubmit
 10:00:00.001 link rules → {"t":"state","base":"working","mood":"calm"}
-10:00:00.002 link brain → {"t":"moment","say":{"take":"new.d03"},"mood":"excited","loops":1,"id":7}
+10:00:00.001 link rules → {"t":"do","id":6,"name":"starting","play":"if_free","args":{"variant":3,"ctx":"new_task"}}
+10:00:00.002 link brain → {"t":"do","id":7,"name":"react","play":"next","ttl":5000,"args":{"say":{"take":"new.d03"},"mood":"excited","loops":1}}
+10:00:00.100 device: do 6 ended done
 10:00:02.000 hook: claude Stop
 10:00:02.001 link rules → {"t":"state","base":"idle","mood":"calm"}
-10:00:02.002 link brain → {"t":"moment","anim":"task_complete","outcome":"success","mood":"proud","loops":1,"id":8}
-10:00:02.100 device: moment 7 ended done
-10:00:03.000 link brain → {"t":"moment","say":{"take":"new.d03"},"mood":"calm","loops":1,"id":9}
-10:00:03.100 device: moment 8 ended cut (moment)
+10:00:02.002 link brain → {"t":"do","id":8,"name":"task_complete","play":"next","ttl":5000,"args":{"outcome":"success","mood":"proud","loops":1}}
+10:00:02.100 device: do 7 ended done
+10:00:03.000 link brain → {"t":"do","id":9,"name":"react","play":"next","ttl":5000,"args":{"say":{"take":"new.d03"},"mood":"calm","loops":1}}
+10:00:03.100 device: do 8 ended done
 10:00:04.000 hook: claude UserPromptSubmit
-10:00:04.001 link rules → {"t":"moment","anim":"starting"}
-10:00:04.100 device: moment 9 ended cut (moment)
+10:00:04.001 link rules → {"t":"do","id":10,"name":"listening","play":"now"}
+10:00:04.001 device: do 9 ended cut (now)
+10:00:04.500 device: do 10 ended done
 """
 
 
@@ -46,31 +52,61 @@ class Recorder(SimpleNamespace):
 
 
 class OrderTests(unittest.TestCase):
-    def test_each_brain_moment_after_the_rules_reaction_with_how_it_ended(self):
-        moments = e2e.order(LOG)
-        self.assertEqual([m["id"] for m in moments], [7, 8, 9])
-        self.assertEqual([m["moment"] for m in moments], ["line", "task_complete", "line"])
-        self.assertEqual([m["after_reaction_ms"] for m in moments], [1, 1, 999])
-        self.assertEqual([m["ended"] for m in moments], ["done", "cut (moment)", "cut (moment)"])
-        self.assertEqual([m["next_by"] for m in moments], ["brain", "brain", "rules"])
+    def test_each_brain_reaction_after_the_rules_reaction_with_how_it_ended(self):
+        reactions = e2e.order(LOG)
+        self.assertEqual([m["id"] for m in reactions], [7, 8, 9], "the brain's only")
+        self.assertEqual([m["moment"] for m in reactions], ["line", "task_complete", "line"])
+        self.assertEqual([m["after_reaction_ms"] for m in reactions], [1, 1, 999])
+        self.assertEqual([m["ended"] for m in reactions], ["done", "done", "cut (now)"])
+        self.assertEqual([m["next_by"] for m in reactions], ["brain", "brain", "rules"])
+        self.assertEqual([m["now_by"] for m in reactions], ["rules", "rules", "rules"], "the next `now` was listening")
 
-    def test_the_brain_cutting_its_own_moment_short_fails_and_a_rules_one_shot_doesnt(self):
+    def test_a_rules_now_may_cut_the_brain_short(self):
         run = Recorder(LOG)
         result = e2e.check_order(run)
-        self.assertEqual((result["early"], result["unended"]), (0, 0))
-        self.assertEqual(result["cut_by_newer"], ["10:00:02.002 task_complete (8) by brain",
-                                                  "10:00:03.000 line (9) by rules"])
+        self.assertEqual((result["early"], result["unended"], result["skipped"]), (0, 0, 0))
+        self.assertEqual(result["cut_by_newer"], ["10:00:03.000 line (9) by rules"])
+        self.assertEqual(run.failed, [])
+
+    def test_waiting_behind_another_and_being_refused_are_fine(self):
+        """The device queues the brain's reactions (linkkit/SPEC.md §4): one
+        that waited past its ttl behind another's line, or that the device
+        refused while something needed you, is no failure."""
+        log = LOG.replace("device: do 8 ended done", "device: do 8 ended skipped (late)").replace(
+            "device: do 9 ended cut (now)", "device: do 9 ended skipped (needs_you)")
+        run = Recorder(log)
+        result = e2e.check_order(run)
+        self.assertEqual((result["skipped"], result["cut_by_newer"], result["odd_ends"]), (2, [], []))
+        self.assertEqual(run.failed, [])
+        for how in ("skipped (busy)", "skipped (full)", "skipped (listening)", "skipped (not_listening)", "skipped",
+                    "cut (tap)", "cut (needs_you)", "cut (reset)", "skipped (reset)", "skipped (no_app)",
+                    "skipped (nothing)"):
+            with self.subTest(how):
+                run = Recorder(LOG.replace("device: do 8 ended done", f"device: do 8 ended {how}"))
+                e2e.check_order(run)
+                self.assertEqual(run.failed, [])
+
+    def test_the_brain_cutting_its_own_short_or_an_unknown_name_fails(self):
+        mine = LOG.replace('{"t":"do","id":9,"name":"react","play":"next","ttl":5000,',
+                           '{"t":"do","id":9,"name":"react","play":"now",').replace(
+            "device: do 8 ended done", "device: do 8 ended cut (now)")
+        run = Recorder(mine)
+        self.assertEqual(e2e.check_order(run)["cut_by_newer"], ["10:00:02.002 task_complete (8) by brain",
+                                                                "10:00:03.000 line (9) by rules"])
         self.assertEqual(len(run.failed), 1)
         self.assertIn("cut short by the brain's next one", run.failed[0])
+        run = Recorder(LOG.replace("device: do 7 ended done", "device: do 7 ended skipped (unknown)"))
+        self.assertEqual(e2e.check_order(run)["odd_ends"], ["10:00:00.002 line (7) skipped (unknown)"])
+        self.assertEqual(len(run.failed), 1)
 
-    def test_a_moment_never_ended_fails(self):
-        run = Recorder(LOG.split("10:00:04.100")[0])
+    def test_a_reaction_never_ended_fails(self):
+        run = Recorder(LOG.split("10:00:04.001 device")[0])
         self.assertEqual(e2e.check_order(run)["unended"], 1)
         self.assertTrue(any("never got the device's `ended`" in f for f in run.failed))
 
-    def test_a_moment_before_any_rules_reaction_is_early(self):
-        run = Recorder('10:00:00.000 link brain → {"t":"moment","say":{"take":"new.d03"},"mood":"calm","id":1}\n'
-                       "10:00:01.000 device: moment 1 ended done\n")
+    def test_a_reaction_before_any_rules_reaction_is_early(self):
+        run = Recorder('10:00:00.000 link brain → {"t":"do","id":1,"name":"react","play":"next","args":{"mood":"calm"}}\n'
+                       "10:00:01.000 device: do 1 ended done\n")
         self.assertEqual(e2e.check_order(run)["early"], 1)
         self.assertEqual(len(run.failed), 1)
 

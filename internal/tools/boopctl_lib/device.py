@@ -68,8 +68,8 @@ class Link:
     retries = 0
     on_retry: Callable[[Exception], None] | None = None
     # Hears every message read while waiting for another, such as the
-    # board's `ended` and `input`, which come unasked, and each line that
-    # arrived torn, as {"t": "torn"}.
+    # board's `hello` and `ev` (a tap, a request `ended`), which come
+    # unasked, and each line that arrived torn, as {"t": "torn"}.
     heard: Callable[[dict[str, Any]], None] | None = None
 
     def __init__(self) -> None:
@@ -193,6 +193,7 @@ class Sim(Link):
         if self._proc:
             self._proc.stdin.close()  # type: ignore[union-attr]
             self._proc.wait(timeout=5)
+            self._proc.stdout.close()  # type: ignore[union-attr]
 
     def _write(self, data: bytes) -> None:
         assert self._proc and self._proc.stdin

@@ -8,7 +8,7 @@
 #include <cstdio>
 #include <vector>
 
-#include "app/codec.h"
+#include "linkkit/codec.h"
 #include "frames.h"
 #include "render/palette.h"
 #include "render/scene.h"
@@ -66,7 +66,7 @@ static void test_every_scene_matches_facegen() {
   int failed = 0;
   for (const FacegenFrame& f : kFacegenFrames) {
     b.draw(show(Mood(f.mood), SceneState(f.state), f.t, f.variant));
-    uint32_t crc = app::crc32(b.px.data(), b.px.size());
+    uint32_t crc = linkkit::crc32(b.px.data(), b.px.size());
     if (crc != f.crc) {
       char msg[64];
       std::snprintf(msg, sizeof msg, "mood %d state %d variant %d at %u ms", f.mood, f.state, f.variant + 1,

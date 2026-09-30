@@ -1,10 +1,10 @@
-// Encoding helpers for the screenshot and the voice pack's copy over USB:
-// CRC-32 and base64 both ways. Pure C++.
+// Encoding helpers for dbg.shot's picture and for apps' own debug
+// messages: CRC-32 and base64 both ways. Pure C++.
 #pragma once
 #include <cstddef>
 #include <cstdint>
 
-namespace app {
+namespace linkkit {
 
 // CRC-32 (IEEE 802.3, as zlib.crc32). Pass the previous result to continue.
 uint32_t crc32(const uint8_t* data, size_t n, uint32_t crc = 0);
@@ -33,4 +33,4 @@ class Base64Writer {
   size_t nout_ = 0;
 };
 
-}  // namespace app
+}  // namespace linkkit

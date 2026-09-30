@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from boopctl_lib.common import RULE_ONE_SHOTS, Take, take
+from boopctl_lib.common import RULE_ONE_SHOTS, Take, call, take
 from boopctl_lib.device import DeviceError
 
 Line = dict[str, Any]
@@ -73,10 +73,11 @@ def kind(line: Line) -> str:
 
 def sent_by(line: Line) -> str:
     """Who a `sent` line's message is from: `brain` for the brain's
-    moments, `rule` for everything the rules send."""
+    reactions, `rule` for everything the rules send."""
     if "by" in line:
         return line["by"]
-    # Logs from before `by`: a reaction's moment has its face; a reflex's doesn't.
+    # Logs from before `by` (and before `do`): a reaction's moment has its
+    # face; a reflex's doesn't.
     msg = line.get("sent") or {}
     return "brain" if msg.get("t") == "moment" and msg.get("mood") else "rule"
 
@@ -87,11 +88,11 @@ def view_name(view: Line) -> str:
 
 
 def _as_action(event: Line) -> tuple[str, str | None, Line] | None:
-    """An action as (name, phase, data): the kit's `did` (its start while
-    `open`) and `ended` (kit/BRAIN-KIT.md §2.2), and "needs you"
+    """An action as (name, phase, data): the harness's `did` (its start
+    while `open`) and `ended` (jharness/SPEC.md §2.2), and "needs you"
     (`needs_you_start`, `needs_you_end`), harness/EVENTS.md §2; or, in logs
-    from before the brain kit, an event of type `action`. None for any
-    other event."""
+    from before JHarness, an event of type `action`. None for any other
+    event."""
     data = event.get("data", {})
     k = event.get("kind")
     if k == "did":
@@ -208,11 +209,12 @@ class Board:
                 # A pass carries HISTORY and NOW; older logs' carry the whole state.
                 self.jev_state = self.head + body["state"]
             self._pass(body, seq, at)
-            if body.get("brain"):
+            if body.get("brain") and not body.get("held"):
+                # A held pass never asked the brain: its 0 ms says nothing of it.
                 self.latency_ms = body.get("latency_ms")
             who = body.get("brain") or f"forced by {body.get('by')}"
             if body.get("held"):
-                # Held back when its turn came: the brain wasn't asked (kit/BRAIN-KIT.md §9).
+                # Held back when its turn came: the brain wasn't asked (jharness/SPEC.md §9).
                 return "dim", f"  pass {who} for {body.get('for')}: held: {body['held']}"
             if body.get("dropped"):
                 self.dropped += 1
@@ -254,23 +256,33 @@ class Board:
             before, self.state = self.state, msg
             self._state_changed(before, msg, at)
             return None if unchanged else ("sent", "→ state " + state_text(msg))
-        if msg.get("t") == "moment":
+        if c := call(msg):
             if by == "rule":
-                if msg.get("anim") in RULE_ONE_SHOTS:
+                what = None
+                if c["anim"] in RULE_ONE_SHOTS:
                     # The rules' one-shots (BEHAVIORS.md §3.1): the view event
                     # recorded right after names what set it off.
-                    fact = msg.get("ctx") or msg.get("outcome")
-                    self.reflexes.append({"at": at, "what": msg["anim"] + (f" ({fact})" if fact else ""),
-                                          "anim": True, "rule": True, "trigger": None})
-                elif msg.get("anim"):
-                    loops = f", loops {msg['loops']}" if msg.get("loops") else ""
-                    self.reflexes.append({"at": at, "what": msg["anim"] + loops, "anim": True, "trigger": None})
-                elif msg.get("say"):
-                    self.reflexes.append({"at": at, "what": "working chatter " + say_text(msg["say"]),
-                                          "trigger": "an agent is working"})
-                self._reflex = (at, self.reflexes[-1]["what"])
-            parts = ([msg["anim"]] if msg.get("anim") else []) + (["say " + say_text(msg["say"])] if msg.get("say") else [])
-            return "sent", "→ moment " + " + ".join(parts)
+                    fact = c.get("ctx") or c.get("outcome")
+                    what = c["anim"] + (f" ({fact})" if fact else "")
+                    self.reflexes.append({"at": at, "what": what, "anim": True, "rule": True, "trigger": None})
+                elif c["anim"] == "listening":
+                    # The Mac's Talk button; BOOT's push-to-talk the device
+                    # starts itself.
+                    what = "listening"
+                    self.reflexes.append({"at": at, "what": what, "trigger": "you pressed Talk on the Mac"})
+                elif c["anim"]:
+                    what = c["anim"] + (f", loops {c['loops']}" if c.get("loops") else "")
+                    self.reflexes.append({"at": at, "what": what, "anim": True, "trigger": None})
+                elif c.get("say"):
+                    # Older logs: the rules' chatter while an agent worked.
+                    what = "working chatter " + say_text(c["say"])
+                    self.reflexes.append({"at": at, "what": what, "trigger": "an agent is working"})
+                if what:  # not the end of push-to-talk, which shows nothing
+                    self._reflex = (at, what)
+            if msg.get("t") == "moment":  # logs from before `do`
+                parts = ([c["anim"]] if c["anim"] else []) + (["say " + say_text(c["say"])] if c.get("say") else [])
+                return "sent", "→ moment " + " + ".join(parts)
+            return "sent", f"→ do {c['name']}" + (f" + say {say_text(c['say'])}" if c.get("say") else "")
         return "sent", "→ " + json.dumps(msg)
 
     def _state_changed(self, before: Line | None, now: Line, at: int) -> None:
@@ -504,7 +516,7 @@ def picks_text(p: Line) -> str:
     """The face, its finish, what its line means (an older log's words in
     quotes) and its hold, each with its probability: `proud 0.82 · success
     0.90 · glad 0.71 · three times 0.64`. What the line said is the
-    moment's (`said`): Voice picks a take of that meaning."""
+    reaction's takes (`said`): Voice picks a take of that meaning."""
     parts = [f"{choice(p, FACE)} {prob(p, FACE):.2f}"]
     if finish(p):
         parts.append(f"{finish(p)} {prob(p, 'react.animation'):.2f}")

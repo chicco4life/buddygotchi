@@ -1,5 +1,6 @@
-// The device core's debug channel and inputs, through the same Hal the
-// simulator uses.
+// Boop on LinkKit, line in and line out: its vocabulary (plan/PROTOCOL.md),
+// its rules for the turn, the debug channel and inputs, through the same
+// Hal the simulator uses.
 #include <unity.h>
 
 #include "../../pack_file.h"
@@ -10,7 +11,8 @@
 #include <vector>
 
 #include "app/device.h"
-#include "app/line_reader.h"
+#include "linkkit/kit.h"
+#include "linkkit/line_reader.h"
 #include "render/palette.h"
 #include "render/scene.h"
 
@@ -46,9 +48,11 @@ struct FakeHal : app::Hal {
   app::TouchCal cal;
   void setTouchCal(const app::TouchCal& c) override { cal = c; }
   app::TouchCal touchCal() override { return cal; }
+  bool packOk = false;  // dbg.card's `end` swaps a pack in
+  bool packEnd(uint32_t, uint32_t, const char*& why) override { return why = "no card", packOk; }
 };
 
-struct Capture : app::Out {
+struct Capture : linkkit::Out {
   std::string text;
   void write(const char* s, size_t n) override { text.append(s, n); }
 };
@@ -57,16 +61,18 @@ struct Rig {
   FakeHal hal;
   Capture usb, ble;
   std::vector<uint8_t> px = std::vector<uint8_t>(size_t(render::kWidth) * render::kHeight);
-  app::Device dev{hal, px.data(), true};
+  app::Device dev{hal, px.data()};
+  linkkit::Kit kit{hal, dev, true};
   Rig() {
-    dev.setOut(app::Link::kUsb, &usb);
-    dev.setOut(app::Link::kBle, &ble);
-    dev.tick();
+    kit.setOut(linkkit::Link::kUsb, &usb);
+    kit.setOut(linkkit::Link::kBle, &ble);
+    kit.tick();
   }
   void usbLine(const char* s) {
-    dev.handleLine(s, std::strlen(s), app::Link::kUsb);
-    dev.tick();
+    kit.handleLine(s, std::strlen(s), linkkit::Link::kUsb);
+    kit.tick();
   }
+  void bleLine(const char* s) { kit.handleLine(s, std::strlen(s), linkkit::Link::kBle); }
   // A pixel of the frame the board would push.
   uint8_t at(int x, int y) const { return px[size_t(y) * render::kWidth + x]; }
   // What's on the screen, as dbg.state says.
@@ -78,6 +84,7 @@ struct Rig {
 };
 
 bool has(const std::string& s, const char* needle) { return s.find(needle) != std::string::npos; }
+bool has(const std::string& s, const std::string& needle) { return s.find(needle) != std::string::npos; }
 
 // Runs the frozen clock from `from` to `to` in 10 ms steps, ticking each.
 void runClock(Rig& r, uint32_t from, uint32_t to) {
@@ -222,7 +229,7 @@ static void test_pattern_target_draws_a_cross() {
 
 static void test_debug_is_ignored_over_ble() {
   Rig r;
-  r.dev.handleLine("{\"t\":\"dbg.ping\"}", 16, app::Link::kBle);
+  r.kit.handleLine("{\"t\":\"dbg.ping\"}", 16, linkkit::Link::kBle);
   TEST_ASSERT_TRUE(r.ble.text.empty());
 }
 
@@ -232,42 +239,64 @@ static int count(const std::string& s, const char* needle) {
   return n;
 }
 
-// PROTOCOL.md §4–5: status on connect and every 60 s, on the Mac's link.
-static void test_status_on_connect_and_every_minute() {
+// PROTOCOL.md §4 (linkkit/SPEC.md §3, §5): Boop's hello, sent in answer
+// to the Mac's first line on a link, not at connect, then every 60 s on
+// the Mac's link. It names the voice pack on its card, which the Mac
+// checks (VOICE.md §8), and fits in one line.
+static void test_hello_on_the_first_line_and_every_minute() {
   Rig r;
   r.hal.real = 1000;
-  r.dev.connected();
-  // It names the voice pack on its card, which the Mac checks (VOICE.md §8).
-  std::string status = std::string("{\"t\":\"status\",\"id\":\"b00p-0000\",\"fw\":\"t\",\"voice\":\"") +
-                       voice::assetsVersion() + "\"}\n";
+  r.kit.connected();
+  TEST_ASSERT_FALSE(has(r.ble.text, "\"hello\""));  // nothing at connect
+  r.bleLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  std::string hello = std::string(
+                          "{\"t\":\"hello\",\"kit\":1,\"app\":\"boop\",\"id\":\"b00p-0000\",\"fw\":\"t\",\"does\":["
+                          "\"react\",\"task_complete\",\"reply_ready\",\"starting\",\"stopped\",\"error\",\"helper_return\","
+                          "\"listening\",\"stop_listening\",\"poked\",\"tap_spam\"],\"voice\":\"") +
+                      voice::assetsVersion() + "\"}\n";
   TEST_ASSERT_EQUAL(12, int(std::strlen(voice::assetsVersion())));
-  TEST_ASSERT_TRUE(has(r.ble.text, status.c_str()));
-  r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);
+  TEST_ASSERT_EQUAL_STRING(hello.c_str(), r.ble.text.c_str());
+  TEST_ASSERT_TRUE(hello.size() - 1 <= linkkit::kMaxLine);
+  TEST_ASSERT_EQUAL(int(hello.size() - 1), int(r.kit.helloLength()));  // so it goes whole
   r.hal.real = 60999;
-  r.dev.tick();
-  TEST_ASSERT_EQUAL_INT(1, count(r.ble.text, "\"status\""));
+  r.kit.tick();
+  TEST_ASSERT_EQUAL_INT(1, count(r.ble.text, "\"hello\""));
   r.hal.real = 61000;
-  r.dev.tick();
-  TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, "\"status\""));
+  r.kit.tick();
+  TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, "\"hello\""));
   // Input goes to the Mac on Bluetooth; nothing leaks onto USB.
   r.hal.boot = true;
-  r.dev.tick();
+  r.kit.tick();
   r.hal.boot = false;
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
-  TEST_ASSERT_TRUE(has(r.ble.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
-  TEST_ASSERT_FALSE(has(r.usb.text, "\"input\""));
-  TEST_ASSERT_FALSE(has(r.usb.text, "\"status\""));
-  r.dev.disconnected();
+  TEST_ASSERT_TRUE(has(r.ble.text, "{\"t\":\"ev\",\"kind\":\"tap\",\"did\":\"poked\"}\n"));
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"kind\":\"tap\""));
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"hello\""));
+  r.kit.disconnected();
   r.hal.real = 200000;
-  r.dev.tick();
-  TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, "\"status\""));
+  r.kit.tick();
+  TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, "\"hello\""));
   r.usbLine("{\"t\":\"dbg.ping\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"link\":\"none\""));
   TEST_ASSERT_TRUE(has(r.usb.text, "\"ble\":\"off\""));
 }
 
+// PROTOCOL.md §4: a new voice pack on the card changes hello's `voice`,
+// so hello goes again, on the Mac's link.
+static void test_hello_again_when_the_pack_changes() {
+  Rig r;
+  r.hal.packOk = true;
+  r.kit.connected();
+  r.bleLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  TEST_ASSERT_EQUAL_INT(1, count(r.ble.text, "\"hello\""));
+  r.usbLine("{\"t\":\"dbg.card\",\"op\":\"end\",\"size\":0,\"crc\":0}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"dbg.card\",\"op\":\"end\",\"ok\":true,"));
+  TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, "\"hello\""));
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"hello\""));  // the tool isn't the Mac
+}
+
 // PROTOCOL.md §4: a real press goes to every live Mac link. A tool's
-// moment over USB while the app is on Bluetooth (boopctl takes) doesn't
+// do over USB while the app is on Bluetooth (boopctl takes) doesn't
 // take the taps away from the app; USB gets a copy while
 // the Mac spoke there in the last 30 s.
 static void test_input_reaches_every_live_link() {
@@ -279,22 +308,23 @@ static void test_input_reaches_every_live_link() {
   auto press = [&](int ms, int every) {  // BOOT, held for `ms`
     step(50);  // past BOOT's debounce
     r.hal.boot = true;
-    r.dev.tick();
+    r.kit.tick();
     for (int at = every; at <= ms; at += every) step(every);
     r.hal.boot = false;
     step(every);
   };
-  const char* tap = "{\"t\":\"input\",\"k\":\"tap\"}";
-  const char* talkOn = "{\"t\":\"input\",\"k\":\"talk_on\"}";
-  const char* talkOff = "{\"t\":\"input\",\"k\":\"talk_off\"}";
-  r.dev.connected();
-  r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);
+  const char* tap = "{\"t\":\"ev\",\"kind\":\"tap\",";  // with what it did
+  const char* talkOn = "{\"t\":\"ev\",\"kind\":\"talk_on\",\"did\":\"listening\"}\n";
+  const char* talkOff = "{\"t\":\"ev\",\"kind\":\"talk_off\"}\n";
+  r.kit.connected();
+  r.bleLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.hal.real = 1000;
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}");
   press(100, 100);  // a tap
   press(800, 500);  // a hold: push-to-talk, and no tap
   for (const std::string* out : {&r.ble.text, &r.usb.text}) {
     TEST_ASSERT_EQUAL_INT(1, count(*out, tap));
+    TEST_ASSERT_EQUAL_INT(1, count(*out, "{\"t\":\"ev\",\"kind\":\"tap\",\"did\":\"poked\"}\n"));
     TEST_ASSERT_EQUAL_INT(1, count(*out, talkOn));
     TEST_ASSERT_EQUAL_INT(1, count(*out, talkOff));
   }
@@ -303,8 +333,10 @@ static void test_input_reaches_every_live_link() {
   press(100, 100);
   TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, tap));
   TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, tap));
+  // Listening still waits for the reply, so that tap only dipped the face.
+  TEST_ASSERT_TRUE(has(r.ble.text, "{\"t\":\"ev\",\"kind\":\"tap\",\"did\":\"dip\"}\n"));
   // Disconnected, Bluetooth hears nothing more.
-  r.dev.disconnected();
+  r.kit.disconnected();
   press(100, 100);
   TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, tap));
 }
@@ -315,73 +347,80 @@ static void test_input_reaches_every_live_link() {
 // held dbg.press is push-to-talk on USB alone.
 static void test_injected_input_stays_on_usb() {
   Rig r;
-  r.dev.connected();
-  r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);
+  const char* tap = "{\"t\":\"ev\",\"kind\":\"tap\",";
+  r.kit.connected();
+  r.bleLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.usbLine("{\"t\":\"dbg.reset\"}");
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.usbLine("{\"t\":\"dbg.press\",\"ms\":800}");
   for (int ms = 0; ms <= 900; ms += 10) r.usbLine("{\"t\":\"dbg.clock\",\"step\":10}");
-  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_on\"}"));
-  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_off\"}"));
-  r.usbLine("{\"t\":\"moment\"}");  // the empty moment: the tool's reply
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"ev\",\"kind\":\"talk_on\",\"did\":\"listening\"}\n"));
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"ev\",\"kind\":\"talk_off\"}\n"));
+  r.usbLine("{\"t\":\"do\",\"name\":\"stop_listening\",\"play\":\"now\"}");  // the tool's reply
   r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":100}");
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":200}");
-  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
-  TEST_ASSERT_FALSE(has(r.ble.text, "\"input\""));
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, tap));
+  TEST_ASSERT_FALSE(has(r.ble.text, "\"kind\":\"t"));  // no tap, talk_on or talk_off
   // With only dbg.* traffic from the tool, too.
   r.hal.real = 60000;
   r.usbLine("{\"t\":\"dbg.press\",\"ms\":100}");
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":200}");
-  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
-  TEST_ASSERT_FALSE(has(r.ble.text, "\"input\""));
+  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, tap));
+  TEST_ASSERT_FALSE(has(r.ble.text, "\"kind\":\"t"));
 }
 
-// USB has no connect event: the Mac's first word, or its first after 30 s
-// of silence, counts as connecting.
-static void test_usb_status_when_the_mac_first_speaks() {
+// linkkit/SPEC.md §5: USB has no connect event: the Mac's first word, or
+// its first after 30 s of silence, gets a hello; and so does the Mac's own
+// hello, which it sends first on every connect, so a Mac relaunched within
+// the 30 s hears one too.
+static void test_usb_hello_when_the_mac_first_speaks() {
   Rig r;
   r.usbLine("{\"t\":\"dbg.ping\"}");
-  TEST_ASSERT_FALSE(has(r.usb.text, "\"status\""));  // tools don't count
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"hello\""));  // tools don't count
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "\"status\""));
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "\"hello\""));
   r.hal.real = 20000;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "\"status\""));
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "\"hello\""));
   r.hal.real = 50000;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "\"status\""));
+  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "\"hello\""));
+  r.hal.real = 55000;  // the app relaunched: hello, then its state
+  r.usbLine("{\"t\":\"hello\"}");
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  TEST_ASSERT_EQUAL_INT(3, count(r.usb.text, "{\"t\":\"hello\",\"kit\":1,\"app\":\"boop\","));
 }
 
 // PROTOCOL.md §2, "Reconnecting": a Bluetooth link with no line from the
 // Mac for 30 s is dropped, and if that didn't take, dropped again 30 s
 // later. USB has no connection to let go, so only Bluetooth is checked.
 static void test_a_quiet_link_is_dropped_after_30_s() {
-  TEST_ASSERT_EQUAL_UINT32(30000, app::Behaviour::kNoAppMs);
+  TEST_ASSERT_EQUAL_UINT32(30000, linkkit::kHostGoneMs);
   Rig r;
-  TEST_ASSERT_FALSE(r.dev.shouldDropBle());  // not connected
+  TEST_ASSERT_FALSE(r.kit.shouldDrop());  // not connected
   r.hal.real = 1000;
-  r.dev.connected();
+  r.kit.connected();
   r.hal.real = 30999;
-  TEST_ASSERT_FALSE(r.dev.shouldDropBle());
+  TEST_ASSERT_FALSE(r.kit.shouldDrop());
   r.hal.real = 20000;
-  r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);  // the Mac's 10 s keepalive
+  r.bleLine("{\"t\":\"state\",\"base\":\"idle\"}");  // the Mac's 10 s keepalive
   r.hal.real = 49999;
-  TEST_ASSERT_FALSE(r.dev.shouldDropBle());
+  TEST_ASSERT_FALSE(r.kit.shouldDrop());
   r.hal.real = 50000;
-  TEST_ASSERT_TRUE(r.dev.shouldDropBle());
+  TEST_ASSERT_TRUE(r.kit.shouldDrop());
   r.hal.real = 50001;
-  TEST_ASSERT_FALSE(r.dev.shouldDropBle());
+  TEST_ASSERT_FALSE(r.kit.shouldDrop());
   r.hal.real = 80000;
-  TEST_ASSERT_TRUE(r.dev.shouldDropBle());
-  r.dev.disconnected();
+  TEST_ASSERT_TRUE(r.kit.shouldDrop());
+  r.kit.disconnected();
   r.hal.real = 200000;
-  TEST_ASSERT_FALSE(r.dev.shouldDropBle());
+  TEST_ASSERT_FALSE(r.kit.shouldDrop());
   r.hal.real = 0xFFFFF000u;  // millis() wraps
-  r.dev.connected();
+  r.kit.connected();
   r.hal.real = 0x00001000u;
-  TEST_ASSERT_FALSE(r.dev.shouldDropBle());
+  TEST_ASSERT_FALSE(r.kit.shouldDrop());
   r.hal.real = 0xFFFFF000u + 30000;
-  TEST_ASSERT_TRUE(r.dev.shouldDropBle());
+  TEST_ASSERT_TRUE(r.kit.shouldDrop());
 }
 
 static void test_pattern_until_next_state() {
@@ -422,20 +461,21 @@ static void test_injected_tap_reaches_the_mac() {
   r.usbLine("{\"t\":\"state\"}");  // the Mac is on USB
   r.usbLine("{\"t\":\"dbg.press\",\"ms\":100}");
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"tap\",\"did\":\"poked\"}\n"));
 }
 
 // PROTOCOL.md §4: a tap while the brain's finish names whose turn it was
-// carries that moment's id, the thread the Mac opens; the finish plays on.
+// only dips the face and carries that call's id, the thread the Mac
+// opens; the finish plays on.
 static void test_a_tap_on_a_named_finish_carries_its_id() {
   Rig r;
   r.usbLine("{\"t\":\"state\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"task_complete\",\"outcome\":\"success\",\"id\":42,"
-            "\"who\":{\"agent\":\"claude\",\"thread\":\"fix-nav\"}}");
+  r.usbLine("{\"t\":\"do\",\"id\":42,\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\","
+            "\"who\":{\"agent\":\"claude\",\"thread\":\"fix-nav\"}}}");
   r.usbLine("{\"t\":\"dbg.press\",\"ms\":100}");
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\",\"id\":42}"));
-  TEST_ASSERT_FALSE(has(r.usb.text, "\"ended\""));  // not cut
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"tap\",\"did\":\"dip\",\"data\":{\"on\":42}}\n"));
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"kind\":\"ended\""));  // not cut
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"anim\":\"task_complete\""));
@@ -449,27 +489,27 @@ static void test_a_flickering_touch_is_one_tap() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
-  const char* tap = "{\"t\":\"input\",\"k\":\"tap\"}";
+  const char* tap = "{\"t\":\"ev\",\"kind\":\"tap\",";
   for (uint32_t ms = 0; ms < 300; ms += 2) {  // 10 ms in contact, 10 ms not; last contact at 288
     r.hal.real = ms;
     r.hal.touching = ms / 10 % 2 == 0;
-    r.dev.tick();
+    r.kit.tick();
   }
   r.hal.touching = false;
   r.hal.real = 337;
-  r.dev.tick();
+  r.kit.tick();
   TEST_ASSERT_EQUAL_INT(0, count(r.usb.text, tap));
   r.hal.real = 338;
-  r.dev.tick();
+  r.kit.tick();
   TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, tap));
   r.hal.real = 400;
   r.hal.touching = true;
-  r.dev.tick();
+  r.kit.tick();
   r.hal.real = 450;
   r.hal.touching = false;
-  r.dev.tick();
+  r.kit.tick();
   r.hal.real = 500;
-  r.dev.tick();
+  r.kit.tick();
   TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, tap));
 }
 
@@ -479,11 +519,11 @@ static void test_a_touch_ends_while_the_clock_is_frozen() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1000}");
-  const char* tap = "{\"t\":\"input\",\"k\":\"tap\"}";
+  const char* tap = "{\"t\":\"ev\",\"kind\":\"tap\",";
   for (uint32_t ms = 200; ms <= 400; ms += 5) {
     r.hal.real = ms;
     r.hal.touching = ms < 300;  // last contact at 295
-    r.dev.tick();
+    r.kit.tick();
     if (ms == 340) {
       TEST_ASSERT_EQUAL_INT(0, count(r.usb.text, tap));
       r.usbLine("{\"t\":\"dbg.state\"}");
@@ -491,7 +531,7 @@ static void test_a_touch_ends_while_the_clock_is_frozen() {
     }
   }
   TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, tap));
-  TEST_ASSERT_EQUAL_UINT32(1000, r.dev.now());  // still frozen
+  TEST_ASSERT_EQUAL_UINT32(1000, r.kit.now());  // still frozen
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"touch\":{\"down\":false"));
 }
@@ -504,29 +544,29 @@ static void test_a_physical_hold_is_push_to_talk() {
   r.usbLine("{\"t\":\"state\"}");
   r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
   r.hal.boot = true;
-  r.dev.tick();
+  r.kit.tick();
   r.hal.real = 399;
-  r.dev.tick();
-  TEST_ASSERT_FALSE(has(r.usb.text, "\"t\":\"input\""));
+  r.kit.tick();
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"t\":\"ev\""));
   r.hal.real = 400;
-  r.dev.tick();
-  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "\"t\":\"input\""));
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_on\"}"));
+  r.kit.tick();
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "\"t\":\"ev\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"talk_on\",\"did\":\"listening\"}\n"));
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"listening\""));
   r.hal.real = 2000;
-  r.dev.tick();
+  r.kit.tick();
   r.hal.boot = false;
   r.hal.real = 2100;
-  r.dev.tick();
-  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "\"t\":\"input\""));
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_off\"}"));
-  TEST_ASSERT_FALSE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  r.kit.tick();
+  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "\"t\":\"ev\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"talk_off\"}\n"));
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"kind\":\"tap\""));
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"listening\",\"left_ms\":8000,"));
   // The reply, a line, ends it and plays.
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\"}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\"}}");
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
@@ -535,25 +575,25 @@ static void test_a_physical_hold_is_push_to_talk() {
 }
 
 // PROTOCOL.md §3: the Mac's own `listening` shows the design it names, or
-// one the device picks when it names none it has, never the last one; the
-// empty moment ends it.
+// one the device picks when it names none it has, never the last one;
+// stop_listening ends it.
 static void test_the_macs_listening_and_the_empty_moment() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"listening\",\"variant\":3}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"listening\",\"play\":\"now\",\"args\":{\"variant\":3}}");
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"listening\",\"left_ms\":38000,\"variant\":3}"));
-  r.usbLine("{\"t\":\"moment\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"listening\",\"variant\":9}");  // happy has three: not the last
+  r.usbLine("{\"t\":\"do\",\"name\":\"stop_listening\",\"play\":\"now\"}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"listening\",\"play\":\"now\",\"args\":{\"variant\":9}}");  // happy has three: not the last
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"listening\",\"left_ms\":38000,\"variant\":"));
   TEST_ASSERT_FALSE(has(r.usb.text, "\"variant\":3}"));
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\"}");  // refused while listening
+  r.usbLine("{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\"}}");  // refused while listening
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"anim\":\"listening\""));
-  r.usbLine("{\"t\":\"moment\"}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"stop_listening\",\"play\":\"now\"}");
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
@@ -566,29 +606,29 @@ static void test_the_macs_listening_and_the_empty_moment() {
 static void test_a_frozen_clock_runs_again_after_60s_without_debug() {
   Rig r;
   r.hal.real = 100000;
-  r.dev.tick();
-  TEST_ASSERT_EQUAL_UINT32(0, r.dev.now());  // started frozen: not a tool's doing
+  r.kit.tick();
+  TEST_ASSERT_EQUAL_UINT32(0, r.kit.now());  // started frozen: not a tool's doing
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":5000}");
   r.hal.real = 130000;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.hal.real = 159999;
-  r.dev.tick();
-  TEST_ASSERT_EQUAL_UINT32(5000, r.dev.now());
+  r.kit.tick();
+  TEST_ASSERT_EQUAL_UINT32(5000, r.kit.now());
   r.hal.real = 160000;
-  r.dev.tick();
+  r.kit.tick();
   r.hal.real = 160250;
-  TEST_ASSERT_EQUAL_UINT32(5250, r.dev.now());
+  TEST_ASSERT_EQUAL_UINT32(5250, r.kit.now());
   // dbg.reset freezes it too, and any dbg.* message holds it another 60 s.
   r.usbLine("{\"t\":\"dbg.reset\"}");
   r.hal.real = 200000;
   r.usbLine("{\"t\":\"dbg.state\"}");
   r.hal.real = 259999;
-  r.dev.tick();
-  TEST_ASSERT_EQUAL_UINT32(0, r.dev.now());
+  r.kit.tick();
+  TEST_ASSERT_EQUAL_UINT32(0, r.kit.now());
   r.hal.real = 260000;
-  r.dev.tick();
+  r.kit.tick();
   r.hal.real = 261000;
-  TEST_ASSERT_EQUAL_UINT32(1000, r.dev.now());
+  TEST_ASSERT_EQUAL_UINT32(1000, r.kit.now());
 }
 
 static void test_shot_is_header_then_base64() {
@@ -601,6 +641,26 @@ static void test_shot_is_header_then_base64() {
 }
 
 // PROTOCOL.md §5: dbg.light holds the backlight until the next state.
+// dbg.clock may move a frozen clock back, even while an animation plays:
+// the device carries on at once (it used to spin in the sound effects),
+// and the face is the look again.
+static void test_the_clock_can_go_back_mid_animation() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":9001}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"helper_return\",\"play\":\"now\",\"args\":{\"loops\":2}}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":4201}");
+  for (uint32_t t = 4251; t <= 9000; t += 50) {
+    char step[64];
+    std::snprintf(step, sizeof(step), "{\"t\":\"dbg.clock\",\"freeze\":%u}", unsigned(t));
+    r.usbLine(step);
+  }
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"clock\":{\"now\":8951,"));
+}
+
 static void test_light_holds_the_backlight_until_the_next_state() {
   Rig r;
   r.usbLine("{\"t\":\"dbg.light\",\"bl\":40}");
@@ -625,7 +685,7 @@ static void test_motion_redraws_at_most_every_16ms() {
     r.dev.takeFrame();
     int frames = 0, last = 0, gap = 1000;
     for (int ms = 1; ms <= 2000; ++ms) {
-      if (running) ++r.hal.real, r.dev.tick();
+      if (running) ++r.hal.real, r.kit.tick();
       else r.usbLine("{\"t\":\"dbg.clock\",\"step\":1}");
       if (!r.dev.takeFrame()) continue;
       ++frames;
@@ -654,7 +714,7 @@ static void test_a_still_picture_isnt_redrawn() {
   const Case cases[] = {
       {"{\"t\":\"state\",\"base\":\"asleep\"}", nullptr, 2400, 20},
       {"{\"t\":\"state\",\"base\":\"working\",\"busy\":3}", nullptr, 1200, 40},
-      {"{\"t\":\"state\",\"base\":\"working\"}", "{\"t\":\"moment\",\"anim\":\"cheer\"}", 1200, 90},
+      {"{\"t\":\"state\",\"base\":\"working\"}", "{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\"}}", 1200, 90},
   };
   for (const Case& c : cases) {
     const std::string name = std::string(c.base) + (c.moment ? c.moment : "");
@@ -677,7 +737,7 @@ static void test_a_still_picture_isnt_redrawn() {
     int frames = 0, pictures = 0;
     for (int ms = 0; ms < 3000; ++ms) {
       ++r.hal.real;
-      r.dev.tick();
+      r.kit.tick();
       if (!r.dev.takeFrame()) continue;
       ++frames;
       if (r.px != last) ++pictures, last = r.px;
@@ -708,7 +768,7 @@ static void test_the_redraw_cap_doesnt_delay_a_press() {
       first = -1;
       for (int ms = 0; ms < n; ++ms) {
         if (ms == 0 || running) {
-          r.dev.tick();
+          r.kit.tick();
         } else {
           r.usbLine("{\"t\":\"dbg.clock\",\"step\":1}");
         }
@@ -814,14 +874,16 @@ static void test_no_app_after_30s_of_silence() {
   TEST_ASSERT_EQUAL_STRING("face", r.screen().c_str());
 }
 
+// PROTOCOL.md §3: an animation plays its loops, then ends; a newer one
+// replaces it.
 static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"wiggle\"}");  // the dashboard's: the poke
+  r.usbLine("{\"t\":\"do\",\"name\":\"poked\",\"play\":\"now\"}");  // the dashboard's: the poke
   r.usbLine("{\"t\":\"dbg.state\"}");
   const uint32_t poke = render::loopMs(render::Mood::kHappy, render::SceneState::kPoked);
   TEST_ASSERT_TRUE(has(r.usb.text, ("\"moment\":{\"anim\":\"poked\",\"left_ms\":" + std::to_string(poke) + ",").c_str()));
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"variant\":1,\"size\":3,\"ttl\":5}");  // an old `size` or `ttl` is ignored
+  r.usbLine("{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\",\"variant\":1,\"size\":3,\"ttl\":5}}");  // args it doesn't know are ignored
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   // One loop of happy's first task-complete design.
@@ -837,7 +899,8 @@ static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
   } cases[] = {{"3", 3}, {"9", 6}, {"0", 1}, {"-2", 1}, {"\"many\"", 1}, {"true", 1}, {"99999999999", 6},
                {"1e10", 6}, {"-1e10", 1}, {"2.5", 2}, {"6.9", 6}, {"0.5", 1}};
   for (const auto& c : cases) {
-    r.usbLine((std::string("{\"t\":\"moment\",\"anim\":\"cheer\",\"variant\":1,\"loops\":") + c.loops + "}").c_str());
+    r.usbLine((std::string("{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\","
+                           "\"variant\":1,\"loops\":") + c.loops + "}}").c_str());
     r.usb.text.clear();
     r.usbLine("{\"t\":\"dbg.state\"}");
     TEST_ASSERT_TRUE_MESSAGE(has(r.usb.text, left(c.times * loop).c_str()), c.loops);
@@ -846,32 +909,38 @@ static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
-  // Unknown animations, the removed ones among them: ignored.
-  for (const char* gone : {"moonwalk", "oops", "happy", "levelup", "yawn", "nod", "thinking", "shrug", "idle", "terminal"}) {
-    std::string line = std::string("{\"t\":\"moment\",\"anim\":\"") + gone + "\"}";
-    r.usbLine(line.c_str());
+  // Names it doesn't have, the removed animations and the old `cheer`
+  // and `wiggle` among them, are skipped `unknown` (linkkit/SPEC.md §3),
+  // with any line they carried.
+  for (const char* gone : {"moonwalk", "oops", "happy", "levelup", "yawn", "nod", "thinking", "shrug", "idle", "terminal",
+                           "cheer", "wiggle"}) {
+    std::string line = std::string("{\"t\":\"do\",\"id\":8,\"name\":\"") + gone +
+                       "\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}";
     r.usb.text.clear();
+    r.usbLine(line.c_str());
+    TEST_ASSERT_TRUE_MESSAGE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":8,\"how\":\"skipped\","
+                                             "\"why\":\"unknown\"}}\n"), gone);
     r.usbLine("{\"t\":\"dbg.state\"}");
     TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
   }
   TEST_ASSERT_EQUAL(0, int(r.hal.said.size()));
-  // An unknown animation with a line: the line plays on its own.
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"oops\",\"say\":{\"take\":\"previous.go\"}}");
+  // A reaction's line plays on its own.
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
 }
 
-// PROTOCOL.md §3: a moment with neither `anim` nor `say`, or with only
-// an unknown anim, is ignored: whatever is playing carries on.
+// PROTOCOL.md §3: stop_listening with nothing to stop, or a name the
+// device doesn't have, is skipped: whatever is playing carries on.
 static void test_a_moment_with_nothing_to_play_is_ignored() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\"}");
-  r.usbLine("{\"t\":\"moment\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"shrug\"}");  // removed: ignored
+  r.usbLine("{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\"}}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"stop_listening\",\"play\":\"now\"}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"shrug\",\"play\":\"now\"}");  // removed: ignored
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"task_complete\""));
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"rx\":{\"state\":1,\"moment\":3}"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"rx\":{\"state\":1,\"do\":3}"));
   TEST_ASSERT_EQUAL(0, r.hal.hushes);
 }
 
@@ -882,7 +951,7 @@ static void test_a_strip_touch_is_a_tap() {
   r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":222,\"ms\":100}");
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":200}");
   TEST_ASSERT_EQUAL_STRING("face", r.screen().c_str());
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"tap\",\"did\":\"poked\"}\n"));
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"anim\":\"poked\""));
 }
@@ -892,7 +961,7 @@ static void test_reset_forgets_the_mac_and_freezes_at_0() {
   r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"x\"}}");
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":5000}");
   r.usbLine("{\"t\":\"dbg.reset\"}");
-  TEST_ASSERT_EQUAL(0u, r.dev.now());
+  TEST_ASSERT_EQUAL(0u, r.kit.now());
   TEST_ASSERT_EQUAL_STRING("face", r.screen().c_str());
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
@@ -900,14 +969,14 @@ static void test_reset_forgets_the_mac_and_freezes_at_0() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"attn\":null"));
 }
 
-// PROTOCOL.md §3: a moment's `say` names a take by id, which reaches the
+// PROTOCOL.md §3: a call's `say` names a take by id, which reaches the
 // player with the volume; dbg.state reports it (§5). `{}`, an id the
 // device doesn't have and the old syllable fields are still a `say`, but
 // play nothing.
 static void test_say_reaches_the_player() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":7}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"new.d14\"}}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"new.d14\"}}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   const voice::Line& l = r.hal.said[0];
   TEST_ASSERT_EQUAL(voice::takeIndex("new.d14"), l.take);
@@ -921,8 +990,8 @@ static void test_say_reaches_the_player() {
   for (const char* none : {"{}", "{\"take\":\"banana\"}", "{\"take\":7}", "{\"syl\":\"ba po\",\"word\":\"done\"}"}) {
     Rig q;
     q.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-    q.usbLine("{\"t\":\"moment\",\"anim\":\"listening\"}");
-    q.usbLine((std::string("{\"t\":\"moment\",\"say\":") + none + "}").c_str());
+    q.usbLine("{\"t\":\"do\",\"name\":\"listening\",\"play\":\"now\"}");
+    q.usbLine((std::string("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":") + none + "}}").c_str());
     TEST_ASSERT_EQUAL_MESSAGE(0, int(q.hal.said.size()), none);
     q.usb.text.clear();
     q.usbLine("{\"t\":\"dbg.state\"}");
@@ -937,22 +1006,22 @@ static void test_a_face_on_its_own_plays_and_ends() {
   Rig r;
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":0}");
   r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
-  r.usbLine("{\"t\":\"moment\",\"mood\":\"grumpy\",\"loops\":2,\"id\":4}");
+  r.usbLine("{\"t\":\"do\",\"id\":4,\"name\":\"react\",\"play\":\"now\",\"args\":{\"mood\":\"grumpy\",\"loops\":2}}");
   TEST_ASSERT_EQUAL(0, int(r.hal.said.size()));
   const uint32_t loop = render::loopMs(render::Mood::kGrumpy, render::SceneState::kWorking);
   r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(2 * loop - 1) + "}").c_str());
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":\"grumpy\""));
-  TEST_ASSERT_FALSE(has(r.usb.text, "\"ended\""));
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"kind\":\"ended\""));
   r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(2 * loop) + "}").c_str());
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":4,\"how\":\"done\"}\n"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":4,\"how\":\"done\"}}\n"));
 }
 
-// PROTOCOL.md §3: a moment with only `say` plays the line, bubble and
+// PROTOCOL.md §3: a react with only `say` plays the line, bubble and
 // voice, over the face showing; no animation starts. The line stops when
 // the bubble goes.
-// PROTOCOL.md §3 and §5: a moment's `mood` is its expression, which
+// PROTOCOL.md §3 and §5: a call's `mood` is its expression, which
 // dbg.state reports as `expr` while it plays; an unknown one is ignored,
 // and the line plays as usual.
 static void test_a_moment_carries_its_expression() {
@@ -962,7 +1031,7 @@ static void test_a_moment_carries_its_expression() {
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":null"));
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.dai\"},\"mood\":\"grumpy\"}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.dai\"},\"mood\":\"grumpy\"}}");
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"mood\":\"happy\""));  // the state's mood is kept
@@ -983,16 +1052,16 @@ static void test_a_moment_carries_its_expression() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":null"));
   // `loops`: two, from a boundary, end at the second one after it; over
   // 6 holds 6.
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"mood\":\"grumpy\",\"loops\":2}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"},\"mood\":\"grumpy\",\"loops\":2}}");
   TEST_ASSERT_TRUE(exprAt(3 * loop - 1));
   TEST_ASSERT_FALSE(exprAt(3 * loop));
   r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"mood\":\"happy\"}");  // no "no app" meanwhile
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"mood\":\"grumpy\",\"loops\":9}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"},\"mood\":\"grumpy\",\"loops\":9}}");
   TEST_ASSERT_TRUE(exprAt(9 * loop - 1));
   TEST_ASSERT_FALSE(exprAt(9 * loop));
   // Unknown: no expression, and the line still plays.
   size_t said = r.hal.said.size();
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"mood\":\"cheerful\"}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"},\"mood\":\"cheerful\"}}");
   TEST_ASSERT_EQUAL(int(said + 1), int(r.hal.said.size()));
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
@@ -1003,7 +1072,7 @@ static void test_a_moment_carries_its_expression() {
 static void test_a_say_on_its_own_plays_the_line() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
@@ -1014,11 +1083,11 @@ static void test_a_say_on_its_own_plays_the_line() {
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1838}");
   TEST_ASSERT_EQUAL(1, r.hal.hushes);
   // With no line and no animation, nothing happens.
-  r.usbLine("{\"t\":\"moment\"}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"stop_listening\",\"play\":\"now\"}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   // A line of two takes (PROTOCOL.md §3): both play, one after the other,
   // and the status names the first.
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.tsk\",\"then\":\"phase1.word.test.test__annoyed__contained\"}}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.tsk\",\"then\":\"phase1.word.test.test__annoyed__contained\"}}}");
   TEST_ASSERT_EQUAL(2, int(r.hal.said.size()));
   TEST_ASSERT_TRUE(r.hal.said.back().then >= 0);
   TEST_ASSERT_TRUE(r.hal.said.back().b.len > 0);
@@ -1033,8 +1102,8 @@ static void test_mute_and_needs_you_keep_it_silent() {
       "{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}",
   };
   for (const char* st : states) {
-    for (const char* mo : {"{\"t\":\"moment\",\"anim\":\"cheer\",\"say\":{\"take\":\"previous.go\"}}",
-                           "{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}"}) {
+    for (const char* mo : {"{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\",\"say\":{\"take\":\"previous.go\"}}}",
+                           "{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}"}) {
       Rig r;
       r.usbLine(st);
       r.usbLine(mo);
@@ -1044,7 +1113,7 @@ static void test_mute_and_needs_you_keep_it_silent() {
   // Muted, the mouth still moves, at its voice window: only the sound goes.
   Rig r;
   r.usbLine(states[0]);
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"variant\":1,\"say\":{\"take\":\"previous.go\"}}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\",\"variant\":1,\"say\":{\"take\":\"previous.go\"}}}");
   const uint32_t voice = voice::score(int(render::Mood::kHappy), int(render::SceneState::kTaskComplete), 0).voiceMs;
   r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(voice) + "}").c_str());
   r.usbLine("{\"t\":\"dbg.state\"}");
@@ -1053,7 +1122,7 @@ static void test_mute_and_needs_you_keep_it_silent() {
   // A line stops when mute arrives mid-line.
   Rig q;
   q.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  q.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");
+  q.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}");
   TEST_ASSERT_EQUAL(1, int(q.hal.said.size()));
   q.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}");
   TEST_ASSERT_EQUAL(1, q.hal.hushes);
@@ -1064,7 +1133,7 @@ static void test_mute_and_needs_you_keep_it_silent() {
 static void test_needs_you_hushes_a_line_for_its_alert() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":100}");
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
@@ -1075,55 +1144,55 @@ static void test_needs_you_hushes_a_line_for_its_alert() {
   for (const voice::Effect& e : r.hal.effects) TEST_ASSERT_FALSE(e.duck);  // no line turns it down
 }
 
-// PROTOCOL.md §4: a moment with an `id` gets one `ended` once all of it
+// PROTOCOL.md §4: a call with an `id` gets one `ended` once all of it
 // is over, on the link it came in on, saying how: done, cut and why, or
-// skipped. Muting doesn't stop it. A moment with no `id` gets none.
+// skipped and why. Muting doesn't stop it. A call with no `id` gets none.
 static void test_a_moment_with_an_id_is_answered_when_it_ends() {
   Rig r;
   // Idle's second variation, a long loop (PROTOCOL.md §3 `variant`).
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"variant\":2}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\",\"id\":5}");
+  r.usbLine("{\"t\":\"do\",\"id\":5,\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\"}}");
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"variant\":2,\"vol\":0}");  // hushed, but it plays on
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1840}");  // the line is over: 640 ms + 1.2 s
   // The face holds a loop of the idle design in proud.
   const uint32_t loop = render::loopMs(render::Mood::kProud, render::SceneState::kIdle, 1);
   r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(loop - 1) + "}").c_str());
-  TEST_ASSERT_FALSE(has(r.usb.text, "\"ended\""));
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"kind\":\"ended\""));
   r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(loop) + "}").c_str());
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":5,\"how\":\"done\"}\n"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":5,\"how\":\"done\"}}\n"));
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":6}");
+  r.usbLine("{\"t\":\"do\",\"id\":6,\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}");
   r.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");  // a tap's poke doesn't cut it
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
   TEST_ASSERT_FALSE(has(r.usb.text, "\"id\":6,"));
   r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(loop + 3000) + "}").c_str());
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":6,\"how\":\"done\"}\n"));
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":7}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":7,\"how\":\"cut\",\"why\":\"moment\"}\n"));
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":8}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":6,\"how\":\"done\"}}\n"));
+  r.usbLine("{\"t\":\"do\",\"id\":7,\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\"}}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":7,\"how\":\"cut\",\"why\":\"now\"}}\n"));
+  r.usbLine("{\"t\":\"do\",\"id\":8,\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}");
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":8,\"how\":\"cut\",\"why\":\"needs_you\"}\n"));
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":9}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":9,\"how\":\"skipped\"}\n"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":8,\"how\":\"cut\",\"why\":\"needs_you\"}}\n"));
+  r.usbLine("{\"t\":\"do\",\"id\":9,\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":9,\"how\":\"skipped\",\"why\":\"needs_you\"}}\n"));
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":10}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}");
+  r.usbLine("{\"t\":\"do\",\"id\":10,\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}");
   r.usbLine("{\"t\":\"dbg.reset\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":10,\"how\":\"cut\",\"why\":\"reset\"}\n"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":10,\"how\":\"cut\",\"why\":\"reset\"}}\n"));
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":60000}");
-  TEST_ASSERT_EQUAL_INT(6, count(r.usb.text, "\"ended\""));  // one each, and none without an id
+  TEST_ASSERT_EQUAL_INT(6, count(r.usb.text, "\"kind\":\"ended\""));  // one each, and none without an id
 
   // Over Bluetooth: back over Bluetooth, and not on USB.
   Rig b;
-  b.dev.connected();
+  b.kit.connected();
   const char* state = "{\"t\":\"state\",\"base\":\"idle\"}";
-  const char* moment = "{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"id\":3}";
-  b.dev.handleLine(state, std::strlen(state), app::Link::kBle);
-  b.dev.handleLine(moment, std::strlen(moment), app::Link::kBle);
+  const char* moment = "{\"t\":\"do\",\"id\":3,\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}";
+  b.kit.handleLine(state, std::strlen(state), linkkit::Link::kBle);
+  b.kit.handleLine(moment, std::strlen(moment), linkkit::Link::kBle);
   b.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1840}");
-  TEST_ASSERT_TRUE(has(b.ble.text, "{\"t\":\"ended\",\"id\":3,\"how\":\"done\"}\n"));
-  TEST_ASSERT_FALSE(has(b.usb.text, "\"ended\""));
+  TEST_ASSERT_TRUE(has(b.ble.text, "{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":3,\"how\":\"done\"}}\n"));
+  TEST_ASSERT_FALSE(has(b.usb.text, "\"kind\":\"ended\""));
 }
 
 // PROTOCOL.md §2: a line is at most 512 bytes. The board and boop-sim both
@@ -1136,13 +1205,13 @@ static void test_lines_over_512_bytes_are_dropped() {
     return s;
   };
   Rig r;
-  app::LineReader reader;
+  linkkit::LineReader reader;
   auto feed = [&](const std::string& line) {
     TEST_ASSERT_TRUE(line.size() <= 520);
     for (char c : line + "\n") {
-      if (reader.feed(c)) r.dev.handleLine(reader.line(), reader.length(), app::Link::kUsb);
+      if (reader.feed(c)) r.kit.handleLine(reader.line(), reader.length(), linkkit::Link::kUsb);
     }
-    r.dev.tick();
+    r.kit.tick();
   };
   std::string at512 = state("working", 512), at513 = state("asleep", 513);
   TEST_ASSERT_EQUAL(512, int(at512.size()));
@@ -1168,7 +1237,7 @@ static void test_volume_is_held_in_range() {
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":15}");
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"vol\":10,"));
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   TEST_ASSERT_EQUAL(10, r.hal.said[0].vol);
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":-3}");
@@ -1304,10 +1373,9 @@ static void test_a_state_carries_what_the_agents_do() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"act\":null,"));
 }
 
-// PROTOCOL.md §3: a moment names its design by `anim` ("cheer" is a
-// finish's success, "wiggle" the poke), its variation by `variant` when
-// it's one for the moment's facts (`outcome`, `ctx`), else the device
-// picks one of those; dbg.state says which plays.
+// PROTOCOL.md §3: a do names its design by `name`, its variation by
+// `variant` when it's one for the call's facts (`outcome`, `ctx`), else
+// the device picks one of those; dbg.state says which plays.
 static void test_moments_read_their_facts() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
@@ -1315,19 +1383,19 @@ static void test_moments_read_their_facts() {
     const char* moment;
     const char* reads;
   } cases[] = {
-      {"{\"t\":\"moment\",\"anim\":\"starting\",\"ctx\":\"session\"}", "\"anim\":\"starting\",\"left_ms\":3800,\"variant\":2}"},
-      {"{\"t\":\"moment\",\"anim\":\"starting\",\"variant\":1,\"ctx\":\"continuation\"}", "\"variant\":3}"},
-      {"{\"t\":\"moment\",\"anim\":\"starting\",\"variant\":1}", "\"variant\":1}"},
-      {"{\"t\":\"moment\",\"anim\":\"task_complete\",\"outcome\":\"failure\"}", "\"anim\":\"task_complete\",\"left_ms\":5200,\"variant\":5}"},
-      {"{\"t\":\"moment\",\"anim\":\"task_complete\",\"variant\":2,\"outcome\":\"success\"}", "\"variant\":2}"},
-      {"{\"t\":\"moment\",\"anim\":\"task_complete\",\"variant\":5}", "\"variant\":5}"},
-      {"{\"t\":\"moment\",\"anim\":\"cheer\",\"variant\":3}", "\"anim\":\"task_complete\",\"left_ms\":6400,\"variant\":3}"},
-      {"{\"t\":\"moment\",\"anim\":\"reply_ready\"}", "\"anim\":\"reply_ready\",\"left_ms\":4200,\"variant\":1}"},
-      {"{\"t\":\"moment\",\"anim\":\"stopped\"}", "\"anim\":\"stopped\",\"left_ms\":4200,\"variant\":1}"},
-      {"{\"t\":\"moment\",\"anim\":\"error\",\"variant\":1}", "\"anim\":\"error\",\"left_ms\":3800,\"variant\":1}"},
-      {"{\"t\":\"moment\",\"anim\":\"helper_return\",\"variant\":2}", "\"anim\":\"helper_return\",\"left_ms\":4800,\"variant\":2}"},
-      {"{\"t\":\"moment\",\"anim\":\"wiggle\"}", "\"anim\":\"poked\",\"left_ms\":2800,\"variant\":1}"},
-      {"{\"t\":\"moment\",\"anim\":\"tap_spam\"}", "\"anim\":\"tap_spam\",\"left_ms\":3800,\"variant\":1}"},
+      {"{\"t\":\"do\",\"name\":\"starting\",\"play\":\"now\",\"args\":{\"ctx\":\"session\"}}", "\"anim\":\"starting\",\"left_ms\":3800,\"variant\":2}"},
+      {"{\"t\":\"do\",\"name\":\"starting\",\"play\":\"now\",\"args\":{\"variant\":1,\"ctx\":\"continuation\"}}", "\"variant\":3}"},
+      {"{\"t\":\"do\",\"name\":\"starting\",\"play\":\"now\",\"args\":{\"variant\":1}}", "\"variant\":1}"},
+      {"{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"failure\"}}", "\"anim\":\"task_complete\",\"left_ms\":5200,\"variant\":5}"},
+      {"{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"variant\":2,\"outcome\":\"success\"}}", "\"variant\":2}"},
+      {"{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"variant\":5}}", "\"variant\":5}"},
+      {"{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\",\"variant\":3}}", "\"anim\":\"task_complete\",\"left_ms\":6400,\"variant\":3}"},
+      {"{\"t\":\"do\",\"name\":\"reply_ready\",\"play\":\"now\"}", "\"anim\":\"reply_ready\",\"left_ms\":4200,\"variant\":1}"},
+      {"{\"t\":\"do\",\"name\":\"stopped\",\"play\":\"now\"}", "\"anim\":\"stopped\",\"left_ms\":4200,\"variant\":1}"},
+      {"{\"t\":\"do\",\"name\":\"error\",\"play\":\"now\",\"args\":{\"variant\":1}}", "\"anim\":\"error\",\"left_ms\":3800,\"variant\":1}"},
+      {"{\"t\":\"do\",\"name\":\"helper_return\",\"play\":\"now\",\"args\":{\"variant\":2}}", "\"anim\":\"helper_return\",\"left_ms\":4800,\"variant\":2}"},
+      {"{\"t\":\"do\",\"name\":\"poked\",\"play\":\"now\"}", "\"anim\":\"poked\",\"left_ms\":2800,\"variant\":1}"},
+      {"{\"t\":\"do\",\"name\":\"tap_spam\",\"play\":\"now\"}", "\"anim\":\"tap_spam\",\"left_ms\":3800,\"variant\":1}"},
   };
   for (const auto& c : cases) {
     r.usbLine(c.moment);
@@ -1335,9 +1403,9 @@ static void test_moments_read_their_facts() {
     r.usbLine("{\"t\":\"dbg.state\"}");
     TEST_ASSERT_TRUE_MESSAGE(has(r.usb.text, c.reads), c.moment);
   }
-  // A `cheer` is a success: happy's failure isn't one it plays.
+  // A success: happy's failure isn't one it plays.
   for (int i = 0; i < 20; ++i) {
-    r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"variant\":5}");
+    r.usbLine("{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\",\"variant\":5}}");
     r.usb.text.clear();
     r.usbLine("{\"t\":\"dbg.state\"}");
     TEST_ASSERT_TRUE(has(r.usb.text, "\"anim\":\"task_complete\""));
@@ -1346,25 +1414,25 @@ static void test_moments_read_their_facts() {
 }
 
 // PROTOCOL.md §3: while listening waits, a rule's one-shot, the brain's
-// finish without a line, a face on its own and an animation the device
-// doesn't know leave it be; a `say`, or the empty moment, ends it.
+// finish without a line, a face on its own and a name the device
+// doesn't know leave it be; a `say`, or stop_listening, ends it.
 static void test_only_the_reply_ends_the_macs_listening() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"listening\"}");
-  for (const char* other : {"{\"t\":\"moment\",\"anim\":\"starting\",\"ctx\":\"new_task\"}",
-                            "{\"t\":\"moment\",\"anim\":\"stopped\"}", "{\"t\":\"moment\",\"anim\":\"error\"}",
-                            "{\"t\":\"moment\",\"anim\":\"helper_return\"}",
-                            "{\"t\":\"moment\",\"anim\":\"task_complete\",\"outcome\":\"success\",\"id\":4}",
-                            "{\"t\":\"moment\",\"anim\":\"reply_ready\"}", "{\"t\":\"moment\",\"mood\":\"proud\"}",
-                            "{\"t\":\"moment\",\"anim\":\"oops\"}"}) {
+  r.usbLine("{\"t\":\"do\",\"name\":\"listening\",\"play\":\"now\"}");
+  for (const char* other : {"{\"t\":\"do\",\"name\":\"starting\",\"play\":\"now\",\"args\":{\"ctx\":\"new_task\"}}",
+                            "{\"t\":\"do\",\"name\":\"stopped\",\"play\":\"now\"}", "{\"t\":\"do\",\"name\":\"error\",\"play\":\"now\"}",
+                            "{\"t\":\"do\",\"name\":\"helper_return\",\"play\":\"now\"}",
+                            "{\"t\":\"do\",\"id\":4,\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\"}}",
+                            "{\"t\":\"do\",\"name\":\"reply_ready\",\"play\":\"now\"}", "{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"mood\":\"proud\"}}",
+                            "{\"t\":\"do\",\"name\":\"oops\",\"play\":\"now\"}"}) {
     r.usbLine(other);
     r.usb.text.clear();
     r.usbLine("{\"t\":\"dbg.state\"}");
     TEST_ASSERT_TRUE_MESSAGE(has(r.usb.text, "\"moment\":{\"anim\":\"listening\""), other);
   }
   TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":null"));
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\"}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\"}}");
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
@@ -1379,10 +1447,10 @@ static void test_a_finishs_line_starts_at_its_voice_window() {
   const uint32_t voice = voice::score(int(render::Mood::kHappy), int(render::SceneState::kTaskComplete), 0).voiceMs;
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":5}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"take\":\"previous.go\"}}");  // a line playing
+  r.usbLine("{\"t\":\"do\",\"name\":\"react\",\"play\":\"now\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}");  // a line playing
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"task_complete\",\"outcome\":\"success\",\"variant\":1,"
-            "\"say\":{\"take\":\"new.d14\"},\"id\":3}");
+  r.usbLine("{\"t\":\"do\",\"id\":3,\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\","
+            "\"variant\":1,\"say\":{\"take\":\"new.d14\"}}}");
   TEST_ASSERT_EQUAL(1, r.hal.hushes);  // it replaces the line playing
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   r.usb.text.clear();
@@ -1403,7 +1471,7 @@ static void test_a_finishs_line_starts_at_its_voice_window() {
   for (const char* stop : {"tap", "needs"}) {
     Rig q;
     q.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-    q.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"variant\":1,\"say\":{\"take\":\"previous.go\"}}");
+    q.usbLine("{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"outcome\":\"success\",\"variant\":1,\"say\":{\"take\":\"previous.go\"}}}");
     const bool tap = !std::strcmp(stop, "tap");
     if (tap) {
       q.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");
@@ -1471,7 +1539,7 @@ static void test_the_sounds_follow_every_design() {
   r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(at) + "}").c_str());
   r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"act\":\"terminal\",\"mood\":\"engaged\"}");
   r.hal.effects.clear();
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"task_complete\",\"variant\":1,\"loops\":3}");
+  r.usbLine("{\"t\":\"do\",\"name\":\"task_complete\",\"play\":\"now\",\"args\":{\"variant\":1,\"loops\":3}}");
   voice::Score done = voice::score(int(Mood::kEngaged), int(SceneState::kTaskComplete), 0);
   uint32_t doneLoop = render::loopMs(Mood::kEngaged, SceneState::kTaskComplete, 0);
   TEST_ASSERT_TRUE(done.policy == voice::Policy::kEntry && !done.duck);
@@ -1482,7 +1550,7 @@ static void test_the_sounds_follow_every_design() {
   TEST_ASSERT_EQUAL(voice::events(done, 0).n, int(r.hal.effects.size()));
   TEST_ASSERT_TRUE(only(r.hal.effects, done, 1));
   // A one-shot, and a tap's poke: their own, once each.
-  for (const char* line : {"{\"t\":\"moment\",\"anim\":\"error\",\"variant\":1}", "poke"}) {
+  for (const char* line : {"{\"t\":\"do\",\"name\":\"error\",\"play\":\"now\",\"args\":{\"variant\":1}}", "poke"}) {
     Rig q;
     q.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"mood\":\"calm\"}");
     SceneState s = SceneState::kError;
@@ -1508,6 +1576,268 @@ static void test_the_sounds_follow_every_design() {
   }
 }
 
+// ---- The turn: Boop's rules on LinkKit (PROTOCOL.md §3) -------------------
+
+// Sends a do over USB: its id (0 for none), name, play and args.
+static void doLine(Rig& r, int id, const char* name, const char* play, const char* args = nullptr) {
+  std::string s = "{\"t\":\"do\"";
+  if (id) s += ",\"id\":" + std::to_string(id);
+  s += std::string(",\"name\":\"") + name + "\",\"play\":\"" + play + "\"";
+  if (args) s += std::string(",\"args\":") + args;
+  r.usbLine((s + "}").c_str());
+}
+static void clockAt(Rig& r, uint32_t t) { r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(t) + "}").c_str()); }
+static std::string endedLine(int id, const char* how, const char* why = nullptr) {
+  std::string s = "{\"t\":\"ev\",\"kind\":\"ended\",\"data\":{\"id\":" + std::to_string(id) + ",\"how\":\"" + how + "\"";
+  if (why) s += std::string(",\"why\":\"") + why + "\"";
+  return s + "}}\n";
+}
+static std::string stateOf(Rig& r) {
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  return r.usb.text;
+}
+static const char* kGo = "{\"say\":{\"take\":\"previous.go\"}}";  // 638 ms, then 1.2 s of bubble
+
+// PROTOCOL.md §3: a reaction with nothing left to play once its line and
+// bubble have played (the take, then 1.2 s) ends done then, and the
+// brain's next one, waiting its turn, starts at that millisecond, however
+// the clock steps. One whose face holds on rests half a second after its
+// bubble, then the face may be replaced.
+static void test_a_reaction_waits_for_the_line_before_it() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"variant\":2}");  // a long loop for the face to hold
+  doLine(r, 1, "react", "next", kGo);
+  clockAt(r, 100);
+  doLine(r, 2, "react", "next", "{\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\",\"loops\":3}");
+  TEST_ASSERT_TRUE(has(stateOf(r), "\"turn\":{\"holder\":{\"id\":1,\"name\":\"react\",\"resting\":false},"
+                                   "\"waiting\":[{\"id\":2,\"name\":\"react\",\"left_ms\":5000}]}"));
+  clockAt(r, 1837);
+  TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
+  clockAt(r, 3000);  // a jump: it started at 1838 all the same
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(1, "done")));
+  TEST_ASSERT_EQUAL(2, int(r.hal.said.size()));
+  std::string st = stateOf(r);
+  TEST_ASSERT_TRUE(has(st, "\"audio\":{\"playing\":false,\"take\":\"previous.go\""));  // its take played 1838–2476
+  TEST_ASSERT_TRUE(has(st, "\"expr\":\"proud\""));
+  TEST_ASSERT_TRUE(has(st, "\"holder\":{\"id\":2,\"name\":\"react\",\"resting\":false}"));
+  clockAt(r, 4175);
+  TEST_ASSERT_TRUE(has(stateOf(r), "\"resting\":false"));
+  clockAt(r, 4176);  // 1838 + 1838 + 500: it rests, its face holding its loops
+  TEST_ASSERT_TRUE(has(stateOf(r), "\"holder\":{\"id\":2,\"name\":\"react\",\"resting\":true}"));
+  // A face with no line rests 1.2 s in, and the half second.
+  Rig f;
+  f.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"variant\":2}");  // a long loop
+  doLine(f, 3, "react", "next", "{\"mood\":\"grumpy\",\"loops\":3}");
+  clockAt(f, 1699);
+  TEST_ASSERT_TRUE(has(stateOf(f), "\"resting\":false"));
+  clockAt(f, 1700);
+  TEST_ASSERT_TRUE(has(stateOf(f), "\"resting\":true"));
+}
+
+// PROTOCOL.md §3: a reaction whose face holds on after its line rests
+// half a second after its bubble goes (Device::kReactGapMs, the pause the
+// Mac left before LinkKit), so the next reaction takes over then, and not
+// at the bubble's last millisecond.
+static void test_the_next_reaction_waits_half_a_second_after_a_bubble() {
+  TEST_ASSERT_EQUAL_UINT32(500, app::Device::kReactGapMs);
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"variant\":2}");  // a long loop for the face to hold
+  doLine(r, 1, "react", "next", "{\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\",\"loops\":3}");
+  clockAt(r, 100);
+  doLine(r, 2, "react", "next", kGo);
+  clockAt(r, 1838);  // the bubble goes
+  TEST_ASSERT_TRUE(has(stateOf(r), "\"holder\":{\"id\":1,\"name\":\"react\",\"resting\":false}"));
+  clockAt(r, 2337);
+  TEST_ASSERT_TRUE(has(stateOf(r), "\"waiting\":[{\"id\":2,"));
+  TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
+  clockAt(r, 2338);
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(1, "done")));
+  TEST_ASSERT_TRUE(has(stateOf(r), "\"holder\":{\"id\":2,\"name\":\"react\",\"resting\":false}"));
+  TEST_ASSERT_EQUAL(2, int(r.hal.said.size()));
+}
+
+// PROTOCOL.md §3: the brain's finish never rests: the next reaction waits
+// until it's over, and one that has waited longer than its ttl is late.
+static void test_a_finish_holds_the_turn_until_it_ends() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  doLine(r, 1, "task_complete", "next", "{\"outcome\":\"success\",\"variant\":1}");
+  const uint32_t loop = render::loopMs(render::Mood::kHappy, render::SceneState::kTaskComplete);
+  TEST_ASSERT_TRUE(loop > 5100);
+  clockAt(r, 100);
+  doLine(r, 2, "react", "next", kGo);
+  clockAt(r, 5100);
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"id\":2,"));
+  clockAt(r, 5101);
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(2, "skipped", "late")));
+  r.usbLine("{\"t\":\"do\",\"id\":3,\"name\":\"react\",\"ttl\":9000,\"args\":{\"say\":{\"take\":\"previous.go\"}}}");
+  clockAt(r, 20000);
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(1, "done")));
+  TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
+  TEST_ASSERT_TRUE(has(stateOf(r), "\"holder\":null"));  // 3 played from `loop` and is over
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"rx\":{\"state\":1,\"do\":3}"));
+}
+
+// PROTOCOL.md §3: a rule's one-shot (if_free) never cuts a reaction's
+// line, nor the half second after its bubble: it's skipped busy. Over the
+// face held after that it plays, and that reaction is done; it rests at
+// once, so the brain's next line plays over it.
+static void test_a_one_shot_never_cuts_a_line() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"variant\":2}");  // a long loop for the face to hold
+  doLine(r, 1, "react", "next", "{\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\",\"loops\":2}");
+  clockAt(r, 100);
+  doLine(r, 2, "starting", "if_free", "{\"ctx\":\"new_task\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(2, "skipped", "busy")));
+  TEST_ASSERT_TRUE(has(stateOf(r), "\"moment\":null"));
+  clockAt(r, 2000);  // the bubble went at 1838; the reaction rests at 2338
+  doLine(r, 5, "stopped", "if_free");
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(5, "skipped", "busy")));
+  clockAt(r, 2338);
+  doLine(r, 3, "starting", "if_free", "{\"ctx\":\"new_task\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(1, "done")));
+  std::string st = stateOf(r);
+  TEST_ASSERT_TRUE(has(st, "\"moment\":{\"anim\":\"starting\""));
+  TEST_ASSERT_TRUE(has(st, "\"holder\":{\"id\":3,\"name\":\"starting\",\"resting\":true}"));
+  doLine(r, 4, "react", "next", kGo);
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(3, "done")));
+  st = stateOf(r);
+  TEST_ASSERT_TRUE(has(st, "\"moment\":{\"anim\":\"starting\""));  // the line plays over it
+  TEST_ASSERT_TRUE(has(st, "\"audio\":{\"playing\":true,\"take\":\"previous.go\""));
+}
+
+// PROTOCOL.md §3: why a call is skipped: something needs you, no app,
+// listening holds the face (a reply excepted), stop_listening with
+// nothing to stop, or nothing of it that would play.
+static void test_refused_calls_say_why() {
+  Rig n;  // at power-on, no app
+  doLine(n, 1, "react", "next", "{\"mood\":\"proud\"}");
+  TEST_ASSERT_TRUE(has(n.usb.text, endedLine(1, "skipped", "no_app")));
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
+  doLine(r, 2, "react", "next", kGo);
+  doLine(r, 3, "error", "if_free");
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(2, "skipped", "needs_you")));
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(3, "skipped", "needs_you")));
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  doLine(r, 4, "listening", "now");
+  doLine(r, 5, "starting", "if_free");
+  doLine(r, 6, "task_complete", "next", "{\"outcome\":\"success\"}");  // a finish with no `say` is no reply
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(5, "skipped", "listening")));
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(6, "skipped", "listening")));
+  TEST_ASSERT_TRUE(has(stateOf(r), "\"moment\":{\"anim\":\"listening\""));
+  doLine(r, 7, "stop_listening", "if_free");
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(4, "done")));
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(7, "done")));
+  TEST_ASSERT_TRUE(has(stateOf(r), "\"moment\":null"));
+  doLine(r, 8, "stop_listening", "if_free");
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(8, "skipped", "not_listening")));
+  doLine(r, 9, "react", "next", "{\"say\":{}}");
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(9, "skipped", "nothing")));
+  // A reply ends listening even when nothing of it can then play.
+  doLine(r, 10, "listening", "now");
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
+  TEST_ASSERT_TRUE(has(stateOf(r), "\"moment\":{\"anim\":\"listening\""));  // it plays over needs you
+  doLine(r, 11, "react", "next", kGo);
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(10, "done")));
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(11, "skipped", "needs_you")));
+  TEST_ASSERT_TRUE(has(stateOf(r), "\"moment\":null"));
+}
+
+// PROTOCOL.md §3: push-to-talk, BOOT's or the Mac's `listening`, drops
+// the reactions waiting (they'd end it) with why `listening`; BOOT's also
+// cuts the holder, as a tap does, and the Mac's replaces it.
+static void test_the_mic_drops_the_reactions_waiting() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  doLine(r, 1, "react", "next", kGo);
+  doLine(r, 2, "react", "next", kGo);
+  r.usbLine("{\"t\":\"dbg.press\",\"ms\":800}");
+  for (uint32_t t = 10; t <= 500; t += 10) clockAt(r, t);
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"talk_on\",\"did\":\"listening\"}\n"));
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(2, "skipped", "listening")));
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(1, "cut", "tap")));
+  Rig m;
+  m.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  doLine(m, 3, "react", "next", kGo);
+  doLine(m, 4, "react", "next", kGo);
+  doLine(m, 5, "listening", "now");
+  TEST_ASSERT_TRUE(has(m.usb.text, endedLine(3, "cut", "now")));
+  TEST_ASSERT_TRUE(has(m.usb.text, endedLine(4, "skipped", "listening")));
+  TEST_ASSERT_TRUE(has(stateOf(m), "\"holder\":{\"id\":5,\"name\":\"listening\",\"resting\":true}"));
+}
+
+// PROTOCOL.md §3, §4: a tool's dbg.press over USB is push-to-talk for USB
+// alone, so it drops only the calls USB has waiting. The everyday app on
+// Bluetooth never hears that talk_on, so its reaction waiting is left
+// alone: it takes the turn once the press cuts the one playing and, a
+// reply, ends the listening, as the app's own queued reply did before.
+static void test_a_tools_press_drops_only_usbs_waiting_calls() {
+  Rig r;
+  const char* react = "{\"t\":\"do\",\"id\":%d,\"name\":\"react\",\"play\":\"next\",\"args\":{\"say\":{\"take\":\"previous.go\"}}}";
+  char line[160];
+  r.kit.connected();
+  r.bleLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  for (int id : {1, 2}) {
+    std::snprintf(line, sizeof(line), react, id);
+    r.bleLine(line);
+  }
+  doLine(r, 3, "react", "next", kGo);  // a tool's, over USB
+  r.usbLine("{\"t\":\"dbg.press\",\"ms\":800}");
+  for (uint32_t t = 10; t <= 500; t += 10) clockAt(r, t);
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"talk_on\",\"did\":\"listening\"}\n"));
+  TEST_ASSERT_FALSE(has(r.ble.text, "talk_on"));
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(3, "skipped", "listening")));
+  TEST_ASSERT_TRUE(has(r.ble.text, endedLine(1, "cut", "tap")));
+  TEST_ASSERT_FALSE(has(r.ble.text, "\"id\":2,"));
+  std::string st = stateOf(r);
+  TEST_ASSERT_TRUE(has(st, "\"holder\":{\"id\":2,\"name\":\"react\",\"resting\":false}"));
+  TEST_ASSERT_TRUE(has(st, "\"moment\":null"));  // the reply ended listening
+}
+
+// PROTOCOL.md §3, §4: a tap's poke that cuts the holder's animation ends
+// it `cut`, `tap`, once nothing of it plays; the next reaction waiting then
+// plays.
+static void test_a_tap_cuts_the_holders_animation() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  doLine(r, 1, "task_complete", "next", "{\"outcome\":\"success\",\"variant\":1}");
+  doLine(r, 2, "react", "next", kGo);
+  r.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");
+  clockAt(r, 100);
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ev\",\"kind\":\"tap\",\"did\":\"poked\"}\n"));
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(1, "cut", "tap")));
+  std::string st = stateOf(r);
+  TEST_ASSERT_TRUE(has(st, "\"moment\":{\"anim\":\"poked\""));  // the line plays over the poke
+  TEST_ASSERT_TRUE(has(st, "\"holder\":{\"id\":2,"));
+  TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
+}
+
+// linkkit/SPEC.md §4 (same id again): each launch of the Mac app starts its
+// ids at a random number, so a call after a restart can, rarely, reuse an
+// id the device still holds from the launch before. That launch is gone:
+// its call is forgotten, unanswered, and the new one's end is its own.
+static void test_a_new_launchs_call_is_its_own() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");  // the idle design's clock from 0
+  clockAt(r, 1000);
+  doLine(r, 1, "react", "next", "{\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\",\"loops\":4}");
+  clockAt(r, 4000);
+  doLine(r, 1, "react", "next", "{\"say\":{\"take\":\"previous.go\"},\"mood\":\"proud\"}");  // the new launch's first
+  // Its face holds to the idle design's next boundary, or while its line
+  // plays, whichever is later.
+  const uint32_t idle = render::loopMs(render::Mood::kProud, render::SceneState::kIdle);
+  uint32_t end = (4000 / idle + 1) * idle;
+  if (end < 4000 + 1838) end = 4000 + 1838;
+  clockAt(r, end - 1);
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"kind\":\"ended\""));
+  clockAt(r, end);
+  TEST_ASSERT_TRUE(has(r.usb.text, endedLine(1, "done")));
+  clockAt(r, end + 4 * idle);
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "\"kind\":\"ended\""));  // once, and nothing of the old launch's
+}
+
 int main() {
   UNITY_BEGIN();
   if (!packfile::open()) std::printf("no voice pack: run make -C internal voice\n");
@@ -1528,8 +1858,9 @@ int main() {
   RUN_TEST(test_saved_touch_calibration_must_match_the_screen);
   RUN_TEST(test_touchcal_sets_reads_and_clears);
   RUN_TEST(test_pattern_target_draws_a_cross);
-  RUN_TEST(test_status_on_connect_and_every_minute);
-  RUN_TEST(test_usb_status_when_the_mac_first_speaks);
+  RUN_TEST(test_hello_on_the_first_line_and_every_minute);
+  RUN_TEST(test_hello_again_when_the_pack_changes);
+  RUN_TEST(test_usb_hello_when_the_mac_first_speaks);
   RUN_TEST(test_a_quiet_link_is_dropped_after_30_s);
   RUN_TEST(test_input_reaches_every_live_link);
   RUN_TEST(test_injected_input_stays_on_usb);
@@ -1543,6 +1874,7 @@ int main() {
   RUN_TEST(test_a_touch_ends_while_the_clock_is_frozen);
   RUN_TEST(test_a_frozen_clock_runs_again_after_60s_without_debug);
   RUN_TEST(test_shot_is_header_then_base64);
+  RUN_TEST(test_the_clock_can_go_back_mid_animation);
   RUN_TEST(test_light_holds_the_backlight_until_the_next_state);
   RUN_TEST(test_motion_redraws_at_most_every_16ms);
   RUN_TEST(test_a_still_picture_isnt_redrawn);
@@ -1563,5 +1895,14 @@ int main() {
   RUN_TEST(test_lines_over_512_bytes_are_dropped);
   RUN_TEST(test_volume_is_held_in_range);
   RUN_TEST(test_a_moment_with_an_id_is_answered_when_it_ends);
+  RUN_TEST(test_a_reaction_waits_for_the_line_before_it);
+  RUN_TEST(test_the_next_reaction_waits_half_a_second_after_a_bubble);
+  RUN_TEST(test_a_finish_holds_the_turn_until_it_ends);
+  RUN_TEST(test_a_one_shot_never_cuts_a_line);
+  RUN_TEST(test_refused_calls_say_why);
+  RUN_TEST(test_the_mic_drops_the_reactions_waiting);
+  RUN_TEST(test_a_tools_press_drops_only_usbs_waiting_calls);
+  RUN_TEST(test_a_tap_cuts_the_holders_animation);
+  RUN_TEST(test_a_new_launchs_call_is_its_own);
   return UNITY_END();
 }

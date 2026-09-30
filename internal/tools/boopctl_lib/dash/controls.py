@@ -1,13 +1,13 @@
 """What the dashboard's keys send: `{"dev":…}` lines
 for the app's hook socket (common.send_line), built from the `questions`
-line, and Preview's own lines for its sim. The socket never replies, so a
+line, and Preview's own `state` and `do` lines for its sim. The socket never replies, so a
 command counts as landed when its entry shows up in debug.jsonl."""
 from __future__ import annotations
 
 import time
 from typing import Any, Callable
 
-from boopctl_lib.common import takes
+from boopctl_lib.common import do, takes
 from boopctl_lib.dash.feed import Line, action, kind
 
 CONFIRM_S = 2.0
@@ -73,11 +73,19 @@ def preview_state(latest: Line | None, look: str, mood: str | None = None) -> Li
     return state
 
 
-def preview_reaction(face: str, take: str | None, loops: int = 1, anim: str | None = None) -> Line:
-    """A reaction as the react action sends it: the face as the moment's
-    `mood`, held `loops` times, `anim` if one was picked, and the take
-    with id `take`, or `{}` for one that says nothing (PROTOCOL.md §3)."""
-    line: Line = {"t": "moment", "mood": face, "loops": loops, "say": {"take": take} if take else {}}
-    if anim:
-        line["anim"] = anim
-    return line
+# A finish `react.animation` picks, as the device plays it: its animation
+# and outcome (ReactAction.finish, harness/DECISIONS.md §3).
+FINISH = {"success": ("task_complete", "success"), "failure": ("task_complete", "failure"), "reply": ("reply_ready", None)}
+
+
+def preview_reaction(face: str, take: str | None, loops: int = 1, finish: str | None = None) -> Line:
+    """A reaction as the react action sends it (PROTOCOL.md `do`): `react`
+    with the face as its `mood`, held `loops` times, and the take with id
+    `take`, or `{}` for one that says nothing; with a `finish` picked
+    (react.animation's success, failure or reply), that finish's animation
+    in the face instead. Played `now`, so it replaces what the sim shows."""
+    args: Line = {"mood": face, "loops": loops, "say": {"take": take} if take else {}}
+    name, outcome = FINISH.get(finish or "", ("react", None))
+    if outcome:
+        args["outcome"] = outcome
+    return do(name, **args)

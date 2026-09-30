@@ -8,20 +8,19 @@ namespace render {
 
 enum class Anim : uint8_t {
   kNone,
-  kTaskComplete,  // the brain's finish: a turn done or failed ("cheer" is its success)
+  kTaskComplete,  // the brain's finish: a turn done or failed
   kReplyReady,    // the brain's finish: an answer, or a question back
   kStarting,      // the rules' one-shots (plan/PROTOCOL.md §3)
   kStopped,
   kError,
   kHelperReturn,
-  kPoked,      // a tap; the Mac's "wiggle" reads as one
+  kPoked,      // a tap
   kTapSpam,    // the third tap in a row and on
   kListening,  // push-to-talk: the listening design, until the reply
   kCount,
 };
 
-// By the names the Mac sends: kNone if unknown. "cheer" reads as
-// kTaskComplete (the device plays a success) and "wiggle" as kPoked.
+// By its design's state's name, as Boop's do names it: kNone if unknown.
 Anim animFromName(const char* name);
 const char* animName(Anim a);  // its design's state's name, such as "task_complete"; "none" for kNone
 

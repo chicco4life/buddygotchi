@@ -27,12 +27,12 @@ int EffectTrack::follow(const render::SceneShow* s, voice::FxEvent* out, bool& c
   }
   lastT_ = s->t;
   if (s->t > covered_ + kLateMs) covered_ = s->t;  // stalled: what's that late would only jar
-  uint32_t until = s->t + kLeadMs;
+  const uint64_t until = uint64_t(s->t) + kLeadMs;
   int n = 0;
   while (covered_ < until) {
-    int64_t cycle = covered_ / loopMs_;
-    uint32_t start = uint32_t(cycle) * loopMs_;
-    uint32_t end = start + loopMs_ < until ? start + loopMs_ : until;
+    int64_t cycle = int64_t(covered_ / loopMs_);
+    uint64_t start = uint64_t(cycle) * loopMs_;
+    uint64_t end = start + loopMs_ < until ? start + loopMs_ : until;
     if (cycle != cycle_) {
       cycle_ = cycle;
       bool sounds = false;
@@ -48,7 +48,7 @@ int EffectTrack::follow(const render::SceneShow* s, voice::FxEvent* out, bool& c
     }
     for (int i = 0; i < list_.n; ++i) {
       voice::FxEvent e = voice::fxEvent(list_.first + i);
-      uint32_t at = start + e.atMs;
+      uint64_t at = start + e.atMs;
       if (at < covered_ || at >= end) continue;
       if (n < kMaxOut) out[n++] = e;  // more at once than that would only be noise
     }

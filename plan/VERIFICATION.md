@@ -70,7 +70,7 @@ launch the menu-bar app or run the whole eval.
 
 | Target | What it does |
 | --- | --- |
-| `make build` | Builds the Mac app, agent-hooks' `agent-hook`, `boopdev`, `beacon` and `kit-emit` in one `swift build`. Importing a target that isn't a declared dependency fails it, so `app/` can't use `internal/` code ([ARCHITECTURE.md](ARCHITECTURE.md) §10) |
+| `make build` | Builds the Mac app, `boopdev` and the tests' runner in one `swift build`, then agent-hooks' `agent-hook` and JHarness's `jharness-emit` and `beacon` by product name. Importing a target that isn't a declared dependency fails it, so `app/` can't use `internal/` code ([ARCHITECTURE.md](ARCHITECTURE.md) §10) |
 | `make app` | Builds the Mac app, `agent-hook` and `boopdev` (the doctor skill checks the hooks with it), not the tests, with the same import check: what `make run` needs |
 | `make run` | `make app`, then runs the menu-bar app with Bluetooth. The owner's; never from an agent's shell |
 | `make debug` | The same with `--debug` |
@@ -80,9 +80,9 @@ launch the menu-bar app or run the whole eval.
 | `make eval` | Builds, then runs every eval scenario against Jev with no request budget, 3 runs each for an `always` scenario and 1 for the rest (L5): the final pass ([EVALS.md](EVALS.md) §2 counts its requests); fails without `BOOP_JEV_KEY` |
 | `make clean` | Deletes `.build` and `firmware/.pio` |
 | `make -C internal voice` | Builds the voice pack, `.build/voice/voice.bin`, and `Takes.swift` with voicegen (below) when the bank or voicegen changed. `test`, `fw-test` and `sim` make it first, since they read it |
-| `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim, since there's no Xcode: `make build`, then `.build/debug/BoopTests`. `BOOP_TEST_FILTER=Golden .build/debug/BoopTests` runs only the tests whose `Class.method` name contains `Golden`. Then agent-hooks' own tests, in Swift Testing: `swift test --scratch-path .build/tests` in `agent-hooks/`, tried again up to twice when its build fails with the "plugin for module 'TestingMacros' not found" flake |
-| `make -C internal fw` | Builds the firmware for the board |
-| `make -C internal fw-test` | The firmware's unit tests on the Mac (`pio test -e native`) |
+| `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim, since there's no Xcode: `make build`, then `.build/debug/BoopTests`. `BOOP_TEST_FILTER=Golden .build/debug/BoopTests` runs only the tests whose `Class.method` name contains `Golden`. Then the own tests of agent-hooks and of JHarness, in Swift Testing: `swift test --scratch-path .build/tests` in `agent-hooks/` and in `jharness/`, each tried again up to four times when its build fails with the "plugin for module 'TestingMacros' not found" flake |
+| `make -C internal fw` | Builds the firmware for the board: Boop's app on LinkKit's device library (`linkkit/device/`, [DEVICE.md](DEVICE.md) §4), whose build fails if the kit includes anything of Boop's (`linkkit/device/tools/check_includes.py`, run by every env) |
+| `make -C internal fw-test` | The firmware's unit tests on the Mac (`pio test -e native`), LinkKit's own suites (`test_turn`, `test_kit`) among them |
 | `make -C internal sim` | Every scenario in the simulator, against the goldens (L1) |
 | `make -C internal e2e` | Builds, then runs the pipeline check (L4) |
 | `make -C internal faces` | Regenerates the faces (`firmware/assets/faces.h`, the popover's `app/Boop/Views/FaceDesigns.swift`, the designs' loops for the Mac in `app/BoopKit/Core/FaceLoops.swift`, the frames `fw-test` checks, and the designs' list in `internal/tools/facegen/design/manifest.json`) from the animation bank (`internal/boop-design/boop-sound-bank-v4/`), whose generator it runs with node. It stops if an older mood's design doesn't come out as it was captured, then draws each design at a dozen moments in Google Chrome and fails unless facegen's own drawing matches pixel for pixel in RGB565, a blended pixel within one step (7,970 frames of 704 scenes, 7 minutes or so). Then rerun sfxgen (below) |
@@ -100,12 +100,12 @@ commands go through the bridge.
 | `state` | Prints `dbg.state`, the device's own view of itself |
 | `shot [--out FILE]` | Saves a screenshot of the canvas as a PNG (default `/tmp/boop-shot.png`) |
 | `send '<json>'` | Sends one message as the Mac would; for a `dbg.*` request it prints the reply |
-| `play ANIM\|needs\|pattern` | Makes the board do one thing the Mac can, and checks it took. An animation (`task_complete`, `reply_ready`, `starting`, `stopped`, `error`, `helper_return`, `poked` or `tap_spam`, or the older `cheer` and `wiggle`) plays over `--base` (idle) in `--mood` (happy) at `--vol` (1–10, 6), and `--loops N` (1–6) sends that many loops (without it the moment has none, which plays once); `--variant N`, `--outcome success\|failure` (task_complete) and `--ctx new_task\|session\|continuation` (starting) pick its variation, and it prints the one playing; `--take ID` adds that take, from the design's voice window. `needs` holds a fake "needs you" for `--seconds` (10) from `--agent` (claude) on `--project` (boopctl) with `--more` (0), and reports whether its performance started and its ding was sent. `pattern` shows the test pattern |
+| `play ANIM\|needs\|pattern` | Makes the board do one thing the Mac can, and checks it took. An animation (`task_complete`, `reply_ready`, `starting`, `stopped`, `error`, `helper_return`, `poked` or `tap_spam`, or the older `cheer` and `wiggle`, sent as task_complete's success and poked) is a `do` played `now`, replacing whatever plays, over `--base` (idle) in `--mood` (happy) at `--vol` (1–10, 6), and `--loops N` (1–6) sends that many loops (without it the `do` has none, which plays once); `--variant N`, `--outcome success\|failure` (task_complete) and `--ctx new_task\|session\|continuation` (starting) pick its variation, and it prints the one playing; `--take ID` adds that take, from the design's voice window. `needs` holds a fake "needs you" for `--seconds` (10) from `--agent` (claude) on `--project` (boopctl) with `--more` (0), and reports whether its performance started and its ding was sent. `pattern` shows the test pattern |
 | `takes [--only TEXT]` | Plays every take in the card's voice pack on its own, one after another, about two and a half hours for all 2,722 (or those whose id starts with `--only`, or whose text is it or has it as a word, any case), printing each id and text, and checks each in `audio.out`: the take, and the DAC's time within 10% of its length; then that a muted line moves the mouth silently. `--vol`, `--gap S` between takes (0.8), `--json`. For listening: `--board-volume` plays the first take at the volume the board already has; `--levels L…` plays the first take at each level, `--rounds N` times (6) |
 | `sim [scenario…] [--accept]` | Plays scenarios (all by default) in the simulator into `/tmp/boop-sim/<scenario>/` and compares them with the goldens (L1); `--accept` copies the pictures in |
 | `run [scenario…]` | Plays scenarios on the board and diffs each screenshot against the simulator's, threshold 0 (L2), then lets the clock run again |
 | `perf [--seconds N] [--motion]` | Samples fps, frame time and heap once a second for N s (30); `--motion` keeps the face moving (L2) |
-| `soak [--minutes N] [--seed N] [--vol N] [--out FILE]` | Random, realistic traffic and inputs for N minutes (20), brain reactions with ids and loops among them, at `--vol` (6; 1 is quiet) (L2). `--pipeline` loops the L4 fixtures through the headless app instead, with `--brain scripted\|jev` and `--out DIR` |
+| `soak [--minutes N] [--seed N] [--vol N] [--out FILE]` | Random, realistic traffic and inputs for N minutes (20), each `do` asking for its turn as the Mac or a tool would, brain reactions with ids and loops among them, at `--vol` (6; 1 is quiet) (L2). `--pipeline` loops the L4 fixtures through the headless app instead, with `--brain scripted\|jev` and `--out DIR` |
 | `e2e [fixture…]` | The pipeline check (L4). `--brain scripted\|jev` (scripted), `--out DIR` (`/tmp/boop-e2e-out`), `--clip` to film a Claude session first (L3, with `--camera ID`) |
 | `bridge [--socket PATH] [--quiet]` | Owns the serial port and shares it on a Unix socket (below) |
 | `cam frame\|pattern\|clip [name]` | The webcam helpers (L3). `--seconds N` for a clip (8, at most 10), `--usb bottom\|right\|top\|left` for framing, `--camera ID` (default `$BOOP_CAMERA` or the built-in camera) |
@@ -126,14 +126,15 @@ commands go through the bridge.
 | `watch [FILE] [--new]` | Prints a `debug.jsonl`'s view events, passes and actions readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's. `--new` skips what's already there, though the first pass still prints the state's head in force ([harness/HARNESS.md](harness/HARNESS.md) §9) |
 | `hooks status\|install\|remove [claude\|codex] --home DIR [--hook PATH]` | Boop's hook installer, against any HOME ([ADAPTERS.md](ADAPTERS.md) §5) |
 
-**The brain kit's example and tool** ([kit/BRAIN-KIT.md](kit/BRAIN-KIT.md)
-§3.3, §11), built by `make build`:
+**JHarness's example and tool** ([jharness/SPEC.md](../jharness/SPEC.md)
+§3.3, §11), built by `make build` (or `swift build` in `jharness/`, into
+`jharness/.build/debug/`):
 
 | Command | What it does |
 | --- | --- |
-| `.build/debug/beacon` | Runs Beacon, the kit's second example, through the worked example's timeline on a virtual clock with a scripted brain, and prints every event the log wrote and every prompt the brain was sent. `--steering DIR` (default `internal/examples/Beacon/steering`, from the repo root) |
+| `.build/debug/beacon` | Runs Beacon, JHarness's worked example, through its timeline on a virtual clock with a scripted brain, and prints every event the log wrote and every prompt the brain was sent. `--steering DIR` (default `jharness/Examples/Beacon/steering` in the source tree it was built from) |
 | `.build/debug/beacon listen --socket PATH` | Beacon live on a socket, the scripted brain answering and the light saying each one-shot is done 2 s later; prints each line, action and pass as it happens, until Ctrl-C |
-| `.build/debug/kit-emit --socket PATH SOURCE KIND [key=value …] [--line TEXT]` | Sends one event to a kit's socket: `kit-emit --socket /tmp/beacon.sock ci build_failed branch=main run=812`. A whole number is one, `true` and `false` yes and no, the rest strings |
+| `.build/debug/jharness-emit --socket PATH SOURCE KIND [key=value …] [--line TEXT]` | Sends one event to a harness's socket: `jharness-emit --socket /tmp/beacon.sock ci build_failed branch=main run=812`. A whole number is one, `true` and `false` yes and no, the rest strings |
 
 **`.build/debug/Boop`**, the app.
 
@@ -167,11 +168,13 @@ behind is dropped. The app's USB link (`--link usb:SOCKET`) and other
 ## 3. The debug channel
 
 Over USB the board takes every protocol message plus the `dbg.*`
-messages that tests use: vitals, the device's own view of itself,
-screenshots, a frozen clock, injected presses and touches, the test
-pattern, the lights, touch calibration and a reset. Every one, its reply
-and every field of `dbg.state` are in [PROTOCOL.md](PROTOCOL.md) §5. The
-board ignores them over Bluetooth.
+messages that tests use: vitals, the device's own view of itself (the
+turn's holder and waiting calls included), screenshots, a frozen clock,
+injected presses and touches, the test pattern, the lights, touch
+calibration and a reset. LinkKit answers the generic ones
+([linkkit/SPEC.md](../linkkit/SPEC.md) §7) and Boop's app the rest. Every
+one, its reply and every field of `dbg.state` are in
+[PROTOCOL.md](PROTOCOL.md) §5. The board ignores them over Bluetooth.
 
 The board handles waiting lines in order before it draws the next frame,
 and a debug message ends the batch ([PROTOCOL.md](PROTOCOL.md) §2). So a
@@ -211,7 +214,7 @@ of `behaviour.jsonl`:
 | Line | Meaning |
 | --- | --- |
 | `{"clock": ms}` | Freezes the clock at this time since the scenario started |
-| A protocol message | Sent as if it came from the Mac |
+| A protocol message | Sent as if it came from the Mac: a `state`, or a `do` (the scenarios send `"play":"now"`, so each replaces the last at once, as a tool's does; `turn.jsonl` plays them as the Mac does, `next` and `if_free`) |
 | A `dbg.` message | Sent as a debug request, such as `{"t":"dbg.pattern"}` |
 | `{"input": {"press":"tap"}}` | Presses BOOT for 100 ms, or `"ms"`; 400 ms or more is push-to-talk (the scenarios write `"press":"hold"`) |
 | `{"input": {"touch":[x,y]}}` | Touches the screen at (x, y) for 100 ms, or `"ms"` |
@@ -255,13 +258,29 @@ gets at least one scenario. Their pictures are the golden images in
   A deliberate change rewrites them:
   `BOOP_GOLDEN_RECORD=1 BOOP_TEST_FILTER=Golden .build/debug/BoopTests`
   (`BOOP_GOLDEN_OUT=DIR` keeps what a failing run built, to diff).
-  `BrainKitTests` checks the brain kit on its own, with toy outputs and
-  no Boop ([kit/BRAIN-KIT.md](kit/BRAIN-KIT.md)): the log, lines, rules,
-  the prompt's layout, the loop, what takes a while, forced passes,
-  `Choice`, the tick and the socket in.
-- **Firmware (`make -C internal fw-test`):** line reassembly across
-  Bluetooth packets, screenshot encoding, the clock and gestures
-  (`test_link`); the messages, debug channel and inputs (`test_device`);
+- **JHarness (`swift test` in `jharness/`, run by
+  `make -C internal test`):** `JHarnessTests` checks it on its own, with
+  toy outputs and no Boop ([jharness/SPEC.md](../jharness/SPEC.md)): the
+  log and its defaults, lines, rules, the prompt's layout, the loop (the
+  10 s wait, nothing from before a relaunch, repeated question keys
+  dropped, a late answer running nothing), what takes a while, forced
+  passes, `Choice`, the tick and the socket in; `JevBrainTests` Jev's
+  request, answer and retry; `BeaconTests` the worked example, pinned as
+  the spec quotes it.
+- **Firmware (`make -C internal fw-test`):** LinkKit alone, with a fake
+  app and nothing of Boop's: every rule of the turn with its numbers
+  (`test_turn`: `now`, `next` and `if_free`, rest and the line moving at
+  its exact millisecond, 4 waiting, `ttl` 5000 and 1–60000, refuse, the
+  one `ended` per id, same id again, dropping the line whole or by link,
+  `dbg.reset`) and the rest of the kit (`test_kit`: 512-byte lines,
+  `hello`, the host's `hello` asking for one, one too long for a line,
+  its 60 s repeat, the 30 s host-gone window, `ev` routing, `dbg.ping`,
+  `dbg.clock` and its thaw, `dbg.shot`, `dbg.state`, and the README's
+  lamp example), each test naming its [linkkit/SPEC.md](../linkkit/SPEC.md)
+  section; line reassembly across Bluetooth packets (a dropped link's
+  part line included), screenshot encoding, the clock and
+  gestures (`test_link`); Boop's vocabulary line in and line out, its
+  rules for the turn, the debug channel and inputs (`test_device`);
   the behaviour state machine, to the millisecond, including
   `test_no_change_ever_cuts_hard` and
   `test_nothing_cuts_hard_as_it_plays_out`, which hold every change and
@@ -321,10 +340,12 @@ accepted.
    where it stood after the first minute, the board still answering, no
    audio errors, the plain face back with no moment or borrowed face
    (within 75 s of calm), and one `ended` for every reaction it sent
-   ([PROTOCOL.md](PROTOCOL.md) §4), short only by as many lines as were
-   lost. It reports the lines the board never got (from `dbg.state`'s
-   `rx`), lines that came back torn, and debug replies it had to ask for
-   again.
+   ([linkkit/SPEC.md](../linkkit/SPEC.md) §4), short only by as many lines
+   as were lost; a reaction skipped for waiting its turn too long has
+   ended too, and one skipped as a name the board doesn't play fails. It
+   reports how they ended, the lines the board never got (from
+   `dbg.state`'s `rx`, which counts `state` and `do`), lines that came back
+   torn, and debug replies it had to ask for again.
 
 **Pass:** all of the above.
 
@@ -381,13 +402,16 @@ does all of it:
    `--clip`), that no `PRIVATE_` marker from the
    fixtures reached any app file (`debug.jsonl` and the transcript
    included) but `PRIVATE_PROMPT` and `PRIVATE_CLOSING`, which mark your
-   prompt and the agent's last message ([ADAPTERS.md](ADAPTERS.md) §2), and, from `boop.log`, that every
-   brain moment came after the rules' reaction, that the board said how
-   every brain moment it was sent ended (`ended`, [PROTOCOL.md](PROTOCOL.md) §4),
-   and that none it said a newer moment cut short was cut by the brain's
-   next one, which waits for the line to play ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
-   It lists the ones a rule's one-shot cut short, which may replace the
-   animation playing.
+   prompt and the agent's last message ([ADAPTERS.md](ADAPTERS.md) §2), and, from `boop.log`
+   (`link brain → …` and `device: do N ended HOW (WHY)`), that every
+   brain reaction came after the rules' reaction, that the board said how
+   every one it was sent ended (`ended`, [linkkit/SPEC.md](../linkkit/SPEC.md) §4),
+   that none was cut short by the brain's own next request, which waits
+   for the line to play ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2), and
+   that none was skipped as a name the board doesn't play. The board
+   queues the brain's reactions, so one that waited behind another's
+   line, or was skipped for waiting past its 5 s, is fine. It lists the
+   ones a `now` request cut short.
 
 **Pass:** every checkpoint matches, and p95 latency from hook to board is
 under 200 ms.

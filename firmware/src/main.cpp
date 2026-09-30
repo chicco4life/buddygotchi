@@ -1,28 +1,30 @@
 // Board entry point: allocate the canvas first, bring up the screen and
-// Bluetooth, then run the device core with USB serial and BLE as its links
+// Bluetooth, then run Boop on LinkKit with USB serial and BLE as its links
 // (plan/DEVICE.md §4).
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 
 #include "app/device.h"
-#include "app/line_reader.h"
 #include "board/audio.h"
 #include "board/board_hal.h"
 #include "board/display.h"
 #include "board/pins.h"
-#include "link/ble.h"
+#include "linkkit/ble.h"
+#include "linkkit/kit.h"
+#include "linkkit/line_reader.h"
 
 namespace {
 
-struct SerialOut : app::Out {
+struct SerialOut : linkkit::Out {
   void write(const char* s, size_t n) override { Serial.write(reinterpret_cast<const uint8_t*>(s), n); }
 };
 
 board::BoardHal hal;
 SerialOut usbOut;
-app::LineReader usbLine;
-links::Ble ble;
+linkkit::LineReader usbLine;
+linkkit::Ble ble;
 app::Device* device = nullptr;
+linkkit::Kit* kit = nullptr;
 
 // Lines are handled for at most this long before the next frame is drawn.
 constexpr uint32_t kLinesUs = 8000;
@@ -47,11 +49,13 @@ void setup() {
     }
   }
   board::audioBegin();  // dbg.state audio.out.ready says whether it worked
-  static app::Device dev(hal, pixels, /*frozenClock=*/false);
+  static app::Device dev(hal, pixels);
+  static linkkit::Kit k(hal, dev, /*frozenClock=*/false);
   device = &dev;
-  device->setOut(app::Link::kUsb, &usbOut);
+  kit = &k;
+  kit->setOut(linkkit::Link::kUsb, &usbOut);
   // Bluetooth after the canvas, so the canvas got its contiguous block.
-  if (ble.begin()) device->setOut(app::Link::kBle, &ble);
+  if (ble.begin(app::kBleNamePrefix, app::kIdPrefix)) kit->setOut(linkkit::Link::kBle, &ble);
   hal.setBle(&ble);
 }
 
@@ -66,14 +70,14 @@ void loop() {
     more = false;
     while (Serial.available() > 0) {
       if (!usbLine.feed(char(Serial.read()))) continue;
-      debug = device->handleLine(usbLine.line(), usbLine.length(), app::Link::kUsb);
+      debug = kit->handleLine(usbLine.line(), usbLine.length(), linkkit::Link::kUsb);
       busy = more = true;
       break;
     }
-    if (!debug && ble.poll(*device)) busy = more = true;
+    if (!debug && ble.poll(*kit)) busy = more = true;
   }
   uint32_t t0 = micros();
-  device->tick();
+  kit->tick();
   if (device->takeFrame()) {
     uint32_t t1 = micros();
     board::displayPush(device->canvas());

@@ -30,6 +30,7 @@ from boopctl_lib.dash.face import CROP, SCALE, blocks, render  # noqa: E402
 from boopctl_lib.dash import feed  # noqa: E402
 from boopctl_lib.dash.feed import STALE_S, Board, Follower, clock, kind  # noqa: E402
 from boopctl_lib.scenario import GOLDEN  # noqa: E402
+from old_logs import as_do  # noqa: E402
 
 FIXTURE = Path(__file__).parent / "fixtures" / "headless-debug.jsonl"
 COLUMNS = Path(__file__).parent / "fixtures" / "dash-columns.jsonl"
@@ -42,7 +43,7 @@ def fixture_lines(path: Path = FIXTURE) -> list[dict]:
 
 def dashboard_action(line: dict) -> dict:
     """An action's start, if the dashboard forced it: the fixture is a
-    launch from before the brain kit, so it also checks that older logs'
+    launch from before JHarness, so it also checks that older logs'
     actions still read (harness/HARNESS.md §9)."""
     a = feed.action(line["event"]) if "event" in line else None
     return a if a and a["by"] == "dashboard" else {}
@@ -93,6 +94,16 @@ class FeedTests(unittest.TestCase):
         self.assertIn(("sent", "→ state idle grumpy · busy 0 · vol 6"), rows, "a state carries the mood")
         self.assertIn(("sent", "→ state idle happy · busy 0 · needs you: claude jetpack · vol 6"), rows)
         self.assertIn(("status", "status: sessions claude jetpack waiting"), rows, "a status row shows what changed")
+
+    def test_the_timeline_of_do_lines(self):
+        """The Mac sends a `do` where it sent a `moment` (old_logs.as_do):
+        the timeline names it, and every other row is the same."""
+        _, old = board_after(fixture_lines())
+        _, now = board_after([as_do(line) for line in fixture_lines()])
+        self.assertIn(("sent", "→ do wiggle"), now)
+        self.assertIn(("sent", "→ do react + say no take"), now, "an old log's line, which had no take")
+        self.assertEqual([row for row in now if not row[1].startswith("→ do")],
+                         [row for row in old if not row[1].startswith("→ moment")])
 
     def test_the_state_joins_its_head(self):
         """A pass line carries HISTORY and NOW, and a `head` line before it
@@ -233,9 +244,10 @@ class ColumnsTests(unittest.TestCase):
         self.assertEqual(rows[-2][0], "attn")
 
     def test_a_rules_one_shot_and_the_activity(self):
-        """A rule's one-shot (PROTOCOL.md §3 `moment`) is named by the view
-        event recorded right after it, never "played from the dashboard",
-        and the working look shows its activity (`act`)."""
+        """A rule's one-shot, in an older log's `moment` (test_the_macs_requests
+        has today's `do`), is named by the view event recorded right after
+        it, never "played from the dashboard", and the working look shows
+        its activity (`act`)."""
         t = 1_790_550_800_000
         state = {"t": "state", "base": "working", "act": "terminal", "mood": "calm", "busy": 1, "vol": 6}
         view = {"id": 9, "type": "turn", "from": [9], "line": 'claude started turn 2 on "jetpack".', "notes": [],
@@ -250,13 +262,56 @@ class ColumnsTests(unittest.TestCase):
         self.assertIn(("sent", "→ state working (terminal) calm · busy 1 · vol 6"), rows)
         self.assertEqual(dict(board.facts(t + 60_000))["showing"], "its terminal look")
 
+    def test_the_macs_requests(self):
+        """What the Mac sends since the device took turns (PROTOCOL.md
+        `do`): a rule's one-shot is a reflex named by the view event right
+        after it, as before; the Talk button's listening is one; the brain's
+        finish isn't; and push-to-talk ending with no reply shows nothing,
+        even as the first line."""
+        t = 1_790_550_800_000
+        view = {"id": 9, "type": "turn", "from": [9], "line": 'claude started turn 2 on "jetpack".', "notes": [],
+                "wakes_brain": True, "facts": {}, "phase": "start"}
+        sent = lambda at, by, msg: {"sent": msg, "by": by, "received_at_ms": at}  # noqa: E731
+        board, rows = board_after([
+            sent(t, "rule", {"t": "do", "id": 41, "name": "stop_listening", "play": "if_free"}),
+            sent(t + 5, "rule", {"t": "state", "base": "working", "mood": "calm", "busy": 1, "vol": 6}),
+            sent(t + 10, "rule", {"t": "do", "id": 42, "name": "starting", "play": "if_free",
+                                  "args": {"variant": 3, "ctx": "new_task"}}),
+            {"view": view, "received_at_ms": t + 20},
+            sent(t + 30, "brain", {"t": "do", "id": 43, "name": "task_complete", "play": "next", "ttl": 5000,
+                                   "args": {"outcome": "success", "variant": 2, "who": {"agent": "claude", "thread": "api"},
+                                            "say": {"take": "new.d15"}, "mood": "proud"}}),
+            sent(t + 40, "rule", {"t": "do", "id": 44, "name": "listening", "play": "now"}),
+        ])
+        reflex = self.texts(board.reflex_column())
+        self.assertEqual(reflex, [f"{clock(t + 40)} listening", "  you pressed Talk on the Mac",
+                                  f"{clock(t + 10)} starting (new_task)", '  ▸ claude started turn 2 on "jetpack".'])
+        self.assertIn(("sent", "→ do stop_listening"), rows)
+        self.assertIn(("sent", "→ do starting"), rows)
+        self.assertIn(("sent", f"→ do task_complete + say {feed.say_text({'take': 'new.d15'})}"), rows)
+        self.assertEqual(dict(board.facts(t + 1000))["showing"], "listening")
+
+    def test_a_held_pass_says_nothing_of_the_brains_latency(self):
+        """A pass held back when its turn came never asked the brain
+        (jharness/SPEC.md §9): Boop now keeps the last real pass's time."""
+        board, rows = board_after([
+            {"pass": {"brain": "jev:jev-latest", "for": 1, "dropped": None, "latency_ms": 700, "answers": {},
+                      "questions": []}, "received_at_ms": 1},
+            {"pass": {"brain": "jev:jev-latest", "for": 2, "dropped": None, "held": "something needs you",
+                      "latency_ms": 0, "answers": {}}, "received_at_ms": 2},
+        ])
+        self.assertEqual(dict(board.facts(2))["brain"], "? · 700 ms · dropped 0")
+        self.assertEqual(rows[-1], ("dim", "  pass jev:jev-latest for 2: held: something needs you"))
+
     def test_who_sent_a_moment(self):
         """A `sent` line's `by` says whose it is (harness/HARNESS.md §9):
         a brain's moment is no reflex, face or not, and a rule's is one. A
-        log from before `by` guesses from the face."""
+        log from before `by` (and before `do`) guesses from the face."""
         t = 1_790_550_800_000
         brain = {"t": "moment", "anim": "cheer", "mood": "proud", "say": {"take": "new.d15"}}
         rule = {"t": "moment", "anim": "wiggle"}
+        now = {"t": "do", "id": 3, "name": "task_complete", "play": "next", "args": {"mood": "proud"}}
+        self.assertEqual(feed.sent_by({"sent": now, "by": "rule"}), "rule", "today's lines always say")
         lines = [{"sent": brain, "by": "brain", "received_at_ms": t}, {"sent": rule, "by": "rule", "received_at_ms": t}]
         self.assertEqual([(kind(line), feed.sent_by(line)) for line in lines], [("sent", "brain"), ("sent", "rule")])
         self.assertEqual(feed.sent_by({"sent": {"t": "moment", "anim": "wiggle"}, "by": "brain"}), "brain")
@@ -320,6 +375,17 @@ class ColumnsTests(unittest.TestCase):
         board = self.board
         self.assertEqual(dict(board.facts(self.at[31] + 1000))["showing"], "Boop wiggled on its own.")
         self.assertEqual(dict(board.facts(self.at[31] + 60_000))["showing"], "its idle look")
+
+    def test_the_same_columns_from_do_lines(self):
+        """The Mac sends a `do` where it sent a `moment` (old_logs.as_do):
+        Boop now and the three columns read the same from either."""
+        lines = [as_do(line) for line in fixture_lines(COLUMNS)]
+        self.assertTrue([line for line in lines if line.get("sent", {}).get("t") == "do"])
+        board, _ = board_after(lines)
+        for column in ("mood_column", "reflex_column", "decided_column"):
+            self.assertEqual(getattr(board, column)(), getattr(self.board, column)(), column)
+        for at in (self.board.newest_ms, self.at[31] + 1000):
+            self.assertEqual(board.facts(at), self.board.facts(at))
 
     def test_the_stale_log_banner(self):
         """A debug-mode app writes a `sent` line at least
@@ -448,13 +514,18 @@ class ControlsTests(unittest.TestCase):
         self.assertEqual(latest["base"], "working", "the app's state is left alone")
 
     def test_a_preview_reaction_says_its_take(self):
+        """As the react action sends it (PROTOCOL.md `do`), played `now` so
+        it replaces what the sim shows; a finish react.animation picks is
+        its animation with its outcome (ReactAction.finish)."""
         line = controls.preview_reaction("grumpy", "new.d14", 3)
-        self.assertEqual((line["t"], line["mood"], line["loops"]), ("moment", "grumpy", 3))
-        self.assertEqual(line["say"], {"take": "new.d14"})
-        self.assertNotIn("anim", line)
-        face = controls.preview_reaction("proud", None, 1, "cheer")
-        self.assertEqual(face["anim"], "cheer", "an animation as react.animation picks it")
-        self.assertEqual(face["say"], {}, "saying nothing still sends a say, as react does")
+        self.assertEqual(line, {"t": "do", "name": "react", "play": "now",
+                                "args": {"mood": "grumpy", "loops": 3, "say": {"take": "new.d14"}}})
+        face = controls.preview_reaction("proud", None, 1, "success")
+        self.assertEqual((face["name"], face["args"]["outcome"]), ("task_complete", "success"))
+        self.assertEqual(face["args"]["say"], {}, "saying nothing still sends a say, as react does")
+        self.assertEqual(controls.preview_reaction("sad", None, 1, "failure")["args"]["outcome"], "failure")
+        reply = controls.preview_reaction("curious", None, 2, "reply")
+        self.assertEqual((reply["name"], "outcome" in reply["args"]), ("reply_ready", False))
 
     def test_confirmations(self):
         pending = controls.Pending()
@@ -607,10 +678,12 @@ class AppTests(unittest.TestCase):
                     f.write('{"event":{"seq":28,"at":1790498700000,"source":"self","kind":"did","data":{"action":"mood",'
                             '"by":"dashboard","for":null,"latency_ms":0,"message":"already grumpy","ok":false}},'
                             '"received_at_ms":1790498700000}\n')
-                    f.write('{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":1790498700001}\n')
+                    f.write('{"sent":{"t":"do","id":5,"name":"starting","play":"if_free"},"by":"rule",'
+                            '"received_at_ms":1790498700001}\n')
                 app.poll()
                 self.assertEqual([name for _, name, _ in app.pending.waiting], ["answer"])
-                self.assertEqual(face.sent, [{"t": "moment", "anim": "cheer"}], "live lines reach the sim")
+                self.assertEqual(face.sent, [{"t": "do", "id": 5, "name": "starting", "play": "if_free"}],
+                                 "live lines reach the sim as sent")
 
                 # Preview: the dashboard's own lines, to its sim only.
                 await pick("p", 1)
@@ -620,16 +693,17 @@ class AppTests(unittest.TestCase):
                 self.assertEqual((face.sent[-1]["base"], face.sent[-1]["mood"]), ("working", "sad"))
                 self.assertEqual(len(server.wait(3, timeout=0.3)), 2, "nothing went to the app")
                 with log.open("a") as f:
-                    f.write('{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":1790498700002}\n')
+                    f.write('{"sent":{"t":"do","id":6,"name":"starting","play":"if_free"},"by":"rule",'
+                            '"received_at_ms":1790498700002}\n')
                 app.poll()
                 self.assertEqual(face.sent[-1]["mood"], "sad", "the app's lines wait")
-                await pick("r", 5, 0)  # grumpy's face, saying nothing: a moment with its `mood`
+                await pick("r", 5, 0)  # grumpy's face, saying nothing: a `react` with its `mood`
                 for _ in range(100):
-                    if face.sent[-1]["t"] == "moment":
+                    if face.sent[-1]["t"] == "do":
                         break
                     await pilot.pause(0.05)
-                self.assertEqual((face.sent[-1]["t"], face.sent[-1]["mood"]), ("moment", "grumpy"))
-                self.assertEqual(face.sent[-1]["say"], {}, "saying nothing, as react sends it")
+                self.assertEqual((face.sent[-1]["name"], face.sent[-1]["args"]["mood"]), ("react", "grumpy"))
+                self.assertEqual(face.sent[-1]["args"]["say"], {}, "saying nothing, as react sends it")
                 # Resent well inside the device's 30 s no-app timeout.
                 self.assertEqual(PREVIEW_RESEND_S, 10)
                 app.keep_preview()
@@ -649,7 +723,8 @@ class AppTests(unittest.TestCase):
                 log.write_text('{"questions":[],"received_at_ms":2}\n'
                                '{"sent":{"t":"state","base":"idle","busy":0,"vol":6},'
                                '"received_at_ms":2}\n'
-                               '{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":3}\n')
+                               '{"sent":{"t":"do","id":7,"name":"starting","play":"if_free"},"by":"rule",'
+                               '"received_at_ms":3}\n')
                 sent_before = len(face.sent)
                 app.poll()
                 self.assertEqual(face.restarts[-1]["base"], "idle", "the new app's latest state")

@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from boopctl_lib.common import FINISHES
+from boopctl_lib.common import FINISHES, call
 from boopctl_lib.dash.feed import action, action_end, kind, sent_by, view_name
 
 Line = dict[str, Any]
@@ -215,12 +215,13 @@ def summarise(launches: list[Launch], date: str) -> Day:
                         h.moods += 1
                         day.moods.append(changed)
                 mood, seen_state = now, True
-            elif k == "sent" and body.get("t") == "moment" and h:
-                # The brain's moment is a reaction, counted from its react
-                # action below; the rules' moment with a line is chatter.
-                if body.get("anim") in FINISHES:
+            elif k == "sent" and (c := call(body)) and h:
+                # A `do`, or an older log's `moment`. The brain's is a
+                # reaction, counted from its react action below; an older
+                # log's rules' moment with a line is chatter.
+                if c["anim"] in FINISHES:
                     h.finishes += 1
-                if body.get("say") and sent_by(line) == "rule":
+                if c.get("say") and sent_by(line) == "rule":
                     h.chatter += 1
             elif k == "view":
                 seq = (body.get("from") or [0])[-1]  # the raw event that made it, which a pass is for
@@ -237,7 +238,7 @@ def summarise(launches: list[Launch], date: str) -> Day:
                     continue
                 if body.get("held"):
                     # Held back when its turn came (something needed you):
-                    # the brain wasn't asked (kit/BRAIN-KIT.md §9).
+                    # the brain wasn't asked (jharness/SPEC.md §9).
                     day.held[body["held"]] += 1
                     continue
                 h.passes += 1

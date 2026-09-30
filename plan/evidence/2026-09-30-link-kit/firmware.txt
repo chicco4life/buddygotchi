@@ -1,0 +1,43 @@
+The device lane of 2026-09-30: LinkKit's device library (linkkit/device/)
+and Boop's firmware on it. Every check below ran on the Mac, in the
+link-kit worktree; nothing here touched the board.
+
+Before (the tree at c6570f60, unchanged):
+  make -C internal fw        RAM 48,084 B (14.7%), Flash 1,790,051 B (56.9%)
+  make -C internal fw-test   166 test cases: 166 succeeded
+  make -C internal sim       14 scenarios, 0 expect failures, 0 new or changed pictures
+
+After:
+  make -C internal fw        RAM 50,412 B (15.4%), Flash 1,800,171 B (57.2%)
+                             (+2,328 B static RAM: the turn's 4 x 512 B of queued args;
+                              +10,120 B flash)
+  make -C internal fw-test   214 test cases: 214 succeeded
+                               test_link 13, test_behaviour 49, test_kit 17, test_device 61,
+                               test_face 16, test_voice 8, test_canvas 6, test_effects 11,
+                               test_turn 22, test_scene 11
+  make -C internal sim       15 scenarios, 0 expect failures, 0 new or changed pictures
+                             (the 80 goldens byte-identical after the 50 `moment` lines
+                              became `do` lines, play "now"; turn.jsonl added, expects only)
+  tools-test's Python suite  110 tests OK against the new simulator (the tools lane's tree)
+
+The include check (linkkit/device/tools/check_includes.py, the library's
+extraScript): with `#include "render/anim.h"` added to
+linkkit/device/src/linkkit/codec.cpp, `pio run -e native` failed with
+  linkkit: not the kit's to include: linkkit/codec.cpp:2: #include "render/anim.h"
+and passed again once it was taken out.
+
+Fuzz (fuzz_turn.py here): random states, dos (every name, play, id, ttl and
+args shape, 512-byte-plus lines), clock steps (some backwards), presses,
+touches, resets and junk, through boop-sim built with clang -O2 (seeds 1-8,
+5,000 lines each) and with -fsanitize=address,undefined (seeds 11-12, 3,000
+lines each): no sanitizer report, exit 0, and every do with an id that fit
+a line got exactly one `ended` (e.g. seed 1: 1,937 ids, 1,937 ended).
+
+It found a hang that main has too: a tool freezing the clock earlier than
+an animation's start (dbg.clock 9001, a helper_return, dbg.clock 4201)
+made the look's design clock wrap to ~4.29e9 ms, and EffectTrack::follow
+spun through it (main's boop-sim, built from `git archive main`, never
+answered). Fixed in Behaviour::advance (the look starts over at the new
+time) and EffectTrack (64-bit loop spans); pinned by
+test_the_clock_going_back_starts_the_look_over (test_behaviour) and
+test_the_clock_can_go_back_mid_animation (test_device).

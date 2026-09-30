@@ -29,17 +29,9 @@ const char* screenName(Screen s) {
   return "face";
 }
 
-const char* momentEndName(MomentEnd e) {
-  switch (e) {
-    case MomentEnd::kCut: return "cut";
-    case MomentEnd::kSkipped: return "skipped";
-    default: return "done";
-  }
-}
-
 const char* cutByName(CutBy c) {
   switch (c) {
-    case CutBy::kMoment: return "moment";
+    case CutBy::kNewer: return "now";
     case CutBy::kTap: return "tap";
     case CutBy::kNeedsYou: return "needs_you";
     case CutBy::kReset: return "reset";
@@ -68,13 +60,13 @@ render::SceneState actFromName(const char* name) {
   }
 }
 
-// Forgets everything but what the Mac is owed: each moment it waits on
-// has stopped playing, cut short.
+// Forgets everything but what the Mac is owed: each call playing has
+// stopped, cut short.
 void Behaviour::reset(uint32_t t, Rng& rng) {
   Owed owed = owed_;
   *this = Behaviour{};
   owed_ = owed;
-  for (int i = 0; i < owed_.nWaiting; ++i) cut(owed_.waiting[i].id, CutBy::kReset);
+  for (int i = 0; i < owed_.nWaiting; ++i) cut(owed_.waiting[i].call, CutBy::kReset);
   sweep(t);
   modelT_ = t;
   lastState_ = t;
@@ -135,6 +127,9 @@ void Behaviour::advance(uint32_t t, Rng& rng) {
   if (int32_t(t - modelT_) < 0) {  // the clock went back: no history to replay
     modelT_ = t;
     if (after(nextBlink_, t + 10000)) nextBlink_ = t + blinkGap(rng);
+    // A look that began after t begins at t, so its design's clock (and
+    // the sound effects following it) never reads a wrapped, huge time.
+    if (after(lookAt_, t)) lookAt_ = t;
     resync(t);
     return;
   }
@@ -203,42 +198,29 @@ void Behaviour::turn(uint32_t t, Rng& rng) {
   change(t, [&] { lookVariant_ = uint8_t(v); });
 }
 
-// ---- Moments the Mac waits on (PROTOCOL.md §4 `ended`) ---------------------
+// ---- Calls from the Mac: how each ended (PROTOCOL.md §4 `ended`) --------
 
-// A moment is over when none of its parts plays: the animation, the line
+// A call is over when none of its parts plays: the animation, the line
 // and its bubble, the expression. It was cut if its animation or its line
 // was stopped early. Its expression holds on after its line, and ending
-// that early doesn't cut it: the reaction was seen and heard.
-bool Behaviour::holds(uint32_t id, uint32_t t) const {
-  return (momentOn(t) && moment_.id == id) || (sayDue(t) && say_.id == id) || (exprOn(t) && exprId_ == id);
+// that early doesn't cut it: the reaction was seen and heard. The kit
+// passes on only the holder's end; a call it replaced was answered then.
+bool Behaviour::holds(uint32_t call, uint32_t t) const {
+  return (momentOn(t) && moment_.call == call) || (sayDue(t) && say_.call == call) ||
+         (exprOn(t) && exprCall_ == call);
 }
 
-void Behaviour::wait(uint32_t id, uint8_t from) {
-  // Can't overflow: each part holds one moment, and those with none left
+void Behaviour::wait(uint32_t call) {
+  // Can't overflow: each part holds one call, and those with none left
   // were ended at the last change.
-  if (owed_.nWaiting < Owed::kWaiting) owed_.waiting[owed_.nWaiting++] = Waiting{id, from, CutBy::kNone};
-}
-
-// An id the device still waits on, arriving again: the Mac app never
-// reuses an id within a launch, so it's an earlier launch's, which is gone.
-// Its moment is forgotten, unreported, and whatever of it still plays no
-// longer holds the id, so the new moment's end is its own.
-void Behaviour::forget(uint32_t id) {
-  int kept = 0;
-  for (int i = 0; i < owed_.nWaiting; ++i) {
-    if (owed_.waiting[i].id != id) owed_.waiting[kept++] = owed_.waiting[i];
-  }
-  owed_.nWaiting = kept;
-  if (moment_.id == id) moment_.id = 0;
-  if (say_.id == id) say_.id = 0;
-  if (exprId_ == id) exprId_ = 0;
+  if (owed_.nWaiting < Owed::kWaiting) owed_.waiting[owed_.nWaiting++] = Waiting{call, CutBy::kNone};
 }
 
 // The first cut is the one reported.
-void Behaviour::cut(uint32_t id, CutBy by) {
+void Behaviour::cut(uint32_t call, CutBy by) {
   for (int i = 0; i < owed_.nWaiting; ++i) {
     Waiting& w = owed_.waiting[i];
-    if (w.id == id && w.cut == CutBy::kNone) w.cut = by;
+    if (w.call == call && w.cut == CutBy::kNone) w.cut = by;
   }
 }
 
@@ -246,10 +228,10 @@ void Behaviour::sweep(uint32_t t) {
   int kept = 0;
   for (int i = 0; i < owed_.nWaiting; ++i) {
     const Waiting w = owed_.waiting[i];
-    if (holds(w.id, t)) {
+    if (holds(w.call, t)) {
       owed_.waiting[kept++] = w;
     } else {
-      report(Ended{w.id, w.cut == CutBy::kNone ? MomentEnd::kDone : MomentEnd::kCut, w.cut, w.from});
+      report(Ended{w.call, w.cut});
     }
   }
   owed_.nWaiting = kept;
@@ -266,6 +248,17 @@ bool Behaviour::takeEnded(Ended& e) {
   for (int i = 1; i < owed_.nEnded; ++i) owed_.ended[i - 1] = owed_.ended[i];
   --owed_.nEnded;
   return true;
+}
+
+bool Behaviour::nextEnd(uint32_t from, uint32_t to, uint32_t& at) const {
+  bool found = false;
+  auto consider = [&](uint32_t c) {
+    if (after(c, from) && !after(c, to) && (!found || after(at, c))) at = c, found = true;
+  };
+  if (moment_.anim != render::Anim::kNone) consider(moment_.at + moment_.ms);
+  if (say_.take >= 0) consider(say_.at + say_.ms);
+  if (expr_) consider(exprAt_ + exprMs_);
+  return found;
 }
 
 // ---- Messages --------------------------------------------------------------
@@ -291,8 +284,8 @@ void Behaviour::onState(const Model& m, uint32_t t) {
       if (had) switched_ = true, switchAt_ = t;  // starting over mid-performance: the eyes hide the jump
       // Listening is the one moment that plays on (BEHAVIORS.md §1), so
       // push-to-talk still works.
-      if (momentOn(t) && !listening(t)) cut(moment_.id, CutBy::kNeedsYou), moment_.anim = render::Anim::kNone;
-      if (sayDue(t)) cut(say_.id, CutBy::kNeedsYou);
+      if (momentOn(t) && !listening(t)) cut(moment_.call, CutBy::kNeedsYou), moment_.anim = render::Anim::kNone;
+      if (sayDue(t)) cut(say_.call, CutBy::kNeedsYou);
       say_ = Say{};  // no lines while something needs you
       expr_ = false;
     }
@@ -312,37 +305,48 @@ void Behaviour::onState(const Model& m, uint32_t t) {
 // as its line and bubble; a face on its own (no animation, no line) plays
 // just that, leaving any line playing. What outranks the moments
 // (BEHAVIORS.md §1): no app, and while something needs you no animation
-// takes the face over and no line or face on its own plays. A moment the
-// Mac waits on that plays nothing ends at once, skipped.
+// takes the face over and no line or face on its own plays. A call that
+// would play nothing isn't admitted: the kit skips it, with why.
 //
 // Listening (DEVICE.md §4) plays even while something needs you, and holds
-// until the reply: a moment with a `say` is the reply, and ends it before
-// playing as it would have; so does the empty moment, which does nothing
+// until the reply: a call with a `say` is the reply, and ends it before
+// playing as it would have; so does stop_listening, which does nothing
 // else. Nothing else ends it or plays while it waits: not a one-shot, a
-// finish, a face on its own or an animation the device doesn't know. A
-// listening moment while listening carries on with the same design, its
-// time starting over.
-bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
-  if (in.id) forget(in.id);
+// finish or a face without a `say`. A listening call while listening
+// carries on with the same design, its time starting over.
+const char* Behaviour::admit(const MomentIn& in, uint32_t t) {
   const bool listen = in.anim == render::Anim::kListening;
-  if (listening(t) && !listen && (in.said || in.empty)) change(t, [&] { moment_.anim = render::Anim::kNone; });
+  const bool wasListening = listening(t);
+  if (wasListening && !listen && (in.said || in.empty)) change(t, [&] { moment_.anim = render::Anim::kNone; });
+  if (in.empty) return wasListening ? nullptr : "not_listening";
   bool anim = in.anim != render::Anim::kNone && (listen || !held(t));
   bool line = in.take >= 0 && !model_.attn && !noApp(t);
   bool face = in.expr && !held(t);  // listening, if it's still on, holds the face
-  if (!anim && !line && !face) {
-    if (in.id) report(Ended{in.id, MomentEnd::kSkipped, CutBy::kNone, in.from});
-    return false;
-  }
+  if (anim || line || face) return nullptr;
+  if (noApp(t)) return "no_app";
+  if (listening(t)) return "listening";
+  if (model_.attn) return "needs_you";
+  return "nothing";
+}
+
+bool Behaviour::play(const MomentIn& in, uint32_t t) {
+  const bool listen = in.anim == render::Anim::kListening;
+  bool anim = in.anim != render::Anim::kNone && (listen || !held(t));
+  bool line = in.take >= 0 && !model_.attn && !noApp(t);
+  bool face = in.expr && !held(t);
+  if (!anim && !line && !face) return false;  // stop_listening: admit did it all
   change(t, [&] {
     const render::Mood mood = in.expr ? in.mood : model_.mood;  // the mood it's drawn in
     uint32_t voice = 0;  // when its line starts, from t
     if (anim && listen && listening(t)) {
-      if (moment_.id && moment_.id != in.id) cut(moment_.id, CutBy::kMoment);
+      if (moment_.call && moment_.call != in.call) cut(moment_.call, CutBy::kNewer);
       moment_.ms = (t - moment_.at) + kListenMs + kReplyWaitMs;
+      moment_.call = in.call;
       moment_.id = in.id;
     } else if (anim) {
-      endLine(t, CutBy::kMoment);
-      play(in.anim, t, CutBy::kMoment, in.loops, mood, in.variant);
+      endLine(t, CutBy::kNewer);
+      playAnim(in.anim, t, CutBy::kNewer, in.loops, mood, in.variant);
+      moment_.call = in.call;
       moment_.id = in.id;
       bool finish = in.anim == render::Anim::kTaskComplete || in.anim == render::Anim::kReplyReady;
       if (finish && in.whoAgent && in.whoAgent[0]) {
@@ -353,7 +357,7 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
     }
     if (line) {
       startSay(in, t, t + voice);
-      say_.id = in.id;
+      say_.call = in.call;
       if (anim && !listen && voice + say_.ms > moment_.ms) moment_.ms = voice + say_.ms;
     }
     if (in.expr) {
@@ -362,9 +366,9 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
       exprAt_ = t;
       exprMs_ = anim ? moment_.ms : holdMs(in.mood, in.loops, t);
       if (line && voice + say_.ms > exprMs_) exprMs_ = voice + say_.ms;
-      exprId_ = in.id;
+      exprCall_ = in.call;
     }
-    if (in.id) wait(in.id, in.from);
+    if (in.call) wait(in.call);
   });
   return line;
 }
@@ -388,8 +392,8 @@ uint8_t Behaviour::pick(render::Anim a, render::Mood mood, int wanted, render::O
 
 // The animation playing is cut short, by `by`; the line and the
 // expression play on (endLine ends them).
-void Behaviour::play(render::Anim a, uint32_t t, CutBy by, int loops, render::Mood mood, uint8_t variant) {
-  if (momentOn(t)) cut(moment_.id, by);
+void Behaviour::playAnim(render::Anim a, uint32_t t, CutBy by, int loops, render::Mood mood, uint8_t variant) {
+  if (momentOn(t)) cut(moment_.call, by);
   moment_ = Moment{};
   moment_.anim = a;
   moment_.variant = variant;
@@ -409,7 +413,7 @@ void Behaviour::play(render::Anim a, uint32_t t, CutBy by, int loops, render::Mo
 // A new moment replaces the line playing, cut short by `by`, and its
 // expression.
 void Behaviour::endLine(uint32_t t, CutBy by) {
-  if (sayDue(t)) cut(say_.id, by);
+  if (sayDue(t)) cut(say_.call, by);
   say_ = Say{};
   expr_ = false;
   ++momentSeq_;
@@ -427,7 +431,7 @@ uint32_t Behaviour::holdMs(render::Mood mood, int loops, uint32_t t) const {
 }
 
 void Behaviour::startSay(const MomentIn& in, uint32_t t, uint32_t at) {
-  endLine(t, CutBy::kMoment);  // a new line ends the last one and the last moment's expression
+  endLine(t, CutBy::kNewer);  // a new line ends the last one and the last moment's expression
   Say& s = say_;
   s.take = in.take;
   s.then = voice::takeText(in.then) ? in.then : -1;
@@ -453,14 +457,15 @@ void Behaviour::pressUp() { pressed_ = false; }
 // third tap on, cutting the animation playing. A brain reaction's line and
 // expression play on over it, so a barrage doesn't cut short the one
 // answer it gets.
-void Behaviour::tap(uint32_t t, Rng& rng) {
+const char* Behaviour::tap(uint32_t t, Rng& rng) {
   bool inRun = taps_ > 0 && int32_t(t - lastTap_) < int32_t(kTapRunMs);
   taps_ = inRun ? std::min(taps_ + 1, 1000) : 1;
   lastTap_ = t;
-  if (held(t) || finishShown(t)) return;
+  if (held(t) || finishShown(t)) return "dip";
   const render::Anim a = taps_ >= kTapSpamFrom ? render::Anim::kTapSpam : render::Anim::kPoked;
   const uint8_t v = pick(a, model_.mood, 0, render::Outcome::kNone, render::StartCtx::kNone, rng);
-  change(t, [&] { play(a, t, CutBy::kTap, 1, model_.mood, v); });
+  change(t, [&] { playAnim(a, t, CutBy::kTap, 1, model_.mood, v); });
+  return render::animName(a);
 }
 
 // BOOT held: listening at once, even while something needs you, cutting
@@ -473,7 +478,7 @@ void Behaviour::talkOn(uint32_t t, Rng& rng) {
     } else {
       uint8_t v = pick(render::Anim::kListening, model_.mood, 0, render::Outcome::kNone, render::StartCtx::kNone, rng);
       endLine(t, CutBy::kTap);
-      play(render::Anim::kListening, t, CutBy::kTap, 1, model_.mood, v);
+      playAnim(render::Anim::kListening, t, CutBy::kTap, 1, model_.mood, v);
     }
   });
 }

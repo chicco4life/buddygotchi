@@ -82,7 +82,8 @@ except by volume 0.
 | Display | LovyanGFX 1.2: `Panel_ST7789` on SPI2, `Light_PWM` backlight |
 | Touch | Our own bit-banged XPT2046 reading (`board/touch.cpp`) |
 | microSD | The Arduino core's `SD` on SPI3: the voice pack ([VOICE.md](VOICE.md) §8) |
-| Bluetooth | NimBLE-Arduino 2.x, a Nordic UART peripheral ([PROTOCOL.md](PROTOCOL.md) §2); Classic Bluetooth's memory is released at start |
+| Protocol | LinkKit's device library (`linkkit/device/`, [its README](../linkkit/device/README.md)), linked in by `lib_deps` as `symlink://../linkkit/device` in both envs: the lines, hello, the turn, the links and the kit's `dbg.*` ([linkkit/SPEC.md](../linkkit/SPEC.md)) |
+| Bluetooth | NimBLE-Arduino 2.x, a Nordic UART peripheral, in the kit (`linkkit/ble.*`, built only on the board) ([PROTOCOL.md](PROTOCOL.md) §2); Classic Bluetooth's memory is released at start |
 | JSON | ArduinoJson 7 |
 | Audio | ESP-IDF's continuous DAC driver at a fixed 22.05 kHz, fed by a task on core 0 (§6, [VOICE.md](VOICE.md) §8) |
 
@@ -95,21 +96,21 @@ replace the code that knows the hardware.
 | Path (`firmware/`) | Job | Builds for |
 | --- | --- | --- |
 | `src/main.cpp` | Start-up and the main loop (below) | Board |
-| `src/app/device.*` | The device core: parses each line, answers `dbg.*`, turns BOOT and touch into gestures, decides when to draw, and sends `status`, `input` and `ended` | Board and Mac |
-| `src/app/behaviour.*` | What Boop does ([BEHAVIORS.md](BEHAVIORS.md)): the last `state`, the moment and line playing and how each the Mac waits on ended, taps in a row, blinks, no app, and the light, backlight and sound cues they imply | Board and Mac |
-| `src/app/` (the rest) | The device clock and random numbers (`clock.h`), BOOT's taps and holds (`gesture.*`), touch calibration (`touch_cal.h`), line reassembly and Bluetooth packets (`line_reader.h`, `packets.h`), and the screenshot's CRC and base64 (`codec.*`) | Board and Mac |
+| `../linkkit/device/src/linkkit/` | LinkKit's device side, which Boop plugs into: `kit.*` reads each line, keeps the links, sends `hello` and `ended`, runs the turn and answers the kit's `dbg.*`; the device clock and random numbers (`clock.h`), line reassembly and Bluetooth packets (`line_reader.h`, `packets.h`), the screenshot's CRC and base64 (`codec.*`), and the Nordic UART peripheral (`ble.*`, board only). It never includes Boop's headers: its build checks that (`tools/check_includes.py`) | Board and Mac |
+| `src/app/device.*` | Boop's app on the kit (`linkkit::App`): reads `state` and the `do` args, says when a call may play, rests or ends (PROTOCOL.md §3), answers Boop's `dbg.*`, turns BOOT and touch into gestures and sends them as `ev`, plays the voice and decides when to draw | Board and Mac |
+| `src/app/behaviour.*` | What Boop does ([BEHAVIORS.md](BEHAVIORS.md)): the last `state`, the moment and line playing and when each call from the Mac stops playing, taps in a row, blinks, no app, and the light, backlight and sound cues they imply | Board and Mac |
+| `src/app/` (the rest) | BOOT's taps and holds (`gesture.*`) and touch calibration (`touch_cal.h`) | Board and Mac |
 | `src/render/` | The 8-bit canvas, palette, fonts, the animation bank's player (`scene.*`), the face screen with its bottom lane, the bubble or the strip (`screens.*`), the needs-you sign (`sign.*`), the animation and mood names (`anim.*`) and the test pattern | Board and Mac |
 | `src/voice/player.*` | The voice pack: takes found by id, their text and mouth, and a line of one or two takes into samples, read from a `voice::Source` (the card, or a file on the Mac) ([VOICE.md](VOICE.md) §8) | Board and Mac |
 | `src/voice/effects.*`, `src/app/effect_track.*` | The sound effects' clips and timelines, the mixer that adds them to the voice, and when each event plays with the face ([VOICE.md](VOICE.md) §10) | Board and Mac |
 | `src/board/` | The pins; `board_hal.*`, the board's side of the core's `Hal` (buttons, touch, LED, backlight, NVS, heap); `display.*`, the only code that knows LovyanGFX; `touch.*`, the XPT2046; `card.*`, the microSD card and the pack on it, with `Hal`'s card methods; `audio.*`, the DAC task, with `Hal`'s sound methods | Board |
-| `src/link/ble.*` | The Nordic UART peripheral | Board |
 | `assets/` | Generated and checked in: `faces.h` (facegen), `fonts.h` (fontgen), `sfx.h` (sfxgen) ([VERIFICATION.md](VERIFICATION.md) §2). The voice isn't here: it's on the card | Both |
 | `tools/pio.sh`, `tools/version.py` | PlatformIO with its packages inside the checkout; the version and git SHA baked into each build | — |
 
 Everything marked "Board and Mac" is plain C++ with integer maths. The
 `native` env builds it on the Mac for the unit tests and for `boop-sim`,
 the simulator (`internal/firmware/sim/main.cpp`), which runs the same
-device core on stdin and stdout with its clock frozen at 0
+kit and app on stdin and stdout with its clock frozen at 0
 ([VERIFICATION.md](VERIFICATION.md) §4).
 
 ### Start-up and the main loop
@@ -117,28 +118,31 @@ device core on stdin and stdout with its clock frozen at 0
 `setup()` allocates the 76.8 KB canvas first, while one contiguous block
 is still free, then starts USB serial (460800 baud, 2 KB receive buffer),
 the board (amp off, BOOT's pull-up, the LED, the stored touch
-calibration), the display, the audio task and the device core, and
-Bluetooth last. If the canvas or the display fails, it turns the
+calibration), the display, the audio task, Boop's app and the kit on it,
+and Bluetooth last, advertising as `Boop-XXXX`. If the canvas or the display fails, it turns the
 backlight on and prints `dbg.fatal` every 2 s instead
 ([PROTOCOL.md](PROTOCOL.md) §5).
 
 ```
 loop()
  ├─ read lines, up to 8 ms ─ USB serial ─┐
- │                           Bluetooth ──┴─► Device::handleLine ─► Behaviour: state, moment
- │                                                               └► replies; lines to the voice task
- ├─ Device::tick ─► status every 60 s, the debug clock's thaw
- │               ─► Behaviour::advance: moment and line ends, blinks, no app
- │               ─► BOOT and touch ─► press, tap, push-to-talk ─► Behaviour, and `input` to the Mac
- │               ─► sound cues, LED and backlight, through the Hal
- │               ─► draw into the canvas, if the picture changed
+ │                           Bluetooth ──┴─► Kit::handleLine ─► hello on a new link or the Mac's hello; the turn
+ │                                                            └► Device (the app): state, a do's
+ │                                                               args ─► Behaviour; replies; lines
+ │                                                               to the voice task
+ ├─ Kit::tick ─► hello every 60 s, the debug clock's thaw
+ │            ─► the turn to now: Device::advance (Behaviour's ends, a reaction's rest),
+ │               a waiting call's ttl, the next call starting at its exact ms
+ │            ─► Device::tick ─► BOOT and touch ─► press, tap, push-to-talk ─► Behaviour, and an `ev` to the Mac
+ │                            ─► sound cues, LED and backlight, through the Hal
+ │                            ─► draw into the canvas, if the picture changed
  └─ displayPush ─► of each band, only the changed columns, to the panel over SPI DMA
 
 Bluetooth task ─► received bytes into a 2 KB ring; connects and MTU as atomics
 voice task (core 0) ─► an 8-deep queue of lines, cues, hushes and effects ─► player + effects ─► DAC
 ```
 
-Only the main loop touches the device core. The Bluetooth task only fills
+Only the main loop touches the kit and the app. The Bluetooth task only fills
 the ring, and the voice task only plays what it's handed (when the queue
 is full, the newest wins). The main loop's pass hands it the face's sound
 effects as their frames come near ([VOICE.md](VOICE.md) §10). A `dbg.*` line ends the batch of lines, so a
@@ -157,8 +161,9 @@ until then ([BEHAVIORS.md](BEHAVIORS.md) §3.4). Only the touch calibration surv
 | State | Set by | Cleared by |
 | --- | --- | --- |
 | The model: `base`, `act`, `mood`, `attn` (agent, project, more), `busy` and `vol` from the last `state` ([PROTOCOL.md](PROTOCOL.md) §3) | Each `state` | The next `state` |
-| The moment: an animation (the finish, a one-shot, a poke, `listening`), its variation, start and length | A `moment`'s `anim`, a tap (`poked` or `tap_spam`), or BOOT held (`listening`) | Its end, a new moment, or a new "needs you". `listening` only by its end, the reply or the empty moment (below) |
-| The line: its one or two takes, whose text, length and mouth frames drive the bubble and the mouth, and when it starts: at once, or at its animation's voice window ([VOICE.md](VOICE.md)) | A `moment`'s `say` with a take the device has | Its end, a new moment (not a tap's poke, which plays under it), or a new "needs you". A `state` with `attn` or volume 0 also stops its sound |
+| The moment: an animation (the finish, a one-shot, a poke, `listening`), its variation, start and length | A `do` that names one ([PROTOCOL.md](PROTOCOL.md) §3), a tap (`poked` or `tap_spam`), or BOOT held (`listening`) | Its end, a newer call's animation, or a new "needs you". `listening` only by its end, the reply or `stop_listening` (below) |
+| The line: its one or two takes, whose text, length and mouth frames drive the bubble and the mouth, and when it starts: at once, or at its animation's voice window ([VOICE.md](VOICE.md)) | A `do`'s `say` with a take the device has | Its end, a newer call's line or animation (not a tap's poke, which plays under it), or a new "needs you". A `state` with `attn` or volume 0 also stops its sound |
+| The turn: the call holding it, busy or resting, and up to 4 waiting with their ttl ([linkkit/SPEC.md](../linkkit/SPEC.md) §4) | Each `do`; the app's rest, end and cut (PROTOCOL.md §3) | Its end; `dbg.reset` |
 | Taps in a row: how many, and when the last came | Every tap ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | A tap 3 s or more after the last starts a new run |
 | The variation of each animation's design shown last | Each animation that plays | `dbg.reset` |
 | A blink | The device's own timer ([BEHAVIORS.md](BEHAVIORS.md) §2), not on a flip-book | Its end, or an animation |
@@ -221,32 +226,31 @@ dip the face included. While the brain's finish names whose turn it was
 (`Behaviour::finishShown`), a tap only dips the face and carries the
 finish's id, so the Mac opens that thread ([PROTOCOL.md](PROTOCOL.md) §4). Held 400 ms, it's push-to-talk: at that moment the
 device sends `talk_on` and shows `listening` at once, without waiting for
-the Mac; on release it sends `talk_off`, and no tap. After 30 s of
+the Mac, and drops the reactions waiting their turn (PROTOCOL.md §3); on
+release it sends `talk_off`, and no tap. After 30 s of
 talking (`kTalkCapMs`, from `talk_on`) the device sends `talk_off` itself,
 and the release after that sends nothing. A touch is a tap however long
 it's held. Presses are debounced for 15 ms. The Mac records and
 transcribes; the device has no mic ([PROTOCOL.md](PROTOCOL.md) §4).
 
-`listening` also plays when the Mac sends a moment with
-`"anim":"listening"` (its own mic), in the mood's listening design, a
-variation picked at random and never the last, unless the moment names
-one it has. It holds until the reply:
+`listening` also plays when the Mac sends a `listening` `do` (its own
+mic), in the mood's listening design, a variation picked at random and
+never the last, unless the call names one it has. It holds until the
+reply:
 
-- **The reply ends it.** Any moment with a `say` ends `listening`, then
+- **The reply ends it.** Any call with a `say` ends `listening`, then
   plays as it would have, its animation, face and `ended` included. So
-  does the empty moment, `{"t":"moment"}`, which does nothing else: it
-  never ends another animation or a line ([PROTOCOL.md](PROTOCOL.md)
-  §3).
+  does `stop_listening`, which does nothing else: it never ends another
+  animation or a line ([PROTOCOL.md](PROTOCOL.md) §3).
 - **Or its time runs out.** It lasts at most 30 s of listening
   (`Behaviour::kListenMs`) and then 8 s for the reply (`kReplyWaitMs`):
-  38 s from the Mac's moment. `talk_off`, the release or the cap, cuts
+  38 s from the Mac's call. `talk_off`, the release or the cap, cuts
   the wait to 8 s from then, with the same design going on, no blend.
   With no reply, the face blends back with nothing else.
 - **Nothing else replaces it.** Another animation from the Mac, a
-  one-shot or a face without a `say` is skipped (answered `ended`
-  `skipped` if the Mac waits on it), and a tap only dips the face. It's
-  the one moment that plays while something needs you, and a new
-  request doesn't cut it
+  one-shot or a face without a `say` is refused (`ended` `skipped`,
+  `listening`), and a tap only dips the face. It's the one animation that
+  plays while something needs you, and a new request doesn't cut it
   ([BEHAVIORS.md](BEHAVIORS.md) §1). Push-to-talk cuts whatever was
   playing, as a tap does (`ended` `why` `tap`), and stops the line.
 - **Silent.** The bank's mix leaves listening silent
@@ -310,7 +314,7 @@ Fonts, faces and sound effects are compiled in as arrays: the sound
 effects 208 KB with their timelines ([VOICE.md](VOICE.md) §10), the
 faces 0.64 MB (§6) and the fonts about 60 KB. The voice is on the
 microSD card, 30.5 MB for 2,722 takes ([VOICE.md](VOICE.md) §8). The
-whole firmware is 1.79 MB, about 57% of app0.
+whole firmware is 1.80 MB, about 57% of app0.
 
 ## 6. Memory, drawing and speed
 
@@ -321,6 +325,7 @@ whole firmware is 1.79 MB, about 57% of app0.
 | NimBLE host and controller | ~72 KB, measured | Built for what Boop uses (`platformio.ini`): one Mac connected, a peripheral that advertises, no bonds; NimBLE's defaults of three connections and the central and observer roles cost 3 KB more heap and 16 KB of flash |
 | Audio | ~15 KB | Four 1 KB DMA buffers, a 6 KB task stack (it reads the card as it plays), the player's 1 KB window of samples and the driver |
 | JSON and serial buffers | ~6 KB | 2 KB of received bytes each for USB and Bluetooth; a line is at most 512 bytes |
+| LinkKit's turn | 2 KB, static | The args of up to 4 calls waiting their turn, kept as JSON, 512 bytes each ([linkkit/SPEC.md](../linkkit/SPEC.md) §4) |
 | microSD | ~18 KB | The mount, with one file at a time (a FatFs file keeps a 4 KB sector), read through a plain POSIX descriptor shared under a mutex by lookups and the audio task |
 | **Free heap** | **≥ 50 KB** | The target, 60 KB before the card; measured below |
 
@@ -406,7 +411,7 @@ looks, successes for the finish and listening, which draw to the bottom
 of the screen.
 `faces.h` also names the moods and states in facegen's order
 (`kMoodNames`, `kStateNames`), the only lists `render/anim.cpp` and
-`render/scene.cpp` keep. It has each design's loop (`loopMs`), which a moment's
+`render/scene.cpp` keep. It has each design's loop (`loopMs`), which a call's
 `loops` count ([PROTOCOL.md](PROTOCOL.md) §3), how many variations each
 mood and state has and what each is for; facegen writes the same numbers
 for the Mac, in `app/BoopKit/Core/FaceLoops.swift`, with each design's
@@ -471,7 +476,8 @@ frames stay exact) and a press draws at once for its first 60 ms. A screenshot a
 
 | Measure | Value | Source |
 | --- | --- | --- |
-| Firmware size | 1.79 MB (1,791,059 bytes), 56.9% of app0 | The board build with the faces' groups and rectangles shared and NimBLE sized for one Mac (`make -C internal fw`), [2026-09-29](evidence/2026-09-29-overnight/README.md); 2.34 MB before |
+| Firmware size | 1.80 MB (1,800,171 bytes), 57.2% of app0; static RAM 50,412 bytes. On LinkKit: 9.9 KB of flash and 2.3 KB of static RAM more than the 1,790,051 and 48,084 bytes before it | The board build (`make -C internal fw`), [2026-09-30](evidence/2026-09-30-link-kit/firmware.txt) |
+| Firmware size before LinkKit | 1.79 MB (1,791,059 bytes), 56.9% of app0 | The board build with the faces' groups and rectangles shared and NimBLE sized for one Mac (`make -C internal fw`), [2026-09-29](evidence/2026-09-29-overnight/README.md); 2.34 MB before |
 | Free heap with the voice pack open on the card | 51.3 KB (51,332 bytes; least 51,184) | The bench board, firmware `1898f5c2` with the one-file mount, [2026-09-29](evidence/2026-09-29-voice-sd/README.md) |
 | Minimum free heap through a 30-minute soak, with NimBLE sized for one Mac | 54.5 KB (54,456 bytes after the first minute, 54,452 at the end), no reset, no audio errors | The bench board, firmware `a0d75321` plus `platformio.ini`'s NimBLE flags, advertising (no Mac connected), [2026-09-29](evidence/2026-09-29-overnight/README.md) |
 | Minimum free heap through a 45-minute soak, with the changed columns pushed at 80 MHz and the frame key | 64.8 KB (64,756 bytes from the first minute to the end), no reset, no audio errors, 286 reactions each ended once | The bench board, firmware `31691c98` plus the frame key and the power-on look, advertising (no Mac connected), [2026-09-29](evidence/2026-09-29-overnight/README.md) |

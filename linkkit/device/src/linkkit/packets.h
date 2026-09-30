@@ -1,5 +1,5 @@
-// Moving message lines through BLE packets (plan/PROTOCOL.md §2). Pure C++,
-// so the host tests cover it.
+// Moving message lines through Bluetooth packets (linkkit/SPEC.md §8).
+// Pure C++, so the host tests cover it.
 //
 // ByteRing carries received bytes from the Bluetooth task to the main loop,
 // which feeds them to a LineReader: one writer, one reader, no locks.
@@ -11,9 +11,9 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "app/line_reader.h"
+#include "linkkit/line_reader.h"
 
-namespace app {
+namespace linkkit {
 
 template <size_t N>
 class ByteRing {
@@ -44,6 +44,14 @@ class ByteRing {
   }
 
   uint32_t dropped() const { return dropped_.load(std::memory_order_relaxed); }
+
+  // Writer side, when the link that wrote the bytes drops: ends whatever
+  // part of a line it left, so the next link's first line comes out whole
+  // rather than joined onto it (the part alone fails to parse).
+  void endLine() {
+    static const uint8_t nl = '\n';
+    put(&nl, 1);
+  }
 
  private:
   uint8_t buf_[N] = {};
@@ -97,4 +105,4 @@ class PacketWriter {
   bool overflow_ = false;
 };
 
-}  // namespace app
+}  // namespace linkkit

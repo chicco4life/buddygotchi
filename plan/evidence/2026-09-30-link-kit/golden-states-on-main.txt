@@ -1,0 +1,9 @@
+GoldenStateTests on main (4bea7b21), with the test and its fixtures from 47763219 applied
+(git diff 47763219^ 47763219 -- internal/app/Tests internal/app/tools/gen-test-runner.py | git apply),
+run 2026-09-30 in a scratch checkout: BOOP_TEST_FILTER=Golden .build/debug/BoopTests
+
+▶ GoldenStateTests.testEveryScenarioBuildsTheStatesItDid
+✓ 1 passed, 0 skipped of 359 tests
+
+So main builds the same 387 states for the 60 eval scenarios, byte for byte, as the pieces A and B
+branch (c6570f60) does: the prompts Jev sees didn't change with A and B.

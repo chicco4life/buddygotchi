@@ -1,4 +1,4 @@
-// A reaction's face (PROTOCOL.md §3): a moment's `mood` draws the look in
+// A reaction's face (PROTOCOL.md §3): a call's `mood` draws the look in
 // that mood for its `loops` of the design, ending on a loop boundary, and
 // at least while its line plays; then the face blinks back to the
 // state's mood. The lines are Voice's (`boopdev voice`).
@@ -6,7 +6,7 @@
 {"clock":0}
 {"t":"state","base":"working","mood":"happy","busy":1,"variant":3}
 {"clock":1000}
-{"t":"moment","say":{"take":"new.d12"},"mood":"grumpy","loops":1}
+{"t":"do","name":"react","play":"now","args":{"say":{"take":"new.d12"},"mood":"grumpy","loops":1}}
 {"expect":{"mood":"happy","expr":"grumpy","audio":{"playing":true,"take":"new.d12"}}}
 {"clock":1400}
 {"shot":"working-grumpy"}
@@ -21,16 +21,16 @@
 {"expect":{"expr":null,"mood":"happy"}}
 {"clock":4750}
 {"shot":"working-happy-again"}
-// Curious: a finish with no face (the dashboard's `cheer`), in curious, then
+// Curious: a finish with no face (the dashboard's), in curious, then
 // a proud line over it borrows proud's finish.
 {"clock":10000}
 {"t":"state","base":"idle","mood":"curious"}
-{"t":"moment","anim":"cheer","variant":1}
+{"t":"do","name":"task_complete","play":"now","args":{"outcome":"success","variant":1}}
 {"clock":10180}
 {"expect":{"moment":{"anim":"task_complete","variant":1},"expr":null}}
 {"shot":"cheer-curious"}
 {"clock":10200}
-{"t":"moment","say":{"take":"previous.finish"},"mood":"proud","loops":1}
+{"t":"do","name":"react","play":"now","args":{"say":{"take":"previous.finish"},"mood":"proud","loops":1}}
 {"expect":{"moment":{"anim":"task_complete","left_ms":6200},"expr":"proud"}}
 {"clock":10800}
 {"shot":"cheer-proud"}
@@ -49,18 +49,18 @@
 // An unknown mood is ignored: the state's mood, and the line plays.
 {"clock":20000}
 {"t":"state","base":"idle","mood":"curious"}
-{"t":"moment","say":{"take":"previous.oi"},"mood":"cheerful"}
+{"t":"do","name":"react","play":"now","args":{"say":{"take":"previous.oi"},"mood":"cheerful"}}
 {"expect":{"expr":null,"mood":"curious","audio":{"playing":true,"take":"previous.oi"}}}
 // Needs you: nothing plays, and no face is borrowed.
 {"t":"state","base":"idle","mood":"curious","attn":{"agent":"claude","project":"x","more":0}}
 {"clock":30000}
-{"t":"moment","say":{"take":"previous.go"},"mood":"grumpy"}
+{"t":"do","name":"react","play":"now","args":{"say":{"take":"previous.go"},"mood":"grumpy"}}
 {"expect":{"screen":"needs_you","expr":null,"audio":{"take":null}}}
 // A face on its own, no line: proud for its two loops of the idle design
 // it's drawn in (proud's first, 1 s), from the look's start at 40000.
 {"clock":40000}
 {"t":"state","base":"idle","mood":"curious"}
-{"t":"moment","mood":"proud","loops":2,"id":14}
+{"t":"do","id":14,"name":"react","play":"now","args":{"mood":"proud","loops":2}}
 {"expect":{"moment":null,"expr":"proud","audio":{"playing":false,"take":null}}}
 {"clock":40500}
 {"shot":"face-alone"}

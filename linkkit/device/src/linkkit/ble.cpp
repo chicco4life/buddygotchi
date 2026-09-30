@@ -1,4 +1,7 @@
-#include "link/ble.h"
+// The board-only part of the kit: compiled where NimBLE-Arduino is, on an
+// ESP32, and empty everywhere else (the simulator and the unit tests).
+#if defined(ESP_PLATFORM) && __has_include(<NimBLEDevice.h>)
+#include "linkkit/ble.h"
 
 #include <Arduino.h>
 #include <NimBLEDevice.h>
@@ -8,17 +11,17 @@
 #include <atomic>
 #include <cstdio>
 
-namespace links {
+namespace linkkit {
 
 namespace {
 
-// The Nordic UART Service: RX is written by the Mac, TX notifies it.
+// The Nordic UART Service: RX is written by the host, TX notifies it.
 constexpr const char* kService = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
 constexpr const char* kRx = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";
 constexpr const char* kTx = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
 
 // Written by the Bluetooth task, read by the main loop.
-app::ByteRing<2048> rxRing;
+ByteRing<2048> rxRing;
 std::atomic<bool> linkUp{false};
 std::atomic<uint32_t> connects{0};     // bumps on every connect and disconnect,
 std::atomic<uint16_t> mtu{23};         // so the loop never misses a quick pair
@@ -33,6 +36,10 @@ class ServerEvents : public NimBLEServerCallbacks {
     ++connects;
   }
   void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int) override {
+    // A line the host was cut off in the middle of (a long `do` takes two
+    // writes) mustn't join onto the next host's first line. This task is
+    // the ring's only writer, as for onWrite.
+    rxRing.endLine();
     linkUp = false;
     ++connects;
     // advertiseOnDisconnect (set in begin) starts advertising again.
@@ -55,13 +62,14 @@ uint32_t seenConnects = 0;
 
 Ble::Ble() : out_(sendPacket, this) {}
 
-bool Ble::begin() {
+bool Ble::begin(const char* namePrefix, const char* idPrefix) {
   uint8_t mac[6] = {};
   esp_read_mac(mac, ESP_MAC_BT);
-  std::snprintf(name_, sizeof(name_), "Boop-%02X%02X", mac[4], mac[5]);
-  std::snprintf(id_, sizeof(id_), "b00p-%02x%02x", mac[4], mac[5]);
+  // A prefix too long for the buffers is cut.
+  std::snprintf(name_, sizeof(name_), "%.18s-%02X%02X", namePrefix, mac[4], mac[5]);
+  std::snprintf(id_, sizeof(id_), "%.18s-%02x%02x", idPrefix, mac[4], mac[5]);
 
-  // Boop only uses BLE: give Classic Bluetooth's memory back to the heap.
+  // The kit only uses BLE: give Classic Bluetooth's memory back to the heap.
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
   if (!NimBLEDevice::init(name_)) return false;
   NimBLEDevice::setMTU(247);
@@ -85,28 +93,28 @@ bool Ble::begin() {
   return started_;
 }
 
-bool Ble::poll(app::Device& device) {
+bool Ble::poll(Kit& kit) {
   if (!started_) return false;
   uint32_t c = connects.load();
   if (c != seenConnects) {
     seenConnects = c;
     bool up = linkUp.load();
     if (connected_) {
-      device.disconnected();
+      kit.disconnected();
       connected_ = false;
     }
-    line_ = app::LineReader{};
+    line_ = LineReader{};
     out_.clear();
     if (up) {
       connected_ = true;
-      device.connected();  // sends status
+      kit.connected();  // the host's first line gets the hello
     }
   }
   if (connected_) {
     uint16_t m = mtu.load();
     out_.setPayload(m > 3 ? m - 3 : 20);
-    // A Mac that's gone quiet: let go, so advertising starts again.
-    if (device.shouldDropBle()) NimBLEDevice::getServer()->disconnect(connHandle.load());
+    // A host that's gone quiet: let go, so advertising starts again.
+    if (kit.shouldDrop()) NimBLEDevice::getServer()->disconnect(connHandle.load());
   } else if (!linkUp.load() && millis() - advCheckedAt_ >= 1000) {
     // Not connected and not advertising would leave the device unfindable
     // until it's reset, so check once a second and start it again.
@@ -117,7 +125,7 @@ bool Ble::poll(app::Device& device) {
   uint8_t b;
   while (rxRing.take(b)) {
     if (line_.feed(char(b))) {
-      device.handleLine(line_.line(), line_.length(), app::Link::kBle);
+      kit.handleLine(line_.line(), line_.length(), Link::kBle);
       return true;
     }
   }
@@ -144,4 +152,6 @@ const char* Ble::state() const {
   return NimBLEDevice::getAdvertising()->isAdvertising() ? "adv" : "idle";
 }
 
-}  // namespace links
+}  // namespace linkkit
+
+#endif

@@ -75,7 +75,7 @@
 {"input":{"press":"tap"}}
 {"clock":41300}
 {"expect":{"moment":{"anim":"tap_spam"},"expr":null}}
-{"t":"moment","say":{"take":"new.d12"},"mood":"grumpy","loops":1,"id":40}
+{"t":"do","id":40,"name":"react","play":"now","args":{"say":{"take":"new.d12"},"mood":"grumpy","loops":1}}
 {"expect":{"moment":{"anim":"tap_spam"},"expr":"grumpy","audio":{"playing":true,"take":"new.d12"}}}
 {"clock":41500}
 {"input":{"press":"tap"}}

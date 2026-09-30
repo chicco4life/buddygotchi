@@ -14,7 +14,7 @@
 {"expect": {"last_input":{"k":"talk_on","at":700}}}
 {"clock": 1300}
 {"expect": {"boot":false,"last_input":{"k":"talk_off","at":1300}}}
-{"t":"moment"}
+{"t":"do","name":"stop_listening","play":"now"}
 {"expect": {"moment":null}}
 {"clock": 2200}
 {"t":"dbg.pattern"}

@@ -17,12 +17,12 @@
 {"t":"state","base":"working","act":"juggling","mood":"calm","busy":1}
 {"expect":{"act":null}}
 // The rules' one-shots (BEHAVIORS.md §3.1) play once in Boop's mood, the
-// variation the Mac names when it's one for the moment's context, then
+// variation the Mac names when it's one for the call's context, then
 // the look comes back behind a blink. Starting a new task, happy, over
 // testing: its 3.8 s design.
 {"clock":10000}
 {"t":"state","base":"working","act":"testing","mood":"happy","busy":1}
-{"t":"moment","anim":"starting","ctx":"new_task"}
+{"t":"do","name":"starting","play":"now","args":{"ctx":"new_task"}}
 {"expect":{"moment":{"anim":"starting","left_ms":3800,"variant":1}}}
 {"clock":11000}
 {"shot":"starting-new-task"}
@@ -35,26 +35,26 @@
 // A session resumed: carrying on, the continuation's design, whatever
 // variation the Mac named.
 {"clock":15000}
-{"t":"moment","anim":"starting","variant":1,"ctx":"continuation"}
+{"t":"do","name":"starting","play":"now","args":{"variant":1,"ctx":"continuation"}}
 {"expect":{"moment":{"anim":"starting","variant":3}}}
 // Stopped, engaged, idle: the Mac's second variation.
 {"clock":20000}
 {"t":"state","base":"idle","mood":"engaged"}
-{"t":"moment","anim":"stopped","variant":2}
+{"t":"do","name":"stopped","play":"now","args":{"variant":2}}
 {"expect":{"moment":{"anim":"stopped","left_ms":5734,"variant":2}}}
 {"clock":21000}
 {"shot":"stopped-engaged"}
 // A failed command, grumpy.
 {"clock":30000}
 {"t":"state","base":"working","mood":"grumpy","busy":1}
-{"t":"moment","anim":"error","variant":1}
+{"t":"do","name":"error","play":"now","args":{"variant":1}}
 {"expect":{"moment":{"anim":"error","left_ms":2888}}}
 {"clock":31000}
 {"shot":"error-grumpy"}
 // A helper back, wounded, over delegating.
 {"clock":40000}
 {"t":"state","base":"working","act":"delegating","mood":"wounded","busy":1}
-{"t":"moment","anim":"helper_return","variant":3}
+{"t":"do","name":"helper_return","play":"now","args":{"variant":3}}
 {"expect":{"moment":{"anim":"helper_return","left_ms":7410,"variant":3}}}
 {"clock":41500}
 {"shot":"helper-return-wounded"}
@@ -62,12 +62,12 @@
 // reply, which a one-shot never ends.
 {"clock":50000}
 {"t":"state","base":"working","busy":1,"attn":{"agent":"claude","project":"landing","more":0}}
-{"t":"moment","anim":"error","variant":1}
+{"t":"do","name":"error","play":"now","args":{"variant":1}}
 {"expect":{"screen":"needs_you","moment":null}}
 {"t":"state","base":"working","busy":1}
-{"t":"moment","anim":"listening","variant":1}
-{"t":"moment","anim":"starting","ctx":"new_task"}
-{"t":"moment","anim":"helper_return"}
+{"t":"do","name":"listening","play":"now","args":{"variant":1}}
+{"t":"do","name":"starting","play":"now","args":{"ctx":"new_task"}}
+{"t":"do","name":"helper_return","play":"now"}
 {"expect":{"moment":{"anim":"listening"}}}
-{"t":"moment"}
+{"t":"do","name":"stop_listening","play":"now"}
 {"expect":{"moment":null}}

@@ -1,4 +1,4 @@
-// boop-sim: the device core on the Mac (plan/VERIFICATION.md §2, §4). It
+// boop-sim: Boop on LinkKit, on the Mac (plan/VERIFICATION.md §2, §4). It
 // behaves like the board on USB: protocol and dbg.* lines on stdin, replies
 // on stdout. `boopctl sim` drives it with the same scenario runner as the
 // board, so a device screenshot and a simulator screenshot come from the
@@ -12,9 +12,10 @@
 #include <vector>
 
 #include "../pack_file.h"
-#include "app/codec.h"
 #include "app/device.h"
-#include "app/line_reader.h"
+#include "linkkit/codec.h"
+#include "linkkit/kit.h"
+#include "linkkit/line_reader.h"
 
 namespace {
 
@@ -61,7 +62,7 @@ struct SimHal : app::Hal {
     std::FILE* f = std::fopen(path("voice.tmp").c_str(), "rb");
     uint8_t buf[4096];
     uint32_t got = 0, sum = 0;
-    for (size_t n; f && (n = std::fread(buf, 1, sizeof(buf), f)) > 0; got += uint32_t(n)) sum = app::crc32(buf, n, sum);
+    for (size_t n; f && (n = std::fread(buf, 1, sizeof(buf), f)) > 0; got += uint32_t(n)) sum = linkkit::crc32(buf, n, sum);
     if (f) std::fclose(f);
     if (got != size || sum != crc) return why = got != size ? "wrong size" : "wrong crc", false;
     voice::closePack();
@@ -74,7 +75,7 @@ struct SimHal : app::Hal {
   const char* gitSha() override { return "sim"; }
 };
 
-struct StdOut : app::Out {
+struct StdOut : linkkit::Out {
   void write(const char* s, size_t n) override { std::fwrite(s, 1, n, stdout); }
 };
 
@@ -87,17 +88,18 @@ int main() {
   if (hal.dir.empty() ? packfile::open() : hal.openCardPack()) hal.card = "ok";
   StdOut out;
   std::vector<uint8_t> pixels(size_t(render::kWidth) * render::kHeight, 0);
-  app::Device device(hal, pixels.data(), /*frozenClock=*/true);
-  device.setOut(app::Link::kUsb, &out);
-  device.tick();
+  app::Device device(hal, pixels.data());
+  linkkit::Kit kit(hal, device, /*frozenClock=*/true);
+  kit.setOut(linkkit::Link::kUsb, &out);
+  kit.tick();
 
   // Lines go through the board's own LineReader, so a line over its limit
-  // (plan/PROTOCOL.md §2) is dropped here exactly as on USB.
-  app::LineReader reader;
+  // (linkkit/SPEC.md §2) is dropped here exactly as on USB.
+  linkkit::LineReader reader;
   for (int c; (c = std::getchar()) != EOF;) {
     if (!reader.feed(char(c))) continue;
-    device.handleLine(reader.line(), reader.length(), app::Link::kUsb);
-    device.tick();
+    kit.handleLine(reader.line(), reader.length(), linkkit::Link::kUsb);
+    kit.tick();
     std::fflush(stdout);
   }
   return 0;

@@ -30,7 +30,7 @@ talks in sentences: at most a feeling and a topic, "Pfft... Test".
 | --- | --- |
 | Decide what Boop says: how it feels (`say.feeling`), what NOW is about (`say.about`) and how big (`say.kind`) | The brain, in the `react` action's questions ([harness/DECISIONS.md](harness/DECISIONS.md) §3, §5) |
 | Find a take for each answer, in the face's mood, fit for the turn's finish, of the nearest kind, and join them into a line (§4) | Voice, on the Mac |
-| Send it | The device link, as a `moment`'s `say`: `{"take":"previous.pfft","then":"phase1.word.test.test__annoyed__contained"}`, one take without `then`, or `{}` for nothing ([PROTOCOL.md](PROTOCOL.md) §3) |
+| Send it | The device link, as a `do`'s `say` (in `args`): `{"take":"previous.pfft","then":"phase1.word.test.test__annoyed__contained"}`, one take without `then`, or `{}` for nothing ([PROTOCOL.md](PROTOCOL.md) §3) |
 | Play it whole from the SD card, with the mouth and bubble in time | The device (§8) |
 
 Voice is the only code that knows what Boop can say. The brain never
@@ -197,7 +197,7 @@ pack in place: the board checks only the pack's header. With no card
 reader, `boopctl card` copies it over USB (`dbg.card`), resuming where
 it stopped, but at about 0.7 KB/s, hours for the whole pack. The board
 mounts it at boot, so a card put back in needs the board's reset
-button, and reports the pack's version in `status` and `dbg.ping`
+button, and reports the pack's version in `hello` and `dbg.ping`
 (`none` with no card or no pack), and whether the card is there as
 `dbg.ping`'s `card` ([PROTOCOL.md](PROTOCOL.md) §4–5). The Mac sends
 takes only while that version is its own `Take.packVersion`; otherwise
@@ -218,7 +218,7 @@ device finds a take by binary search of the index, a dozen reads,
 without holding the index, and keeps the last eight it looked up
 (`voice::takeIndex`).
 
-**Playback.** A line's takes are looked up when its moment arrives, and
+**Playback.** A line's takes are looked up when its call plays, and
 the audio task plays them whole, from first sample to last, at their
 recorded pitch: the 11.025 kHz samples are read from the card a
 kilobyte at a time and interpolated to the DAC's 22.05 kHz

@@ -1,15 +1,18 @@
 // Reassembles newline-terminated message lines from a byte stream: USB
-// serial, or Bluetooth's received bytes (app/packets.h). Lines longer than
-// the limit are dropped whole. Pure C++.
+// serial, or Bluetooth's received bytes (linkkit/packets.h). A trailing
+// `\r` is dropped, empty lines are skipped, and a line longer than
+// kMaxLine is dropped whole (linkkit/SPEC.md §2). Pure C++.
 #pragma once
 #include <cstddef>
 #include <cstdint>
 
-namespace app {
+#include "linkkit/limits.h"
+
+namespace linkkit {
 
 class LineReader {
  public:
-  static constexpr size_t kMax = 512;  // plan/PROTOCOL.md §2
+  static constexpr size_t kMax = kMaxLine;
 
   // Feeds one byte. Returns true when a complete line is ready in line().
   bool feed(char c) {
@@ -40,4 +43,4 @@ class LineReader {
   bool overflow_ = false;
 };
 
-}  // namespace app
+}  // namespace linkkit

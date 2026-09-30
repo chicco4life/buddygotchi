@@ -7,20 +7,8 @@
 
 namespace render {
 
-namespace {
-
-// The older names the Mac may still send, and the animation each reads as:
-// "cheer" is the finish's success, and the Mac's "wiggle" (the
-// dashboard's) what a tap plays.
-const char* const kOlder[][2] = {{"cheer", "task_complete"}, {"wiggle", "poked"}};
-
-}  // namespace
-
 Anim animFromName(const char* name) {
   if (!name) return Anim::kNone;
-  for (const auto& older : kOlder) {
-    if (!std::strcmp(name, older[0])) name = older[1];
-  }
   for (int i = 1; i < int(Anim::kCount); ++i) {
     if (!std::strcmp(name, animName(Anim(i)))) return Anim(i);
   }

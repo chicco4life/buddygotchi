@@ -15,7 +15,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageStat
 
-from boopctl_lib.common import REPO
+from boopctl_lib.common import REPO, do
 from boopctl_lib.device import Device, DeviceError
 
 WEBCAM = REPO / "internal" / "tools" / "webcam" / "webcam.sh"
@@ -199,12 +199,10 @@ _ATTN = {**_WORKING, "attn": {"agent": "codex", "project": "landing", "more": 0}
 CLIPS = {
     "idle": [(0.0, {"t": "state", "base": "idle"})],
     "needs_you": [(0.0, _WORKING), (2.0, _ATTN), (5.0, _ATTN)],
-    # A finish, by its older name (`cheer`: task_complete's success), then
-    # the brain's line on its own over the working face (the line is
-    # PROTOCOL.md §3's example).
-    "cheer": [(0.0, _WORKING), (1.5, {"t": "moment", "anim": "cheer"}),
-              (4.0, {"t": "moment",
-                     "say": {"take": "previous.done"}}),
+    # A finish (task_complete's success, the cheer), then a line on its own
+    # over the working face, each played `now` as a tool plays it.
+    "cheer": [(0.0, _WORKING), (1.5, do("task_complete", outcome="success")),
+              (4.0, do("react", say={"take": "previous.done"})),
               (5.0, _WORKING)],
     "tap": [(0.0, {"t": "state", "base": "idle"}), (1.0, {"t": "dbg.press", "ms": 100}),
             (3.0, {"t": "dbg.touch", "x": 160, "y": 100, "ms": 100}), (5.0, {"t": "dbg.press", "ms": 100})],

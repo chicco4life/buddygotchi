@@ -11,7 +11,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from boopctl_lib import cli  # noqa: E402
+from boopctl_lib import cli, common  # noqa: E402
 from facegen import facegen  # noqa: E402
 from fake_board import FakeBoard  # noqa: E402
 
@@ -64,16 +64,23 @@ class CLITests(unittest.TestCase):
 
 
 class PlayTests(unittest.TestCase):
-    def play(self, what: str, *more: str) -> tuple[int, list]:
-        # The board reports the animation by its design's name, also for
-        # the older names.
-        playing = cli.OLD_ANIMS.get(what, what)
+    def play(self, what: str, *more: str, playing: str | None = None) -> tuple[int, list]:
+        """Plays `what` on a board whose dbg.state says `playing` (by
+        default the name play sends); returns play's exit code and the
+        names of the `do`s it sent."""
+        name = cli.OLD_ANIMS.get(what, what)
         board = FakeBoard.by_type({"dbg.ping": {"ble": "adv"}, "dbg.clock": {},
-                                   "dbg.state": {"moment": {"anim": playing, "left_ms": 900, "variant": 1}}})
+                                   "dbg.state": {"moment": {"anim": playing or name, "left_ms": 900, "variant": 1}}})
         self.board = board
         with mock.patch.object(cli, "Device", lambda port: board), contextlib.redirect_stdout(io.StringIO()):
             code = cli.cmd_play(cli.build_parser().parse_args(["play", what, *more]))
-        return code, [m.get("anim") for m in board.sent if m["t"] == "moment"]
+        return code, [m["name"] for m in self.dos()]
+
+    def dos(self) -> list[dict]:
+        return [m for m in self.board.sent if m["t"] == "do"]
+
+    def args(self) -> list[dict]:
+        return [m.get("args", {}) for m in self.dos()]
 
     def test_play_sets_the_mood(self):
         self.play("cheer", "--mood", "determined")
@@ -91,47 +98,103 @@ class PlayTests(unittest.TestCase):
         self.assertEqual(cli.MOODS, facegen.MOODS)
         self.assertEqual(cli.MOODS, firmware_names("../assets/faces.h", "kMoodNames["))
 
-    def test_play_sends_just_the_animation(self):
-        self.assertEqual(self.play("cheer"), (0, ["cheer"]))
-        self.assertEqual(self.play("wiggle"), (0, ["wiggle"]))
+    def test_play_sends_just_the_animation_now(self):
+        """A `do` with the animation's name, played `now` so it replaces
+        whatever plays, with no id: play reads dbg.state, not `ended`
+        (linkkit/SPEC.md §3)."""
         for anim in cli.ANIMS:
             self.assertEqual(self.play(anim), (0, [anim]))
+            self.assertEqual(self.dos(), [{"t": "do", "name": anim, "play": "now"}])
+        self.assertEqual(self.play("task_complete", playing="poked")[0], 1, "something else playing")
 
-    def test_play_sends_a_take(self):  # PROTOCOL.md §3: `say` is {"take": id}
+    def test_the_older_names_are_sent_by_todays(self):
+        """The device no longer knows `cheer` or `wiggle`: play sends
+        task_complete's success and poked."""
+        self.assertEqual(self.play("cheer"), (0, ["task_complete"]))
+        self.assertEqual(self.args(), [{"outcome": "success"}])
+        self.assertEqual(self.play("wiggle"), (0, ["poked"]))
+        self.assertEqual(self.args(), [{}])
+        with self.assertRaisesRegex(cli.DeviceError, "task_complete --outcome failure"):
+            self.play("cheer", "--outcome", "failure")
+
+    def test_play_sends_a_take(self):  # PROTOCOL.md `do`: `say` is {"take": id}
         self.assertEqual(self.play("cheer", "--take", "new.d15")[0], 0)
-        sent = [m for m in self.board.sent if m["t"] == "moment"]
-        self.assertEqual(sent[0]["say"], {"take": "new.d15"})
+        self.assertEqual(self.args()[0]["say"], {"take": "new.d15"})
 
-    def test_play_sends_the_facts(self):  # PROTOCOL.md §3: outcome, ctx, variant
+    def test_play_sends_the_facts(self):  # PROTOCOL.md `do`: outcome, ctx, variant
         self.play("task_complete", "--outcome", "failure", "--variant", "2")
-        sent = [m for m in self.board.sent if m["t"] == "moment"]
-        self.assertEqual((sent[0]["outcome"], sent[0]["variant"]), ("failure", 2))
+        self.assertEqual(self.args(), [{"outcome": "failure", "variant": 2}])
         self.play("starting", "--ctx", "session")
-        self.assertEqual([m.get("ctx") for m in self.board.sent if m["t"] == "moment"], ["session"])
+        self.assertEqual([a.get("ctx") for a in self.args()], ["session"])
         with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
             cli.build_parser().parse_args(["play", "task_complete", "--outcome", "win"])
 
     def test_the_animations_are_the_devices(self):
         """BEHAVIORS.md §5: the names boopctl plays are the device's own, the
         names of the states whose designs they play (firmware/src/render/
-        scene.cpp animState; faces.h names them), and the older two it still
-        reads (anim.cpp)."""
+        scene.cpp animState; faces.h names them), and all of them are in
+        Boop's `hello.does` (PROTOCOL.md `hello`). The older two are play's
+        own, sent by today's names."""
         names = firmware_names("../assets/faces.h", "kStateNames[")
         self.assertEqual(names, facegen.STATES)
         states = dict(zip(firmware_names("render/scene.h", "enum class SceneState", r"\bk\w+"), names))
         plays = firmware_names("render/scene.cpp", "SceneState animState(Anim a) {",
                                r"case Anim::k\w+: return SceneState::(k\w+);", end="\n}\n")
         self.assertEqual(cli.ANIMS + ["listening"], [states[s] for s in plays])
-        older = firmware_names("render/anim.cpp", "kOlder[][2] = {", r'\{"(\w+)", "(\w+)"\}')
-        self.assertEqual(cli.OLD_ANIMS, dict(older))
+        self.assertTrue(set(cli.ANIMS + ["listening"]) <= set(common.DOES))
+        self.assertEqual(set(common.DOES) - set(cli.ANIMS), {"react", "listening", "stop_listening"})
+        self.assertTrue(set(cli.OLD_ANIMS.values()) <= set(cli.ANIMS))
 
-    def test_play_sends_its_loops(self):  # PROTOCOL.md §3: 1-6, none reads as 1
+    def test_the_do_names_are_the_devices(self):
+        """PROTOCOL.md §3 (The names): the names the tools send are the ones
+        the firmware puts in `hello.does`, in its order, and the ones it plays
+        with no animation are the tools' NO_ANIM."""
+        names = firmware_names("app/device.cpp", "kDoNames[kDoCount] =")
+        self.assertEqual(common.DOES, names)
+        anims = firmware_names("app/device.cpp", "kDoAnims[kDoCount] =", r"render::Anim::k(\w+)")
+        self.assertEqual(len(anims), len(names))
+        self.assertEqual(common.NO_ANIM, {n for n, a in zip(names, anims) if a == "None"})
+
+    def test_play_sends_its_loops(self):  # PROTOCOL.md `do`: 1-6, none reads as 1
         self.play("cheer", "--loops", "3")
-        self.assertEqual([m.get("loops") for m in self.board.sent if m["t"] == "moment"], [3])
+        self.assertEqual([a.get("loops") for a in self.args()], [3])
         self.play("cheer")
-        self.assertEqual([m.get("loops") for m in self.board.sent if m["t"] == "moment"], [None])
+        self.assertEqual([a.get("loops") for a in self.args()], [None])
         with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
             cli.build_parser().parse_args(["play", "cheer", "--loops", "7"])
+
+
+class WireTests(unittest.TestCase):
+    """The requests the tools send and read (linkkit/SPEC.md §3, PROTOCOL.md
+    `do`), and the older logs' moments read the same way."""
+
+    def test_a_do_as_the_tools_send_it(self):
+        self.assertEqual(json.dumps(common.do("react", id=44, play="next", ttl=5000, mood="calm")),
+                         '{"t": "do", "id": 44, "name": "react", "play": "next", "ttl": 5000, "args": {"mood": "calm"}}',
+                         "in the vocabulary's order")
+        self.assertEqual(common.do("poked"), {"t": "do", "name": "poked", "play": "now"}, "now, no id, no args")
+
+    def test_what_a_request_asks(self):
+        call = common.call
+        finish = call({"t": "do", "id": 7, "name": "task_complete", "play": "next", "ttl": 5000,
+                       "args": {"outcome": "success", "say": {"take": "a"}}})
+        self.assertEqual((finish["anim"], finish["id"], finish["play"], finish["outcome"], finish["say"]),
+                         ("task_complete", 7, "next", "success", {"take": "a"}))
+        self.assertEqual({k: call({"t": "do", "name": k})["anim"] for k in ("react", "stop_listening", "listening")},
+                         {"react": None, "stop_listening": None, "listening": "listening"})
+        self.assertEqual(call({"t": "do", "name": "starting"})["play"], "next", "the kit's default")
+        # Older logs: a moment played at once; the empty one ended push-to-talk.
+        cheer = call({"t": "moment", "anim": "cheer", "loops": 1})
+        self.assertEqual((cheer["name"], cheer["anim"], cheer["play"], cheer["loops"]), ("cheer", "cheer", "now", 1))
+        self.assertEqual(call({"t": "moment", "say": {}, "mood": "calm", "id": 3})["name"], "react")
+        self.assertEqual(call({"t": "moment"})["name"], "stop_listening")
+        self.assertIsNone(call({"t": "state", "base": "idle"}))
+
+    def test_what_says_a_request_ended(self):
+        self.assertEqual(common.ended({"t": "ev", "kind": "ended", "data": {"id": 44, "how": "cut", "why": "tap"}}),
+                         {"id": 44, "how": "cut", "why": "tap"})
+        self.assertIsNone(common.ended({"t": "ev", "kind": "tap", "did": "dip", "data": {"on": 44}}))
+        self.assertIsNone(common.ended({"t": "ended", "id": 44, "how": "done"}), "the old wire is gone")
 
 
 class PerfTests(unittest.TestCase):
@@ -209,32 +272,40 @@ class TakesTests(unittest.TestCase):
                           if msg["t"] == "dbg.state" else b"")
         r = cli.check_take(board, t)
         self.assertTrue(r["ok"], r)
-        self.assertIn({"t": "moment", "say": {"take": "previous.go"}}, board.sent)
+        self.assertIn({"t": "do", "name": "react", "play": "now", "args": {"say": {"take": "previous.go"}}}, board.sent,
+                      "a line on its own: a reaction with no face, played at once")
 
 
 class SoakTests(unittest.TestCase):
-    """The soak's brain reactions and how it holds the board to one
-    `ended` each (PROTOCOL.md §3–4)."""
+    """The soak's requests, and how it holds the board to one `ended` for
+    each reaction (linkkit/SPEC.md §3–4)."""
 
-    def test_reactions_are_waited_moments_with_loops(self):
+    def test_reactions_are_waited_requests_with_loops(self):
         import random
         rng = random.Random(1)
         for i in range(1, 50):
             m = cli.soak_reaction(rng, i)
-            self.assertEqual(m["id"], i)
-            self.assertIn(m["mood"], cli.MOODS)
-            self.assertTrue(1 <= m["loops"] <= 6)
-            self.assertTrue(m["say"] == {} or cli.take(m["say"]["take"]))
-        moments = [cli.soak_moment(rng) for _ in range(200)]
-        finishes = [m for m in moments if m.get("anim") == "task_complete"]
+            self.assertEqual((m["t"], m["id"], m["name"], m["play"], m["ttl"]), ("do", i, "react", "next", 5000),
+                             "as the Mac sends the brain's")
+            self.assertIn(m["args"]["mood"], cli.MOODS)
+            self.assertTrue(1 <= m["args"]["loops"] <= 6)
+            self.assertTrue(m["args"]["say"] == {} or cli.take(m["args"]["say"]["take"]))
+        dos = [cli.soak_do(rng) for _ in range(300)]
+        self.assertTrue({m["name"] for m in dos} == set(cli.ANIMS) | {"react"}, "every animation, and lines")
+        finishes = [m["args"] for m in dos if m["name"] == "task_complete"]
         self.assertTrue(finishes)
-        self.assertTrue(all(1 <= m["loops"] <= 3 and m["outcome"] in cli.OUTCOMES for m in finishes))
-        self.assertTrue(all(m["ctx"] in cli.CTXS for m in moments if m.get("anim") == "starting"))
-        self.assertFalse(any("id" in m or "mood" in m for m in moments))  # the rules' moments aren't waited on
+        self.assertTrue(all(1 <= a["loops"] <= 3 and a["outcome"] in cli.OUTCOMES for a in finishes))
+        self.assertTrue(all(m["args"]["ctx"] in cli.CTXS for m in dos if m["name"] == "starting"))
+        self.assertTrue(all(m["args"]["say"] is not None for m in dos if m["name"] == "react"), "a line says something")
+        self.assertFalse(any("id" in m or "mood" in m.get("args", {}) for m in dos), "the rest aren't waited on")
+        # Each asks for its turn as the Mac or a tool would (PROTOCOL.md `do`).
+        plays = {m["name"]: (m["play"], m.get("ttl")) for m in dos}
+        self.assertEqual(plays, {"starting": ("if_free", None), "stopped": ("if_free", None), "error": ("if_free", None),
+                                 "helper_return": ("if_free", None), "poked": ("now", None), "tap_spam": ("now", None),
+                                 "task_complete": ("next", 5000), "reply_ready": ("next", 5000), "react": ("next", 5000)})
 
     def test_each_reaction_ends_once(self):
-        ended = [{"t": "ended", "id": 1, "how": "done"}, {"t": "ended", "id": 2, "how": "cut", "why": "tap"},
-                 {"t": "ended", "id": 3, "how": "skipped"}]
+        ended = [{"id": 1, "how": "done"}, {"id": 2, "how": "cut", "why": "tap"}, {"id": 3, "how": "skipped"}]
         r = cli.ended_report([1, 2, 3], ended, 0)
         self.assertTrue(r["ended_ok"])
         self.assertEqual(r["ended_how"], {"done": 1, "cut (tap)": 1, "skipped": 1})
@@ -245,13 +316,30 @@ class SoakTests(unittest.TestCase):
         self.assertTrue(cli.ended_report([1, 2, 3, 4], ended, 1)["ended_ok"])
         self.assertEqual(cli.ended_report([1, 2, 3, 4], ended, 1)["ended_missing"], [4])
 
+    def test_waiting_behind_another_is_an_answer_and_an_unknown_name_fails(self):
+        """The device queues the reactions: one that waited past its ttl, or
+        was refused, ended as surely as one that played. A name the device
+        doesn't play means the soak and the firmware disagree."""
+        ended = [{"id": 1, "how": "skipped", "why": "late"}, {"id": 2, "how": "cut", "why": "now"},
+                 {"id": 3, "how": "skipped", "why": "needs_you"}, {"id": 4, "how": "skipped", "why": "full"}]
+        r = cli.ended_report([1, 2, 3, 4], ended, 0)
+        self.assertTrue(r["ended_ok"], r)
+        self.assertEqual(r["ended_how"], {"skipped (late)": 1, "cut (now)": 1, "skipped (needs_you)": 1,
+                                          "skipped (full)": 1})
+        r = cli.ended_report([1, 2, 3, 4, 5], ended + [{"id": 5, "how": "skipped", "why": "unknown"}], 0)
+        self.assertEqual((r["ended_ok"], r["names_unknown"]), (False, 1))
+
     def test_the_link_hears_what_comes_unasked(self):
-        board = FakeBoard.in_turn([b'{"t":"ended","id":7,"how":"done"}\n{"t":"ended","id":8\n{"t":"dbg.ping","up":1}\n'])
+        board = FakeBoard.in_turn([b'{"t":"hello","kit":1,"app":"boop","id":"b00p-54fe","fw":"1.0.0","does":[]}\n'
+                                   b'{"t":"ev","kind":"ended","data":{"id":7,"how":"done"}}\n'
+                                   b'{"t":"ev","kind":"ended","data":{"id":8\n'
+                                   b'{"t":"ev","kind":"tap","did":"poked"}\n{"t":"dbg.ping","up":1}\n'])
         heard: list[dict] = []
         board.heard = heard.append
         board.request({"t": "dbg.ping"})
-        self.assertEqual([m["t"] for m in heard], ["ended", "torn"])
-        self.assertEqual(heard[0]["id"], 7)
+        self.assertEqual([m["t"] for m in heard], ["hello", "ev", "torn", "ev"])
+        self.assertEqual([cli.ended(m) for m in heard], [None, {"id": 7, "how": "done"}, None, None],
+                         "only an `ev` of kind `ended` is one")
 
 
 if __name__ == "__main__":

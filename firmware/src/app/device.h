@@ -1,16 +1,17 @@
-// The device core: message dispatch, the debug channel, inputs and what's
-// on screen (plan/PROTOCOL.md, plan/PROTOCOL.md §5). Pure C++: the board
-// and the simulator run the same code behind a small Hal. What Boop does is
-// decided by Behaviour; this class parses, recognises gestures and draws.
+// Boop on LinkKit: the app the kit calls (linkkit/device/src/linkkit/kit.h).
+// It reads Boop's `state` and `do` args (plan/PROTOCOL.md), says when a
+// call may play and when it rests or ends, recognises gestures, plays
+// the voice and draws. What Boop does is decided by Behaviour. Pure C++:
+// the board and the simulator run the same code behind a small Hal.
 #pragma once
 #include <cstddef>
 #include <cstdint>
 
 #include "app/behaviour.h"
-#include "app/clock.h"
 #include "app/effect_track.h"
 #include "app/gesture.h"
 #include "app/touch_cal.h"
+#include "linkkit/kit.h"
 #include "render/anim.h"
 #include "render/canvas.h"
 #include "render/screens.h"
@@ -20,9 +21,12 @@
 
 namespace app {
 
-enum class Link : uint8_t { kNone, kUsb, kBle };
-
-// The permanent ID in `status` (PROTOCOL.md §4) where there's no Bluetooth
+// Boop's names on the wire (PROTOCOL.md §2): hello.app, the Bluetooth name
+// Boop-XXXX, and the device id b00p-xxxx.
+constexpr const char* kAppName = "boop";
+constexpr const char* kBleNamePrefix = "Boop";
+constexpr const char* kIdPrefix = "b00p";
+// The permanent ID in `hello` (PROTOCOL.md §4) where there's no Bluetooth
 // MAC to take it from: the simulator and the tests.
 constexpr const char* kDefaultDeviceId = "b00p-0000";
 
@@ -40,16 +44,10 @@ struct AudioOut {
   uint32_t errors = 0;  // DAC writes that timed out
 };
 
-// Where replies and device → Mac messages go.
-struct Out {
-  virtual ~Out() = default;
-  virtual void write(const char* s, size_t n) = 0;
-};
-
-// What the core needs from the platform. Defaults suit the simulator.
-struct Hal {
-  virtual ~Hal() = default;
-  virtual uint32_t realMs() = 0;
+// What Boop needs from the platform, on top of the kit's. Defaults suit
+// the simulator.
+struct Hal : linkkit::Platform {
+  const char* deviceId() override { return kDefaultDeviceId; }
   virtual bool bootDown() { return false; }
   // A physical touch, in screen coordinates. False when nothing's pressed.
   virtual bool touch(int& x, int& y) {
@@ -73,12 +71,6 @@ struct Hal {
   virtual void effect(const voice::Effect& e) { (void)e; }
   virtual void stopEffects() {}
   virtual AudioOut audioOut() { return {}; }
-  // The permanent ID in `status` (PROTOCOL.md §4).
-  virtual const char* deviceId() { return kDefaultDeviceId; }
-  // Bluetooth, for dbg.ping: "off", "idle" (neither advertising nor
-  // connected), "adv" (advertising) or "conn".
-  virtual const char* bleState() { return "off"; }
-  virtual const char* bleName() { return ""; }
   // The microSD card that holds the voice pack, for dbg.ping's `card`
   // (PROTOCOL.md §5, VOICE.md §8); the simulator's is a file.
   virtual const char* cardState() { return "none"; }
@@ -88,7 +80,7 @@ struct Hal {
   // and swapped in for the pack, which reopens. `have` is how many bytes
   // it holds. With no card they fail, and `why` says so.
   virtual bool packBegin(bool keep, uint32_t& have, const char*& why) {
-    have = 0, why = "no card";
+    (void)keep, have = 0, why = "no card";
     return false;
   }
   virtual bool packAppend(const uint8_t* d, size_t n, uint32_t& have) {
@@ -99,37 +91,22 @@ struct Hal {
     (void)size, (void)crc, why = "no card";
     return false;
   }
-  virtual const char* fwVersion() = 0;
   virtual const char* gitSha() = 0;
 };
 
-class Device {
+class Device : public linkkit::App {
  public:
   // A panel touch ends after this long without contact, in real ms.
   static constexpr uint32_t kTouchReleaseMs = 50;
+  // A reaction rests this long after its line and bubble (PROTOCOL.md §3):
+  // the pause the Mac used to leave between one reaction's bubble and the
+  // next reaction or a rule's one-shot (its old MomentSchedule.linkSlackMs).
+  static constexpr uint32_t kReactGapMs = 500;
 
-  // `pixels` is the kWidth × kHeight canvas buffer, allocated by the caller.
-  Device(Hal& hal, uint8_t* pixels, bool frozenClock);
+  // `pixels` is the kWidth × kHeight canvas buffer, allocated by the
+  // caller. A linkkit::Kit made with this app then drives it.
+  Device(Hal& hal, uint8_t* pixels);
 
-  void setOut(Link link, Out* out) { outs_[int(link)] = out; }
-
-  // One message line. Replies go back on the link it came in on. Returns
-  // true for a debug message: the caller ticks before the next line, since
-  // tests order injected input and clock steps against ticks.
-  bool handleLine(const char* line, size_t n, Link from);
-  // A Mac connected or disconnected over Bluetooth. USB has no connection
-  // event: the Mac counts as connected when it first speaks, or speaks
-  // again after kNoAppMs of silence.
-  void connected();
-  void disconnected();
-  // True when the Mac, connected over Bluetooth, has sent no line on it for
-  // kNoAppMs of real time: a link left over from a killed app, which Ble
-  // lets go (PROTOCOL.md §2, "Reconnecting"). Then true again only after
-  // another kNoAppMs, in case letting go didn't take. USB has no connection
-  // to let go.
-  bool shouldDropBle();
-  // Reads inputs, advances state, and redraws the canvas if needed.
-  void tick();
   // True once after each redraw.
   bool takeFrame() {
     bool f = frame_;
@@ -139,10 +116,24 @@ class Device {
   // The board drew and pushed a frame, taking this many microseconds for
   // each (dbg.ping `fps`, `draw_us`, `push_us`).
   void noteFrame(uint32_t drawUs, uint32_t pushUs) { drawUs_ = drawUs, pushUs_ = pushUs, ++frames_; }
-
   render::Canvas& canvas() { return canvas_; }
-  uint32_t now() const { return clock_.now(hal_.realMs()); }
-  Screen screen() const { return screen_; }
+
+  // linkkit::App
+  const char* name() const override { return kAppName; }
+  int does(const char* const*& names) const override;
+  void hello(JsonObject extra) override;
+  void begin() override;
+  void onState(JsonObjectConst state, uint32_t t) override;
+  const char* refuse(const linkkit::Call& c, uint32_t t) override;
+  void onDo(const linkkit::Call& c, uint32_t t) override;
+  void advance(uint32_t t) override;
+  bool nextDue(uint32_t from, uint32_t to, uint32_t& at) override;
+  void tick(uint32_t t) override;
+  bool debug(const char* type, JsonObjectConst msg, linkkit::Link from) override;
+  void ping(JsonObject reply) override;
+  void state(JsonObject reply, uint32_t t) override;
+  void reset() override;
+  bool shot(linkkit::Shot& s, uint32_t t) override;
 
  private:
   struct LastInput {
@@ -150,19 +141,18 @@ class Device {
     uint32_t at = 0;
     int x = -1, y = -1;
   };
+  // The call refuse() last parsed, for onDo, which follows at once.
+  struct Parsed {
+    uint32_t key = 0;
+    MomentIn in;
+  };
 
-  void reply(Link link, const char* text, size_t n);
-  void emit(const char* k, bool injected, uint32_t id = 0);  // an `input` message to the Mac
+  MomentIn parse(const linkkit::Call& c);
+  void drain();  // Behaviour's ends, to the kit
   void input(const char* k, uint32_t t, int x = -1, int y = -1);
   void tapped(uint32_t t, bool injected);  // a tap, from BOOT or the panel
   void readInputs(uint32_t t);
   void render(uint32_t t);
-  void sendPing(Link to);
-  void sendStatus(Link to);
-  void sendEnded();
-  void sendState(Link to);
-  void sendShot(Link to);
-  void reset();
   void hush();
   bool startLine(uint32_t t);
   void followSound(uint32_t t);
@@ -170,29 +160,16 @@ class Device {
 
   Hal& hal_;
   render::Canvas canvas_;
-  Clock clock_;
-  Rng rng_;
   Behaviour b_;
   ButtonGesture boot_;
-  Out* outs_[3] = {nullptr, nullptr, nullptr};
-  Link link_ = Link::kNone;  // the link the Mac last spoke on
-  bool bleUp_ = false;       // a Mac is connected over Bluetooth
-  bool usbHeard_ = false;      // the Mac has spoken over USB
-  uint32_t usbHeardReal_ = 0;  // real time it last did
-  uint32_t bleHeardReal_ = 0;  // real time the Mac last spoke (or connected) over Bluetooth
-  // The Mac spoke at `heardReal` less than kNoAppMs before `real`: the app
-  // is still there.
-  static bool heardLately(uint32_t heardReal, uint32_t real) { return real - heardReal < Behaviour::kNoAppMs; }
-  uint32_t statusReal_ = 0;  // real time of the last status
-  uint32_t dbgReal_ = 0;     // real time of the last dbg.* message
-  bool toolFrozen_ = false;  // a dbg.* message froze the clock (not the simulator's start)
+  Parsed parsed_;
+  // The holder's rest (PROTOCOL.md §3): a reaction rests kReactGapMs after
+  // its line and bubble have played, restKey_ at restAt_; 0 when none is due.
+  uint32_t restKey_ = 0;
+  uint32_t restAt_ = 0;
 
   Screen screen_ = Screen::kFace;
   bool pattern_ = false;  // dbg.pattern until the next state
-  // `state` and `moment` messages received since boot (dbg.state `rx`), so
-  // the pipeline check can see exactly when the Mac's message arrived.
-  uint32_t rxState_ = 0;
-  uint32_t rxMoment_ = 0;
   int patternFill_ = -1;  // a solid dbg.pattern screen, or -1
   int targetX_ = -1, targetY_ = -1;  // a calibration target on dbg.pattern, or -1
   uint32_t drawnT_ = 0;   // the time of the last frame

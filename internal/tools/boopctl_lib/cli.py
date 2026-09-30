@@ -12,7 +12,8 @@ import time
 from pathlib import Path
 
 from boopctl_lib import scenario, workday
-from boopctl_lib.common import ANIMS, CTXS, MOODS, OLD_ANIMS, OUTCOMES, PACK, REPO, Take, restarted, take, takes
+from boopctl_lib.common import (ANIMS, CTXS, MOODS, OLD_ANIMS, OUTCOMES, PACK, REPO, RULE_ONE_SHOTS, TTL_MS, Take, do,
+                                ended, restarted, take, takes)
 from boopctl_lib.device import Device, DeviceError, Sim
 from boopctl_lib.image import diff, save_shot
 
@@ -192,20 +193,21 @@ def cmd_perf(args: argparse.Namespace) -> int:
     designs step a few times a second, so fps follows the design, and a
     second of a slow one draws only a few frames. So in motion it asks that
     the board drew in every second, and draw_us + push_us says how fast it
-    draws (DEVICE.md §6)."""
+    draws (DEVICE.md §6). Each animation is a `do` played `now`, so it
+    replaces the last at once."""
     samples = []
     working = {"t": "state", "base": "working", "busy": 1}
     with Device(args.port) as dev:
         dev.request({"t": "dbg.clock", "run": True})
         dev.send(working)
         start = time.monotonic()
-        last_moment = -10.0
+        last_anim = -10.0
         i = 0
         while (elapsed := time.monotonic() - start) < args.seconds:
-            if args.motion and elapsed - last_moment >= 1.0:
-                dev.send({"t": "moment", "anim": ANIMS[i % len(ANIMS)]})
+            if args.motion and elapsed - last_anim >= 1.0:
+                dev.send(do(ANIMS[i % len(ANIMS)]))
                 dev.send(working)
-                last_moment, i = elapsed, i + 1
+                last_anim, i = elapsed, i + 1
             time.sleep(1.0)
             samples.append(dev.vitals())
     fps = [s["fps"] for s in samples[1:]] or [0]  # the first second includes the start
@@ -250,29 +252,41 @@ def soak_say(rng: random.Random) -> dict:
     return {} if rng.random() < 0.1 else {"take": rng.choice(takes()).id}
 
 
-def soak_moment(rng: random.Random) -> dict:
-    """An animation, a line, or both, as the rules and the dashboard send
-    them: a finish with its outcome and loops (1–3), a one-shot, a poke,
-    chatter."""
-    msg: dict = {"t": "moment"}
-    if rng.random() < 0.7:
-        msg["anim"] = rng.choice(ANIMS)
-        if msg["anim"] == "task_complete":
-            msg["outcome"] = rng.choice(OUTCOMES)
-            msg["loops"] = rng.randint(1, 3)
-        if msg["anim"] == "starting":
-            msg["ctx"] = rng.choice(CTXS)
-    if "anim" not in msg or rng.random() < 0.4:
-        msg["say"] = soak_say(rng)
-    return msg
+def soak_play(name: str) -> dict:
+    """How a `do` of `name` asks for its turn (PROTOCOL.md `do`): the rules'
+    one-shots only when the turn is free, a poke or a spam at once as the
+    tools send them, a finish or a line waiting its turn for up to 5 s, as
+    the Mac sends the brain's."""
+    if name in RULE_ONE_SHOTS:
+        return {"play": "if_free"}
+    if name in ("poked", "tap_spam"):
+        return {"play": "now"}
+    return {"play": "next", "ttl": TTL_MS}
 
 
-def soak_reaction(rng: random.Random, moment_id: int) -> dict:
+def soak_do(rng: random.Random) -> dict:
+    """An animation, a line, or both, which the soak doesn't wait on, each
+    asking for its turn as it would from the Mac or a tool (soak_play): a
+    finish with its outcome and loops (1–3), a one-shot, a poke, a line."""
+    name = rng.choice(ANIMS) if rng.random() < 0.7 else "react"
+    args: dict = {}
+    if name == "task_complete":
+        args["outcome"] = rng.choice(OUTCOMES)
+        args["loops"] = rng.randint(1, 3)
+    if name == "starting":
+        args["ctx"] = rng.choice(CTXS)
+    if name == "react" or rng.random() < 0.4:
+        args["say"] = soak_say(rng)
+    return do(name, **soak_play(name), **args)
+
+
+def soak_reaction(rng: random.Random, call_id: int) -> dict:
     """A brain reaction, which the Mac waits on: a line in a mood's face,
-    held for its loops (1–6, as the device takes them), with an `id` the
-    board answers with one `ended` (PROTOCOL.md §3–4)."""
-    return {"t": "moment", "say": soak_say(rng), "mood": rng.choice(MOODS), "loops": rng.randint(1, 6),
-            "id": moment_id}
+    held for its loops (1–6, as the device takes them), waiting its turn for
+    up to 5 s, with an `id` the board answers with one `ended`
+    (linkkit/SPEC.md §3–4)."""
+    return do("react", id=call_id, play="next", ttl=TTL_MS,
+              say=soak_say(rng), mood=rng.choice(MOODS), loops=rng.randint(1, 6))
 
 
 def soak_input(rng: random.Random) -> dict:
@@ -289,10 +303,14 @@ def soak_input(rng: random.Random) -> dict:
 
 
 def ended_report(ids: list[int], heard: list[dict], excused: int) -> dict:
-    """How the board said the reactions it was sent ended: each id exactly
-    once (PROTOCOL.md §4). A moment line the board never got has none, and
-    an `ended` that lost bytes on the way back can't be read, so up to
-    `excused` (lines lost either way) may be missing."""
+    """How the board said the reactions it was sent ended, from each
+    `ended`'s data (`common.ended`): each id exactly once (linkkit/SPEC.md
+    §4). Done, cut or skipped are all answers: a reaction that waited too
+    long behind another (`skipped (late)`) is one the Mac would have dropped
+    too. A `do` line the board never got has none, and an `ended` that lost
+    bytes on the way back can't be read, so up to `excused` (lines lost
+    either way) may be missing. A name the board doesn't play (`skipped
+    (unknown)`) is a mismatch with its `hello.does`, and fails."""
     counts: dict[int, int] = {}
     hows: dict[str, int] = {}
     for m in heard:
@@ -303,8 +321,10 @@ def ended_report(ids: list[int], heard: list[dict], excused: int) -> dict:
     missing = [i for i in ids if i not in counts]
     report = {"reactions": len(ids), "ended": len(heard), "ended_how": hows, "ended_missing": missing,
               "ended_twice": sorted(i for i, n in counts.items() if n > 1),
-              "ended_unknown": sorted(i for i in counts if i not in sent)}
-    report["ended_ok"] = not report["ended_twice"] and not report["ended_unknown"] and len(missing) <= excused
+              "ended_unknown": sorted(i for i in counts if i not in sent),
+              "names_unknown": hows.get("skipped (unknown)", 0)}
+    report["ended_ok"] = (not report["ended_twice"] and not report["ended_unknown"] and not report["names_unknown"]
+                          and len(missing) <= excused)
     return report
 
 
@@ -319,8 +339,10 @@ def cmd_soak(args: argparse.Namespace) -> int:
 
         return e2e.soak(Path(args.out or "/tmp/boop-e2e-out"), args.brain, args.port, args.minutes)
     rng = random.Random(args.seed)
-    samples, glitches, heard, ids = [], [], [], []
-    sent = {"state": 0, "moment": 0}
+    samples, glitches, ends, ids = [], [], [], []
+    torn = [0]
+    # Keyed by `t`, as dbg.state's `rx` counts them.
+    sent = {"state": 0, "do": 0}
     with Device(args.port) as dev:
         start = time.monotonic()
 
@@ -330,7 +352,15 @@ def cmd_soak(args: argparse.Namespace) -> int:
             glitches.append(f"{time.monotonic() - start:.0f} s: {exc}"[:160])
 
         dev.retries, dev.on_retry = 1, glitch
-        dev.heard = lambda m: heard.append(m) if m.get("t") in ("ended", "torn") else None
+
+        def hear(msg: dict) -> None:
+            """What comes unasked: each `ended`, and lines that came back torn."""
+            if (end := ended(msg)) is not None:
+                ends.append(end)
+            elif msg.get("t") == "torn":
+                torn[0] += 1
+
+        dev.heard = hear
 
         def send(msg: dict) -> None:
             dev.send(msg)
@@ -354,7 +384,7 @@ def cmd_soak(args: argparse.Namespace) -> int:
                     send(state)
                     last_state = elapsed
                 elif r < 0.4:
-                    send(soak_moment(rng))
+                    send(soak_do(rng))
                 elif r < 0.5:
                     ids.append(len(ids) + 1)
                     send(soak_reaction(rng, ids[-1]))
@@ -369,8 +399,8 @@ def cmd_soak(args: argparse.Namespace) -> int:
             time.sleep(rng.uniform(0.2, 1.5))
         # Stuck? Calm snapshots must bring back the plain face once the
         # last press (held ≤ 3 s, then listening waits ≤ 8 s for a reply)
-        # and moment are over: a reaction's face can hold 6 loops of a 9 s
-        # design.
+        # and the last `do` are over: one may wait 5 s for its turn, and a
+        # reaction's face can hold 6 loops of a 9 s design.
         calm = {"t": "state", "base": "idle", "busy": 0, "vol": args.vol}
         settle_by = time.monotonic() + 75
         while True:
@@ -403,10 +433,10 @@ def cmd_soak(args: argparse.Namespace) -> int:
         "lost": lost,
         "audio_errors": final.get("audio", {}).get("out", {}).get("errors"),
         "link_glitches": glitches,
-        "torn_lines": sum(m["t"] == "torn" for m in heard),
+        "torn_lines": torn[0],
     }
-    excused = lost["moment"] + result["torn_lines"] + len(glitches)
-    result.update(ended_report(ids, [m for m in heard if m["t"] == "ended"], excused))
+    excused = lost["do"] + result["torn_lines"] + len(glitches)
+    result.update(ended_report(ids, ends, excused))
     result["ok"] = (not result["reset"] and result["heap_min_drift"] <= 2048 and result["answering"]
                     and result["final_screen"] == "face" and result["final_moment"] is None
                     and result["final_expr"] is None and not result["audio_errors"] and result["ended_ok"])
@@ -479,7 +509,7 @@ def play_line(dev: Device, say: dict) -> tuple[int, dict, bool]:
     finish it. Returns how many lines finished meanwhile (1 when it played),
     the last dbg.state, and whether the amp was on at any point."""
     before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
-    dev.send({"t": "moment", "say": say})
+    dev.send(do("react", say=say))
     deadline = time.monotonic() + 6
     amp = False
     while True:
@@ -553,7 +583,7 @@ def cmd_takes(args: argparse.Namespace) -> int:
         # Muted: the mouth still moves, the DAC stays off.
         show_state(dev, 0)
         before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
-        dev.send({"t": "moment", "say": {"take": chosen[0].id}})
+        dev.send(do("react", say={"take": chosen[0].id}))
         mouth = dev.request({"t": "dbg.state"})["audio"]["playing"]
         time.sleep(chosen[0].ms / 1000 + 1.5)
         st = dev.request({"t": "dbg.state"})
@@ -607,11 +637,15 @@ def take_levels(args: argparse.Namespace, t: Take) -> int:
 def cmd_play(args: argparse.Namespace) -> int:
     """One thing the Mac can make the board do, checked through dbg.state:
     an animation from the set (BEHAVIORS.md §5), --loops times, with --take
-    a take over it (from the design's voice window); `needs`, a fake
-    "needs you" (play_needs); or the bring-up `pattern`. `cheer` and
-    `wiggle` are the older names of task_complete's success and poked."""
+    a take over it (from the design's voice window), as a `do` played `now`
+    so it replaces whatever plays; `needs`, a fake "needs you"
+    (play_needs); or the bring-up `pattern`. `cheer` and `wiggle` are the
+    older names of task_complete's success and poked, which the device no
+    longer knows: they're sent by today's."""
     if (args.take or args.loops or args.outcome or args.ctx or args.variant) and args.what in ("needs", "pattern"):
         raise DeviceError(f"play {args.what} takes no --take, --loops, --outcome, --ctx or --variant")
+    if args.what == "cheer" and args.outcome == "failure":
+        raise DeviceError("cheer is task_complete's success: play task_complete --outcome failure")
     # Checked here, not by argparse: reading the voice pack to list the
     # choices would stop every command, --help included, without one.
     if args.take and take(args.take) is None:
@@ -626,15 +660,15 @@ def cmd_play(args: argparse.Namespace) -> int:
     with Device(args.port) as dev:
         show_begin(dev)
         show_state(dev, args.vol, base=args.base, mood=args.mood)
-        msg = {"t": "moment", "anim": args.what}
-        for key in ("loops", "variant", "outcome", "ctx"):
-            if getattr(args, key):
-                msg[key] = getattr(args, key)
+        name = OLD_ANIMS.get(args.what, args.what)
+        facts = {key: getattr(args, key) for key in ("loops", "variant", "outcome", "ctx") if getattr(args, key)}
+        if args.what == "cheer":
+            facts["outcome"] = "success"
         if args.take:
-            msg["say"] = {"take": args.take}
-        dev.send(msg)
+            facts["say"] = {"take": args.take}
+        dev.send(do(name, **facts))
         moment = dev.request({"t": "dbg.state"}).get("moment")
-    ok = bool(moment) and moment.get("anim") == OLD_ANIMS.get(args.what, args.what)
+    ok = bool(moment) and moment.get("anim") == name
     print(f"{args.what}: " + (f"playing variation {moment.get('variant')}, {moment['left_ms']} ms" if ok
                               else f"not playing ({moment})")
           + (f", saying {take(args.take).text!r}" if args.take else ""))
@@ -693,11 +727,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("play", help="play an animation (with --take, a take over it), a fake needs-you "
                                     "with its ding, or the bring-up pattern")
     p.add_argument("what", choices=ANIMS + list(OLD_ANIMS) + ["needs", "pattern"],
-                   help=", ".join(ANIMS + list(OLD_ANIMS)) + "; needs; pattern")
+                   help=", ".join(ANIMS) + " (or the older cheer, task_complete's success, and wiggle, poked); "
+                        "needs; pattern")
     p.add_argument("--take", metavar="ID",
                    help="a take over it, by id (`boopctl takes` lists them)")
     p.add_argument("--loops", type=int, choices=range(1, 7), metavar="1-6",
-                   help="how many times the animation's design plays (PROTOCOL.md §3; the device reads none as 1)")
+                   help="how many times the animation's design plays (PROTOCOL.md `do`; the device reads none as 1)")
     p.add_argument("--variant", type=int, choices=range(1, 10), metavar="1-9",
                    help="which variation; the device picks one that fits when it's none or doesn't fit")
     p.add_argument("--outcome", choices=OUTCOMES, help="task_complete: the turn's result")

@@ -3,19 +3,23 @@
 // the light and backlight they imply. Pure C++ and a function of the device
 // clock: every time-based change happens at an exact millisecond, so a
 // frozen clock gives the same frames on the board and in the simulator.
-// Device owns the I/O.
+// Device owns the I/O, and LinkKit decides when a call from the Mac plays
+// (linkkit/SPEC.md §4): Behaviour says whether one may (admit) and plays it
+// (play), and reports when each has stopped playing.
 #pragma once
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 
-#include "app/clock.h"
+#include "linkkit/clock.h"
 #include "render/anim.h"
 #include "render/scene.h"
 #include "render/screens.h"
 #include "voice/player.h"
 
 namespace app {
+
+using linkkit::Rng;
 
 // kNoApp draws the face screen with the no-app design and the unplugged
 // icon (BEHAVIORS.md §3.4).
@@ -54,30 +58,27 @@ render::SceneState baseFromName(const char* name);
 // testing, delegating or waiting, and kWorking for anything else.
 render::SceneState actFromName(const char* name);
 
-// How a moment the Mac waits on ended (PROTOCOL.md §4 `ended`): played to
-// the end, cut short, or skipped, none of it played.
-enum class MomentEnd : uint8_t { kDone, kCut, kSkipped };
-const char* momentEndName(MomentEnd e);
-// What cut a moment short: a newer moment, a tap (its poke, or
-// push-to-talk's listening), "needs you" starting, or dbg.reset.
-enum class CutBy : uint8_t { kNone, kMoment, kTap, kNeedsYou, kReset };
+// What cut a call short (PROTOCOL.md §4 `ended`): a newer call's play, a
+// tap (its poke, or push-to-talk's listening), "needs you" starting, or
+// dbg.reset. Each is the `why` of a `cut`.
+enum class CutBy : uint8_t { kNone, kNewer, kTap, kNeedsYou, kReset };
 const char* cutByName(CutBy c);  // null for kNone
 
-// A moment the Mac waits on that has ended, for Device to send once.
+// A call from the Mac that no part of plays any more, for Device to hand
+// to the kit: done, or cut by `by`. The kit keeps only the holder's.
 struct Ended {
-  uint32_t id = 0;
-  MomentEnd how = MomentEnd::kDone;
-  CutBy by = CutBy::kNone;  // with kCut
-  uint8_t from = 0;         // the moment's own `from`
+  uint32_t call = 0;
+  CutBy by = CutBy::kNone;
 };
 
-// A moment as it arrives (PROTOCOL.md §3), already held in range. With no
-// anim, only the line, or only the face.
+// A call from the Mac as Device parsed its args (PROTOCOL.md §3), already
+// held in range: the do's name as an animation (none for `react`), a line,
+// a face. With no anim, only the line, or only the face.
 struct MomentIn {
   render::Anim anim = render::Anim::kNone;
   // It had a `say` field: the reply `listening` waits for, even with no
-  // take. With neither `anim`, `say` nor `mood` it's the empty moment,
-  // which ends `listening` and does nothing else.
+  // take. `stop_listening` is empty: it ends `listening` and does nothing
+  // else.
   bool said = false;
   bool empty = false;
   int take = -1;  // the line: its first take's handle (voice/player.h), -1 for none
@@ -96,11 +97,11 @@ struct MomentIn {
   // (`who`): named in the strip while it plays. Null for none.
   const char* whoAgent = nullptr;
   const char* whoThread = nullptr;
-  // The Mac waits on it when `id` isn't 0 (PROTOCOL.md §3): its end comes
-  // back as an Ended with this id and `from`, which is Device's link and
-  // passes through untouched.
+  // The kit's key for the call (linkkit::Call::key), 0 for none: its parts
+  // carry it, and its end comes back as an Ended with it.
+  uint32_t call = 0;
+  // The Mac's id for it, 0 for none: a tap on its finish names it.
   uint32_t id = 0;
-  uint8_t from = 0;
 };
 
 class Behaviour {
@@ -111,7 +112,7 @@ class Behaviour {
   static constexpr uint32_t kPressEaseMs = 60;     // a press draws at once this long (DEVICE.md §6)
   static constexpr int kPressPx = 2;                // a press dips the face this far
   static constexpr uint32_t kBlinkMs = 180;
-  static constexpr int kMaxLoops = 6;  // a moment's `loops` (PROTOCOL.md §3)
+  static constexpr int kMaxLoops = 6;  // a call's `loops` (PROTOCOL.md §3)
   // The looks' variations take turns (BEHAVIORS.md §2): once one has shown
   // kTurnMinMs, each end of its loop moves to another with kTurnPct chance,
   // else it plays another loop.
@@ -137,9 +138,15 @@ class Behaviour {
 
   // Messages from the Mac, at time t.
   void onState(const Model& m, uint32_t t);
-  // True when the moment carries a line that will play: not while
-  // something needs you, or with no app.
-  bool onMoment(const MomentIn& m, uint32_t t);
+  // Whether a call may play at t (the kit's refuse): null when some part
+  // of it would, else why not: "no_app", "listening", "needs_you",
+  // "not_listening" (stop_listening with nothing to stop) or "nothing". A
+  // reply (a `say`, or stop_listening) ends listening first, whether or
+  // not any of it then plays.
+  const char* admit(const MomentIn& m, uint32_t t);
+  // Plays a call admitted at t. True when it carries a line that will
+  // play: not while something needs you, or with no app.
+  bool play(const MomentIn& m, uint32_t t);
   // Which variation (from 0) of animation `a` to play in `mood`: `wanted`
   // (from 1, 0 for none) when it's one of those for the moment's outcome
   // and context (render::fitting), else one of those at random, never the
@@ -149,7 +156,9 @@ class Behaviour {
   // Inputs, already recognised as gestures.
   void pressDown(uint32_t t);  // visible feedback at once
   void pressUp();
-  void tap(uint32_t t, Rng& rng);  // BOOT, or a touch anywhere
+  // BOOT, or a touch anywhere: what it did, "poked" or "tap_spam", or
+  // "dip" when it only dipped the face.
+  const char* tap(uint32_t t, Rng& rng);
   // The id of the brain's finish showing whose turn it was at t, which a
   // tap opens on the Mac instead of poking (BEHAVIORS.md §3.3); 0 for none.
   uint32_t finishShown(uint32_t t) const;
@@ -189,8 +198,8 @@ class Behaviour {
   render::Anim moment(uint32_t t, uint32_t& left) const;
   uint8_t momentVariant() const { return moment_.variant; }
   bool speaking(uint32_t t) const;
-  // The expression the face borrows while its moment plays (PROTOCOL.md
-  // §3): true, with its mood, until the moment ends or another replaces it.
+  // The expression the face borrows while its call plays (PROTOCOL.md
+  // §3): true, with its mood, until the call ends or another replaces it.
   bool expression(uint32_t t, render::Mood& mood) const;
   // The line's takes, while it plays or waits to (-1 for none).
   int take() const { return say_.take; }
@@ -198,9 +207,14 @@ class Behaviour {
   // Counts moments and lines started, local ones included, so a line can
   // tell it was replaced.
   uint32_t momentSeq() const { return momentSeq_; }
-  // The next moment the Mac waits on that has ended, oldest first, each
-  // exactly once; false when there's none (PROTOCOL.md §4).
+  // The next call from the Mac that no part plays of any more, oldest
+  // first, each exactly once; false when there's none.
   bool takeEnded(Ended& e);
+  // The first instant after `from`, at most `to`, at which a part ends
+  // (an animation, a line with its bubble, a borrowed face); false for none.
+  bool nextEnd(uint32_t from, uint32_t to, uint32_t& at) const;
+  // When the line's bubble goes, from its start at its voice window.
+  uint32_t sayEnd() const { return say_.at + say_.ms; }
   // A blink, Boop's idle life (BEHAVIORS.md §2), is showing.
   bool blinking(uint32_t t) const;
   // When needs you's performance, with its knocks and ding, last started
@@ -217,8 +231,8 @@ class Behaviour {
   int taps() const { return taps_; }
 
  private:
-  // Each part of a moment (the animation, the line, the expression)
-  // carries its moment's id, 0 when the Mac doesn't wait on it.
+  // Each part of a call (the animation, the line, the expression) carries
+  // its call's key, 0 for the device's own.
   struct Moment {
     render::Anim anim = render::Anim::kNone;
     uint8_t variant = 0;
@@ -226,7 +240,8 @@ class Behaviour {
     // Its design's loops; held longer for its line, it rests on its last
     // frame.
     uint32_t playMs = 0;
-    uint32_t id = 0;
+    uint32_t call = 0;
+    uint32_t id = 0;  // the Mac's, which a tap on the finish names
     render::Outcome outcome = render::Outcome::kNone;  // what its design is for: a finish's result
     char agent[12] = "";  // the finish's `who`; empty for none
     char thread[24] = "";
@@ -240,19 +255,17 @@ class Behaviour {
     char text[2 * voice::kTextMax] = "";  // the bubble's: the takes' words
     uint32_t at = 0, ms = 0;
     uint32_t speakMs = 0;  // the takes play this long, the gap included
-    uint32_t id = 0;
+    uint32_t call = 0;
   };
-  // A moment the Mac waits on, while any part of it plays: where it came
-  // from, and what first cut its animation or its line short, if
-  // anything.
+  // A call from the Mac, while any part of it plays, and what first cut
+  // its animation or its line short, if anything.
   struct Waiting {
-    uint32_t id = 0;
-    uint8_t from = 0;
+    uint32_t call = 0;
     CutBy cut = CutBy::kNone;
   };
-  // What the Mac is owed, which dbg.reset keeps: the moments it waits on,
-  // at most one per part plus the one arriving, and the ends not yet taken.
-  // Device takes them after every line and every tick.
+  // What the Mac is owed, which dbg.reset keeps: the calls playing, at
+  // most one per part plus the one arriving, and the ends not yet taken.
+  // Device takes them after every line, hook and tick.
   struct Owed {
     static constexpr int kWaiting = 4, kEnded = 8;
     Waiting waiting[kWaiting];
@@ -281,7 +294,7 @@ class Behaviour {
 
   // An animation plays `loops` times in `mood`'s design (listening until
   // the reply), cutting the one playing but not the line or expression.
-  void play(render::Anim a, uint32_t t, CutBy by, int loops, render::Mood mood, uint8_t variant);
+  void playAnim(render::Anim a, uint32_t t, CutBy by, int loops, render::Mood mood, uint8_t variant);
   // The line and the expression end, the line cut short by `by`: a new
   // moment's animation, or listening, replaces them; a tap's poke doesn't.
   void endLine(uint32_t t, CutBy by);
@@ -313,14 +326,13 @@ class Behaviour {
     modelT_ = t;
     sweep(t);
   }
-  // Moments the Mac waits on: one arriving, a part of one cut short while
-  // it plays, and each one with no part left playing at t ended.
-  void wait(uint32_t id, uint8_t from);
-  void forget(uint32_t id);
-  void cut(uint32_t id, CutBy by);
+  // Calls from the Mac: one starting, a part of one cut short while it
+  // plays, and each one with no part left playing at t ended.
+  void wait(uint32_t call);
+  void cut(uint32_t call, CutBy by);
   void sweep(uint32_t t);
   void report(const Ended& e);
-  bool holds(uint32_t id, uint32_t t) const;
+  bool holds(uint32_t call, uint32_t t) const;
   void resync(uint32_t t);
   void startBlink(uint32_t t, Rng& rng);
   uint32_t blinkGap(Rng& rng) const;
@@ -364,7 +376,7 @@ class Behaviour {
   bool expr_ = false;
   render::Mood exprMood_ = render::Mood::kHappy;
   uint32_t exprAt_ = 0, exprMs_ = 0;
-  uint32_t exprId_ = 0;
+  uint32_t exprCall_ = 0;
   Owed owed_;
   Source src_;
   uint32_t lookAt_ = 0;  // when the look's design started

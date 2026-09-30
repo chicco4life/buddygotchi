@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from boopctl_lib import cli, day  # noqa: E402
 from boopctl_lib.common import FINISHES  # noqa: E402
+from old_logs import as_do  # noqa: E402
 
 FIXTURE = Path(__file__).parent / "fixtures" / "day"
 TZ = os.environ.get("TZ")
@@ -146,6 +147,18 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(self.day.launches[0][0], "debug.1.jsonl")
         self.assertEqual(self.day.running_ms, sum(b - a for _, a, b, _ in self.day.launches))
 
+    def test_the_same_day_from_do_lines(self):
+        """The Mac sends a `do` where it sent a `moment` (old_logs.as_do):
+        the day reads the same from either."""
+        with tempfile.TemporaryDirectory() as d:
+            for f in ("debug.1.jsonl", "debug.jsonl"):
+                lines = [as_do(json.loads(line)) for line in (FIXTURE / f).read_text().splitlines()]
+                self.assertTrue(any(line.get("sent", {}).get("t") == "do" for line in lines))
+                (Path(d) / f).write_text("".join(json.dumps(line) + "\n" for line in lines))
+            now = day.summarise(day.read_launches(day.launch_files(Path(d))), "2026-09-28")
+        self.assertEqual(day.render(now), day.render(self.day))
+        self.assertEqual((now.total().finishes, now.total().chatter), (3, 17))
+
     def test_the_table(self):
         text = day.render(self.day)
         lines = text.splitlines()
@@ -177,7 +190,7 @@ def a_pass(t: int, seq: int, for_: int | None, **choices: str) -> dict:
 
 
 def raw_action(t: int, seq: int, name: str, phase: str | None, data: dict) -> dict:
-    """An action as the log has it (kit/BRAIN-KIT.md §2.2): a `did`, open
+    """An action as the log has it (jharness/SPEC.md §2.2): a `did`, open
     while it plays, or its `ended`."""
     data = {**data, "action": name, **({"open": True} if phase == "start" else {})}
     e = {"seq": seq, "at": t, "source": "self", "kind": "ended" if phase == "end" else "did", "data": data}
@@ -282,9 +295,27 @@ class SmallDayTests(unittest.TestCase):
 
 
 class RuleTests(unittest.TestCase):
-    def test_finishes_are_the_brains_task_complete_and_reply_ready_and_old_cheers(self):
-        """PROTOCOL.md §3 `moment`: a finish is task_complete or reply_ready,
-        and a cheer in logs from before them; a rule's one-shot isn't one."""
+    def test_finishes_are_the_brains_task_complete_and_reply_ready(self):
+        """PROTOCOL.md `do`: a finish is task_complete or reply_ready; a
+        reaction with no animation and a rule's one-shot aren't. The rules'
+        requests aren't chatter."""
+        do = lambda t, by, name, play="next", **args: {  # noqa: E731
+            "sent": {"t": "do", "id": t % 1000, "name": name, "play": play, "args": args}, "by": by, "received_at_ms": t}
+        d = day.summarise([launch(
+            state(at("09:00:00")),
+            do(at("09:01:00"), "brain", "task_complete", outcome="success", mood="calm", loops=1, say={"take": "a"}),
+            do(at("09:02:00"), "brain", "reply_ready", mood="curious", loops=1, say={}),
+            do(at("09:03:00"), "brain", "react", mood="proud", loops=2, say={"take": "a"}),
+            do(at("09:04:00"), "rule", "starting", "if_free", variant=1, ctx="new_task"),
+            do(at("09:05:00"), "rule", "listening", "now"),
+            do(at("09:05:05"), "rule", "stop_listening", "if_free"),
+        )], "2026-09-28")
+        self.assertEqual((d.total().finishes, d.total().chatter), (2, 0))
+
+    def test_finishes_in_logs_from_before_do(self):
+        """Older logs sent a `moment`: a finish is task_complete or
+        reply_ready, and a cheer in logs from before them; a rule's
+        one-shot isn't one."""
         moment = lambda t, **m: {"sent": {"t": "moment", **m}, "received_at_ms": t}
         d = day.summarise([launch(
             state(at("09:00:00")),
@@ -355,7 +386,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn("  1 events woke it but got no pass", text)
 
     def test_held_passes_asked_no_brain(self):
-        # kit/BRAIN-KIT.md §9: an event held back when its turn came has a
+        # jharness/SPEC.md §9: an event held back when its turn came has a
         # pass that says why, and the brain wasn't asked: not a brain pass,
         # not dropped, and not an event that got no pass.
         t = at("10:00:00")

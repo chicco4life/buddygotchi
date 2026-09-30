@@ -11,8 +11,8 @@ isn't deterministic, so run each at least twice.
 
 `run` needs `make build` first. It starts the headless app with its own
 state directory (keep it short and under /tmp: a Unix socket's path has
-room for 103 bytes), a fake device on a Unix socket that says each of the
-brain's moments played to the end, and the brain (`--brain jev`, the
+room for 103 bytes), a fake device on a Unix socket that says hello as
+Boop's device does and says each request played to the end, and the brain (`--brain jev`, the
 default, needs `BOOP_JEV_KEY`; `--brain scripted` needs nothing). It moves
 the app's clock to 09:00 the next morning, then sends each hook line
 straight to the app's socket in the wire form `agent-hook` sends, moving the
@@ -23,7 +23,7 @@ replaced while Jev thinks.
 The report reads debug.jsonl as `boopctl day` and the dashboard do
 (dash/feed.py): a mood change's new mood, and a reaction's face, finish
 and hold, from the answers of the pass whose action it is; what it said
-from the takes of the moment it sent; never from an action's message."""
+from the takes its action recorded; never from an action's message."""
 from __future__ import annotations
 
 import datetime as dt
@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from boopctl_lib import day as daylog
+from boopctl_lib.common import DOES
 from boopctl_lib.dash import feed
 from boopctl_lib.device import DeviceError
 from boopctl_lib.headless import Headless
@@ -315,15 +316,28 @@ def plan(seed: int) -> str:
 # ---------------------------------------------------------------- the run
 
 
+# What the fake device says it is when the app first speaks
+# (linkkit/SPEC.md §5): Boop's device, playing every name Boop sends. It
+# names no voice pack, so the app picks lines as for a device that has its
+# own (PROTOCOL.md `hello`), as it did before devices said hello.
+HELLO = {"t": "hello", "kit": 1, "app": "boop", "id": "b00p-fake", "fw": "workday", "does": DOES}
+# The brain's reactions, which `run` counts as played.
+REACTIONS = {"react", "task_complete", "reply_ready"}
+
+
 class FakeDevice:
     """The app's USB link connects here as it would to `boopctl bridge`.
-    Every brain moment (one with an `id`) is said to have played to the
-    end, and `tap` sends a tap as the board would."""
+    It answers the first line on each connection, and every `hello` the
+    app sends, with a `hello` (linkkit/SPEC.md §3, §5), says every
+    request with an `id` played to the end at once (the brain's reactions
+    and the rules' one-shots alike), and `tap` sends a tap as the board
+    would."""
 
     def __init__(self, path: str) -> None:
         self.path = path
         self.conn: socket.socket | None = None
-        self.moments = 0
+        self.reactions = 0
+        self.greeted = False  # said hello on this connection
         self.lock = threading.Lock()
         if os.path.exists(path):
             os.unlink(path)
@@ -340,6 +354,7 @@ class FakeDevice:
                 return
             with self.lock:
                 self.conn = conn
+            self.greeted = False
             buf = b""
             while True:
                 try:
@@ -358,9 +373,16 @@ class FakeDevice:
             msg = json.loads(raw)
         except ValueError:
             return
-        if msg.get("t") == "moment" and isinstance(msg.get("id"), int):
-            self.moments += 1
-            self.send({"t": "ended", "id": msg["id"], "how": "done"})
+        if not isinstance(msg, dict):
+            return
+        # A hello for the app's first line, and for every hello it sends.
+        first = not self.greeted and not str(msg.get("t", "")).startswith("dbg.")
+        if first or msg.get("t") == "hello":
+            self.greeted = True
+            self.send(HELLO)
+        if msg.get("t") == "do" and isinstance(msg.get("id"), int):
+            self.reactions += msg.get("name") in REACTIONS
+            self.send({"t": "ev", "kind": "ended", "data": {"id": msg["id"], "how": "done"}})
 
     def send(self, msg: dict[str, Any]) -> None:
         with self.lock:
@@ -371,7 +393,8 @@ class FakeDevice:
                     pass
 
     def tap(self) -> None:
-        self.send({"t": "input", "k": "tap"})
+        """A tap the device answered with its own poke."""
+        self.send({"t": "ev", "kind": "tap", "did": "poked"})
 
     def close(self) -> None:
         self.server.close()
@@ -492,12 +515,17 @@ class Run:
             if k == "view" and body.get("wakes_brain"):
                 self.waiting_passes.add(body["from"][-1])
             elif k == "pass":
+                # A held pass answers its event without asking the brain
+                # (jharness/SPEC.md §9) and runs nothing; a forced one
+                # (`by`) is the dashboard's. Neither is a brain pass.
+                self.waiting_passes.discard(body.get("for"))
+                if body.get("held") or not body.get("brain"):
+                    continue
                 self.passes += 1
                 if body.get("dropped"):
                     self.dropped += 1
                 else:
                     self.passes_unchecked = True
-                self.waiting_passes.discard(body.get("for"))
             elif k == "event" and (act := feed.action(body)) and act["pending"] and act["by"] is None:
                 # The brain's reactions only: a rule's needs-you lasts
                 # until the day answers the request, steps later.
@@ -556,7 +584,7 @@ def run(state: Path, seed: int, brain: str, personality: str | None, out: Path |
         r.replay(steps)
     finally:
         r.stop()
-    print(f"done: {r.passes} passes, {r.dropped} dropped, {r.device.moments if r.device else 0} moments played")
+    print(f"done: {r.passes} passes, {r.dropped} dropped, {r.device.reactions if r.device else 0} reactions played")
     if out:
         out.mkdir(parents=True, exist_ok=True)
         shutil.copy(r.app.debug, out / "debug.jsonl")
@@ -597,7 +625,7 @@ def classify(event: dict[str, Any]) -> str | None:
 
 
 def new_hour() -> dict[str, Any]:
-    return {"turns": 0, "passes": 0, "dropped": 0, "reactions": 0, "mood_changes": 0, "mood_after_routine": 0,
+    return {"turns": 0, "passes": 0, "dropped": 0, "held": 0, "reactions": 0, "mood_changes": 0, "mood_after_routine": 0,
             "back_to_rest": 0, "lines": Counter(), "reacted": Counter(), "faces": Counter(), "loops": Counter(),
             "words": Counter()}
 
@@ -605,7 +633,7 @@ def new_hour() -> dict[str, Any]:
 def reaction(p: dict[str, Any]) -> dict[str, Any]:
     """A reaction's face, finish (success, failure or reply; None for a
     face alone) and hold, from its pass's answers as the dashboard reads
-    them (dash/feed.py). What it said is its moment's, once sent."""
+    them (dash/feed.py). What it said is the takes its action recorded."""
     return {"face": feed.choice(p, feed.FACE) or "?", "finish": feed.finish(p),
             "held": feed.choice(p, "react.loops") or "once"}
 
@@ -646,12 +674,17 @@ def summarize(path: Path) -> dict[str, Any]:
                 hr["turns"] += 1
             if ev.get("wakes_brain") and ev["class"]:
                 hr["lines"][ev["class"]] += 1
-        elif k == "pass" and body.get("for") in events:
+        elif k == "pass" and body.get("for") in events and body.get("brain"):
+            # The brain's passes; a forced one (`by`) is the dashboard's.
             passes[body["for"]] = body
             hr = hours[daylog.hour_of(events[body["for"]]["at"])]
-            hr["passes"] += 1
-            if body.get("dropped"):
-                hr["dropped"] += 1
+            if body.get("held"):
+                # Held back when its turn came: the brain wasn't asked
+                # (jharness/SPEC.md §9).
+                hr["held"] += 1
+            else:
+                hr["passes"] += 1
+                hr["dropped"] += bool(body.get("dropped"))
         if k == "event" and (act := feed.action(body)) and act["by"] is None and act["ok"]:
             ev = events.get(act["for"])
             if ev is None:
@@ -806,7 +839,8 @@ def report(paths: list[Path], as_json: bool = False) -> str:
         rows = [(f"{h:02d}:00", v) for h, v in r["hours"].items()] + [("all", all_hours)]
         for name, v in rows:
             rate = " | ".join(f"{v['reacted'][c]}/{v['lines'][c]}" for c in CLASSES)
-            out.append(f"| {name} | {v['turns']} | {v['passes']}" + (f" ({v['dropped']} dropped)" if v["dropped"] else "")
+            held = [f"{v['dropped']} dropped"] * bool(v["dropped"]) + [f"{v['held']} held back"] * bool(v["held"])
+            out.append(f"| {name} | {v['turns']} | {v['passes']}" + (f" ({', '.join(held)})" if held else "")
                        + f" | {v['mood_changes']} | {v['back_to_rest']} | {v['mood_after_routine']}"
                        f" | {v['reactions']} | {rate}"
                        f" | {fmt(v['faces'])} |")

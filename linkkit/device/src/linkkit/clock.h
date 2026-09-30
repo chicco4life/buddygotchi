@@ -1,10 +1,10 @@
-// The device clock (plan/PROTOCOL.md §5). It normally follows real
-// time; tests freeze it, step it and let it run again, so frames repeat
-// exactly. Pure C++.
+// The device clock (linkkit/SPEC.md §7). It normally follows real time;
+// tools freeze it, step it and let it run again (dbg.clock), so what an
+// app draws repeats exactly. Pure C++.
 #pragma once
 #include <cstdint>
 
-namespace app {
+namespace linkkit {
 
 class Clock {
  public:
@@ -54,4 +54,4 @@ class Rng {
   uint32_t s_ = 0x9E3779B9u;
 };
 
-}  // namespace app
+}  // namespace linkkit

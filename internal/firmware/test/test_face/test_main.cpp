@@ -57,8 +57,8 @@ static void test_palette_ramps_run_from_black_to_the_ink() {
 // BEHAVIORS.md §5: the animations, each by its design's state's name, and
 // nothing else: the brain's finish (task_complete, reply_ready), the rules'
 // one-shots (starting, stopped, error, helper_return), a tap's (poked,
-// tap_spam) and listening. The older names read as the new: "cheer" is the
-// finish, "wiggle" the poke. Each plays its own design, and every design
+// tap_spam) and listening. The older names ("cheer", "wiggle") are gone
+// with the moment message. Each plays its own design, and every design
 // has a loop (PROTOCOL.md §3).
 static void test_every_anim_has_a_name_and_ends() {
   TEST_ASSERT_EQUAL_INT(10, int(Anim::kCount));  // with kNone
@@ -70,8 +70,8 @@ static void test_every_anim_has_a_name_and_ends() {
     TEST_ASSERT_TRUE(animFromName(animName(a)) == a);
     TEST_ASSERT_EQUAL_STRING(animName(a), stateName(animState(a)));  // its own design
   }
-  TEST_ASSERT_TRUE(animFromName("cheer") == Anim::kTaskComplete);
-  TEST_ASSERT_TRUE(animFromName("wiggle") == Anim::kPoked);
+  TEST_ASSERT_TRUE(animFromName("cheer") == Anim::kNone);
+  TEST_ASSERT_TRUE(animFromName("wiggle") == Anim::kNone);
   for (int m = 0; m < int(Mood::kCount); ++m) {
     for (int s = 0; s < int(SceneState::kCount); ++s) TEST_ASSERT_TRUE(loopMs(Mood(m), SceneState(s)) > 0);
   }

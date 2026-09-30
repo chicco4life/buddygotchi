@@ -25,7 +25,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from boopctl_lib.common import REPO, restarted
+from boopctl_lib.common import REPO, call, restarted
 from boopctl_lib.device import Device, DeviceError
 from boopctl_lib.headless import BIN, Headless, stop_proc
 from boopctl_lib.image import save_shot
@@ -203,18 +203,25 @@ KEPT_WORDS = {"PRIVATE_PROMPT", "PRIVATE_CLOSING"}
 
 
 def order(log: str) -> list[dict[str, Any]]:
-    """Every brain moment in an app log, in order: when it was sent, how
-    long after the rules' reaction to the last hook, how the device said it
-    ended, and whether the next moment sent was the brain's or a rule's.
+    """Every brain reaction sent in an app log, in order: when it was sent,
+    how long after the rules' reaction to the last hook, how the device said
+    it ended, whether the next request sent was the brain's or a rule's
+    (`next_by`), and whose `now` request came next (`now_by`), the only kind
+    that cuts a busy one short.
 
     With --debug the app logs `hook: …` for each hook and `link rules → …` or
     `link brain → …` for each line sent to the device (a `state` sent again
     unchanged, such as the keepalive, only the first time), and always
-    `device: moment N ended …` for the device's `ended`."""
+    `device: do N ended HOW (WHY)` for the device's `ended` (linkkit/SPEC.md
+    §4)."""
     stamp = re.compile(r"^(\d\d):(\d\d):(\d\d)\.(\d\d\d) (.*)$")
-    ended_line = re.compile(r"^device: moment (\d+) ended (\w+)(?: \((\w+)\))?$")
-    how_ended: dict[int, str] = {}  # how each moment ended, by id: "done", "cut (tap)"
-    moments: list[dict[str, Any]] = []
+    ended_line = re.compile(r"^device: do (\d+) ended (\w+)(?: \((\w+)\))?$")
+    how_ended: dict[int, str] = {}  # how each request ended, by id: "done", "cut (tap)"
+    reactions: list[dict[str, Any]] = []
+    # The reactions still waiting to learn who sent the next request, and
+    # the next `now`.
+    no_next: list[dict[str, Any]] = []
+    no_now: list[dict[str, Any]] = []
     last_hook: str | None = None
     reaction: tuple[int, str] | None = None
     for raw in log.splitlines():
@@ -232,51 +239,76 @@ def order(log: str) -> list[dict[str, Any]]:
             line = json.loads(text[len("link rules → "):])
             if by == "rules" and last_hook and (reaction is None or reaction[1] != last_hook):
                 reaction = (t, last_hook)
-            if line.get("t") != "moment":
+            c = call(line)
+            if c is None:
                 continue
-            if moments and moments[-1]["next_by"] is None:
-                moments[-1]["next_by"] = by
+            for a in no_next:
+                a["next_by"] = by
+            no_next.clear()
+            if c["play"] == "now":
+                for a in no_now:
+                    a["now_by"] = by
+                no_now.clear()
             if by == "brain":
-                moments.append({
-                    "moment": line.get("anim") or "line",  # the brain's `say`: a line on its own
-                    "at": raw[:12], "id": line.get("id"), "next_by": None,
+                reactions.append({
+                    "moment": c["anim"] or "line",  # a face with its line, and no animation
+                    "at": raw[:12], "id": c["id"], "next_by": None, "now_by": None,
                     "after_reaction_ms": None if reaction is None else t - reaction[0],
                     "reaction_to": None if reaction is None else reaction[1],
                 })
-    for a in moments:
+                no_next.append(reactions[-1])
+                no_now.append(reactions[-1])
+    for a in reactions:
         a["ended"] = how_ended.get(a["id"]) if a["id"] is not None else None
-    return moments
+    return reactions
+
+
+# How a brain reaction may end without anything being wrong (linkkit/SPEC.md
+# §4, PROTOCOL.md `ev`): played through; cut by a tap, something needing
+# you, a `now` from someone else or a reset; or skipped because it waited
+# its turn past its ttl, behind another's line (the Mac used to drop those
+# before sending), or the device refused it (PROTOCOL.md §3: `nothing` when
+# none of it would play). `skipped (unknown)` means the device doesn't play
+# that name, and a `now` of the brain's own never cuts it: those fail.
+FINE_ENDS = re.compile(r"^(done|cut \((tap|needs_you|now|reset)\)|skipped( \((late|busy|full|needs_you|no_app|listening|"
+                       r"not_listening|nothing|reset)\))?)$")
 
 
 def check_order(run: Any) -> dict[str, Any]:
-    """The brain's moments come after the rules' reaction, and none cuts
-    the brain's moment before it short (ARCHITECTURE.md §3.2: the next waits
-    until the line has played), as the device's `ended` for each says
-    (PROTOCOL.md §4). `cut (moment)` with a rule's one-shot next is fine: a
-    one-shot replaces the animation playing. Each fixture ends with seconds
-    to spare, so every brain moment sent with an `id` has its `ended` by
-    then."""
+    """The brain's reactions come after the rules' reaction, and each gets
+    the device's `ended` (linkkit/SPEC.md §4). The device queues the brain's
+    reactions (`next`, up to 5 s), so a reaction that waited behind
+    another's line, or was skipped for waiting too long, is fine; one the
+    brain's own next request cut short isn't (ARCHITECTURE.md §3.2: the
+    next waits until the line has played), nor is one the device didn't
+    know. Each fixture ends with seconds to spare, so every brain reaction
+    has its `ended` by then."""
     answers = order(run.app.log_text())
     # The log is written in order, so a brain line after the rules' line came
     # after it, even in the same millisecond: the scripted brain answers an
     # agent start at once (harness/HARNESS.md §7).
     early = [a for a in answers if a["after_reaction_ms"] is None or a["after_reaction_ms"] < 0]
     unended = [a for a in answers if a["id"] is not None and a["ended"] is None]
-    cut = [f"{a['at']} {a['moment']} ({a['id']}) by {a['next_by']}" for a in answers if a["ended"] == "cut (moment)"]
+    cut = [f"{a['at']} {a['moment']} ({a['id']}) by {a['now_by']}" for a in answers if a["ended"] == "cut (now)"]
     cut_by_brain = [c for c in cut if c.endswith("by brain")]
+    odd = [f"{a['at']} {a['moment']} ({a['id']}) {a['ended']}" for a in answers
+           if a["ended"] is not None and not FINE_ENDS.match(a["ended"])]
+    queued = [a for a in answers if (a["ended"] or "").startswith("skipped")]
     for a in answers:
         run.say(f"  {a['at']} brain {a['moment']}: {a['after_reaction_ms']} ms after the rules' reaction to "
                 f"{a['reaction_to']}; the device said it ended {a['ended']}")
-    run.say(f"brain moments: {len(answers)}, early: {len(early)}, cut short by a newer moment: {cut or 'none'}, "
-            f"with no `ended` from the device: {len(unended)}")
+    run.say(f"brain reactions: {len(answers)}, early: {len(early)}, cut short by a newer `now`: {cut or 'none'}, "
+            f"skipped: {len(queued)}, with no `ended` from the device: {len(unended)}")
     if early:
-        run.fail(f"{len(early)} brain moments came before the rules' reaction")
+        run.fail(f"{len(early)} brain reactions came before the rules' reaction")
     if cut_by_brain:
-        run.fail(f"{len(cut_by_brain)} brain moments were cut short by the brain's next one: {cut_by_brain}")
+        run.fail(f"{len(cut_by_brain)} brain reactions were cut short by the brain's next one: {cut_by_brain}")
+    if odd:
+        run.fail(f"{len(odd)} brain reactions ended in a way nothing should end them: {odd}")
     if unended:
-        run.fail(f"{len(unended)} brain moments never got the device's `ended`: {[a['id'] for a in unended]}")
-    return {"brain_moments": len(answers), "early": len(early), "cut_by_newer": cut, "unended": len(unended),
-            "answers": answers}
+        run.fail(f"{len(unended)} brain reactions never got the device's `ended`: {[a['id'] for a in unended]}")
+    return {"brain_moments": len(answers), "early": len(early), "cut_by_newer": cut, "skipped": len(queued),
+            "odd_ends": odd, "unended": len(unended), "answers": answers}
 
 
 def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None, clip: bool = False,

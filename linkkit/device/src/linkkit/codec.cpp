@@ -1,6 +1,6 @@
-#include "app/codec.h"
+#include "linkkit/codec.h"
 
-namespace app {
+namespace linkkit {
 
 uint32_t crc32(const uint8_t* data, size_t n, uint32_t crc) {
   crc = ~crc;
@@ -66,4 +66,4 @@ void Base64Writer::flushOut() {
   nout_ = 0;
 }
 
-}  // namespace app
+}  // namespace linkkit

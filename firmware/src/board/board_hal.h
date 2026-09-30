@@ -1,10 +1,11 @@
-// The board's side of app::Hal: buttons, touch, LED, backlight, sound, the
-// amp, heap figures and Bluetooth's state (plan/DEVICE.md §2–3). The sound
-// and the card's methods are in board/audio.cpp and board/card.cpp.
+// The board's side of app::Hal (and LinkKit's Platform): buttons, touch,
+// LED, backlight, sound, the amp, heap figures and Bluetooth's state
+// (plan/DEVICE.md §2–3). The sound and the card's methods are in
+// board/audio.cpp and board/card.cpp.
 #pragma once
 #include "app/device.h"
 
-namespace links {
+namespace linkkit {
 class Ble;
 }
 
@@ -15,7 +16,7 @@ class BoardHal : public app::Hal {
   void begin();
   // Bluetooth, once it has started (or failed to): its state, name and the
   // device ID it took from the MAC.
-  void setBle(const links::Ble* ble) { ble_ = ble; }
+  void setBle(const linkkit::Ble* ble) { ble_ = ble; }
 
   uint32_t realMs() override;
   bool bootDown() override;
@@ -46,7 +47,7 @@ class BoardHal : public app::Hal {
  private:
   app::TouchCal cal_;         // from NVS; invalid until `boopctl calibrate` has run on this rotation
   app::TouchCal defaultCal_;  // used until then: the raw range, turned by kRotation
-  const links::Ble* ble_ = nullptr;
+  const linkkit::Ble* ble_ = nullptr;
 };
 
 }  // namespace board

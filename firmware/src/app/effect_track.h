@@ -41,7 +41,9 @@ class EffectTrack {
   voice::Score score_;
   uint32_t loopMs_ = 1;
   uint32_t lastT_ = 0;    // the design's clock last time
-  uint32_t covered_ = 0;  // events before this, on the design's clock, are handled
+  // Events before this, on the design's clock, are handled. 64-bit, so a
+  // loop's end past 2^32 ms (a design's clock near its wrap) can't wrap.
+  uint64_t covered_ = 0;
   int64_t cycle_ = -1;    // the loop covered_ is in, and its events: none when it doesn't sound
   voice::Events list_;
 };

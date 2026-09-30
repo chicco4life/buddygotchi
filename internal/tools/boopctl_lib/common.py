@@ -1,6 +1,6 @@
 """What boopctl's commands and the dashboard share: the repo, the
-animations and moods, the board's voice takes, a line to the app's hook
-socket, and noticing a board reset."""
+animations and moods, the messages to and from the board, the board's voice
+takes, a line to the app's hook socket, and noticing a board reset."""
 from __future__ import annotations
 
 import json
@@ -16,21 +16,81 @@ from facegen.facegen import MOODS  # noqa: F401  Boop's moods, as `state` carrie
 
 REPO = Path(__file__).resolve().parents[3]
 
-# The animations a `moment` plays (BEHAVIORS.md §5, PROTOCOL.md §3): the
-# brain's finish, the rules' one-shots and a tap's, each its design's state.
+# The animations a `do` plays by name (BEHAVIORS.md §5, PROTOCOL.md `do`):
+# the brain's finish, the rules' one-shots and a tap's, each its design's
+# state.
 ANIMS = ["task_complete", "reply_ready", "starting", "stopped", "error", "helper_return", "poked", "tap_spam"]
-# The older names the device still reads, as the animation it plays.
+# Every name Boop's device plays, its `hello.does` (PROTOCOL.md `hello`):
+# the animations, the brain's reaction with no animation of its own
+# (`react`), and push-to-talk's start and its end with no reply.
+DOES = ["react", "task_complete", "reply_ready", "starting", "stopped", "error", "helper_return", "listening",
+        "stop_listening", "poked", "tap_spam"]
+# The `do` names that play no animation: a face and a line, and ending
+# push-to-talk.
+NO_ANIM = {"react", "stop_listening"}
+# The older names of two animations, which older logs have and `boopctl
+# play` still takes; the device doesn't know them: `cheer` is
+# task_complete's success, `wiggle` is poked.
 OLD_ANIMS = {"cheer": "task_complete", "wiggle": "poked"}
-# The one-shots the rules send, never the brain (PROTOCOL.md §3 `moment`).
+# The one-shots the rules send, never the brain (PROTOCOL.md `do`).
 RULE_ONE_SHOTS = {"starting", "stopped", "error", "helper_return"}
-# The moments that play a turn's finish (PROTOCOL.md §3 `moment`): the
-# brain's task_complete and reply_ready, and their older names in older
-# logs (the cheer).
+# The animations that play a turn's finish (PROTOCOL.md `do`): the brain's
+# task_complete and reply_ready, and their older names in older logs (the
+# cheer).
 FINISHES = {"task_complete", "reply_ready"}
 FINISHES |= {old for old, anim in OLD_ANIMS.items() if anim in FINISHES}
-# The facts that pick an animation's variations (PROTOCOL.md §3).
+# The facts that pick an animation's variations (PROTOCOL.md `do`).
 OUTCOMES = ["success", "failure"]
 CTXS = ["new_task", "session", "continuation"]
+# How long the Mac lets a `next` wait for its turn (the kit's default,
+# linkkit/SPEC.md §3).
+TTL_MS = 5000
+
+
+def do(name: str, play: str = "now", id: int | None = None, ttl: int | None = None, **args: Any) -> dict[str, Any]:
+    """A request to play `name` (linkkit/SPEC.md §3 `do`), with Boop's
+    fields (`say`, `mood`, `loops`, `variant`, `outcome`, `ctx`) in `args`.
+    The tools play `now` by default, so each replaces the last at once, as
+    every moment did before the device took turns; a request with no `id`
+    plays but gets no `ended`, and only the ones a tool waits on have one."""
+    msg: dict[str, Any] = {"t": "do"}
+    if id is not None:
+        msg["id"] = id
+    msg.update(name=name, play=play)
+    if ttl is not None:
+        msg["ttl"] = ttl
+    if args:
+        msg["args"] = args
+    return msg
+
+
+def call(msg: dict[str, Any]) -> dict[str, Any] | None:
+    """What a message to the device asks it to play, in one shape for the
+    tools that read the lines the Mac sent: its `name`, its `anim` (None for
+    a face or a line alone), `id`, `play`, and Boop's fields (`say`, `mood`,
+    `loops`, `variant`, `outcome`, `ctx`, `who`) as they are. A `do`, or in
+    logs from before the device took turns a `moment`, which played at
+    once; None for anything else."""
+    if msg.get("t") == "do":
+        args = msg.get("args") if isinstance(msg.get("args"), dict) else {}
+        name = msg.get("name")
+        return {**args, "name": name, "anim": None if name in NO_ANIM else name, "id": msg.get("id"),
+                "play": msg.get("play") or "next"}
+    if msg.get("t") == "moment":
+        fields = {k: v for k, v in msg.items() if k != "t"}
+        anim = msg.get("anim")
+        name = anim or ("react" if msg.get("say") is not None or msg.get("mood") else "stop_listening")
+        return {**fields, "name": name, "anim": anim, "id": msg.get("id"), "play": "now"}
+    return None
+
+
+def ended(msg: dict[str, Any]) -> dict[str, Any] | None:
+    """The device's word that a `do` is over (linkkit/SPEC.md §3–4): an
+    `ev` of kind `ended`, as its data, `{"id", "how", "why"}`; None for any
+    other message."""
+    if msg.get("t") == "ev" and msg.get("kind") == "ended" and isinstance(msg.get("data"), dict):
+        return msg["data"]
+    return None
 
 
 PACK = REPO / ".build" / "voice" / "voice.bin"

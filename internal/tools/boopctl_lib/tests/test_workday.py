@@ -1,10 +1,13 @@
 """boopctl workday (plan/EVALS.md §5): the day is the same for a seed,
 well formed, and tells the story it says; the report counts what it says,
-from the passes' answers and the moments sent, never an action's message.
-No app, no brain."""
+from the passes' answers and the takes the actions recorded, never an
+action's message; and the fake device speaks the device's wire. No app, no
+brain."""
 from __future__ import annotations
 
 import json
+import os
+import socket
 import sys
 import tempfile
 import threading
@@ -229,6 +232,27 @@ class ReportTests(unittest.TestCase):
         self.assertIn("ok    min_reactions_per_turn ≥ 0.8: 2.0", text)
         self.assertIn("(repeats, not held to a limit: 100% the same as the one before, at most 2 in a row)", text)
 
+    def test_held_and_forced_passes_arent_the_brains(self) -> None:
+        """A pass held back when its turn came never asked the brain
+        (jharness/SPEC.md §9), and a forced one is the dashboard's: the
+        report counts neither as a pass, and says how many were held."""
+        start = {"type": "turn", "phase": "start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True,
+                 "facts": {}}
+        lines = [
+            entry(1, 0, view=start), picks(1, 0),
+            entry(2, 1, view=start),
+            entry(0, 1, **{"pass": {"for": 2, "dropped": None, "brain": "scripted", "held": "something needs you",
+                                    "answers": {}}}),
+            entry(0, 2, **{"pass": {"for": None, "dropped": None, "by": "dashboard", "questions": ["react.mood"],
+                                    "answers": {"react.mood": {"choice": "happy", "p": {"happy": 1}}}}}),
+        ]
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "debug.jsonl"
+            path.write_text("\n".join(lines) + "\n")
+            t = workday.total(workday.summarize(path))
+            self.assertEqual((t["passes"], t["held"], t["dropped"]), (1, 1, 0))
+            self.assertIn("| all | 0 | 1 (1 held back) |", workday.report([path]))
+
     def test_classes(self) -> None:
         def end(**facts) -> dict:
             return {"type": "turn", "phase": "end", "facts": {"outcome": "done", "tools_failed": 0, **facts}}
@@ -293,17 +317,84 @@ class SettleTests(unittest.TestCase):
             self.assertLess(time.monotonic() - began, 1)
             self.assertEqual(run.waiting_settles, set())
 
+    def test_a_held_or_forced_pass_is_no_pass_and_needs_no_barrier(self) -> None:
+        """A held pass answers its event without asking the brain and runs
+        nothing (jharness/SPEC.md §9); a forced one is the dashboard's."""
+        wakes = {"type": "turn", "phase": "start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True, "facts": {}}
+        with tempfile.TemporaryDirectory() as d:
+            run = workday.Run(Path(d), "scripted", None, False)
+            run.app.debug.write_text(entry(1, 0, view=wakes) + "\n"
+                                 + entry(2, 0, **{"pass": {"for": 1, "dropped": None, "brain": "scripted",
+                                                           "held": "something needs you"}}) + "\n"
+                                 + entry(3, 0, **{"pass": {"for": None, "dropped": None, "by": "dashboard"}}) + "\n")
+            barriers: list[int] = []
+            run.advance = barriers.append  # type: ignore[method-assign]
+            run.settle()
+            self.assertEqual((barriers, run.passes, run.dropped, run.waiting_passes), ([], 0, 0, set()))
+
     def test_a_dropped_pass_needs_no_barrier(self) -> None:
         wakes = {"type": "turn", "phase": "start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True, "facts": {}}
         with tempfile.TemporaryDirectory() as d:
             run = workday.Run(Path(d), "scripted", None, False)
             run.app.debug.write_text(entry(1, 0, view=wakes) + "\n"
-                                 + entry(2, 0, **{"pass": {"for": 1, "dropped": "late"}}) + "\n")
+                                 + entry(2, 0, **{"pass": {"for": 1, "dropped": "late", "brain": "scripted"}}) + "\n")
             barriers: list[int] = []
             run.advance = barriers.append  # type: ignore[method-assign]
             run.settle()
             self.assertEqual(barriers, [])
             self.assertEqual(run.dropped, 1)
+
+
+class FakeDeviceTests(unittest.TestCase):
+    """The fake device the app's USB link connects to speaks the device's
+    wire (linkkit/SPEC.md §3–5, PROTOCOL.md): a `hello` for the first line
+    the app sends and for every `hello` it sends, an `ended` for every
+    request with an id, and taps as `ev`."""
+
+    def test_it_says_hello_and_ends_every_request(self) -> None:
+        d = tempfile.mkdtemp(dir="/tmp")
+        path = os.path.join(d, "d.sock")
+        device = workday.FakeDevice(path)
+        self.addCleanup(lambda: (device.close(), os.path.exists(path) and os.unlink(path), os.rmdir(d)))
+        app = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        app.connect(path)
+        app.settimeout(2)
+        self.addCleanup(app.close)
+        got: list[dict] = []
+        buf = b""
+
+        def read(n: int) -> list[dict]:
+            nonlocal buf
+            while len(got) < n:
+                buf += app.recv(65536)
+                *lines, buf = buf.split(b"\n")
+                got.extend(json.loads(line) for line in lines if line)
+            return got
+
+        def send(msg: dict) -> None:
+            app.sendall(json.dumps(msg).encode() + b"\n")
+
+        send({"t": "dbg.ping"})  # a tool's line isn't the app speaking
+        send({"t": "hello"})  # the app's first line on connect
+        send({"t": "state", "base": "idle", "mood": "calm", "busy": 0, "vol": 6})
+        send({"t": "state", "base": "idle", "mood": "calm", "busy": 0, "vol": 6})
+        send({"t": "do", "name": "react", "play": "now", "args": {"say": {}}})  # no id: no answer
+        send({"t": "do", "id": 558386701, "name": "starting", "play": "if_free", "args": {"variant": 3}})
+        send({"t": "do", "id": 558386702, "name": "task_complete", "play": "next", "ttl": 5000,
+              "args": {"outcome": "success", "mood": "proud"}})
+        send({"t": "hello"})  # asked again: said again
+        read(4)
+        device.tap()
+        read(5)
+        self.assertEqual(got[0], {"t": "hello", "kit": 1, "app": "boop", "id": "b00p-fake", "fw": "workday",
+                                  "does": ["react", "task_complete", "reply_ready", "starting", "stopped", "error",
+                                           "helper_return", "listening", "stop_listening", "poked", "tap_spam"]},
+                         "once for the app's first line, its hello; no voice, so the app's lines are taken as played")
+        self.assertEqual(got[1:], [{"t": "ev", "kind": "ended", "data": {"id": 558386701, "how": "done"}},
+                                   {"t": "ev", "kind": "ended", "data": {"id": 558386702, "how": "done"}},
+                                   got[0],
+                                   {"t": "ev", "kind": "tap", "did": "poked"}])
+        self.assertEqual(device.reactions, 1, "the brain's finish; the rules' one-shot isn't a reaction")
 
 
 if __name__ == "__main__":

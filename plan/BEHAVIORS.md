@@ -355,22 +355,22 @@ moment later, if it answers within its deadline
 replaces the animation playing, but not a brain reaction's line or its
 face: the line plays on over the poke, which is drawn in the reaction's
 mood, so a barrage of taps doesn't cut short the one answer it gets
-(§3.3). A rule's one-shot (§3.1) replaces whatever is playing, a line
-included, but none is sent while a brain reaction's line
-plays, which it would cut, and it's dropped then rather than sent late.
-A brain reaction waits
-until no line or reaction's face is playing (it plays over a poke or
-a rule's one-shot, which it doesn't cut: the one-shot's design, drawn in
-the reaction's mood), which the device's word that
-the last one ended settles. A reaction's face held on
-for its loops after its take doesn't hold up the next reaction, which
-replaces it once the take has played, or, if it said nothing, once its
-face has shown for 1.2 s. One is dropped once it
-has waited 5 s for its turn (`MomentSchedule.maxWaitMs`,
-[ARCHITECTURE.md](ARCHITECTURE.md) §3.2). The device tells the Mac how each
-brain reaction ended: played out, cut short by a tap (only a finish
-that names nobody, whose animation the poke replaces; its line plays on), "needs you" or a
-newer moment, or skipped because something needed you
+(§3.3). The device decides when everything else plays: the Mac sends
+each as a `do`, and LinkKit's turn holds one at a time
+([PROTOCOL.md](PROTOCOL.md) §3). A rule's one-shot (§3.1) is `if_free`:
+it replaces whatever is playing, a face held after a line included, but
+it's skipped rather than cut a brain reaction's line or finish, or play
+late. A brain reaction is `next`: it waits until no line or finish is
+playing (it plays over a poke or a rule's one-shot, which it doesn't cut:
+the one-shot's design, drawn in the reaction's mood). A reaction's face
+held on for its loops after its take doesn't hold up the next reaction,
+which replaces it half a second after the take and its bubble have
+played, or, if it said nothing, once its face has shown for 1.7 s (the
+pause the Mac used to leave, [PROTOCOL.md](PROTOCOL.md) §3). One is dropped
+once it has waited 5 s for its turn (its `ttl`). The device tells the Mac
+how each call ended: played out, cut short by a tap (only a finish that
+names nobody, whose animation the poke replaces; its line plays on),
+"needs you" or a newer `now` call, or skipped and why
 ([PROTOCOL.md](PROTOCOL.md) §4), and HISTORY says so
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5).
 
@@ -393,8 +393,8 @@ A Codex turn never fails, since Codex reports no failures yet
 ([ADAPTERS.md](ADAPTERS.md) §3).
 
 **The rules' one-shots** (`starting`, `stopped`, `error`,
-`helper_return`) are plain rules in the core, sent as a `moment` right
-after the `state` of the same hook ([PROTOCOL.md](PROTOCOL.md) §3). Each
+`helper_return`) are plain rules in the core, sent as an `if_free` `do`
+right after the `state` of the same hook ([PROTOCOL.md](PROTOCOL.md) §3). Each
 plays once, at once, in Boop's mood, with one of its variations at
 random (for `starting`, one for what started), never the one it played
 last; the device plays the one named when it fits, and otherwise picks
@@ -466,8 +466,8 @@ speak and click Send. The Mac's mic records and macOS turns it into text
 on the Mac; the device has no mic.
 
 1. `listening` shows as soon as the mic turns on: at once on the
-   device for BOOT, and on the Mac's word (a `moment` with
-   `"anim":"listening"`) for Talk.
+   device for BOOT, and on the Mac's word (a `listening` `do`) for
+   Talk.
 2. The mic goes off when you let go or click Send, after 30 s
    (`Core.listenLimitMs`; the device's own button stops at the same
    limit), or if the link drops while BOOT is held.
@@ -479,7 +479,7 @@ on the Mac; the device has no mic.
    ends `listening` as it plays, even one that says nothing. If the brain's pass on it (or on
    anything newer) makes no reaction, if there's no brain, if the mic
    heard nothing or couldn't start, the Mac ends `listening` at once with
-   the empty `moment` ([PROTOCOL.md](PROTOCOL.md) §3). The device gives
+   `stop_listening` ([PROTOCOL.md](PROTOCOL.md) §3). The device gives
    up waiting 8 s after the mic went off (`Core.replyWaitMs`).
 
 While the mic is on nothing else speaks: the brain's reactions are
@@ -541,8 +541,7 @@ stops a line that's playing.
 | --- | --- | --- | --- |
 | `task_complete` | A turn's finish the brain judged a success or a failure (`react.animation`, [harness/DECISIONS.md](harness/DECISIONS.md) §3), with that `outcome` | The mood's task-complete design for that outcome: a success's trophy, curtain call or podium, or a failure's | The loops Jev picks, of 5.2–7.2 s each, and at least until its line and bubble end |
 | `reply_ready` | A turn's finish the brain judged only a reply: an answer or a question back | The mood's reply-ready design: an answer handed over | Likewise, of 3.2–7.9 s |
-| `cheer` | Older firmware's name for task_complete's success, which the device still reads; the Mac no longer sends it | As task_complete's success | As task_complete's |
-| `poked` | A tap; the dashboard's `wiggle` | The mood's poked design | Once, 2.1–7.9 s |
+| `poked` | A tap, or the dashboard's poke | The mood's poked design | Once, 2.1–7.9 s |
 | `tap_spam` | The third tap in a row and each after it (§3.3) | The mood's tap-spam design | Once, 2.9–7.9 s |
 | `starting` | A session starting, or a prompt (§3.1) | The mood's starting design for what started: a new task, a fresh session, or carrying on | Once |
 | `stopped` | An interrupt that ends a turn (§3.1) | The mood's stopped design: the tools put down | Once |

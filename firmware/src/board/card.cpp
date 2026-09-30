@@ -9,7 +9,7 @@
 #include <freertos/semphr.h>
 #include <unistd.h>
 
-#include "app/codec.h"
+#include "linkkit/codec.h"
 #include "board/board_hal.h"
 #include "board/pins.h"
 #include "voice/player.h"
@@ -127,7 +127,7 @@ bool BoardHal::packAppend(const uint8_t* d, size_t n, uint32_t& have) {
 static __attribute__((noinline)) void readBack(uint32_t& got, uint32_t& sum) {
   File f = SD.open(kCopyPath);
   uint8_t buf[1024];
-  for (size_t n; f && (n = f.read(buf, sizeof(buf))) > 0; got += n) sum = app::crc32(buf, n, sum);
+  for (size_t n; f && (n = f.read(buf, sizeof(buf))) > 0; got += n) sum = linkkit::crc32(buf, n, sum);
   if (f) f.close();
 }
 

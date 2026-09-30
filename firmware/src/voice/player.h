@@ -59,7 +59,7 @@ struct Clip {
   uint32_t at = 0, len = 0;
 };
 
-// One line, as `moment.say` gave it (PROTOCOL.md §3), plus the volume
+// One line, as a do's `say` gave it (PROTOCOL.md §3), plus the volume
 // from `state`. Its clips are filled in from the takes when it's made, so
 // the audio task never looks a take up.
 struct Line {
