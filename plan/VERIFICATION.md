@@ -80,7 +80,7 @@ launch the menu-bar app or run the whole eval.
 | `make eval` | Builds, then runs every eval scenario against Jev with no request budget, 3 runs each for an `always` scenario and 1 for the rest (L5): the final pass ([EVALS.md](EVALS.md) §2 counts its requests); fails without `BOOP_JEV_KEY` |
 | `make clean` | Deletes `.build` and `firmware/.pio` |
 | `make -C internal voice` | Builds the voice pack, `.build/voice/voice.bin`, and `Takes.swift` with voicegen (below) when the bank or voicegen changed. `test`, `fw-test` and `sim` make it first, since they read it |
-| `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim, since there's no Xcode: `make build`, then `.build/debug/BoopTests`. Then agent-hooks' own tests, in Swift Testing: `swift test --scratch-path .build/tests` in `agent-hooks/`, tried again up to twice when its build fails with the "plugin for module 'TestingMacros' not found" flake |
+| `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim, since there's no Xcode: `make build`, then `.build/debug/BoopTests`. `BOOP_TEST_FILTER=Golden .build/debug/BoopTests` runs only the tests whose `Class.method` name contains `Golden`. Then agent-hooks' own tests, in Swift Testing: `swift test --scratch-path .build/tests` in `agent-hooks/`, tried again up to twice when its build fails with the "plugin for module 'TestingMacros' not found" flake |
 | `make -C internal fw` | Builds the firmware for the board |
 | `make -C internal fw-test` | The firmware's unit tests on the Mac (`pio test -e native`) |
 | `make -C internal sim` | Every scenario in the simulator, against the goldens (L1) |
@@ -239,6 +239,12 @@ gets at least one scenario. Their pictures are the golden images in
   look, every variation is one the visual has, and the rules' one-shots
   never go out while something needs you or with an `id`, the error one
   at most every 30 s.
+  `GoldenStateTests` runs every eval scenario with a scripted brain that
+  answers from NOW alone and checks each of the 387 states it's sent
+  against `internal/app/Tests/Fixtures/golden-states/`, byte for byte, so
+  a change to how the prompt is built can't pass unnoticed without Jev.
+  A deliberate change rewrites them:
+  `BOOP_GOLDEN_RECORD=1 BOOP_TEST_FILTER=Golden .build/debug/BoopTests`.
 - **Firmware (`make -C internal fw-test`):** line reassembly across
   Bluetooth packets, screenshot encoding, the clock and gestures
   (`test_link`); the messages, debug channel and inputs (`test_device`);
