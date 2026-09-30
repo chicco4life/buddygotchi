@@ -1,9 +1,10 @@
 import AgentHooks
 import Foundation
+import JHarness
 
 /// One event with its line, as Boop's pipeline reports what an input made
 /// (harness/EVENTS.md §3): for `debug.jsonl`'s `view` lines, replays and
-/// tests. The kit keeps the line itself (kit/BRAIN-KIT.md §3.1); this
+/// tests. JHarness keeps the line itself (jharness/SPEC.md §3.1); this
 /// adds what Boop worked out about it.
 public struct ViewEvent: Equatable, Sendable {
     /// What the rules did about it by the end of the input that made it.
@@ -56,9 +57,9 @@ public struct ViewEvent: Equatable, Sendable {
     }
 }
 
-/// Boop's lines (harness/EVENTS.md §3): the brain kit's transforms for the
+/// Boop's lines (harness/EVENTS.md §3): JHarness's transforms for the
 /// kinds the brain hears of, their wakes and holds, and the heartbeats'
-/// timed checks, registered on the kit's harness (`register`). Each line
+/// timed checks, registered on JHarness's `Harness` (`register`). Each line
 /// is a function of the log up to its event: the agents' lines need each
 /// thread's turn so far (which turn, how long, its tool calls, failure
 /// runs), which a fold of the log keeps (`Fold`), caught up to whatever
@@ -230,8 +231,8 @@ public final class TranscriptView {
         for e in log.events(after: fold.at) { _ = take(e) }
     }
 
-    /// The line for `e`, from the log before it (a transform, kit/BRAIN-KIT.md
-    /// §3.1), with `e` folded in.
+    /// The line for `e`, from the log before it (a transform,
+    /// jharness/SPEC.md §3.1), with `e` folded in.
     public func line(_ e: Event, _ log: LogView) -> Line? {
         catchUp(before: e.seq, log)
         return take(e)?.line
@@ -507,9 +508,9 @@ public final class TranscriptView {
     }
 
     /// Whether `e` ends a run of pokes: anything but another poke of the
-    /// run (within `inARowMs` of the one before), "needs you", or the
-    /// kit's own events. Then the reactions a tap cut short end as done
-    /// (harness/DECISIONS.md §5): `log` is the log before `e`.
+    /// run (within `inARowMs` of the one before), "needs you", or
+    /// JHarness's own events. Then the reactions a tap cut short end as
+    /// done (harness/DECISIONS.md §5): `log` is the log before `e`.
     public static func stopsThePokes(_ e: Event, _ log: LogView) -> Bool {
         guard let type = e.type, type != .needsYou else { return false }
         guard type == .poke else { return true }
@@ -569,7 +570,7 @@ public final class TranscriptView {
         return fold.threads.values.filter { isWorking($0, now) }.compactMap(\.turn.startedAt).min()
     }
 
-    /// A heartbeat, if one is due at `now` (EVENTS.md §4), for the kit to
+    /// A heartbeat, if one is due at `now` (EVENTS.md §4), for JHarness to
     /// emit: while threads work, once the personality's wait has passed
     /// with no reaction from Boop; while none works, each whole hour since
     /// the last agent event, poke, thing you said or coming back.
@@ -770,7 +771,7 @@ public enum EventLine {
     }
 
     /// How to read HISTORY and NOW (harness/HARNESS.md §6.1): Boop's own
-    /// words for the kit's layout, after the guide.
+    /// words for JHarness's layout, after the guide.
     public static let reading = """
         How to read HISTORY and NOW:
         - HISTORY is oldest first. Each line says how long ago it happened.

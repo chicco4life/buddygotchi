@@ -1,4 +1,5 @@
 import Foundation
+import JHarness
 
 /// The only code that decides whether you're at the Mac (harness/EVENTS.md
 /// §2.1). It hears the Mac's raw signals (locks, sleeps, wakes) and, on

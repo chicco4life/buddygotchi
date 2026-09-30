@@ -5,11 +5,11 @@ import Glibc
 #endif
 import Foundation
 
-/// A way in for other processes (kit/BRAIN-KIT.md §3.3): a Unix socket that
+/// A way in for other processes (SPEC.md §3.3): a Unix socket that
 /// takes one JSON event per line, `{"source":…,"kind":…,"data":{…}}`
 /// (`line` and `at` optional), and hands each on as its line ends. It never
 /// writes back. Each connection is read on its own thread, and closed once
-/// it's quiet for half a second. `kit-emit` sends to it from a shell.
+/// it's quiet for half a second. `jharness-emit` sends to it from a shell.
 public final class EventServer: @unchecked Sendable {
     public let path: String
     private let state: State
@@ -25,7 +25,7 @@ public final class EventServer: @unchecked Sendable {
     }
 
     /// `onEvent` gets each event on one of the server's threads; hop to the
-    /// kit's queue to emit it.
+    /// harness's queue to emit it.
     public init(path: String, onEvent: @escaping @Sendable (Event) -> Void) {
         self.path = path
         state = State(onEvent: onEvent)
@@ -59,7 +59,7 @@ public final class EventServer: @unchecked Sendable {
         let state = state
         state.lock.withLock { state.listener = fd }
         let thread = Thread { EventServer.acceptLoop(fd, state) }
-        thread.name = "brainkit.event-server"
+        thread.name = "jharness.event-server"
         thread.start()
     }
 
@@ -86,7 +86,7 @@ public final class EventServer: @unchecked Sendable {
                 continue
             }
             let reader = Thread { autoreleasepool { handle(client, state.onEvent) } }
-            reader.name = "brainkit.event-server.client"
+            reader.name = "jharness.event-server.client"
             reader.start()
         }
     }
@@ -126,7 +126,7 @@ public final class EventServer: @unchecked Sendable {
     }
 
     /// An event from a command line's words, `SOURCE KIND [key=value ...]`
-    /// (`kit-emit`): a value that's a whole number written plainly (`812`,
+    /// (`jharness-emit`): a value that's a whole number written plainly (`812`,
     /// `-3`, not `007` or `+4`) is one, `true` and `false` are yes and no,
     /// the rest strings. Nil without a source and a kind, or a word that
     /// isn't `key=value`.

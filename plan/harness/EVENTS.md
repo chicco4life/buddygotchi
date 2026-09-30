@@ -16,9 +16,9 @@ log line (`debug.jsonl`).**
   Boop on push-to-talk, you stepping away from the Mac and coming back
   (§2.1), heartbeats, "needs you" starting and ending, and actions: the
   brain's and the dashboard's (`react`, `mood`) and the rules' (`wiggle`,
-  `open_thread`).
-- **Out:** hooks Boop ignores, passes (`debug.jsonl` only), state
-  snapshots and every other line sent to the device (the rules'
+  `open_thread`), and every pass, held and dropped ones included
+  ([HARNESS.md](HARNESS.md) §5.2).
+- **Out:** hooks Boop ignores, state snapshots and every other line sent to the device (the rules'
   one-shots included: like the look, they show what the agents did, and
   the view has the events behind them), `status`, the
   device's `ended` (it arrives only as an action's end), the mic going
@@ -30,7 +30,7 @@ say Boop did? If not, it's a log line.
 
 ## 2. Raw events
 
-Every event is the brain kit's ([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md)
+Every event is JHarness's ([jharness/SPEC.md](../../jharness/SPEC.md)
 §2.1): `seq`, `at`, `source`, `kind` and `data`. For Boop, `kind` is the
 event's type and phase together (`tool_start`, `poke`), and the rest of
 what used to be at the top (the source's own name for it, the session,
@@ -47,7 +47,7 @@ subagent and working directory) is in `data` (Boop's reading of an event,
 | --- | --- |
 | `seq` | Its place in the transcript. It counts on across days and launches |
 | `at` | When it happened, in unix milliseconds (the app's steady clock, which starts at the wall clock's time: [ARCHITECTURE.md](../ARCHITECTURE.md) §3.2) |
-| `source` | `claude`, `codex`, `device`, `clock`, `boop`, `mic` or `mac`, and `self` for the kit's own events (below) |
+| `source` | `claude`, `codex`, `device`, `clock`, `boop`, `mic` or `mac`, and `self` for JHarness's own events (below) |
 | `kind` | One of the nine types below, and for a type with a lifetime its phase after an underscore, `start`, `wait` or `end`: `turn_end`, `tool_wait`, `presence_start`. A type that just happens is its name alone: `poke` |
 | `data.specific_type` | The source's own name for it: the hook (`UserPromptSubmit`, `Interrupt`), the device's message (`input`), the clock's reason (`idle`, `working`), the button that turned the mic on (`device` or `app`) or why you're away or back (§2.1) |
 | `data.session`, `data.subagent`, `data.cwd` | An agent's session, the Claude subagent's `agent_id`, and the working directory; "needs you" names its session too. Left out when there's none |
@@ -88,8 +88,8 @@ you coming back an hour after you locked it (the shape
 {"seq":41,"at":1790003600000,"source":"mac","kind":"presence_end","data":{"specific_type":"unlocked"}}
 ```
 
-**What Boop did** is the brain kit's own events, `self`'s
-([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md) §2.2): a `did` for each action,
+**What Boop did** is JHarness's own events, `self`'s
+([jharness/SPEC.md](../../jharness/SPEC.md) §2.2): a `did` for each action,
 the brain's, the dashboard's (`react`, `mood`) and the rules' (`wiggle`,
 `open_thread`), with `for` (the `seq` of the event it's about, or null),
 `action` (its name), `by` (`brain`, `dashboard` or `rule`), `ok`,
@@ -115,7 +115,7 @@ caused it: two actions, and "needs you" as events of its own type:
 | `needs_you_start` | "Needs you" starts showing for a session, after Codex's grace ([ADAPTERS.md](../ADAPTERS.md) §4) | `for` the request's `tool` wait, `agent`, `session`, `by` `rule`, `message` |
 | `needs_you_end` | It clears | `agent`, `session`, `by` `rule`, `outcome`: `done` when answered, else `failed` with `why` (`nothing for 10 minutes`, `the session ended`, `forgotten`) |
 
-A transcript line written before the brain kit (2026-09-30), with `ts`,
+A transcript line written before JHarness (2026-09-30), with `ts`,
 `type`, `phase` and `specific_type` at the top and actions as a type of
 their own, is still read, as the event it would be now (`Event.legacy`),
 so the launch after the change picks up where the last one left.
@@ -170,7 +170,7 @@ wrong away (a long video) must not make Boop go quiet (decision log in
 ## 3. The view
 
 The view (`TranscriptView` in `app/BoopKit/Core/TranscriptView.swift`) is
-Boop's lines on the brain kit ([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md)
+Boop's lines on JHarness ([jharness/SPEC.md](../../jharness/SPEC.md)
 §3): for each kind the brain hears of, a transform that works out the
 event's line from the log up to it, the kind's `wake` (how its pass
 waits behind a running one: a finished turn keeps its pass, and what you
@@ -188,7 +188,7 @@ the same lines, and a launch reads the transcript's last 24 hours back
 to pick up where it left off ([HARNESS.md](HARNESS.md) §5): turn numbers
 and failure runs carry on. The rest look back at the log: pokes in a
 row, what an away was, whether Boop is answering the pokes. The
-heartbeats are the view's timed checks (§4), run on the kit's tick.
+heartbeats are the view's timed checks (§4), run on JHarness's tick.
 
 **What has a line** goes by type and phase (`TranscriptView.keeps`): all
 of them, or only the notable ones. The rest are read for what they tell
@@ -204,7 +204,7 @@ the lines after them, and never shown.
 | `presence` start, `presence` end | All |
 | `session`, `subagent` | None: they only tell the view when a session ends or a subagent's hook isn't the session's turn |
 | `needs_you` start | All, as the `tool` wait it shows |
-| The kit's `did`, `ended`, `pass` | None: a `did` is a line under the view event it's `for` (§7) |
+| JHarness's `did`, `ended`, `pass` | None: a `did` is a line under the view event it's `for` (§7) |
 
 ### 3.1 The thread
 
@@ -341,9 +341,9 @@ only when its kind says so (§4, `TranscriptView.wakes`), and never:
   pokes don't count, so each poke can take Boop a step further: glad,
   then miffed, then grumpy.
 
-The last three are the view's hold (`TranscriptView.hold`), which the kit
+The last three are the view's hold (`TranscriptView.hold`), which JHarness
 asks when the event's turn to wake the brain comes
-([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md) §9), always once the core has
+([jharness/SPEC.md](../../jharness/SPEC.md) §9), always once the core has
 had the event, so an event that answers a request wakes it: tests that
 fail right after you approved them, or the turn Claude's idle notice
 stops after you pressed Esc on its prompt. One held back gets a `pass`
@@ -361,9 +361,9 @@ Boop reacts to one poke and to a barrage.
 
 ## 7. What Boop did
 
-Every action is the kit's `did` (§2), and HISTORY puts it under the
+Every action is JHarness's `did` (§2), and HISTORY puts it under the
 event it's `for`; one forced by the dashboard, for none, goes under the
-latest with a line ([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md) §5.2).
+latest with a line ([jharness/SPEC.md](../../jharness/SPEC.md) §5.2).
 HISTORY shows them in order, a started one marked `(in progress)` until
 its `ended`. A failed action isn't shown, and neither is a started one
 that ended failed. A reaction your tap cut short is you seeing it start,

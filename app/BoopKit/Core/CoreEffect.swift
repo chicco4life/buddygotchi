@@ -1,5 +1,6 @@
 import AgentHooks
 import Foundation
+import JHarness
 
 /// What the core decided. The app hands each effect to the part that carries
 /// it out: snapshots and the rules' one-shots to the device link, what it

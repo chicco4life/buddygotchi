@@ -9,20 +9,25 @@ PIO := firmware/tools/pio.sh
 
 # Swift unit tests through the XCTest shim (there's no Xcode here): the
 # root `build` (one `swift build` of the whole package, the tests' runner
-# included), then the runner. Then agent-hooks' own tests, which use Swift
-# Testing and so run under `swift test`, in a build folder of their own.
-# That build now and then fails with "plugin for module 'TestingMacros'
-# not found", a toolchain flake that passes when run again, so that
-# failure alone is tried again, up to twice.
+# included), then the runner. Then the own tests of agent-hooks and
+# jharness, which use Swift Testing and so run under `swift test`, each in
+# a build folder of its own. That build now and then fails with "plugin
+# for module 'TestingMacros' not found", a toolchain flake that passes
+# when run again, so that failure alone is tried again, up to four times.
+SWIFT_PACKAGES := agent-hooks jharness
+
 test: voice
 	$(MAKE) -C $(ROOT) build
 	cd $(ROOT) && .build/debug/BoopTests
-	cd $(ROOT)/agent-hooks && mkdir -p .build && for try in 1 2 3; do \
-	  swift test --scratch-path .build/tests > .build/test.log 2>&1; status=$$?; cat .build/test.log; \
-	  [ $$status -eq 0 ] && exit 0; \
-	  grep -q "plugin for module 'TestingMacros' not found" .build/test.log || exit $$status; \
-	  echo "agent-hooks: the TestingMacros flake; trying again"; \
-	done; exit 1
+	for pkg in $(SWIFT_PACKAGES); do \
+	  cd $(ROOT)/$$pkg && mkdir -p .build && for try in 1 2 3 4 5; do \
+	    swift test --scratch-path .build/tests > .build/test.log 2>&1; status=$$?; cat .build/test.log; \
+	    [ $$status -eq 0 ] && break; \
+	    grep -q "plugin for module 'TestingMacros' not found" .build/test.log || exit $$status; \
+	    [ $$try -eq 5 ] && exit 1; \
+	    echo "$$pkg: the TestingMacros flake; trying again"; \
+	  done; \
+	done
 
 # The voice pack, .build/voice/voice.bin, which the board plays from its SD
 # card and the simulator and tests read from here (plan/VOICE.md §8), and

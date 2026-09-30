@@ -1,4 +1,5 @@
 import Foundation
+import JHarness
 
 /// Whether Boop reacts to NOW: with which mood's face, which animation,
 /// for how long, and what it says (harness/DECISIONS.md §5). A reaction

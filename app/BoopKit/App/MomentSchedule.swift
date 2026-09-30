@@ -1,5 +1,6 @@
 import AgentHooks
 import Foundation
+import JHarness
 
 /// When the brain's moments play on the device (ARCHITECTURE.md §3.2).
 /// The tap's poke, which the device plays on its own, and the rules'

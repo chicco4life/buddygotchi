@@ -1,4 +1,5 @@
 import Foundation
+import JHarness
 
 /// Debug mode's record of the brain (harness/HARNESS.md §9): in the state
 /// directory's `debug.jsonl`, every event the transcript records
@@ -67,7 +68,7 @@ public enum DebugLog {
         return line("pass", Event.json(pass), at: ms)
     }
 
-    /// Each question's choice and `p`, to three places, as the kit's `pass`
+    /// Each question's choice and `p`, to three places, as JHarness's `pass`
     /// event has them.
     static func answers(_ answers: Answers) -> [String: Any] {
         Harness.json(answers).foundation as? [String: Any] ?? [:]
@@ -166,7 +167,7 @@ public enum DebugLog {
 
     /// Writes `debug.jsonl`'s `event`, `view`, `head` and `pass` lines in
     /// the order a reader expects: a pass's line before the lines of what
-    /// its outputs did. The kit logs a pass, then runs its outputs, then
+    /// its outputs did. JHarness logs a pass, then runs its outputs, then
     /// hands the pass on (`onPass`), so those lines wait for it.
     public final class Writer: @unchecked Sendable {
         let emit: (String) -> Void
@@ -180,7 +181,7 @@ public enum DebugLog {
 
         public func event(_ e: Event) {
             let line = DebugLog.event(e)
-            if e.isKit && e.kind == Event.pass {
+            if e.fromHarness && e.kind == Event.pass {
                 flush()
                 emit(line)
                 holding = true
@@ -327,7 +328,7 @@ public enum DebugLog {
                     return e.phase == .end ? "  · \(Core.needsYou)\(by) ended" + (e["why"]?.string.map { ": \($0)" } ?? "")
                         : "  … \(Core.needsYou)\(by): \(e["message"]?.string ?? "")"
                 }
-                guard e.isKit, let name = e.action else { return nil }
+                guard e.fromHarness, let name = e.action else { return nil }
                 if e.kind == Event.ended {
                     let what = "\(name) (\(e.about ?? 0))"
                     return e["outcome"]?.string == "done" ? "  ✓ \(what) done"

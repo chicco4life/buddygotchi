@@ -1,6 +1,6 @@
 import Foundation
 
-/// A JSON value: an event's `data` (kit/BRAIN-KIT.md §2.1).
+/// A JSON value: an event's `data` (SPEC.md §2.1).
 public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, ExpressibleByDictionaryLiteral,
     ExpressibleByBooleanLiteral, ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral {
     case string(String)
@@ -77,7 +77,23 @@ public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, Expressi
     public var array: [JSONValue]? { if case .array(let a) = self { a } else { nil } }
 }
 
-// MARK: - Outputs: the output contract (kit/BRAIN-KIT.md §5)
+extension JSONValue: CustomStringConvertible {
+    /// The value as a line reads it, for `"\(e["branch"]!)"`: a string as
+    /// itself, a number or yes and no as written, `null`, and an array or
+    /// an object as JSON.
+    public var description: String {
+        switch self {
+        case .string(let s): s
+        case .int(let n): String(n)
+        case .double(let d): String(d)
+        case .bool(let b): String(b)
+        case .null: "null"
+        case .array, .object: JSONLine.encode(foundation)
+        }
+    }
+}
+
+// MARK: - Outputs: the output contract (SPEC.md §5)
 
 /// One option of a question, with its meaning: what the brain judges it by.
 public struct Option: Equatable, Sendable {
@@ -93,7 +109,7 @@ public struct Option: Equatable, Sendable {
     }
 }
 
-/// A multiple-choice question an output asks the brain (kit/BRAIN-KIT.md
+/// A multiple-choice question an output asks the brain (SPEC.md
 /// §5.1).
 public struct Question: Equatable, Sendable {
     /// Unique across all outputs: `tone`, `say.feeling`.
@@ -132,18 +148,18 @@ public struct Answer: Equatable, Sendable {
 /// Answers by question key.
 public typealias Answers = [String: Answer]
 
-/// What an output did (kit/BRAIN-KIT.md §5.1): its `message` is the whole
+/// What an output did (SPEC.md §5.1): its `message` is the whole
 /// line HISTORY shows when `ok`, the reason when not. A started one
 /// finishes later: HISTORY shows it in progress until its `pending` ends
 /// (§5.3).
 public struct ActionResult: Equatable, Sendable {
     public let ok: Bool
     public let message: String
-    /// How a started output tells the kit it ended; nil for one that
+    /// How a started output tells the harness it ended; nil for one that
     /// finished when `run` returned.
     public let pending: Pending?
     /// What the output says of its effect beyond its line, for your tools:
-    /// the kit puts them in its `did`'s data as they are and never reads
+    /// the harness puts them in its `did`'s data as they are and never reads
     /// them.
     public let facts: [String: JSONValue]
 
@@ -169,11 +185,11 @@ public struct ActionResult: Equatable, Sendable {
     }
 }
 
-/// A started output's end, still to come (kit/BRAIN-KIT.md §5.3): the
-/// output, or whatever it hands this to, finishes it once it knows how
-/// things went. Only the first `finish` counts, and one that comes before
-/// the kit has logged the result is kept until it has. Touched only on
-/// the kit's queue.
+/// A started output's end, still to come (SPEC.md §5.3): the output, or
+/// whatever it hands this to, finishes it once it knows how things went.
+/// Only the first `finish` counts, and one that comes before the harness
+/// has logged the result is kept until it has. Touched only on the
+/// harness's queue.
 public final class Pending: @unchecked Sendable {
     public enum End: Equatable, Sendable {
         case done
@@ -183,30 +199,31 @@ public final class Pending: @unchecked Sendable {
 
     /// How it ended, once it has; nil until then.
     private var end: End?
-    private var deliver: ((End) -> Void)?
+    /// Where the end goes, once it comes.
+    private var delivers: [(End) -> Void] = []
 
     public init() {}
 
     public func finish(_ end: End) {
         guard self.end == nil else { return }
         self.end = end
-        if let deliver {
-            self.deliver = nil
-            deliver(end)
-        }
+        let now = delivers
+        delivers = []
+        now.forEach { $0(end) }
     }
 
-    /// The kit's, once: where the end goes. One that came first goes at
-    /// once.
-    package func bind(_ deliver: @escaping (End) -> Void) {
-        if let end { deliver(end) } else { self.deliver = deliver }
+    /// Hands `deliver` the end once it comes, or at once if it came first.
+    /// The harness binds each started result's handle, to end its `did`;
+    /// your own code may bind one too, to hear of it as well.
+    public func bind(_ deliver: @escaping (End) -> Void) {
+        if let end { deliver(end) } else { delivers.append(deliver) }
     }
 }
 
-/// An output (kit/BRAIN-KIT.md §5): something your app can do when the
+/// An output (SPEC.md §5): something your app can do when the
 /// brain wakes. It builds its questions for every call, reads the brain's
 /// answers to them, and reports what it did, or what it started. Its body
-/// can call anything; the kit asks, logs and places the result.
+/// can call anything; the harness asks, logs and places the result.
 public protocol Action: AnyObject {
     var name: String { get }
     /// Built for every call, all asked in one request, from the event the
@@ -214,7 +231,7 @@ public protocol Action: AnyObject {
     /// can follow anything. Keys never change; options may.
     func questions(now: Event?, log: LogView) -> [Question]
     /// The brain's answers to this output's own questions, for `now` (nil
-    /// for a forced pass). Nil means "did nothing". Called on the kit's
+    /// for a forced pass). Nil means "did nothing". Called on the harness's
     /// queue; slow work is handed off.
     func run(_ answers: Answers, now: Event?, log: LogView) -> ActionResult?
 }

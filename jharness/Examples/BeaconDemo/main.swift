@@ -1,11 +1,11 @@
 import Beacon
-import BrainKit
 import Foundation
+import JHarness
 
-// `beacon`: the brain kit's second example (plan/kit/BRAIN-KIT.md §11).
+// `beacon`: JHarness's worked example (SPEC.md §11).
 //   beacon [--steering DIR]                  the worked example's run: every event the log wrote, and every prompt
 //   beacon listen --socket PATH [--steering DIR]
-//                                            Beacon live, taking events from `kit-emit` on PATH, the demo brain
+//                                            Beacon live, taking events from `jharness-emit` on PATH, the demo brain
 //                                            answering; prints each line and pass as it happens. Ctrl-C stops it.
 
 let args = Array(CommandLine.arguments.dropFirst())
@@ -14,18 +14,19 @@ if args.contains("--help") || args.contains("-h") {
     print("""
         usage: beacon [--steering DIR]
                beacon listen --socket PATH [--steering DIR]
-        The brain kit's second example (plan/kit/BRAIN-KIT.md §11). With no command it runs the worked
-        example on a virtual clock and prints every event the log wrote and every prompt the brain was sent.
-        listen runs Beacon live on the socket at PATH, which kit-emit sends events to, e.g.
-          kit-emit --socket PATH ci build_failed branch=main run=812
+        JHarness's worked example (SPEC.md §11). With no command it runs the worked example on a
+        virtual clock and prints every event the log wrote and every prompt the brain was sent.
+        listen runs Beacon live on the socket at PATH, which jharness-emit sends events to, e.g.
+          jharness-emit --socket PATH ci build_failed branch=main run=812
         and prints each line and pass as it happens, until Ctrl-C.
-        --steering is Beacon's folder, internal/examples/Beacon/steering from the repo root by default.
+        --steering is Beacon's folder, Examples/Beacon/steering in the source tree it was built from
+        by default.
         """)
     exit(0)
 }
-let steering = URL(fileURLWithPath: value("--steering") ?? "internal/examples/Beacon/steering")
+let steering = value("--steering").map { URL(fileURLWithPath: $0) } ?? Beacon.steering
 guard FileManager.default.fileExists(atPath: steering.appendingPathComponent("guide.md").path) else {
-    FileHandle.standardError.write(Data("beacon: no steering in \(steering.path): run it from the repo root, or pass --steering\n".utf8))
+    FileHandle.standardError.write(Data("beacon: no steering in \(steering.path): pass --steering\n".utf8))
     exit(2)
 }
 

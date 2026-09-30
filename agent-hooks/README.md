@@ -12,9 +12,8 @@ up in milliseconds.
 
 It's for anything that wants to show agents' work without reading their
 transcripts: a menu-bar app, a desk gadget, a status line, a notification
-when an agent needs you. It was pulled out of
-[Boop](../plan/VISION.md), a desk creature that watches your agents, and
-Boop uses it.
+when an agent needs you. It was pulled out of Boop, a desk creature
+that watches your agents, and Boop uses it.
 
 [SPEC.md](SPEC.md) says exactly what it does; this page is the overview.
 

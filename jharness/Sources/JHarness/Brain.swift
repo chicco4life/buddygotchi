@@ -1,6 +1,6 @@
 import Foundation
 
-/// The brain (kit/BRAIN-KIT.md §8): answers multiple-choice questions
+/// The brain (SPEC.md §8): answers multiple-choice questions
 /// about a plain-text state, with probabilities. `JevBrain`, or
 /// `ScriptedBrain` in tests.
 public protocol Brain: Sendable {
@@ -11,7 +11,7 @@ public protocol Brain: Sendable {
 
 public struct BrainError: Error, Equatable, CustomStringConvertible {
     public var description: String
-    /// What came back, when it couldn't be used, for debug mode.
+    /// What came back, when it couldn't be used, for your own debugging.
     public var raw: String?
     /// The HTTP status, when the brain's server answered with an error.
     public var status: Int?
@@ -27,7 +27,7 @@ public struct BrainError: Error, Equatable, CustomStringConvertible {
 /// and the questions and returns the answers, or throws.
 public struct ScriptedBrain: Brain {
     public let id: String
-    package let script: @Sendable (String, [Question]) throws -> Answers
+    public let script: @Sendable (String, [Question]) throws -> Answers
 
     public init(id: String = "scripted", _ script: @escaping @Sendable (String, [Question]) throws -> Answers) {
         self.id = id
@@ -35,12 +35,14 @@ public struct ScriptedBrain: Brain {
     }
 
     /// The same answers every time, by question key; a question it has no
-    /// answer for gets its first option.
+    /// answer for gets its first option. An answer given with no
+    /// probabilities reports its pick at 1, as a brain with none does (§8).
     public init(id: String = "scripted", always answers: Answers) {
         self.init(id: id) { _, questions in
             var out: Answers = [:]
             for q in questions {
-                out[q.key] = answers[q.key] ?? q.options.first.map { Answer(choice: $0.name, probabilities: [$0.name: 1]) }
+                let pick = answers[q.key] ?? q.options.first.map { Answer(choice: $0.name) }
+                out[q.key] = pick.map { $0.probabilities.isEmpty ? Answer(choice: $0.choice, probabilities: [$0.choice: 1]) : $0 }
             }
             return out
         }

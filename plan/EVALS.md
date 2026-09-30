@@ -2,7 +2,7 @@
 
 Updated 2026-09-30. How we check that Jev decides as Boop should: short
 scenarios of agent work, run through the real pipeline (the transcript,
-the core and the view), the brain kit's harness and Boop's actions,
+the core and the view), JHarness's `Harness` and Boop's actions,
 each pass checked against what it should come to. The harness is
 [harness/HARNESS.md](harness/HARNESS.md), and the decisions checked are
 [harness/DECISIONS.md](harness/DECISIONS.md).
@@ -29,7 +29,7 @@ fire on the way, and hands each tick's view events that wake the brain
 to the harness at that tick, so a heartbeat is answered when it comes.
 Then it feeds the step's raw events to the pipeline, one input at a
 time, and hands every view event that wakes the brain to the harness as
-it's made, straight through without the kit's loop (`Harness.respond`,
+it's made, straight through without JHarness's loop (`Harness.respond`,
 with `loop` off). The
 clock starts at a fixed
 Wednesday 14:00 UTC and stands still while Jev answers.

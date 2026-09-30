@@ -1,5 +1,6 @@
 import AgentHooks
 import Foundation
+import JHarness
 import XCTest
 @testable import BoopKit
 

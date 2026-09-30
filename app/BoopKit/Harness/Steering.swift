@@ -1,7 +1,8 @@
 import Foundation
+import JHarness
 
-/// Boop's steering (harness/HARNESS.md §6, DECISIONS.md §2): the brain
-/// kit's folder of Markdown files (kit/BRAIN-KIT.md §7.1), a copy of
+/// Boop's steering (harness/HARNESS.md §6, DECISIONS.md §2): JHarness's
+/// folder of Markdown files (jharness/SPEC.md §7.1), a copy of
 /// `plan/steering/`: `guide.md`, which opens the state with no heading,
 /// `personality/*.md` and `mood/*.md`. A personality's front matter goes
 /// to the core, not to Jev.

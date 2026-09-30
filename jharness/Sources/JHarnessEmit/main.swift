@@ -1,14 +1,14 @@
-import BrainKit
 import Foundation
+import JHarness
 
-// `kit-emit`: sends one event to a brain kit's socket (plan/kit/BRAIN-KIT.md §3.3).
-//   kit-emit --socket PATH SOURCE KIND [key=value ...] [--line TEXT]
+// `jharness-emit`: sends one event to a harness's socket (SPEC.md §3.3).
+//   jharness-emit --socket PATH SOURCE KIND [key=value ...] [--line TEXT]
 // A whole number written plainly is one, `true` and `false` are yes and no, and the rest are strings.
 
 let usage = """
-    usage: kit-emit --socket PATH SOURCE KIND [key=value ...] [--line TEXT]
-    Sends one event to the brain kit's socket at PATH (EventServer), e.g.
-      kit-emit --socket /tmp/beacon.sock ci build_failed branch=main run=812
+    usage: jharness-emit --socket PATH SOURCE KIND [key=value ...] [--line TEXT]
+    Sends one event to the harness's socket at PATH (EventServer), e.g.
+      jharness-emit --socket /tmp/beacon.sock ci build_failed branch=main run=812
     A whole number written plainly (812, -3; not 007) is one, true and false are yes and no, the rest strings.
     --line gives the event a line of its own, for a kind registered with no transform.
     """
@@ -37,6 +37,6 @@ event.line = line
 do {
     try EventServer.send(event, to: socket)
 } catch {
-    FileHandle.standardError.write(Data("kit-emit: couldn't send to \(socket): \(error)\n".utf8))
+    FileHandle.standardError.write(Data("jharness-emit: couldn't send to \(socket): \(error)\n".utf8))
     exit(1)
 }

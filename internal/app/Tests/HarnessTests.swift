@@ -1,12 +1,12 @@
 import Foundation
+import JHarness
 import XCTest
 @testable import BoopKit
-@testable import BrainKit
 
-/// Boop's outputs on the brain kit (harness/DECISIONS.md): react and mood,
-/// their questions and how they read answers; Jev's wire format
-/// (harness/HARNESS.md §7); and debug mode's printer (§9). The kit itself
-/// is `BrainKitTests`'.
+/// Boop's outputs on JHarness (harness/DECISIONS.md): react and mood,
+/// their questions and how they read answers; and debug mode's printer
+/// (harness/HARNESS.md §9). JHarness itself, Jev's wire format included,
+/// has its own tests (jharness/Tests).
 final class HarnessTests: XCTestCase {
     /// An empty log's view, for outputs that don't look back.
     static let log = Transcript.log().view(now: 0)
@@ -19,7 +19,7 @@ final class HarnessTests: XCTestCase {
     }
 
     /// DECISIONS.md §3: seven questions, their keys unique across Boop's
-    /// outputs, as the kit needs.
+    /// outputs, as JHarness needs.
     func testQuestionKeysMustBeUniqueAcrossActions() {
         let pipeline = Pipeline(core: Core(config: .init()), view: TranscriptView())
         let (harness, _) = Runtime.harness(pipeline: pipeline, steering: RuntimeTests.steering, personality: { .boop },
@@ -258,7 +258,7 @@ final class HarnessTests: XCTestCase {
     /// and so is an answer the graph doesn't have from the mood; any move
     /// is a change in the log, which is the mood from then on, and MOOD with
     /// it, however recently it last changed (how long a mood lasts is the
-    /// steering's call). It's the brain kit's `Choice` (kit/BRAIN-KIT.md §6).
+    /// steering's call). It's JHarness's `Choice` (jharness/SPEC.md §6).
     func testMood() throws {
         XCTAssertEqual(MoodAction.moods.map(\.name), ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad",
                                                       "calm", "engaged", "annoyed", "irritated", "whiny", "wounded"])
@@ -312,7 +312,7 @@ final class HarnessTests: XCTestCase {
                              facts: ["from": "grumpy", "to": "delighted"]), now: 1)
         XCTAssertEqual(MoodAction.value(mood, view()), "calm", "one that isn't a mood reads as calm")
         XCTAssertEqual(Event.legacy(#"{"seq":9,"ts":1,"source":"boop","type":"action","specific_type":"mood","data":{"by":"brain","for":3,"message":"Boop's mood changed: calm → curious.","ok":true}}"#)?["to"],
-                       "curious", "a change logged before the brain kit said its mood in its message only")
+                       "curious", "a change logged before JHarness said its mood in its message only")
     }
 
     /// DECISIONS.md §4: the mood the dashboard sets changes as Jev's does,
@@ -352,83 +352,9 @@ final class HarnessTests: XCTestCase {
 
     // MARK: Jev (HARNESS.md §7)
 
-    /// Each `Question` becomes a choice question: its options' meanings are
-    /// the criteria, with `not_for` when there is one.
-    func testJevsRequest() throws {
-        let q = Question(key: "word.feeling", text: "Which exclamation fits NOW?", about: "the NOW section",
-                         judgeBy: "the PERSONALITY section", options: [Option("none", "No exclamation fits NOW."),
-                                                                       Option("finally", "Something worked after failing.", notFor: "A first try.")])
-        let body = JevBrain.body(model: "jev-latest", state: "STATE", questions: [q])
-        let o = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
-        XCTAssertEqual(o["model"] as? String, "jev-latest")
-        XCTAssertEqual(o["state"] as? String, "STATE")
-        let question = try XCTUnwrap((o["questions"] as? [String: Any])?["word.feeling"] as? [String: Any])
-        XCTAssertEqual(question["type"] as? String, "choice")
-        let criteria = try XCTUnwrap(question["criteria"] as? [String: Any])
-        XCTAssertEqual(criteria["none"] as? String, "No exclamation fits NOW.")
-        XCTAssertEqual(criteria["finally"] as? [String: String], ["what": "Something worked after failing.", "not_for": "A first try."])
-        XCTAssertEqual(question["instructions"] as? [String: String],
-                       ["question": "Which exclamation fits NOW?", "about": "the NOW section", "judge_by": "the PERSONALITY section"])
-    }
-
-    /// The answer's choices and probabilities; one missing, or off its
-    /// options, fails it. A 429 is tried once more; only the status is kept.
-    func testJevsAnswerAndRetry() async throws {
-        let q = [Question(key: "react", text: "?", about: "a", judgeBy: "b", options: [Option("none", "n"), Option("proud", "p")])]
-        let good = Data(#"{"answers":{"react":{"choice":"proud","probabilities":{"proud":0.7,"none":0.3}}}}"#.utf8)
-        try XCTAssertEqual(try JevBrain.answers(good, q), ["react": Answer(choice: "proud", probabilities: ["proud": 0.7, "none": 0.3])])
-        try XCTAssertThrowsError(try JevBrain.answers(Data(#"{"answers":{"react":{"choice":"sad"}}}"#.utf8), q))
-        try XCTAssertThrowsError(try JevBrain.answers(Data(#"{"answers":{}}"#.utf8), q))
-        let calls = Lines()
-        let jev = JevBrain(key: "k") { request in
-            calls.add(request.value(forHTTPHeaderField: "Authorization") ?? "")
-            return calls.all.count == 1 ? (Data("PRIVATE".utf8), 429) : (good, 200)
-        }
-        let answers = try await jev.answer(state: "s", questions: q, deadline: .milliseconds(Harness.Options().deadlineMs))
-        XCTAssertEqual(answers["react"]?.choice, "proud")
-        XCTAssertEqual(calls.all, ["Bearer k", "Bearer k"])
-        // No retry the deadline would cut off: it would only cost a request.
-        let slow = Lines()
-        let late = JevBrain(key: "k") { _ in
-            slow.add("sent")
-            try await Task.sleep(for: .milliseconds(150))
-            return (Data(), 503)
-        }
-        do {
-            _ = try await late.answer(state: "s", questions: q, deadline: .milliseconds(400))
-            XCTFail("no answer")
-        } catch let error as BrainError {
-            XCTAssertEqual(error.description, "jev: HTTP 503")
-        }
-        XCTAssertEqual(slow.all, ["sent"], "150 ms, and 300 more, is past the 400")
-        let down = JevBrain(key: "k") { _ in (Data("PRIVATE".utf8), 500) }
-        do {
-            _ = try await down.answer(state: "s", questions: q, deadline: .milliseconds(Harness.Options().deadlineMs))
-            XCTFail("no answer")
-        } catch let error as BrainError {
-            XCTAssertEqual(error.description, "jev: HTTP 500", "only the status")
-            XCTAssertEqual(error.status, 500)
-        }
-    }
-
-    /// HARNESS.md §7: a connection that fails is tried once more, as a
-    /// busy server is, but reads as the server out of reach, with no
-    /// status, since no server answered; one that times out isn't retried.
-    func testJevOutOfReachIsNotAnHTTPStatus() async throws {
-        let q = [Question(key: "react", text: "?", about: "a", judgeBy: "b", options: [Option("none", "n")])]
-        let calls = Lines()
-        let offline = JevBrain(key: "k") { _ in
-            calls.add("sent")
-            throw URLError(.notConnectedToInternet)
-        }
-        do {
-            _ = try await offline.answer(state: "s", questions: q, deadline: .milliseconds(Harness.Options().deadlineMs))
-            XCTFail("no answer")
-        } catch let error as BrainError {
-            XCTAssertEqual(error.description, "jev: can't reach the server")
-            XCTAssertNil(error.status)
-        }
-        XCTAssertEqual(calls.all, ["sent", "sent"], "tried once more")
+    /// HARNESS.md §7: Jev out of reach, as `JevBrain` says it (JHarness's
+    /// own tests pin that), counts toward the brain failing.
+    func testJevOutOfReachCountsTowardFailing() {
         XCTAssertEqual(BrainTrouble.after(BrainError("jev: can't reach the server"), previous: 2).trouble?.kind, .failing)
     }
 }

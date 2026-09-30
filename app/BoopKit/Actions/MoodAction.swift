@@ -1,7 +1,8 @@
 import Foundation
+import JHarness
 
-/// Boop's mood (harness/DECISIONS.md §4): the brain kit's `Choice`
-/// (kit/BRAIN-KIT.md §6), its value the latest change in the log. MOOD in
+/// Boop's mood (harness/DECISIONS.md §4): JHarness's `Choice`
+/// (jharness/SPEC.md §6), its value the latest change in the log. MOOD in
 /// Jev's state is the mood's file from the next pass, and the device gets
 /// it in the next `state` (the runtime's rule on the change). Jev can only
 /// keep the mood or move it one step along the mood graph (`MoodGraph`):
@@ -69,7 +70,7 @@ public enum MoodAction {
             }
     }
 
-    /// Boop's mood as the kit's `Choice`: its question, offered stay and
+    /// Boop's mood as JHarness's `Choice`: its question, offered stay and
     /// the mood graph's moves from the mood it has (`options(from:)`), and
     /// the line a change shows.
     public static func choice() -> Choice {

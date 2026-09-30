@@ -244,13 +244,13 @@ Each "after N minutes" counts from Boop's mood changing to it, or ends
 sooner if the change has dropped out of HISTORY.
 
 **The current mood** is the `to` of the mood's latest change in the
-transcript ([HARNESS.md](HARNESS.md) §5.1), the brain kit's `Choice`
-([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md) §6): nothing else keeps it, so
+transcript ([HARNESS.md](HARNESS.md) §5.1), JHarness's `Choice`
+([jharness/SPEC.md](../../jharness/SPEC.md) §6): nothing else keeps it, so
 a restart reads it back with the transcript's last 24 hours. A new Boop,
 or one whose mood hasn't changed in 24 hours, starts `calm`
 (`MoodAction.initial`), the resting mood every other fades toward, and a
-word that isn't a mood reads as calm. A mood change logged before the
-brain kit said its mood only in its message, which is read for it. The
+word that isn't a mood reads as calm. A mood change logged before
+JHarness said its mood only in its message, which is read for it. The
 core puts the mood in every `state` it sends
 ([PROTOCOL.md](../PROTOCOL.md) §3).
 
@@ -404,9 +404,9 @@ which are `hello`'s.
 ## 4. The `mood` action
 
 `app/BoopKit/Actions/MoodAction.swift`, with the graph in
-`MoodGraph.swift`: the brain kit's `Choice` (`MoodAction.choice()`),
+`MoodGraph.swift`: JHarness's `Choice` (`MoodAction.choice()`),
 its options the current mood's own (`MoodAction.options(from:)`), built
-on every pass (§3), as the kit asks for all questions. A change is a
+on every pass (§3), as JHarness asks for all questions. A change is a
 `did` with `from` and `to`; the runtime's rule on it hands the new mood
 to the core, so the next `state` carries it.
 

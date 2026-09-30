@@ -1,36 +1,33 @@
-# The brain kit
+# JHarness: the spec
 
-Updated 2026-09-30. The generic, open-sourceable harness Boop's brain runs
-on: give anything a personality with Markdown plus multiple choice. It's
-the second of three pieces Boop is being split into (A, agent hooks to
-events; B, this; C, the device link and test rig, later). This spec is
-the kit's contract. How Boop sits on top of it is in §13, and Boop's own
-harness spec ([harness/HARNESS.md](../harness/HARNESS.md)) says what Boop
-adds.
-
-The code is the `BrainKit` target (`app/BrainKit/`, Foundation only, so
-it's meant to build on Linux too; only macOS builds it so far). Its second
-example, Beacon, is `internal/examples/Beacon/`; `kit-emit` is
-`internal/app/KitEmit/`. The log format (§2), the prompt's layout (§7) and
-the question-and-answer shape (§5) are written so a port to another
-language is a translation; §12 says what a port must match and what to
-test it against.
+Updated 2026-09-30. What JHarness does, exactly: events and the log,
+inputs and their lines, rules, outputs and their questions, the one
+ready-made output (`Choice`), the prompt, the brain, the loop that asks
+it, and the tick. [README.md](README.md) is the overview. Code:
+`Sources/JHarness/` (Foundation only, so it's meant to build on Linux
+too; only macOS builds it so far), `jharness-emit` in
+`Sources/JHarnessEmit/`, and the worked example, Beacon, in `Examples/`
+(§11); tested by `Tests/JHarnessTests/` (`swift test`). The log format
+(§2), the prompt's layout (§7) and the question-and-answer shape (§5) are
+written so a port to another language is a translation; §12 says what a
+port must match and what to test it against.
 
 ## 1. What it is
 
 A small box with registration on both sides and a record in the middle.
 Things happen and go into the log as events. For each kind of event you
 can register a function that turns it into a line of English by looking
-back at the log. When a kind you registered to wake the brain arrives, the
-kit builds a plain-text prompt (your sections, then HISTORY and NOW), asks
-every output's multiple-choice questions in one request, hands each
-output its own answers, and writes what the outputs did back into the log.
+back at the log. When a kind you registered to wake the brain arrives,
+JHarness builds a plain-text prompt (your sections, then HISTORY and
+NOW), asks every output's multiple-choice questions in one request,
+hands each output its own answers, and writes what the outputs did back
+into the log.
 Rules are your own code that reacts to an event at once and records what
 it did. Everything app-specific (a mood graph, a voice, faces, who needs
 you) is yours, on top.
 
 ```
- inputs (registered)          the kit                                    outputs (registered)
+ inputs (registered)          JHarness                                   outputs (registered)
 
  kind → line, wake  ──► log (every event, on disk)
                          │ a transform turns each into a line (looking back at the log)
@@ -40,7 +37,7 @@ you) is yours, on top.
                          └──────────────── what it did, recorded as an event ◄───────────────┘
 ```
 
-**The one rule the kit keeps: the log is the only state.** Lines,
+**The one rule JHarness keeps: the log is the only state.** Lines,
 questions, sections, a `Choice`'s value and which event the brain answers
 next are all worked out from the log. The only thing held in memory
 besides the log is which call to the brain is running (§9). A function
@@ -64,7 +61,9 @@ public struct Event {
 
 `source` and `kind` are free strings. There are no fields for waking,
 phases, sessions or anything else: an app that needs them puts them in
-`data`. `e["branch"]` reads `data`.
+`data`. `e["branch"]` reads `data`, a `JSONValue`, which reads as itself
+in a string: `"\(e["branch"]!)"` is `main`, a number or yes and no as
+written, `null`, and an array or an object as JSON.
 
 On disk and on the wire an event is one JSON line, the keys in this
 order, `line` only when there is one, and `data`'s keys sorted:
@@ -73,14 +72,15 @@ order, `line` only when there is one, and `data`'s keys sorted:
 {"seq":408,"at":1790676542311,"source":"ci","kind":"build_failed","data":{"branch":"main","run":812}}
 ```
 
-### 2.2 What the kit writes itself
+### 2.2 What JHarness writes itself
 
-The kit's own events have `source` `self`. Their `for` is the `seq` of
+JHarness's own events have `source` `self` (`Event.harness`;
+`e.fromHarness` says whether an event is one). Their `for` is the `seq` of
 the event they answer.
 
 | `kind` | When | `data` |
 | --- | --- | --- |
-| `did` | A rule or an output did something (§4, §5) | `for` (or null), `by` (`rule`, `brain`, or who forced it), `action` (the output's or rule's name), `message` (the line HISTORY shows), `ok`, `open` (true while something that takes a while plays, §5.3), `latency_ms` for an output, and the output's own facts, which the kit never reads |
+| `did` | A rule or an output did something (§4, §5) | `for` (or null), `by` (`rule`, `brain`, or who forced it), `action` (the output's or rule's name), `message` (the line HISTORY shows), `ok`, `open` (true while something that takes a while plays, §5.3), `latency_ms` for an output, and the output's own facts, which JHarness never reads |
 | `ended` | Something that took a while finished, or never will (§5.3) | `for` (the `did`), `action`, `by`, `outcome` (`done` or `failed`) and, when failed, `why` |
 | `pass` | Every call to the brain, dropped ones included; every event held back when its turn came; and every forced pass (§9) | `for` (or null), `brain` (its `id`, or the one it would have asked) or `by` (who forced it), `answers` (each key's `choice`, and `p`, every option's probability to three places), `dropped` (why no output ran, or null), `held` (why the event was held back, only when it was), `ms` |
 
@@ -97,15 +97,19 @@ the clock, so `seq` and `at` keep one order and one wrong clock can't
 carry the rest into the future. With a folder, each event is written as
 it's appended to `<folder>/<yyyy-mm-dd>.jsonl`, one file a day; files
 older than **14 days** are deleted at launch and on the first event of
-each new day, and `seq` counts on even when every file has gone. A
-launch reads the files back into memory and keeps the last **24 hours**
-there (`keepMs`, which an app may raise); older events are let go on
+each new day, and `seq` counts on even when every file has gone. The
+launch is `h.resume()`, called once on the harness's queue before the
+first emit: it reads the files back into memory, deletes the old ones,
+carries `seq` on, and ends any `did` the last launch left open as
+`restarted` (§5.3). An app that emits without it starts `seq` over at 1
+in today's file. It keeps the last **24 hours** in memory (`keepMs`,
+which an app may raise); older events are let go on
 every event and every tick, so a running app holds just what a launch at
 that moment would read back. A line
 that doesn't parse, such as one a crash cut short, is skipped, and a file
 that ends mid-line is ended first so the next line isn't glued to it.
 Without a folder (tests) it's in memory only. An app whose older files
-hold another shape of line passes a `decode` for them (Boop's does, §13).
+hold another shape of line passes a `decode` for them.
 
 ### 2.4 Looking back: `LogView`
 
@@ -117,12 +121,18 @@ passes a view reports stop at its cut too.
 ```swift
 struct LogView {
     var now: Int64                                                   // the event's `at`, or the clock
+    var events: ArraySlice<Event>                                    // everything in view, oldest first
     func last(_ kind: String, where: ((Event) -> Bool)? = nil) -> Event?
     func all(_ kind: String, since: Event? = nil, where: ((Event) -> Bool)? = nil) -> [Event]
     func count(_ kind: String, since: Event? = nil, where: ((Event) -> Bool)? = nil) -> Int
     func count(_ kind: String, within ms: Int64) -> Int              // at or after now - ms
     func events(after seq: Int) -> ArraySlice<Event>                 // every kind, oldest first
+    func recent(within ms: Int64) -> ArraySlice<Event>               // every kind, at or after now - ms
     func event(_ seq: Int) -> Event?
+    func dids(for seq: Int) -> [Event]                               // the `did`s for that event (§5.2)
+    func ended(_ did: Int) -> Event?                                 // that `did`'s `ended`, if any (§5.3)
+    func answered(_ seq: Int) -> Bool                                // whether that event has a `pass` (§9)
+    func shown(_ did: Event) -> (message: String, inProgress: Bool)? // how HISTORY shows a `did` (§5.2)
 }
 ```
 
@@ -134,9 +144,10 @@ struct LogView {
 
 ```swift
 h.input("build_failed", wake: 1) { e, log in
+    let branch = e["branch"]?.string ?? "main"
     let streak = log.count("build_failed", since: log.last("build_passed"))
-    return streak == 0 ? "The build on \(e["branch"]!) failed."
-                       : "The build on \(e["branch"]!) failed again, \(streak + 1) in a row."
+    return streak == 0 ? "The build on \(branch) failed."
+                       : "The build on \(branch) failed again, \(streak + 1) in a row."
 }
 h.input("press", wake: 0) { e, log in
     let n = log.count("press", within: 3000)
@@ -148,8 +159,8 @@ h.hold("press") { e, log in log.count("press", within: 3000) >= 4 ? "the button 
 - **The transform** returns `nil` (the event is hidden: no line, and it
   never wakes the brain), a `String`, or `Line(text, notes:, facts:)`.
   Notes go indented under the line. Facts are for your logs and tools:
-  the kit hands them to `onLine` and never shows or stores them.
-- **Its output is never stored.** The kit works out each event's line
+  JHarness hands them to `onLine` and never shows or stores them.
+- **Its output is never stored.** JHarness works out each event's line
   once, as it's emitted and for every event read back at launch, in
   order, and keeps it in memory with the event.
 - **A registered kind with no transform** shows the event's own `line`,
@@ -184,8 +195,8 @@ All three end in the same `emit`:
 | Way | For |
 | --- | --- |
 | `h.emit(source:kind:data:line:)`, or `h.emit(event)` | Your own code |
-| `EventServer`, a Unix socket that takes one JSON event per line (`{"source":…,"kind":…,"data":…}`), and the `kit-emit` command line | Other processes: a CI script, a cron job. `kit-emit --socket /tmp/beacon.sock ci build_failed branch=main run=812`. Each connection is read on its own and each line handed on as it ends; a connection quiet for half a second is closed. In `kit-emit`, a value that's a whole number written plainly (`812`, `-3`, not `007`) is a number, `true` and `false` are yes and no, and the rest are strings |
-| The device's `ev` lines | Piece C, later: `source` `device`, and `did` for what it already did on its own |
+| `EventServer`, a Unix socket that takes one JSON event per line (`{"source":…,"kind":…,"data":…}`), and the `jharness-emit` command line | Other processes: a CI script, a cron job. `jharness-emit --socket /tmp/beacon.sock ci build_failed branch=main run=812`. Each connection is read on its own and each line handed on as it ends; a connection quiet for half a second is closed, and one is read up to 1 MB. In `jharness-emit`, a value that's a whole number written plainly (`812`, `-3`, not `007`) is a number, `true` and `false` are yes and no, and the rest are strings |
+| A device's own reports | Your device link emits them like your own code: `source` `device`, and a `did` for what it already did on its own |
 
 ## 4. Rules
 
@@ -199,18 +210,18 @@ h.on("build_failed") { e in
 }
 ```
 
-- `h.on("*")` runs for every event, the kit's own included.
+- `h.on("*")` runs for every event, JHarness's own included.
 - Rules run in the order they were registered, right after the event is
-  logged and before the kit looks at waking the brain, so a hold sees
+  logged and before JHarness looks at waking the brain, so a hold sees
   what the rule changed. An event a rule emits runs its own rules at
   once, inside the first's.
 - `h.batch { … }` runs several emits and your own code, and only then
-  wakes the brain: for an app whose rules need more than the event (Boop
-  hands the core an agent's event and a poke this way, §13).
+  wakes the brain: for an app whose rules need more than the event, such
+  as a core of its own that decides what an input means.
 - `h.did(message, for:, action:, by: "rule")` records what a rule did as
   a `did`. NOW shows the rule's `did`s for its event; HISTORY shows them
   under their event, as it does the brain's (§7).
-- **A message is the whole sentence HISTORY shows.** The kit adds nothing
+- **A message is the whole sentence HISTORY shows.** JHarness adds nothing
   to it but ` (in progress)` (§5.3).
 
 ## 5. Outputs
@@ -235,15 +246,18 @@ order. `now` is the event the brain is answering, nil for a forced pass.
 
 - **Questions are built for every call,** from NOW and the log, so
   options can follow anything: a graph, a streak, the time. Question keys
-  must be unique across outputs (the kit refuses to start otherwise);
-  options change freely.
+  must be unique across outputs, and within one; options change freely.
+  A call whose questions repeat a key is dropped before it asks: its
+  `pass` says `question keys must be unique across outputs: k asked
+  twice`, and no output runs. A forced pass (§5.4) is dropped the same
+  way.
 - **All questions go in one request.** Each output's `run` gets only the
   answers to its own questions.
 - **`run` returns** `.done(message)`, `.failed(why)`,
   `.started(message, pending)` (§5.3), or `nil` for "did nothing". Each
   may carry `facts` for your tools. A result becomes a `did`, `by`
   `brain`, `for` NOW; `nil` records nothing.
-- **Outputs run one at a time, on the kit's queue.** Slow work is handed
+- **Outputs run one at a time, on JHarness's queue.** Slow work is handed
   off: a `run` over **300 ms** is logged.
 
 ### 5.2 What HISTORY shows
@@ -252,6 +266,8 @@ A `did` that's `ok` shows under its event: plainly once done, with
 ` (in progress)` while open. One that failed, or that ended failed, isn't
 shown: HISTORY shows only what was done or is being done. A `did` for no
 event (a forced one) shows under the latest event with a line before it.
+`LogView.shown(did)` gives the same answer for your own tools: the
+message and whether it's in progress, or nil.
 
 ### 5.3 Things that take a while
 
@@ -267,14 +283,15 @@ func run(_ a: Answers, now: Event?, log: LogView) -> ActionResult? {
 }
 ```
 
-The kit logs a `did` with `open: true` at once, and an `ended` when it
-finishes. An open `did` ends in one of three ways, each an `ended`:
+JHarness logs a `did` with `open: true` at once, and an `ended` when it
+finishes. Your own code may `p.bind { end in … }` too, to hear how it
+ended. An open `did` ends in one of three ways, each an `ended`:
 
 | How | `ended` |
 | --- | --- |
-| The handle finishes: `p.finish(.done)` or `p.finish(.failed("no device"))`. Only the first call counts, and one that comes before the kit has logged the `did` is kept until it has | `outcome` as given |
+| The handle finishes: `p.finish(.done)` or `p.finish(.failed("no device"))`. Only the first call counts, and one that comes before JHarness has logged the `did` is kept until it has | `outcome` as given |
 | Still open `openFor` after it started (**60 s** unless the output says), on the tick | `failed`, `no word it finished` |
-| The app relaunched with it open: its handle went with the last launch | `failed`, `restarted` |
+| The app relaunched with it open: its handle went with the last launch, so `h.resume()` ends it (§2.3) | `failed`, `restarted` |
 
 Whether a `did` is in progress is worked out from the log: open, with no
 `ended` yet.
@@ -324,7 +341,7 @@ h.section { log in steering["tone/\(tone.value(log))"] }
   starts over at `start`.
 - `tone.set("grim", log:)` returns the result for a change made outside
   the brain, whatever the options, through
-  `h.force(tone, by: "dashboard") { tone.set("grim", log: log) }`.
+  `h.force(tone, by: "dashboard") { tone.set("grim", log: h.log.view(now: h.clock.now())) }`.
 
 ## 7. The prompt
 
@@ -334,9 +351,14 @@ h.section { log in steering["tone/\(tone.value(log))"] }
 h.section { log in steering["guide"] }
 h.section { log in steering["personality"] }
 h.section { log in steering["tone/\(tone.value(log))"] }
-h.closing { now, log in tone.value(log) == "calm" ? nil : "Beacon has been \(tone.value(log)) for …." }
-h.reachBack { now, log in log.last("build_failed")?.at }   // optional
+h.closing { e, now, log in tone.value(log) == "calm" ? nil : "Beacon has been \(tone.value(log)) for …." }
+h.reachBack { e, now, log in log.last("build_failed") { $0.seq < e.seq }?.at }   // optional
 ```
+
+The closing line and the reach-back each get NOW's event, the time and
+the log as of now. The log may hold events newer than NOW's, when its
+call starts after they came (§9), so go by the event, not by the log's
+newest.
 
 A section is a function run for every call; a nil or empty one is left
 out. `Steering(folder:)` loads a folder of Markdown files by path without
@@ -350,7 +372,8 @@ give the same text. Parts are joined by a blank line:
 
 1. **Your sections,** in order.
 2. **How to read HISTORY and NOW** (`Harness.Options.reading`), unless you
-   set it to nil and place your own in a section. The default:
+   set it to `.none` and place your own in a section, or give your own
+   words (`.custom(text)`). The default:
 
    ```
    How to read HISTORY and NOW:
@@ -400,19 +423,41 @@ protocol Brain: Sendable {
 }
 ```
 
-`JevBrain` refuses an answer that leaves a question out or picks an
-option the question doesn't have, and the pass is dropped. The kit
-itself hands each output whatever came back for its questions, so a
+JHarness hands each output whatever came back for its questions, so a
 scripted brain may answer only some: an output does nothing with an
-answer it hasn't, and a `Choice` ignores a pick it didn't offer. The kit
-ships two:
+answer it hasn't, and a `Choice` ignores a pick it didn't offer. A brain
+that has no probabilities reports its pick at 1. JHarness ships two:
 
 | Brain | For |
 | --- | --- |
-| `JevBrain(key:)` | TypeSafe's Jev, a small multiple-choice model: one request of about 0.2–0.3 s, with each option's probability ([harness/HARNESS.md](../harness/HARNESS.md) §7 has the request) |
+| `JevBrain(key:)` | TypeSafe's Jev, a small multiple-choice model: one request of about 0.2–0.3 s, with each option's probability (below) |
 | `ScriptedBrain` | Tests: a script sees the prompt and the questions and returns answers; `ScriptedBrain(always:)` gives the same ones every time |
 
-A brain that has no probabilities reports its pick at 1.
+**`JevBrain`** sends one `POST` to `https://api.typesafe.ai/v1/systemone`,
+model `jev-latest`, with the prompt as the `state` and every question as
+a choice question named by its `key`: its `text`, `about` and `judgeBy`
+as `instructions`, and each option's `what` as its criterion (with
+`not_for` when it has a `notFor`). Jev reads the state once and answers
+each question on its own against it
+([TypeSafe](https://docs.typesafe.ai/cookbooks/parallel_questions.md)).
+The answer has each question's `choice` and `probabilities`; one left
+out, or answered with an option it doesn't have, makes the whole answer
+unusable, and the pass is dropped. A 429, any 5xx, or a connection that
+failed (not one that timed out) is tried once more after **300 ms**
+(`JevBrain.retryAfterMs`), unless the deadline would pass first. The HTTP
+request's own timeout is the deadline's whole seconds plus 1, so the
+deadline cuts it off first. What a dropped `pass` says when Jev failed:
+
+| `dropped` | When |
+| --- | --- |
+| `jev: HTTP <status>` | Not 200, after the retry. Only the status is kept, since an error body may repeat the request |
+| `jev: can't reach the server` | The connection failed, after the retry (offline, say), so no server answered |
+| `jev: no answers` | The body had no `answers` object |
+| `jev: no usable answer for <key>` | A question left out, or answered with an option it doesn't have |
+
+When the body came back but couldn't be used, the app log gets its size,
+never its text: `harness: jev:jev-latest answered what couldn't be used
+(N bytes)`.
 
 ## 9. The loop
 
@@ -421,30 +466,39 @@ event the brain answers next is worked out from the log whenever the
 brain is free (a call ended, or an event that wakes it arrived):
 
 1. **Waiting:** events of a kind with a `wake`, with a line, no `pass` yet,
-   not the one running, and no older than **10 s** (`maxWaitMs`). So
-   nothing from before a relaunch, and no backlog after the Mac slept, is
-   ever answered.
+   not the one running, no older than **10 s** (`maxWaitMs`), and logged
+   since the launch: nothing up to the last `seq` that `resume` read back
+   is answered. So nothing from before a relaunch, however recent, and no
+   backlog after the Mac slept, is ever answered.
 2. **Stale:** one at `0` with any newer event that wakes the brain after
    it, answered or not, is passed over, and never answered. The app log
    says so once: `harness: press passed over for a newer build_failed`.
 3. **Next:** the highest `wake`, the oldest first within it.
-4. Its **hold** is asked now. If it gives a reason, the kit logs a `pass`
+4. Its **hold** is asked now. If it gives a reason, JHarness logs a `pass`
    with `held` and the reason, the brain isn't asked, and it picks again.
 
 Then one call: the prompt (§7) for that event and every output's
-questions, fixed when the call starts, off the kit's queue to the brain,
-with a **1.5 s** deadline (`deadlineMs`). A call past the deadline is
-dropped: its `pass` says `late: no answer within 1500 ms`, and the answer,
-when it comes, is only logged. A call that fails is dropped with the
-brain's error. Either way no output runs. Otherwise each output's `run`
-gets its answers, in order, and each result is logged. `onPass` hears of
-every pass, held and forced ones included, once its outputs have run,
-with the prompt it sent and what each output did, for your own logs;
-`onLine` hears of every line as it's worked out.
+questions, fixed when the call starts, off JHarness's queue to the brain,
+with a **1.5 s** deadline (`deadlineMs`), whose timer fires within 5 ms
+of it (`deadlineLeewayMs`). A call past the deadline is dropped: its
+`pass` says `late: no answer within 1500 ms`, and the answer, when it
+comes, is only noted in the app log (`harness: jev:jev-latest answered
+after 1702 ms, too late for the press pass`). A call that fails is
+dropped with the brain's error. Either way no output runs. Otherwise each
+output's `run` gets its answers, in order, and each result is logged.
+`onPass` hears of every pass, held, dropped and forced ones included,
+once its outputs have run, with the prompt it sent and what each output
+did, for your own logs; `onLine` hears of each line as its event is
+emitted (not the lines `resume` works out for the events it reads back).
+`h.respond(to: e)` runs one event's call straight through, without the
+loop, for evals (`Options.loop` false). `h.use(brain)` swaps the brain
+from the next call on (nil for none, and then nothing wakes it); a pass
+that asked the one before says so (`Pass.current` false). `h.idle` says
+whether nothing runs and nothing waits.
 
 ## 10. The tick and the clock
 
-**The tick.** The kit ticks every second (`h.start()` runs its timer;
+**The tick.** JHarness ticks every second (`h.start()` runs its timer;
 `h.tick()` ticks by hand). A tick ends any `did` open past its `openFor`,
 then runs your timed checks: each a function of the time and the log that
 returns an event to emit, or nil.
@@ -463,23 +517,25 @@ already did. It runs every second, so it must be cheap.
 **The clock.** `Clock` has `now` (milliseconds, for events' `at`,
 relative times and `openFor`) and `wall` (for NOW's heading). Both are
 wall-clock milliseconds by default; an app may pass a steady clock for
-`now` (Boop does). The deadline is a real timer. Tests pass their own
-clock and tick by hand.
+`now`, so setting the clock back can't stall it. The deadline is a real
+timer. Tests pass their own clock and tick by hand.
 
 ## 11. A worked example: Beacon
 
 Beacon is a CI light with one button and three one-shots it plays:
-`flash`, `wobble` and `cheer`. It's in the repo as
-`internal/examples/Beacon/`, with its steering folder (a guide, a
-personality and one file for each tone), and `beacon` runs this example
-(`BeaconTests` pins it). The wiring, from `Beacon.swift`:
+`flash`, `wobble` and `cheer`. It's in `Examples/Beacon/`, with its
+steering folder (a guide, a personality and one file for each tone), and
+`beacon` (`Examples/BeaconDemo/`) runs this example (`BeaconTests` pins
+it). The wiring, from `Beacon.swift`:
 
 ```swift
 let h = Harness(name: "Beacon", brain: brain, log: log, clock: clock, queue: queue, options: options)
 h.input("build_failed", wake: 1) { e, log in … }             // §3.1
 h.input("build_passed", wake: 1) { e, log in
+    let branch = e["branch"]?.string ?? "main"
     let streak = log.count("build_failed", since: log.last("build_passed"))
-    return streak == 0 ? "The build on main passed." : "The build on main passed after \(streak) failures."
+    return streak == 0 ? "The build on \(branch) passed."
+        : "The build on \(branch) passed after \(streak == 1 ? "failing" : "\(streak) failures")."
 }
 h.input("press", wake: 0) { … }                                // §3.1
 h.hold("press") { … }                                          // §3.1: the button being mashed
@@ -492,8 +548,8 @@ h.output(Play(light), openFor: 20_000)                         // §5.3: none | 
 h.section { _ in words["guide"] }
 h.section { _ in words["personality"] }
 h.section { log in words["tone/\(tone.value(log))"] }
-h.reachBack { _, log in /* the latest red streak's first failure */ }
-h.closing { now, log in /* "Beacon has been worried for 11 min." */ }
+h.reachBack { e, _, log in /* the red streak's first failure, while red as of NOW or NOW is its pass */ }
+h.closing { _, now, log in /* "Beacon has been worried for 11 min." */ }
 h.tick { now, log in /* still_red, once, after an hour of red */ }  // §10
 ```
 
@@ -578,65 +634,31 @@ Beacon flashed green on its own.
 
 The brain goes back to calm and cheers. `beacon` prints the whole log
 and every prompt; `beacon listen --socket /tmp/beacon.sock` runs Beacon
-live, taking events from `kit-emit`.
+live, taking events from `jharness-emit`.
 
 ## 12. For a port
 
 A port to another language matches three things exactly, and the rest is
 its own business:
 
-- **The log:** one JSON line per event as §2.1 writes it, and the kit's
+- **The log:** one JSON line per event as §2.1 writes it, and JHarness's
   own events as §2.2 has them.
 - **The prompt:** §7's layout, byte for byte.
 - **Questions and answers:** §5.1's shapes, and one request per call.
 
-Three sets of cases pin them: `BrainKitTests` (the kit alone, with toy
-outputs), `BeaconTests` (§11) and Boop's `GoldenStateTests`, which checks every state Boop's 60 eval
-scenarios build, 387 of them, against
-`internal/app/Tests/Fixtures/golden-states/`.
+Two sets of cases pin them: `JHarnessTests` (JHarness alone, with toy
+outputs) and `BeaconTests` (§11). An app on JHarness pins its own the same
+way: every prompt its scenarios build, checked against a golden copy.
 
-## 13. How Boop sits on top
-
-Nothing Boop-specific is in the kit. What each of Boop's parts became:
-
-| Boop | On the kit |
-| --- | --- |
-| Hooks, pokes, what you say, away and back | Events Boop emits: `kind` is the old type and phase (`turn_end`, `tool_wait`, `poke`, `presence_start`), and the old `specific_type`, `session`, `subagent` and `cwd` are in `data` ([harness/EVENTS.md](../harness/EVENTS.md) §1) |
-| The core (screen, "needs you", one-shots, the mic) | Rules: the pipeline hands the core every agent event and poke in the same batch (§4), and the core records `did`s for its wiggle and opened threads, and `needs_you_start`/`needs_you_end` events of its own |
-| The view (`TranscriptView`) | Transforms for the kinds with lines, their wakes, and holds for the gates. The agent lines need each thread's turn history: a fold of the log (`TranscriptView.Fold`) that catches up to the event it's asked about, so its answer depends on the log alone |
-| Heartbeats | Timed checks. The working heartbeat's random wait is the view's own timer, reset when it sees a reaction start in the log |
-| Mood | A `Choice`, its options Boop's mood graph |
-| React | An output that returns `.started`, its handle finished by the moment schedule when the device's `ended` comes. A reaction your tap cut short is finished `done` once the pokes stop, so HISTORY shows it in progress while they go on |
-| Jev's state | Sections: the guide (with Boop's own "how to read" and words), PERSONALITY and MOOD; the closing line; reach-back to the oldest working turn |
-| `debug.jsonl`, the dashboard, `boopctl day` | `onLine` and `onPass`, and the log's own lines |
-| The transcript | The kit's log, in `transcript/`; lines written before the kit are still read |
-
-## 14. Migration
-
-Each step keeps Boop working and `GoldenStateTests` green:
-
-1. Move the generic files into their own `BrainKit` target, so the
-   compiler lists every leak.
-2. Open up `Event`, and move the transcript into the kit as its log.
-3. The kit's harness: inputs, rules, outputs, `Choice`, the prompt, the
-   loop and the tick, with its own tests.
-4. Boop on the kit: the view as transforms, the pipeline as rules, mood as
-   a `Choice`.
-5. Beacon, the second tiny example, in the repo, with `beacon` and
-   `kit-emit`.
-
-[evidence/2026-09-30-brain-kit/PLAN.md](../evidence/2026-09-30-brain-kit/PLAN.md)
-tracks them.
-
-## 15. Why it's shaped this way
+## 13. Why it's shaped this way
 
 | Choice | Why |
 | --- | --- |
 | Lines, not raw JSON, in the prompt | A small model, a budget of about 3k tokens and 1.5 s, and privacy (no code, commands or tool output to the brain); steering examples are written against lines. Not measured |
 | Transforms look back instead of keeping state | Replaying the log gives the same prompts; a launch needs no saved view |
 | Wake is registration, not a field | An event says what happened; whether it's worth waking the brain is the app's call |
-| Messages are whole sentences, not phrases after the name | Boop's HISTORY stays byte-identical: rewording its lines is a steering change only an interleaved A/B eval with Jev could check |
-| The queue is worked out from the log | Testable as a pure function; the log shows why each event was answered, passed over or dropped; relaunch and sleep need no code |
+| Messages are whole sentences, not phrases after the name | HISTORY reads exactly as each output words it: the harness rewording a line would be a steering change that only an A/B run against the brain could check |
+| The queue is worked out from the log | Testable as a pure function; the log shows why each event was answered, passed over or dropped; sleep needs no code, and a relaunch only where the log it read back ends |
 | A hold is asked only when an event's turn comes, and logged as a `held` pass | One check instead of two, and the log says why the brain wasn't asked. An event held back at arrival but allowed by its turn is now answered |
-| One ready-made output, `Choice` | Nearly every personality has a named value that picks a Markdown section. A device's one-shots (`Play`) belong with piece C |
+| One ready-made output, `Choice` | Nearly every personality has a named value that picks a Markdown section. A device's one-shots belong with the device's own code (Beacon's `Play` is one) |
 | No key-value store | A `Choice`'s value is already readable by sections and rules |

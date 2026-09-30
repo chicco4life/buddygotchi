@@ -11,8 +11,8 @@ Everything here is real: run 1 of the eval scenario `04-tests-fight-back`
 `jev:jev-latest` on 2026-09-29, with the two say questions, the whole
 voice bank ([VOICE.md](../VOICE.md) §3) and the steering of that day.
 Its log is [the whole run](../evidence/2026-09-29-voice-sd/eval-04-debug.jsonl).
-The lines below are that run replayed through today's code (the brain
-kit, 2026-09-30) with Jev's recorded answers, so they're in today's
+The lines below are that run replayed through today's code (on
+JHarness, 2026-09-30) with Jev's recorded answers, so they're in today's
 shape and the passes' times are the replay's; the state is left out of
 the `pass` lines (`"state":"…"`). The story (§1, §7) is the recorded
 run's: replayed today, 14:05 says "Nn... Checking" and 14:07 "Heh...

@@ -1,4 +1,5 @@
 import Foundation
+import JHarness
 
 extension ScriptedBrain {
     /// For pipeline checks with no network (`Boop --headless --brain

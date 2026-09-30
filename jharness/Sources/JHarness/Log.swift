@@ -1,9 +1,9 @@
 import Foundation
 
-/// The log (kit/BRAIN-KIT.md §2.3): every event, in order, append-only,
-/// the only state the kit keeps. With a folder, each event is written as
-/// it's appended to `<folder>/<day>.jsonl`, one file a day, and a launch
-/// reads the files back; the last `keepMs` of events are kept in memory,
+/// The log (SPEC.md §2.3): every event, in order, append-only, the only
+/// state the harness keeps. With a folder, each event is written as it's
+/// appended to `<folder>/<day>.jsonl`, one file a day, and a launch reads
+/// the files back; the last `keepMs` of events are kept in memory,
 /// indexed for looking back. Without one (tests) it's in memory only.
 /// Touched only on its owner's queue.
 public final class Log: @unchecked Sendable {
@@ -36,7 +36,7 @@ public final class Log: @unchecked Sendable {
     var lastDay: String?
     /// Each kind's events, by `seq`, oldest first.
     var byKind: [String: [Int]] = [:]
-    /// The kit's own events by what they're `for` (§2.2): `did`s by their
+    /// The harness's own events by what they're `for` (§2.2): `did`s by their
     /// event, `ended` by its `did`, and which events have a `pass`.
     var didsFor: [Int: [Int]] = [:]
     var endedFor: [Int: Int] = [:]
@@ -89,8 +89,8 @@ public final class Log: @unchecked Sendable {
     func keep(_ e: Event) {
         events.append(e)
         byKind[e.kind, default: []].append(e.seq)
-        if e.kind == Event.did, e.source == Event.kit, e["open"]?.bool == true, e["ok"]?.bool != false { openDids.insert(e.seq) }
-        guard e.source == Event.kit, let about = e.about else { return }
+        if e.kind == Event.did, e.source == Event.harness, e["open"]?.bool == true, e["ok"]?.bool != false { openDids.insert(e.seq) }
+        guard e.source == Event.harness, let about = e.about else { return }
         switch e.kind {
         case Event.did:
             didsFor[about, default: []].append(e.seq)
@@ -106,7 +106,7 @@ public final class Log: @unchecked Sendable {
 
     /// Lets go of the events older than `keepMs` as of `now`, so what's in
     /// memory is what a launch at `now` would read back: on each append,
-    /// and on the kit's tick.
+    /// and on the harness's tick.
     public func trim(now: Int64) {
         guard let first = events.first, now - first.at > options.keepMs else { return }
         let cut = events.firstIndex { now - $0.at <= options.keepMs } ?? events.count
@@ -227,7 +227,7 @@ public final class Log: @unchecked Sendable {
     public func answered(_ seq: Int) -> Bool { passFor[seq] != nil }
 }
 
-/// A read-only view of the log (kit/BRAIN-KIT.md §2.4): everything so far,
+/// A read-only view of the log (SPEC.md §2.4): everything so far,
 /// or, for a transform, everything before its event.
 public struct LogView {
     let log: Log
@@ -296,6 +296,16 @@ public struct LogView {
 
     /// How the `did` `seq` ended, if it has in view.
     public func ended(_ did: Int) -> Event? { log.ended(did).flatMap { $0.seq < upTo ? $0 : nil } }
+
+    /// How HISTORY shows the `did` `d` (§5.2): its message, and whether
+    /// it's still in progress (open, with no end in view); nil for one it
+    /// leaves out, which failed or ended failed.
+    public func shown(_ d: Event) -> (message: String, inProgress: Bool)? {
+        guard d["ok"]?.bool == true, let message = d["message"]?.string else { return nil }
+        guard d["open"]?.bool == true else { return (message, false) }
+        guard let end = ended(d.seq) else { return (message, true) }
+        return end["outcome"]?.string == "done" ? (message, false) : nil
+    }
 
     /// Whether the event `seq` has a `pass` in view.
     public func answered(_ seq: Int) -> Bool { log.passFor[seq].map { $0 < upTo } ?? false }

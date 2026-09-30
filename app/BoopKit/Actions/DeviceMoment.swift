@@ -1,5 +1,6 @@
 import AgentHooks
 import Foundation
+import JHarness
 
 /// A `moment` message: something for the device to play (PROTOCOL.md §3).
 /// A rule moment has an `anim`; a brain reaction has a `say` and a `mood`,

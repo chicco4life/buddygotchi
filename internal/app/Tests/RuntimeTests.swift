@@ -1,9 +1,9 @@
 import AgentHooks
 import Foundation
+import JHarness
 import XCTest
 @testable import BoopDevKit
 @testable import BoopKit
-@testable import BrainKit
 
 /// The runtime end to end in-process: real hook socket, real core, the
 /// harness with a scripted brain, and memory in a temporary state

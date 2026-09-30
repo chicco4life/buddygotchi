@@ -20,8 +20,8 @@ deny or block anything (SPEC.md §1).
 
 ### The raw event
 
-Every agent event becomes the transcript's shape, which is the brain
-kit's event ([harness/EVENTS.md](harness/EVENTS.md) §2), `Event(AgentEvent)`:
+Every agent event becomes the transcript's shape, which is JHarness's
+event ([harness/EVENTS.md](harness/EVENTS.md) §2), `Event(AgentEvent)`:
 `seq`, `at`, the agent as `source`, the kind and phase together as `kind`
 (`tool_start`), and in `data` the hook's name as `specific_type`, and
 `session`, `subagent` and `cwd`. The event's facts go in `data` under the

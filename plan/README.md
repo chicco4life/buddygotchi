@@ -13,7 +13,7 @@ with the vision.
 | [ARCHITECTURE.md](ARCHITECTURE.md) | The parts and their boundaries, the data flow, queues and timers, what Boop keeps on disk, budgets, and the decisions in force |
 | [ADAPTERS.md](ADAPTERS.md) | How Boop uses agent-hooks: the raw event each hook becomes, Boop's socket, what it adds to the session rules, and when it installs the hooks |
 | [../agent-hooks/SPEC.md](../agent-hooks/SPEC.md) | agent-hooks, the hook layer as a package of its own: the hook client, the event each hook becomes, session states and "needs you", installing the hooks, and its command line |
-| [kit/BRAIN-KIT.md](kit/BRAIN-KIT.md) | The brain kit Boop's harness runs on, generic and open-sourceable: events and the log, inputs and their lines, rules, outputs, the prompt, the loop, and how Boop sits on top |
+| [../jharness/SPEC.md](../jharness/SPEC.md) | JHarness, the harness Boop's brain runs on, as a package of its own: events and the log, inputs and their lines, rules, outputs and `Choice`, the prompt, the brain, the loop and the tick. How Boop sits on top is [harness/HARNESS.md](harness/HARNESS.md) §1.1 |
 | [harness/HARNESS.md](harness/HARNESS.md) | The harness: how a view event becomes a question for Jev and an answer becomes an action; the transcript and the state |
 | [harness/EVENTS.md](harness/EVENTS.md) | What goes in the transcript: raw events, their seven types and their data; and the view over it: view events, their facts and lines, what's kept, and which wake the brain |
 | [harness/DECISIONS.md](harness/DECISIONS.md) | What Boop decides: the steering files, the questions, how answers are read, and the actions |

@@ -1,6 +1,6 @@
 import Foundation
 
-/// A file of lines, like `debug.jsonl` or a day of the transcript.
+/// A file of lines, like a day of the log.
 public enum LineFile {
     /// Appends `line` and a newline, opening the file for each line.
     public static func append(_ line: String, to url: URL) {

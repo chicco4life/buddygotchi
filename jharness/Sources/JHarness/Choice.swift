@@ -1,6 +1,6 @@
 import Foundation
 
-/// The one ready-made output (kit/BRAIN-KIT.md §6): a named value the brain
+/// The one ready-made output (SPEC.md §6): a named value the brain
 /// can change, such as a tone or a mood. It stores nothing: its value is
 /// the `to` of its latest `did` in the log, or `start`. Its options come
 /// from your function, for every call; staying put is the brain picking

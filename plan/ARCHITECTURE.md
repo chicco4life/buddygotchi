@@ -24,7 +24,7 @@ approve on the Mac as you normally would.
 │                             │ Transcript (raw events, on disk) │    │
 │                  ┌──────────┴───────────┐                      │    │
 │                  ▼                      ▼                      │    │
-│  Core: sessions, rules, 1 s tick   View: lines (the kit's)     │    │
+│  Core: sessions, rules, 1 s tick   View: lines (JHarness's)    │    │
 │     │                                   │ that wake the brain  │    │
 │     ▼                                   ▼                      │    │
 │   state                              Harness ◄──► Jev          │    │
@@ -96,12 +96,12 @@ talks to the device.
 | Hook client | agent-hooks' `agent-hook` | Turns a hook's JSON, and the app its agent runs in, into one hook line to every app listening, and exits 0 | Anything past the socket |
 | Hook server | agent-hooks' `HookServer` | Accepts hook lines on `boop.sock` and hands them to the runtime; never replies | What they mean |
 | Adapter | `Adapters/Adapter.swift`, with agent-hooks' `Mapping` | Turns a hook line into a raw event: agent-hooks maps the hook to a kind and phase with its facts and error class, and the adapter puts that in the transcript's shape | Boop's state, the brain, the device |
-| Transcript | `Harness/Transcript.swift` | The brain kit's log in the state directory: every event, in order, one file a day, the last day read back at launch | What any of it means |
-| Pipeline | `App/Pipeline.swift` | Runs each input in one of the kit's batches: logs it, hands it to the core, logs what the core did; only then may the brain hear of it | Any rule |
+| Transcript | `Harness/Transcript.swift` | JHarness's log in the state directory: every event, in order, one file a day, the last day read back at launch | What any of it means |
+| Pipeline | `App/Pipeline.swift` | Runs each input in one of JHarness's batches: logs it, hands it to the core, logs what the core did; only then may the brain hear of it | Any rule |
 | Core | `Core/Core.swift`, `Core/Activity.swift` | Keeps the session table (agent-hooks' `SessionTracker`) with each session's running calls; decides what the device shows, what the agents are doing included, and the rules' one-shots, and records its rule actions (the wiggle, opening the thread, "needs you") | Minion speech, models, hook formats, files, the brain |
-| View | `Core/TranscriptView.swift` | Boop's lines on the kit, each from the transcript up to its event: turns, checks, pokes, what you said, heartbeats, who needs you; which wake the brain, and what holds them back | The device, what an action does |
-| Harness | `app/BrainKit/` (the brain kit, [kit/BRAIN-KIT.md](kit/BRAIN-KIT.md)) | For each event that wakes the brain, builds the state, asks every action's questions in one request, hands each action its answers and logs what it did | What Boop says, the device, an event's facts, what an action does |
-| Brain | `app/BrainKit/JevBrain.swift` | Jev: answers multiple-choice questions about a plain-text state, with probabilities | Everything else |
+| View | `Core/TranscriptView.swift` | Boop's lines on JHarness, each from the transcript up to its event: turns, checks, pokes, what you said, heartbeats, who needs you; which wake the brain, and what holds them back | The device, what an action does |
+| Harness | `jharness/Sources/JHarness/` (JHarness, [jharness/SPEC.md](../jharness/SPEC.md)) | For each event that wakes the brain, builds the state, asks every action's questions in one request, hands each action its answers and logs what it did | What Boop says, the device, an event's facts, what an action does |
+| Brain | `jharness/Sources/JHarness/JevBrain.swift` | Jev: answers multiple-choice questions about a plain-text state, with probabilities | Everything else |
 | Actions | `Actions/` | `mood` and `react`: carry out one call each, checking their own rules | Whether a rule or the brain called them |
 | Thread link | agent-hooks' `ThreadLink` | Where a thread opens on the Mac: its link in the Claude or Codex app, or its app brought forward ([BEHAVIORS.md](BEHAVIORS.md) §3.2) | Why it's opened |
 | Moment schedule | `App/MomentSchedule.swift` | Decides when each brain moment plays: after any line playing, over an animation, or not at all; numbers the ones sent and ends their handles from the device's `ended` | What's in it |
@@ -188,7 +188,7 @@ its tick, the view at the session's next event.
 
 
 The view's, on `TranscriptView` (the working heartbeat's range from the
-personality's rules), the kit's timed checks on its tick:
+personality's rules), JHarness's timed checks on its tick:
 
 | Timer | Value | Spec |
 | --- | --- | --- |
@@ -279,8 +279,8 @@ until its `ended` comes once the link is back, or the app gives up on it.
 
 The brain is TypeSafe's Jev: it reads a plain-text state and answers
 multiple-choice questions with probabilities, all in one request of about
-0.2–0.3 s. The harness is the brain kit's
-([kit/BRAIN-KIT.md](kit/BRAIN-KIT.md)), Boop's lines, outputs and
+0.2–0.3 s. The harness is JHarness's
+([jharness/SPEC.md](../jharness/SPEC.md)), Boop's lines, outputs and
 sections registered on it: it keeps the transcript, builds the state
 from it and the steering files, asks every action's questions, and hands
 each action its answers. One pass runs at a time, and which event goes
@@ -303,7 +303,7 @@ order:
 
 | Action | Effect | Its own rules |
 | --- | --- | --- |
-| `mood` | Logs the new mood, the kit's `Choice`, whose value is its latest change in the transcript; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the current mood's moves on the mood graph, and only a change |
+| `mood` | Logs the new mood, JHarness's `Choice`, whose value is its latest change in the transcript; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the current mood's moves on the mood graph, and only a change |
 | `react` | Queues a moment in the moment schedule: the chosen mood as its face, with the finish Jev judged if NOW is a turn that finished (task_complete for a success or a failure, reply_ready for a reply), held for the loops Jev picked, and the line Voice finds for the feeling, topic and kind Jev picked in that mood, if Jev is sure enough and there are takes. It's started, not done, until the device says how the moment ended | Nothing while something needs you |
 
 No rule makes a moment on the Mac: every face and take comes through them.
@@ -490,17 +490,17 @@ What crosses each boundary, in the order an event travels:
 | Sessions and their turns ([ADAPTERS.md](ADAPTERS.md) §4), and the requests showing | Core | Folded from the transcript | Folded again from the transcript's last 24 hours, the timers run at each event's time |
 | Turn numbers, failure runs, pokes in a row, the idle heartbeat's count | View | Folded from the transcript | Folded again from the transcript's last 24 hours |
 | The working heartbeat's next time | View | Memory | Starts again |
-| Each event's line | The kit | Memory, worked out from the transcript | Worked out again for the transcript's last 24 hours |
+| Each event's line | JHarness | Memory, worked out from the transcript | Worked out again for the transcript's last 24 hours |
 | Whether you're away, and since when | Presence detector | Memory | Taken from the transcript: away if its last `presence` is a start |
 | The last active day | Core | Memory | Starts as the day the app opened, whose old transcript files the launch deleted |
-| The transcript | Transcript (the kit's log) | `transcript/<date>.jsonl`, and `debug.jsonl` in debug mode; its last 24 hours in memory | Kept 14 days; the last 24 hours read back |
+| The transcript | Transcript (JHarness's log) | `transcript/<date>.jsonl`, and `debug.jsonl` in debug mode; its last 24 hours in memory | Kept 14 days; the last 24 hours read back |
 | The pass running | Harness | Memory | Gone. The events waiting and the started actions still open are the transcript's: nothing older than 10 s is answered, and an open action is ended as failed at launch |
 | Brain moments waiting with their handles, when the device is free, and the look and mood of the last `state`, which time a moment's loops | Moment schedule | Memory | Gone |
 | Brain moments on the device, by `id`, with their handles and when to give up waiting for their `ended` | Runtime | Memory | Gone |
 | The latest snapshot, the device's status, whether it's connected | Device link | Memory | Rebuilt at start |
 | Project and workspace by folder (up to 512, each for 30 s) | agent-hooks' `Places`, the runtime's | Memory | Read again |
 | Name, hatch day, nature, voice seed | Memory store | `long-term.md` | Kept |
-| Mood | The `mood` action (the kit's `Choice`) | Its latest change in the transcript | Read back with the last 24 hours, else calm |
+| Mood | The `mood` action (JHarness's `Choice`) | Its latest change in the transcript | Read back with the last 24 hours, else calm |
 | Volume, personality | Runtime | `settings.json` | Kept |
 | Jev's key | The Keychain | Login Keychain | Kept |
 | Touch calibration | Device | Its flash ([DEVICE.md](DEVICE.md) §5) | Kept |
@@ -569,27 +569,25 @@ personality or memory, only its touch calibration. What it does is in
   build `firmware/assets/` from it ([DEVICE.md](DEVICE.md) §6,
   [VOICE.md](VOICE.md) §10).
 
-What ships is in `app/`, `agent-hooks/` and `firmware/`; everything else
+What ships is in `app/`, `agent-hooks/`, `jharness/` and `firmware/`; everything else
 (tests, evals, dev tools, skills, the firmware's simulator and unit
 tests) is in `internal/` ([its README](../internal/README.md)). The
 Swift targets:
 
 | Target | Kind | Sources | Ships |
 | --- | --- | --- | --- |
-| `BrainKit` | Library: the brain kit ([kit/BRAIN-KIT.md](kit/BRAIN-KIT.md)), on nothing but Foundation | `app/BrainKit/` | Yes |
-| `BoopKit` | Library, on `BrainKit` and `AgentHooks`, re-exporting `BrainKit` | `app/BoopKit/` | Yes |
+| `BoopKit` | Library, on `JHarness` and `AgentHooks` | `app/BoopKit/` | Yes |
 | `Boop` | The app | `app/Boop/`, plus `internal/app/Boop/` for `--headless` and `--snapshots`, and `plan/steering/` as a resource | Yes |
 | `BoopDevKit` | Library: the evals and hook replay | `internal/app/BoopDevKit/` | No |
 | `BoopDev` (`boopdev`) | The developer CLI | `internal/app/BoopDev/` | No |
-| `Beacon`, `BeaconDemo` (`beacon`) | The brain kit's second example and its runner ([kit/BRAIN-KIT.md](kit/BRAIN-KIT.md) §11), on `BrainKit` only | `internal/examples/` | No |
-| `KitEmit` (`kit-emit`) | Sends one event to a brain kit's socket | `internal/app/KitEmit/` | No |
 | `BoopTests` | The unit tests; without Xcode, an executable on the `XCTest` shim target | `internal/app/Tests/` | No |
 
-`BoopKit` and every target on it take agent-hooks' `AgentHooks`
-product. agent-hooks is a
-package of its own, `agent-hooks/Package.swift`, meant to be
-open-sourced: Foundation only, nothing outside its folder, and its own
-tests in Swift Testing ([its README](../agent-hooks/README.md)):
+`BoopKit` and every target on it take agent-hooks' `AgentHooks` and
+JHarness's `JHarness` products, each file importing the one it uses (no
+re-export). agent-hooks is a package of its own,
+`agent-hooks/Package.swift`, meant to be open-sourced: Foundation only,
+nothing outside its folder, and its own tests in Swift Testing
+([its README](../agent-hooks/README.md)):
 
 | Target | Kind | Sources | Ships |
 | --- | --- | --- | --- |
@@ -599,8 +597,19 @@ tests in Swift Testing ([its README](../agent-hooks/README.md)):
 | `AgentHooksCLI` (`agent-hooks`) | Its command line | `agent-hooks/Sources/AgentHooksCLI/` | Not with Boop |
 | `AgentHooksTests` | Its tests, under `swift test` | `agent-hooks/Tests/AgentHooksTests/` | No |
 
-The production targets never depend on internal ones, and agent-hooks
-depends on nothing of Boop's. The build makes an import of a target that
+JHarness, the harness Boop's brain runs on, is one too,
+`jharness/Package.swift`, on the same terms
+([its README](../jharness/README.md)):
+
+| Target | Kind | Sources | Ships |
+| --- | --- | --- | --- |
+| `JHarness` | Library: events and the log, the harness, the brains, `Choice`, steering, the socket in ([jharness/SPEC.md](../jharness/SPEC.md)) | `jharness/Sources/JHarness/` | Yes |
+| `JHarnessEmit` (`jharness-emit`) | Sends one event to a harness's socket | `jharness/Sources/JHarnessEmit/` | Not with Boop |
+| `Beacon`, `BeaconDemo` (`beacon`) | The worked example and its runner (SPEC.md §11) | `jharness/Examples/` | No |
+| `JHarnessTests` | Its tests, under `swift test` | `jharness/Tests/JHarnessTests/` | No |
+
+The production targets never depend on internal ones, and neither
+agent-hooks nor JHarness depends on anything of Boop's. The build makes an import of a target that
 isn't a declared dependency an error (SwiftPM's own default is a
 warning), so a production file can't reach internal code. `Package.swift`
 is at the repo root because SwiftPM takes no target outside the
@@ -739,7 +748,8 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-29 | Boop records you stepping away from the Mac and coming back as `presence` events, decided only by the presence detector from the Mac's lock, sleep and idle time (no permission asked). Only coming back wakes the brain, and Boop cheers at it; being away changes nothing. A lock or sleep counts after 10 minutes (30 s until 2026-09-30), idle alone only after 30 minutes | A wrong away (a long video, a long read) must never make Boop go quiet, and a wrong 'welcome back' is the cost of a wrong away, so idle, the unsure signal, waits much longer than a lock. The owner (2026-09-30): no hello after a minute away, but one after ten, so a shorter lock records nothing at all. Everything downstream only records and folds what the detector says, so the rules can change in one place. A personality's token budget goes from 700 to 750 for boop's Example of coming back (about 24 tokens, under 1% of a request) rather than trim Examples the evals pin | [harness/EVENTS.md](harness/EVENTS.md) §2.1 |
 | 2026-09-30 | Boop's hello when you come back is a word: a new `say.about` topic, `hello`, holds the bank's greetings (Hello, Hey and Hello hello, recorded for needs you; Hi, Howdy, Salut, Oh hello and Hey hey, recorded for pokes), 62 takes, four or more in every face. Voicegen files them by their words; the pack and its version don't change | The owner wanted something more concrete than "Eep!" when you come back. Needs you never said its Hello or Hey, and the pokes keep Boop, Oh, Whoa, Yep and the rest | [VOICE.md](VOICE.md) §3, §7, [harness/DECISIONS.md](harness/DECISIONS.md) §3 |
 | 2026-09-30 | The hook layer moves into a package of its own, `agent-hooks/`, meant to be open-sourced: the hook client (`agent-hook`, which was `boop-hook`), the hook line, the mapping to generic events (a kind and a phase), the session and "needs you" rules (`SessionTracker`, out of the core, with the Codex grace and `noticeFirstMs`), the installer, thread links, and a command line (`agent-hooks install\|remove\|status\|tail\|doctor`). The client sends each line to every socket listed in `~/.agent-hooks/sockets/`, where the everyday Boop lists `boop.sock`, rather than to Boop's socket alone; it keeps your prompt and the agent's last message only with `--keep-text`, which Boop's entries pass; and `~/.agent-hooks/topics.json` can add command shapes to the topics. Boop's installer counts `boop-hook` entries as its own, so the first launch replaces them. Earlier rows' `boop-hook` is now `agent-hook` | What Boop learned about agents' hooks is useful without Boop: other apps and people can use it, and it holds nothing of Boop's. One set of entries serves every app listening, and without the flag no words of yours leave the client | [ADAPTERS.md](ADAPTERS.md), [agent-hooks SPEC.md](../agent-hooks/SPEC.md) |
-| 2026-09-30 | Boop's events are the brain kit's (`BrainKit`, [kit/BRAIN-KIT.md](kit/BRAIN-KIT.md)): `seq`, `at`, `source`, `kind` (the type and phase, `tool_end`) and `data`, which now holds `specific_type`, `session`, `subagent` and `cwd`. Actions are the kit's `did` (open while a reaction plays) and `ended`, source `self`; "needs you" is Boop's own `needs_you_start` and `needs_you_end`. The transcript is the kit's log, which keeps the last 24 hours in memory; a launch reads those back, where it read the last two days' files. Older lines are still read | Step 2 of moving Boop's brain onto the generic kit (piece B of three): the kit's events are free strings, and anything Boop-specific lives in `data`. The read-back window is the kit's: sessions are forgotten after a day's silence anyway, so only a thread busy for over a day numbers its turns from the window's start after a relaunch | [harness/EVENTS.md](harness/EVENTS.md) §1–2, [harness/HARNESS.md](harness/HARNESS.md) §5, [ADAPTERS.md](ADAPTERS.md) §1, §3 |
-| 2026-09-30 | Boop's harness is the brain kit's, with Boop's lines, rules, outputs and sections registered on it ([kit/BRAIN-KIT.md](kit/BRAIN-KIT.md) §13). Which event the brain answers next is worked out from the transcript when the brain is free: one at 0 gives way to any newer event that wakes the brain, answered or not, and none older than 10 s is answered. The gates are holds, asked only when an event's turn comes, and an event held back gets a `pass` with `held` and why, where it used to be gated at arrival with no pass. Every pass is an event in the transcript | Step 3 of moving Boop's brain onto the generic kit: the queue's state is the log's, so a relaunch or a sleep needs no code, and the log says why each event was answered, passed over or held. Every eval scenario's 387 states came out byte for byte the same (`GoldenStateTests`), so no steering eval was needed. An event held at arrival but let through by its turn is now answered | [harness/HARNESS.md](harness/HARNESS.md) §2, §5, [harness/EVENTS.md](harness/EVENTS.md) §3, §6 |
-| 2026-09-30 | The mood is the `to` of its latest change in the transcript (the kit's `Choice`), and the `mood` file is gone: a relaunch reads it back with the transcript's last 24 hours, and after a day with no change Boop starts calm. How long Boop has been in its mood now survives a relaunch. The first launch after the change starts calm, unless the transcript's last day has a change | The log is the kit's only state (the owner: "very functional style, avoid state"). Calm is where every mood fades anyway | [harness/DECISIONS.md](harness/DECISIONS.md) §2, §4 |
-| 2026-09-30 | A reaction your tap cut short is held by the moment schedule, in progress, until the pokes stop, then ended done; it used to be ended failed at once and held by the view. The working heartbeat keeps its random waits as the view's own timer, reset when it sees a reaction start in the transcript | The kit shows only what the log says, so the hold moved to where the handle is. The heartbeat's waits stay drawn as before, so every eval scenario's states stayed the same | [harness/DECISIONS.md](harness/DECISIONS.md) §5, [harness/EVENTS.md](harness/EVENTS.md) §4, §7 |
+| 2026-09-30 | Boop's events are JHarness's (then the `BrainKit` target, [jharness/SPEC.md](../jharness/SPEC.md)): `seq`, `at`, `source`, `kind` (the type and phase, `tool_end`) and `data`, which now holds `specific_type`, `session`, `subagent` and `cwd`. Actions are JHarness's `did` (open while a reaction plays) and `ended`, source `self`; "needs you" is Boop's own `needs_you_start` and `needs_you_end`. The transcript is JHarness's log, which keeps the last 24 hours in memory; a launch reads those back, where it read the last two days' files. Older lines are still read | Step 2 of moving Boop's brain onto the generic kit (piece B of three): JHarness's events are free strings, and anything Boop-specific lives in `data`. The read-back window is JHarness's: sessions are forgotten after a day's silence anyway, so only a thread busy for over a day numbers its turns from the window's start after a relaunch | [harness/EVENTS.md](harness/EVENTS.md) §1–2, [harness/HARNESS.md](harness/HARNESS.md) §5, [ADAPTERS.md](ADAPTERS.md) §1, §3 |
+| 2026-09-30 | Boop's harness is JHarness's, with Boop's lines, rules, outputs and sections registered on it ([harness/HARNESS.md](harness/HARNESS.md) §1.1). Which event the brain answers next is worked out from the transcript when the brain is free: one at 0 gives way to any newer event that wakes the brain, answered or not, and none older than 10 s is answered. The gates are holds, asked only when an event's turn comes, and an event held back gets a `pass` with `held` and why, where it used to be gated at arrival with no pass. Every pass is an event in the transcript | Step 3 of moving Boop's brain onto the generic kit: the queue's state is the log's, so a relaunch or a sleep needs no code, and the log says why each event was answered, passed over or held. Every eval scenario's 387 states came out byte for byte the same (`GoldenStateTests`), so no steering eval was needed. An event held at arrival but let through by its turn is now answered | [harness/HARNESS.md](harness/HARNESS.md) §2, §5, [harness/EVENTS.md](harness/EVENTS.md) §3, §6 |
+| 2026-09-30 | The mood is the `to` of its latest change in the transcript (JHarness's `Choice`), and the `mood` file is gone: a relaunch reads it back with the transcript's last 24 hours, and after a day with no change Boop starts calm. How long Boop has been in its mood now survives a relaunch. The first launch after the change starts calm, unless the transcript's last day has a change | The log is JHarness's only state (the owner: "very functional style, avoid state"). Calm is where every mood fades anyway | [harness/DECISIONS.md](harness/DECISIONS.md) §2, §4 |
+| 2026-09-30 | A reaction your tap cut short is held by the moment schedule, in progress, until the pokes stop, then ended done; it used to be ended failed at once and held by the view. The working heartbeat keeps its random waits as the view's own timer, reset when it sees a reaction start in the transcript | JHarness shows only what the log says, so the hold moved to where the handle is. The heartbeat's waits stay drawn as before, so every eval scenario's states stayed the same | [harness/DECISIONS.md](harness/DECISIONS.md) §5, [harness/EVENTS.md](harness/EVENTS.md) §4, §7 |
+| 2026-09-30 | The brain's harness moves into a package of its own, `jharness/` (JHarness, which was the `BrainKit` target), with its worked example Beacon, `jharness-emit` (which was `kit-emit`) and its own tests in Swift Testing. Boop's files import it where they use it, as they do agent-hooks, where BoopKit re-exported it. Question keys asked twice drop the pass, a forced one too, with why, where they stopped the app; a relaunch answers nothing it read back, however recent, where it answered what was under 10 s old | The owner's three pieces: B as cleanly apart as A, open-sourceable, nothing outside its folder. Both rules were the spec's already (it said the harness refuses repeated keys, and that nothing from before a relaunch is answered), but the code crashed and answered. Boop's keys are fixed and every golden state came out byte for byte the same | [jharness/SPEC.md](../jharness/SPEC.md) §5.1, §9, [harness/HARNESS.md](harness/HARNESS.md) §1.1, §10 |

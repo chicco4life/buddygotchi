@@ -1,11 +1,11 @@
 import Foundation
 
-/// The brain kit's harness (kit/BRAIN-KIT.md): registration on both sides
-/// and the log in the middle. Events come in (`emit`) and are logged;
-/// registered kinds get a line from their transform; rules run at once;
-/// an event that wakes the brain gets a call, whose prompt is your
-/// sections, HISTORY and NOW, and whose answers go to the outputs, each
-/// its own; what they did is logged too.
+/// The harness (SPEC.md): registration on both sides and the log in the
+/// middle. Events come in (`emit`) and are logged; registered kinds get a
+/// line from their transform; rules run at once; an event that wakes the
+/// brain gets a call, whose prompt is your sections, HISTORY and NOW, and
+/// whose answers go to the outputs, each its own; what they did is logged
+/// too.
 ///
 /// Everything but the brain call runs on `queue`, which the caller owns:
 /// call every method there. The one thing kept in memory besides the log
@@ -30,13 +30,13 @@ public final class Harness: @unchecked Sendable {
         /// How often `start()` ticks.
         public var tickMs = 1000
         /// How to read HISTORY and NOW, placed after your sections: the
-        /// kit's own words, yours, or none (you place your own in a
+        /// harness's own words, yours, or none (you place your own in a
         /// section) (§7.2).
         public var reading: Reading = .standard
         /// NOW's heading, from the wall clock: `14:09, Wednesday`.
         public var heading: @Sendable (Int64) -> String = Harness.heading
         /// Whether an event that wakes the brain gets a call on its own;
-        /// false leaves it to `respond(to:)` (the evals).
+        /// false leaves it to `respond(to:)`, for evals or replays.
         public var loop = true
 
         public init() {}
@@ -68,7 +68,7 @@ public final class Harness: @unchecked Sendable {
         public var latencyMs: Int
         public var seq: Int
 
-        /// Which outputs returned a result: `mood, react (failed)`, or
+        /// Which outputs returned a result: `tone, play (failed)`, or
         /// `nothing`.
         public static func names(_ records: [ActionRecord]) -> String {
             records.isEmpty ? "nothing" : records.map { $0.name + ($0.result.ok ? "" : " (failed)") }.joined(separator: ", ")
@@ -85,8 +85,9 @@ public final class Harness: @unchecked Sendable {
         /// Its `pass` event's `seq`.
         public var seq: Int
         public var answers: Answers
-        /// Why no output ran: the brain failed or was late; nil when they
-        /// ran, or the event was held back.
+        /// Why no output ran: the brain failed or was late, or a question
+        /// key was asked twice; nil when they ran, or the event was held
+        /// back.
         public var dropped: String?
         /// Why the event was held back when its turn came (§9), so the
         /// brain wasn't asked; nil when it was.
@@ -107,6 +108,26 @@ public final class Harness: @unchecked Sendable {
         /// Whether it asked the brain in use now, not one `use` has
         /// replaced since.
         public var current: Bool
+
+        public init(event: Event?, line: String?, seq: Int, answers: Answers, dropped: String?, held: String?,
+                    latencyMs: Int, brain: String?, by: String?, prompt: String?, questions: [Question], seen: Int,
+                    actions: [ActionRecord], error: BrainError?, current: Bool) {
+            self.event = event
+            self.line = line
+            self.seq = seq
+            self.answers = answers
+            self.dropped = dropped
+            self.held = held
+            self.latencyMs = latencyMs
+            self.brain = brain
+            self.by = by
+            self.prompt = prompt
+            self.questions = questions
+            self.seen = seen
+            self.actions = actions
+            self.error = error
+            self.current = current
+        }
     }
 
     public let name: String
@@ -114,7 +135,7 @@ public final class Harness: @unchecked Sendable {
     public let options: Options
     public let clock: Clock
     let queue: DispatchQueue
-    /// App log lines: the kit's own, prefixed `harness: `.
+    /// App log lines: the harness's own, prefixed `harness: `.
     public var note: (String) -> Void
 
     /// The brain in use, or nil for none: nothing wakes it.
@@ -143,8 +164,8 @@ public final class Harness: @unchecked Sendable {
     }
     var outputs: [Output] = []
     var sections: [(LogView) -> String?] = []
-    var closingLine: ((Int64, LogView) -> String?)?
-    var reachBackTo: ((Int64, LogView) -> Int64?)?
+    var closingLine: ((Event, Int64, LogView) -> String?)?
+    var reachBackTo: ((Event, Int64, LogView) -> Int64?)?
     var checks: [(Int64, LogView) -> Event?] = []
 
     // Worked out from the log, kept with it.
@@ -169,6 +190,9 @@ public final class Harness: @unchecked Sendable {
     var changedDuringPass: Set<String> = []
     /// Stale events already noted, so each is noted once.
     var notedStale: Set<Int> = []
+    /// The last `seq` read back at launch: nothing up to it is answered,
+    /// however recent (§9).
+    var readBackTo = 0
 
     public init(name: String, brain: (any Brain)?, log: Log, clock: Clock = .system, queue: DispatchQueue,
                 options: Options = Options(), note: @escaping (String) -> Void = { _ in }) {
@@ -256,11 +280,14 @@ public final class Harness: @unchecked Sendable {
     /// A section of the prompt, built for every call; nil or empty is left out.
     public func section(_ build: @escaping (LogView) -> String?) { sections.append(build) }
 
-    /// The line that closes HISTORY, if any.
-    public func closing(_ build: @escaping (Int64, LogView) -> String?) { closingLine = build }
+    /// The line that closes HISTORY, if any, from NOW's event, the time
+    /// and the log.
+    public func closing(_ build: @escaping (Event, Int64, LogView) -> String?) { closingLine = build }
 
-    /// How far back HISTORY reaches at least, if further than `historyMs`.
-    public func reachBack(_ build: @escaping (Int64, LogView) -> Int64?) { reachBackTo = build }
+    /// How far back HISTORY reaches at least, if further than `historyMs`,
+    /// from NOW's event, the time and the log. The log may hold events
+    /// newer than NOW's, when its call starts after they came (§7.2).
+    public func reachBack(_ build: @escaping (Event, Int64, LogView) -> Int64?) { reachBackTo = build }
 
     /// A timed check, run on every tick: an event to emit, or nil.
     public func tick(_ check: @escaping (Int64, LogView) -> Event?) { checks.append(check) }
@@ -316,7 +343,7 @@ public final class Harness: @unchecked Sendable {
     /// An event's line, and where a `did` for no event shows: worked out
     /// once, in order, as it's emitted or read back.
     func place(_ e: Event) {
-        if e.isKit {
+        if e.fromHarness {
             if e.kind == Event.did, e.about == nil, let target = lastLined { loose[target, default: []].append(e.seq) }
             return
         }
@@ -350,6 +377,7 @@ public final class Harness: @unchecked Sendable {
         dispatchPrecondition(condition: .onQueue(queue))
         let read = log.load(now: clock.now())
         for e in read { place(e) }
+        readBackTo = log.lastSeq
         depth += 1
         for seq in log.openDids.sorted() {
             guard let d = log.event(seq) else { continue }
@@ -379,7 +407,7 @@ public final class Harness: @unchecked Sendable {
         return parts.joined(separator: "\n\n")
     }
 
-    /// The kit's own words on how to read HISTORY and NOW.
+    /// The harness's own words on how to read HISTORY and NOW.
     public static func reading(_ name: String) -> String {
         """
         How to read HISTORY and NOW:
@@ -395,31 +423,28 @@ public final class Harness: @unchecked Sendable {
 
     /// HISTORY for a call about `e` at `now` (§7.2).
     func history(before e: Event, now: Int64, view: LogView) -> String {
-        let from = min(now - options.historyMs, reachBackTo?(now, view) ?? Int64.max)
+        let from = min(now - options.historyMs, reachBackTo?(e, now, view) ?? Int64.max)
         let inRange = log.events.filter { $0.seq < e.seq && $0.at >= from && lines[$0.seq] != nil }
-        let picked = inRange.dropLast(options.historyLimit).filter { didLines($0.seq).contains { $0.open } }
+        let picked = inRange.dropLast(options.historyLimit).filter { didLines($0.seq, view).contains { $0.open } }
             + inRange.suffix(options.historyLimit)
         var out = [Harness.historyHeading]
         for ev in picked {
             let line = lines[ev.seq]!
             out.append("\(Harness.ago(now - ev.at)): \(line.text)")
             for note in line.notes { out.append("  " + note) }
-            for d in didLines(ev.seq) { out.append("  " + d.text) }
+            for d in didLines(ev.seq, view) { out.append("  " + d.text) }
         }
-        if let closing = closingLine?(now, view) { out.append(closing) }
+        if let closing = closingLine?(e, now, view) { out.append(closing) }
         return out.joined(separator: "\n")
     }
 
-    /// What was done about the event `seq`, in order (§5.2): a `did` that's
-    /// `ok`, marked in progress while open; one that failed, or ended
-    /// failed, left out.
-    func didLines(_ seq: Int) -> [(text: String, open: Bool)] {
+    /// What was done about the event `seq`, in order, as HISTORY shows it
+    /// (§5.2): its `did`s and those for no event shown under it, marked in
+    /// progress while open.
+    func didLines(_ seq: Int, _ view: LogView) -> [(text: String, open: Bool)] {
         let dids = (log.dids(for: seq) + (loose[seq] ?? []).compactMap(log.event)).sorted { $0.seq < $1.seq }
         return dids.compactMap { d in
-            guard d["ok"]?.bool == true, let message = d["message"]?.string else { return nil }
-            guard d["open"]?.bool == true else { return (message, false) }
-            guard let end = log.ended(d.seq) else { return (message + " (in progress)", true) }
-            return end["outcome"]?.string == "done" ? (message, false) : nil
+            view.shown(d).map { $0.inProgress ? ($0.message + " (in progress)", true) : ($0.message, false) }
         }
     }
 
@@ -456,13 +481,14 @@ public final class Harness: @unchecked Sendable {
     func wake(_ e: Event) -> Int { inputs[e.kind]?.wake ?? 0 }
 
     /// The event the brain answers next, worked out from the log: of those
-    /// that wake it, have a line, have no `pass` yet, aren't running and
-    /// are under `maxWaitMs` old, the highest `wake`, oldest first within
-    /// it; one at 0 gives way to any newer one that wakes the brain,
-    /// answered or not.
+    /// that wake it, have a line, have no `pass` yet, aren't running, are
+    /// under `maxWaitMs` old and came after the launch, the highest
+    /// `wake`, oldest first within it; one at 0 gives way to any newer one
+    /// that wakes the brain, answered or not.
     func next() -> Event? {
         let now = clock.now()
-        let recent = log.view(now: now).recent(within: options.maxWaitMs).filter { !$0.isKit && wakes($0) }
+        let recent = log.view(now: now).recent(within: options.maxWaitMs)
+            .filter { $0.seq > readBackTo && !$0.fromHarness && wakes($0) }
         let waiting = recent.filter { !log.answered($0.seq) && $0.seq != running?.seq }
         notedStale.formIntersection(recent.map(\.seq))
         var live: [Event] = []
@@ -487,7 +513,12 @@ public final class Harness: @unchecked Sendable {
                 finish(e, nil, .success([:]), latencyMs: 0, brainID: brain.id, held: why)
                 continue
             }
-            start(e, brain)
+            let job = prepare(e, brain)
+            if let why = Harness.repeated(job.questions) {
+                finish(e, nil, .failure(BrainError(why)), latencyMs: 0, brainID: brain.id)
+                continue
+            }
+            start(e, job)
         }
     }
 
@@ -506,22 +537,27 @@ public final class Harness: @unchecked Sendable {
     func prepare(_ e: Event, _ brain: any Brain) -> Job {
         let view = log.view(now: clock.now())
         let asked = outputs.map { $0.action.questions(now: e, log: view) }
-        let questions = asked.flatMap { $0 }
-        let keys = questions.map(\.key)
-        precondition(Set(keys).count == keys.count, "question keys must be unique across outputs: \(keys)")
-        return Job(brain: brain, generation: generation, prompt: prompt(for: e), questions: questions,
+        return Job(brain: brain, generation: generation, prompt: prompt(for: e), questions: asked.flatMap { $0 },
                    keys: asked.map { $0.map(\.key) }, seen: log.lastSeq)
+    }
+
+    /// Why a call can't ask `questions`: a key asked twice, in one output
+    /// or across two, which no answer could tell apart (§5.1). The pass is
+    /// dropped with this, asking nothing, and no output runs.
+    static func repeated(_ questions: [Question]) -> String? {
+        var seen: Set<String> = [], twice: [String] = []
+        for q in questions where !seen.insert(q.key).inserted && !twice.contains(q.key) { twice.append(q.key) }
+        return twice.isEmpty ? nil : "question keys must be unique across outputs: \(twice.joined(separator: ", ")) asked twice"
     }
 
     /// A call, its request off the queue. Past the deadline it's dropped,
     /// and the request goes on to its end, so the log can say when the
     /// brain did answer.
-    func start(_ e: Event, _ brain: any Brain) {
+    func start(_ e: Event, _ job: Job) {
         nextPass += 1
         let id = nextPass
         running = (id, e.seq)
         changedDuringPass = []
-        let job = prepare(e, brain)
         let started = ContinuousClock.now
         let timer = DispatchSource.makeTimerSource(flags: .strict, queue: queue)
         timer.schedule(deadline: .now() + .milliseconds(options.deadlineMs), leeway: .milliseconds(options.deadlineLeewayMs))
@@ -579,7 +615,7 @@ public final class Harness: @unchecked Sendable {
         var data: [String: JSONValue] = ["for": .int(Int64(e.seq)), "brain": .string(brainID), "answers": Harness.json(answers),
                                          "dropped": .of(dropped), "ms": .int(Int64(latencyMs))]
         if let held { data["held"] = .string(held) }
-        let passEvent = emit(Event(source: Event.kit, kind: Event.pass, data: data))
+        let passEvent = emit(Event(source: Event.harness, kind: Event.pass, data: data))
         if let dropped { note("harness: \(e.kind) dropped: \(dropped)") }
         if let held { note("harness: \(e.kind) held: \(held)") }
         let ran = dropped == nil && held == nil
@@ -614,7 +650,7 @@ public final class Harness: @unchecked Sendable {
             }
             let view = log.view(now: clock.now())
             let own = keys?[i] ?? action.questions(now: now, log: view).map(\.key)
-            let mine = Dictionary(uniqueKeysWithValues: own.compactMap { k in answers[k].map { (k, $0) } })
+            let mine = Dictionary(own.compactMap { k in answers[k].map { (k, $0) } }, uniquingKeysWith: { first, _ in first })
             let started = ContinuousClock.now
             let result = action.run(mine, now: now, log: view)
             let ms = (ContinuousClock.now - started).ms
@@ -690,25 +726,27 @@ public final class Harness: @unchecked Sendable {
     /// A pass whose answers are given, not asked: each choice at
     /// probability 1, handed to the outputs as the brain's would be, for
     /// no event. A choice that isn't one of its question's options is left
-    /// out.
+    /// out. Question keys asked twice drop it, and no output runs.
     @discardableResult
     public func force(_ choices: [String: String], by: String) -> [ActionRecord] {
         dispatchPrecondition(condition: .onQueue(queue))
         let view = log.view(now: clock.now())
-        let asked = outputs.flatMap { $0.action.questions(now: nil, log: view) }
-            .filter { q in q.options.contains { $0.name == choices[q.key] } }
+        let all = outputs.flatMap { $0.action.questions(now: nil, log: view) }
+        let dropped = Harness.repeated(all)
+        let asked = dropped != nil ? [] : all.filter { q in q.options.contains { $0.name == choices[q.key] } }
         let answers = Dictionary(uniqueKeysWithValues: asked.compactMap { q in
             choices[q.key].map { (q.key, Answer(choice: $0, probabilities: [$0: 1])) }
         })
-        if answers.count < choices.count { note("harness: forced answers left out: \(Set(choices.keys).subtracting(answers.keys).sorted())") }
+        if let dropped { note("harness: forced pass dropped: \(dropped)") }
+        else if answers.count < choices.count { note("harness: forced answers left out: \(Set(choices.keys).subtracting(answers.keys).sorted())") }
         depth += 1
-        let passEvent = emit(Event(source: Event.kit, kind: Event.pass,
-                                   data: ["for": .null, "by": .string(by), "answers": Harness.json(answers), "dropped": .null,
+        let passEvent = emit(Event(source: Event.harness, kind: Event.pass,
+                                   data: ["for": .null, "by": .string(by), "answers": Harness.json(answers), "dropped": .of(dropped),
                                           "ms": 0]))
-        let ran = runOutputs(answers, keys: nil, now: nil, by: by)
+        let ran = dropped != nil ? [] : runOutputs(answers, keys: nil, now: nil, by: by)
         depth -= 1
         for a in ran where a.result.ok { changedOutside(a.name) }
-        onPass?(Pass(event: nil, line: nil, seq: passEvent.seq, answers: answers, dropped: nil, held: nil, latencyMs: 0, brain: nil, by: by, prompt: nil,
+        onPass?(Pass(event: nil, line: nil, seq: passEvent.seq, answers: answers, dropped: dropped, held: nil, latencyMs: 0, brain: nil, by: by, prompt: nil,
                      questions: asked, seen: log.lastSeq, actions: ran, error: nil, current: true))
         wake()
         return ran
@@ -736,11 +774,13 @@ public final class Harness: @unchecked Sendable {
     /// wake the brain, there's no brain, or it's held back. Don't call on
     /// the queue. Past the deadline the request is cancelled.
     public func respond(to e: Event) async -> Pass? {
-        let job: Job? = queue.sync {
-            guard wakes(e), let brain, holds[e.kind]?(e, log.view(now: clock.now())) == nil else { return nil }
-            return prepare(e, brain)
+        let prepared: (job: Job?, dropped: Pass?) = queue.sync {
+            guard wakes(e), let brain, holds[e.kind]?(e, log.view(now: clock.now())) == nil else { return (nil, nil) }
+            let job = prepare(e, brain)
+            guard let why = Harness.repeated(job.questions) else { return (job, nil) }
+            return (nil, finish(e, nil, .failure(BrainError(why)), latencyMs: 0, brainID: brain.id))
         }
-        guard let job else { return nil }
+        guard let job = prepared.job else { return prepared.dropped }
         let started = ContinuousClock.now
         let deadlineMs = options.deadlineMs, leeway = options.deadlineLeewayMs, late = self.late
         let result = await withTaskGroup(of: Result<Answers, BrainError>.self) { group in
@@ -776,5 +816,5 @@ public final class Harness: @unchecked Sendable {
 
 extension Duration {
     /// In whole milliseconds.
-    public var ms: Int { Int(components.seconds * 1000 + components.attoseconds / 1_000_000_000_000_000) }
+    var ms: Int { Int(components.seconds * 1000 + components.attoseconds / 1_000_000_000_000_000) }
 }

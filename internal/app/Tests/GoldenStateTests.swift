@@ -1,8 +1,8 @@
 import Foundation
+import JHarness
 import XCTest
 @testable import BoopDevKit
 @testable import BoopKit
-@testable import BrainKit
 
 /// Every state the eval scenarios build, pinned (plan/VERIFICATION.md §5, L0):
 /// each scenario runs with a scripted brain that answers from NOW alone, and

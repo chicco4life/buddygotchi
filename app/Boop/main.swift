@@ -1,6 +1,7 @@
 import AppKit
 import BoopKit
 import Foundation
+import JHarness
 
 // The Boop app. With no arguments it's the menu-bar app on Bluetooth.
 // `--headless` runs the same runtime with no UI and no Bluetooth, for tests

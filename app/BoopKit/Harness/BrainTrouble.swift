@@ -1,4 +1,5 @@
 import Foundation
+import JHarness
 
 /// The brain failing for long enough that the popover says so
 /// (harness/HARNESS.md §7): Boop is down to its rule reactions until it

@@ -1,6 +1,6 @@
 import Foundation
 
-/// A folder of Markdown files for the prompt's sections (kit/BRAIN-KIT.md
+/// A folder of Markdown files for the prompt's sections (SPEC.md
 /// §7.1), read once and never written: each file by its path without
 /// `.md` (`steering["tone/calm"]`), with `<!-- comments -->` and a leading
 /// `---` front matter block left out. The front matter is kept apart, for

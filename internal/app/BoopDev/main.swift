@@ -2,6 +2,7 @@ import AgentHooks
 import BoopDevKit
 import BoopKit
 import Foundation
+import JHarness
 
 // Developer CLI (VERIFICATION.md §2): replay, say, eval, watch and hooks,
 // as `usage` describes.

@@ -2,7 +2,7 @@
 
 The owner asked (2026-09-30) for the generic multiple-choice harness,
 "B", to be written up as a spec and then built, with Boop moved onto it,
-without stopping until done. The spec is [plan/kit/BRAIN-KIT.md](../../kit/BRAIN-KIT.md).
+without stopping until done. The spec is [plan/kit/BRAIN-KIT.md](../../../jharness/SPEC.md) (since moved to `jharness/SPEC.md`).
 
 ## The bar
 
@@ -181,3 +181,16 @@ Still open:
   `resume()`, `use(_:)`, `respond(to:)`, `Options.loop` or `idle`; §13
   cites EVENTS.md §1 for the shape (it's §2); §7.2 leaves out that older
   in-progress events come only from inside the time window.
+
+Later the same night, the kit became JHarness, a package of its own in
+`jharness/` (its spec `jharness/SPEC.md`, whose §14 Migration this file
+replaces), and these were fixed, each with a test in
+`jharness/Tests/JHarnessTests/`: duplicate question keys drop the pass
+(`testQuestionKeysAskedTwiceDropThePass`); a relaunch answers nothing it
+read back (`testARelaunchAnswersNothingFromBeforeIt`); Beacon's
+`reachBack` stops once the build is green
+(`testReachingBackEndsOnceTheBuildIsGreen`); `maxWaitMs`, `keptDays`,
+`keepMs` and a late answer running no output are pinned; `JSONValue`
+reads as itself in a string; the spec says `onLine` skips what's read
+back, `.none` for `reading`, and names `resume()`, `respond(to:)` and
+`Options.loop`; EVENTS.md §1 counts passes in the transcript.

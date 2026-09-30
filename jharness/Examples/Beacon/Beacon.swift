@@ -1,19 +1,23 @@
-import BrainKit
+import JHarness
 import Foundation
 
-/// Beacon (plan/kit/BRAIN-KIT.md §11): a CI light with one button and three
-/// one-shots it plays, `flash`, `wobble` and `cheer`. The brain kit's second
-/// example, as small as it gets: builds failing and passing and the button,
-/// each a line; a rule that flashes; a tone the brain can change, whose
-/// Markdown file is a section; and one-shots the brain can play, in progress
-/// until the light says they're done.
+/// Beacon (SPEC.md §11): a CI light with one button and three one-shots
+/// it plays, `flash`, `wobble` and `cheer`. JHarness's worked example, as
+/// small as it gets: builds failing and passing and the button, each a
+/// line; a rule that flashes; a tone the brain can change, whose Markdown
+/// file is a section; and one-shots the brain can play, in progress until
+/// the light says they're done.
 public final class Beacon {
     public let harness: Harness
     public let light: Light
     public let tone: Choice
 
-    /// `steering` is Beacon's folder (`internal/examples/Beacon/steering`);
-    /// NOW's heading is in `timeZone`.
+    /// Beacon's steering folder, next to this file in the source tree.
+    public static let steering = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        .appendingPathComponent("steering")
+
+    /// `steering` is Beacon's folder (`Beacon.steering`); NOW's heading is
+    /// in `timeZone`.
     public init(brain: (any Brain)?, log: Log, steering: URL, clock: Harness.Clock, queue: DispatchQueue,
                 timeZone: TimeZone = .current, loop: Bool = true) throws {
         var options = Harness.Options()
@@ -72,13 +76,17 @@ public final class Beacon {
         h.section { _ in words["guide"] }
         h.section { _ in words["personality"] }
         h.section { log in words["tone/\(tone.value(log))"] }
-        // HISTORY reaches back to the latest red streak's first failure,
-        // however long ago: the pass that ended it may be NOW.
-        h.reachBack { _, log in
-            guard let failed = log.last("build_failed") else { return nil }
+        // HISTORY reaches back to the red streak's first failure, however
+        // long ago, while the build is red as of NOW, and when NOW is the
+        // pass that ended it; once the build passed before NOW, it's back
+        // to 10 min. It goes by NOW, not by the log's newest event: a
+        // call can start after newer events came.
+        h.reachBack { e, _, log in
+            guard let failed = log.last("build_failed", where: { $0.seq < e.seq }) else { return nil }
+            if log.last("build_passed", where: { $0.seq > failed.seq && $0.seq < e.seq }) != nil { return nil }
             return log.all("build_failed", since: log.last("build_passed") { $0.seq < failed.seq }).first?.at
         }
-        h.closing { now, log in
+        h.closing { _, now, log in
             guard tone.value(log) != "calm", let since = tone.since(log) else { return nil }
             return "Beacon has been \(tone.value(log)) for \(Beacon.span(now - since))."
         }
@@ -91,7 +99,7 @@ public final class Beacon {
         }
     }
 
-    /// Beacon's tone, the kit's `Choice`: calm, worried or grim.
+    /// Beacon's tone, JHarness's `Choice`: calm, worried or grim.
     static func tone() -> Choice {
         Choice(name: "tone", start: "calm", question: "After NOW, how does Beacon feel?",
                judgeBy: "the TONE section, its reason to leave",
@@ -115,7 +123,7 @@ public final class Beacon {
 
 /// The light, as far as Beacon's brain needs it: what it was asked to play,
 /// each with the handle to end once it has. A real one would send `do`
-/// over the device link (piece C); this one keeps them until `finish`.
+/// to the device over its link; this one keeps them until `finish`.
 public final class Light: @unchecked Sendable {
     public private(set) var played: [(name: String, args: [String: String])] = []
     var ends: [Pending] = []
@@ -130,7 +138,7 @@ public final class Light: @unchecked Sendable {
     /// Whether something the brain asked for is still playing.
     public var playing: Bool { !ends.isEmpty }
 
-    /// Everything playing ends, as the light would say. On the kit's queue.
+    /// Everything playing ends, as the light would say. On the harness's queue.
     public func finish(_ end: Pending.End = .done) {
         let now = ends
         ends = []

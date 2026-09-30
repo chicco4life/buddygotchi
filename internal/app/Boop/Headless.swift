@@ -1,6 +1,7 @@
 import AgentHooks
 import BoopKit
 import Foundation
+import JHarness
 import os
 
 /// `Boop --headless`: the whole runtime with isolated state, no UI and no

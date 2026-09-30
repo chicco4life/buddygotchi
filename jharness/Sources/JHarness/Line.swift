@@ -1,8 +1,8 @@
 import Foundation
 
-/// What a transform makes of an event (kit/BRAIN-KIT.md §3.1): its line in
+/// What a transform makes of an event (SPEC.md §3.1): its line in
 /// HISTORY and NOW, notes to go indented under it, and facts for your own
-/// logs and tools, which the kit hands to `onLine` and never shows or
+/// logs and tools, which the harness hands to `onLine` and never shows or
 /// stores.
 public struct Line: Equatable, Sendable, ExpressibleByStringInterpolation {
     public var text: String

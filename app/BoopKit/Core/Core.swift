@@ -1,5 +1,6 @@
 import AgentHooks
 import Foundation
+import JHarness
 
 /// The core (ARCHITECTURE.md §3.2): plain rules with no queue. It reads the
 /// session table agent-hooks keeps (`SessionTracker`, ADAPTERS.md §1) and

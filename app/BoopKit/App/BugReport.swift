@@ -1,4 +1,5 @@
 import Foundation
+import JHarness
 
 extension Runtime {
     /// Where `saveReport` puts its folders, in the state directory.

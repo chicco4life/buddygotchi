@@ -1,8 +1,9 @@
 import AgentHooks
 import Foundation
+import JHarness
 
-/// The way every input goes (harness/HARNESS.md §2): into the brain kit's
-/// harness (kit/BRAIN-KIT.md), which logs it and works out its line (the
+/// The way every input goes (harness/HARNESS.md §2): into JHarness's
+/// `Harness` (jharness/SPEC.md), which logs it and works out its line (the
 /// view's transforms), then the core's rules on it, all before the brain
 /// hears of it. An agent's event or a poke goes to the core, and what the
 /// core did by rule is logged after it. The runtime runs one on `home`;
@@ -10,7 +11,7 @@ import Foundation
 public final class Pipeline {
     public let core: Core
     public let view: TranscriptView
-    /// The brain kit's harness, which keeps the log: Boop's brain.
+    /// JHarness's `Harness`, which keeps the log: Boop's brain.
     public let harness: Harness
     /// The log: Boop's transcript (harness/HARNESS.md §5).
     public var transcript: Log { harness.log }
@@ -174,7 +175,7 @@ public final class Pipeline {
     }
 
     /// Reads the log's last day back, as a launch does: into the view (its
-    /// lines, kit/BRAIN-KIT.md §2.3) and the core, and returns how many
+    /// lines, jharness/SPEC.md §2.3) and the core, and returns how many
     /// events it read. A started action with no end can't end now (its
     /// handle went with the last launch), so it's ended as failed.
     @discardableResult
@@ -200,13 +201,11 @@ public final class Pipeline {
     }
 
     /// What was done about the event `seq` as HISTORY shows it
-    /// (kit/BRAIN-KIT.md §5.2): what's done or in progress, not what failed
-    /// or ended failed.
+    /// (jharness/SPEC.md §5.2, `LogView.shown`): what's done or in
+    /// progress, not what failed or ended failed.
     func shown(dids seq: Int, _ log: LogView) -> [ViewEvent.Did] {
         log.dids(for: seq).compactMap { d in
-            guard d["ok"]?.bool == true, let message = d["message"]?.string else { return nil }
-            if d["open"]?.bool == true, let end = log.ended(d.seq), end["outcome"]?.string != "done" { return nil }
-            return ViewEvent.Did(message: message, by: d["by"]?.string ?? "brain", seq: d.seq)
+            log.shown(d).map { ViewEvent.Did(message: $0.message, by: d["by"]?.string ?? "brain", seq: d.seq) }
         }
     }
 

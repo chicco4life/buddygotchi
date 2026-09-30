@@ -1,12 +1,13 @@
 import AgentHooks
 import Foundation
+import JHarness
 
-/// Boop's view of an event (harness/EVENTS.md §1): what the kit's event
-/// (kit/BRAIN-KIT.md §2.1) holds for Boop. An agent's hook, a poke, what
+/// Boop's view of an event (harness/EVENTS.md §1): what JHarness's event
+/// (jharness/SPEC.md §2.1) holds for Boop. An agent's hook, a poke, what
 /// you said, away and back, a heartbeat and "needs you" are each a type,
 /// and a type with a lifetime a phase: the event's `kind` is the two
 /// together (`tool_end`, `poke`). The source's own name for it, the
-/// session, subagent and working directory are in `data`. The kit's own
+/// session, subagent and working directory are in `data`. JHarness's own
 /// events (`did`, `ended`, `pass`) have no type.
 extension Event {
     /// Where it came from.
@@ -62,7 +63,7 @@ extension Event {
     /// Where it came from, for one of Boop's sources.
     public var from: Source? { Source(rawValue: source) }
 
-    /// Its type and phase, from its `kind`; nil for the kit's own events.
+    /// Its type and phase, from its `kind`; nil for JHarness's own events.
     public var type: Kind? { Event.split(kind).type }
     public var phase: Phase? { Event.split(kind).phase }
 
@@ -84,7 +85,8 @@ extension Event {
     /// The agent it came from, for an agent's event.
     public var agent: Agent? { Agent(rawValue: source) }
 
-    /// `turn end`, `poke`: its type and phase, or its kind for the kit's own.
+    /// `turn end`, `poke`: its type and phase, or its kind for JHarness's
+    /// own.
     public var name: String {
         type.map { t in [t.rawValue, phase?.rawValue].compactMap { $0 }.joined(separator: " ") } ?? kind
     }
@@ -109,7 +111,7 @@ extension Event {
     /// `value` as JSON, keys sorted: a string comes back quoted.
     static func json(_ value: Any) -> String { JSONLine.encode(value) }
 
-    /// A transcript line from before the brain kit (harness/EVENTS.md §2.2):
+    /// A transcript line from before JHarness (harness/EVENTS.md §2.2):
     /// `ts`, `type`, `phase`, `specific_type`, `session`, `subagent` and
     /// `cwd` at the top, and actions as a type of their own. Read so a
     /// launch just after the change picks up where the last one left.
@@ -128,7 +130,7 @@ extension Event {
                              kind: phase == "end" ? "needs_you_end" : "needs_you_start", data: data)
             }
             data["action"] = .string(specific)
-            if phase == "end" { return Event(seq: seq, at: ts, source: Event.kit, kind: Event.ended, data: data) }
+            if phase == "end" { return Event(seq: seq, at: ts, source: Event.harness, kind: Event.ended, data: data) }
             // A mood change said what it changed from and to only in its
             // message; the mood is its latest `to` now (DECISIONS.md §4).
             if specific == MoodAction.actionName, let message = data["message"]?.string,
@@ -140,7 +142,7 @@ extension Event {
                 }
             }
             if phase == "start" { data["open"] = true }
-            return Event(seq: seq, at: ts, source: Event.kit, kind: Event.did, data: data)
+            return Event(seq: seq, at: ts, source: Event.harness, kind: Event.did, data: data)
         }
         data["specific_type"] = .string(specific)
         for key in ["session", "subagent", "cwd"] {

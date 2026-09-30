@@ -1,10 +1,11 @@
 # Boop: the harness
 
-Updated 2026-09-30. How Boop's brain runs on the brain kit
-([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md)): what Boop registers on it, how
-an event becomes questions for Jev, how Jev's answers become something
-Boop does, and the transcript it all comes from. What the kit does in
-general is its spec's; this says what Boop adds and chooses. The events
+Updated 2026-09-30. How Boop's brain runs on JHarness, the generic
+multiple-choice harness in `jharness/`
+([its spec](../../jharness/SPEC.md)): what Boop registers on it, how an
+event becomes questions for Jev, how Jev's answers become something Boop
+does, and the transcript it all comes from. What JHarness does in general
+is its spec's; this says what Boop adds and chooses. The events
 and their lines are in [EVENTS.md](EVENTS.md), Boop's questions and
 actions in [DECISIONS.md](DECISIONS.md), and [EXAMPLE.md](EXAMPLE.md)
 follows one real pass through all of it.
@@ -14,14 +15,14 @@ follows one real pass through all of it.
 Boop has one brain, TypeSafe's **Jev** ([docs](https://docs.typesafe.ai/api)).
 Jev doesn't write text. It reads a plain-text state and answers
 multiple-choice questions, giving every option a probability, all in one
-request of about 0.2–0.3 s. The **harness** around it is the brain kit's
-`Harness` (`app/BrainKit/`), generic, with Boop's registrations on it:
+request of about 0.2–0.3 s. The **harness** around it is JHarness's
+`Harness`, generic, with Boop's registrations on it:
 
 | Boop registers | What | Where |
 | --- | --- | --- |
 | **Lines** ([EVENTS.md](EVENTS.md) §3–4) | A transform for each kind the brain hears of, its `wake`, and a hold: the view | `TranscriptView.register` |
 | **Rules** | The core's, run on each input before the brain hears of it; the mood's change passed to the device; a tap-cut reaction ended once the pokes stop | `Pipeline`, `Runtime` |
-| **Outputs** ([DECISIONS.md](DECISIONS.md)) | `mood`, the kit's `Choice`, then `react` | `Runtime.harness` |
+| **Outputs** ([DECISIONS.md](DECISIONS.md)) | `mood`, JHarness's `Choice`, then `react` | `Runtime.harness` |
 | **Sections** (§6) | The guide with how to read the rest, PERSONALITY, MOOD; the line that closes HISTORY; reaching back to the oldest working turn | `Runtime.harness` |
 | **Timed checks** | The heartbeats ([EVENTS.md](EVENTS.md) §4) | `TranscriptView.register` |
 | **The brain** (§7) | Jev, or none without a key | `Runtime.useBrain` |
@@ -32,27 +33,45 @@ screen's path: by the time the brain hears of an event, the core has
 already updated the look and "needs you". Every reaction, a finished
 turn's included, is the brain's.
 
+### 1.1 How Boop sits on top
+
+Nothing Boop-specific is in JHarness, and BoopKit imports it like any
+app would (`import JHarness`, the `jharness` package's product). What
+each of Boop's parts is on it:
+
+| Boop | On JHarness |
+| --- | --- |
+| Hooks, pokes, what you say, away and back | Events Boop emits: `kind` is the type and phase (`turn_end`, `tool_wait`, `poke`, `presence_start`), and `specific_type`, `session`, `subagent` and `cwd` are in `data` ([EVENTS.md](EVENTS.md) §2) |
+| The core (screen, "needs you", one-shots, the mic) | Rules: the pipeline hands the core every agent event and poke in the same batch, and the core records `did`s for its wiggle and opened threads, and `needs_you_start`/`needs_you_end` events of its own |
+| The view (`TranscriptView`) | Transforms for the kinds with lines, their wakes, and holds for the gates. The agent lines need each thread's turn history: a fold of the log (`TranscriptView.Fold`) that catches up to the event it's asked about, so its answer depends on the log alone |
+| Heartbeats | Timed checks. The working heartbeat's random wait is the view's own timer, reset when it sees a reaction start in the log |
+| Mood | A `Choice`, its options Boop's mood graph |
+| React | An output that returns `.started`, its handle finished by the moment schedule when the device's `ended` comes. A reaction your tap cut short is finished `done` once the pokes stop, so HISTORY shows it in progress while they go on |
+| Jev's state | Sections: the guide (with Boop's own "how to read" and words), PERSONALITY and MOOD; the closing line; reach-back to the oldest working turn |
+| `debug.jsonl`, the dashboard, `boopctl day` | `onLine` and `onPass`, and the log's own lines |
+| The transcript | JHarness's log, in `transcript/`; lines written before JHarness are still read (`Event.legacy`, the log's `decode`) |
+
 ## 2. Data flow
 
 Everything but the brain call runs on `home`, the runtime's one serial
-queue, which is the kit's. Every input takes the same way, the
-`Pipeline` (`app/BoopKit/App/Pipeline.swift`): in one of the kit's
-batches ([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md) §4), it's logged (an
+queue, which is JHarness's. Every input takes the same way, the
+`Pipeline` (`app/BoopKit/App/Pipeline.swift`): in one of JHarness's
+batches ([jharness/SPEC.md](../../jharness/SPEC.md) §4), it's logged (an
 agent's event without the thread name, app and mode its session already
-has, [EVENTS.md](EVENTS.md) §2), the kit works out its line, the core has
+has, [EVENTS.md](EVENTS.md) §2), JHarness works out its line, the core has
 it, and what the core did by rule is logged after it. Only then may the
 brain hear of it.
 
 ```
  agent hooks ─► adapters ─┐
  device pokes ────────────┤
- what you say (the mic) ──┼─► Pipeline: one batch ─► the kit's log ─► transcript/<day>.jsonl, debug.jsonl
+ what you say (the mic) ──┼─► Pipeline: one batch ─► JHarness's log ─► transcript/<day>.jsonl, debug.jsonl
  away and back (presence)─┘        │   each event's line (the view's transforms, EVENTS.md §3)
                                    ├─► Core ─► state ─► device link
                                    │     └─► did (wiggle, open_thread), needs_you_start/_end ─► the log
  heartbeats (the view's timed checks, on the tick) ─► the log
                                    ▼
-                    the kit's loop (kit/BRAIN-KIT.md §9): the brain free and there is one?
+                    JHarness's loop (jharness/SPEC.md §9): the brain free and there is one?
                       ├─ no ─► the event waits, by its wake, under 10 s old
                       ▼ yes: the next event, worked out from the log
                     its hold (EVENTS.md §6)? ─ yes ─► a `pass` with `held` ─► the next one
@@ -70,7 +89,7 @@ brain hear of it.
 
 What the picture leaves out:
 
-- **Which event goes next** is the kit's (kit/BRAIN-KIT.md §9), by each
+- **Which event goes next** is JHarness's (jharness/SPEC.md §9), by each
   kind's `wake` (`TranscriptView.wakes`): a finished turn 1 and what you
   said 2, the rest 0. So another agent's routine event can't take a
   finish's pass, and what you said goes ahead of the finishes waiting:
@@ -87,7 +106,7 @@ What the picture leaves out:
 - **A hold** ([EVENTS.md](EVENTS.md) §6) is asked when the event's turn
   comes: while something needs you only what you say may wake the
   brain, a tap that opened a thread doesn't, and a poke doesn't while
-  Boop is answering its run. The kit logs a `pass` with `held` and the
+  Boop is answering its run. JHarness logs a `pass` with `held` and the
   reason (`something needs you`, `Boop is answering these pokes`), and
   the brain isn't asked. The app log says `brain poke 0 ms → held: …`.
 - **The state and the questions are fixed when a pass starts,** so a mood
@@ -101,8 +120,8 @@ What the picture leaves out:
   of it (`onPass`) and writes its app log line and its `debug.jsonl`
   lines (§9), and whether Jev is failing (§7).
 - **A reaction that started something** reports its end later, on
-  `home`, as its `ended` (kit/BRAIN-KIT.md §5.3). The runtime's 1 s tick
-  ticks the pipeline, which ticks the kit: it ends any left open too long
+  `home`, as its `ended` (jharness/SPEC.md §5.3). The runtime's 1 s tick
+  ticks the pipeline, which ticks JHarness: it ends any left open too long
   (§5.1) and runs the heartbeats' checks.
 
 `harness.use(brain)` swaps the brain from the next pass on; the runtime
@@ -113,7 +132,7 @@ the brain.
 
 What the brain hears of an event is its **line**, which the view's
 transform for its kind works out once, from the log up to it
-(kit/BRAIN-KIT.md §3, [EVENTS.md](EVENTS.md) §3–4): the line, the notes
+(jharness/SPEC.md §3, [EVENTS.md](EVENTS.md) §3–4): the line, the notes
 under it (your prompt, the agent's last message), and facts for the logs
 and the evals. An event with no line (a tool call's start, a session
 starting) is logged and read by the lines after it, but never shown.
@@ -134,8 +153,8 @@ starting) is logged and read by the lines after it, but never shown.
 
 ## 4. Actions: the output contract
 
-An action is one of the kit's outputs (`app/BrainKit/Contracts.swift`,
-[kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md) §5):
+An action is one of JHarness's outputs (`jharness/Sources/JHarness/Contracts.swift`,
+[jharness/SPEC.md](../../jharness/SPEC.md) §5):
 
 ```swift
 protocol Action: AnyObject {
@@ -173,7 +192,7 @@ final class Pending {
 - A result becomes a `did` in the transcript ([EVENTS.md](EVENTS.md)
   §2), `for` the event, `by` `brain`; `nil` records nothing. The
   result's `facts`, for the tools, join the `did`'s data as they are
-  (the kit's own keys win a clash); the harness never reads them.
+  (JHarness's own keys win a clash); the harness never reads them.
 - A successful result's message becomes its line in HISTORY, indented
   under the event it answered. A failed one is logged but never shown
   to Jev, because Boop didn't do anything.
@@ -202,14 +221,14 @@ message. Adding one is writing those and registering it in
 | An agent's hook, as its adapter maps it | The pipeline, as it arrives, before the core has it |
 | A poke | The pipeline, before the core has it |
 | What you said on push-to-talk | The pipeline, once the mic is off and macOS has turned it into words |
-| A heartbeat | The kit's tick, when the view's check says one is due |
+| A heartbeat | JHarness's tick, when the view's check says one is due |
 | A rule's action (`wiggle`, `open_thread`) and "needs you" (`needs_you_start`, `needs_you_end`) | The core, as an effect of the event that caused it, logged right after that event |
-| A pass, an action's result, and a started one's end | The kit, as the pass ends, right after the action runs, and when the end reaches it or it's left open too long (below) |
-| The dashboard's forced passes and actions | The kit, `by` `dashboard`, for no event |
+| A pass, an action's result, and a started one's end | JHarness, as the pass ends, right after the action runs, and when the end reaches it or it's left open too long (below) |
+| The dashboard's forced passes and actions | JHarness, `by` `dashboard`, for no event |
 
 - **Append-only.** Each event gets the next `seq`, which counts on across
   days and launches, and is never changed.
-- **It's the brain kit's log** ([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md)
+- **It's JHarness's log** ([jharness/SPEC.md](../../jharness/SPEC.md)
   §2.3, `Transcript.log`). On disk, one file a day:
   `<state-dir>/transcript/<date>.jsonl` (`Transcript.folderName`), the
   day in Boop's time zone, each event its line, written as it's appended.
@@ -218,13 +237,13 @@ message. Adding one is writing those and registering it in
   ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2), so an app left running
   for weeks keeps no more. The last **24 hours** of events stay in
   memory (`Log.Options.keepMs`). A launch reads them back
-  (`Pipeline.readBack`): the kit works out every event's line in order,
+  (`Pipeline.readBack`): JHarness works out every event's line in order,
   and the core folds them, so turn numbers, failure runs, the sessions,
   a request still waiting and the mood carry on. A line that doesn't
   parse, such as one a crash cut short, is skipped (a file that ends
   mid-line is ended there first, so the next line written isn't glued to
   it; a cut inside a character spoils only that line), and `seq` goes on
-  from the newest file's last event. A line written before the brain kit
+  from the newest file's last event. A line written before JHarness
   is read as the event it would be now ([EVENTS.md](EVENTS.md) §2). A
   transcript with no folder (the evals, tests) is in memory only.
 - **A started action that was still in progress** when the last launch
@@ -235,7 +254,7 @@ message. Adding one is writing those and registering it in
   to Boop on push-to-talk are the only words in it
   ([EVENTS.md](EVENTS.md) §9).
 - **Started actions stay open** until their end is recorded: open, and
-  no `ended` for it yet, which the kit works out from the log. Only the
+  no `ended` for it yet, which JHarness works out from the log. Only the
   first end of each counts. One still open **90 s**
   (`ReactAction.openForMs`, react's `openFor`) after its result is ended
   as failed with `no word it finished`, on the tick, and the app log says
@@ -249,7 +268,7 @@ message. Adding one is writing those and registering it in
 
 ### 5.2 Passes
 
-Every pass is a `pass` event ([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md)
+Every pass is a `pass` event ([jharness/SPEC.md](../../jharness/SPEC.md)
 §2.2): `for` (the event it answered, or null for a forced one), `brain`
 (the brain it asked, or would have) or `by` (who forced it), `answers`
 (each question's `choice`, and `p`, every option's probability to three
@@ -259,13 +278,13 @@ asked about again. Debug mode's `pass` line has more (§9).
 
 ### 5.3 The text form
 
-The kit builds the state's HISTORY and NOW for each pass
-([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md) §7.2). It's a pure function of
+JHarness builds the state's HISTORY and NOW for each pass
+([jharness/SPEC.md](../../jharness/SPEC.md) §7.2). It's a pure function of
 the log, the sections and the clock, so a logged pass can be rebuilt
 exactly from the log up to its `seen` (§9): its state is the `head` line
 before it and its own `state`. An action's end recorded while Jev
 answered lands in the log before the pass line, but the state was built
-when the pass started, without it, and `seen` leaves it out. The kit
+when the pass started, without it, and `seen` leaves it out. JHarness
 places lines, notes and actions' messages and never writes them, apart
 from marking a started action's progress (step 3).
 
@@ -276,7 +295,7 @@ from marking a started action's progress (step 3).
    back, then at most the newest **40** (`historyLimit`), and any older
    one in that time whose started action is still in progress (step 3),
    so a pass sees what Boop is still doing however many events came
-   since. The kit ends a started action within a minute and a half
+   since. JHarness ends a started action within a minute and a half
    (§5.1), so few ever stay.
 3. **Under each** go its notes, then what Boop did: its `did` lines in
    order, rule actions and the brain's. A started one's message ends in
@@ -309,16 +328,16 @@ fresh for every pass since Jev keeps no session:
 | The guide (no heading) | Static, then generated | [steering/guide.md](../steering/guide.md), then how to read HISTORY and NOW (§6.1) |
 | `PERSONALITY` | Static, the one chosen in Settings | `plan/steering/personality/<name>.md` ([boop](../steering/personality/boop.md), [chatter](../steering/personality/chatter.md)) |
 | `MOOD` | Static, the current mood's | `plan/steering/mood/<mood>.md` ([calm](../steering/mood/calm.md), …, one for each of the 13 moods), the mood the log has at each pass |
-| `HISTORY (oldest first; indented lines add to the line above)` | Built by the kit | The lines, what Boop did, and the closing line (§5.3) |
-| `NOW (14:23, Tuesday)` | Built by the kit | The event this pass is for (§5.3) |
+| `HISTORY (oldest first; indented lines add to the line above)` | Built by JHarness | The lines, what Boop did, and the closing line (§5.3) |
+| `NOW (14:23, Tuesday)` | Built by JHarness | The event this pass is for (§5.3) |
 
 The guide and its generated part are joined by single line breaks; the
 other parts follow, each after a blank line. The first three are the
-kit's sections, which Boop registers in `Runtime.harness` (for the app
+JHarness's sections, which Boop registers in `Runtime.harness` (for the app
 and the evals alike) with the line that closes HISTORY, how far back it
 reaches (the view's oldest working turn) and NOW's heading, in Boop's
 time zone. Boop places its own "how to read" in the guide's section, so
-the kit's is off (`Harness.Options.reading`). The harness never reads
+JHarness's is off (`Harness.Options.reading`). The harness never reads
 any of them.
 
 **The steering files** are read once at launch from the app's bundled
@@ -332,7 +351,7 @@ file. What the files say is [DECISIONS.md](DECISIONS.md) §2.
 
 The guide ends with an explanation of the format, kept next to the code
 that builds it, so the two can't drift. The layout part is Boop's own
-words for the kit's layout (`EventLine.reading`); the words part is the
+words for JHarness's layout (`EventLine.reading`); the words part is the
 events' ([EVENTS.md](EVENTS.md) §8.1):
 
 ```
@@ -365,25 +384,19 @@ before prompts and last messages were quoted.
 
 ## 7. Asking Jev
 
-**The request** is one `POST` to `https://api.typesafe.ai/v1/systemone`
-with the state as one string and every action's questions, model
-`jev-latest` (`JevBrain`). Jev reads the state once and answers each
-question on its own against it, so no answer depends on another's
-([TypeSafe](https://docs.typesafe.ai/cookbooks/parallel_questions.md)).
-Each `Question` becomes a choice question named by its `key`, with its
-`text`, `about` and `judgeBy` as `instructions`, and each option's `what`
-as its criterion (with `not_for` when it has a `notFor`).
+**The request and the answer** are JHarness's `JevBrain`'s
+([jharness/SPEC.md](../../jharness/SPEC.md) §8): one request with the
+state and every action's questions, each answered on its own against
+the state, with one retry on a busy or failing server.
 [EXAMPLE.md](EXAMPLE.md) §5 shows one, built from a real pass.
 
-**The answer** has each question's `choice` and `probabilities`. Every
-question must be answered with one of its own options, or the whole
-answer is unusable.
-
-| Number | Value | Where |
-| --- | --- | --- |
-| Deadline for the whole pass | **1.5 s**, about five times Jev's usual time, with room for one retry and for a slower first answer on steering Jev hasn't seen. There's no warm-up pass. Its timer fires within 5 ms of it: the system's default leeway would let it fire up to 7% late | the kit's `Harness.Options.deadlineMs`, `deadlineLeewayMs` |
-| One retry, after | **300 ms**, on a 429, any 5xx, or a connection that failed (not one that timed out), unless the deadline would pass first | `JevBrain.retryAfterMs` |
-| The HTTP request's own timeout | 2 s (the deadline's whole seconds + 1); the deadline cuts it off first | `JevBrain.answer` |
+**The deadline** for the whole pass is JHarness's default, **1.5 s**
+(`Harness.Options.deadlineMs`), which Boop keeps: about five times Jev's
+usual time, with room for one retry and for a slower first answer on
+steering Jev hasn't seen. There's no warm-up pass. Its timer fires within
+5 ms of it (`deadlineLeewayMs`): the system's default leeway would let it
+fire up to 7% late. The HTTP request's own timeout, 2 s, is cut off by it
+first.
 
 **A dropped pass** runs no action, so Boop does only its rule
 reactions. The `pass` line's `dropped` says why:
@@ -391,10 +404,8 @@ reactions. The `pass` line's `dropped` says why:
 | `dropped` | When |
 | --- | --- |
 | `late: no answer within 1500 ms` | The deadline passed. The pass's `latency_ms` is then the deadline's, not the brain's, so the request goes on to its end (the HTTP timeout at most), off the pass, and the app log says when it came: `harness: jev:jev-latest answered after 1702 ms, too late for the turn_start pass`, with `: ` and why if it failed. Its answer is thrown away |
-| `jev: HTTP <status>` | Not 200, after the retry. Only the status is kept, since an error body may repeat the request |
-| `jev: can't reach the server` | The connection failed, after the retry (the Mac offline, say), so no server answered. It counts toward "Jev isn't answering" as any failure does |
-| `jev: no answers` | The body had no `answers` object |
-| `jev: no usable answer for <key>` | A question left out, or answered with an option it doesn't have |
+| `jev: HTTP <status>`, `jev: can't reach the server`, `jev: no answers`, `jev: no usable answer for <key>` | Jev failed, or its answer couldn't be used ([jharness/SPEC.md](../../jharness/SPEC.md) §8 says when each). Each counts toward "Jev isn't answering", the Mac offline included |
+| `question keys must be unique across outputs: <key> asked twice` | Two questions shared a key, so nothing was asked. Boop's seven keys are fixed and unique ([DECISIONS.md](DECISIONS.md) §3), so it never happens |
 | `cancelled`, or an error's own text | The pass's task was cancelled, or the request failed some other way |
 
 A pass held back when its event's turn came (`held`, §2) never asked Jev
@@ -410,10 +421,6 @@ slow answer doesn't. The next pass that runs clears it, and so does a new
 key. A pass that never asked Jev (one held back) doesn't count,
 and neither does one that asked it with the key before, which may end
 after a new key is saved or the key is cleared.
-
-When the body came back but couldn't be used, the app log gets its size,
-never its text: `harness: jev:jev-latest answered what couldn't be used
-(N bytes)`.
 
 **The key** comes from `BOOP_JEV_KEY`, else, in the menu-bar app only,
 the Keychain, which Boop reads through `/usr/bin/security`
@@ -458,7 +465,7 @@ or was held back, debug mode or not: `brain <type and phase> <ms> ms →
 <result>`, where `<result>` is the actions that returned something
 (`mood, react`, with ` (failed)` after a failed one), `nothing`,
 `dropped: <why>` or `held: <why>`. It never holds an action's message or
-the state. The kit also logs an event passed over for a newer one, a
+the state. JHarness also logs an event passed over for a newer one, a
 dropped or held pass, when the brain answered a pass it was late for
 (§7), an action that sat a pass out (§2), a slow action, an unusable
 answer's size, forced answers it left out, and a started action it ended
@@ -585,13 +592,13 @@ the lines alone:
 
 | Part | File | Job |
 | --- | --- | --- |
-| The kit | `app/BrainKit/` ([kit/BRAIN-KIT.md](../kit/BRAIN-KIT.md)) | The log, lines, rules, outputs, the prompt, the loop, the tick; `respond(to:)`, one event straight through for the evals |
-| Contracts | `app/BrainKit/Contracts.swift`, `app/BrainKit/Event.swift`, `app/BoopKit/Core/Event.swift` | `Action`, `Question`, `Option`, `Answer`, `ActionResult`, `Pending`, `JSONValue`; `Event`, and Boop's reading of it |
-| Transcript | `app/BoopKit/Harness/Transcript.swift` | The kit's log in the state directory, with the older lines read |
+| JHarness | `jharness/Sources/JHarness/` ([jharness/SPEC.md](../../jharness/SPEC.md)) | The log, lines, rules, outputs, the prompt, the loop, the tick; `respond(to:)`, one event straight through for the evals |
+| Contracts | `jharness/Sources/JHarness/Contracts.swift`, `jharness/Sources/JHarness/Event.swift`, `app/BoopKit/Core/Event.swift` | `Action`, `Question`, `Option`, `Answer`, `ActionResult`, `Pending`, `JSONValue`; `Event`, and Boop's reading of it |
+| Transcript | `app/BoopKit/Harness/Transcript.swift` | JHarness's log in the state directory, with the older lines read |
 | Pipeline | `app/BoopKit/App/Pipeline.swift` | Each input in one batch: logged, its line, the core's rules; the view events it made, for debug mode and tests |
-| The view | `app/BoopKit/Core/TranscriptView.swift` | Boop's lines, wakes, holds and heartbeats, registered on the kit ([EVENTS.md](EVENTS.md)) |
-| Steering | `app/BrainKit/Steering.swift`, `app/BoopKit/Harness/Steering.swift` | The kit's folder of Markdown; Boop's parts of it, read-only, and their budgets |
-| Brain | `app/BrainKit/Brain.swift`, `app/BrainKit/JevBrain.swift`, `app/BoopKit/Brains/` | The `Brain` protocol and `ScriptedBrain`, and Jev, in the kit; Jev's key and the pipeline check's scripted answers, Boop's |
+| The view | `app/BoopKit/Core/TranscriptView.swift` | Boop's lines, wakes, holds and heartbeats, registered on JHarness ([EVENTS.md](EVENTS.md)) |
+| Steering | `jharness/Sources/JHarness/Steering.swift`, `app/BoopKit/Harness/Steering.swift` | JHarness's folder of Markdown; Boop's parts of it, read-only, and their budgets |
+| Brain | `jharness/Sources/JHarness/Brain.swift`, `jharness/Sources/JHarness/JevBrain.swift`, `app/BoopKit/Brains/` | The `Brain` protocol and `ScriptedBrain`, and Jev, in JHarness; Jev's key and the pipeline check's scripted answers, Boop's |
 | Debug log | `app/BoopKit/Harness/DebugLog.swift` | The `debug.jsonl` lines in order (`Writer`), and printing them readably, an action's end by its name |
 | Wiring | `app/BoopKit/App/Runtime.swift` | Registers the outputs and sections (`Runtime.harness`), the mood's and the tap's rules, reads the key, takes dev lines, reads the transcript back, ticks the pipeline every second, and hears every pass (`passed`) |
 | Rule actions | `app/BoopKit/Core/Core.swift` | The wiggle, opened threads and "needs you" ([EVENTS.md](EVENTS.md) §2) |

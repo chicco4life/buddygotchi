@@ -1,4 +1,5 @@
 import Foundation
+import JHarness
 
 /// The `state` message: the whole picture the device draws (PROTOCOL.md §3).
 public struct StateSnapshot: Equatable, Sendable {

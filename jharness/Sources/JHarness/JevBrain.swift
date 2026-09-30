@@ -1,10 +1,10 @@
 import Foundation
 
-/// TypeSafe's Jev (https://docs.typesafe.ai/api), a brain (kit/BRAIN-KIT.md
-/// §8, harness/HARNESS.md §7 for the request): the state as one string and
-/// every output's questions as choice questions, in one request of about
-/// 0.2–0.3 s. Needs the person's API key. Only a failed request's HTTP status is logged,
-/// since an error body may repeat the request.
+/// TypeSafe's Jev (https://docs.typesafe.ai/api), a brain (SPEC.md §8):
+/// the state as one string and every output's questions as choice
+/// questions, in one request of about 0.2–0.3 s. Needs the person's API
+/// key. Only a failed request's HTTP status is logged, since an error body
+/// may repeat the request.
 public struct JevBrain: Brain {
     public let id = "jev:\(JevBrain.model)"
     static let model = "jev-latest"
@@ -60,7 +60,7 @@ public struct JevBrain: Brain {
         }
     }
 
-    /// The request (HARNESS.md §7): each `Question` becomes a choice question.
+    /// The request (SPEC.md §8): each `Question` becomes a choice question.
     static func body(model: String, state: String, questions: [Question]) -> Data {
         var qs: [String: Any] = [:]
         for q in questions {

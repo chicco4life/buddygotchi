@@ -1,4 +1,5 @@
 import Foundation
+import JHarness
 import XCTest
 @testable import BoopDevKit
 @testable import BoopKit

@@ -7,7 +7,8 @@ PIO := firmware/tools/pio.sh
 
 # The whole package in one `swift build`: the Mac app, boopdev and the
 # BoopTests runner, whose main is generated first; then agent-hooks' hook
-# client, agent-hook, which the app copies from next to it.
+# client, agent-hook, which the app copies from next to it, and JHarness'
+# tools, jharness-emit and beacon (jharness/README.md).
 # SWIFT_CHECK makes importing a target that isn't a declared dependency an
 # error, not a warning, so app/ can't reach internal/ code (internal/README.md).
 # `make -C internal test` runs this target, then the tests.
@@ -16,6 +17,8 @@ build:
 	python3 internal/app/tools/gen-test-runner.py
 	swift build $(SWIFT_CHECK)
 	swift build $(SWIFT_CHECK) --product agent-hook
+	swift build $(SWIFT_CHECK) --product jharness-emit
+	swift build $(SWIFT_CHECK) --product beacon
 
 # The Mac app, the agent-hook it copies from next to it and boopdev, without
 # the tests' generated runner, which is most of `build`'s time after a

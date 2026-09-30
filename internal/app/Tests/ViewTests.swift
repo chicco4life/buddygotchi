@@ -1,5 +1,6 @@
 import AgentHooks
 import Foundation
+import JHarness
 import XCTest
 @testable import BoopDevKit
 @testable import BoopKit
@@ -282,7 +283,7 @@ final class ViewTests: XCTestCase {
     /// progress while the pokes go on (3 s apart at most), so the barrage
     /// gets it once: the moment schedule holds it, and ends it as done once
     /// an event stops the pokes: anything but another poke of the run,
-    /// "needs you", or the kit's own events.
+    /// "needs you", or JHarness's own events.
     func testWhatStopsThePokes() {
         func stops(_ e: Event) -> Bool { TranscriptView.stopsThePokes(e, rig.pipeline.transcript.view(before: e)) }
         func last(_ type: Event.Kind) -> Event { rig.pipeline.transcript.events.last { $0.type == type }! }
@@ -299,7 +300,7 @@ final class ViewTests: XCTestCase {
         hook(.needsYou, tool: "Bash")
         XCTAssertFalse(stops(last(.needsYou)), "\"needs you\" is the rules', not something happening")
         let did = rig.pipeline.transcript.events.last { $0.kind == Event.did }!
-        XCTAssertFalse(stops(did), "nor are the kit's own events")
+        XCTAssertFalse(stops(did), "nor are JHarness's own events")
     }
 
     /// EVENTS.md §6: a poke doesn't wake the brain while the brain's

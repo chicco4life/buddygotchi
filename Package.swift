@@ -13,6 +13,9 @@ let testable: [SwiftSetting] = [.unsafeFlags(["-enable-testing"])]
 
 /// agent-hooks' library, which every Boop target that sees agents imports.
 let agentHooks: Target.Dependency = .product(name: "AgentHooks", package: "agent-hooks")
+/// JHarness's library, which every Boop target that touches the brain, its
+/// log or its events imports.
+let jharness: Target.Dependency = .product(name: "JHarness", package: "jharness")
 
 /// Everything in the repo except `kept` and the directories leading to them,
 /// for a target whose path is the repo root: SwiftPM warns about each file
@@ -38,20 +41,12 @@ func excludingAllBut(_ kept: [String]) -> [String] {
 }
 
 var packageTargets: [Target] = [
-    // The brain kit (plan/kit/BRAIN-KIT.md): the generic multiple-choice
-    // harness Boop's brain runs on. Foundation only, and it depends on
-    // nothing else here, so it can be open-sourced on its own.
-    .target(
-        name: "BrainKit",
-        path: "app/BrainKit",
-        swiftSettings: testable
-    ),
     // Everything that isn't the app shell: Adapters, Core, Harness, Brains,
     // Actions, Voice, Memory, DeviceLink, the hook installer (Install) and
     // the Runtime that wires them together (App) (plan/ARCHITECTURE.md §3).
     .target(
         name: "BoopKit",
-        dependencies: ["BrainKit", agentHooks],
+        dependencies: [jharness, agentHooks],
         path: "app/BoopKit",
         swiftSettings: testable
     ),
@@ -65,7 +60,7 @@ var packageTargets: [Target] = [
     // single source.
     .executableTarget(
         name: "Boop",
-        dependencies: ["BoopKit", agentHooks],
+        dependencies: ["BoopKit", agentHooks, jharness],
         path: ".",
         exclude: excludingAllBut(["app/Boop", "internal/app/Boop", "plan/steering"])
             + ["app/Boop/Info.plist"],
@@ -82,34 +77,15 @@ var packageTargets: [Target] = [
     // replay.
     .target(
         name: "BoopDevKit",
-        dependencies: ["BoopKit", agentHooks],
+        dependencies: ["BoopKit", agentHooks, jharness],
         path: "internal/app/BoopDevKit",
         swiftSettings: testable
-    ),
-    // The brain kit's second example, Beacon (plan/kit/BRAIN-KIT.md §11),
-    // and `beacon`, which runs it; `kit-emit`, which sends an event to a
-    // kit's socket.
-    .target(
-        name: "Beacon",
-        dependencies: ["BrainKit"],
-        path: "internal/examples/Beacon",
-        exclude: ["steering"]
-    ),
-    .executableTarget(
-        name: "BeaconDemo",
-        dependencies: ["Beacon", "BrainKit"],
-        path: "internal/examples/BeaconDemo"
-    ),
-    .executableTarget(
-        name: "KitEmit",
-        dependencies: ["BrainKit"],
-        path: "internal/app/KitEmit"
     ),
     // Developer CLI: the evals, reading debug logs, replay, voice lines
     // and the hook installer (hooks).
     .executableTarget(
         name: "BoopDev",
-        dependencies: ["BoopKit", "BoopDevKit", agentHooks],
+        dependencies: ["BoopKit", "BoopDevKit", agentHooks, jharness],
         path: "internal/app/BoopDev"
     ),
 ]
@@ -121,7 +97,7 @@ var packageTargets: [Target] = [
 packageTargets += [
     .executableTarget(
         name: "BoopTests",
-        dependencies: ["BrainKit", "BoopKit", "BoopDevKit", "Beacon", "XCTest", agentHooks],
+        dependencies: ["BoopKit", "BoopDevKit", "XCTest", agentHooks, jharness],
         path: "internal/app/Tests",
         exclude: ["Fixtures"],
         swiftSettings: [.define("BOOP_SHIM_RUNNER")]
@@ -138,12 +114,11 @@ let package = Package(
     products: [
         .executable(name: "Boop", targets: ["Boop"]),
         .executable(name: "boopdev", targets: ["BoopDev"]),
-        .executable(name: "beacon", targets: ["BeaconDemo"]),
-        .executable(name: "kit-emit", targets: ["KitEmit"]),
     ],
-    // The hook layer is its own package (agent-hooks/README.md): Boop
-    // depends on it, and it on nothing here. Its hook client, agent-hook,
-    // is built from it by name (`swift build --product agent-hook`).
-    dependencies: [.package(path: "agent-hooks")],
+    // The hook layer (agent-hooks/README.md) and the brain's harness
+    // (jharness/README.md) are packages of their own: Boop depends on them,
+    // and they on nothing here. Their tools, agent-hook, jharness-emit and
+    // beacon, are built from them by name (`swift build --product agent-hook`).
+    dependencies: [.package(path: "agent-hooks"), .package(path: "jharness")],
     targets: packageTargets
 )

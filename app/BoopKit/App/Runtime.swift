@@ -1,5 +1,6 @@
 import AgentHooks
 import Foundation
+import JHarness
 
 /// Everything the app runs, wired together (ARCHITECTURE.md §1): the hook
 /// socket feeds the adapters, and every event goes down the pipeline, into
@@ -138,9 +139,9 @@ public final class Runtime: @unchecked Sendable {
     let core: Core
     let view: TranscriptView
     let pipeline: Pipeline
-    /// The brain kit's harness: Boop's brain (kit/BRAIN-KIT.md).
+    /// JHarness's `Harness`: Boop's brain (jharness/SPEC.md).
     let harness: Harness
-    /// Boop's mood, the kit's `Choice` (harness/DECISIONS.md §4).
+    /// Boop's mood, JHarness's `Choice` (harness/DECISIONS.md §4).
     let mood: Choice
     /// Whether the brain has failed for long enough to say so
     /// (harness/HARNESS.md §7), and how many passes that asked it have
@@ -311,7 +312,7 @@ public final class Runtime: @unchecked Sendable {
         harness.onPass = { [weak self] pass in self?.passed(pass) }
     }
 
-    /// Boop's brain on the kit's harness (harness/HARNESS.md): its outputs
+    /// Boop's brain on JHarness's `Harness` (harness/HARNESS.md): its outputs
     /// (harness/DECISIONS.md), mood then react, and the sections of Jev's
     /// state (§6): the guide with how to read the rest, PERSONALITY and
     /// MOOD, then HISTORY, closed by how long Boop has been in its mood and
@@ -338,8 +339,8 @@ public final class Runtime: @unchecked Sendable {
         h.section { _ in steering.guide + "\n" + EventLine.reading + "\n" + EventLine.words }
         h.section { _ in steering.personality(personality()).text }
         h.section { log in steering.mood(MoodAction.value(mood, log)) }
-        h.closing { now, log in MoodAction.sinceLine(mood, log, at: now) }
-        h.reachBack { now, log in view.workingSince(at: now, log) }
+        h.closing { _, now, log in MoodAction.sinceLine(mood, log, at: now) }
+        h.reachBack { _, now, log in view.workingSince(at: now, log) }
         return (h, mood)
     }
 
@@ -902,4 +903,9 @@ public final class Runtime: @unchecked Sendable {
     public func refresh() {
         home.async { [self] in changed() }
     }
+}
+
+extension Duration {
+    /// In whole milliseconds.
+    var ms: Int { Int(components.seconds * 1000 + components.attoseconds / 1_000_000_000_000_000) }
 }

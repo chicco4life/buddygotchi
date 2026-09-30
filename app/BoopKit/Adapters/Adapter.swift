@@ -1,5 +1,6 @@
 import AgentHooks
 import Foundation
+import JHarness
 
 /// Boop's side of agent-hooks (ADAPTERS.md §1): a hook line becomes an
 /// `AgentEvent` there, and a raw event here, with the hook's name as

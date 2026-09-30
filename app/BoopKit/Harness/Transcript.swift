@@ -1,9 +1,10 @@
 import Foundation
+import JHarness
 
 /// Boop's record of what happened and what it did (harness/HARNESS.md
-/// §5): the kit's log (kit/BRAIN-KIT.md §2.3) in the state directory's
+/// §5): JHarness's log (jharness/SPEC.md §2.3) in the state directory's
 /// `transcript/`, one file a day, named for the day in Boop's time zone,
-/// with lines written before the brain kit still read (`Event.legacy`).
+/// with lines written before JHarness still read (`Event.legacy`).
 public enum Transcript {
     /// Days of files kept; older ones are deleted at launch and each new day.
     public static let keptDays = 14

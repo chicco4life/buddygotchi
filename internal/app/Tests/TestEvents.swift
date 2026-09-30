@@ -1,12 +1,12 @@
 import Foundation
+import JHarness
 @testable import BoopKit
-@testable import BrainKit
 
 /// When the harness tests start, in unix milliseconds.
 let harnessT0: Int64 = 1_790_000_000_000
 
-/// Actions as the tests name them: before the brain kit an action was an
-/// event of its own type, with a phase; now it's the kit's `did` (open
+/// Actions as the tests name them: before JHarness an action was an
+/// event of its own type, with a phase; now it's JHarness's `did` (open
 /// while it plays), its `ended`, or, for "needs you", Boop's own
 /// `needs_you_start` and `needs_you_end` (harness/EVENTS.md §2).
 extension Event {
@@ -16,16 +16,16 @@ extension Event {
         var data = data
         data["action"] = .string(name)
         switch phase {
-        case .end?: return Event(at: ts, source: Event.kit, kind: Event.ended, data: data)
+        case .end?: return Event(at: ts, source: Event.harness, kind: Event.ended, data: data)
         case .start?: data["open"] = true
         default: break
         }
-        return Event(at: ts, source: Event.kit, kind: Event.did, data: data)
+        return Event(at: ts, source: Event.harness, kind: Event.did, data: data)
     }
 
     /// `data` without Boop's own fields (`specific_type`, `session`,
-    /// `subagent`, `cwd`), which were at the top of an event before the
-    /// brain kit, and an action's name.
+    /// `subagent`, `cwd`), which were at the top of an event before
+    /// JHarness, and an action's name.
     var fields: [String: JSONValue] { data.filter { !Event.metaKeys.contains($0.key) && $0.key != "action" } }
 
     /// A `did`, an `ended` or "needs you": what was an action.

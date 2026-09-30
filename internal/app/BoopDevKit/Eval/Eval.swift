@@ -1,5 +1,6 @@
 import BoopKit
 import Foundation
+import JHarness
 
 /// The harness evals (plan/EVALS.md): scenarios of hook-level steps on a
 /// virtual clock, run through a fresh core, the real harness and the real
