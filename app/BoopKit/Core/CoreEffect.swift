@@ -14,7 +14,8 @@ public enum CoreEffect: Equatable, Sendable {
     /// idle session starts: only the popover and `debug.jsonl`'s `status`
     /// show it.
     case sessions
-    /// What the rules did, as an `action` event for the transcript
+    /// What the rules did, as a `did`, or "needs you" as
+    /// `needs_you_start` and `needs_you_end`, for the transcript
     /// (harness/EVENTS.md §2): recorded after the event that caused it.
     case record(Event)
     /// The first activity of a new day: the transcript deletes its files

@@ -10,10 +10,14 @@ Everything here is real: run 1 of the eval scenario `04-tests-fight-back`
 ([EVALS.md](../EVALS.md) §4) in a `boopdev eval --runs 1` against
 `jev:jev-latest` on 2026-09-29, with the two say questions, the whole
 voice bank ([VOICE.md](../VOICE.md) §3) and the steering of that day.
-Lines are copied from its log
-([the whole run](../evidence/2026-09-29-voice-sd/eval-04-debug.jsonl)),
-with probabilities rounded to two places and the state left out of the
-`pass` lines (`"state":"…"`).
+Its log is [the whole run](../evidence/2026-09-29-voice-sd/eval-04-debug.jsonl).
+The lines below are that run replayed through today's code (the brain
+kit, 2026-09-30) with Jev's recorded answers, so they're in today's
+shape and the passes' times are the replay's; the state is left out of
+the `pass` lines (`"state":"…"`). The story (§1, §7) is the recorded
+run's: replayed today, 14:05 says "Nn... Checking" and 14:07 "Heh...
+Test", since Voice's rules for a line of two takes changed after
+2026-09-29.
 
 The eval has no device, so its queue ends each reaction `done` at once
 ([EVALS.md](../EVALS.md) §1): every `react` action's start is followed
@@ -25,13 +29,13 @@ how the moment ended ([DECISIONS.md](DECISIONS.md) §5).
 A Wednesday afternoon. Claude works in the `fix-nav` worktree of
 `landing`. Boop starts calm.
 
-| Time | What happens | View event | Jev's answers | Boop |
+| Time | What happens | Event | Jev's answers | Boop |
 | --- | --- | --- | --- | --- |
 | 14:00 | A turn starts | 1 | calm · none | Stays quiet |
-| 14:01 | The tests fail | 2 | annoyed · annoyed, once · upset 1.00, tests 1.00, a sound | **Turns annoyed**, an annoyed face, held once: "Huh... Verify" |
-| 14:03 | They fail again | 3 | determined · determined, once · upset 0.99, tests 0.81, a sound | **Turns determined**, a determined face, held once: "Trouble Probe" |
-| 14:05 | A third time | 4 | determined · annoyed, once · upset 1.00, tests 0.72, a sound | An annoyed face, held once: "Nn..." |
-| 14:07 | They pass | 5 | proud · proud, twice · glad 1.00, tests 0.98, a sound | **Turns proud**, a proud face, held twice: "Heh..." |
+| 14:01 | The tests fail | 4 | annoyed · annoyed, once · upset 1.00, tests 1.00, a sound | **Turns annoyed**, an annoyed face, held once: "Huh... Verify" |
+| 14:03 | They fail again | 10 | determined · determined, once · upset 0.99, tests 0.81, a sound | **Turns determined**, a determined face, held once: "Trouble Probe" |
+| 14:05 | A third time | 16 | determined · annoyed, once · upset 1.00, tests 0.72, a sound | An annoyed face, held once: "Nn..." |
+| 14:07 | They pass | 21 | proud · proud, twice · glad 1.00, tests 0.98, a sound | **Turns proud**, a proud face, held twice: "Heh..." |
 
 The pass at 14:01 is shown in full (§2–§6), and the ones after it more
 briefly (§7). Each answer came back in 200–264 ms.
@@ -44,15 +48,15 @@ raw `tool` events ([ADAPTERS.md](../ADAPTERS.md) §1–3); the eval hands
 the pipeline the same events ([EVALS.md](../EVALS.md) §1). The end:
 
 ```json
-{"event":{"seq":3,"at":1791986460000,"source":"claude","kind":"tool_end","data":{"cwd":"/eval/landing/.worktrees/fix-nav","error":"exit_code","failed":true,"session":"s1","specific_type":"PostToolUseFailure","tool":"Bash","topic":"tests"}},"received_at_ms":1791986460000}
+{"event":{"seq":4,"at":1791986460000,"source":"claude","kind":"tool_end","data":{"cwd":"/eval/landing/.worktrees/fix-nav","error":"exit_code","failed":true,"session":"s1","specific_type":"PostToolUseFailure","tool":"Bash","topic":"tests"}},"received_at_ms":1791986460000}
 ```
 
-The view folds it into view event 2, with its line and facts. A failed
+The view gives it its line and facts, as the view event with its `seq`, 4. A failed
 check with a topic is notable and nothing needs you, so it wakes the
 brain ([EVENTS.md](EVENTS.md) §4, §8). No rule reacts to a tool's end:
 
 ```json
-{"view":{"facts":{"error":"exit_code","failed_before":0,"result":"failed","thread":{"agent":"claude","name":"fix-nav","project":"landing","session":"s1","turn":1,"workspace":"fix-nav"},"took":"short","took_ms":0,"tool":"shell","tool_name":"Bash","tool_use_id":null,"topic":"tests"},"from":[3],"id":2,"line":"claude's tests failed on \"fix-nav\" (landing).","notes":[],"phase":"end","type":"tool","wakes_brain":true},"received_at_ms":1791986460000}
+{"view":{"facts":{"error":"exit_code","failed_before":0,"result":"failed","thread":{"agent":"claude","name":"fix-nav","project":"landing","session":"s1","turn":1,"workspace":"fix-nav"},"took":"short","took_ms":0,"tool":"shell","tool_name":"Bash","tool_use_id":null,"topic":"tests"},"from":[4],"id":4,"line":"claude's tests failed on \"fix-nav\" (landing).","notes":[],"phase":"end","type":"tool","wakes_brain":true},"received_at_ms":1791986460000}
 ```
 
 (`took` is `short` because the eval sends a command's start and its
@@ -60,7 +64,7 @@ result at the same moment.)
 
 ## 3. The state (14:01)
 
-The harness builds the state for view event 2 ([HARNESS.md](HARNESS.md)
+The harness builds the state for event 4 ([HARNESS.md](HARNESS.md)
 §5.3, §6). The guide and PERSONALITY are the steering files as they are
 ([steering/guide.md](../steering/guide.md),
 [steering/personality/boop.md](../steering/personality/boop.md)), so
@@ -106,22 +110,24 @@ in the order the `pass` line lists them: `mood`, `react.mood`,
 
 ## 5. The answers (14:01)
 
-Jev answered in 200 ms:
+Jev answered in 200 ms (the replay's line says 0):
 
 ```json
-{"pass":{"answers":{"mood":{"choice":"annoyed","p":{"annoyed":0.97,"calm":0.03,"curious":0,"engaged":0,"excited":0,"happy":0,"sad":0,"wounded":0}},"react.animation":{"choice":"none","p":{"failure":0.12,"none":0.88,"reply":0,"success":0}},"react.loops":{"choice":"once","p":{"four times":0,"once":0.9,"three times":0.01,"twice":0.09}},"react.mood":{"choice":"annoyed","p":{"annoyed":0.98,"calm":0,"curious":0,"determined":0,"engaged":0,"excited":0,"grumpy":0,"happy":0,"irritated":0.02,"none":0,"proud":0,"sad":0,"whiny":0,"wounded":0}},"say.about":{"choice":"tests","p":{"answer":0,"command":0,"done":0,"helper back":0,"helpers":0,"looking":0,"none":0,"planning":0,"quiet":0,"retry":0,"start":0,"stopped":0,"tests":1,"tool":0,"waiting":0,"work":0}},"say.feeling":{"choice":"upset","p":{"glad":0,"none":0,"tickled":0,"upset":1}},"say.kind":{"choice":"sound","p":{"phrase":0,"sound":0.95,"swear":0.02,"word":0.03}}},"brain":"jev:jev-latest","dropped":null,"for":3,"latency_ms":200,"now":{"id":2,"line":"claude's tests failed on \"fix-nav\" (landing).","phase":"end","type":"tool"},"questions":["mood","react.mood","react.animation","react.loops","say.feeling","say.about","say.kind"],"seen":3,"state":"…"},"received_at_ms":1791986460000}
+{"pass":{"answers":{"mood":{"choice":"annoyed","p":{"annoyed":0.97,"calm":0.03,"curious":0,"engaged":0,"excited":0,"happy":0,"sad":0,"wounded":0}},"react.animation":{"choice":"none","p":{"failure":0.12,"none":0.88,"reply":0,"success":0}},"react.loops":{"choice":"once","p":{"four times":0,"once":0.9,"three times":0.01,"twice":0.09}},"react.mood":{"choice":"annoyed","p":{"annoyed":0.98,"calm":0,"curious":0,"determined":0,"engaged":0,"excited":0,"grumpy":0,"happy":0,"irritated":0.02,"none":0,"proud":0,"sad":0,"whiny":0,"wounded":0}},"say.about":{"choice":"tests","p":{"answer":0,"command":0,"done":0,"helper back":0,"helpers":0,"looking":0,"none":0,"planning":0,"quiet":0,"retry":0,"start":0,"stopped":0,"tests":1,"tool":0,"waiting":0,"work":0}},"say.feeling":{"choice":"upset","p":{"glad":0,"none":0,"tickled":0,"upset":1}},"say.kind":{"choice":"sound","p":{"phrase":0,"sound":0.95,"swear":0.02,"word":0.03}}},"brain":"jev:jev-latest","dropped":null,"for":4,"latency_ms":0,"now":{"id":4,"line":"claude's tests failed on \"fix-nav\" (landing).","phase":"end","type":"tool"},"options":{"mood":["calm","happy","curious","engaged","annoyed","excited","wounded","sad"],"react.animation":["none","success","failure","reply"],"react.loops":["once","twice","three times","four times"],"react.mood":["none","happy","excited","proud","curious","determined","grumpy","sad","calm","engaged","annoyed","irritated","whiny","wounded"],"say.about":["none","start","helpers","helper back","retry","work","tests","command","tool","looking","planning","done","answer","stopped","waiting","quiet","hello"],"say.feeling":["none","upset","glad","tickled"],"say.kind":["sound","word","phrase","swear"]},"questions":["mood","react.mood","react.animation","react.loops","say.feeling","say.about","say.kind"],"seen":4,"state":"…"},"received_at_ms":1791986460000}
 ```
 
 ## 6. From answers to Boop (14:01)
 
-The harness gave each action its own answers, in order
-([DECISIONS.md](DECISIONS.md) §4–5), and recorded what each did as a
-`did` (a started one's end as its `ended`, [EVENTS.md](EVENTS.md) §2):
+The harness logged the pass as an event, gave each action its own
+answers, in order ([DECISIONS.md](DECISIONS.md) §4–5), and recorded what
+each did as a `did` (a started one's end as its `ended`,
+[EVENTS.md](EVENTS.md) §2):
 
 ```jsonl
-{"event":{"seq":4,"at":1791986460000,"source":"self","kind":"did","data":{"action":"mood","by":"brain","for":3,"latency_ms":0,"message":"Boop's mood changed: calm → annoyed.","ok":true}},"received_at_ms":1791986460000}
-{"event":{"seq":5,"at":1791986460000,"source":"self","kind":"did","data":{"action":"react","by":"brain","for":3,"latency_ms":1,"message":"Boop made an annoyed face, held once, and said \"Huh... Verify\".","ok":true,"open":true}},"received_at_ms":1791986460000}
-{"event":{"seq":6,"at":1791986460000,"source":"self","kind":"ended","data":{"action":"react","by":"brain","for":5,"outcome":"done"}},"received_at_ms":1791986460000}
+{"event":{"seq":5,"at":1791986460000,"source":"self","kind":"pass","data":{"answers":{…},"brain":"jev:jev-latest","dropped":null,"for":4,"ms":0}},"received_at_ms":1791986460000}
+{"event":{"seq":6,"at":1791986460000,"source":"self","kind":"did","data":{"action":"mood","by":"brain","for":4,"from":"calm","latency_ms":0,"message":"Boop's mood changed: calm → annoyed.","ok":true,"to":"annoyed"}},"received_at_ms":1791986460000}
+{"event":{"seq":7,"at":1791986460000,"source":"self","kind":"did","data":{"action":"react","by":"brain","for":4,"latency_ms":0,"message":"Boop made an annoyed face, held once, and said \"Huh... Verify\".","ok":true,"open":true,"takes":["phase1.nonverbal.deflate.huh__annoyed__contained","phase1.word.test.verify__annoyed__contained"]}},"received_at_ms":1791986460000}
+{"event":{"seq":8,"at":1791986460000,"source":"self","kind":"ended","data":{"action":"react","by":"brain","for":7,"outcome":"done"}},"received_at_ms":1791986460000}
 ```
 
 1. **`mood` got** `annoyed`, one of calm's moves, so it saved it. From
@@ -177,7 +183,8 @@ claude's tests failed on "fix-nav" (landing).
 Boop did nothing on its own.
 ```
 
-The scenario ends at 14:07 with Boop proud. Twenty raw events went in,
-nine of Claude's (the turn's start, and four starts and four ends of a
-command) and eleven of Boop's actions, with five view events and five
-passes.
+The scenario ends at 14:07 with Boop proud. Replayed today, the
+transcript holds 25 events: nine of Claude's (the turn's start, and four
+starts and four ends of a command), five passes, seven of Boop's actions
+(three mood changes and four reactions) and the reactions' four ends,
+with five view events.

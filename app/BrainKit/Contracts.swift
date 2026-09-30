@@ -27,7 +27,9 @@ public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, Expressi
         switch self {
         case .string(let s): s
         case .int(let n): NSNumber(value: n)
-        case .double(let d): NSNumber(value: d)
+        // As a decimal of Swift's shortest form: `JSONSerialization` writes
+        // a double to 17 places, 0.97 as 0.96999999999999997.
+        case .double(let d): d.isFinite ? NSDecimalNumber(string: String(d)) : NSNull()
         case .bool(let b): b
         case .array(let a): a.map(\.foundation)
         case .object(let o): o.mapValues(\.foundation)

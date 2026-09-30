@@ -142,7 +142,8 @@ final class RuntimeTests: XCTestCase {
 
     /// harness/HARNESS.md §3–5: an event that wakes the brain gets a pass;
     /// the answers become a reaction on the device, and the mood action's
-    /// change reaches the mood file, the status, and the next pass's MOOD.
+    /// change reaches the transcript, the device's state, and the next
+    /// pass's MOOD.
     func testAPassMumblesAndChangesTheMood() throws {
         let transport = FakeTransport()
         let lines = DebugLines()
@@ -187,7 +188,7 @@ final class RuntimeTests: XCTestCase {
 
     /// harness/HARNESS.md §9: a bug report, debug mode or not, holds this
     /// launch's debug lines (the passes' states included), the log's end,
-    /// the settings and mood files, and the status in `about.json`.
+    /// the settings, and the status, the mood included, in `about.json`.
     func testABugReportKeepsEverythingOutsideDebugMode() throws {
         let transport = FakeTransport()
         let runtime = try Runtime(options(transport, brain: ScriptedBrain(id: "scripted", always: [

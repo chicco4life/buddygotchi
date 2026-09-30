@@ -67,15 +67,15 @@ public enum DebugLog {
         return line("pass", Event.json(pass), at: ms)
     }
 
+    /// Each question's choice and `p`, to three places, as the kit's `pass`
+    /// event has them.
     static func answers(_ answers: Answers) -> [String: Any] {
-        answers.mapValues { a in
-            ["choice": a.choice, "p": a.probabilities.mapValues { ($0 * 1000).rounded() / 1000 }] as [String: Any]
-        }
+        Harness.json(answers).foundation as? [String: Any] ?? [:]
     }
 
     /// The file's first line at every launch: every action's questions,
     /// which the dashboard builds its pickers from. A pass line names the
-    /// options it asked where they differ (`Harness.changedOptions`).
+    /// options it asked where they differ (`pass`'s `options`).
     public static func questions(_ actions: [any Action], log: LogView, at ms: Int64) -> String {
         line("questions", Event.json(actions.flatMap { action in
             action.questions(now: nil, log: log).map { q in

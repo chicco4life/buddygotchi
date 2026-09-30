@@ -2,7 +2,7 @@
 the app writes it, noticing when the app starts again,
 and keeping what the panes show: Boop now, and its three columns, the mood,
 the automatic reactions and the decided ones. It never reads boop.log or the
-mood file, and never parses an action's message for a fact."""
+transcript, and never parses an action's message for a fact."""
 from __future__ import annotations
 
 import json

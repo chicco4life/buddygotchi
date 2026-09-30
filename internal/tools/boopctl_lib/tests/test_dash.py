@@ -120,7 +120,7 @@ class FeedTests(unittest.TestCase):
         newest = board.newest_ms
         facts = dict(board.facts(newest + 10_000))
         self.assertEqual(facts["look"], "idle")
-        self.assertEqual(facts["mood"], "happy", "from the state line, never the mood file")
+        self.assertEqual(facts["mood"], "happy", "from the state line, never the transcript")
         self.assertEqual(facts["needs you"], "no")
         self.assertEqual(facts["sessions"], "0 working, 1 idle, 0 waiting", "from the status")
         self.assertEqual(facts["brain"], "scripted · 0 ms · dropped 0")

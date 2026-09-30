@@ -534,14 +534,16 @@ line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 | `{"dev":"presence","idle_ms":1800000}` | Headless only: the Mac's idle time the detector reads from the next tick on, in place of the real one, which headless never reads (0 until a line sets it). With `advance` it tests the idle away |
 | `{"dev":"report"}` | Saves a bug report, as the button does (below) |
 
-A forced pass that plays a finish, its action and the action's end,
-from a headless run with no device (`--link none`), so the reaction
-never played ([DECISIONS.md](DECISIONS.md) §5):
+A forced pass that plays a finish: the pass's event, its `pass` line,
+the action and the action's end, from a headless run with no device
+(`--link none`), so the reaction never played
+([DECISIONS.md](DECISIONS.md) §5):
 
 ```jsonl
-{"pass":{"answers":{"react.animation":{"choice":"success","p":{"success":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"react.mood":{"choice":"proud","p":{"proud":1}},"say.feeling":{"choice":"glad","p":{"glad":1}},"say.kind":{"choice":"phrase","p":{"phrase":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react.mood","react.animation","react.loops","say.feeling","say.kind"]},"received_at_ms":1790676534950}
-{"event":{"seq":1,"at":1790676534958,"source":"self","kind":"did","data":{"action":"react","by":"dashboard","for":null,"latency_ms":0,"message":"Boop played a success in a proud face, held twice, and said \"Smooth operator\".","ok":true,"open":true,"takes":["phase1.phrase.pride.smooth-operator__proud__contained"]}},"received_at_ms":1790676534958}
-{"event":{"seq":2,"at":1790676534958,"source":"self","kind":"ended","data":{"action":"react","by":"dashboard","for":1,"outcome":"failed","why":"no device connected"}},"received_at_ms":1790676534958}
+{"event":{"seq":1,"at":1790764089883,"source":"self","kind":"pass","data":{"answers":{"react.animation":{"choice":"success","p":{"success":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"react.mood":{"choice":"proud","p":{"proud":1}},"say.feeling":{"choice":"glad","p":{"glad":1}},"say.kind":{"choice":"phrase","p":{"phrase":1}}},"by":"dashboard","dropped":null,"for":null,"ms":0}},"received_at_ms":1790764089883}
+{"pass":{"answers":{"react.animation":{"choice":"success","p":{"success":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"react.mood":{"choice":"proud","p":{"proud":1}},"say.feeling":{"choice":"glad","p":{"glad":1}},"say.kind":{"choice":"phrase","p":{"phrase":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react.mood","react.animation","react.loops","say.feeling","say.kind"]},"received_at_ms":1790764089914}
+{"event":{"seq":2,"at":1790764089913,"source":"self","kind":"did","data":{"action":"react","by":"dashboard","for":null,"latency_ms":27,"message":"Boop played a success in a proud face, held twice, and said \"Smooth operator\".","ok":true,"open":true,"takes":["phase1.phrase.pride.smooth-operator__proud__contained"]}},"received_at_ms":1790764089913}
+{"event":{"seq":3,"at":1790764089913,"source":"self","kind":"ended","data":{"action":"react","by":"dashboard","for":2,"outcome":"failed","why":"no device connected"}},"received_at_ms":1790764089913}
 ```
 
 **A bug report.** The ladybug button in the popover's footer (⌘B)

@@ -164,7 +164,7 @@ def summarise(launches: list[Launch], date: str) -> Day:
     def clip(a: int, b: int) -> tuple[int, int]:
         return max(a, start), min(b, end)
 
-    mood = None  # carried across launches: the mood file outlives them
+    mood = None  # carried across launches: the mood outlives them, in the transcript
     for launch in launches:
         times = [line["received_at_ms"] for line in launch.lines]
         first, last = min(times), max(times)

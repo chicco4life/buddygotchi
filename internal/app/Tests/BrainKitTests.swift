@@ -30,6 +30,8 @@ final class BrainKitTests: XCTestCase {
         XCTAssertTrue(did.isKit)
         XCTAssertEqual(Event.ended(412, action: "play", by: "brain", failed: "no device").data,
                        ["for": 412, "action": "play", "by": "brain", "outcome": "failed", "why": "no device"])
+        XCTAssertEqual(JSONLine.encode(JSONValue.object(["p": 0.97, "q": 0.812]).foundation), #"{"p":0.97,"q":0.812}"#,
+                       "a fraction is written as short as it reads")
         try XCTAssertEqual(JSONValue(foundation: try JSONSerialization.jsonObject(with: Data("[0.81, 2, true]".utf8))) as JSONValue,
                        .array([.double(0.81), .int(2), .bool(true)]), "a fraction stays one")
     }

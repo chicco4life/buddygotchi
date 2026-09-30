@@ -64,8 +64,8 @@ class DayTests(unittest.TestCase):
 def entry(seq: int, at_min: int, view: dict | None = None, action: dict | None = None, settle: dict | None = None,
           **body) -> str:
     """A debug.jsonl line: a view event made by the raw event `seq`, an
-    action (a raw `action` event, its start if pending) or a started one's
-    end, or a pass or a `sent` line as given. An action's message is
+    action (the kit's `did`, open if pending) or a started one's `ended`,
+    or a pass or a `sent` line as given. An action's message is
     nonsense: the report must not read it."""
     base = 1_791_990_000_000  # any time; the report reads local hours
     at = base + at_min * 60_000

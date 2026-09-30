@@ -549,7 +549,9 @@ says otherwise, and holds one a tap cut short as the schedule does
 from a headless run with no device. With the board on USB (firmware
 `6a1cc990`), a forced proud reaction meaning delight, held twice: its
 moment, with the take Voice picked (proud's "Mwahaha", 2.43 s), its
-action, and the end the device's `ended` (`done`) brought 3.6 s later:
+action, and the end the device's `ended` (`done`) brought 3.6 s later
+(recorded 2026-09-28, before each pass was an event of its own: today
+the forced pass's `pass` event comes first, and these are `seq` 2 and 3):
 
 ```jsonl
 {"sent":{"t":"moment","say":{"take":"new.d20"},"mood":"proud","loops":2,"id":1588780972},"received_at_ms":1790659325407}
