@@ -38,8 +38,8 @@ public struct DeviceMoment: Equatable, Sendable {
         /// `then`, or `{}`.
         public var json: String {
             guard let first = takes.first else { return "{}" }
-            let then = takes.count > 1 ? ",\"then\":\(Event.quote(takes[1].id))" : ""
-            return "{\"take\":\(Event.quote(first.id))\(then)}"
+            let then = takes.count > 1 ? ",\"then\":\(Event.json(takes[1].id))" : ""
+            return "{\"take\":\(Event.json(first.id))\(then)}"
         }
 
         /// How long the line plays: its takes, and the gap between two.
@@ -144,14 +144,6 @@ public struct DeviceMoment: Equatable, Sendable {
         return d.variants.map { FaceLoops.voiceMs(mood: d.mood, state: d.state, variant: $0) }.max()!
     }
 
-    /// How long the device plays a tap (BEHAVIORS.md §3.3): `mood`'s poked
-    /// design, or tap_spam's from the `MomentSchedule.tapSpamFrom`-th tap
-    /// of a run (`run`, from 1) on, the longest of its variations, since
-    /// the device picks one.
-    public static func tapMs(mood: String, run: Int) -> Int64 {
-        DeviceMoment(anim: run >= MomentSchedule.tapSpamFrom ? "tap_spam" : "poked").playMs(look: "idle", mood: mood)
-    }
-
     /// How long its line plays, then 1.2 s for the bubble; 0 with none.
     public var sayMs: Int64 {
         guard let say, !say.takes.isEmpty else { return 0 }
@@ -172,10 +164,10 @@ public struct DeviceMoment: Equatable, Sendable {
         if let loops { parts.append("\"loops\":\(loops)") }
         if let variant { parts.append("\"variant\":\(variant)") }
         if let who {
-            parts.append("\"who\":{\"agent\":\(Event.quote(who.agent)),\"thread\":\(Event.quote(who.thread))}")
+            parts.append("\"who\":{\"agent\":\(Event.json(who.agent)),\"thread\":\(Event.json(who.thread))}")
         }
-        if let outcome { parts.append("\"outcome\":\(Event.quote(outcome))") }
-        if let ctx { parts.append("\"ctx\":\(Event.quote(ctx))") }
+        if let outcome { parts.append("\"outcome\":\(Event.json(outcome))") }
+        if let ctx { parts.append("\"ctx\":\(Event.json(ctx))") }
         if let id { parts.append("\"id\":\(id)") }
         return "{" + parts.joined(separator: ",") + "}"
     }

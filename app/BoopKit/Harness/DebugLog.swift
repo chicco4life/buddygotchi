@@ -3,7 +3,8 @@ import Foundation
 /// Debug mode's record of the brain (harness/HARNESS.md §9): in the state
 /// directory's `debug.jsonl`, every event the transcript records
 /// (`event`), every view event (`view`) and every pass with the state and
-/// questions it sent (`pass`), one JSON line each, and the same lines
+/// questions it sent (`pass`, with the state's unchanging head in a `head`
+/// line only when it changes), one JSON line each, and the same lines
 /// readably, for the terminal (`Boop --debug`) and `boopdev watch`. Three
 /// more kinds of line are for the dashboard: `questions`, `sent` and
 /// `status`.
@@ -26,16 +27,22 @@ public enum DebugLog {
     public static func event(_ e: Event) -> String { line("event", e.jsonLine, at: e.ts) }
 
     /// A view event, gated.
-    public static func view(_ v: ViewEvent) -> String { line("view", json(v.json), at: v.ts) }
+    public static func view(_ v: ViewEvent) -> String { line("view", Event.json(v.json), at: v.ts) }
+
+    /// The head of the state (the guide, PERSONALITY and MOOD), which the
+    /// passes after it share: written before a Jev pass whose head differs
+    /// from the last one written, so a pass line carries only HISTORY and
+    /// NOW.
+    public static func head(_ head: String, at ms: Int64) -> String { line("head", Event.json(head), at: ms) }
 
     /// A pass: what was asked and answered for a view event, with `extra`
-    /// (its state, questions, brain and the last event its state saw), or
-    /// the dashboard's forced answers.
+    /// (its state's HISTORY and NOW, questions, brain and the last event
+    /// its state saw), or the dashboard's forced answers.
     public static func pass(_ p: Harness.Pass, extra: [String: Any], at ms: Int64) -> String {
         var pass: [String: Any] = ["for": p.forSeq ?? NSNull(), "latency_ms": p.latencyMs, "dropped": p.dropped ?? NSNull(),
                                    "answers": answers(p.answers)]
         for (k, v) in extra { pass[k] = v }
-        return line("pass", json(pass), at: ms)
+        return line("pass", Event.json(pass), at: ms)
     }
 
     static func answers(_ answers: Answers) -> [String: Any] {
@@ -44,16 +51,11 @@ public enum DebugLog {
         }
     }
 
-    static func json(_ value: Any) -> String {
-        let data = (try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
-        return String(decoding: data, as: UTF8.self)
-    }
-
     /// The file's first line at every launch: every action's questions,
     /// which the dashboard builds its pickers from. A pass line names the
     /// options it asked where they differ (`Harness.changedOptions`).
     public static func questions(_ actions: [any Action], at ms: Int64) -> String {
-        line("questions", json(actions.flatMap { action in
+        line("questions", Event.json(actions.flatMap { action in
             action.questions().map { q in
                 ["action": action.name, "key": q.key, "text": q.text,
                  "options": q.options.map { ["name": $0.name, "what": $0.what, "not_for": $0.notFor ?? NSNull()] as [String: Any] }]
@@ -67,42 +69,68 @@ public enum DebugLog {
     /// mood). Nil when it's the same as `last`; the runtime writes only
     /// changes.
     public static func status(_ status: Runtime.Status, at ms: Int64, last: inout String?) -> String? {
-        let value = json(["personality": status.personality.rawValue, "brain": status.brain,
-                          "connected": status.connected,
-                          "sessions": status.sessions.map { ["agent": $0.agent, "project": $0.project, "status": $0.status.rawValue] }]
-                         as [String: Any])
+        let value = Event.json(["personality": status.personality.rawValue, "brain": status.brain,
+                                "connected": status.connected,
+                                "sessions": status.sessions.map { ["agent": $0.agent, "project": $0.project, "status": $0.status.rawValue] }]
+                               as [String: Any])
         guard value != last else { return nil }
         last = value
         return line("status", value, at: ms)
     }
 
-    /// This launch's debug lines kept in memory, debug mode or not, for a
-    /// bug report (§9): the oldest are let go past `maxBytes`. Touched only
-    /// on `home`.
+    /// This launch's debug lines kept in memory outside debug mode, for a
+    /// bug report (§9), back to back as their bytes: the oldest are let go
+    /// past `maxBytes`. Touched only on `home`.
     public final class Recent {
         /// About a busy day's worth: a pass's line, the biggest, is under 10 KB.
         public static let maxBytes = 8 << 20
 
-        var lines: [String] = []
-        var bytes = 0
+        /// The lines, each with its newline, the ones let go first. Its room
+        /// is taken once, for all it holds before it's compacted: memory
+        /// is used only as lines fill it, and growing it step by step left
+        /// each smaller buffer behind, dirty.
+        var text: [UInt8] = []
+        /// Where each line starts in `text`, and how many of them are let go.
+        var starts: [Int] = []
         var dropped = 0
+        /// The launch's `questions` line and the latest `head` line, once
+        /// let go: a report starts with them, so its passes read whole.
+        var questions: [UInt8]?
+        var head: [UInt8]?
 
-        public init() {}
-
-        public func add(_ line: String) {
-            lines.append(line)
-            bytes += line.utf8.count + 1
-            while bytes > Recent.maxBytes, lines.count - dropped > 1 {
-                bytes -= lines[dropped].utf8.count + 1
-                dropped += 1
-                // Compacted now and then, not on every drop.
-                if dropped > 1000 { lines.removeFirst(dropped); dropped = 0 }
-            }
+        public init() {
+            text.reserveCapacity(Recent.maxBytes / 8 * 9 + (16 << 10))
         }
 
-        /// The kept lines, oldest first.
-        public var kept: ArraySlice<String> { lines[dropped...] }
+        public func add(_ line: String) {
+            starts.append(text.count)
+            text += line.utf8
+            text.append(0x0A)
+            while text.count - starts[dropped] > Recent.maxBytes, starts.count - dropped > 1 {
+                let gone = text[starts[dropped]..<starts[dropped + 1]]
+                if gone.starts(with: DebugLog.questionsLine) { questions = Array(gone) }
+                if gone.starts(with: DebugLog.headLine) { head = Array(gone) }
+                dropped += 1
+            }
+            // Compacted now and then, not on every drop: what's let go is
+            // at most an eighth more.
+            guard starts[dropped] > Recent.maxBytes / 8 else { return }
+            let cut = starts[dropped]
+            text.removeFirst(cut)
+            starts = starts[dropped...].map { $0 - cut }
+            dropped = 0
+        }
+
+        /// The kept lines, oldest first, each ending in a newline.
+        public var bytes: ArraySlice<UInt8> { text[(starts.isEmpty ? 0 : starts[dropped])...] }
+
+        /// What a report writes, in order: the `questions` and `head` lines
+        /// let go, then the kept lines.
+        public var pieces: [ArraySlice<UInt8>] { [questions, head].compactMap { $0?[...] } + [bytes] }
     }
+
+    /// How a `questions` line and a `head` line start.
+    static let questionsLine = Array(#"{"questions":"#.utf8), headLine = Array(#"{"head":"#.utf8)
 
     /// How many earlier launches' files are kept beside the file, so a
     /// relaunch mid-day doesn't lose the morning (`boopctl day` reads them
@@ -140,9 +168,10 @@ public enum DebugLog {
     }
 
     /// Turns debug lines into readable text. The state is printed in full
-    /// for the first pass, then only its HISTORY and NOW, which are what
-    /// change. Of the raw events only actions are printed: the view says
-    /// the rest.
+    /// for the first pass (the latest `head` line's before it, with the
+    /// pass's HISTORY and NOW), then only its HISTORY and NOW, which are
+    /// what change. Of the raw events only actions are printed: the view
+    /// says the rest.
     ///
     ///     ▸ 12 tool end: claude's tests failed on "fix-nav" (landing).
     ///       pass jev:jev-latest 240 ms: mood grumpy 0.69 · react annoyed 0.63 · react.loops twice 0.58 · say.feeling upset 0.57 · say.about tests 0.74 · say.kind sound 0.81
@@ -151,15 +180,31 @@ public enum DebugLog {
     ///       ✓ react (15) done
     public final class Printer {
         var shownFullState = false
+        /// The latest `head` line's before the first pass, which prints it.
+        var head = ""
         /// Each started action's name by its `seq`, for its end's line.
         var names: [Int: String] = [:]
 
         public init() {}
 
-        /// Nil for a line it doesn't print: the dashboard's, and raw
-        /// events other than actions.
+        /// Takes lines without printing them, for `boopdev watch --new`,
+        /// which starts at the file's end: only the latest `head` line of
+        /// them counts, so the first pass still prints the head in force.
+        public func skip(_ lines: Data) {
+            guard let head = lines.split(separator: 0x0A).last(where: { $0.starts(with: DebugLog.headLine) }) else { return }
+            _ = readable(String(decoding: head, as: UTF8.self))
+        }
+
+        /// Nil for a line it doesn't print: the dashboard's, `head` (the
+        /// first pass prints the latest before it), and raw events other
+        /// than actions.
         public func readable(_ line: String) -> String? {
-            guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else { return line }
+            guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8), options: .fragmentsAllowed) as? [String: Any]
+            else { return line }
+            if let head = o["head"] as? String {
+                if !shownFullState { self.head = head }
+                return nil
+            }
             if let v = o["view"] as? [String: Any] {
                 let name = [v["type"] as? String ?? "?", v["phase"] as? String].compactMap { $0 }.joined(separator: " ")
                 var out = "▸ \(v["id"] as? Int ?? 0) \(name)\(v["wakes_brain"] as? Bool == true ? "" : " (no pass)"): "
@@ -181,7 +226,8 @@ public enum DebugLog {
                     }.joined(separator: " · ")
                 }
                 if let state = p["state"] as? String {
-                    let shown = shownFullState ? StateText.lastSections(state) : state
+                    // Older logs' passes carry the whole state.
+                    let shown = shownFullState ? StateText.split(state).last : head + state
                     shownFullState = true
                     out += "\n" + shown.split(separator: "\n", omittingEmptySubsequences: false).map { "    │ " + $0 }.joined(separator: "\n")
                 }
@@ -208,9 +254,11 @@ public enum DebugLog {
 }
 
 extension StateText {
-    /// HISTORY and NOW alone, for printing a state after the first.
-    static func lastSections(_ state: String) -> String {
-        guard let r = state.range(of: "HISTORY (") else { return state }
-        return String(state[r.lowerBound...])
+    /// The state's head (the guide, PERSONALITY and MOOD), which changes
+    /// only with the personality or the mood, and its HISTORY and NOW,
+    /// which `debug.jsonl` logs apart.
+    static func split(_ state: String) -> (head: String, last: String) {
+        guard let r = state.range(of: "HISTORY (") else { return ("", state) }
+        return (String(state[..<r.lowerBound]), String(state[r.lowerBound...]))
     }
 }

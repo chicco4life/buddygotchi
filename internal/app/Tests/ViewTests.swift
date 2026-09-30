@@ -148,8 +148,11 @@ final class ViewTests: XCTestCase {
         let failed = hook(.turnFailed, workspace: nil, error: "rate_limit").first
         XCTAssertEqual(failed?.line, #"claude finished turn 1 on "landing": failed, a short turn, no tool calls."#)
         XCTAssertEqual(failed?.facts["error"], "rate_limit")
+        XCTAssertEqual(failed?.passPriority, 1, "a finish keeps its pass while it waits (harness/HARNESS.md §2)")
         rig.wait(30_000)
-        XCTAssertEqual(hook(.turnStart, workspace: nil).first?.line, #"claude started turn 2 on "landing"."#)
+        let start = hook(.turnStart, workspace: nil).first
+        XCTAssertEqual(start?.line, #"claude started turn 2 on "landing"."#)
+        XCTAssertEqual(start?.passPriority, 0)
         rig.wait(90_000)
         let stopped = hook(.turnStopped, workspace: nil, tool: "Bash")
         XCTAssertEqual(stopped.first?.line, #"claude finished turn 2 on "landing": stopped, a long turn, no tool calls."#)
@@ -203,9 +206,24 @@ final class ViewTests: XCTestCase {
         XCTAssertFalse(events(rig.poke()).first!.wakesBrain, "no key, not even a poke")
     }
 
+    /// A thread silent for a day is let go at any session's next event, as
+    /// the core lets its session go, not only at its own: a session killed
+    /// without its `SessionEnd` doesn't stay in the view for good. One that
+    /// comes back starts again from turn 0.
+    func testASilentThreadIsLetGo() {
+        hook(.turnStart)
+        hook(.turnEnd)
+        rig.now += SessionFold.forgetMs
+        hook(.turnStart, session: "s2")
+        XCTAssertNil(rig.view.threads["claude/s1"])
+        XCTAssertNil(rig.core.sessions["claude/s1"])
+        XCTAssertEqual(hook(.turnStart).map(\.line), [#"claude started turn 1 on "fix-nav" (landing)."#])
+    }
+
     /// Pokes (EVENTS.md §4, BEHAVIORS.md §3.3): every one wakes the brain,
     /// counted in a row, and its wiggle goes under it.
     func testPokes() {
+        XCTAssertEqual(TranscriptView.inARowMs, 3000)
         let one = events(rig.poke())
         XCTAssertEqual(one.map(\.line), ["You poked Boop."])
         XCTAssertEqual(one.map(\.name), ["poke"])
@@ -237,6 +255,7 @@ final class ViewTests: XCTestCase {
         XCTAssertEqual(said.map(\.line), [#"You said to Boop: "are the tests passing yet?""#])
         XCTAssertEqual(said.map(\.name), ["talk"])
         XCTAssertTrue(said[0].wakesBrain)
+        XCTAssertEqual(said[0].passPriority, 2, "it goes ahead of a finish waiting (harness/HARNESS.md §2)")
         XCTAssertNil(said[0].about)
         XCTAssertEqual(said[0].facts["words"], "are the tests\npassing yet?")
         XCTAssertEqual(said[0].facts["by"], "device")
@@ -303,6 +322,7 @@ final class ViewTests: XCTestCase {
     /// the mood changed since it started. The first two pokes' reactions
     /// don't count, and a new run (3 s apart) wakes it.
     func testAPokeWaitsWhileItsRunIsBeingAnswered() {
+        XCTAssertEqual(TranscriptView.answersRunFrom, 3)
         func react(to poke: ViewEvent, _ name: String = "react", started: Bool = true) -> Int {
             rig.pipeline.record(Event(ts: rig.now, source: .boop, type: .action, phase: started ? .start : nil,
                                       specificType: name, data: ["for": .int(Int64(poke.seq)), "by": "brain", "ok": true,
@@ -358,6 +378,7 @@ final class ViewTests: XCTestCase {
     /// brings a heartbeat, and so does every hour after that. While a
     /// thread works, the working heartbeat comes instead.
     func testHeartbeats() {
+        XCTAssertEqual(TranscriptView.heartbeatMs, 60 * 60_000)
         let idle = { (views: [ViewEvent]) in views.filter { $0.type == .heartbeat && $0.facts["idle_hours"] != nil } }
         hook(.turnStart)
         rig.wait(50 * 60_000)
@@ -411,15 +432,205 @@ final class ViewTests: XCTestCase {
         try (String(contentsOf: file, encoding: .utf8) + #"{"seq":4,"ts":"#).write(to: file, atomically: true, encoding: .utf8)
 
         let second = pipeline()
-        let loaded = second.transcript.load(now: rig.now)
-        XCTAssertEqual(loaded.map(\.seq), [1, 2, 3], "the torn line is skipped")
+        var recorded: [Event] = []
+        second.onRecord = { recorded.append($0) }
+        XCTAssertEqual(second.readBack(now: rig.now), 3, "the torn line is skipped")
         XCTAssertFalse(FileManager.default.fileExists(atPath: old.path), "past 14 days")
-        second.replay(loaded, now: rig.now)
-        XCTAssertEqual(second.transcript.events.last?.data["why"], "Boop restarted")
-        XCTAssertEqual(second.transcript.events.last?.seq, 4, "seq goes on")
+        let restarted = try XCTUnwrap(recorded.last)
+        XCTAssertEqual(restarted.data["why"], "Boop restarted")
+        XCTAssertEqual(restarted.seq, 4, "seq goes on")
+        XCTAssertEqual(second.transcript.lastSeq, 4)
+        XCTAssertEqual(second.transcript.events, [], "a transcript with a folder keeps none in memory")
         XCTAssertEqual(second.view.events.first?.did, [], "a reaction that can't end now isn't shown")
         rig.wait(1000)
         let next = second.agent(rig.event(.turnStart)).views
         XCTAssertEqual(next.map(\.line), [#"claude started turn 2 on "landing"."#])
+        let third = pipeline()
+        XCTAssertEqual(third.readBack(now: rig.now), 5, "the torn line was ended, so the next launch's aren't glued to it")
+    }
+
+    /// HARNESS.md §5: a write a full disk cut short inside a multi-byte
+    /// character loses only its own line. The rest of the day is read,
+    /// `seq` goes on from it, and the torn line is ended.
+    func testATearInsideACharacterLosesOnlyItsLine() throws {
+        let dir = tempDir("boop-tr")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let written = Transcript(folder: dir, time: rig.time)
+        written.append(rig.event(.turnStart, prompt: "a café"))
+        written.append(rig.event(.turnEnd))
+        var torn = rig.event(.turnStart, prompt: "un café")
+        torn.seq = 3
+        let whole = Data(torn.jsonLine.utf8)
+        let cut = try XCTUnwrap(whole.firstIndex(of: 0xC3), "é is two bytes")
+        let file = try XCTUnwrap(written.file(for: rig.now))
+        let handle = try FileHandle(forWritingTo: file)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: whole[...cut])
+        try handle.close()
+
+        let read = Transcript(folder: dir, time: rig.time)
+        var seqs: [Int] = []
+        XCTAssertEqual(read.load(now: rig.now) { seqs.append($0.seq) }, 2)
+        XCTAssertEqual(seqs, [1, 2])
+        XCTAssertEqual(read.lastSeq, 2, "seq goes on from the day's file")
+        try XCTAssertEqual(try Data(contentsOf: file).last, 0x0A, "the torn line is ended")
+        XCTAssertEqual(read.append(rig.event(.turnEnd)).seq, 3)
+        XCTAssertEqual(Transcript(folder: dir, time: rig.time).load(now: rig.now) { _ in }, 3)
+    }
+
+    /// A relaunch folds the transcript into the core too (ARCHITECTURE.md
+    /// §6): a request still waiting shows again, and isn't recorded as
+    /// starting twice; its end is recorded, so the view hears it, and so
+    /// is that of a Codex request a tick let through its grace; a turn
+    /// still going works, so Boop doesn't sleep while the brain hears
+    /// it's working.
+    func testARelaunchPicksTheSessionsUp() throws {
+        let dir = tempDir("boop-tr")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let time = rig.time
+        rig = CoreRig()
+        func pipeline() -> Pipeline {
+            Pipeline(core: Core(config: .init(time: time), lastActiveDay: time.day(rig.now)),
+                     transcript: Transcript(folder: dir, time: time), view: TranscriptView())
+        }
+        func needs(_ step: Pipeline.Step) -> [Event] { step.recorded.filter { $0.specificType == Core.needsYou } }
+        let first = pipeline()
+        first.agent(rig.event(.turnStart, session: "s2"))
+        first.agent(rig.event(.turnStart, .codex, session: "c1"))
+        first.agent(rig.event(.needsYou, .codex, session: "c1", tool: "shell"))
+        rig.now += 1000
+        first.agent(rig.event(.turnStart))
+        first.agent(rig.event(.activity, tool: "Bash", id: "t1"))
+        first.agent(rig.event(.needsYou, tool: "Bash"))
+        rig.now += 2000
+        XCTAssertEqual(needs(first.tick(at: rig.now)).map(\.phase), [.start], "Codex's, past its grace")
+        XCTAssertEqual(first.core.snapshot(at: rig.now).attn?.more, 1)
+
+        // Codex's request has had 10 silent minutes, and Claude's not quite.
+        rig.now += SessionFold.safetyNetMs - 2500
+        let second = pipeline()
+        second.readBack(now: rig.now)
+        let relaunched = needs(second.tick(at: rig.now))
+        XCTAssertEqual(relaunched.map(\.phase), [.end], "Codex's request ends, and no request starts again")
+        XCTAssertEqual(relaunched.first?.data["why"], "nothing for 10 minutes")
+        XCTAssertEqual(second.view.threads["codex/c1"]?.waiting, false)
+        let shown = second.core.snapshot(at: rig.now)
+        XCTAssertEqual(shown.attn?.agent, "claude", "its request still waits")
+        XCTAssertEqual(shown.busy, 1, "s2 still works")
+        let answered = second.agent(rig.event(.activity, tool: "Bash", id: "t1", done: true))
+        XCTAssertEqual(needs(answered).map(\.phase), [.end])
+        XCTAssertEqual(second.view.threads["claude/s1"]?.waiting, false, "the view hears it end")
+        XCTAssertEqual(second.core.snapshot(at: rig.now).busy, 2, "s1 works again")
+        XCTAssertNotNil(second.view.workingSince(at: rig.now))
+    }
+
+    /// A relaunch takes which requests were shown from the transcript's
+    /// `needs_you` records, not from folding the sessions again with this
+    /// launch's rules (ARCHITECTURE.md §3.2): where the two disagree, the
+    /// first publish records what's missing, so the core and the view
+    /// agree. Here a launch whose core started empty, as every launch's
+    /// did before 2026-09-29, never recorded the end of a request
+    /// answered after it; before, no launch ever did, and the view kept
+    /// the thread waiting until its next request.
+    func testARelaunchTakesTheRequestsShownFromTheTranscript() throws {
+        let dir = tempDir("boop-tr")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let time = rig.time
+        rig = CoreRig()
+        func pipeline() -> Pipeline {
+            Pipeline(core: Core(config: .init(time: time), lastActiveDay: time.day(rig.now)),
+                     transcript: Transcript(folder: dir, time: time), view: TranscriptView())
+        }
+        func needs(_ step: Pipeline.Step) -> [Event] { step.recorded.filter { $0.specificType == Core.needsYou } }
+        let first = pipeline()
+        first.agent(rig.event(.turnStart))
+        first.agent(rig.event(.activity, tool: "Bash", id: "t1"))
+        XCTAssertEqual(needs(first.agent(rig.event(.needsYou, tool: "Bash"))).map(\.phase), [.start])
+        rig.now += 1000
+        let emptyCore = pipeline()  // no read-back
+        XCTAssertEqual(needs(emptyCore.agent(rig.event(.activity, tool: "Bash", id: "t1", done: true))), [])
+        rig.now += 1000
+        let third = pipeline()
+        third.readBack(now: rig.now)
+        XCTAssertEqual(third.view.threads["claude/s1"]?.waiting, true, "no end in the transcript")
+        let ended = needs(third.tick(at: rig.now))
+        XCTAssertEqual(ended.map(\.phase), [.end])
+        XCTAssertEqual(ended.first?.data["outcome"], "done")
+        XCTAssertEqual(third.view.threads["claude/s1"]?.waiting, false, "the view hears it end")
+        XCTAssertNil(third.core.snapshot(at: rig.now).attn)
+    }
+
+    /// ARCHITECTURE.md §3.2, harness/EVENTS.md §2: a request the read-back
+    /// clears, which the transcript never ended, is ended by the first
+    /// publish with why it cleared. Here the safety net, at another
+    /// session's event that a launch whose core started empty recorded
+    /// 10 minutes on. Before, the read-back let go of why, and the end
+    /// said the request was answered: `done`.
+    func testARequestTheReadBackClearsEndsWithWhy() throws {
+        let dir = tempDir("boop-tr")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let time = rig.time
+        rig = CoreRig()
+        func pipeline() -> Pipeline {
+            Pipeline(core: Core(config: .init(time: time), lastActiveDay: time.day(rig.now)),
+                     transcript: Transcript(folder: dir, time: time), view: TranscriptView())
+        }
+        func needs(_ step: Pipeline.Step) -> [Event] { step.recorded.filter { $0.specificType == Core.needsYou } }
+        let first = pipeline()
+        first.agent(rig.event(.turnStart))
+        first.agent(rig.event(.activity, tool: "Bash", id: "t1"))
+        XCTAssertEqual(needs(first.agent(rig.event(.needsYou, tool: "Bash"))).map(\.phase), [.start])
+        rig.now += SessionFold.safetyNetMs + 1000
+        let emptyCore = pipeline()  // no read-back
+        XCTAssertEqual(needs(emptyCore.agent(rig.event(.turnStart, session: "s2"))), [])
+        rig.now += 1000
+        let third = pipeline()
+        third.readBack(now: rig.now)
+        let ended = needs(third.tick(at: rig.now))
+        XCTAssertEqual(ended.map(\.phase), [.end])
+        XCTAssertEqual(ended.first?.data["outcome"], "failed")
+        XCTAssertEqual(ended.first?.data["why"], "nothing for 10 minutes")
+        XCTAssertEqual(third.view.threads["claude/s1"]?.waiting, false, "the view hears it end")
+    }
+
+    /// harness/EVENTS.md §2: a session's first event each day carries its
+    /// name, app, app session and mode again, so a relaunch, which reads
+    /// back only the last two days' files, still finds them. Here a long
+    /// thread in the Claude app that sent them first two days ago, and has
+    /// worked on since with gaps under a day, asks for you, and Boop
+    /// relaunches: a tap still opens the thread in its app. Before, every
+    /// line since the first left them out, so the relaunched core had
+    /// none, and the tap opened nowhere until the thread's next hook.
+    func testARelaunchDaysLaterStillKnowsWhereAThreadIs() throws {
+        let dir = tempDir("boop-tr")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let time = rig.time
+        rig = CoreRig()
+        func pipeline() -> Pipeline {
+            Pipeline(core: Core(config: .init(time: time), lastActiveDay: time.day(rig.now)),
+                     transcript: Transcript(folder: dir, time: time), view: TranscriptView())
+        }
+        let first = pipeline()
+        func hook(_ kind: Hook, tool: String? = nil, done: Bool? = nil) {
+            var e = rig.event(kind, tool: tool, done: done, mode: "default", app: "com.anthropic.claudefordesktop",
+                              appSession: "local_s1")
+            e.data["name"] = "Fix the nav"
+            first.agent(e)
+        }
+        hook(.turnStart)  // day D, 14:00
+        for _ in 0..<2 {  // D+1, 02:00 and 14:00
+            rig.now += 12 * 3600 * 1000
+            hook(.activity, tool: "Bash", done: true)
+        }
+        rig.now += 12 * 3600 * 1000
+        hook(.needsYou, tool: "Bash")  // D+2, 02:00
+        let files = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        XCTAssertEqual(files.count, 3, "three days' files")
+        rig.now += 60_000
+        let second = pipeline()
+        second.readBack(now: rig.now)
+        XCTAssertEqual(second.core.sessions["claude/s1"]?.name, "Fix the nav")
+        XCTAssertEqual(opened(Fx(second.poke(at: rig.now))),
+                       [ThreadRef(agent: "claude", session: "s1", app: "com.anthropic.claudefordesktop", appSession: "local_s1")])
     }
 }

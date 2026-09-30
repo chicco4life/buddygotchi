@@ -1,7 +1,7 @@
 import Foundation
 
-/// API keys for the brains that need one (HARNESS.md §7), kept in the login
-/// Keychain and nowhere else. One entry per service.
+/// Jev's API key (HARNESS.md §7), kept in the login Keychain and nowhere
+/// else.
 ///
 /// Boop reads and writes the entry through Apple's `/usr/bin/security`, not
 /// the Security framework. The Keychain ties an entry to the program that
@@ -12,14 +12,11 @@ import Foundation
 /// (ARCHITECTURE.md §11). Both calls can block while macOS asks for access,
 /// so they never run on the main thread or on the runtime's `home` queue.
 public enum Keychain {
-    public enum Account: String, Sendable {
-        case jev
-    }
-
     static let service = "com.boopcomputer.boop"
+    static let account = "jev"
 
-    public static func key(_ account: Account, security: SecurityTool = .system) -> String? {
-        let found = security.run(["find-generic-password", "-s", service, "-a", account.rawValue, "-w"], nil)
+    public static func jevKey(security: SecurityTool = .system) -> String? {
+        let found = security.run(["find-generic-password", "-s", service, "-a", account, "-w"], nil)
         guard found.status == 0 else { return nil }
         let key = found.output.trimmingCharacters(in: .newlines)
         return key.isEmpty ? nil : key
@@ -29,13 +26,13 @@ public enum Keychain {
     /// reaches `security` hex-encoded on its stdin, never in its arguments,
     /// which any process can see. True when the Keychain now holds `key`.
     @discardableResult
-    public static func setKey(_ key: String?, for account: Account, security: SecurityTool = .system) -> Bool {
-        _ = security.run(["delete-generic-password", "-s", service, "-a", account.rawValue], nil)
+    public static func setJevKey(_ key: String?, security: SecurityTool = .system) -> Bool {
+        _ = security.run(["delete-generic-password", "-s", service, "-a", account], nil)
         guard let key, !key.isEmpty else { return true }
         let hex = key.utf8.map { String(format: "%02x", $0) }.joined()
-        _ = security.run(["-i"], "add-generic-password -s \(service) -a \(account.rawValue) -X \(hex)\n")
+        _ = security.run(["-i"], "add-generic-password -s \(service) -a \(account) -X \(hex)\n")
         // Read it back rather than trust the exit status of `security -i`.
-        return Self.key(account, security: security) == key
+        return jevKey(security: security) == key
     }
 }
 

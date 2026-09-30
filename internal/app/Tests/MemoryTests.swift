@@ -8,28 +8,27 @@ final class MemoryRig {
     var logs: [String] = []
     var store: MemoryStore!
 
-    init(setUp: Bool = true, day: String = "2026-10-14") throws {
+    init(setUp: Bool = true) throws {
         dir = tempDir("boop-memory")
         try reopen()
-        if setUp {
-            try store.setUp(name: "Pip", nature: .cheeky, seed: 0x7f3a, today: "2026-10-02")
-            store.startDay(day)
-        }
+        if setUp { try store.setUp(name: "Pip", nature: .cheeky, seed: 0x7f3a, today: "2026-10-02") }
     }
 
-    func reopen() throws {
-        store = try MemoryStore(directory: dir, log: { [weak self] in self?.logs.append($0) })
+    /// Opens the store as a launch on `today` would.
+    func reopen(today: String = "2026-10-14") throws {
+        store = try MemoryStore(directory: dir, today: today, log: { [weak self] in self?.logs.append($0) })
     }
 
     func file(_ name: String) -> String { (try? String(contentsOf: dir.appendingPathComponent(name), encoding: .utf8)) ?? "" }
 
-    /// Writes a file as a person editing it by hand would, with a later
-    /// modification time so the store notices.
+    /// The days `history/` has a folder for, oldest first.
+    func history() throws -> [String] {
+        try FileManager.default.contentsOfDirectory(atPath: dir.appendingPathComponent("history").path).sorted()
+    }
+
+    /// Writes a file as a person editing it by hand would.
     func edit(_ name: String, _ text: String) throws {
-        let url = dir.appendingPathComponent(name)
-        try Data(text.utf8).write(to: url)
-        let later = Date().addingTimeInterval(5)
-        try FileManager.default.setAttributes([.modificationDate: later], ofItemAtPath: url.path)
+        try Data(text.utf8).write(to: dir.appendingPathComponent(name))
     }
 
     deinit { try? FileManager.default.removeItem(at: dir) }
@@ -47,10 +46,9 @@ final class MemoryTests: XCTestCase {
     }
 
     /// Files from before 2026-09-27 have Temperament, Moments, About you and
-    /// Preferences in `long-term.md`, and Notes and Happened in
-    /// `short-term.md`; older ones a Growth section and a mood on the Today
-    /// line. They still load, and the store leaves them as they are until
-    /// it next writes.
+    /// Preferences in `long-term.md`, older ones a Growth section. They
+    /// still load, and the store leaves them as they are. The
+    /// `short-term.md` apps before 2026-09-30 kept is left alone, unread.
     func testFilesFromBeforeStillLoad() throws {
         let oldLongTerm = MemoryTests.sample + """
 
@@ -65,26 +63,29 @@ final class MemoryTests: XCTestCase {
 
             """
         try XCTAssertEqual(try LongTerm.parse(oldLongTerm), try LongTerm.parse(MemoryTests.sample))
-        let oldShortTerm = "## Today\n2026-10-14 · first seen 08:52 · mood: a bit frazzled\n\n## Notes\n- a note\n\n## Happened\n- 14:02 codex · landing · failed\n"
-        let st = try ShortTerm.parse(oldShortTerm)
-        XCTAssertEqual(st, ShortTerm(date: "2026-10-14"))
 
         let rig = try MemoryRig()
+        let oldShortTerm = "## Today\n2026-10-14\n"
         try rig.edit("long-term.md", oldLongTerm)
         try rig.edit("short-term.md", oldShortTerm)
         try rig.reopen()
         XCTAssertEqual(rig.store.longTerm?.name, "Pip")
-        XCTAssertEqual(rig.store.lastActiveDay, "2026-10-14")
         XCTAssertFalse(rig.logs.contains { $0.contains("didn't read") }, "\(rig.logs)")
         XCTAssertEqual(rig.file("long-term.md"), oldLongTerm)
+        XCTAssertEqual(rig.file("short-term.md"), oldShortTerm)
     }
 
     func testUnreadableFilesThrow() throws {
         try XCTAssertThrowsError(try LongTerm.parse("hello"))
         try XCTAssertThrowsError(try LongTerm.parse(MemoryTests.sample.replacingOccurrences(of: "seed: 7f3a", with: "seed: lots")))
         try XCTAssertThrowsError(try LongTerm.parse(MemoryTests.sample.replacingOccurrences(of: "nature: cheeky", with: "nature: grumpy")))
-        try XCTAssertThrowsError(try ShortTerm.parse("## Today\nyesterday\n"))
-        try XCTAssertThrowsError(try ShortTerm.parse("## Today\n2026-02-30 · first seen 08:00\n"))
+    }
+
+    func testOnlyARealDayIsADay() {
+        for day in ["2026-10-02", "2024-02-29", "2000-02-29", "2026-12-31"] { XCTAssertTrue(LocalTime.isDay(day), day) }
+        for day in ["2026-02-29", "1900-02-29", "2026-02-30", "2026-1-01", "2026-13-01", "2026-01-00", "2026/01/01", "+026-01-01"] {
+            XCTAssertFalse(LocalTime.isDay(day), day)
+        }
     }
 
     func testSetUpWritesLongTermAndASnapshot() throws {
@@ -92,7 +93,6 @@ final class MemoryTests: XCTestCase {
         XCTAssertEqual(rig.file("long-term.md"), MemoryTests.sample)
         XCTAssertTrue(rig.file("history/2026-10-02/long-term.md").contains("name: Pip"))
         try XCTAssertThrowsError(try rig.store.setUp(name: "Bo", nature: .sweet, seed: 1, today: "2026-10-14"))
-        XCTAssertEqual(rig.store.lastActiveDay, "2026-10-14")
         XCTAssertEqual(rig.store.longTerm!.seed, 0x7f3a)
     }
 
@@ -103,24 +103,47 @@ final class MemoryTests: XCTestCase {
         XCTAssertFalse(rig.store.isSetUp)
     }
 
-    func testANewDaySnapshotsAndStartsFresh() throws {
+    /// ARCHITECTURE.md §4: a hand edit is read at the next launch, and the
+    /// store leaves `long-term.md` as it is.
+    func testHandEditsAreReadAtLaunchAndKept() throws {
         let rig = try MemoryRig()
-        rig.store.startDay("2026-10-15")
-        XCTAssertEqual(rig.file("history/2026-10-14/short-term.md"), "## Today\n2026-10-14\n")
-        XCTAssertTrue(rig.file("history/2026-10-14/long-term.md").contains("name: Pip"))
-        XCTAssertEqual(rig.file("short-term.md"), "## Today\n2026-10-15\n")
-        XCTAssertEqual(rig.store.lastActiveDay, "2026-10-15")
+        let edited = MemoryTests.sample.replacingOccurrences(of: "name: Pip", with: "name: Pippa")
+        try rig.edit("long-term.md", edited)
+        try rig.reopen()
+        XCTAssertEqual(rig.store.longTerm?.name, "Pippa")
+        XCTAssertEqual(rig.file("long-term.md"), edited)
     }
 
-    func testHandEditsAreReadAgain() throws {
+    /// ARCHITECTURE.md §4.3: a launch copies a hand edit that reads to
+    /// `history/<today>/`, once, so a later break brings the edit back,
+    /// not setup's name. With the Mac's clock behind the newest copy, the
+    /// edit replaces it, so it's still the newest.
+    func testAHandEditIsCopiedForARestore() throws {
         let rig = try MemoryRig()
-        try rig.edit("long-term.md", MemoryTests.sample.replacingOccurrences(of: "name: Pip", with: "name: Pippa"))
+        try rig.reopen()
+        try XCTAssertEqual(rig.history(), ["2026-10-02"], "setup's copy is the file")
+        let pippa = MemoryTests.sample.replacingOccurrences(of: "name: Pip", with: "name: Pippa")
+        try rig.edit("long-term.md", pippa)
+        try rig.reopen()
+        XCTAssertEqual(rig.file("history/2026-10-14/long-term.md"), pippa)
+        try rig.reopen(today: "2026-10-15")
+        try XCTAssertEqual(rig.history(), ["2026-10-02", "2026-10-14"], "the same again isn't copied")
+        try rig.edit("long-term.md", "garbage")
+        try rig.reopen(today: "2026-10-16")
         XCTAssertEqual(rig.store.longTerm?.name, "Pippa")
+        XCTAssertEqual(rig.file("long-term.md"), pippa)
+
+        let bo = MemoryTests.sample.replacingOccurrences(of: "name: Pip", with: "name: Bo")
+        try rig.edit("long-term.md", bo)
+        try rig.reopen(today: "2026-10-01")
+        try XCTAssertEqual(rig.history(), ["2026-10-02", "2026-10-14"])
+        XCTAssertEqual(rig.file("history/2026-10-14/long-term.md"), bo)
     }
 
     func testABrokenLongTermIsRestoredFromItsSnapshot() throws {
         let rig = try MemoryRig()
         try rig.edit("long-term.md", "## Boop\nname Pip, hatched some time ago\n")
+        try rig.reopen()
         XCTAssertEqual(rig.store.longTerm?.name, "Pip")
         XCTAssertEqual(rig.file("long-term.md"), MemoryTests.sample)
         XCTAssertEqual(rig.file("long-term.md.broken"), "## Boop\nname Pip, hatched some time ago\n")
@@ -129,40 +152,5 @@ final class MemoryTests: XCTestCase {
         try rig.edit("long-term.md", "garbage")
         try rig.reopen()
         XCTAssertEqual(rig.store.longTerm?.name, "Pip")
-    }
-
-    func testABrokenShortTermKeepsItsDate() throws {
-        let rig = try MemoryRig()
-        try rig.edit("short-term.md", "## Today\n2026-10-14, a lovely day\n")
-        try rig.reopen()
-        XCTAssertEqual(rig.store.lastActiveDay, "2026-10-14")
-        XCTAssertTrue(rig.file("short-term.md.broken").contains("a lovely day"))
-        try rig.edit("short-term.md", "nothing useful")
-        try rig.reopen()
-        XCTAssertNil(rig.store.lastActiveDay)
-    }
-
-    /// The core's effects land in the files, and a restart that reads
-    /// today's date back doesn't start the day twice.
-    func testCoreAndMemoryTogether() throws {
-        let rig = try MemoryRig(setUp: false)
-        let time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
-        let start = CoreRig.start  // 2026-10-14 14:00 UTC
-        try rig.store.setUp(name: "Pip", nature: .sweet, seed: 1, today: "2026-10-13")
-        rig.store.startDay("2026-10-13")
-        func boot(_ now: Int64) -> (Core, [CoreEffect]) {
-            let core = Core(config: .init(time: time), lastActiveDay: rig.store.lastActiveDay)
-            let fx = core.handle(Event(ts: now, source: .claude, type: .turn, phase: .start, specificType: "UserPromptSubmit",
-                                       session: "s1", cwd: "/w/landing"))
-            for case .newDay(let date) in fx { rig.store.startDay(date) }
-            return (core, fx)
-        }
-        let (_, first) = boot(start)
-        XCTAssertTrue(first.contains { if case .newDay = $0 { true } else { false } })
-        XCTAssertTrue(rig.file("history/2026-10-13/short-term.md").contains("2026-10-13"))
-        XCTAssertEqual(rig.store.lastActiveDay, "2026-10-14")
-        try rig.reopen()
-        let (_, again) = boot(start + 60_000)
-        XCTAssertFalse(again.contains { if case .newDay = $0 { true } else { false } })
     }
 }

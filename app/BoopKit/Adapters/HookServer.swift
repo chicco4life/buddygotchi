@@ -71,7 +71,9 @@ public final class HookServer: @unchecked Sendable {
 
     /// Runs until `stop()`. Any other failed `accept` (out of file
     /// descriptors, an aborted connection) is waited out, so hooks keep
-    /// arriving once it passes.
+    /// arriving once it passes. Each connection gets its own autorelease
+    /// pool: this thread never returns, so what decoding a line leaves
+    /// autoreleased would otherwise pile up for good.
     private func acceptLoop(_ fd: Int32) {
         while true {
             let client = accept(fd, nil, nil)
@@ -81,7 +83,7 @@ public final class HookServer: @unchecked Sendable {
                 if error != EINTR { usleep(10_000) }
                 continue
             }
-            handle(client)
+            autoreleasepool { handle(client) }
         }
     }
 

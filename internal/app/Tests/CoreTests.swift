@@ -61,7 +61,7 @@ final class CoreRig {
         now = start
         let today = time.day(start)
         let core = Core(config: .init(time: time, seed: seed), lastActiveDay: newDay ? nil : today)
-        pipeline = Pipeline(core: core, view: TranscriptView(config: .init(rules: rules, seed: seed)))
+        pipeline = Pipeline(core: core, view: TranscriptView(rules: rules, seed: seed))
         if !newDay { core.tick(at: start) }  // the first snapshot has gone out
     }
 
@@ -176,13 +176,14 @@ final class CoreRig {
                               data: ["for": .null, "by": "brain", "ok": true, "message": "Boop made a happy face."]))
     }
 
-    /// Moves the clock, ticking once a second like the app does.
+    /// Moves the clock, ticking once a second like the app does, or every
+    /// `step` ms where a test waits out a day for what only a day does.
     @discardableResult
-    func wait(_ ms: Int64) -> Fx {
+    func wait(_ ms: Int64, every step: Int64 = 1000) -> Fx {
         var fx = Fx()
         let end = now + ms
         while now < end {
-            now = min(end, now + 1000)
+            now = min(end, now + step)
             fx += note(Fx(pipeline.tick(at: now)))
         }
         return fx
@@ -499,7 +500,7 @@ final class CoreAgentWorkTests: XCTestCase {
             XCTAssertEqual(events(fx), [], "\(kind.rawValue) from a session never seen")
         }
         rig.send(.turnStart, session: "old")
-        rig.wait(25 * 3600 * 1000)  // forgotten
+        rig.wait(25 * 3600 * 1000, every: 60_000)  // forgotten
         fx = rig.send(.turnEnd, session: "old")
         XCTAssertEqual(events(fx), [], "a session forgotten mid-turn")
         XCTAssertEqual(rig.state.base, "idle")
@@ -534,10 +535,10 @@ final class CoreAgentWorkTests: XCTestCase {
                        "the next turn, which Boop saw start, is reported")
     }
 
-    /// A turn a call opens with no prompt (a background subagent's after
-    /// the main agent's `Stop`, or Claude carrying on after another hook
-    /// blocked its `Stop`) counts its own tool calls and topics, from that
-    /// call: harness/EVENTS.md §4.1's `tools` are the turn's.
+    /// A turn the main agent's call opens with no prompt (Claude carrying
+    /// on after another hook blocked its `Stop`) counts its own tool calls
+    /// and topics, from that call: harness/EVENTS.md §4.1's `tools` are the
+    /// turn's.
     func testATurnACallOpensCountsItsOwnTools() {
         let rig = CoreRig()
         rig.send(.turnStart)
@@ -582,17 +583,71 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.send(.turnStopped, .codex, session: "c")  // Codex's Interrupt is never stale
         XCTAssertEqual(rig.state.base, "idle")
 
-        // A turn a call started had no prompt to race: a background
-        // subagent's call 50 s after the main agent stopped, and the idle
+        // A turn a call started had no prompt to race: the main agent's
+        // call 50 s after its Stop (another hook blocked it), and the idle
         // notice 10 s later, is a real one.
         rig.send(.turnStart, session: "d")
         rig.send(.turnEnd, session: "d")
         rig.wait(50_000)
-        rig.send(.activity, session: "d", subagent: "bg", tool: "Read")
+        rig.send(.activity, session: "d", tool: "Read")
         XCTAssertEqual(rig.state.base, "working")
         rig.wait(10_000)
-        rig.send(.turnStopped, session: "d", notice: true)
-        XCTAssertEqual(rig.state.base, "idle", "the notice counts")
+        XCTAssertEqual(finished(rig.send(.turnStopped, session: "d", notice: true)), ["stopped"], "the notice counts")
+        XCTAssertEqual(rig.state.base, "idle")
+    }
+
+    /// harness/EVENTS.md §4.1, ADAPTERS.md §4: only the main agent's call
+    /// opens a turn. A background helper that works on after the main
+    /// agent's `Stop` shows working, and its results count, but it's no
+    /// turn: no working heartbeat, and Claude's idle notice finishes
+    /// nothing and plays no `stopped`. Its end, with no call left running,
+    /// makes the session idle. Before, its first call opened a turn that
+    /// its end left working, heartbeats and all, until the idle notice
+    /// stopped that turn with a `stopped` nobody caused.
+    func testABackgroundHelperIsNoTurn() {
+        let rig = CoreRig(rules: .chatty)
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Task", id: "tk")
+        rig.send(.subagentStart, subagent: "a1")
+        rig.send(.activity, tool: "Task", failed: false, id: "tk")
+        XCTAssertEqual(finished(rig.send(.turnEnd)), ["done"])
+        rig.wait(1000)
+        rig.send(.activity, subagent: "a1", tool: "Bash", topic: "tests", id: "b")
+        XCTAssertEqual(rig.state.base, "working")
+        XCTAssertEqual(rig.state.act, "testing")
+        XCTAssertEqual(workBeats(rig.wait(5 * 60_000)), [], "no working heartbeat")
+        let failed = rig.send(.activity, subagent: "a1", tool: "Bash", topic: "tests", failed: true, id: "b")
+        XCTAssertEqual(moments(failed).map(\.anim), ["error"], "its result isn't a late one")
+        XCTAssertEqual(woke(failed), [#"claude's tests failed on "landing"."#])
+        XCTAssertEqual(rig.state.base, "working")
+        rig.send(.subagentEnd, subagent: "a1")
+        XCTAssertEqual(rig.state.base, "idle", "the helper is done")
+        rig.wait(60_000)
+        let notice = rig.send(.turnStopped, notice: true)
+        XCTAssertEqual(moments(notice), [], "nothing stopped")
+        XCTAssertEqual(finished(notice), [])
+    }
+
+    /// harness/EVENTS.md §4.1: a turn's outcome is its own last check. A
+    /// background helper's tests that fail after the main agent's `Stop`
+    /// aren't carried into the turn the main agent's next call opens with
+    /// no prompt (another hook blocked its `Stop`), which ran none: that
+    /// turn is done. Before, it finished failed.
+    func testAHelpersCheckAfterStopIsntTheNextTurns() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Task", id: "tk")
+        rig.send(.subagentStart, subagent: "a1")
+        rig.send(.activity, tool: "Task", failed: false, id: "tk")
+        XCTAssertEqual(finished(rig.send(.turnEnd)), ["done"])
+        rig.wait(1000)
+        rig.send(.activity, subagent: "a1", tool: "Bash", topic: "tests", id: "b")
+        rig.send(.activity, subagent: "a1", tool: "Bash", topic: "tests", failed: true, id: "b")
+        rig.send(.subagentEnd, subagent: "a1")
+        rig.wait(1000)
+        rig.send(.activity, tool: "Edit", id: "e")
+        rig.send(.activity, tool: "Edit", failed: false, id: "e")
+        XCTAssertEqual(finished(rig.send(.turnEnd)), ["done"])
     }
 
     /// Claude gives a subagent's hooks its parent's session, and the hooks
@@ -695,6 +750,7 @@ final class CoreNeedsYouTests: XCTestCase {
     /// ADAPTERS.md §4: Codex's request waits 2 s before it shows; in
     /// that grace the look is waiting (BEHAVIORS.md §2).
     func testCodexWaitsTwoSeconds() {
+        XCTAssertEqual(Core.codexGraceMs, 2000)
         let rig = CoreRig()
         rig.send(.turnStart, .codex)
         XCTAssertEqual(states(rig.send(.needsYou, .codex, tool: "shell")).map(\.visual), ["waiting"])
@@ -1007,13 +1063,39 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertNil(rig.state.attn)
     }
 
-    /// A request that came as a Notification alone doesn't say who asked, so
-    /// any event from the session answers it, as before subagents.
-    func testANotificationAloneIsAnsweredByAnyEvent() {
+    /// ADAPTERS.md §4: a request that came as a Notification alone doesn't
+    /// say who asked, so any event from the session answers it, as before
+    /// subagents; but a call answers it only from its second second on.
+    /// Before, a sibling's call landing between a Notification and its own
+    /// hook answered it, and the hook showed it again: amber flickered, and
+    /// the device announced one prompt twice.
+    func testANotificationAloneIsAnsweredByAnyEventButNotACallAtOnce() {
+        XCTAssertEqual(Core.noticeFirstMs, 1000)
         let rig = CoreRig()
         rig.send(.turnStart)
-        rig.send(.needsYou)
+        rig.send(.activity, subagent: "a1", tool: "Bash")
+        var fx = rig.send(.needsYou)
+        rig.now += 300
+        fx += rig.send(.activity, subagent: "a2", tool: "Read")
+        rig.now += 300
+        fx += rig.send(.needsYou, subagent: "a1", tool: "Bash")
+        let needs = fx.effects.compactMap { effect -> Event? in
+            guard case .record(let e) = effect, e.specificType == Core.needsYou else { return nil }
+            return e
+        }
+        XCTAssertEqual(needs.map(\.phase), [.start], "one request, whose own hook took it over")
+
+        rig.send(.activity, subagent: "a1", tool: "Bash", failed: false)
+        rig.send(.turnEnd)
+        rig.wait(6000)
+        rig.send(.turnStart)
+        rig.send(.activity, subagent: "a1", tool: "Bash")
+        rig.send(.needsYou)  // its own hook never comes
         XCTAssertNotNil(rig.state.attn)
+        rig.now += Core.noticeFirstMs - 1
+        rig.send(.activity, subagent: "a2", tool: "Read")
+        XCTAssertNotNil(rig.state.attn, "its own hook may still come")
+        rig.now += 1
         rig.send(.activity, subagent: "a2", tool: "Read")
         XCTAssertNil(rig.state.attn)
     }
@@ -1370,6 +1452,40 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertEqual(rig.ruleActions.suffix(3), ["open_thread", "needs_you end", "wiggle"])
     }
 
+    /// harness/EVENTS.md §2: an agent event is recorded without the name,
+    /// app, app session and mode its session already has, which the core
+    /// carries on, so the transcript doesn't repeat them on every line. The
+    /// first event of a session the core doesn't hold (after a launch, its
+    /// end, or a day's silence it forgets, even with no tick between, as
+    /// when the Mac slept) carries them all, so a tap still opens the
+    /// thread in its app, and so does a session's first event each day.
+    func testTheTranscriptLeavesOutWhatTheSessionAlreadyHas() {
+        let rig = CoreRig()
+        let constants = ["name", "app", "app_session", "mode"]
+        func recorded(_ kind: Hook, tool: String? = nil, done: Bool? = nil, mode: String = "plan") -> [String] {
+            var event = rig.event(kind, tool: tool, done: done, mode: mode, app: "com.anthropic.claudefordesktop",
+                                  appSession: "local_s1")
+            event.data["name"] = "Fix the nav"
+            rig.send(event)
+            let data = rig.pipeline.transcript.events.last { $0.source == .claude }!.data
+            return constants.filter { data[$0] != nil }
+        }
+        XCTAssertEqual(recorded(.turnStart), constants, "a session the core doesn't hold yet")
+        XCTAssertEqual(recorded(.activity, tool: "Bash"), [], "nothing changed")
+        XCTAssertEqual(recorded(.activity, tool: "Bash", done: true, mode: "default"), ["mode"], "out of plan mode")
+        XCTAssertEqual(recorded(.activity, tool: "Edit", mode: "acceptEdits"), [], "still not plan mode")
+        XCTAssertEqual(rig.core.sessions["claude/s1"]?.name, "Fix the nav")
+        rig.now += 10 * 3600 * 1000  // midnight
+        XCTAssertEqual(recorded(.activity, tool: "Edit", done: true, mode: "default"), constants, "the day's first")
+        XCTAssertEqual(recorded(.activity, tool: "Edit", mode: "default"), [])
+        rig.now += SessionFold.forgetMs
+        XCTAssertEqual(recorded(.needsYou, tool: "Bash"), constants, "the core forgets it before this event")
+        XCTAssertEqual(opened(rig.poke()), [ThreadRef(agent: "claude", session: "s1", app: "com.anthropic.claudefordesktop",
+                                                      appSession: "local_s1")])
+        XCTAssertEqual(recorded(.sessionEnd), [])
+        XCTAssertEqual(recorded(.sessionStart), constants, "a new session")
+    }
+
     /// While `listening` shows, a tap only dips the face, even while
     /// something needs you: nothing opens (BEHAVIORS.md §3.3).
     func testATapWhileListeningOpensNothing() {
@@ -1436,8 +1552,8 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertEqual(woke(fx).count, 20, "no limit")
     }
 
-    /// The first activity of the day starts short-term memory with no
-    /// moment: the morning stretch and yawn were removed.
+    /// The first activity of a new day is a new day, with no moment: the
+    /// morning stretch and yawn were removed.
     func testFirstActivityOfTheDayStartsTheDayQuietly() {
         let rig = CoreRig(newDay: true)
         let fx = rig.send(.sessionStart)
@@ -1474,12 +1590,13 @@ final class CoreYouAndBoopTests: XCTestCase {
         }
     }
 
-    /// A new day starts short-term memory fresh; nothing about it reaches
-    /// the brain (the reflection was removed on 2026-09-26).
-    func testANewDayOnlyStartsShortTermFresh() {
+    /// A new day is only the effect the runtime prunes the transcript on;
+    /// nothing about it reaches the brain (the reflection was removed on
+    /// 2026-09-26).
+    func testANewDayReachesNoBrain() {
         let rig = CoreRig()
         rig.send(.sessionStart)
-        rig.wait(24 * 3600 * 1000)
+        rig.wait(24 * 3600 * 1000, every: 60_000)
         let fx = rig.send(.turnStart)
         XCTAssertTrue(fx.contains(.newDay(date: "2026-10-15")))
         XCTAssertEqual(events(fx).map(\.name), ["turn start"])
@@ -1730,7 +1847,7 @@ final class CoreRulesTests: XCTestCase {
         rig.send(.turnStart)
         rig.wait(3_600_000)
         XCTAssertEqual(rig.state.base, "idle")
-        rig.wait(24 * 3_600_000)
+        rig.wait(24 * 3_600_000, every: 60_000)
         XCTAssertEqual(rig.sessions, [])
     }
 
@@ -1795,7 +1912,7 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(rig.state.base, "working")
 
         // The mark lasts as long as a silent session is kept: a day.
-        rig.wait(25 * 3_600_000)
+        rig.wait(25 * 3_600_000, every: 60_000)
         rig.send(.activity, .codex, session: "c", tool: "shell")
         XCTAssertEqual(rig.state.base, "working", "a day on, it's a session Boop hasn't seen")
     }
@@ -1886,13 +2003,16 @@ final class CoreFuzzTests: XCTestCase {
                 // Only when no timer of the session's could have acted first.
                 if let b = before[key], rig.now - b.lastEventAt < SessionFold.safetyNetMs, let a = rig.core.sessions[key] {
                     XCTAssertEqual(a.lastEventAt, b.lastEventAt, "a subagent's end isn't activity\n\(why)")
-                    XCTAssertEqual(a.turnStartedAt, b.turnStartedAt, why)
+                    XCTAssertEqual(a.turn.startedAt, b.turn.startedAt, why)
                     XCTAssertEqual(a.askers, b.askers.filter { $0.key != id }, "it answers \(id) alone\n\(why)")
                     if b.askers[id] == nil {
                         XCTAssertEqual(a.needsSince, b.needsSince, "\(id) never asked\n\(why)")
-                        XCTAssertEqual(a.working, b.working, why)
+                        // A helper working on with no turn open is done once none of its calls runs.
+                        let helperDone = step == .subagentEnd && a.turn.startedAt == nil && a.calls.isEmpty
+                            && a.pendingSince == nil
+                        XCTAssertEqual(a.working, b.working && !helperDone, why)
                     } else if a.needsSince == nil {
-                        XCTAssertEqual(a.working, b.turnStartedAt != nil, "working again only while its turn goes on\n\(why)")
+                        XCTAssertEqual(a.working, b.turn.startedAt != nil, "working again only while its turn goes on\n\(why)")
                     }
                 } else if before[key] == nil, let a = rig.core.sessions[key] {
                     XCTAssertFalse(a.working || a.needsSince != nil, "a session first seen this way is idle\n\(why)")

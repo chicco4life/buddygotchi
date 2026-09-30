@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include "render/raster.h"
+#include "render/maths.h"
 #include "voice/effects.h"
 #include "voice/player.h"
 
@@ -163,23 +163,19 @@ void Behaviour::advance(uint32_t t, Rng& rng) {
 }
 
 // Time-based changes at t: a moment or its expression that has ended, and
-// the Mac's silence turning into "no app".
+// the Mac's silence turning into "no app". First the timers that have run
+// out are cleared, so none comes back when the clock's differences wrap
+// after 2^31 ms (24.9 days); none of them is part of the source, so the
+// face doesn't change.
 void Behaviour::resync(uint32_t t) {
-  settle(t);
+  if (switched_ && !within(t, switchAt_, render::kBlendMs)) switched_ = false;
+  if (say_.take >= 0 && !sayDue(t)) say_ = Say{};
+  if (blFade_ && !within(t, blAt_, render::kBlendMs)) blFade_ = false;
   change(t, [&] {
     if (moment_.anim != render::Anim::kNone && !within(t, moment_.at, moment_.ms)) moment_.anim = render::Anim::kNone;
     if (expr_ && !within(t, exprAt_, exprMs_)) expr_ = false;
     if (!stale_ && int32_t(t - lastState_) >= int32_t(kNoAppMs)) stale_ = true;
   });
-}
-
-// Clears timers that have run out, so none comes back when the clock's
-// differences wrap after 2^31 ms (24.9 days). None of them is part of the
-// source, so the face doesn't change.
-void Behaviour::settle(uint32_t t) {
-  if (switched_ && !within(t, switchAt_, render::kBlendMs)) switched_ = false;
-  if (say_.take >= 0 && !sayDue(t)) say_ = Say{};
-  if (blFade_ && !within(t, blAt_, render::kBlendMs)) blFade_ = false;
 }
 
 // ---- Taking turns (BEHAVIORS.md §2) ---------------------------------------
@@ -431,10 +427,7 @@ uint32_t Behaviour::holdMs(render::Mood mood, int loops, uint32_t t) const {
 }
 
 void Behaviour::startSay(const MomentIn& in, uint32_t t, uint32_t at) {
-  if (sayDue(t)) cut(say_.id, CutBy::kMoment);
-  say_ = Say{};
-  expr_ = false;  // a new line ends the last moment's expression
-  ++momentSeq_;
+  endLine(t, CutBy::kMoment);  // a new line ends the last one and the last moment's expression
   Say& s = say_;
   s.take = in.take;
   s.then = voice::takeText(in.then) ? in.then : -1;

@@ -73,12 +73,12 @@ final class HookWireTests: XCTestCase {
             ["type": "ai-title", "aiTitle": "Made-up name", "sessionId": "s"],
             ["type": "assistant", "message": ["content": "SECRET reply"]],
         ]).write(to: transcript)
-        let names = ThreadName.Source(codexHome: dir.path)
+        let codexHome = dir.path
         func ask(_ agent: String, _ hook: String, session: String = "s", _ extra: [String: Any] = [:]) -> HookLine? {
             var object: [String: Any] = ["hook_event_name": hook, "session_id": session,
                                          "transcript_path": transcript.path, "tool_name": "Bash"]
             object.merge(extra) { $1 }
-            return HookLine.extract(agent: agent, payload: payload(object), ts: 1, names: names)
+            return HookLine.extract(agent: agent, payload: payload(object), ts: 1, codexHome: codexHome)
         }
         let line = try XCTUnwrap(ask("claude", "PermissionRequest"))
         XCTAssertEqual(line.name, "Thread name on \"needs you\" screen")
@@ -92,7 +92,7 @@ final class HookWireTests: XCTestCase {
         }
         XCTAssertNil(HookLine.extract(agent: "claude", payload: payload(["hook_event_name": "PermissionRequest",
                                                                          "session_id": "s", "transcript_path": transcript.path]),
-                                      ts: 1)?.name, "nor without a source")
+                                      ts: 1)?.name, "nor without a Codex home")
 
         // With no title of yours, Claude's own; with none at all, no name.
         try jsonl([["type": "ai-title", "aiTitle": "Made-up name"], ["type": "user"]]).write(to: transcript)
@@ -460,10 +460,17 @@ final class HookWireTests: XCTestCase {
     }
 
     /// harness/EVENTS.md §4: a tool error's text becomes one of four classes.
+    /// ADAPTERS.md §2: a failed command's text is Claude's "Exit code N"
+    /// then the command's own output, which may say denied, rejected or
+    /// permission; it's still a command that failed, so the error one-shot
+    /// plays (BEHAVIORS.md §3.1).
     func testToolErrorClasses() {
         XCTAssertEqual(ToolError.classify("Command exited with non-zero status code 1"), "exit_code")
         XCTAssertEqual(ToolError.classify("Command timed out after 2m"), "timeout")
         XCTAssertEqual(ToolError.classify("Permission to use Bash has been denied."), "denied")
+        XCTAssertEqual(ToolError.classify("Exit code 128\n ! [rejected] main -> main (fetch first)"), "exit_code")
+        XCTAssertEqual(ToolError.classify("Exit code 255\ngit@github.com: Permission denied (publickey)."), "exit_code")
+        XCTAssertEqual(ToolError.classify("Exit code 1\nFAILED tests/test_permissions.py::test_admin_can_edit"), "exit_code")
         XCTAssertEqual(ToolError.classify("something odd"), "other")
         XCTAssertEqual(ToolError.classify(nil), "other")
     }

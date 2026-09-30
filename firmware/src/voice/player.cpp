@@ -23,8 +23,7 @@ static_assert(kOutRate == 2 * kRate, "the takes play at half a source sample per
 uint32_t u32(const uint8_t* p) { return p[0] | p[1] << 8 | p[2] << 16 | uint32_t(p[3]) << 24; }
 
 struct Pack {
-  Source* lookups = nullptr;
-  Source* samples = nullptr;
+  Source* source = nullptr;
   char version[17] = "none";
   uint32_t count = 0, indexAt = 0;
 };
@@ -51,20 +50,19 @@ const Loaded* slot(int i) {
 
 // Record `i` of the index, its id and text NUL-ended.
 bool record(uint32_t i, uint8_t (&r)[kRecord]) {
-  if (!pack.lookups->read(pack.indexAt + i * kRecord, r, kRecord)) return false;
+  if (!pack.source->read(pack.indexAt + i * kRecord, r, kRecord)) return false;
   r[kIdMax - 1] = r[kIdMax + kTextMax - 1] = 0;
   return true;
 }
 
 }  // namespace
 
-bool openPack(Source* lookups, Source* samples) {
+bool openPack(Source* source) {
   closePack();
   uint8_t h[kHeader];
-  if (!lookups || !lookups->read(0, h, kHeader) || std::memcmp(h, kMagic, 8)) return false;
+  if (!source || !source->read(0, h, kHeader) || std::memcmp(h, kMagic, 8)) return false;
   if (u32(h + 28) != kRecord || u32(h + 36) != kRate || u32(h + 40) != kMouthMs) return false;
-  pack.lookups = lookups;
-  pack.samples = samples ? samples : lookups;
+  pack.source = source;
   std::memcpy(pack.version, h + 8, 16);
   pack.version[16] = 0;
   pack.count = u32(h + 24);
@@ -77,12 +75,12 @@ void closePack() {
   for (Loaded& s : slots) s.handle = -1;
 }
 
-bool packOpen() { return pack.lookups != nullptr; }
+bool packOpen() { return pack.source != nullptr; }
 const char* assetsVersion() { return pack.version; }
 int takeCount() { return int(pack.count); }
 
 int takeIndex(const char* id) {
-  if (!id || !pack.lookups) return -1;
+  if (!id || !pack.source) return -1;
   for (const Loaded& s : slots)
     if (s.handle >= 0 && !std::strcmp(s.id, id)) return s.handle;
   // Binary search of the index, which voicegen sorted by id's bytes.
@@ -96,7 +94,7 @@ int takeIndex(const char* id) {
       const uint8_t* f = r + kIdMax + kTextMax;
       uint32_t frames = u32(f + 12);
       uint8_t bytes[kMaxFrames];
-      if (frames > kMaxFrames || !pack.lookups->read(u32(f + 8), bytes, frames)) return -1;
+      if (frames > kMaxFrames || !pack.source->read(u32(f + 8), bytes, frames)) return -1;
       int handle = nextHandle++;
       Loaded& s = slots[handle % kSlots];
       s = Loaded{};
@@ -163,7 +161,7 @@ uint32_t lineSamples(const Line& l) {
 void Player::start(const Line& l) {
   stop();
   gain_ = l.vol * 256 / 10;
-  const bool plays = l.a.len && gain_ && pack.samples;  // muted, no take or no card: nothing to play
+  const bool plays = l.a.len && gain_ && pack.source;  // muted, no take or no card: nothing to play
   take_ = plays ? l.take : -1;
   a_ = plays ? l.a : Clip{};
   b_ = plays ? l.b : Clip{};
@@ -191,9 +189,14 @@ int Player::sample(uint32_t s) {
     // Refill from here: a clip's end may cut the window short.
     const Clip& c = s < a_.len ? a_ : b_;
     uint32_t n = c.at + c.len - at < kBuf ? c.at + c.len - at : kBuf;
-    bufLen_ = pack.samples && pack.samples->read(at, buf_, n) ? n : 0;
+    bufLen_ = pack.source && pack.source->read(at, buf_, n) ? n : 0;
     bufAt_ = at;
-    if (!bufLen_) return 0;  // the card failed: silence rather than noise
+    if (!bufLen_) {
+      // The card failed: the rest of the line goes, fading out, rather
+      // than asking the card again for every sample (VOICE.md §8).
+      if (pos_ < total_) fadeFrom_ = last_, fade_ = kCutFade, total_ = pos_;
+      return 0;
+    }
   }
   return int(buf_[at - bufAt_]) - 128;
 }

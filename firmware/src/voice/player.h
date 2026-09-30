@@ -26,10 +26,10 @@ struct Source {
   virtual bool read(uint32_t at, void* buf, uint32_t n) = 0;
 };
 
-// Opens the pack: `lookups` finds takes (on the main loop), `samples`
-// feeds the player (the audio task; `lookups` when null). False, and no
-// voice, when it isn't a pack voicegen wrote.
-bool openPack(Source* lookups, Source* samples = nullptr);
+// Opens the pack, which lookups (on the main loop) and the player (the
+// audio task) both read. False, and no voice, when it isn't a pack
+// voicegen wrote.
+bool openPack(Source* source);
 void closePack();
 bool packOpen();
 // The pack's version, which the Mac compares with its own (PROTOCOL.md

@@ -84,7 +84,4 @@ public enum FaceLoops {
         let row = row(mood: mood, state: state)
         return row[(1...row.count).contains(variant) ? variant - 1 : 0].voiceMs
     }
-
-    /// The longest loop of any design.
-    public static var longest: Int64 { designs.values.flatMap { $0.flatMap { $0.map(\.ms) } }.max()! }
 }

@@ -67,22 +67,18 @@ class Panel : public lgfx::LGFX_Device {
   lgfx::Light_PWM light_;
 };
 
-// Rows per DMA batch (DEVICE.md §6): 12 rows of 320 px keep each buffer at
-// 7.68 KB, the same as 16 portrait rows.
-constexpr int kBand = 12;
-static_assert(render::kHeight % kBand == 0, "bands must tile the screen");
-
+// One band's changed columns per DMA batch (render::Changes, DEVICE.md §6):
+// at most 320 × 6 px, 3.84 KB.
 Panel lcd;
 uint16_t* band[2] = {nullptr, nullptr};
 uint16_t swapped[256];  // palette in the panel's byte order
-uint32_t hashes[render::kHeight];
-bool pushedOnce = false;
+render::Changes changes;
 
 }  // namespace
 
 bool displayBegin() {
   for (int i = 0; i < 2; ++i) {
-    band[i] = static_cast<uint16_t*>(heap_caps_malloc(render::kWidth * kBand * 2, MALLOC_CAP_DMA));
+    band[i] = static_cast<uint16_t*>(heap_caps_malloc(render::kWidth * render::kBand * 2, MALLOC_CAP_DMA));
     if (!band[i]) return false;
   }
   for (int i = 0; i < 256; ++i) {
@@ -98,25 +94,20 @@ bool displayBegin() {
 void displayPush(const render::Canvas& canvas) {
   int cur = 0;
   lcd.startWrite();
-  for (int y0 = 0; y0 < render::kHeight; y0 += kBand) {
-    bool changed = !pushedOnce;
-    for (int y = y0; y < y0 + kBand; ++y) {
-      uint32_t h = canvas.rowHash(y);
-      if (h != hashes[y]) changed = true;
-      hashes[y] = h;
-    }
-    if (!changed) continue;
-    const uint8_t* src = canvas.pixels() + y0 * render::kWidth;
+  for (int b = 0; b < render::kHeight / render::kBand; ++b) {
+    render::Span s = changes.band(canvas, b);
+    if (s.empty()) continue;
+    int y0 = b * render::kBand, w = s.x1 - s.x0;
     uint16_t* dst = band[cur];
-    for (int i = 0; i < render::kWidth * kBand; ++i) {
-      dst[i] = swapped[src[i]];
+    for (int y = y0; y < y0 + render::kBand; ++y) {
+      const uint8_t* src = canvas.pixels() + y * render::kWidth + s.x0;
+      for (int x = 0; x < w; ++x) *dst++ = swapped[src[x]];
     }
-    lcd.setAddrWindow(0, y0, render::kWidth, kBand);
-    lcd.writePixelsDMA(dst, render::kWidth * kBand, false);  // already in panel order
+    lcd.setAddrWindow(s.x0, y0, w, render::kBand);
+    lcd.writePixelsDMA(band[cur], w * render::kBand, false);  // already in panel order
     cur ^= 1;
   }
   lcd.endWrite();
-  pushedOnce = true;
 }
 
 void displayBacklight(uint8_t level) { lcd.setBrightness(level); }

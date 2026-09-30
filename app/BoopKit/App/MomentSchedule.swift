@@ -1,7 +1,7 @@
 import Foundation
 
-/// What plays on the device and until when (ARCHITECTURE.md §3.2). The
-/// tap's poke, which the device plays on its own, and the rules'
+/// When the brain's moments play on the device (ARCHITECTURE.md §3.2).
+/// The tap's poke, which the device plays on its own, and the rules'
 /// one-shots play at once; a rule's one-shot never cuts a brain moment's
 /// line, though. The brain's moments wait
 /// their turn: one at a time, each once the line playing has finished, and
@@ -20,11 +20,10 @@ import Foundation
 /// face ends on a loop boundary), and at most until the
 /// app stops waiting for that `ended`, whatever the Mac hears meanwhile of
 /// a tap or the link dropping. For the brain's next moment it holds the line
-/// only until its take has played (`brainFree`). The schedule also hears what the device
-/// does on its own or leaves out: a tap's poke replaces the animation
-/// playing, though a line plays on over it,
-/// "needs you" starting stops everything, and while something needs you
-/// no moment plays.
+/// only until its take has played (`brainFree`). The schedule also hears
+/// "needs you" starting, which stops everything on the device, and while
+/// something needs you no moment plays. It needn't hear taps: a tap's
+/// poke replaces only an animation, and a line plays on over it.
 ///
 /// Each brain moment goes to the device with an id, and its handle ends
 /// when the device says how it ended, or when it can't have played
@@ -50,18 +49,7 @@ public struct MomentSchedule {
     /// The largest id a moment goes out with: the device keeps ids in
     /// 32 bits, and JSON readers anywhere take this as a plain int.
     public static let maxId = Int(Int32.max)
-    /// Taps in a row, as the device counts them (BEHAVIORS.md §3.3): a tap
-    /// within `tapRunMs` of the one before is another in the run, and from
-    /// its `tapSpamFrom`-th on the device plays tap_spam instead of poked.
-    /// The same numbers as `TranscriptView.Config`'s `inARowMs` and
-    /// `answersRunFrom`, and the firmware's `Behaviour::kTapRunMs` and
-    /// `kTapSpamFrom`: change them together.
-    public static let tapRunMs: Int64 = 3000
-    public static let tapSpamFrom = 3
 
-    /// When the animation playing with no line ends: a tap's poke, or a
-    /// rule's one-shot.
-    public private(set) var animUntil: Int64 = 0
     /// When the line playing ends, and with it a reaction's face, as the
     /// app reckons it; or when the device said the brain's moment ended.
     public private(set) var lineUntil: Int64 = 0
@@ -78,10 +66,7 @@ public struct MomentSchedule {
     public private(set) var attn = false
     /// The brain's moments waiting, oldest first, each with its handle and
     /// when it arrived.
-    public private(set) var waiting: [(moment: DeviceMoment, pending: Pending?, at: Int64)] = []
-    /// The taps in the run so far (1 for the first), and when the last came.
-    public private(set) var taps = 0
-    var lastTap: Int64?
+    public private(set) var waiting: [(moment: DeviceMoment, pending: Pending, at: Int64)] = []
     /// The id the last brain moment went out with. Each launch starts
     /// somewhere random and counts up from there, so a moment an earlier
     /// launch left playing on the device can't share an id with one of
@@ -99,19 +84,11 @@ public struct MomentSchedule {
     /// The id after `id`, back to 1 past `maxId`.
     static func nextId(after id: Int) -> Int { id >= maxId ? 1 : id + 1 }
 
-    /// When the line is free: at its holder's `ended`, or when the app
-    /// stops waiting for it; with no holder, at `lineUntil`.
-    public var lineFree: Int64 { holder?.until ?? lineUntil }
-
     /// When the line is free for the brain's next moment: once its holder's
     /// take has played on the device, give or take the link
     /// (`linkSlackMs`), or at its `ended` if that's sooner; with no holder,
     /// at `lineUntil` (harness/DECISIONS.md §5).
     public var brainFree: Int64 { holder?.sayUntil ?? lineUntil }
-
-    /// When the moment playing on the device ends: its animation, and its
-    /// line or face.
-    public var busyUntil: Int64 { max(animUntil, lineFree) }
 
     /// How long `moment` plays at most, in the look and mood showing.
     public func playMs(_ moment: DeviceMoment) -> Int64 {
@@ -126,26 +103,6 @@ public struct MomentSchedule {
         !attn && now >= brainFree
     }
 
-    /// A rule's one-shot went to the device at `now`: it replaces the
-    /// animation playing, as a tap's poke does, and a brain moment plays
-    /// over it without waiting, as over a poke (ARCHITECTURE.md §3.2).
-    public mutating func rule(_ moment: DeviceMoment, now: Int64) {
-        animUntil = now + playMs(moment)
-    }
-
-    /// The device's own poke, at a tap: poked in Boop's mood, or tap_spam
-    /// from the run's third tap, which replaces the animation playing,
-    /// unless something needs you or `listening` shows, when the tap only
-    /// dips the face (BEHAVIORS.md §3.3). Every tap counts in the run, as
-    /// on the device. The line plays on over the poke, so it stays busy
-    /// until it would have ended anyway.
-    public mutating func tapped(now: Int64, listening: Bool = false) {
-        taps = lastTap.map { now - $0 < Self.tapRunMs } == true ? taps + 1 : 1
-        lastTap = now
-        guard !attn && !listening else { return }
-        animUntil = now + DeviceMoment.tapMs(mood: mood, run: taps)
-    }
-
     /// A `state` sent: its look and mood time what plays next, and "needs
     /// you" starting stops everything playing (PROTOCOL.md §3).
     public mutating func show(look: String, mood: String, attn: Bool, now: Int64) {
@@ -158,27 +115,8 @@ public struct MomentSchedule {
     /// Nothing plays from `now`: a reaction's turn came with no device
     /// connected, or "needs you" stopped it all.
     public mutating func stop(now: Int64) {
-        animUntil = min(animUntil, now)
         lineUntil = min(lineUntil, now)
         holder = nil
-    }
-
-    /// The brain moment `due` just handed out at `now` went to the device
-    /// as `id`: the line waits for its `ended` until `until` at the latest,
-    /// and the next brain moment until its take has played (a silent
-    /// face, as long as a bubble would show), or, when it
-    /// plays an animation, which the next would cut, until its `ended` too.
-    public mutating func hold(id: Int, _ moment: DeviceMoment, now: Int64, until: Int64) {
-        let free = moment.anim == nil ? min(until, now + moment.faceFirstMs + Self.linkSlackMs) : until
-        holder = (id, until, free)
-    }
-
-    /// The device said the brain moment `id` ended. If it holds the line,
-    /// the line is free from `now`.
-    public mutating func ended(id: Int, now: Int64) {
-        guard holder?.id == id else { return }
-        holder = nil
-        lineUntil = now
     }
 
     /// Drops every brain moment waiting, ending each handle as failed: the
@@ -186,27 +124,18 @@ public struct MomentSchedule {
     public mutating func dropWaiting() -> [DeviceMoment] {
         let dropped = waiting
         waiting = []
-        for (_, pending, _) in dropped { pending?.finish(.failed("the mic went on")) }
+        for (_, pending, _) in dropped { pending.finish(.failed("the mic went on")) }
         return dropped.map(\.moment)
     }
 
-    /// A brain moment `due` just handed out going to the device at `now`:
-    /// it gets the next id, and its handle, and the line, wait for the
-    /// device's `ended` until its length at most, and the grace, have
-    /// passed.
-    public mutating func send(_ moment: inout DeviceMoment, _ pending: Pending, now: Int64) {
-        lastId = Self.nextId(after: lastId)
-        moment.id = lastId
-        let deadline = now + playMs(moment) + Self.endGraceMs
-        playing.append((lastId, pending, deadline))
-        hold(id: lastId, moment, now: now, until: deadline)
-    }
-
-    /// The device's `ended` at `now`: frees the line if the moment holds
-    /// it, and ends its handle. An id the app isn't waiting on (one it
-    /// gave up on) is ignored.
+    /// The device's `ended` at `now`: frees the line from `now` if the
+    /// moment holds it, and ends its handle. An id the app isn't waiting
+    /// on (one it gave up on) is ignored.
     public mutating func ended(_ ended: MomentEnded, now: Int64) {
-        self.ended(id: ended.id, now: now)
+        if holder?.id == ended.id {
+            holder = nil
+            lineUntil = now
+        }
         guard let i = playing.firstIndex(where: { $0.id == ended.id }) else { return }
         playing.remove(at: i).pending.finish(Self.end(ended))
     }
@@ -248,14 +177,9 @@ public struct MomentSchedule {
         for moment in all { moment.pending.finish(.failed(why)) }
     }
 
-    /// Nothing is playing and no brain moment is waiting its turn.
-    public func idle(now: Int64) -> Bool {
-        now >= busyUntil && waiting.isEmpty
-    }
-
     /// A moment from the brain, to play when its turn comes, and the handle
     /// whoever plays it ends once it knows how the moment went.
-    public mutating func brain(_ moment: DeviceMoment, _ pending: Pending? = nil, now: Int64) {
+    public mutating func brain(_ moment: DeviceMoment, _ pending: Pending, now: Int64) {
         waiting.append((moment, pending, now))
     }
 
@@ -266,61 +190,60 @@ public struct MomentSchedule {
         waiting.first.map { min(brainFree, $0.at + Self.maxWaitMs + 1) }
     }
 
-    /// The brain moment to send to the device now, if one's turn has
-    /// come, and the ones `due` dropped. With no device connected nothing
-    /// holds the line and its handle ends at once, as failed; one for the
-    /// device goes with the next id, and it and its handle wait for the
-    /// device's `ended` (`send`).
-    public mutating func due(now: Int64, connected: Bool) -> (play: DeviceMoment?, dropped: [DeviceMoment]) {
-        let due = due(now: now)
-        guard var moment = due.play else { return (nil, due.dropped) }
-        if !connected {
-            stop(now: now)
-            due.pending?.finish(.failed("no device connected"))
-        } else if let pending = due.pending {
-            send(&moment, pending, now: now)
-        }
-        return (moment, due.dropped)
-    }
-
-    /// The brain moment to play now, if one's turn has come (at most one),
-    /// with its handle for whoever plays it; the ones dropped as too late
-    /// on the way, whose handles end here; and when to ask again (nil when
-    /// nothing waits). Its turn comes when the line is free for it
+    /// The brain moment to send to the device now, if one's turn has come
+    /// (at most one), and the ones dropped as too late on the way, whose
+    /// handles end here. Its turn comes when the line is free for it
     /// (`brainFree`): it replaces a brain moment's face held on after its
-    /// take, which the device counts as done (PROTOCOL.md §4). A
-    /// moment's wait is counted to when its turn came:
-    /// when the line was free, or when it arrived if that was later. One
-    /// still waiting that has already waited too long is dropped at once.
-    public mutating func due(now: Int64) -> (play: DeviceMoment?, pending: Pending?, dropped: [DeviceMoment], next: Int64?) {
+    /// take, which the device counts as done (PROTOCOL.md §4). A moment's
+    /// wait is counted to when its turn came: when the line was free, or
+    /// when it arrived if that was later. One still waiting that has
+    /// already waited too long is dropped at once. With no device
+    /// connected nothing holds the line and its handle ends at once, as
+    /// failed. One for the device goes with the next id, and it, its handle
+    /// and the line wait for the device's `ended` until its length at most,
+    /// and the grace, have passed; the next brain moment waits until its
+    /// take has played (a silent face, as long as a bubble would show),
+    /// or, when it plays an animation, which the next would cut, until its
+    /// `ended` too.
+    public mutating func due(now: Int64, connected: Bool) -> (play: DeviceMoment?, dropped: [DeviceMoment]) {
         if let held = holder, now >= held.until {
             // No `ended` came in time: the line was free from then.
             holder = nil
             lineUntil = held.until
         }
         var dropped: [DeviceMoment] = []
-        func drop(_ moment: DeviceMoment, _ pending: Pending?) {
+        func drop(_ moment: DeviceMoment, _ pending: Pending) {
             dropped.append(moment)
-            pending?.finish(.failed("waited too long"))
+            pending.finish(.failed("waited too long"))
         }
         let free = brainFree
         guard now >= free else {
             let late = waiting.filter { now - $0.at > Self.maxWaitMs }
             waiting.removeAll { now - $0.at > Self.maxWaitMs }
             for (moment, pending, _) in late { drop(moment, pending) }
-            return (nil, nil, dropped, next)
+            return (nil, dropped)
         }
         let turn = now - free > Self.lateMs ? now : free
         while !waiting.isEmpty {
-            let (moment, pending, at) = waiting.removeFirst()
+            var (moment, pending, at) = waiting.removeFirst()
             if max(turn, at) - at > Self.maxWaitMs {
                 drop(moment, pending)
                 continue
             }
             lineUntil = now + playMs(moment)
-            holder = nil  // its face is replaced; the device still says how it ended
-            return (moment, pending, dropped, next)
+            guard connected else {
+                stop(now: now)
+                pending.finish(.failed("no device connected"))
+                return (moment, dropped)
+            }
+            // It replaces the face held; the device still says how that ended.
+            lastId = Self.nextId(after: lastId)
+            moment.id = lastId
+            let deadline = now + playMs(moment) + Self.endGraceMs
+            playing.append((lastId, pending, deadline))
+            holder = (lastId, deadline, moment.anim == nil ? min(deadline, now + moment.faceFirstMs + Self.linkSlackMs) : deadline)
+            return (moment, dropped)
         }
-        return (nil, nil, dropped, nil)
+        return (nil, dropped)
     }
 }

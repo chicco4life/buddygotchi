@@ -8,18 +8,18 @@ import XCTest
 final class KeychainTests: XCTestCase {
     func testReadsTheKeyWithoutTheNewlineSecurityPrints() {
         let security = FakeSecurity(entry: "jev-123")
-        XCTAssertEqual(Keychain.key(.jev, security: security.tool), "jev-123")
+        XCTAssertEqual(Keychain.jevKey(security: security.tool), "jev-123")
         XCTAssertEqual(security.calls.map { $0.arguments },
                        [["find-generic-password", "-s", "com.boopcomputer.boop", "-a", "jev", "-w"]])
     }
 
     func testNoEntryIsNoKey() {
-        XCTAssertNil(Keychain.key(.jev, security: FakeSecurity(entry: nil).tool))
+        XCTAssertNil(Keychain.jevKey(security: FakeSecurity(entry: nil).tool))
     }
 
     func testTheKeyGoesOnStdinAsHexAndNeverInTheArguments() {
         let security = FakeSecurity(entry: "old")
-        XCTAssertTrue(Keychain.setKey("sk-new key", for: .jev, security: security.tool))
+        XCTAssertTrue(Keychain.setJevKey("sk-new key", security: security.tool))
         XCTAssertEqual(security.entry, "sk-new key")
         XCTAssertEqual(security.calls.first?.arguments.first, "delete-generic-password", "the old entry goes first")
         for call in security.calls {
@@ -30,7 +30,7 @@ final class KeychainTests: XCTestCase {
 
     func testSavingNothingRemovesTheEntry() {
         let security = FakeSecurity(entry: "old")
-        XCTAssertTrue(Keychain.setKey("", for: .jev, security: security.tool))
+        XCTAssertTrue(Keychain.setJevKey("", security: security.tool))
         XCTAssertNil(security.entry)
         XCTAssertFalse(security.calls.contains { $0.arguments == ["-i"] }, "nothing is added")
     }
@@ -38,7 +38,7 @@ final class KeychainTests: XCTestCase {
     func testASaveThatDidntLandIsReported() {
         let security = FakeSecurity(entry: nil)
         security.refusesToAdd = true
-        XCTAssertFalse(Keychain.setKey("sk-new", for: .jev, security: security.tool))
+        XCTAssertFalse(Keychain.setJevKey("sk-new", security: security.tool))
     }
 }
 

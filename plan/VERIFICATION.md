@@ -1,6 +1,6 @@
 # Boop: verification
 
-Updated 2026-09-29. How we check that Boop works, including what's on its
+Updated 2026-09-30. How we check that Boop works, including what's on its
 screen, without a person watching, and every tool that does it.
 
 ## 1. The loop
@@ -71,12 +71,13 @@ launch the menu-bar app or run the whole eval.
 | Target | What it does |
 | --- | --- |
 | `make build` | Builds the Mac app, `boop-hook` and `boopdev` in one `swift build`. Importing a target that isn't a declared dependency fails it, so `app/` can't use `internal/` code ([ARCHITECTURE.md](ARCHITECTURE.md) §10) |
-| `make run` | Builds, then runs the menu-bar app with Bluetooth. The owner's; never from an agent's shell |
+| `make app` | Builds the Mac app, `boop-hook` and `boopdev` (the doctor skill checks the hooks with it), not the tests, with the same import check: what `make run` needs |
+| `make run` | `make app`, then runs the menu-bar app with Bluetooth. The owner's; never from an agent's shell |
 | `make debug` | The same with `--debug` |
 | `make dash` | The dashboard for the app `make debug` started, in a second terminal |
 | `make day` | What the everyday app did in a day, and why, from the logs `make debug` leaves (`boopctl day`, below); `DATE=YYYY-MM-DD` picks the day, the newest line's by default |
 | `make flash` | Builds the firmware and uploads it over USB; `BOOP_PORT` picks the port |
-| `make eval` | Builds, then runs every eval scenario against Jev with no request budget, 3 runs each for an `always` scenario and 1 for the rest (L5): the final pass, about 620 requests; fails without `BOOP_JEV_KEY` |
+| `make eval` | Builds, then runs every eval scenario against Jev with no request budget, 3 runs each for an `always` scenario and 1 for the rest (L5): the final pass ([EVALS.md](EVALS.md) §2 counts its requests); fails without `BOOP_JEV_KEY` |
 | `make clean` | Deletes `.build` and `firmware/.pio` |
 | `make -C internal voice` | Builds the voice pack, `.build/voice/voice.bin`, and `Takes.swift` with voicegen (below) when the bank or voicegen changed. `test`, `fw-test` and `sim` make it first, since they read it |
 | `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim, since there's no Xcode: `make build`, then `.build/debug/BoopTests` |
@@ -86,7 +87,7 @@ launch the menu-bar app or run the whole eval.
 | `make -C internal e2e` | Builds, then runs the pipeline check (L4) |
 | `make -C internal faces` | Regenerates the faces (`firmware/assets/faces.h`, the popover's `app/Boop/Views/FaceDesigns.swift`, the designs' loops for the Mac in `app/BoopKit/Core/FaceLoops.swift`, the frames `fw-test` checks, and the designs' list in `internal/tools/facegen/design/manifest.json`) from the animation bank (`internal/boop-design/boop-sound-bank-v4/`), whose generator it runs with node. It stops if an older mood's design doesn't come out as it was captured, then draws each design at a dozen moments in Google Chrome and fails unless facegen's own drawing matches pixel for pixel in RGB565, a blended pixel within one step (7,970 frames of 704 scenes, 7 minutes or so). Then rerun sfxgen (below) |
 | `make -C internal tools` | Makes or refreshes `internal/tools/.venv` (pyserial, Pillow, Textual); a venv that already works, such as a worktree's link to the main checkout's, is kept and its packages brought up to date. `internal/tools/boopctl` runs it on first run |
-| `make -C internal tools-test` | The tools' own tests, with no board or camera: `boopctl`'s commands and link, the card copy (`test_card.py`), the dashboard (`test_dash.py`), the day's summary (`test_day.py`), the working day's script and report (`test_workday.py`), the pipeline check's order check (`test_e2e.py`) and the webcam recorder on synthetic video. It makes the voice pack first, since boopctl reads the takes from it |
+| `make -C internal tools-test` | The tools' own tests, with no board or camera: `boopctl`'s commands and link, the card copy (`test_card.py`), the dashboard (`test_dash.py`), the day's summary (`test_day.py`), the working day's script and report (`test_workday.py`), the pipeline check's order check and the result it still writes when it can't start (`test_e2e.py`) and the webcam recorder on synthetic video. It makes the voice pack first, since boopctl reads the takes from it |
 
 **`internal/tools/boopctl`**, the board over USB, the simulator, the
 dashboard and the day's summary. `--port PORT` picks the serial port (default `$BOOP_PORT` or
@@ -122,7 +123,7 @@ commands go through the bridge.
 | `replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]` | Sends each payload through the real `boop-hook` to a running app, in real time, and times each `boop-hook` from launch to exit. `{"advance_ms":N}` moves a headless app's clock |
 | `say [--feeling F] [--about TOPIC] [--face MOOD] [--kind K] [--finish success\|failure]` | Prints the takes the board has that fit ([VOICE.md](VOICE.md) §3), and with a face and a feeling or topic, the line `react` would say ([VOICE.md](VOICE.md) §4); `--kind` is `sound` by default |
 | `eval [--runs N] [--only TEXT] [--always] [--budget N \| --no-budget] [--timeline] [--scenarios DIR] [--steering DIR]`, `eval --list` | The eval scenarios against Jev (L5, [EVALS.md](EVALS.md)), stopping first if they'd send more than the budget of requests (100 by default); `--list` prints each one's case, runs and requests with no key |
-| `watch [FILE] [--new]` | Prints a `debug.jsonl`'s view events, passes and actions readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's. `--new` skips what's already there |
+| `watch [FILE] [--new]` | Prints a `debug.jsonl`'s view events, passes and actions readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's. `--new` skips what's already there, though the first pass still prints the state's head in force ([harness/HARNESS.md](harness/HARNESS.md) §9) |
 | `hooks status\|install\|remove [claude\|codex] --home DIR [--hook PATH]` | The hook installer, against any HOME ([ADAPTERS.md](ADAPTERS.md)) |
 
 **`.build/debug/Boop`**, the app.
@@ -130,7 +131,7 @@ commands go through the bridge.
 | Way | What it does |
 | --- | --- |
 | `Boop [--state-dir DIR] [--link ble\|usb:SOCKET\|none] [--debug]` | The menu-bar app, with Bluetooth by default. The owner's. With a state directory other than the everyday one, it never installs or repairs the hooks |
-| `Boop --headless --state-dir DIR` | The whole runtime with no UI and no Bluetooth (L4). `--link usb:SOCKET\|none` (none), `--socket PATH` (`DIR/boop.sock`), `--personality boop\|chatter` for this run, `--brain jev\|scripted` (jev, only with `BOOP_JEV_KEY`; scripted answers every pass with an excited "yay", no network), `--name NAME` and `--nature sweet\|cheeky` for a new state directory, `--debug`. `--no-open` only logs where a tap would open a thread, instead of opening it on this Mac ([BEHAVIORS.md](BEHAVIORS.md) §3.2): `boopctl e2e`, `soak --pipeline` and `workday` pass it (`boopctl_lib/headless.py`). On its socket `{"dev":"advance","ms":N}` moves its clock, `{"dev":"tap"}` stands in for a tap on the board, and `{"dev":"listen","on":true}` and `{"dev":"said","words":"…"}` stand in for push-to-talk's button and mic ([harness/HARNESS.md](harness/HARNESS.md) §9). It keeps its transcript in `DIR/transcript/` and reads it back at launch ([harness/HARNESS.md](harness/HARNESS.md) §5) |
+| `Boop --headless --state-dir DIR` | The whole runtime with no UI and no Bluetooth (L4). `--link usb:SOCKET\|none` (none), `--socket PATH` (`DIR/boop.sock`), `--personality boop\|chatter` for this run, `--brain jev\|scripted` (jev, only with `BOOP_JEV_KEY`; scripted answers every pass the same way, with no network: [harness/HARNESS.md](harness/HARNESS.md) §7), `--name NAME` and `--nature sweet\|cheeky` for a new state directory, `--debug`. `--no-open` only logs where a tap would open a thread, instead of opening it on this Mac ([BEHAVIORS.md](BEHAVIORS.md) §3.2): `boopctl e2e`, `soak --pipeline` and `workday` pass it (`boopctl_lib/headless.py`). On its socket `{"dev":"advance","ms":N}` moves its clock, `{"dev":"tap"}` stands in for a tap on the board, and `{"dev":"listen","on":true}` and `{"dev":"said","words":"…"}` stand in for push-to-talk's button and mic ([harness/HARNESS.md](harness/HARNESS.md) §9). It keeps its transcript in `DIR/transcript/` and reads it back at launch ([harness/HARNESS.md](harness/HARNESS.md) §5) |
 | `--debug`, either way | Prints every hook, view event, action, device line and brain pass as it happens, and writes `DIR/debug.jsonl` for `boopdev watch` and `boopctl dash`; the socket then also takes the dashboard's dev lines ([harness/HARNESS.md](harness/HARNESS.md) §9) |
 | `Boop --snapshots DIR` | Renders the popover's panes and the menu-bar icons to PNGs, light and dark, from fixtures, and fails on low contrast (L0). No runtime, no Bluetooth |
 
@@ -341,7 +342,7 @@ does all of it:
 1. `boopctl bridge` owns the serial port on `/tmp/boop-e2e/usb.sock`.
 2. The app runs headless with its own state and sockets, never the
    everyday ones:
-   `.build/debug/Boop --headless --state-dir /tmp/boop-e2e/state --link usb:/tmp/boop-e2e/usb.sock --socket /tmp/boop-e2e/boop.sock --brain scripted --name Pip --debug`.
+   `.build/debug/Boop --headless --state-dir /tmp/boop-e2e/state --link usb:/tmp/boop-e2e/usb.sock --socket /tmp/boop-e2e/boop.sock --brain scripted --name Pip --no-open --debug`.
    The scripted brain makes runs repeatable; `boopctl e2e --brain jev`
    asks Jev, with `BOOP_JEV_KEY`.
 3. The fixtures in `internal/app/Tests/Fixtures/hooks/e2e/` go through the
@@ -354,7 +355,8 @@ does all of it:
 4. Latency runs from launching `boop-hook` to the board's `rx.state` going
    up. A hook that changes nothing sends no `state` and is left out.
 5. Afterwards it checks the view events' lines in `debug.jsonl` against
-   the fixtures' `expect.json`, that no `PRIVATE_` marker from the
+   the fixtures' `expect.json` (for the whole run, not named fixtures or
+   `--clip`), that no `PRIVATE_` marker from the
    fixtures reached any app file (`debug.jsonl` and the transcript
    included) but `PRIVATE_PROMPT` and `PRIVATE_CLOSING`, which mark your
    prompt and the agent's last message ([ADAPTERS.md](ADAPTERS.md) §2), and, from `boop.log`, that every

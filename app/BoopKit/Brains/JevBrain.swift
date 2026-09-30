@@ -6,8 +6,8 @@ import Foundation
 /// the person's API key. Only a failed request's HTTP status is logged,
 /// since an error body may repeat the request.
 public struct JevBrain: Brain {
-    public let id: String
-    let model: String
+    public let id = "jev:\(JevBrain.model)"
+    static let model = "jev-latest"
     let key: String
     /// Sends a request and returns the body and HTTP status. Tests pass their own.
     let send: @Sendable (URLRequest) async throws -> (Data, Int)
@@ -20,9 +20,7 @@ public struct JevBrain: Brain {
     /// (to time it) mustn't send another nobody waits for.
     static let retryAfterMs = 300
 
-    public init(key: String, model: String = "jev-latest", send: (@Sendable (URLRequest) async throws -> (Data, Int))? = nil) {
-        id = "jev:\(model)"
-        self.model = model
+    public init(key: String, send: (@Sendable (URLRequest) async throws -> (Data, Int))? = nil) {
         self.key = key
         self.send = send ?? { request in
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -35,26 +33,30 @@ public struct JevBrain: Brain {
         request.httpMethod = "POST"
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = JevBrain.body(model: model, state: state, questions: questions)
+        request.httpBody = JevBrain.body(model: JevBrain.model, state: state, questions: questions)
         let started = ContinuousClock.now
         var (data, status) = try await sendOnce(request)
         if JevBrain.retryable(status), ContinuousClock.now - started + .milliseconds(JevBrain.retryAfterMs) < deadline {
             try await Task.sleep(for: .milliseconds(JevBrain.retryAfterMs))
             (data, status) = try await sendOnce(request)
         }
+        // No server answered (offline, say), so there's no status to name.
+        guard let status else { throw BrainError("jev: can't reach the server") }
         guard status == 200 else { throw BrainError("jev: HTTP \(status)", status: status) }
         return try JevBrain.answers(data, questions)
     }
 
-    static func retryable(_ status: Int) -> Bool { status == 429 || status >= 500 }
+    /// A 429, a 5xx, or a connection that failed (nil).
+    static func retryable(_ status: Int?) -> Bool { status.map { $0 == 429 || $0 >= 500 } ?? true }
 
-    /// A connection that failed (not one that timed out) reads as a 503, so
-    /// it's tried again.
-    func sendOnce(_ request: URLRequest) async throws -> (Data, Int) {
+    /// The body and the HTTP status, or no status for a connection that
+    /// failed (not one that timed out), which is tried again.
+    func sendOnce(_ request: URLRequest) async throws -> (Data, Int?) {
         do {
-            return try await send(request)
+            let (data, status) = try await send(request)
+            return (data, status)
         } catch let error as URLError where error.code != .timedOut && error.code != .cancelled {
-            return (Data(), 503)
+            return (Data(), nil)
         }
     }
 
@@ -100,11 +102,6 @@ public struct JevBrain: Brain {
 public enum JevKey {
     /// The only place `boopdev` and `Boop --headless` read it from.
     public static let variable = "BOOP_JEV_KEY"
-
-    /// `BOOP_JEV_KEY`, else the one Boop keeps (`saved`).
-    public static func read(else saved: @autoclosure () -> String?) -> String? {
-        environment() ?? saved()
-    }
 
     public static func environment() -> String? {
         ProcessInfo.processInfo.environment[variable].flatMap { $0.isEmpty ? nil : $0 }

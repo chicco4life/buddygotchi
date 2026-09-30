@@ -8,7 +8,7 @@
 #include "app/codec.h"
 #include "render/palette.h"
 #include "render/pattern.h"
-#include "render/raster.h"
+#include "render/maths.h"
 #include "render/screens.h"
 
 namespace app {
@@ -47,11 +47,48 @@ int heldTo(JsonVariantConst v, int lo, int hi, int missing) {
   return n >= hi ? hi : n > lo ? int(n) : lo;
 }
 
+// Copying a voice pack onto the card over USB (PROTOCOL.md §5, VOICE.md §8):
+// `begin` (afresh, or `keep` to go on), then `put`s of base64 chunks at
+// the end of what the card holds, each with its CRC-32, then `end` with the
+// whole file's size and CRC-32. Every reply says what the card holds, so
+// a chunk lost on the way is simply sent again. Writes the reply into
+// `buf` and returns its length. Not inlined, so its chunk isn't on every
+// line's stack.
+constexpr size_t kCardChunk = 360;  // bytes a `put` may carry
+__attribute__((noinline)) size_t cardCopy(Hal& hal, JsonVariantConst doc, char* buf, size_t cap) {
+  const char* op = doc["op"] | "";
+  uint32_t have = 0;
+  const char* why = "";
+  bool ok = false;
+  if (!std::strcmp(op, "begin")) {
+    ok = hal.packBegin(doc["keep"] | false, have, why);
+  } else if (!std::strcmp(op, "put")) {
+    uint8_t chunk[kCardChunk];  // on the stack: static, it'd hold 360 B of heap for good
+    const char* d = doc["d"] | "";
+    long got = base64Decode(d, std::strlen(d), chunk, sizeof(chunk));
+    hal.packAppend(chunk, 0, have);  // how much the card holds
+    if (got < 0) why = "not base64";
+    else if (crc32(chunk, size_t(got)) != (doc["c"] | 0u)) why = "wrong crc";
+    else if ((doc["at"] | 0u) != have) why = "not where the card is";
+    else if (!(ok = hal.packAppend(chunk, size_t(got), have))) why = "can't write";
+  } else if (!std::strcmp(op, "end")) {
+    ok = hal.packEnd(doc["size"] | 0u, doc["crc"] | 0u, why);
+    return size_t(std::snprintf(buf, cap, "{\"t\":\"dbg.card\",\"op\":\"end\",\"ok\":%s,\"voice\":\"%s\",\"why\":\"%s\"}",
+                                ok ? "true" : "false", voice::assetsVersion(), ok ? "" : why));
+  } else {
+    why = "op is begin, put or end";
+  }
+  const char* name = ok || std::strcmp(why, "op is begin, put or end") ? op : "?";  // never echo junk
+  return size_t(std::snprintf(buf, cap, "{\"t\":\"dbg.card\",\"op\":\"%s\",\"ok\":%s,\"have\":%lu,\"why\":\"%s\"}", name,
+                              ok ? "true" : "false", (unsigned long)have, ok ? "" : why));
+}
+
 }  // namespace
 
 Device::Device(Hal& hal, uint8_t* pixels, bool frozenClock) : hal_(hal), canvas_(pixels) {
   clock_.start(frozenClock, hal_.realMs());
   b_.reset(0, rng_);
+  b_.startWithNoApp();
   fpsSinceReal_ = hal_.realMs();
 }
 
@@ -63,7 +100,7 @@ void Device::reset() {
   rng_.seed(0);
   b_.reset(0, rng_);
   hush();
-  linePending_ = false;
+  saidSeq_ = 0;
   fx_.reset();
   hal_.stopEffects();
   pattern_ = false;
@@ -173,19 +210,12 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     // is still a `say` (the reply listening waits for) but plays nothing.
     mo.take = voice::takeIndex(doc["say"]["take"].as<const char*>());
     mo.then = mo.take >= 0 ? voice::takeIndex(doc["say"]["then"].as<const char*>()) : -1;
-    voice::Line line = voice::makeLine(mo.take, mo.then);
     mo.id = doc["id"] | 0u;  // the Mac waits on it: `ended` goes back where it came from
     mo.from = uint8_t(from);
     uint32_t seq = b_.momentSeq();
-    bool speaks = b_.onMoment(mo, at);
-    linePending_ = false;
-    if (speaks) {
-      // Its sound goes with its bubble: now, or at its animation's voice
-      // window (VOICE.md §10).
-      line_ = line;
-      linePending_ = true;
-      lineMoment_ = b_.momentSeq();
-    }
+    // A line's sound goes with its bubble: now, or at its animation's voice
+    // window (VOICE.md §10). Any other moment drops one still waiting.
+    if (!b_.onMoment(mo, at)) saidSeq_ = b_.momentSeq();
     if (!startLine(at) && b_.momentSeq() != seq) hush();  // a new moment replaces the line
     dirty_ = true;
   } else if (!std::strcmp(t, "dbg.reset")) {
@@ -254,12 +284,10 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
                       : std::snprintf(buf, sizeof(buf), "{\"t\":\"dbg.touchcal\",\"cal\":null}");
     reply(from, buf, size_t(len));
   } else if (!std::strcmp(t, "dbg.card")) {
-    CardOp o;
-    o.op = doc["op"] | "";
-    o.keep = doc["keep"] | false;
-    o.at = doc["at"] | 0u, o.c = doc["c"] | 0u, o.size = doc["size"] | 0u, o.crc = doc["crc"] | 0u;
-    o.d = doc["d"] | "";
-    cardCopy(o, from);
+    // Nothing reads the old pack while `end` swaps it, and a waiting line is dropped.
+    if (!std::strcmp(doc["op"] | "", "end")) hush(), saidSeq_ = b_.momentSeq();
+    char buf[160];
+    reply(from, buf, cardCopy(hal_, doc.as<JsonVariantConst>(), buf, sizeof(buf)));
   } else if (!std::strcmp(t, "dbg.light")) {
     if (doc["bl"].is<int>()) b_.overrideBacklight(uint8_t(doc["bl"].as<int>()));
     reply(from, "{\"t\":\"dbg.light\"}", 17);
@@ -267,44 +295,6 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
   if (hello) sendStatus(from);
   sendEnded();
   return debug;
-}
-
-// Copying a voice pack onto the card over USB (PROTOCOL.md §5, VOICE.md §8):
-// `begin` (afresh, or `keep` to go on), then `put`s of base64 chunks at
-// the end of what the card holds, each with its CRC-32, then `end` with the
-// whole file's size and CRC-32. Every reply says what the card holds, so
-// a chunk lost on the way is simply sent again.
-void Device::cardCopy(const CardOp& o, Link from) {
-  char buf[160];
-  int n = 0;
-  uint32_t have = 0;
-  const char* why = "";
-  bool ok = false;
-  if (!std::strcmp(o.op, "begin")) {
-    ok = hal_.packBegin(o.keep, have, why);
-  } else if (!std::strcmp(o.op, "put")) {
-    static uint8_t chunk[kCardChunk];
-    long got = app::base64Decode(o.d, std::strlen(o.d), chunk, sizeof(chunk));
-    hal_.packAppend(chunk, 0, have);  // how much the card holds
-    if (got < 0) why = "not base64";
-    else if (app::crc32(chunk, size_t(got)) != o.c) why = "wrong crc";
-    else if (o.at != have) why = "not where the card is";
-    else if (!(ok = hal_.packAppend(chunk, size_t(got), have))) why = "can't write";
-  } else if (!std::strcmp(o.op, "end")) {
-    hush();  // nothing reads the old pack while it's swapped
-    linePending_ = false;
-    ok = hal_.packEnd(o.size, o.crc, why);
-    n = std::snprintf(buf, sizeof(buf), "{\"t\":\"dbg.card\",\"op\":\"end\",\"ok\":%s,\"voice\":\"%s\",\"why\":\"%s\"}",
-                      ok ? "true" : "false", voice::assetsVersion(), ok ? "" : why);
-    reply(from, buf, size_t(n));
-    return;
-  } else {
-    why = "op is begin, put or end";
-  }
-  const char* name = ok || std::strcmp(why, "op is begin, put or end") ? o.op : "?";  // never echo junk
-  n = std::snprintf(buf, sizeof(buf), "{\"t\":\"dbg.card\",\"op\":\"%s\",\"ok\":%s,\"have\":%lu,\"why\":\"%s\"}", name,
-                    ok ? "true" : "false", (unsigned long)have, ok ? "" : why);
-  reply(from, buf, size_t(n));
 }
 
 void Device::connected() {
@@ -421,19 +411,16 @@ void Device::hush() {
 // volume then; one replaced, or over, before it started is dropped. True
 // when it starts now.
 bool Device::startLine(uint32_t t) {
-  if (!linePending_) return false;
-  if (b_.momentSeq() != lineMoment_ || (!b_.bubble(t) && !b_.lineAhead(t))) {
-    linePending_ = false;
+  if (b_.momentSeq() == saidSeq_) return false;
+  if (!b_.bubble(t)) {  // it waits for its animation's voice window, or it's gone
+    if (!b_.lineAhead(t)) saidSeq_ = b_.momentSeq();
     return false;
   }
-  if (!b_.bubble(t)) return false;  // it waits for its animation's voice window
-  linePending_ = false;
+  saidSeq_ = b_.momentSeq();
   const Model& m = b_.model();
   if (m.vol <= 0) return false;
-  line_.vol = uint8_t(m.vol);
-  hal_.say(line_);
+  hal_.say(voice::makeLine(b_.take(), b_.then(), uint8_t(m.vol)));
   saying_ = true;
-  sayMoment_ = lineMoment_;
   return true;
 }
 
@@ -443,7 +430,7 @@ bool Device::startLine(uint32_t t) {
 // and silence for the last design's when it changes or starts over (needs
 // you's, for a new request).
 void Device::followSound(uint32_t t) {
-  if (saying_ && (b_.momentSeq() != sayMoment_ || !b_.bubble(t))) hush();
+  if (saying_ && (b_.momentSeq() != saidSeq_ || !b_.bubble(t))) hush();
   startLine(t);
   const Model& m = b_.model();
   render::SceneShow show = b_.show(t);
@@ -454,15 +441,9 @@ void Device::followSound(uint32_t t) {
   if (changed) hal_.stopEffects();
   if (m.vol == 0) return;
   for (int i = 0; i < n; ++i) {
-    voice::Effect e;
-    e.clip = due[i].clip;
-    e.gain = due[i].gain;
-    e.pitch = due[i].pitch;
-    e.vol = uint8_t(m.vol);
-    e.duck = fx_.duck();
-    hal_.effect(e);
+    hal_.effect({due[i].clip, due[i].gain, due[i].pitch, uint8_t(m.vol), fx_.duck()});
     ++fxSent_;
-    fxLast_ = e.clip;
+    fxLast_ = due[i].clip;
   }
 }
 
@@ -471,6 +452,22 @@ void Device::followSound(uint32_t t) {
 // design on the same steps with the same additions, and the bubble still
 // up or still down. The designs step a few times a second, so most passes
 // find the picture unchanged.
+// The key render() compares frames by: a 64-bit hash of the frame's bytes
+// (sceneFrame zeroes its padding, so equal frames hash the same), read four
+// at a time, and the bubble; never 0, which means nothing drawn.
+static uint64_t frameKey(const render::SceneFrame& f, bool bubble) {
+  static_assert(sizeof f % 4 == 0, "a frame hashes as whole words");
+  const uint8_t* p = reinterpret_cast<const uint8_t*>(&f);
+  uint64_t h = 14695981039346656037ull;
+  for (size_t i = 0; i < sizeof f; i += 4) {
+    uint32_t w;
+    std::memcpy(&w, p + i, 4);
+    h = (h ^ w) * 1099511628211ull;
+    h ^= h >> 29;
+  }
+  return (h << 1 | (bubble ? 1 : 0)) | (uint64_t(1) << 63);
+}
+
 void Device::render(uint32_t t) {
   drawnT_ = t;
   drawnReal_ = hal_.realMs();
@@ -491,15 +488,15 @@ void Device::render(uint32_t t) {
     if (!dirty_ && drawnSign_ && pose == drawnPose_) return;
     drawnSign_ = true;
     drawnPose_ = pose;
-    drawnFrame_ = render::SceneFrame{};
+    drawnKey_ = 0;
     render::drawSignScreen(canvas_, pose, b_.strip(t));
   } else {  // the face, needs you's listening and no app: what differs is in the show and the strip
     drawnSign_ = false;
     render::SceneFrame frame = render::sceneFrame(show);
     const char* bubble = b_.bubble(t);
-    if (!dirty_ && frame == drawnFrame_ && (bubble != nullptr) == drawnBubble_) return;
-    drawnFrame_ = frame;
-    drawnBubble_ = bubble != nullptr;
+    uint64_t key = frameKey(frame, bubble != nullptr);
+    if (!dirty_ && key == drawnKey_) return;
+    drawnKey_ = key;
     render::drawFaceScreen(canvas_, frame, bubble, b_.strip(t));
   }
   dirty_ = false;

@@ -48,7 +48,8 @@ let usages: [(command: String, text: String)] = [
         Follows debug mode's log (Boop --debug writes STATE-DIR/debug.jsonl; the default is the
         everyday app's) and prints each view event, pass and action readably, as Boop --debug does in its
         own terminal, waiting for FILE if it isn't there yet. The dashboard's lines (questions, sent,
-        status) are skipped. --new skips what's already in the file.
+        status) are skipped. --new skips what's already in the file, though the first pass still
+        prints the state's head in force.
     """),
     ("hooks", """
     boopdev hooks status|install|remove [claude|codex] --home DIR [--hook PATH]
@@ -169,10 +170,9 @@ func spawn(_ path: String, _ args: [String], stdin: Data, environment: [String: 
 
 func say(_ raw: [String]) {
     let args = arguments("say", raw, options: ["--feeling", "--about", "--face", "--kind", "--finish"])
-    let voice = Voice()
     let moods = MoodAction.moods.map(\.name)
     for (flag, part) in [("--feeling", Take.Part.feeling), ("--about", .about)] {
-        if let a = args[flag], !voice.answers(part).contains(a) { fail("\(flag): " + voice.answers(part).sorted().joined(separator: ", ")) }
+        if let a = args[flag], !Voice.answers(part).contains(a) { fail("\(flag): " + Voice.answers(part).sorted().joined(separator: ", ")) }
     }
     if let f = args["--face"], !moods.contains(f) { fail("faces: " + moods.joined(separator: ", ")) }
     guard let kind = Take.Kind(rawValue: args["--kind"] ?? "sound") else {
@@ -181,7 +181,7 @@ func say(_ raw: [String]) {
     let finish = args["--finish"]
     if let finish, !["success", "failure"].contains(finish) { fail("--finish is success or failure") }
     let asked: [(Take.Part, String)] = [(.feeling, args["--feeling"]), (.about, args["--about"])].compactMap { p, a in a.map { (p, $0) } }
-    let fit = voice.takes.filter { t in
+    let fit = Take.all.filter { t in
         (asked.isEmpty || asked.contains { $0.0 == t.part && $0.1 == t.meaning }) && args["--face"].map { $0 == t.mood } ?? true
             && (t.finish == nil || finish == nil || t.finish == finish)
     }
@@ -190,7 +190,7 @@ func say(_ raw: [String]) {
     }
     if let face = args["--face"], !asked.isEmpty {
         var rng = SplitMix64(seed: 1)
-        let line = voice.line(feeling: args["--feeling"], about: args["--about"], kind: kind, face: face, finish: finish, rng: &rng)
+        let line = Voice.line(feeling: args["--feeling"], about: args["--about"], kind: kind, face: face, finish: finish, rng: &rng)
         print(line.isEmpty ? "react says nothing: no take of that in \(face)'s mood fits"
               : "react says \"" + DeviceMoment.Say(takes: line).text! + "\" (" + line.map(\.id).joined(separator: ", ") + ")")
     }
@@ -342,9 +342,16 @@ func watch(_ raw: [String]) {
     }
     print("watching \(path) (Ctrl-C to stop)")
     var (handle, file) = open()
-    if args.has("--new") { handle.seekToEndOfFile() }
     var printer = DebugLog.Printer()
     var pending = ""
+    // From the end, but the first pass still prints the head in force. A
+    // line the app is still writing waits for the rest of it.
+    if args.has("--new") {
+        let data = handle.readDataToEndOfFile()
+        let whole = data.lastIndex(of: 0x0A).map { data.index(after: $0) } ?? data.startIndex
+        printer.skip(data[..<whole])
+        pending = String(decoding: data[whole...], as: UTF8.self)
+    }
     while true {
         let data = handle.availableData
         if data.isEmpty {
@@ -391,7 +398,7 @@ func hooks(_ raw: [String]) {
             default: break
             }
         } catch {
-            fail("\(agent.rawValue): \(error)")
+            fail("\(agent.rawValue): \(error.localizedDescription)")
         }
         print("\(agent.rawValue): \(installer.health(agent))")
     }

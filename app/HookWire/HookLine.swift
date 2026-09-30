@@ -95,13 +95,14 @@ public struct HookLine: Equatable, Sendable {
     static let perCall: Set<String> = ["PreToolUse", "PostToolUse", "PostToolUseFailure"]
 
     /// Picks the kept fields out of a raw hook payload. Returns nil when the
-    /// payload has no hook name or session. With `names`, the line also
-    /// gets the thread's name from there. `env` is the hook's environment,
-    /// which says what app the agent runs in (`HostApp`).
-    public static func extract(agent: String, payload: Data, ts: Int64, names: ThreadName.Source? = nil,
+    /// payload has no hook name or session. With `codexHome`, the line also
+    /// gets the thread's name (`ThreadName`); without it, neither agent's
+    /// is looked up. `env` is the hook's environment, which says what app
+    /// the agent runs in (`HostApp`).
+    public static func extract(agent: String, payload: Data, ts: Int64, codexHome: String? = nil,
                                env: [String: String] = [:]) -> HookLine? {
         var line = (try? JSONSerialization.jsonObject(with: payload) as? [String: Any])
-            .flatMap { extract(agent: agent, json: $0, ts: ts, names: names) }
+            .flatMap { extract(agent: agent, json: $0, ts: ts, codexHome: codexHome) }
             ?? salvage(agent: agent, payload: payload, ts: ts)
         line?.app = HostApp.bundleID(agent: agent, env: env)
         line?.appSession = HostApp.session(agent: agent, env: env)
@@ -109,7 +110,7 @@ public struct HookLine: Equatable, Sendable {
     }
 
     public static func extract(agent: String, json: [String: Any], ts: Int64,
-                               names: ThreadName.Source? = nil) -> HookLine? {
+                               codexHome: String? = nil) -> HookLine? {
         guard let hook = string(json["hook_event_name"]) ?? string(json["hookEventName"]),
               let session = string(json["session_id"]) ?? string(json["thread_id"]) ?? string(json["conversation_id"])
         else { return nil }
@@ -140,8 +141,8 @@ public struct HookLine: Equatable, Sendable {
         default:
             break
         }
-        if let names {
-            line.name = ThreadName.find(agent: agent, json: json, session: session, in: names,
+        if let codexHome {
+            line.name = ThreadName.find(agent: agent, json: json, session: session, codexHome: codexHome,
                                         wide: !perCall.contains(hook))
         }
         return line
@@ -178,25 +179,18 @@ public struct HookLine: Equatable, Sendable {
 
     // MARK: Wire form
 
+    /// The optional text fields, by their names on the wire.
+    static let wire: [(key: String, field: WritableKeyPath<HookLine, String?> & Sendable)] = [
+        ("cwd", \.cwd), ("tool", \.tool), ("topic", \.topic), ("error", \.error), ("kind", \.kind),
+        ("tool_error", \.toolError), ("tool_use_id", \.toolUseID), ("agent_type", \.agentType),
+        ("agent_id", \.agentID), ("message", \.message), ("prompt", \.prompt), ("name", \.name),
+        ("source", \.source), ("mode", \.mode), ("app", \.app), ("app_session", \.appSession),
+    ]
+
     public func encoded() -> Data {
         var object: [String: Any] = ["agent": agent, "hook": hook, "session": session, "ts": ts]
-        if let cwd { object["cwd"] = cwd }
-        if let tool { object["tool"] = tool }
-        if let topic { object["topic"] = topic }
-        if let error { object["error"] = error }
-        if let kind { object["kind"] = kind }
         if interrupt { object["interrupt"] = true }
-        if let toolError { object["tool_error"] = toolError }
-        if let toolUseID { object["tool_use_id"] = toolUseID }
-        if let agentType { object["agent_type"] = agentType }
-        if let agentID { object["agent_id"] = agentID }
-        if let message { object["message"] = message }
-        if let prompt { object["prompt"] = prompt }
-        if let name { object["name"] = name }
-        if let source { object["source"] = source }
-        if let mode { object["mode"] = mode }
-        if let app { object["app"] = app }
-        if let appSession { object["app_session"] = appSession }
+        for (key, field) in Self.wire { if let value = self[keyPath: field] { object[key] = value } }
         // No `.sortedKeys`: nothing reads the order, and sorting loads
         // locale-aware comparison, about half of a hook's few milliseconds.
         var data = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
@@ -208,15 +202,11 @@ public struct HookLine: Equatable, Sendable {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let agent = string(object["agent"]), let hook = string(object["hook"]),
               let session = string(object["session"]) else { return nil }
-        let ts = (object["ts"] as? NSNumber)?.int64Value ?? 0
-        return HookLine(agent: agent, hook: hook, session: session, cwd: string(object["cwd"]),
-                        tool: string(object["tool"]), topic: string(object["topic"]),
-                        error: string(object["error"]), kind: string(object["kind"]),
-                        interrupt: object["interrupt"] as? Bool == true, toolError: string(object["tool_error"]),
-                        toolUseID: string(object["tool_use_id"]), agentType: string(object["agent_type"]),
-                        agentID: string(object["agent_id"]), message: string(object["message"], max: maxMessage),
-                        prompt: string(object["prompt"], max: maxMessage), name: string(object["name"]),
-                        source: string(object["source"]), mode: string(object["mode"]), app: string(object["app"]),
-                        appSession: string(object["app_session"]), ts: ts)
+        var line = HookLine(agent: agent, hook: hook, session: session, interrupt: object["interrupt"] as? Bool == true,
+                            ts: (object["ts"] as? NSNumber)?.int64Value ?? 0)
+        for (key, field) in wire {
+            line[keyPath: field] = string(object[key], max: key == "message" || key == "prompt" ? maxMessage : maxField)
+        }
+        return line
     }
 }

@@ -170,6 +170,40 @@ final class InstallerTests: XCTestCase {
         XCTAssertFalse(HookInstaller.events[.codex]!.contains { $0.event == "SubagentStart" }, "Codex has none")
     }
 
+    /// ADAPTERS.md §5: health looks at Boop's own entries only. A hook of
+    /// the person's added after Boop's (Claude's /hooks appends), or inside
+    /// Boop's group, leaves it installed, so the launch repair doesn't
+    /// rewrite the file and ask for a restart. Boop's entry twice, or
+    /// under a matcher of the person's, is still outdated.
+    func testOthersHooksBesideBoopsLeaveItInstalled() throws {
+        try installer.install(.claude)
+        var root = read(.claude)
+        var hooks = root["hooks"] as! [String: Any]
+        let other: [String: Any] = ["type": "command", "command": "~/bin/other-tool.sh"]
+        hooks["PreToolUse"] = hooks["PreToolUse"] as! [[String: Any]] + [["matcher": "Edit", "hooks": [other]]]
+        var stop = hooks["Stop"] as! [[String: Any]]
+        stop[0]["hooks"] = stop[0]["hooks"] as! [[String: Any]] + [other]
+        hooks["Stop"] = stop
+        root["hooks"] = hooks
+        write(.claude, root)
+        let url = installer.configURL(.claude)
+        let before = try Data(contentsOf: url)
+        XCTAssertEqual(installer.health(.claude), .installed)
+        XCTAssertEqual(installer.repair(), [])
+        try XCTAssertEqual(try Data(contentsOf: url), before)
+
+        let entry: [String: Any] = ["type": "command", "command": installer.command(.claude), "timeout": 5]
+        var twice = hooks
+        twice["PostToolUse"] = twice["PostToolUse"] as! [[String: Any]] + [["hooks": [entry]]]
+        write(.claude, ["hooks": twice])
+        XCTAssertEqual(installer.health(.claude), .outdated)
+        var matched = hooks
+        stop[0]["matcher"] = "Explore"
+        matched["Stop"] = stop
+        write(.claude, ["hooks": matched])
+        XCTAssertEqual(installer.health(.claude), .outdated)
+    }
+
     func testInstallIsIdempotent() throws {
         write(.claude, existing)
         try installer.install(.claude)
@@ -217,8 +251,8 @@ final class InstallerTests: XCTestCase {
         try XCTAssertEqual(try String(contentsOf: home.appendingPathComponent(".codex/config.toml"), encoding: .utf8), toml)
     }
 
-    /// ADAPTERS.md §5: "The app shows exactly what it will add", and for
-    /// Codex that includes the switch in `config.toml`, until it's on.
+    /// Setup's preview lists each hook's command and, for Codex, the switch
+    /// in `config.toml` until it's on (ADAPTERS.md §5).
     func testTheCodexPreviewShowsTheConfigChange() throws {
         let toml = home.appendingPathComponent(".codex/config.toml")
         let preview = installer.preview(.codex)
@@ -236,7 +270,9 @@ final class InstallerTests: XCTestCase {
         try XCTAssertEqual(try enabling(""), "[features]\ncodex_hooks = true\n")
         try XCTAssertEqual(try enabling("a = 1"), "a = 1\n\n[features]\ncodex_hooks = true\n")
         try XCTAssertNil(try enabling("[features]\ncodex_hooks = true\n"))
-        try XCTAssertEqual(try enabling("[features]\ncodex_hooks = false\n"), "[features]\ncodex_hooks = true\n")
+        // Hooks the person turned off stay off (ADAPTERS.md §5).
+        try XCTAssertThrowsError(try enabling("[features]\ncodex_hooks = false\n"))
+        try XCTAssertThrowsError(try enabling("[features]\nhooks = false\n"))
         // A key of the same name in another table isn't ours.
         try XCTAssertEqual(try enabling("[other]\ncodex_hooks = true\n"),
                        "[other]\ncodex_hooks = true\n\n[features]\ncodex_hooks = true\n")
@@ -344,6 +380,132 @@ final class InstallerTests: XCTestCase {
         }
         try XCTAssertThrowsError(try installer.install(.claude))
         try XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "{ not json")
+    }
+
+    /// ARCHITECTURE.md §8, ADAPTERS.md §5: a settings file that's there but
+    /// can't be read (a root-owned one a `sudo` run left) is never taken for
+    /// an empty one and replaced with Boop's hooks. Settings says why.
+    func testAFileThatCantBeReadIsNeverReplaced() throws {
+        write(.claude, existing)
+        let url = installer.configURL(.claude)
+        let before = try Data(contentsOf: url)
+        try unreadable(url) {
+            guard case .unreadable(let why) = installer.health(.claude) else {
+                XCTFail("expected unreadable, got \(installer.health(.claude))")
+            }
+            XCTAssertTrue(why.contains("settings.json"), why)
+            try XCTAssertThrowsError(try installer.install(.claude))
+            try XCTAssertThrowsError(try installer.remove(.claude))
+            XCTAssertEqual(installer.repair(), [])
+        }
+        try XCTAssertEqual(try Data(contentsOf: url), before)
+    }
+
+    /// The same for Codex's `config.toml`: install refuses before writing
+    /// either file, and an outdated install isn't repaired over it. The
+    /// setup preview says why nothing is added, not which line to add
+    /// (ADAPTERS.md §5).
+    func testACodexConfigThatCantBeReadIsNeverReplaced() throws {
+        let toml = installer.codexConfigURL
+        let config = "model = \"gpt-6\"\n\n[mcp_servers.docs]\ncommand = \"docs\"\n"
+        try config.write(to: toml, atomically: true, encoding: .utf8)
+        try unreadable(toml) {
+            guard case .failure(let why) = installer.codexConfig else { XCTFail("expected a refusal") }
+            let preview = installer.preview(.codex)
+            XCTAssertTrue(preview.hasSuffix("SessionEnd → \"\(hook)\" codex\n\nNothing is added: \(why)"), preview)
+            XCTAssertFalse(preview.contains("codex_hooks"), preview)
+            try XCTAssertThrowsError(try installer.install(.codex))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: installer.configURL(.codex).path), "no hooks.json either")
+        }
+        try XCTAssertEqual(try String(contentsOf: toml, encoding: .utf8), config)
+
+        try installer.install(.codex)
+        var root = read(.codex)
+        var hooks = root["hooks"] as! [String: Any]
+        hooks["Stop"] = nil
+        root["hooks"] = hooks
+        write(.codex, root)
+        let enabled = try String(contentsOf: toml, encoding: .utf8)
+        try unreadable(toml) {
+            guard case .unreadable(let why) = installer.health(.codex) else {
+                XCTFail("expected unreadable, got \(installer.health(.codex))")
+            }
+            XCTAssertTrue(why.contains("config.toml"), why)
+            XCTAssertEqual(installer.repair(), [])
+        }
+        try XCTAssertEqual(try String(contentsOf: toml, encoding: .utf8), enabled)
+        XCTAssertEqual(installer.health(.codex), .outdated)
+    }
+
+    /// ADAPTERS.md §5: hooks the person turned off (Claude's
+    /// `disableAllHooks`, Codex's `hooks` or `codex_hooks` set to false in
+    /// `features`) aren't Connected, and nothing turns them back on: repair
+    /// skips them, installing Codex refuses before writing either file, and
+    /// Settings says where, offering only Remove, which works. A
+    /// config.toml without either key leaves Codex's hooks on.
+    func testHooksTurnedOffAreNotConnected() throws {
+        try installer.install(.claude)
+        var root = read(.claude)
+        root["disableAllHooks"] = true
+        write(.claude, root)
+        XCTAssertEqual(installer.health(.claude), .hooksOff(installer.configURL(.claude).path))
+        root["disableAllHooks"] = false
+        write(.claude, root)
+        XCTAssertEqual(installer.health(.claude), .installed)
+
+        try installer.install(.codex)
+        let toml = installer.codexConfigURL
+        for off in ["[features]\nhooks = false\n", "[ features ] # Boop too\ncodex_hooks=false\n", "features.hooks = false\n",
+                    "features = { web_search = true, hooks = false }\n"] {
+            try off.write(to: toml, atomically: true, encoding: .utf8)
+            XCTAssertEqual(installer.health(.codex), .hooksOff(toml.path), off)
+            XCTAssertEqual(installer.repair(), [], off)
+            try XCTAssertEqual(try String(contentsOf: toml, encoding: .utf8), off)
+        }
+        let installed = try Data(contentsOf: installer.configURL(.codex))
+        try installer.remove(.codex)
+        XCTAssertEqual(installer.health(.codex), .notInstalled)
+        for off in ["[features]\nhooks = false\n", "[features]\ncodex_hooks = false\n", "features.codex_hooks = false\n"] {
+            try off.write(to: toml, atomically: true, encoding: .utf8)
+            let removed = try Data(contentsOf: installer.configURL(.codex))
+            try XCTAssertThrowsError(try installer.install(.codex), off) {
+                XCTAssertEqual($0.localizedDescription, "Codex's hooks are turned off in config.toml", off)
+            }
+            XCTAssertTrue(installer.preview(.codex).hasSuffix("SessionEnd → \"\(hook)\" codex\n\n"
+                                                              + "Nothing is added: Codex's hooks are turned off in config.toml"), off)
+            try XCTAssertEqual(try String(contentsOf: toml, encoding: .utf8), off)
+            try XCTAssertEqual(try Data(contentsOf: installer.configURL(.codex)), removed, off)
+        }
+        try installed.write(to: installer.configURL(.codex))
+        for on in ["", "[features]\nhooks = true\n", "[tui]\nhooks = false\n", "features = { not_hooks = false }\n",
+                   "# [features]\n# hooks = false\n"] {
+            try on.write(to: toml, atomically: true, encoding: .utf8)
+            XCTAssertEqual(installer.health(.codex), .installed, on)
+        }
+    }
+
+    /// Settings shows why a change failed as the error's
+    /// `localizedDescription`: a refusal's own words, or Foundation's one
+    /// sentence, never an NSError dump with its domain and user info.
+    func testAFailedChangeSaysWhyInOneSentence() throws {
+        let unbuilt = HookInstaller(home: home, hookPath: home.appendingPathComponent("bin/boop-hook").path)
+        try XCTAssertThrowsError(try unbuilt.install(.claude)) {
+            XCTAssertEqual($0.localizedDescription, "there's no boop-hook at \(unbuilt.hookPath)")
+        }
+        let folder = home.appendingPathComponent(".claude")
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path) }
+        try XCTAssertThrowsError(try installer.install(.claude)) {
+            XCTAssertFalse($0.localizedDescription.contains("Domain"), $0.localizedDescription)
+            XCTAssertTrue($0.localizedDescription.contains("settings.json"), $0.localizedDescription)
+        }
+    }
+
+    /// Runs `body` while nobody can read `url`.
+    func unreadable(_ url: URL, _ body: () throws -> Void) throws {
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path) }
+        try body()
     }
 
     func testRecognisesBoopCommands() {

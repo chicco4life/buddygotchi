@@ -10,6 +10,7 @@ struct PopoverView: View {
     /// The tallest the column grows before it scrolls. The snapshot harness
     /// raises it to capture whole panes.
     var maxHeight: CGFloat? = nil
+    @Environment(\.stillMotion) private var still
 
     private var limit: CGFloat {
         maxHeight ?? min(720, (NSScreen.main?.visibleFrame.height ?? 900) - 60)
@@ -32,6 +33,8 @@ struct PopoverView: View {
         .foregroundStyle(Theme.ink)
         .tint(Theme.ink)
         .animation(.boopSettle, value: model.pane)
+        // Closed, it's out of sight but not gone: nothing loops, for nobody.
+        .environment(\.stillMotion, still || !model.shown)
         .onExitCommand(perform: onClose)
     }
 
@@ -52,7 +55,7 @@ struct PopoverView: View {
                         Image(systemName: "ladybug")
                     }
                     .keyboardShortcut("b", modifiers: .command)
-                    .disabled(model.runtime == nil)
+                    .disabled(model.status == nil)  // Boop isn't running (or not yet)
                     .help("Save a bug report: what Boop saw and did this launch, to hand to an agent")
                     .accessibilityLabel("Save a bug report")
                 } else if model.pane == .settings {
@@ -93,27 +96,5 @@ struct FittedScroll<Content: View>: View {
                 ScrollView { content }
                     .scrollBounceBehavior(.basedOnSize)
             }
-    }
-}
-
-/// A pane's title row: a Back chevron and the title.
-struct PaneHeader: View {
-    let title: String
-    let back: () -> Void
-
-    var body: some View {
-        HStack(spacing: Theme.gapTight) {
-            Button(action: back) {
-                Image(systemName: "chevron.left").font(.system(size: 12, weight: .semibold))
-            }
-            .buttonStyle(.quiet)
-            .keyboardShortcut("[", modifiers: .command)
-            .accessibilityLabel("Back")
-            Text(title).font(.boop(16))
-            Spacer()
-        }
-        .padding(.horizontal, Theme.gutter - 8)
-        .padding(.top, Theme.gutter - 4)
-        .padding(.bottom, Theme.gap)
     }
 }

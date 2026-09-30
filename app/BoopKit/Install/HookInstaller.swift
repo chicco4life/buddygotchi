@@ -13,11 +13,17 @@ public struct HookInstaller {
         case installed
         /// Some of Boop's entries are missing, old or point elsewhere.
         case outdated
-        /// The file isn't JSON Boop can read; it's left alone.
+        /// The file can't be read or isn't a JSON object, or Codex's
+        /// `config.toml` can't be read; it's left alone.
         case unreadable(String)
         /// The `boop-hook` the entries call isn't there, so they'd drop every
         /// event. Nothing is installed or repaired until it is.
         case clientMissing
+        /// Boop's entries are there, but the person turned the agent's hooks
+        /// off in this file, so none run. Boop never turns them back on:
+        /// repair skips them, installing Codex refuses, and Settings offers
+        /// only Remove.
+        case hooksOff(String)
     }
 
     /// The hooks each agent gets, the adapter's (ADAPTERS.md §3) in its
@@ -77,23 +83,34 @@ public struct HookInstaller {
         case .failure(let why): return .unreadable(why.description)
         case .success(let r): root = r
         }
+        if agent == .codex, case .failure(let why) = codexConfig { return .unreadable(why.description) }
         guard clientInPlace else { return .clientMissing }
-        let hooks = root["hooks"] as? [String: Any] ?? [:]
-        let ours = Self.boopCommands(in: hooks)
+        let ours = Self.boopGroups(in: root["hooks"] as? [String: Any] ?? [:])
         if ours.isEmpty { return .notInstalled }
-        return NSDictionary(dictionary: installing(agent, into: root)).isEqual(to: root) ? .installed : .outdated
+        switch agent {
+        case .claude where root["disableAllHooks"] as? Bool == true: return .hooksOff(configURL(agent).path)
+        case .codex where Self.codexHooksOff(in: (try? codexConfig.get()) ?? ""): return .hooksOff(codexConfigURL.path)
+        default: break
+        }
+        let fresh = installing(agent, into: [:])["hooks"] as? [String: Any] ?? [:]
+        return NSDictionary(dictionary: ours).isEqual(to: fresh) ? .installed : .outdated
     }
 
     /// What installing adds, one line per hook, for the setup screen, which
     /// puts the config file's path above it. For Codex it ends with the
-    /// switch installing turns on in `config.toml`, unless it's already on.
+    /// switch installing turns on in `config.toml`, unless it's already on,
+    /// or with why nothing is added when that file can't be read or turns
+    /// the hooks off.
     public func preview(_ agent: Agent) -> String {
         var text = Self.events[agent]!.map { "\($0.event)\($0.matcher.map { " (\($0))" } ?? "") → \(command(agent))" }
             .joined(separator: "\n")
         if agent == .codex {
-            switch Result(catching: { try Self.enablingCodexHooks(in: codexConfigText) }) {
+            let config = codexConfig
+            if case .failure(let why) = config { return text + "\n\nNothing is added: \(why)" }
+            switch Result(catching: { try Self.enablingCodexHooks(in: config.get()) }) {
             case .success(nil): break
             case .success: text += "\n\nIn \(codexConfigURL.path), under [features]:\ncodex_hooks = true"
+            case .failure(let why) where why as? Refusal == Self.codexHooksTurnedOff: text += "\n\nNothing is added: \(why)"
             case .failure(let why):
                 let place = why as? Refusal == Self.inlineFeatures ? "inside features = { … }" : "under [features] (\(why))"
                 text += "\n\nNothing is added until you put this in \(codexConfigURL.path), \(place):\ncodex_hooks = true"
@@ -106,11 +123,12 @@ public struct HookInstaller {
 
     /// Adds Boop's entries, replacing any older ones. For Codex it also turns
     /// hooks on in `config.toml`, and writes nothing at all when it won't edit
-    /// that file. Refuses while `boop-hook` isn't in place.
+    /// that file or the person turned the hooks off there. Refuses while
+    /// `boop-hook` isn't in place.
     public func install(_ agent: Agent) throws {
         guard clientInPlace else { throw Refusal("there's no boop-hook at \(hookPath)") }
         let root = try read(agent).get()
-        let config = agent == .codex ? try Self.enablingCodexHooks(in: codexConfigText) : nil
+        let config = agent == .codex ? try Self.enablingCodexHooks(in: codexConfig.get()) : nil
         try write(installing(agent, into: root), agent)
         if let config { try config.write(to: codexConfigURL.resolvingSymlinksInPath(), atomically: true, encoding: .utf8) }
     }
@@ -180,18 +198,33 @@ public struct HookInstaller {
         return root
     }
 
-    static func boopCommands(in hooks: [String: Any]) -> [String] {
-        hooks.values.flatMap { value -> [String] in
-            let groups = value as? [[String: Any]] ?? []
-            return groups.flatMap { ($0["hooks"] as? [[String: Any]] ?? []).compactMap { $0["command"] as? String } }
-        }.filter(isBoopCommand)
+    /// Boop's entries by hook, each in a group of its own with its group's
+    /// matcher, as a fresh install writes them. Where a group sits, and
+    /// what else is in it, doesn't matter: the agent runs every hook.
+    static func boopGroups(in hooks: [String: Any]) -> [String: [[String: Any]]] {
+        var ours: [String: [[String: Any]]] = [:]
+        for (event, value) in hooks {
+            for group in value as? [[String: Any]] ?? [] {
+                for entry in group["hooks"] as? [[String: Any]] ?? [] where isBoopCommand(entry["command"] as? String ?? "") {
+                    var alone: [String: Any] = ["hooks": [entry]]
+                    alone["matcher"] = group["matcher"]
+                    ours[event, default: []].append(alone)
+                }
+            }
+        }
+        return ours
     }
 
     // MARK: Files
 
+    /// Only a file that isn't there reads as empty. One that's there but
+    /// can't be read is refused, so it's never replaced with Boop's hooks.
     func read(_ agent: Agent) -> Result<[String: Any], Refusal> {
         let url = configURL(agent)
-        guard let data = try? Data(contentsOf: url) else { return .success([:]) }
+        let data: Data
+        do { data = try Data(contentsOf: url) } catch CocoaError.fileReadNoSuchFile { return .success([:]) } catch {
+            return .failure(Refusal(error.localizedDescription))
+        }
         if data.allSatisfy({ [0x20, 0x0A, 0x0D, 0x09].contains($0) }) { return .success([:]) }
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return .failure(Refusal("\(url.lastPathComponent) isn't a JSON object"))
@@ -213,8 +246,13 @@ public struct HookInstaller {
 
     var codexConfigURL: URL { home.appendingPathComponent(".codex/config.toml") }
 
-    /// `config.toml` as it is now; empty if it isn't there.
-    var codexConfigText: String { (try? String(contentsOf: codexConfigURL, encoding: .utf8)) ?? "" }
+    /// `config.toml` as it is now; empty if it isn't there, and refused, as
+    /// `read` does, if it's there but can't be read.
+    var codexConfig: Result<String, Refusal> {
+        do { return .success(try String(contentsOf: codexConfigURL, encoding: .utf8)) }
+        catch CocoaError.fileReadNoSuchFile { return .success("") }
+        catch { return .failure(Refusal(error.localizedDescription)) }
+    }
 
     /// Codex runs hooks only with `codex_hooks = true` under `[features]`.
     /// Boop adds the line if it's missing and never removes it: other hooks
@@ -223,10 +261,12 @@ public struct HookInstaller {
     /// `toml` with `codex_hooks = true` in `features`, or nil if it's
     /// already there. It finds the table however it's written (`[features]`,
     /// `[ features ] # note`, or top-level `features.x = …` keys) and never
-    /// declares it twice, which Codex refuses to load. It throws for a shape
-    /// it won't edit (an inline `features = {…}` without the key), so the
-    /// line is added by hand.
+    /// declares it twice, which Codex refuses to load. It throws while the
+    /// person has the hooks turned off there, which Boop never undoes, and
+    /// for a shape it won't edit (an inline `features = {…}` without the
+    /// key), so the line is added by hand.
     static func enablingCodexHooks(in toml: String) throws -> String? {
+        if codexHooksOff(in: toml) { throw codexHooksTurnedOff }
         var lines = toml.components(separatedBy: "\n")
         var section: String?  // nil at the top level
         var featuresAt: Int?
@@ -275,6 +315,26 @@ public struct HookInstaller {
     }
 
     static let inlineFeatures = Refusal("features is an inline table")
+    static let codexHooksTurnedOff = Refusal("Codex's hooks are turned off in config.toml")
+
+    /// Whether `toml` turns Codex's hooks off: `hooks`, or its old name
+    /// `codex_hooks`, set to false in `features`, however that's written.
+    /// A file without either leaves them on.
+    static func codexHooksOff(in toml: String) -> Bool {
+        var section: String?  // nil at the top level
+        for raw in toml.components(separatedBy: "\n") {
+            let line = uncommented(raw).filter { !$0.isWhitespace }
+            if line.hasPrefix("[") {
+                section = line
+            } else if section == "[features]", line == "hooks=false" || line == "codex_hooks=false" {
+                return true
+            } else if section == nil, line == "features.hooks=false" || line == "features.codex_hooks=false"
+                        || line.range(of: #"^features=\{(.*,)?(codex_)?hooks=false[,}]"#, options: .regularExpression) != nil {
+                return true
+            }
+        }
+        return false
+    }
 
     /// A TOML line without its `# comment`, leaving a `#` inside quotes.
     static func uncommented(_ line: String) -> Substring {

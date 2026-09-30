@@ -2,10 +2,10 @@ import Foundation
 
 /// What the core decided. The app hands each effect to the part that carries
 /// it out: snapshots and the rules' one-shots to the device link, what it
-/// did by rule to the transcript, and a new day to the memory store. The
-/// core itself never builds speech, writes files or talks to the device:
-/// everything Boop says, and every face but the look and the rules' one-shots, is
-/// the brain's (BEHAVIORS.md §1, §3.1).
+/// did by rule to the transcript, and a new day to the transcript's
+/// pruning. The core itself never builds speech, writes files or talks to
+/// the device: everything Boop says, and every face but the look and the
+/// rules' one-shots, is the brain's (BEHAVIORS.md §1, §3.1).
 public enum CoreEffect: Equatable, Sendable {
     /// A new snapshot, sent because something on it changed.
     case state(StateSnapshot)
@@ -16,7 +16,8 @@ public enum CoreEffect: Equatable, Sendable {
     /// What the rules did, as an `action` event for the transcript
     /// (harness/EVENTS.md §2): recorded after the event that caused it.
     case record(Event)
-    /// The first activity of a new day: short-term starts fresh.
+    /// The first activity of a new day: the transcript deletes its files
+    /// past `Transcript.keptDays`.
     case newDay(date: String)
     /// Push-to-talk: turn the Mac's mic on or off, after `by`'s button
     /// (BEHAVIORS.md §3.3).

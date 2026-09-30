@@ -184,6 +184,28 @@ void test_the_mouth_follows_the_take() {
   TEST_ASSERT_FALSE(voice::mouthOpen(-1, 100));
 }
 
+// VOICE.md §8: a card that fails mid-line drops the rest of the line,
+// fading out, and isn't asked again for every sample.
+void test_a_card_failing_mid_line_ends_it() {
+  struct Failing : voice::Source {
+    int reads = 0, after = -1, failed = 0;  // after: how many more reads work once armed
+    bool read(uint32_t at, void* buf, uint32_t n) override {
+      if (after >= 0 && ++reads > after) return ++failed, false;
+      return packfile::source().read(at, buf, n);
+    }
+  } card;
+  TEST_ASSERT_TRUE(voice::openPack(&card));
+  voice::Player p;
+  p.start(line("new.d20"));
+  TEST_ASSERT_TRUE(p.playing());
+  card.after = 2;  // the card fails a couple of refills into the line
+  std::vector<uint8_t> out(512);
+  for (int i = 0; i < 400 && p.playing(); ++i) p.render(out.data(), out.size());
+  TEST_ASSERT_FALSE(p.playing());
+  TEST_ASSERT_EQUAL(1, card.failed);
+  TEST_ASSERT_TRUE(packfile::open());
+}
+
 int main() {
   UNITY_BEGIN();
   if (!packfile::open()) std::printf("no voice pack: run make -C internal voice\n");
@@ -194,5 +216,6 @@ int main() {
   RUN_TEST(test_a_cut_fades_instead_of_clicking);
   RUN_TEST(test_volume_scales_and_zero_mutes);
   RUN_TEST(test_the_mouth_follows_the_take);
+  RUN_TEST(test_a_card_failing_mid_line_ends_it);
   return UNITY_END();
 }

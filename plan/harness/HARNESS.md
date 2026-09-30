@@ -1,6 +1,6 @@
 # Boop: the harness
 
-Updated 2026-09-29. The generic code between the view and the brain: how
+Updated 2026-09-30. The generic code between the view and the brain: how
 a view event becomes questions for Jev, how Jev's answers become
 something Boop does, and the transcript it all comes from. The events
 and the view are in [EVENTS.md](EVENTS.md), Boop's
@@ -31,9 +31,11 @@ turn's included, is the brain's.
 
 Everything but the brain call runs on `home`, the runtime's one serial
 queue. Every input takes the same way, the `Pipeline`
-(`app/BoopKit/App/Pipeline.swift`): it's recorded, the core has it, what
-the core did by rule is recorded after it, and the view events it made
-are gated ([EVENTS.md](EVENTS.md) §6).
+(`app/BoopKit/App/Pipeline.swift`): it's recorded (an agent's event
+without the thread name, app and mode its session already has,
+[EVENTS.md](EVENTS.md) §2), the core has it, what the core did by rule is
+recorded after it, and the view events it made are gated
+([EVENTS.md](EVENTS.md) §6).
 
 ```
  agent hooks ─► adapters ─┐
@@ -46,7 +48,7 @@ are gated ([EVENTS.md](EVENTS.md) §6).
                                                     ▼
                                  Harness.take(view events)
                       ├─ wakes the brain, and there is one? no ─► stop here
-                      └─ a pass running? yes ─► it waits (a newer one replaces it)
+                      └─ a pass running? yes ─► it waits, by its priority (a newer one replaces one at 0)
                            │ no
                            ▼
                     prepare: the state (§5.3, §6) + every action's questions   on `home`
@@ -62,7 +64,20 @@ are gated ([EVENTS.md](EVENTS.md) §6).
 
 What the picture leaves out:
 
-- A waiting view event that a newer one replaces stays in the view, so
+- A view event waits by its priority (`ViewEvent.passPriority`, which
+  the view sets): behind the ones waiting at its own or higher, ahead of
+  the ones below. A finished turn is 1 and what you said 2, so another
+  agent's routine event can't take a finish's pass, and what you said
+  goes ahead of the finishes waiting: the next pass is the reply, and no
+  finish waiting ends `listening` with its reaction. A pass already
+  running, or one that starts before what you said is recorded (the mic
+  hands its words over after it stops), still does: the runtime takes
+  any reaction as the reply, and the reply waits behind its line. A
+  finish that waited has its pass after the reply's, so its HISTORY,
+  which holds only what came before NOW (§5.3), leaves out what you said
+  and Boop's reply, while MOOD already has the mood the reply left. A
+  newer view event replaces the last one waiting if that one is at 0, so
+  at most one of those waits, last. A replaced one stays in the view, so
   later passes still see it in HISTORY. The app log says
   `harness: turn start replaced by a newer tool end`.
 - The state and the questions are fixed when a pass starts, so a mood
@@ -73,13 +88,13 @@ What the picture leaves out:
   showed happy would undo the dashboard's grumpy. The app log says
   `harness: mood sat out the pass: the dashboard changed it while the pass ran`.
 - After every pass, dropped ones included, the runtime hears of it
-  (`onRecord`) and writes its app log line (§9). Then the waiting view
-  event's pass starts, unless it may no longer wake the brain
-  (`Harness.whyNotStart`, the pipeline's `whyNotWake`): while something
+  (`onRecord`) and writes its app log line (§9). Then the first waiting
+  view event's pass starts, unless it may no longer wake the brain
+  (the pipeline's `whyNotWake`, asked again): while something
   needs you only what you say may, and a poke may not while Boop is answering
   its run ([EVENTS.md](EVENTS.md) §6). It's logged as a pass dropped
   with that reason (`something needs you`, `Boop is answering these
-  pokes`), and the brain isn't asked.
+  pokes`), and the brain isn't asked; the next one waiting is tried.
 - An action that started something reports its end later, on `home`,
   and the harness records it as the action's `end`. The runtime's 1 s
   tick also ticks the harness, which ends any left open too long (§5.1),
@@ -91,7 +106,7 @@ What the picture leaves out:
 | --- | --- | --- |
 | Idle | Its pass starts | — |
 | Running | It waits | Back to idle |
-| Running, one waiting | It replaces the waiting one | The waiting one's pass starts, or, if it may no longer wake the brain, is dropped |
+| Running, some waiting | It waits too, by its priority, replacing the last one waiting if that one is at 0 | The first waiting one's pass starts, or, if it may no longer wake the brain, is dropped and the next is tried |
 | No brain | Nothing: no view event wakes it | — |
 
 `use(brain)` swaps the brain from the next pass on; the runtime sets it
@@ -112,6 +127,7 @@ struct ViewEvent {
     var line: String               // what happened, as HISTORY and NOW show it
     var notes: [String]            // lines under it: your prompt, the agent's last message
     var wakesBrain: Bool           // opens a pass; false: kept and shown only
+    var passPriority: Int          // how it waits behind a running pass: 1 a finished turn, 2 what you said, else 0
     var about: String?             // the thread it's about, opaque to the harness
     var facts: [String: JSONValue] // for logs and evals only
     var did: [Did]                 // what Boop did about it, in order
@@ -138,7 +154,7 @@ An action is something Boop can do when the brain wakes
 ```swift
 protocol Action: AnyObject {
     var name: String { get }                     // "react"
-    func questions() -> [Question]               // asked on every pass, built fresh each time
+    func questions() -> [Question]               // asked on every pass, so they can follow live state
     func run(_ answers: Answers) -> ActionResult? // its own answers; nil means "did nothing"
 }
 
@@ -216,13 +232,19 @@ the state from the view, for each pass; neither is ever kept.
   days and launches, and is never changed.
 - **On disk,** one file a day: `<state-dir>/transcript/<date>.jsonl`
   (`Transcript.folderName`), each event its line, written as it's
-  appended. A launch deletes files older than **14 days**
-  (`Transcript.keptDays`), reads the last **2** days' back
-  (`Transcript.replayDays`) and folds them into the view, so turn
-  numbers and failure runs carry on. A line that doesn't parse, such as
-  one a crash cut short, is skipped, and `seq` goes on from the newest
-  file's last event. The newest **1,000** events are also kept in memory
-  (`Transcript.limit`).
+  appended. Files older than **14 days** (`Transcript.keptDays`, today
+  included) are deleted at launch and at each new day
+  ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2), so an app left running
+  for weeks keeps no more. A launch reads the last **2** days' back
+  (`Transcript.replayDays`) and folds them into the view and the core one
+  at a time as each line is read, so turn numbers, failure runs, the
+  sessions and a request still waiting carry on. A line that doesn't
+  parse, such as one a crash cut short, is skipped (a file that ends
+  mid-line is ended there first, so the next line written isn't glued to
+  it; a cut inside a character spoils only that line), and `seq` goes on
+  from the newest file's last event. Nothing else of it is kept in
+  memory; the view keeps what it needs. A transcript with no folder (the
+  evals, tests) keeps its events in memory instead.
 - **A started action that was still in progress** when the last launch
   quit can't end now, since its handle went with that launch, so the
   launch records its end as failed, `Boop restarted`.
@@ -258,7 +280,8 @@ places), `dropped` (why no action ran, or null) and `latency_ms`.
 pure function of the view's events, the closing line (step 5) and the
 clock, and the view is a pure function of the transcript, so a logged
 pass can be rebuilt exactly by folding `debug.jsonl`'s events up to its
-`seen` (§9) into a fresh view. An action's end recorded while Jev
+`seen` (§9) into a fresh view (its state is the `head` line before it and
+its own `state`). An action's end recorded while Jev
 answered lands in the log before the pass, but the state was built when
 the pass started, without it, and `seen` leaves it out. StateText places
 lines, notes and actions' messages and never writes them, apart from
@@ -385,6 +408,7 @@ reactions. The `pass` line's `dropped` says why:
 | --- | --- |
 | `late: no answer within 1500 ms` | The deadline passed. The pass's `latency_ms` is then the deadline's, not the brain's, so the request goes on to its end (the HTTP timeout at most), off the pass, and the app log says when it came: `harness: jev:jev-latest answered after 1702 ms, too late for the turn start pass`, with `: ` and why if it failed. Its answer is thrown away |
 | `jev: HTTP <status>` | Not 200, after the retry. Only the status is kept, since an error body may repeat the request |
+| `jev: can't reach the server` | The connection failed, after the retry (the Mac offline, say), so no server answered. It counts toward "Jev isn't answering" as any failure does |
 | `jev: no answers` | The body had no `answers` object |
 | `jev: no usable answer for <key>` | A question left out, or answered with an option it doesn't have |
 | `something needs you`, `Boop is answering these pokes` | The view event waited behind a running pass, and by the time its turn came something needed you, or, for a poke, the pass's reaction answered its run ([EVENTS.md](EVENTS.md) §6). The brain wasn't asked, so the line has no state and a `latency_ms` of 0 |
@@ -397,7 +421,9 @@ notice with the reason. An HTTP 401 or 403 (the key) or 402 (out of
 credit) shows it at once, since only the person can fix those; anything
 else shows it after **3** in a row (`BrainTrouble.showAfter`), so one
 slow answer doesn't. The next pass that runs clears it, and so does a new
-key. A pass that never asked Jev (`something needs you`) doesn't count.
+key. A pass that never asked Jev (`something needs you`) doesn't count,
+and neither does one that asked it with the key before, which may end
+after a new key is saved or the key is cleared.
 
 When the body came back but couldn't be used, the app log gets its size,
 never its text: `harness: jev:jev-latest answered what couldn't be used
@@ -492,9 +518,10 @@ which headless `advance` moves:
 | --- | --- | --- |
 | `event` | Every event the transcript records ([EVENTS.md](EVENTS.md) §2) | The event, as its transcript line |
 | `view` | Every view event, as the pipeline gates it | `id`, `type`, `phase`, `from`, `line`, `notes`, `wakes_brain` and `facts` |
-| `pass` | Every pass (§5.2), dropped ones included | A Jev pass also has `state` (the whole state sent), `questions` (the keys asked, in order), `brain` (its `id`) and `seen` (the transcript's last `seq` when its state was built, so a rebuild folds the events up to it, §5.3). A forced pass has `questions` (the keys it answered) and `by`, and no `state` or `brain`. Either has `options`, the option names it asked by key, for the questions whose options differ from the `questions` line's (`Harness.changedOptions`) |
-| `questions` | As the file's first line, before the socket or the link can add one: the questions as they stand at launch. A pass that asked other options, such as the mood's moves once it has moved, names them itself (`options`, below) | Every action's questions in order: `action`, `key`, `text`, and each option's `name`, `what` and `not_for` |
-| `sent` | Every line sent to the device, whatever the link, none included | The line, verbatim ([PROTOCOL.md](../PROTOCOL.md) §3), and beside it `by`: `brain` for the brain's moments (a forced pass's included), `rule` for everything else, states included. `boop.log`'s `link brain →` and `link rules →` in debug mode say the same. `{"sent":{"t":"moment","say":{"take":"phase1.borrowed.andiamo__excited__contained"},"mood":"excited","loops":1},"by":"brain","received_at_ms":1790676431390}` |
+| `pass` | Every pass (§5.2), dropped ones included | A Jev pass also has `state` (the state sent, from its HISTORY on: the rest is the `head` line before it), `questions` (the keys asked, in order), `brain` (its `id`) and `seen` (the transcript's last `seq` when its state was built, so a rebuild folds the events up to it, §5.3). A forced pass has `questions` (the keys it answered) and `by`, and no `state` or `brain`. Either has `options`, the option names it asked by key, for the questions whose options differ from the `questions` line's (`Harness.changedOptions`) |
+| `head` | Before a Jev pass whose state's head differs from the last `head` line's: the launch's first, and after a new personality or mood | The head, as a string: the state up to HISTORY, that is the guide, PERSONALITY and MOOD (§6), which the passes after it share. `boopdev watch` and the terminal print it with the first pass; `watch --new` prints the latest one before the end of the file with the first pass it shows |
+| `questions` | As the file's first line, before the launch's read-back (whose ends of actions left in progress are events, §5.1), the socket or the link can add one: the questions as they stand at launch. A pass that asked other options, such as the mood's moves once it has moved, names them itself (`options`, below) | Every action's questions in order: `action`, `key`, `text`, and each option's `name`, `what` and `not_for` |
+| `sent` | Every line sent to the device, whatever the link, none included | The line, verbatim ([PROTOCOL.md](../PROTOCOL.md) §3), and beside it `by`: `brain` for the brain's moments (a forced pass's included), `rule` for everything else, states included. `boop.log`'s `link brain →` and `link rules →` in debug mode say the same, but for a `state` the same as the last one sent (the 10 s keepalive, a reply to `status`), which only `debug.jsonl` keeps: the dashboard reads it as a sign the app is running. `{"sent":{"t":"moment","say":{"take":"phase1.borrowed.andiamo__excited__contained"},"mood":"excited","loops":1},"by":"brain","received_at_ms":1790676431390}` |
 | `status` | When the personality, the brain, the sessions or the connection changes | `personality`, `brain` (an `id`, or `none`), `sessions` (`agent`, `project`, `status`) and `connected`; the mood is in `sent`'s `state` |
 
 The last three are for the dashboard (`internal/tools/boopctl dash`);
@@ -530,17 +557,19 @@ never played ([DECISIONS.md](DECISIONS.md) §5):
 **A bug report.** The ladybug button in the popover's footer (⌘B)
 saves everything needed to work out afterwards what Boop saw and did
 this launch, debug mode or not, then shows it in Finder and copies its
-path, to hand to an agent. For that, the app always keeps this launch's
-`debug.jsonl` lines in memory (`DebugLog.Recent`), states and all, up
-to 8 MB, the oldest let go first; they go nowhere until the button is
-pressed. The report is a new folder,
+path, to hand to an agent. For that, outside debug mode the app keeps
+this launch's `debug.jsonl` lines in memory (`DebugLog.Recent`), states
+and all, up to 8 MB of them, the oldest let go first, as their bytes
+alone in one buffer taken once; they go nowhere until the button is
+pressed. In debug mode the file already has them, so none are kept. The
+report is a new folder,
 `bug-reports/<yyyy-MM-dd-HHmmss>/` in the state directory (the
 transcript's own files are beside it, in `transcript/`, §5.1):
 
 | File | Holds |
 | --- | --- |
-| `debug.jsonl` | Those lines, in the format above, so `boopdev watch` prints it |
-| `boop.log` | The log's last megabyte: replaced view events, late answers, actions that sat a pass out |
+| `debug.jsonl` | Those lines, or in debug mode the file's last 8 MB from the start of a line, in the format above, so `boopdev watch` prints it. When the launch's `questions` line and the `head` line in force where they start come before them, those two come first |
+| `boop.log` | The log's last megabyte, from the start of a line: replaced view events, late answers, actions that sat a pass out |
 | `settings.json`, `mood` | Copies, when they exist |
 | `about.json` | The app's and firmware's versions, the link, whether it's connected, debug mode, the personality, mood, brain and sessions, and when it was taken (`taken_at_ms` on the app's clock, `taken_at_wall_ms`) |
 
@@ -564,7 +593,7 @@ the lines alone:
 
 | Part | File | Job |
 | --- | --- | --- |
-| Harness | `app/BoopKit/Harness/Harness.swift` | One pass running and one waiting; asks, hands out answers, records actions; started actions until they end, and their ceiling (`tick`); forced passes; `respond(to:)`, one view event straight through for the evals |
+| Harness | `app/BoopKit/Harness/Harness.swift` | One pass running and the ones waiting, by priority; asks, hands out answers, records actions; started actions until they end, and their ceiling (`tick`); forced passes; `respond(to:)`, one view event straight through for the evals |
 | Contracts | `app/BoopKit/Harness/Contracts.swift`, `app/BoopKit/Core/Event.swift` | `Action`, `Question`, `Option`, `Answer`, `ActionResult`, `Pending`, `JSONValue`; `Event` |
 | Transcript | `app/BoopKit/Harness/Transcript.swift` | The events, their files, and reading them back |
 | Pipeline | `app/BoopKit/App/Pipeline.swift` | Records each input, hands it to the core and the view, and gates the view events |

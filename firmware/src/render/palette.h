@@ -3,7 +3,7 @@
 // grey text and one amber accent, plus the bring-up colours; then the
 // animation bank's colours, flat, which faces.h lists.
 //
-// Anti-aliased edges (text, the bubble and the strip) use ramps: 8 steps
+// Anti-aliased edges (the text, and the strip's round icons) use ramps: 8 steps
 // from black up to an ink colour. The table is computed with integer maths
 // at compile time, so the board and the simulator agree.
 #pragma once

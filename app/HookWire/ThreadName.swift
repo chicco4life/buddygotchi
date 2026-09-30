@@ -5,22 +5,11 @@ import Foundation
 /// popover and the device name threads as you do. Only the name leaves this
 /// type: the transcript it's read from is looked at in memory and dropped.
 public enum ThreadName {
-    /// Where the agents keep names: Claude in the session's transcript,
-    /// Codex in `session_index.jsonl` under its home.
-    public struct Source: Sendable {
-        public var codexHome: String
-
-        public init(codexHome: String) {
-            self.codexHome = codexHome
-        }
-
-        /// `$CODEX_HOME`, or `~/.codex`.
-        public static var live: Source {
-            let env = ProcessInfo.processInfo.environment
-            let home = env["CODEX_HOME"].flatMap { $0.isEmpty ? nil : $0 }
-                ?? (NSHomeDirectory() as NSString).appendingPathComponent(".codex")
-            return Source(codexHome: home)
-        }
+    /// Where Codex keeps names, in `session_index.jsonl`: `$CODEX_HOME`,
+    /// or `~/.codex`. Claude keeps them in the session's transcript.
+    public static var codexHome: String {
+        ProcessInfo.processInfo.environment["CODEX_HOME"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? (NSHomeDirectory() as NSString).appendingPathComponent(".codex")
     }
 
     /// Claude re-appends its title records every so often, so the name is
@@ -30,13 +19,13 @@ public enum ThreadName {
 
     /// The name of the thread a hook payload is from, or nil. Without
     /// `wide`, only Claude's first window is read.
-    public static func find(agent: String, json: [String: Any], session: String, in source: Source,
+    public static func find(agent: String, json: [String: Any], session: String, codexHome: String,
                             wide: Bool = true) -> String? {
         switch agent {
         case "claude":
             return (json["transcript_path"] as? String).flatMap { claude(transcript: $0, wide: wide) }
         case "codex":
-            return codex(thread: session, index: (source.codexHome as NSString).appendingPathComponent("session_index.jsonl"))
+            return codex(thread: session, index: (codexHome as NSString).appendingPathComponent("session_index.jsonl"))
         default:
             return nil
         }

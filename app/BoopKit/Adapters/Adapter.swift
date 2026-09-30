@@ -175,32 +175,40 @@ public enum Adapter {
         }
     }
 
-    /// Places by working directory, so a folder's `.git` is read once per
-    /// folder rather than on every hook. Touch it from one queue.
+    /// Places by working directory, so a folder's `.git` is read at most
+    /// once every 30 s rather than on every hook, and a checkout's new
+    /// branch still shows. Touch it from one queue.
     public final class Places {
-        var places: [String: Place] = [:]
+        var places: [String: (place: Place, readAt: TimeInterval)] = [:]
         /// Folders remembered before the cache starts again.
         static let limit = 512
+        /// Seconds a folder's place is kept before it's read again.
+        static let keepFor: TimeInterval = 30
+        let now: () -> TimeInterval
 
-        public init() {}
+        public init(now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+            self.now = now
+        }
 
         public func place(cwd: String) -> Place {
-            if let place = places[cwd] { return place }
-            if places.count >= Self.limit { places.removeAll() }
+            let now = now()
+            if let kept = places[cwd], now - kept.readAt < Self.keepFor { return kept.place }
+            if places[cwd] == nil, places.count >= Self.limit { places.removeAll() }
             let place = Adapter.place(cwd: cwd)
-            places[cwd] = place
+            places[cwd] = (place, now)
             return place
         }
     }
 
     /// Where `cwd` works (harness/EVENTS.md §3), from one look at its
-    /// `.git`. The project is the last folder, except that a git worktree
-    /// maps to its main repository's name, so `landing` and
+    /// `.git`, or at the nearest one above it, so a subfolder is its
+    /// repository's place. The project is the last folder, except that a
+    /// git worktree maps to its main repository's name, so `landing` and
     /// `landing/.worktrees/fix-nav` both give `landing`. The workspace is a
     /// linked worktree's folder name, else the checked-out branch, else nil
     /// (the default branch, a detached head, or no git), cleaned by
     /// `cleanWorkspace`.
-    public static func place(cwd: String) -> Place {
+    public static func place(cwd: String, home: String = NSHomeDirectory()) -> Place {
         var path = cwd
         while path.count > 1 && path.hasSuffix("/") { path.removeLast() }
         guard !path.isEmpty, path != "/" else { return Place(project: "unknown") }
@@ -221,6 +229,7 @@ public enum Adapter {
         guard FileManager.default.fileExists(atPath: git, isDirectory: &isDirectory) else {
             // A common worktree folder that can't be read still names itself.
             let named = parent == ".worktrees" || parent == "worktrees"
+            if !named, let repo = repository(above: path, home: home) { return place(cwd: repo, home: home) }
             return Place(project: project, workspace: named ? cleanWorkspace(parts[parts.count - 1]) : nil)
         }
         if !isDirectory.boolValue {
@@ -239,6 +248,22 @@ public enum Adapter {
         else { return Place(project: project) }
         let branch = head.dropFirst(prefix.count).trimmingCharacters(in: .whitespacesAndNewlines)
         return Place(project: project, workspace: defaultBranches.contains(branch) ? nil : cleanWorkspace(branch))
+    }
+
+    /// Folders `repository(above:home:)` looks up (ADAPTERS.md §3).
+    static let lookUp = 8
+
+    /// The nearest folder above `path` with a `.git`, looking at most
+    /// `lookUp` folders up and stopping at the home folder, so a dotfiles
+    /// repo there doesn't name every folder outside git.
+    static func repository(above path: String, home: String) -> String? {
+        var folder = path
+        for _ in 0..<lookUp {
+            folder = (folder as NSString).deletingLastPathComponent
+            if folder == "/" || folder == home || folder.isEmpty { return nil }
+            if FileManager.default.fileExists(atPath: (folder as NSString).appendingPathComponent(".git")) { return folder }
+        }
+        return nil
     }
 
     static let defaultBranches: Set<String> = ["main", "master", "trunk", "develop"]

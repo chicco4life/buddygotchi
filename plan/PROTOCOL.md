@@ -95,6 +95,11 @@ The Mac, over Bluetooth:
 - **Services changed.** If macOS reports the UART service changed (a
   reflash with a different GATT table), the app drops the link and
   connects again. Bluetooth turning off drops it too.
+- **Bluetooth off or not allowed.** Each change of Bluetooth's state is
+  logged (`ble: Bluetooth off`). While it's off, refused at the first
+  launch's prompt, or missing, the app can't look for the device, and
+  the popover says so and what to do (`BLETransport.trouble`), within a
+  second, in place of looking and "Plug it into USB power".
 
 The device, over Bluetooth:
 
@@ -246,8 +251,8 @@ in `FaceLoops`.
   switches blink like any change of design. If the look changes
   meanwhile (a `state` moves from working to idle), the
   new look is drawn in the moment's mood until the end worked out when
-  it started. A newer moment, a tap or "needs you" ends it with the
-  moment. Over a rule's one-shot or a poke, it draws that design in its
+  it started. A newer moment or "needs you" ends it with the moment; a
+  tap's poke plays under it, in its mood ([BEHAVIORS.md](BEHAVIORS.md) §3.3). Over a rule's one-shot or a poke, it draws that design in its
   mood, on the design's clock, without cutting it. The Mac sends its
   next brain moment once this one's line has played, without waiting
   for the face ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2), so a face held
@@ -345,8 +350,8 @@ The device sends one for every moment with an `id`, exactly once, on the
 link the moment came in on, when none of it plays any more: the
 animation, the line with its bubble, and the face it borrows. It's
 immediate for `skipped`, and for a `cut` that leaves nothing playing. A
-face held on after the line ends at once when a newer moment, a tap or
-"needs you" comes, and the moment is `done`. A newer line doesn't stop an
+face held on after the line ends at once when a newer moment or "needs
+you" comes, and the moment is `done`; a tap doesn't end it. A newer line doesn't stop an
 animation (§3), so a moment whose animation plays on ends with it, `cut`
 if the newer line replaced its own line. Muting doesn't stop a moment. A
 moment without an `id` gets none. A moment whose `id` the device is
@@ -407,7 +412,7 @@ instead of running.
 | `ble` | `off` (Bluetooth didn't start), `idle` (neither advertising nor connected, so no Mac can find it), `adv` or `conn` |
 | `name` | `Boop-XXXX`; left out in the simulator |
 | `voice` | The version of the voice pack on the card, as `status` gives it (§4) |
-| `card` | The microSD card: `ok`, `no card`, `no pack` or `copying` ([VOICE.md](VOICE.md) §8); `none` in the tests, and in the simulator whether it found `.build/voice/voice.bin` |
+| `card` | The microSD card: `ok`, `no card`, `no pack`, `copying` or `card failed` ([VOICE.md](VOICE.md) §8); `none` in the tests, and in the simulator whether it found `.build/voice/voice.bin` |
 | `fx` | The sound effects' version ([VOICE.md](VOICE.md) §10) |
 | `w`, `h` | The screen as drawn: 320 and 240 |
 

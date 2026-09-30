@@ -19,10 +19,12 @@ public final class BLETransport: NSObject, DeviceTransport, @unchecked Sendable 
     /// given up and tried again (PROTOCOL.md §2).
     public static let connectTimeout: TimeInterval = 10
 
+    /// The device's own name is in this transport's log lines.
+    public let name = "ble"
     /// Read from any thread, so it's kept apart from `peripheral`.
-    public var name: String { nameLock.withLock { linkName } }
-    let nameLock = NSLock()
-    var linkName = "ble"
+    public var trouble: String? { troubleLock.withLock { stateTrouble } }
+    let troubleLock = NSLock()
+    var stateTrouble: String?
 
     let log: @Sendable (String) -> Void
     // Touched only on `queue`, which is also CoreBluetooth's delegate queue.
@@ -114,7 +116,6 @@ public final class BLETransport: NSObject, DeviceTransport, @unchecked Sendable 
     func connect(_ device: CBPeripheral) {
         central?.stopScan()
         peripheral = device
-        nameLock.withLock { linkName = "ble" + (device.name.map { ":" + $0 } ?? "") }
         device.delegate = self
         central?.connect(device, options: nil)
         attempt += 1
@@ -143,7 +144,6 @@ extension BLETransport {
     func forget() {
         let wasUp = up
         peripheral = nil
-        nameLock.withLock { linkName = "ble" }
         rxCharacteristic = nil
         up = false
         framer = LineFramer()
@@ -210,10 +210,36 @@ struct ReconnectBackoff {
 
 extension BLETransport: CBCentralManagerDelegate, CBPeripheralDelegate {
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        log("ble: Bluetooth \(Self.words(central.state))")
+        troubleLock.withLock { stateTrouble = Self.trouble(central.state) }
         if central.state == .poweredOn {
             findDevice()
         } else if peripheral != nil {
             dropped()
+        }
+    }
+
+    /// What the popover says while Bluetooth can't be used: off, not
+    /// allowed at the first launch's prompt or later, or missing. Nil while
+    /// it's on or on its way.
+    public static func trouble(_ state: CBManagerState) -> String? {
+        switch state {
+        case .poweredOff: "Bluetooth is off. Turn it on in Control Center."
+        case .unauthorized: "Boop isn't allowed to use Bluetooth. Allow it in System Settings → Privacy & Security → Bluetooth."
+        case .unsupported: "This Mac has no Bluetooth that Boop can use."
+        default: nil
+        }
+    }
+
+    static func words(_ state: CBManagerState) -> String {
+        switch state {
+        case .poweredOn: "on"
+        case .poweredOff: "off"
+        case .unauthorized: "not allowed"
+        case .unsupported: "not supported"
+        case .resetting: "resetting"
+        case .unknown: "state unknown"
+        @unknown default: "state \(state.rawValue)"
         }
     }
 

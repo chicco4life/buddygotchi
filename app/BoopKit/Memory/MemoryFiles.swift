@@ -30,11 +30,8 @@ public struct LongTerm: Equatable, Sendable {
     /// reads. Other sections, like the ones files from before 2026-09-27
     /// have, are left out and left alone.
     public static func parse(_ text: String) throws -> LongTerm {
-        let sections = MarkdownSections(text)
-        guard let boop = sections["Boop"]?.first(where: { !$0.isEmpty }) else {
-            throw MemoryParseError("no Boop line")
-        }
-        let fields = Fields(boop)
+        guard let boop = firstLine(under: "Boop", in: text) else { throw MemoryParseError("no Boop line") }
+        let fields = keyValues(boop)
         guard let name = fields["name"], !name.isEmpty, let hatched = fields["hatched"], LocalTime.isDay(hatched),
               let nature = fields["nature"].flatMap(Nature.init(rawValue:)),
               let seed = fields["seed"].flatMap({ UInt64($0, radix: 16) })
@@ -43,71 +40,27 @@ public struct LongTerm: Equatable, Sendable {
     }
 }
 
-/// `short-term.md`: today (ARCHITECTURE.md §4.3).
-public struct ShortTerm: Equatable, Sendable {
-    public var date: String
-
-    public init(date: String) {
-        self.date = date
-    }
-
-    public var markdown: String { "## Today\n\(date)\n" }
-
-    /// Reads the file. Anything else on the Today line, like the
-    /// `first seen` and `mood:` of older files, and other sections, like
-    /// the Notes and Happened of files from before 2026-09-27, are left out.
-    public static func parse(_ text: String) throws -> ShortTerm {
-        let sections = MarkdownSections(text)
-        guard let today = sections["Today"]?.first(where: { !$0.isEmpty }) else {
-            throw MemoryParseError("no Today line")
-        }
-        guard let date = today.components(separatedBy: " · ").first?.trimmingCharacters(in: .whitespaces),
-              LocalTime.isDay(date)
-        else { throw MemoryParseError("the Today line doesn't read: \(today)") }
-        return ShortTerm(date: date)
-    }
-}
-
-/// Lines under each `##` or `###` heading, keyed by the heading's text.
-struct MarkdownSections {
-    var sections: [String: [String]] = [:]
-
-    init(_ text: String) {
-        var current: String?
-        for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.hasPrefix("#") {
-                let title = line.drop(while: { $0 == "#" }).trimmingCharacters(in: .whitespaces)
-                current = title
-                if sections[title] == nil { sections[title] = [] }
-            } else if let current {
-                sections[current, default: []].append(line)
-            }
+/// The first non-empty line under a `##` or `###` heading titled `title`.
+private func firstLine(under title: String, in text: String) -> String? {
+    var current: String?
+    for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
+        let line = raw.trimmingCharacters(in: .whitespaces)
+        if line.hasPrefix("#") {
+            current = line.drop(while: { $0 == "#" }).trimmingCharacters(in: .whitespaces)
+        } else if current == title, !line.isEmpty {
+            return line
         }
     }
-
-    subscript(_ title: String) -> [String]? { sections[title] }
+    return nil
 }
 
 /// `key: value · key: value`.
-struct Fields {
+private func keyValues(_ line: String) -> [String: String] {
     var values: [String: String] = [:]
-
-    init(_ line: String) {
-        for part in line.components(separatedBy: "·") {
-            guard let colon = part.firstIndex(of: ":") else { continue }
-            let key = part[..<colon].trimmingCharacters(in: .whitespaces).lowercased()
-            values[key] = part[part.index(after: colon)...].trimmingCharacters(in: .whitespaces)
-        }
+    for part in line.components(separatedBy: "·") {
+        guard let colon = part.firstIndex(of: ":") else { continue }
+        let key = part[..<colon].trimmingCharacters(in: .whitespaces).lowercased()
+        values[key] = part[part.index(after: colon)...].trimmingCharacters(in: .whitespaces)
     }
-
-    subscript(_ key: String) -> String? { values[key] }
-}
-
-extension LocalTime {
-    /// `yyyy-MM-dd` that names a real day.
-    static func isDay(_ s: String) -> Bool {
-        guard s.count == 10, let n = ordinal(s) else { return false }
-        return fromOrdinal(n) == s
-    }
+    return values
 }

@@ -80,14 +80,14 @@ public struct Event: Equatable, Sendable {
     /// The event as one JSON line, metadata first in a fixed order, then
     /// `data` with its keys sorted.
     public var jsonLine: String {
-        var parts = ["\"seq\":\(seq)", "\"ts\":\(ts)", "\"source\":\(Event.quote(source.rawValue))",
-                     "\"type\":\(Event.quote(type.rawValue))"]
-        if let phase { parts.append("\"phase\":\(Event.quote(phase.rawValue))") }
-        parts.append("\"specific_type\":\(Event.quote(specificType))")
-        if let session { parts.append("\"session\":\(Event.quote(session))") }
-        if let subagent { parts.append("\"subagent\":\(Event.quote(subagent))") }
-        if let cwd { parts.append("\"cwd\":\(Event.quote(cwd))") }
-        parts.append("\"data\":" + Event.encode(data.mapValues(\.foundation)))
+        var parts = ["\"seq\":\(seq)", "\"ts\":\(ts)", "\"source\":\(Event.json(source.rawValue))",
+                     "\"type\":\(Event.json(type.rawValue))"]
+        if let phase { parts.append("\"phase\":\(Event.json(phase.rawValue))") }
+        parts.append("\"specific_type\":\(Event.json(specificType))")
+        if let session { parts.append("\"session\":\(Event.json(session))") }
+        if let subagent { parts.append("\"subagent\":\(Event.json(subagent))") }
+        if let cwd { parts.append("\"cwd\":\(Event.json(cwd))") }
+        parts.append("\"data\":" + Event.json(data.mapValues(\.foundation)))
         return "{" + parts.joined(separator: ",") + "}"
     }
 
@@ -124,10 +124,10 @@ public struct Event: Equatable, Sendable {
         return what.joined(separator: " ") + (facts.isEmpty ? "" : " · " + facts.joined(separator: ", "))
     }
 
-    static func quote(_ s: String) -> String { encode([s]).dropFirst().dropLast().description }
-
-    static func encode(_ value: Any) -> String {
-        let data = (try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
+    /// `value` as JSON, keys sorted: a string comes back quoted.
+    static func json(_ value: Any) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed]))
+            ?? Data()
         return String(decoding: data, as: UTF8.self)
     }
 }

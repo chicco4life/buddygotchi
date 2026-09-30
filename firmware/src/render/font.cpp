@@ -62,11 +62,7 @@ int drawString(Canvas& c, const Font& f, int x, int y, const char* text, int ink
   return x;
 }
 
-int stringWidth(const Font& f, const char* text) {
-  int n = 0;
-  while (nextGlyph(text) >= 0) ++n;
-  return n * f.w;
-}
+int stringWidth(const Font& f, const char* text) { return glyphCount(text) * f.w; }
 
 int drawStringFit(Canvas& c, const Font& f, int x, int y, const char* text, int ink, int maxWidth) {
   if (stringWidth(f, text) <= maxWidth) return drawString(c, f, x, y, text, ink);

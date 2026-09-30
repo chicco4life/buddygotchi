@@ -1,3 +1,4 @@
+import CoreBluetooth
 import Foundation
 import HookWire
 import XCTest
@@ -10,6 +11,8 @@ final class FakeTransport: DeviceTransport, @unchecked Sendable {
     var onLine: (@Sendable (String) -> Void)?
     var onConnection: (@Sendable (Bool) -> Void)?
     var name: String { "fake" }
+    var why: String?
+    var trouble: String? { lock.withLock { why } }
 
     func start(onLine: @escaping @Sendable (String) -> Void, onConnection: @escaping @Sendable (Bool) -> Void) {
         self.onLine = onLine
@@ -220,6 +223,34 @@ final class DeviceLinkTests: XCTestCase {
         link.connection(false, now: 300)
         XCTAssertNil(link.status)
         XCTAssertFalse(link.connected)
+    }
+
+    /// Bluetooth off, refused or missing is said in plain words, with what
+    /// to do; on, or on its way, is no trouble. Only the words: nothing
+    /// here may start Bluetooth (CLAUDE.md).
+    func testBluetoothThatCantBeUsedSaysWhy() {
+        XCTAssertEqual(BLETransport.trouble(.poweredOff), "Bluetooth is off. Turn it on in Control Center.")
+        XCTAssertEqual(BLETransport.trouble(.unauthorized)?.hasSuffix("Privacy & Security → Bluetooth."), true)
+        XCTAssertNotNil(BLETransport.trouble(.unsupported))
+        for state in [CBManagerState.poweredOn, .resetting, .unknown] { XCTAssertNil(BLETransport.trouble(state)) }
+    }
+
+    /// VOICE.md §8: a card with no pack, or another pack than the app's,
+    /// leaves Boop without its voice, and the log says so once.
+    func testACardWithoutTheAppsPackHasNoVoice() {
+        let lines = Lines()
+        let link = DeviceLink(transport: FakeTransport(), log: { lines.add($0) })
+        link.connection(true, now: 0)
+        link.receive(#"{"t":"status","id":"b00p-54fe","fw":"1.0.0","voice":"none"}"#, now: 100)
+        link.receive(#"{"t":"status","id":"b00p-54fe","fw":"1.0.0","voice":"none"}"#, now: 200)
+        XCTAssertEqual(link.status?.hasTheVoice, false)
+        XCTAssertEqual(lines.all.filter { $0.contains("Boop says nothing until they match") }.count, 1)
+        link.receive(#"{"t":"status","id":"b00p-54fe","fw":"1.0.0","voice":"0123456789abcdef"}"#, now: 300)
+        XCTAssertEqual(link.status?.hasTheVoice, false)
+        link.receive(#"{"t":"status","id":"b00p-54fe","fw":"1.0.0","voice":"\#(Take.packVersion)"}"#, now: 400)
+        XCTAssertEqual(link.status?.hasTheVoice, true)
+        link.receive(#"{"t":"status","id":"b00p-54fe","fw":"1.0.0"}"#, now: 500)
+        XCTAssertEqual(link.status?.hasTheVoice, true, "firmware that doesn't say")
     }
 
     /// The widest name the Mac sends: 47 bytes that JSON escapes to two

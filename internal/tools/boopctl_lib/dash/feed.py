@@ -66,7 +66,8 @@ class Follower:
 
 def kind(line: Line) -> str:
     """`event` (a raw event the transcript recorded), `view` (what the brain
-    may hear of), `pass`, `sent`, `status` or `questions`."""
+    may hear of), `pass`, `head` (the state's head, which the passes after
+    it share), `sent`, `status` or `questions`."""
     return next((k for k in line if k not in ("seq", "by", "received_at_ms")), "?")
 
 
@@ -145,6 +146,7 @@ class Board:
         self.latency_ms: int | None = None  # Jev's last
         self.dropped = 0
         self.jev_state: str | None = None  # the latest state a brain read, for `s`
+        self.head = ""  # the state's head, from the latest `head` line
         self.newest_ms: int | None = None  # the newest line's received_at_ms
         # The three columns, oldest first; each row a dict.
         self.moods: list[Line] = []
@@ -156,7 +158,8 @@ class Board:
 
     def apply(self, line: Line) -> tuple[str, str] | None:
         """Takes one line, and returns its timeline row as (style, text), or
-        None for a `state` resent unchanged (the 10 s keepalive)."""
+        None for a `state` resent unchanged (the 10 s keepalive) and for a
+        `head`."""
         k = kind(line)
         body, seq, at = line.get(k), line.get("seq"), line.get("received_at_ms", 0)
         if at:
@@ -176,9 +179,13 @@ class Board:
             return "event", text + "".join(f"  [{note}]" for note in body.get("notes") or [])
         if k == "event":
             return self._raw(body, at)
+        if k == "head":
+            self.head = body
+            return None
         if k == "pass":
             if body.get("brain") and body.get("state"):
-                self.jev_state = body["state"]
+                # A pass carries HISTORY and NOW; older logs' carry the whole state.
+                self.jev_state = self.head + body["state"]
             self._pass(body, seq, at)
             if body.get("brain"):
                 self.latency_ms = body.get("latency_ms")

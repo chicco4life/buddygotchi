@@ -18,8 +18,8 @@ You need macOS 26 or later with Command Line Tools (Xcode isn't needed)
 and PlatformIO's `pio`.
 
 1. Plug the board in over USB and run `make flash`.
-2. From your own terminal, run `make run`. It builds everything and starts
-   the app in the menu bar.
+2. From your own terminal, run `make run`. It builds the app and starts
+   it in the menu bar.
 3. The first time, the popover walks you through setup: a name, sweet or
    cheeky, and which agents to watch. Boop adds its hooks to
    `~/.claude/settings.json` and `~/.codex/hooks.json`; restart open agent

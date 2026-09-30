@@ -61,6 +61,7 @@ class CardTests(unittest.TestCase):
             self.assertEqual(r["voice"], "aaaaaaaaaaaa")
             ping = sim.request({"t": "dbg.ping"})
             self.assertEqual((ping["voice"], ping["card"]), ("aaaaaaaaaaaa", "ok"))
+            sim.send({"t": "state", "base": "idle"})  # the board starts in no app, which plays nothing
             sim.send({"t": "moment", "say": {"take": "test.hi"}})
             self.assertEqual(sim.request({"t": "dbg.state"})["audio"]["take"], "test.hi")
         self.assertEqual((Path(self.dir.name) / "boop" / "voice.bin").read_bytes(), data)

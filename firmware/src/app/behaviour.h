@@ -125,13 +125,15 @@ class Behaviour {
   // Taps in a row (BEHAVIORS.md §3.3): a tap within kTapRunMs of the last
   // one is another in the run, and from the kTapSpamFrom-th on each plays
   // tap_spam instead of poked. The Mac counts pokes by the same numbers,
-  // TranscriptView.Config's inARowMs (3000) and answersRunFrom (3), and its
-  // MomentSchedule (tapRunMs, tapSpamFrom) times the tap the same way:
-  // change them together.
+  // TranscriptView.inARowMs (3000) and answersRunFrom (3): change them
+  // together.
   static constexpr uint32_t kTapRunMs = 3000;
   static constexpr int kTapSpamFrom = 3;
 
   void reset(uint32_t t, Rng& rng);
+  // At power-on no Mac has spoken: "no app" from the start, until the
+  // first state, rather than a face for kNoAppMs (BEHAVIORS.md §3.4).
+  void startWithNoApp() { stale_ = true; }
 
   // Messages from the Mac, at time t.
   void onState(const Model& m, uint32_t t);
@@ -187,8 +189,9 @@ class Behaviour {
   // The expression the face borrows while its moment plays (PROTOCOL.md
   // §3): true, with its mood, until the moment ends or another replaces it.
   bool expression(uint32_t t, render::Mood& mood) const;
-  // The line's take, while it plays or waits to (-1 for none).
+  // The line's takes, while it plays or waits to (-1 for none).
   int take() const { return say_.take; }
+  int then() const { return say_.then; }
   // Counts moments and lines started, local ones included, so a line can
   // tell it was replaced.
   uint32_t momentSeq() const { return momentSeq_; }
@@ -316,7 +319,6 @@ class Behaviour {
   void report(const Ended& e);
   bool holds(uint32_t id, uint32_t t) const;
   void resync(uint32_t t);
-  void settle(uint32_t t);
   void startBlink(uint32_t t, Rng& rng);
   uint32_t blinkGap(Rng& rng) const;
   bool momentOn(uint32_t t) const;

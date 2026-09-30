@@ -114,7 +114,8 @@ private struct StillMotionKey: EnvironmentKey {
 }
 
 extension EnvironmentValues {
-    /// Holds every looping animation still, for snapshots.
+    /// Holds every looping animation still: for snapshots, and while the
+    /// popover is closed.
     var stillMotion: Bool {
         get { self[StillMotionKey.self] }
         set { self[StillMotionKey.self] = newValue }
@@ -142,22 +143,8 @@ struct Card<Content: View>: View {
     }
 }
 
-/// A small, tracked-out label over a card. Space and this label separate
-/// sections, not rules.
-struct SectionLabel: View {
-    let text: String
-
-    var body: some View {
-        Text(text.uppercased())
-            .font(.system(size: 10, weight: .semibold))
-            .tracking(0.6)
-            .foregroundStyle(Theme.inkSoft)
-            .padding(.leading, 2)
-            .accessibilityAddTraits(.isHeader)
-    }
-}
-
-/// A labelled section: the label, then its content.
+/// A labelled section: a small, tracked-out label, then its content. Space
+/// and the label separate sections, not rules.
 struct PaneSection<Content: View>: View {
     let label: String
     @ViewBuilder var content: Content
@@ -169,7 +156,12 @@ struct PaneSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.gapSnug) {
-            SectionLabel(text: label)
+            Text(label.uppercased())
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(0.6)
+                .foregroundStyle(Theme.inkSoft)
+                .padding(.leading, 2)
+                .accessibilityAddTraits(.isHeader)
             content
         }
     }
@@ -198,18 +190,18 @@ extension View {
 struct StateDot: View {
     var tone: Color
     var pulsing = false
-    var size: CGFloat = 7
     @ViewState private var up = false
     @Environment(\.stillMotion) private var still
 
     var body: some View {
+        let live = pulsing && !still
         Circle()
             .fill(tone)
-            .frame(width: size, height: size)
+            .frame(width: 7, height: 7)
             .overlay(Circle().fill(tone).scaleEffect(up ? 2.2 : 1).opacity(up ? 0 : 0.35))
-            .animation(pulsing ? .easeOut(duration: 1.6).repeatForever(autoreverses: false) : .default, value: up)
-            .onAppear { up = pulsing && !still }
-            .onChange(of: pulsing) { _, live in up = live && !still }
+            .animation(live ? .easeOut(duration: 1.6).repeatForever(autoreverses: false) : .default, value: up)
+            .onAppear { up = live }
+            .onChange(of: live) { _, live in up = live }
             .accessibilityHidden(true)
     }
 }
@@ -228,16 +220,19 @@ struct StatusChip: View {
     }
 }
 
-/// Footer and inline buttons: quiet text that darkens on hover.
+/// Footer and inline buttons: quiet text that darkens on hover, and fades
+/// while disabled.
 struct QuietButtonStyle: ButtonStyle {
     @ViewState private var hovering = false
+    @Environment(\.isEnabled) private var enabled
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(hovering || configuration.isPressed ? Theme.ink : Theme.inkSoft)
+        let lit = enabled && (hovering || configuration.isPressed)
+        return configuration.label
+            .foregroundStyle(!enabled ? Theme.inkFaint : lit ? Theme.ink : Theme.inkSoft)
             .padding(.horizontal, 8).padding(.vertical, 4)
             .background(RoundedRectangle(cornerRadius: Theme.chipRadius)
-                .fill(configuration.isPressed ? Theme.hairline : hovering ? Theme.well : .clear))
+                .fill(!lit ? .clear : configuration.isPressed ? Theme.hairline : Theme.well))
             .contentShape(RoundedRectangle(cornerRadius: Theme.chipRadius))
             .onHover { hovering = $0 }
             .animation(.boopSettle, value: hovering)

@@ -1,6 +1,6 @@
 # Boop: events and the view
 
-Updated 2026-09-29. What Boop records and what the brain hears. Every
+Updated 2026-09-30. What Boop records and what the brain hears. Every
 raw event goes into the transcript in one shape; the view folds them
 into view events, each with a line of text, and HISTORY and NOW are built
 from those ([HARNESS.md](HARNESS.md) §5). Actions only ever see a view
@@ -46,7 +46,7 @@ Claude `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | `phase` | `start`, `wait` or `end` for a type with a lifetime; left out for one that just happens |
 | `specific_type` | The source's own name for it: the hook (`UserPromptSubmit`, `Interrupt`), the device's message (`input`), the clock's reason (`idle`, `working`), the button that turned the mic on (`device` or `app`) or the action's name (`react`, `wiggle`) |
 | `session`, `subagent`, `cwd` | An agent's session, the Claude subagent's `agent_id`, and the working directory; an action about a session names it too. Left out when there's none |
-| `data` | The type's own fields, below. Every agent event can also carry `name`, the thread's name as its agent's app shows it, when the hook found one ([ADAPTERS.md](../ADAPTERS.md) §2): for the strip, the popover and a cheer; and `app` and `app_session`, the app the agent runs in and that app's ID for the session, when the hook's environment said: where a tap opens the thread ([BEHAVIORS.md](../BEHAVIORS.md) §3.2). The view leaves them out |
+| `data` | The type's own fields, below. Every agent event can also carry `name`, the thread's name as its agent's app shows it, when the hook found one ([ADAPTERS.md](../ADAPTERS.md) §2): for the strip, the popover and a cheer; and `app` and `app_session`, the app the agent runs in and that app's ID for the session, when the hook's environment said: where a tap opens the thread ([BEHAVIORS.md](../BEHAVIORS.md) §3.2). The view leaves them out. The core carries each on, so an event is recorded without the ones its session already has (and `mode` while plan mode hasn't changed): the first event of a session each day, so each day's file has them for a launch's read-back ([HARNESS.md](HARNESS.md) §5), or of one the core doesn't hold, after a launch, the session's end or a day's silence, has them all (`Core.unrepeated`) |
 
 | `type` | `source` | `phase` | `data` |
 | --- | --- | --- | --- |
@@ -98,8 +98,10 @@ event that caused it:
 The view (`TranscriptView` in `app/BoopKit/Core/TranscriptView.swift`)
 folds raw events, one at a time and in order, into view events. A view
 event is a raw type and phase with what the view worked out about it: its
-facts (§4.1), its line (§8), whether it wakes the brain (§6), and what
-Boop did about it (§7). It points back to the raw events it came from
+facts (§4.1), its line (§8), whether it wakes the brain (§6), how its
+pass waits behind a running one (its priority: a finished turn keeps its
+pass, and what you said goes ahead of it, [HARNESS.md](HARNESS.md) §2),
+and what Boop did about it (§7). It points back to the raw events it came from
 (`from`, the last is the one that made it).
 
 The same events always make the same view, so a launch replays the
@@ -147,9 +149,9 @@ thread's key, `<agent>/<session>`, such as `claude/s1`.
 | `turn` end | A turn the view saw start ends | Its outcome, length band, tool calls and last message | Yes |
 | `tool` wait | "Needs you" starts showing (the core's `needs_you` action), after Codex's 2 s grace | The thread | Never |
 | `tool` end | A tool call finishes and is notable, or any with `tool_uses: all` | Its result, whether it passed after failing, its time's band and its category | Yes |
-| `poke` | Every poke | How many pokes in a row: each within 3 s of the one before (`TranscriptView.Config.inARowMs`) | Yes, but not while something needs you (the tap opens the thread) or while Boop is answering its run (§6) |
+| `poke` | Every poke | How many pokes in a row: each within 3 s of the one before (`TranscriptView.inARowMs`) | Yes, but not while something needs you (the tap opens the thread) or while Boop is answering its run (§6) |
 | `talk` | You said something to Boop on push-to-talk ([BEHAVIORS.md](../BEHAVIORS.md) §3.3) | Your words | Always, even while something needs you (§6) |
-| `heartbeat` | While no thread works, each whole hour since the last agent event or poke (`TranscriptView.Config.heartbeatMs`). While any thread works, once the personality's `working_heartbeat` wait has passed since Boop last started a reaction (the view sees `react`'s `action` start, §7), however many view events woke the brain in it ([BEHAVIORS.md](../BEHAVIORS.md) §2) | The idle hours, or the thread working longest | Yes |
+| `heartbeat` | While no thread works, each whole hour since the last agent event or poke (`TranscriptView.heartbeatMs`). While any thread works, once the personality's `working_heartbeat` wait has passed since Boop last started a reaction (the view sees `react`'s `action` start, §7), however many view events woke the brain in it ([BEHAVIORS.md](../BEHAVIORS.md) §2) | The idle hours, or the thread working longest | Yes |
 
 A thread **works** while its turn is open, nothing waits on you, and it
 has had an event within the hour; within 10 minutes if its last event
@@ -186,14 +188,16 @@ asked for you (the core's safety net, [ADAPTERS.md](../ADAPTERS.md) §4).
 | `heartbeat` | `idle_hours`, or `thread`, `working_ms` and `topic` | Whole hours since the last agent event or poke; or the thread working longest, how long its turn has run, and its latest topic | The hours; or the thread and its turn's band (§5), not the topic |
 
 **A turn's outcome** is `failed` when the agent reports an API error, or
-when the turn ends while its last test, build or deploy command failed
+when the turn ends while its own last test, build or deploy command failed
 ([BEHAVIORS.md](../BEHAVIORS.md) §3.1); `stopped` when a turn still open is
 interrupted ([ADAPTERS.md](../ADAPTERS.md) §3); and `done` otherwise.
 
-**A turn** starts at your prompt, or at a call while none is open (a
-background subagent's after the main agent's `Stop`, or Claude carrying
-on after another hook blocked its `Stop`). One a call opens keeps the
-thread's `turn` number, and its length and counts start from that call.
+**A turn** starts at your prompt, or at the main agent's call while none
+is open (Claude carrying on after another hook blocked its `Stop`). One
+a call opens keeps the thread's `turn` number, and its length, counts
+and last check start from that call. A subagent's call opens none: a background helper
+that works on after the main agent's `Stop` is no turn, so it has no
+working heartbeat and no finish, though its notable tool ends count.
 A turn's end with no turn open (a second `Stop`, or one after the turn
 stopped) makes no view event, and neither does the end of a turn the view
 never saw start. With the transcript read back at launch, that's only a
@@ -240,7 +244,7 @@ only when its kind says so (§4), and never:
   its run;
 - for a poke, while Boop is answering its run: the brain's reaction to
   the run's third poke in a row or a later one
-  (`TranscriptView.Config.answersRunFrom`) is in progress, a tap-cut one
+  (`TranscriptView.answersRunFrom`) is in progress, a tap-cut one
   included (§7), and the mood hasn't changed since it started
   (`TranscriptView.pokesAnswered`). Reactions to the run's first two
   pokes don't count, so each poke can take Boop a step further: glad,

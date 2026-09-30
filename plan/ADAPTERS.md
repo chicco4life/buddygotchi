@@ -1,6 +1,6 @@
 # Boop: agent adapters
 
-Updated 2026-09-29. How Boop hears from Claude Code and Codex: the hook
+Updated 2026-09-30. How Boop hears from Claude Code and Codex: the hook
 client, the raw event every hook becomes, how a session moves between
 working, idle and "needs you", and how the hooks are installed. Code:
 `app/HookWire/`, `app/BoopHook/`, `app/BoopKit/Adapters/`,
@@ -117,9 +117,12 @@ construction.
 4. **Exit** 0, having printed nothing.
 
 **Error classes.** A failed tool call's `error` text becomes `timeout`
-("timed out", "timeout"), `denied` ("denied", "not allowed", "rejected",
-"permission"), `exit_code` ("exit code", "exited", "non-zero", "status
-code"), or `other`, checked in that order (`ToolError`). A failed turn's
+("timed out", "timeout"), `exit_code` ("exit code", "exited", "non-zero",
+"status code"), `denied` ("denied", "not allowed", "rejected",
+"permission"), or `other`, checked in that order (`ToolError`). A failed
+command's text is Claude's `Exit code N`, then the command's stderr and
+stdout, so a rejected `git push` or a test named for permissions is still
+`exit_code`, and its `error` one-shot plays. A failed turn's
 `error` becomes, in the app, one of `rate_limit`, `overloaded`,
 `api_error`, `auth`, `timeout`, `network`, `context_limit`, `billing` or
 `other`: Claude's `server_error`, `invalid_request` and `model_not_found`
@@ -199,11 +202,18 @@ does `idle_prompt`, which Claude sends once it has sat at its prompt for about
 a minute and which also covers an interrupt between tool calls.
 
 **Project and workspace.** From the hook's `cwd`, read once per folder
-and remembered (up to 512 folders, then the cache starts again), so a hook
-never waits on the disk. A line without a `cwd` keeps the session's, and
+and remembered for 30 s (`Places.keepFor`; up to 512 folders, then the
+cache starts again), so a hook rarely waits on the disk and a branch you
+check out shows within 30 s. A line without a `cwd` keeps the session's, and
 so does every line while a request waits (§4): the strip names where the
 request was made, whatever folder a sibling subagent works in meanwhile.
 
+- **Repository:** the folder, or, when it has no `.git`, the nearest
+  folder above it that has one, looking up to 8 folders
+  (`Adapter.lookUp`) and never at the home folder or past it. So an
+  agent that runs `cd firmware` stays in its repository's thread. A
+  folder with no repository above it is its own. The project and
+  workspace are the repository's.
 - **Project:** the folder's name, except that a git worktree maps to its
   main repository. `landing/.worktrees/fix-nav` and
   `landing/.claude/worktrees/fix-nav` are `landing` even unread, and so is
@@ -252,13 +262,13 @@ still counts as working. Which of them the device shows is
 | Any, from a session Boop hasn't seen | Is created idle, then the event applies |
 | Any but a `session` start or `turn` start, from a session that ended (a `session` end) in the last 24 hours and hasn't started again | Ignored: it landed late, from before the end. A permission `Notification` as you quit at the prompt, a background subagent's result or end, the command Codex's `Interrupt` aborted, or a `Stop` would otherwise bring the session back as needing you, working or idle, keeping Boop awake. A resumed session (a `session` start) or a new prompt brings it back |
 | `session` start | Stays as it is |
-| `turn` start, `tool` start or end | Works |
+| `turn` start, `tool` start or end | Works. The main agent's call with no turn open opens one ([harness/EVENTS.md](harness/EVENTS.md) §4.1); a subagent's doesn't, so a background helper that works on after the main agent's `Stop` makes the session work with no turn |
 | A `tool` end that's a call's result, once its turn has ended or stopped, for a call that started before then | Stays as it is. The result landed late: you pressed Esc as a parallel call finished, a subagent's call raced the interrupt, or Codex reported the command its `Interrupt` aborted. It still counts for the thread ([harness/EVENTS.md](harness/EVENTS.md) §4), but it doesn't start the turn again, so a stopped turn isn't recorded twice |
 | `turn` end, done or failed | Goes idle |
-| `turn` end, stopped | Goes idle, with no rule reaction. If its turn is still open, even after the safety net (below) made the session idle, that turn ends as stopped and the brain hears of it ([harness/EVENTS.md](harness/EVENTS.md) §4), so a call's result after it is a late one (above). Claude's `idle_prompt` less than 30 s after the session's last `turn` start (`SessionFold.idleNoticeMinMs`) is ignored: it comes after a minute at the prompt, so it's from before that prompt, one typed just as the minute ran out. A turn that a call started, with no prompt (a background subagent's after the main agent stopped), has nothing for the notice to race |
+| `turn` end, stopped | Goes idle. If its turn is still open, even after the safety net (below) made the session idle, that turn ends as stopped: the rules' `stopped` one-shot plays ([BEHAVIORS.md](BEHAVIORS.md) §3.1) and the brain hears of it ([harness/EVENTS.md](harness/EVENTS.md) §4), so a call's result after it is a late one (above). Claude's `idle_prompt` less than 30 s after the session's last `turn` start (`SessionFold.idleNoticeMinMs`) is ignored: it comes after a minute at the prompt, so it's from before that prompt, one typed just as the minute ran out. A turn that the main agent's call started, with no prompt, has nothing for the notice to race. With no turn open, the notice ends none and plays nothing |
 | `subagent` start | Stays as it is, as for its end: it only tells the look a helper is at work ([BEHAVIORS.md](BEHAVIORS.md) §2) |
-| `subagent` end | Stays as it is: a subagent finishing isn't activity, and it doesn't count as an event for the timers below, so it can't make an idle or stale session look busy. It can answer a request (below) |
-| A `session` start or end, `turn` start, or `turn` end done or failed, from inside a subagent (with its `agent_id`) | The same as a `subagent` end: that subagent's alone, not the session's turn |
+| `subagent` end | Stays as it is: a subagent finishing isn't activity, and it doesn't count as an event for the timers below, so it can't make an idle or stale session look busy. It can answer a request (below). One that leaves no turn open and no call running makes a working session idle: a background helper that worked on after the main agent's `Stop` is done |
+| A `session` start or end, `turn` start, or `turn` end done or failed, from inside a subagent (with its `agent_id`) | That subagent's alone, not the session's turn: like a `subagent` end, it isn't activity and it can answer that subagent's request (below). Only the `subagent` end itself ends the helper, so only it makes a working session idle |
 | `tool` wait | Needs you (below) |
 | `session` end | Is forgotten, and marked as ended (above) |
 | No event for 1 hour (`staleWorkMs`) | Counts as idle if it was working |
@@ -287,7 +297,7 @@ starts a request starts it from "anyone".
 | `tool` wait from a hook | Its asker joins the request (a sibling subagent asking too). If the request is a `Notification`'s from "anyone" under 5 s old, the hook is that request's own and takes it over |
 | `tool` wait from a `Notification` | Ignored: it's the same request (a `PermissionRequest` and its `Notification` count once) |
 | `tool` start or end from an asker | Answers that asker: the tool ran (you approved) or the agent moved on (you denied). Not the result of a call for another tool, which the agent made alongside the one that asks (Claude runs read-only calls in parallel, and the main agent's `Agent` call runs on while it asks). A request has no `tool_use_id`, so only the tool's name tells them apart: a parallel call of the same tool still answers it. An `Elicitation` asks for no tool, so no call's result answers it: its `ElicitationResult` does, or the agent's next call |
-| `tool` start or end from anyone else | Nothing, unless "anyone" is asking: then it clears the request |
+| `tool` start or end from anyone else | Nothing, unless "anyone" is asking: then it clears the request, once the request is 1 s old (`Core.noticeFirstMs`). Sooner, it's a sibling's call landing between a `Notification` and its request's own hook, and nobody answers a prompt that fast |
 | A stopped `turn` end without a tool (Claude's `idle_prompt`, Codex's `Interrupt`) | Clears the request, as any turn-level event does. `idle_prompt` means Claude has sat at its own prompt for about a minute with the turn over, which it never does while a prompt is up, a subagent's included: it arrives about a minute after you press Esc on a prompt, which sends no hook |
 | `subagent` end | Answers that subagent only: one that has finished can't be waiting on a prompt. That's how a subagent you denied, which carries on and ends without another tool call, is answered. The main agent, other subagents and "anyone" stay asking |
 | Any other event: a new prompt, the turn ending, failing or interrupted mid-tool, the session starting or ending | Clears the request too |
@@ -297,7 +307,7 @@ before the event itself applies (so a `turn` end then makes it idle). After
 a `subagent` end it works again only if its turn is still going, and
 otherwise goes idle.
 
-**Timers**, checked on the core's one-second tick (the grace in `Core.Config`, the rest in `SessionFold`):
+**Timers**, checked on the core's one-second tick (the grace in `Core`, the rest in `SessionFold`):
 
 | Timer | Value | What happens |
 | --- | --- | --- |
@@ -347,7 +357,7 @@ command: any command running `boop-hook`, or an older Boop's
 | --- | --- |
 | `~/.claude/settings.json` | Under `hooks`, a group for each Claude hook in §3's table (14 hooks). `Notification`'s has the matcher `permission_prompt\|elicitation_dialog\|idle_prompt`, since Claude runs it only for the types its matcher lists. An install from before `SubagentStart` is outdated, so the launch repair adds it |
 | `~/.codex/hooks.json` | Under `hooks`, a group for each Codex hook in §3's table (8 hooks). `SessionStart`'s has the matcher `startup\|resume\|clear`, so a Codex session never starts as `compact` |
-| `~/.codex/config.toml` | `codex_hooks = true` under `[features]`, which Codex needs to run hooks at all. Added by install (or flipped from `false`), never removed, since other hooks may rely on it |
+| `~/.codex/config.toml` | `codex_hooks = true` under `[features]`, which Codex needs to run hooks at all. Added by install, never removed, since other hooks may rely on it |
 
 The installer takes the hooks from the adapter's tables (`Adapter.claude`,
 `Adapter.codex`), in their order, which installs already have.
@@ -357,17 +367,28 @@ The installer takes the hooks from the adapter's tables (`Adapter.claude`,
 - **Install** removes Boop's entries, current and old, then adds a fresh
   group for each hook. For Codex it also turns hooks on in `config.toml`,
   and writes neither file if it won't edit that one. Refused while
-  `bin/boop-hook` is missing.
+  `bin/boop-hook` is missing, while health is *unreadable*, or for Codex
+  while its hooks are off in `config.toml`.
 - **Remove** takes out Boop's entries, current and old, and nothing else.
   A group left empty goes, then an event, then `hooks`.
 - **Repair** installs again for each agent whose entries are outdated. It
   never installs for an agent that has none.
 - **Health**, per agent, checked in this order: *unreadable* (the file
-  isn't a JSON object; it's left alone), *client missing* (no executable
+  is there but can't be read or isn't a JSON object, or Codex's
+  `config.toml` is there but can't be read; it's left alone, since only
+  a file that isn't there counts as empty), *client missing* (no executable
   `bin/boop-hook`, so entries would drop every event without a sign),
-  *not installed* (no Boop entries), *installed* (the file is what a fresh
-  install would write) or *outdated*. Settings shows each as a row with
-  its button.
+  *not installed* (no Boop entries), *hooks off* (Boop's entries are
+  there, but you turned the agent's hooks off: Claude's
+  `"disableAllHooks": true`, or `hooks` or `codex_hooks` set to `false`
+  in Codex's `features`; Settings says in which file, offering only
+  Remove, and repair leaves it), *installed* (Boop's entries are the
+  ones a fresh install writes: exactly one per hook, current, under its
+  matcher; where a group sits and what else shares it don't count, since
+  the agent runs every hook, so another tool's hook added after Boop's
+  never needs a repair) or *outdated*. Settings shows each as a row with
+  its button, and an agent that isn't detected as not found, whatever
+  its health.
 - **Detected** means the agent's folder, `~/.claude` or `~/.codex`,
   exists.
 
@@ -378,7 +399,7 @@ report to its socket.
 | When | What happens |
 | --- | --- |
 | Launch | The app copies the `boop-hook` built next to it to `bin/boop-hook` if they differ (staged as `bin/boop-hook.new`, then swapped in), so rebuilding or moving the app doesn't break hooks. With none next to it, it keeps the copy in place. Then it repairs, and asks you to restart open agent sessions if anything changed |
-| Setup | A switch for each agent, on for each one detected. Finishing setup installs for each switched-on, detected agent |
+| Setup | A switch for each agent, on for each one detected, with a preview of what install adds: each hook's command and, for Codex, the `config.toml` switch until it's on. Finishing setup installs for each switched-on, detected agent, and the Overview shows any that failed ([ARCHITECTURE.md](ARCHITECTURE.md) §8) |
 | Settings | One click to connect, repair or remove each agent. A change that works asks you to restart open sessions; one that fails says why |
 | Another `--state-dir` | The menu-bar app installs, repairs and removes nothing, at setup or later ("only the everyday Boop changes them"), and logs why. It still reads the real hooks, so Settings shows how they stand. `Boop --headless` never touches hooks |
 
@@ -394,7 +415,9 @@ it's written (`[ features ] # note`, or top-level `features.x = …` keys)
 and never declared twice, which Codex refuses to load. An inline
 `features = {…}` without `codex_hooks = true`, or a file with both a
 `[features]` table and `features.` keys, is left for you to edit, and the
-preview says what to add.
+preview says what to add. A `config.toml` that's there but can't be
+read, or that turns the hooks off, gets nothing, and the preview says why
+instead.
 
 **Restart.** Agents read hooks at startup, so after an install, removal
 or repair the app asks you to restart open sessions.

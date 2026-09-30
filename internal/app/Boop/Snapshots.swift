@@ -42,10 +42,28 @@ enum Snapshots {
                 try? installer.remove(.claude)
                 shot("settings-chatter", model(installer, status: status(personality: .chatter)), pane: .settings)
                 shot("settings-no-hook", model(unbuilt, status: status()), pane: .settings)
+                // A copy on another folder tried to connect Claude, and the
+                // Overview's notice was closed: the row still says why.
+                let failed = model(installer, status: status(), ownsHooks: false)
+                failed.install(.claude)
+                failed.dismissHookError(.claude)
+                shot("settings-hook-failed", failed, pane: .settings)
                 // No Jev key, the body away and Claude's hooks needing a repair.
                 let offline = model(installer, status: status(connected: false, brain: "none"))
                 offline.hooks[.claude] = .outdated
                 shot("settings-offline-nokey", offline, pane: .settings)
+                // Claude's hooks turned off by the person: only Remove.
+                let off = model(installer, status: status())
+                off.hooks[.claude] = .hooksOff(installer.configURL(.claude).path)
+                shot("settings-hooks-off", off, pane: .settings)
+                let stopped = model(installer, status: nil)
+                stopped.startError = AppModel.startProblem(Runtime.OpenError.locked("/tmp/boop"))
+                shot("settings-not-running", stopped, pane: .settings)
+                shot("settings-bluetooth-off", model(installer, status: status(connected: false, linkTrouble: BLETransport.trouble(.poweredOff))),
+                     pane: .settings)
+                // A card with another pack than the app's, and no card or pack: no voice.
+                shot("settings-old-voice", model(installer, status: status(voice: "0123456789abcdef")), pane: .settings)
+                shot("settings-no-voice", model(installer, status: status(voice: "none")), pane: .settings)
 
                 for step in SetupDraft.Step.allCases {
                     let setup = model(installer, status: nil)
@@ -72,8 +90,9 @@ enum Snapshots {
         exit(0)
     }
 
-    static func model(_ installer: HookInstaller, status: Runtime.Status?, link: LinkSetting = .bluetooth) -> AppModel {
-        let model = AppModel(installer: installer, link: link)
+    static func model(_ installer: HookInstaller, status: Runtime.Status?, link: LinkSetting = .bluetooth,
+                      ownsHooks: Bool = true) -> AppModel {
+        let model = AppModel(installer: installer, ownsHooks: ownsHooks, link: link)
         model.status = status
         model.readKey = { nil }  // fixtures only: never the real Keychain
         return model
@@ -83,9 +102,10 @@ enum Snapshots {
     /// optionally the thread's name and its workspace.
     static func status(base: String = "working", sessions rows: [[String]] = [], vol: Int = 6,
                        connected: Bool = true, personality: Personality = .boop,
-                       name: String = "Mochi", brain: String = "jev:jev-latest",
+                       name: String = "Mochi", brain: String = "jev:jev-latest", keyRead: Bool = true,
                        mood: String = MoodAction.initial, brainTrouble: BrainTrouble? = nil,
-                       listening: Bool = false, micTrouble: String? = nil) -> Runtime.Status {
+                       listening: Bool = false, micTrouble: String? = nil, voice: String? = nil,
+                       linkTrouble: String? = nil) -> Runtime.Status {
         let statuses: [String: SessionSummary.Status] = ["wait": .waiting, "work": .working, "idle": .idle]
         // Each in its agent's own app, so its row opens it.
         let sessions = rows.enumerated().map { i, row in
@@ -105,14 +125,30 @@ enum Snapshots {
             },
             busy: sessions.filter { $0.status == .working }.count, vol: vol)
         return Runtime.Status(name: name, snapshot: snapshot, sessions: sessions, connected: connected,
-                              device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0") : nil,
-                              personality: personality, brain: brain, brainTrouble: brainTrouble,
+                              device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0", voice: voice) : nil,
+                              linkTrouble: linkTrouble,
+                              personality: personality, brain: brain, keyRead: keyRead, brainTrouble: brainTrouble,
                               listening: listening, micTrouble: micTrouble)
     }
 
     static func overviews(_ installer: HookInstaller) -> [(String, AppModel)] {
         [
-            ("asleep", model(installer, status: status(base: "asleep"))),
+            // Claude's hooks in place, so the empty list names it.
+            ("asleep", {
+                let m = model(installer, status: status(base: "asleep"))
+                m.hooks[.claude] = .installed
+                return m
+            }()),
+            // No agent's hooks connected: nothing can reach Boop.
+            ("no-hooks", model(installer, status: status(base: "asleep"))),
+            // Setup connected Claude but couldn't change Codex's config.
+            ("hook-failed", {
+                let m = model(installer, status: status(base: "asleep"))
+                m.hooks[.claude] = .installed
+                m.hookErrors[.codex] = "features is an inline table"
+                m.restartAgents = true
+                return m
+            }()),
             ("working", model(installer, status: status(sessions: [
                 ["codex", "landing", "work"], ["codex", "buddygotchi", "work", "", "main"],
                 ["claude", "buddygotchi", "work", "", "cheer-thread-name"], ["claude", "buddygotchi", "work", "", "heartbeat-fix"],
@@ -121,6 +157,11 @@ enum Snapshots {
             ("needs-you", model(installer, status: status(sessions: [
                 ["codex", "landing-page-redesign-v2", "wait", "Fix the hero image on mobile", "fix-nav"], ["claude", "jetpack", "wait"],
                 ["codex", "buddygotchi", "work"], ["claude", "notes", "idle"],
+            ]))),
+            // A long project and a long branch: the branch is cut first.
+            ("needs-you-long", model(installer, status: status(sessions: [
+                ["claude", "buddygotchi-landing-page", "wait", "", "claude/very-long-branch-name-for-the-hero"],
+                ["codex", "jetpack", "wait"],
             ]))),
             ("chatter", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], personality: .chatter))),
             ("offline", {
@@ -135,12 +176,22 @@ enum Snapshots {
                 return m
             }()),
             ("waking-up", model(installer, status: nil)),
+            ("no-key", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]], brain: "none"))),
+            // Jev's key still being read, a Keychain prompt waiting: no brain
+            // yet, but nothing says the key is missing.
+            ("reading-key", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]],
+                                                            brain: "none", keyRead: false))),
             ("brain-trouble", model(installer, status: status(sessions: [["claude", "jetpack", "work"]],
                                                               brainTrouble: BrainTrouble(kind: .credit, why: "jev: HTTP 402",
                                                                                          inARow: 1)))),
             ("listening", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], listening: true))),
             ("cant-hear", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]],
                                                           micTrouble: "Allow Boop in System Settings → Privacy & Security → Microphone."))),
+            // No card, or no voice pack on it.
+            ("no-voice", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]], voice: "none"))),
+            // Bluetooth refused at the first launch's prompt.
+            ("no-bluetooth", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]],
+                                                             connected: false, linkTrouble: BLETransport.trouble(.unauthorized)))),
             ("no-device", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]],
                                                           connected: false), link: .none)),
             // Every chip at once (Chatter and Muted), under the longest kind of name.
@@ -234,13 +285,14 @@ enum Snapshots {
         window.appearance = appearance
         window.contentView = host
         // Size to the content, twice: scroll panes measure themselves on
-        // the first pass and settle on the second.
+        // the first pass and settle on the second. A turn of the run loop
+        // between passes is all they need; a longer wait changes no pixel.
         for _ in 0..<3 {
             host.layoutSubtreeIfNeeded()
             let size = host.fittingSize
             host.frame = CGRect(origin: .zero, size: size)
             window.setContentSize(size)
-            RunLoop.main.run(until: Date().addingTimeInterval(0.08))
+            RunLoop.main.run(until: Date().addingTimeInterval(0.005))
         }
         host.layoutSubtreeIfNeeded()
         window.displayIfNeeded()
@@ -256,7 +308,7 @@ enum Snapshots {
     /// top row at 1× and the bottom at 2×, each pixel blown up to 4×4 or 2×2
     /// so the grid can be judged.
     static func renderIcons(dark: Bool, to dir: URL) {
-        let moods: [FaceMood] = [.asleep, .idle, .working, .needsYou]
+        let moods: [FaceMood] = [.asleep, .idle, .working, .needsYou, .stopped]
         let icon = MenuBarIcon.image(.idle).size
         let pad: CGFloat = 10, gap: CGFloat = 14, row: CGFloat = 24, zoom: CGFloat = 4
         let size = NSSize(width: 2 * pad + CGFloat(moods.count) * icon.width + CGFloat(moods.count - 1) * gap,

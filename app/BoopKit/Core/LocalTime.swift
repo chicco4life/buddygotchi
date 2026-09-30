@@ -21,6 +21,15 @@ public struct LocalTime: Sendable {
         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 
+    /// Whether `s` is a `yyyy-MM-dd` that names a real day.
+    static func isDay(_ s: String) -> Bool {
+        let p = s.split(separator: "-", omittingEmptySubsequences: false).map { Int($0) }
+        guard s.count == 10, p.count == 3, let y = p[0], let m = p[1], let d = p[2], (1...12).contains(m),
+              String(format: "%04d-%02d-%02d", y, m, d) == s else { return false }
+        let leap = y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)
+        return (1...[31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]).contains(d)
+    }
+
     /// `14:05`.
     public func clock(_ ms: Int64) -> String {
         let c = calendar.dateComponents([.hour, .minute], from: date(ms))
@@ -32,33 +41,6 @@ public struct LocalTime: Sendable {
         let names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
         let index = calendar.component(.weekday, from: date(ms)) - 1
         return names[max(0, min(6, index))]
-    }
-
-    /// Days since 1970-01-01 in the proleptic Gregorian calendar.
-    static func ordinal(_ day: String) -> Int? {
-        let parts = day.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3 else { return nil }
-        var (y, m) = (parts[0], parts[1])
-        let d = parts[2]
-        if m <= 2 { y -= 1; m += 12 }
-        let era = y / 400
-        let yoe = y - era * 400
-        let doy = (153 * (m - 3) + 2) / 5 + d - 1
-        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
-        return era * 146_097 + doe - 719_468
-    }
-
-    static func fromOrdinal(_ n: Int) -> String {
-        let z = n + 719_468
-        let era = (z >= 0 ? z : z - 146_096) / 146_097
-        let doe = z - era * 146_097
-        let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365
-        let doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
-        let mp = (5 * doy + 2) / 153
-        let d = doy - (153 * mp + 2) / 5 + 1
-        let m = mp < 10 ? mp + 3 : mp - 9
-        let y = yoe + era * 400 + (m <= 2 ? 1 : 0)
-        return String(format: "%04d-%02d-%02d", y, m, d)
     }
 }
 

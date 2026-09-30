@@ -1,6 +1,6 @@
 # Boop: vision
 
-Updated 2026-09-29. Why Boop exists, who it's for, what v1 does, and the
+Updated 2026-09-30. Why Boop exists, who it's for, what v1 does, and the
 promises it keeps. How it all works is in the other specs
 ([README.md](README.md)).
 
@@ -153,8 +153,7 @@ changes.
    on the Mac.
 6. **No reset button.** Boop lives in files on your Mac, not in the device
    or the model, and it belongs to you. In v1 it keeps its name, nature,
-   seed, mood and which day it last saw
-   ([ARCHITECTURE.md](ARCHITECTURE.md) §4).
+   seed and mood ([ARCHITECTURE.md](ARCHITECTURE.md) §4).
 7. **Private by construction.** There is no camera and no wake word, and
    the Mac's mic listens only while you hold Boop's button or after you
    click Talk, never longer than 30 s; the audio never leaves the Mac. Boop's memory lives on your Mac, and without a Jev key everything

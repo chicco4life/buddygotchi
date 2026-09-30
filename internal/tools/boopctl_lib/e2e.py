@@ -180,10 +180,11 @@ class Run:
                 self.fail(f"{where}: unknown step {line}")
 
 
-def check_after(run: Run, expected: dict[str, Any]) -> None:
-    """The app's files and logs once the app has stopped."""
+def check_after(run: Run, events: list[str]) -> None:
+    """The app's files and logs once the app has stopped: the `events` the
+    harness should have seen, and nothing private."""
     brain_log = run.debug_log.read_text() if run.debug_log.exists() else ""
-    for want in expected["events"]:
+    for want in events:
         (run.say if want in brain_log else run.fail)(f"the harness saw an event with {want!r}: {want in brain_log}")
     # Nothing private may reach the app's files, debug.jsonl and the
     # transcript included, but your prompt and the agent's last message
@@ -205,7 +206,8 @@ def order(log: str) -> list[dict[str, Any]]:
     ended, and whether the next moment sent was the brain's or a rule's.
 
     With --debug the app logs `hook: …` for each hook and `link rules → …` or
-    `link brain → …` for each line sent to the device, and always
+    `link brain → …` for each line sent to the device (a `state` sent again
+    unchanged, such as the keepalive, only the first time), and always
     `device: moment N ended …` for the device's `ended`."""
     stamp = re.compile(r"^(\d\d):(\d\d):(\d\d)\.(\d\d\d) (.*)$")
     ended_line = re.compile(r"^device: moment (\d+) ended (\w+)(?: \((\w+)\))?$")
@@ -311,12 +313,14 @@ def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None, cl
             f"p50 {p50:.0f} ms, p95 {p95:.0f} ms, max {max(lat, default=0):.0f} ms")
     if not lat or p95 >= 200:
         run.fail(f"p95 latency {p95:.0f} ms is not under 200 ms")
-    if fixtures is None and not clip:
-        check_after(run, expected)
+    # expect.json's events are the whole run's; a part of it is still
+    # checked for private words.
+    check_after(run, expected["events"] if fixtures is None and not clip else [])
     order = check_order(run)
 
-    shutil.copy(run.state / "boop.log", out / f"app-{brain}.log")
-    for name in ("long-term.md", "short-term.md", "settings.json"):
+    if (run.state / "boop.log").exists():
+        shutil.copy(run.state / "boop.log", out / f"app-{brain}.log")
+    for name in ("long-term.md", "settings.json"):
         if (run.state / name).exists():
             shutil.copy(run.state / name, out / f"{brain}-{name}")
     result = {"brain": brain, "started": started, "seconds": round(time.time() - started), "hooks": run.hooks,
@@ -388,7 +392,8 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
     finally:
         run.stop()
 
-    later = [s for s in samples if s["t"] >= 120] or samples[-1:]
+    # The first sample after 2 minutes; none when the run never started.
+    later = next((s for s in samples if s["t"] >= 120), samples[-1] if samples else {})
     errors = [s["audio_errors"] or 0 for s in samples]
     rss = [s["app_rss_kb"] for s in samples if s["app_rss_kb"]]
     lat = [h["state_ms"] for h in run.hooks if h["state_ms"] is not None]
@@ -397,10 +402,10 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
         "hooks": len(run.hooks), "checkpoint_misses": misses, "link_glitches": glitches,
         "latency": {"p50": percentile(lat, 0.5), "p95": percentile(lat, 0.95), "n": len(lat)},
         "reset": restarted([s["up"] for s in samples]),
-        "heap_min_after_2min": later[0]["heap_min"], "heap_min_end": samples[-1]["heap_min"] if samples else None,
-        "heap_min_drift": later[0]["heap_min"] - samples[-1]["heap_min"] if samples else None,
+        "heap_min_after_2min": later.get("heap_min"), "heap_min_end": samples[-1]["heap_min"] if samples else None,
+        "heap_min_drift": later["heap_min"] - samples[-1]["heap_min"] if samples else None,
         "audio_errors": max(errors, default=0) - min(errors, default=0),
-        "app_rss_kb": {"after_2min": later[0]["app_rss_kb"], "end": rss[-1] if rss else None,
+        "app_rss_kb": {"after_2min": later.get("app_rss_kb"), "end": rss[-1] if rss else None,
                        "max": max(rss, default=None)},
         "app_exited_early": any(not s["app_alive"] for s in samples),
         "final": {k: final.get(k) for k in ("screen", "base", "attn", "moment")},

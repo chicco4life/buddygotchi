@@ -6,9 +6,10 @@ import Foundation
 /// `action` events in the transcript. It never reads a view event's facts
 /// or an action's answers, builds Minion speech or talks to the device.
 ///
-/// One pass runs at a time; a newer view event that wakes the brain
-/// replaces one that's waiting. Everything but the brain call runs on
-/// `home`.
+/// One pass runs at a time. A newer view event that wakes the brain
+/// replaces the last one waiting if that one's priority is 0, and waits
+/// behind the ones at its own priority or higher. Everything but the
+/// brain call runs on `home`.
 public final class Harness: @unchecked Sendable {
     /// What the brain was asked and answered for one view event, or the
     /// answers the dashboard forced, for none (`forSeq` nil). Only
@@ -62,6 +63,9 @@ public final class Harness: @unchecked Sendable {
     /// Whether the brain has failed for long enough to say so (§7), and
     /// how many passes that asked it have dropped in a row.
     public private(set) var trouble: BrainTrouble?
+    /// How many times `use` has changed the brain: a pass that asked an
+    /// earlier one doesn't say how this one is doing.
+    var brainChanges = 0
     /// The NOW whose answers the actions are running with, while they
     /// run; nil otherwise, and for a forced pass. The harness only holds
     /// it: whoever wired an action may ask it what NOW is about.
@@ -70,9 +74,9 @@ public final class Harness: @unchecked Sendable {
     let actions: [any Action]
     /// Where events are recorded and the view is kept.
     public let pipeline: Pipeline
-    /// Everything the state needs besides the view, for the pass on a view
-    /// event: the static parts, the closing line and the clock.
-    let parts: (ViewEvent) -> StateText.Parts
+    /// Everything the state needs besides the view: the static parts, the
+    /// closing line and the clock.
+    let parts: () -> StateText.Parts
     let home: DispatchQueue
     let clock: @Sendable () -> Int64
     let log: (String) -> Void
@@ -81,9 +85,6 @@ public final class Harness: @unchecked Sendable {
     public var onRecord: ((Record) -> Void)?
     /// Called on `home` with every pass's `debug.jsonl` line.
     public var onDebugLine: ((String) -> Void)?
-    /// Why a waiting view event's pass may not start now, or nil if it
-    /// may: the pipeline's gate, asked again (EVENTS.md §6).
-    public var whyNotStart: (ViewEvent) -> String? = { _ in nil }
 
     /// The whole pass must finish within this.
     public static let deadlineMs = 1500
@@ -95,7 +96,10 @@ public final class Harness: @unchecked Sendable {
     public static let pendingMaxMs: Int64 = 90_000
 
     var running: Int?
-    var waiting: ViewEvent?
+    /// The view events waiting for their pass, in the order they start:
+    /// the highest `ViewEvent.passPriority` first, oldest first within
+    /// one, so at most one at 0 waits, the newest, last.
+    var waiting: [ViewEvent] = []
     /// The actions the dashboard made act while the running pass ran: the
     /// pass's state is from before, so they sit its answers out (§2).
     var changedDuringPass: Set<String> = []
@@ -103,6 +107,8 @@ public final class Harness: @unchecked Sendable {
     /// `debug.jsonl` gives them (§9): a pass line names the options it
     /// asked only where they differ, such as the mood's once it has moved.
     let launchOptions: [String: [String]]
+    /// The state's head as the last `head` line in `debug.jsonl` gave it.
+    var loggedHead: String?
 
     /// A started action, still in progress: its name, when its result was
     /// recorded, and who it was by.
@@ -116,7 +122,7 @@ public final class Harness: @unchecked Sendable {
     var open: [Int: Open] = [:]
 
     public init(brain: (any Brain)?, actions: [any Action], pipeline: Pipeline,
-                parts: @escaping (ViewEvent) -> StateText.Parts, home: DispatchQueue,
+                parts: @escaping () -> StateText.Parts, home: DispatchQueue,
                 clock: @escaping @Sendable () -> Int64, log: @escaping (String) -> Void = { _ in }) {
         self.brain = brain
         self.actions = actions
@@ -134,6 +140,7 @@ public final class Harness: @unchecked Sendable {
     public func use(_ brain: (any Brain)?) {
         dispatchPrecondition(condition: .onQueue(home))
         self.brain = brain
+        brainChanges += 1
         trouble = nil
         droppedInARow = 0
     }
@@ -144,8 +151,11 @@ public final class Harness: @unchecked Sendable {
         dispatchPrecondition(condition: .onQueue(home))
         for view in views where view.wakesBrain && brain != nil {
             if running != nil {
-                if let old = waiting { log("harness: \(old.name) replaced by a newer \(view.name)") }
-                waiting = view
+                if let old = waiting.last, old.passPriority == 0 {
+                    log("harness: \(old.name) replaced by a newer \(view.name)")
+                    waiting.removeLast()
+                }
+                waiting.insert(view, at: waiting.firstIndex { $0.passPriority < view.passPriority } ?? waiting.endIndex)
                 continue
             }
             start(view)
@@ -155,7 +165,7 @@ public final class Harness: @unchecked Sendable {
     /// Nothing running and nothing waiting. Call on `home`.
     public var idle: Bool {
         dispatchPrecondition(condition: .onQueue(home))
-        return running == nil && waiting == nil
+        return running == nil && waiting.isEmpty
     }
 
     // MARK: A pass (§3)
@@ -164,13 +174,21 @@ public final class Harness: @unchecked Sendable {
     /// event its state saw.
     struct Job: Sendable {
         var brain: any Brain
+        /// `brainChanges` when it started.
+        var brainChanges: Int
         var state: String
         var questions: [Question]
         var seen: Int
     }
 
     var nextPass = 0
+    /// The running pass's deadline.
+    var deadline: DispatchSourceTimer?
 
+    /// A pass, its request off `home`. Past the deadline it's dropped, and
+    /// the request goes on to its end, so the log can say when the brain
+    /// did answer, with `: ` and why if it failed: a dropped pass's own
+    /// latency is only the deadline's.
     func start(_ now: ViewEvent) {
         guard let brain else { return }
         nextPass += 1
@@ -178,35 +196,53 @@ public final class Harness: @unchecked Sendable {
         running = id
         changedDuringPass = []
         let job = prepare(now, brain: brain)
-        let kind = now.name
+        let started = ContinuousClock.now
+        let timer = DispatchSource.makeTimerSource(flags: .strict, queue: home)
+        timer.schedule(deadline: .now() + .milliseconds(Harness.deadlineMs), leeway: .milliseconds(Harness.deadlineLeewayMs))
+        timer.setEventHandler { [weak self] in self?.ended(id, now, job, .failure(Harness.late), since: started) }
+        deadline = timer
+        timer.resume()
         Task { [self] in
-            let (result, ms) = await Harness.ask(job) { [weak self] ms, late in
-                self?.home.async { [weak self] in
-                    self?.log("harness: \(job.brain.id) answered after \(ms) ms, too late for the \(kind) pass" + late)
-                }
-            }
+            let result = await Harness.answer(job)
             home.async { [self] in
-                guard running == id else { return }
-                running = nil
-                finish(now, job, result, latencyMs: ms)
-                changedDuringPass = []
-                if let next = waiting {
-                    waiting = nil
-                    if let why = whyNotStart(next) {
-                        finish(next, nil, .failure(BrainError(why)), latencyMs: 0, brainID: job.brain.id)
-                    } else {
-                        start(next)
-                    }
+                guard running == id else {
+                    let why = if case .failure(let e) = result { ": " + e.description } else { "" }
+                    log("harness: \(job.brain.id) answered after \((ContinuousClock.now - started).ms) ms, too late for the "
+                        + "\(now.name) pass" + why)
+                    return
                 }
+                ended(id, now, job, result, since: started)
+            }
+        }
+    }
+
+    /// Pass `id` is over, answered or past its deadline. Then the next
+    /// waiting view event's pass starts; each that may no longer wake the
+    /// brain, by the pipeline's gate asked again (EVENTS.md §6), is
+    /// dropped on the way.
+    func ended(_ id: Int, _ now: ViewEvent, _ job: Job, _ result: Result<Answers, BrainError>,
+               since started: ContinuousClock.Instant) {
+        guard running == id else { return }
+        running = nil
+        deadline?.cancel()
+        deadline = nil
+        finish(now, job, result, latencyMs: (ContinuousClock.now - started).ms)
+        changedDuringPass = []
+        while running == nil, !waiting.isEmpty {
+            let next = waiting.removeFirst()
+            if let why = pipeline.whyNotWake(next) {
+                finish(next, nil, .failure(BrainError(why)), latencyMs: 0, brainID: job.brain.id)
+            } else {
+                start(next)
             }
         }
     }
 
     /// Step 3, on `home`: the state and every action's questions.
     func prepare(_ now: ViewEvent, brain: any Brain) -> Job {
-        let state = StateText.build(pipeline.view.events, now: now, at: clock(), parts(now))
-        return Job(brain: brain, state: state, questions: actions.flatMap { $0.questions() },
-                   seen: pipeline.transcript.events.last?.seq ?? now.seq)
+        let state = StateText.build(pipeline.view.events, now: now, at: clock(), parts())
+        return Job(brain: brain, brainChanges: brainChanges, state: state, questions: actions.flatMap { $0.questions() },
+                   seen: pipeline.transcript.lastSeq)
     }
 
     /// Steps 5–7, on `home`: each action gets its own answers, in order,
@@ -217,8 +253,8 @@ public final class Harness: @unchecked Sendable {
     func finish(_ now: ViewEvent, _ job: Job?, _ result: Result<Answers, BrainError>, latencyMs: Int,
                 brainID: String? = nil) -> Record {
         var pass = Pass(forSeq: now.seq, answers: [:], dropped: nil, latencyMs: latencyMs)
-        if job != nil {
-            // Only a pass that asked the brain says how it's doing.
+        if job?.brainChanges == brainChanges {
+            // Only a pass that asked the brain in use says how it's doing.
             let error: BrainError? = if case .failure(let e) = result { e } else { nil }
             (droppedInARow, trouble) = BrainTrouble.after(error, previous: droppedInARow)
         }
@@ -233,7 +269,13 @@ public final class Harness: @unchecked Sendable {
         if let phase = now.phase { nowJSON["phase"] = phase.rawValue }
         var extra: [String: Any] = ["now": nowJSON]
         if let job {
-            extra.merge(["state": job.state, "questions": job.questions.map(\.key), "brain": job.brain.id, "seen": job.seen]) { $1 }
+            // The head is logged only when it changes; the pass, HISTORY and NOW (§9).
+            let (head, last) = StateText.split(job.state)
+            if head != loggedHead, let onDebugLine {
+                onDebugLine(DebugLog.head(head, at: clock()))
+                loggedHead = head
+            }
+            extra.merge(["state": last, "questions": job.questions.map(\.key), "brain": job.brain.id, "seen": job.seen]) { $1 }
             if let options = changedOptions(job.questions) { extra["options"] = options }
         } else {
             extra["brain"] = brainID ?? brain?.id ?? "none"
@@ -368,125 +410,55 @@ public final class Harness: @unchecked Sendable {
 
     /// One view event straight through, without the queue: for the evals.
     /// Don't call on `home`. Returns nil when it doesn't wake the brain.
+    /// Past the deadline the request is cancelled.
     public func respond(to now: ViewEvent) async -> Record? {
         let job: Job? = home.sync {
             guard now.wakesBrain, let brain else { return nil }
             return prepare(now, brain: brain)
         }
         guard let job else { return nil }
-        let (result, ms) = await Harness.ask(job)
+        let started = ContinuousClock.now
+        let result = await withTaskGroup(of: Result<Answers, BrainError>.self) { group in
+            group.addTask { await Harness.answer(job) }
+            group.addTask {
+                do {
+                    try await Task.sleep(for: .milliseconds(Harness.deadlineMs), tolerance: .milliseconds(Harness.deadlineLeewayMs))
+                    return .failure(Harness.late)
+                } catch {
+                    return .failure(BrainError("cancelled"))
+                }
+            }
+            let first = await group.next()!
+            group.cancelAll()
+            return Task.isCancelled ? .failure(BrainError("cancelled")) : first
+        }
+        let ms = (ContinuousClock.now - started).ms
         return home.sync { finish(now, job, result, latencyMs: ms) }
     }
 
     // MARK: Helpers
 
-    /// Step 4, off `home`: the brain's answers within the deadline, and how
-    /// long they took in ms. A request the deadline passed goes on to its
-    /// end, and `late` gets how long it took and what it came to (`""`, or
-    /// `: ` and why it failed), so the log can say when the brain did
-    /// answer: a dropped pass's own latency is only the deadline's.
-    private static func ask(_ job: Job, late: @escaping @Sendable (Int, String) -> Void = { _, _ in }) async
-        -> (Result<Answers, BrainError>, Int) {
-        let started = ContinuousClock.now
-        let result = await race(deadlineMs, late: { ms, result in
-            if case .failure(let error) = result { late(ms, ": " + error.description) } else { late(ms, "") }
-        }) {
-            try await job.brain.answer(state: job.state, questions: job.questions, deadline: .milliseconds(deadlineMs))
+    /// Step 4, off `home`: the brain's answers, or why there are none.
+    static func answer(_ job: Job) async -> Result<Answers, BrainError> {
+        do {
+            return .success(try await job.brain.answer(state: job.state, questions: job.questions,
+                                                      deadline: .milliseconds(deadlineMs)))
+        } catch let error as BrainError {
+            return .failure(error)
+        } catch {
+            return .failure(BrainError("\(error)"))
         }
-        return (result, (ContinuousClock.now - started).ms)
     }
+
+    /// Why a pass the deadline passed is dropped.
+    static var late: BrainError { BrainError("late: no answer within \(deadlineMs) ms") }
 
     /// How late the deadline's timer may fire: the system's default leeway
     /// let it fire up to 7% late, 1.6 s for 1.5 s.
     static let deadlineLeewayMs = 5
-
-    /// `work`, raced against a deadline and cancelling. Past the deadline,
-    /// work goes on to its end if `late` is given, which then gets how long
-    /// it took and its result; otherwise it's cancelled. Work that ignores
-    /// cancelling is left to finish on its own. Either way its answer is
-    /// dropped.
-    static func race<T: Sendable>(_ ms: Int, late: (@Sendable (Int, Result<T, BrainError>) -> Void)? = nil,
-                                  _ work: @escaping @Sendable () async throws -> T) async -> Result<T, BrainError> {
-        let once = Once<Result<T, BrainError>>()
-        let started = ContinuousClock.now
-        return await withTaskCancellationHandler {
-            await withCheckedContinuation { (k: CheckedContinuation<Result<T, BrainError>, Never>) in
-                once.set(k)
-                once.add(Task {
-                    let result: Result<T, BrainError>
-                    do {
-                        result = .success(try await work())
-                    } catch let error as BrainError {
-                        result = .failure(error)
-                    } catch {
-                        result = .failure(BrainError("\(error)"))
-                    }
-                    if !once.resume(result), let late { late((ContinuousClock.now - started).ms, result) }
-                })
-                once.add(Task {
-                    try? await Task.sleep(for: .milliseconds(ms), tolerance: .milliseconds(deadlineLeewayMs))
-                    once.resume(.failure(BrainError("late: no answer within \(ms) ms")), cancellingOthers: late == nil)
-                })
-            }
-        } onCancel: {
-            once.resume(.failure(BrainError("cancelled")))
-        }
-    }
 }
 
 extension Duration {
     /// In whole milliseconds.
     var ms: Int { Int(components.seconds * 1000 + components.attoseconds / 1_000_000_000_000_000) }
-}
-
-/// Resumes a continuation once, from whichever of the work, the deadline or
-/// cancelling gets there first, then cancels the others.
-final class Once<T: Sendable>: @unchecked Sendable {
-    let lock = NSLock()
-    var continuation: CheckedContinuation<T, Never>?
-    var pending: T?
-    var done = false
-    var tasks: [Task<Void, Never>] = []
-
-    func set(_ k: CheckedContinuation<T, Never>) {
-        let early: T? = lock.withLock {
-            guard let pending else {
-                continuation = k
-                return nil
-            }
-            done = true
-            return pending
-        }
-        if let early { k.resume(returning: early) }
-    }
-
-    func add(_ task: Task<Void, Never>) {
-        let finished = lock.withLock {
-            tasks.append(task)
-            return done
-        }
-        if finished { task.cancel() }
-    }
-
-    /// Delivers `value` if nothing came first, and says whether it did.
-    /// The other tasks are cancelled then, unless `cancellingOthers` is
-    /// false.
-    @discardableResult
-    func resume(_ value: T, cancellingOthers: Bool = true) -> Bool {
-        let (k, others, first): (CheckedContinuation<T, Never>?, [Task<Void, Never>], Bool) = lock.withLock {
-            guard !done else { return (nil, [], false) }
-            guard let continuation else {
-                guard pending == nil else { return (nil, [], false) }
-                pending = value
-                return (nil, [], true)
-            }
-            done = true
-            self.continuation = nil
-            return (continuation, cancellingOthers ? tasks : [], true)
-        }
-        guard let k else { return first }
-        k.resume(returning: value)
-        for task in others { task.cancel() }
-        return true
-    }
 }

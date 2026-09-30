@@ -12,7 +12,20 @@ struct SettingsPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PaneHeader(title: "Settings") { model.pane = .overview }
+            // The title row: a Back chevron and the title.
+            HStack(spacing: Theme.gapTight) {
+                Button { model.pane = .overview } label: {
+                    Image(systemName: "chevron.left").font(.system(size: 12, weight: .semibold))
+                }
+                .buttonStyle(.quiet)
+                .keyboardShortcut("[", modifiers: .command)
+                .accessibilityLabel("Back")
+                Text("Settings").font(.boop(16))
+                Spacer()
+            }
+            .padding(.horizontal, Theme.gutter - 8)
+            .padding(.top, Theme.gutter - 4)
+            .padding(.bottom, Theme.gap)
             FittedScroll(maxHeight: maxHeight) {
                 VStack(alignment: .leading, spacing: Theme.gapSection) {
                     PaneSection("Sound") { sound }
@@ -45,7 +58,7 @@ struct SettingsPane: View {
                         .controlSize(.small)
                         .frame(width: 84)
                         .accessibilityLabel("Volume")
-                    Text(s?.vol == 0 ? "Off" : "\(s?.vol ?? 6)")
+                    Text(s.map { $0.vol == 0 ? "Off" : "\($0.vol)" } ?? "–")
                         .font(.system(size: 11, weight: .medium).monospacedDigit())
                         .foregroundStyle(Theme.inkSoft)
                         .frame(width: 22, alignment: .trailing)
@@ -80,19 +93,23 @@ struct SettingsPane: View {
         let found = model.installer.detected(agent)
         let (text, tone): (String, Color) = if let why = model.hookErrors[agent] {
             ("Couldn't change its hooks: \(why)", Theme.clayInk)
+        } else if !found {
+            // Nothing to connect, so nothing missing for it.
+            ("Not found on this Mac", Theme.inkSoft)
         } else {
             switch health {
             case .installed?: ("Connected", Theme.sageInk)
             case .outdated?: ("Needs a repair", Theme.clayInk)
             case .unreadable(let why)?: ("Can't read its settings: \(why)", Theme.clayInk)
             case .clientMissing?: ("boop-hook isn't built. Run make build, then restart Boop.", Theme.clayInk)
-            default: found ? ("Not connected", Theme.inkSoft) : ("Not found on this Mac", Theme.inkSoft)
+            case .hooksOff(let file)?: ("Its hooks are turned off in \((file as NSString).abbreviatingWithTildeInPath)", Theme.clayInk)
+            default: ("Not connected", Theme.inkSoft)
             }
         }
         return SettingRow(icon: agentSymbol(agent.rawValue), title: agent.displayName,
                           detail: text, detailTone: tone) {
             switch health {
-            case .installed?:
+            case .installed?, .hooksOff?:
                 Button("Remove") { model.remove(agent) }.buttonStyle(.row)
             case .outdated?:
                 Button("Repair") { model.install(agent) }.buttonStyle(.rowFilled)
@@ -109,20 +126,13 @@ struct SettingsPane: View {
     // MARK: Device
 
     private var device: some View {
-        let connected = model.status?.connected == true
-        let how = switch model.link {
-        case .bluetooth: "Bluetooth"
-        case .usb: "USB"
-        case .none: ""
-        }
-        let detail = connected ? "Connected over \(how)"
-            : model.link == .none ? "This copy of Boop runs without a device"
-            : "Looking for it over \(how). Plug it into USB power."
+        let device = model.device
         return Card(padding: 0) {
-            SettingRow(icon: "rectangle.inset.filled", title: "\(model.name)'s body", detail: detail,
-                       detailTone: connected ? Theme.sageInk : Theme.inkSoft) {
-                if model.link != .none {
-                    Button("Reconnect") { model.reconnectDevice() }.buttonStyle(.row).fixedSize()
+            SettingRow(icon: "rectangle.inset.filled", title: "\(model.name)'s body", detail: device.detail,
+                       detailTone: device.trouble ? Theme.clayInk : device.connected ? Theme.sageInk : Theme.inkSoft) {
+                // Reconnecting can't help while Boop isn't running or Bluetooth is off.
+                if model.link != .none, let status = model.status, status.linkTrouble == nil {
+                    Button("Reconnect") { model.runtime?.reconnectDevice() }.buttonStyle(.row).fixedSize()
                         .help("Drop the connection and look for \(model.name)'s body again now")
                 }
             }
@@ -142,7 +152,7 @@ struct SettingsPane: View {
     /// What Boop does without a brain, if it has none (BEHAVIORS.md §1):
     /// the rules' looks and one-shots, but no reaction or mood change.
     private var brainNote: String? {
-        guard let status = model.status, status.brain == "none" else { return nil }
+        guard model.noKey else { return nil }
         return "Without a Jev API key, \(model.name) shows what the agents are doing and when one needs you, but doesn't react or change its mood."
     }
 
@@ -192,8 +202,9 @@ struct SettingsPane: View {
                             // Off the main thread: the Keychain may stop to ask.
                             let key = apiKey
                             Task {
-                                keySaved = await Task.detached { Keychain.setKey(key, for: .jev) }.value
-                                if keySaved { model.jevKeyChanged(key.isEmpty ? nil : key) }
+                                keySaved = await Task.detached { Keychain.setJevKey(key) }.value
+                                // The brain uses it from the next event.
+                                if keySaved { model.runtime?.reloadBrain(jevKey: key.isEmpty ? nil : key) }
                             }
                         }
                         .buttonStyle(.row)
@@ -249,12 +260,12 @@ struct PersonalityPicker: View {
     }
 }
 
-/// One settings row: an icon, a title with an optional line under it, and
-/// a control at the trailing edge.
+/// One settings row: an icon, a title with a line under it, and a control
+/// at the trailing edge.
 struct SettingRow<Trailing: View>: View {
     let icon: String
     let title: String
-    let detail: String?
+    let detail: String
     var detailTone: Color = Theme.inkSoft
     @ViewBuilder var trailing: Trailing
 
@@ -266,10 +277,8 @@ struct SettingRow<Trailing: View>: View {
                 .frame(width: 18)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 12, weight: .medium))
-                if let detail {
-                    Text(detail).font(.system(size: 11)).foregroundStyle(detailTone)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(detail).font(.system(size: 11)).foregroundStyle(detailTone)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             // The words take the room the control leaves, so they wrap only
             // when they must.

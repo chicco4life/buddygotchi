@@ -99,12 +99,10 @@ in the order the `pass` line lists them: `mood`, `react.mood`,
 `react.animation`, `react.loops`, `say.feeling`, `say.about`,
 `say.kind`.
 
-`say.feeling` and `say.about` are built from the takes Voice has: `none`,
-then each answer with at least one take, in `ReactAction`'s order. An
-option names the faces that can say it only when not all 13 can; with
-the whole bank, all 13 can say every answer, so none does. That leaves
-`say.feeling` with `none`, `upset`, `glad` and `tickled`, and
-`say.about` with `none` and its 15 topics, as the `p` maps in §5 show.
+`say.feeling` and `say.about` offer `none`, then every answer in
+`ReactAction`'s order, since every face can say each one: `say.feeling`
+`none`, `upset`, `glad` and `tickled`, and `say.about` `none` and its
+15 topics, as the `p` maps in §5 show.
 
 ## 5. The answers (14:01)
 

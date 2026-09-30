@@ -37,11 +37,12 @@ public final class Pipeline {
         self.view = view
     }
 
-    /// An agent's event, from an adapter: its `ts` is now.
+    /// An agent's event, from an adapter: its `ts` is now. It's recorded
+    /// without what its session already has (`Core.unrepeated`).
     @discardableResult
     public func agent(_ event: Event) -> Step {
         var step = Step()
-        let e = record(event, &step)
+        let e = record(core.unrepeated(event), &step)
         run(core.handle(e), &step)
         return gated(step)
     }
@@ -92,15 +93,21 @@ public final class Pipeline {
         for case .record(let e) in effects { record(e, &step) }
     }
 
-    /// Folds the events a launch read back into the view. A started action
-    /// with no end can't end now (its handle went with the last launch),
-    /// so it's ended here as failed.
-    public func replay(_ events: [Event], now: Int64) {
-        for e in events { view.take(e) }
+    /// Folds the transcript's last days into the view and the core, as a
+    /// launch reads them back, and returns how many events it read. A
+    /// started action with no end can't end now (its handle went with the
+    /// last launch), so it's ended here as failed.
+    @discardableResult
+    public func readBack(now: Int64) -> Int {
+        let read = transcript.load(now: now) { e in
+            view.take(e)
+            core.replay(e)
+        }
         for (seq, name) in view.openActions() {
             record(Event(ts: now, source: .boop, type: .action, phase: .end, specificType: name,
                          data: ["for": .int(Int64(seq)), "outcome": "failed", "why": "Boop restarted"]))
         }
+        return read
     }
 
     @discardableResult

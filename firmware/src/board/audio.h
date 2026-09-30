@@ -4,16 +4,11 @@
 // while something plays. The main loop hands it lines and effects
 // through a small queue, so a slow frame never stutters the sound.
 #pragma once
-#include "app/device.h"
 
 namespace board {
 
 // Starts the task and allocates the DAC's DMA buffers (about 4 KB).
+// BoardHal's say, hush, effect, stopEffects and audioOut feed it.
 bool audioBegin();
-void audioSay(const voice::Line& l);
-void audioHush();
-void audioEffect(const voice::Effect& e);
-void audioStopEffects();
-app::AudioOut audioOut();
 
 }  // namespace board

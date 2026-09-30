@@ -9,7 +9,7 @@
 namespace board {
 
 // Panel settings, confirmed on the real panel at bring-up (DEVICE.md §4).
-constexpr uint32_t kSpiWriteHz = 40000000;
+constexpr uint32_t kSpiWriteHz = 80000000;  // over the ST7789's rating, clean on the bench board; 40 MHz is the step below
 constexpr bool kInvert = true;
 constexpr bool kBgr = false;
 
@@ -35,8 +35,8 @@ static_assert((kRotation & 1 ? kPanelHeight : kPanelWidth) == render::kWidth &&
               "kRotation must turn the panel to the canvas's shape");
 
 bool displayBegin();
-// Pushes the rows that changed since the last push, a band of rows per DMA
-// batch.
+// Pushes what changed since the last push: of each band of rows, the
+// columns that changed, one DMA batch each (render::Changes).
 void displayPush(const render::Canvas& canvas);
 void displayBacklight(uint8_t level);
 

@@ -7,6 +7,7 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
+#include "board/board_hal.h"
 #include "board/pins.h"
 
 namespace board {
@@ -180,27 +181,13 @@ bool audioBegin() {
   return true;
 }
 
-void audioSay(const voice::Line& l) {
-  Cmd c{Kind::kSay, l, {}};
-  send(c);
-}
+// BoardHal's sound: the queue to the task, and its figures.
+void BoardHal::say(const voice::Line& l) { send({Kind::kSay, l, {}}); }
+void BoardHal::hush() { send({Kind::kHush, {}, {}}); }
+void BoardHal::effect(const voice::Effect& e) { send({Kind::kEffect, {}, e}); }
+void BoardHal::stopEffects() { send({Kind::kStopEffects, {}, {}}); }
 
-void audioHush() {
-  Cmd c{Kind::kHush, voice::Line{}, {}};
-  send(c);
-}
-
-void audioEffect(const voice::Effect& e) {
-  Cmd c{Kind::kEffect, voice::Line{}, e};
-  send(c);
-}
-
-void audioStopEffects() {
-  Cmd c{Kind::kStopEffects, voice::Line{}, {}};
-  send(c);
-}
-
-app::AudioOut audioOut() {
+app::AudioOut BoardHal::audioOut() {
   app::AudioOut a;
   locked([&] { a = stats; });
   return a;

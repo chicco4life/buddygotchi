@@ -182,8 +182,9 @@ public final class Pending: @unchecked Sendable {
 /// places the result.
 public protocol Action: AnyObject {
     var name: String { get }
-    /// Asked on every pass but one whose event says this action sits it
-    /// out. Built fresh, so they can depend on live state.
+    /// Asked on every pass, all in one request (harness/HARNESS.md §4), so
+    /// they can depend on live state (the mood's moves); ones that never
+    /// change can be built once.
     func questions() -> [Question]
     /// Jev's answers to this action's own questions. Nil means "do nothing".
     /// Called on the harness's queue; slow work is handed off.

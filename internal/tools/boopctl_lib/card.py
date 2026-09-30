@@ -3,11 +3,11 @@ card`; plan/VOICE.md §8, plan/PROTOCOL.md §5): `dbg.card` `begin`, a `put`
 per chunk with its CRC-32, then `end` with the whole file's size and CRC-32,
 which the board checks by reading the file back before it swaps it in.
 
-The serial link is about 34 KB/s once base64'd, so the 30.5 MB pack takes
-a quarter of an hour or more. A few `put`s are in flight at once. Every
-reply says how much the card holds, so a line lost on the way (the CH340
-drops a run of bytes now and then) costs a resync, not the copy; and a
-copy that was cut off goes on where it stopped."""
+It's slow, hours for the whole pack (plan/VOICE.md §8 has the rate), so a
+card reader (`voicegen.py --card`) comes first. A few `put`s are in flight
+at once. Every reply says how much the card holds, so a line lost on the
+way (the CH340 drops a run of bytes now and then) costs a resync, not the
+copy; and a copy that was cut off goes on where it stopped."""
 from __future__ import annotations
 
 import base64
@@ -23,7 +23,7 @@ from boopctl_lib.device import DeviceError, Link
 
 # Bytes per `put`: with base64 and the rest of the message, the line stays
 # under the 512 bytes the board reads (PROTOCOL.md §2; the board takes up
-# to Device::kCardChunk).
+# to kCardChunk in firmware/src/app/device.cpp).
 CHUNK = 324
 # `put`s in flight: about 1.5 KB, under the board's 2 KB serial buffer.
 WINDOW = 3
@@ -43,20 +43,21 @@ def put_line(at: int, chunk: bytes) -> dict:
             "d": base64.b64encode(chunk).decode()}
 
 
-def begin(link: Link, keep: bool) -> int:
-    r = link.request({"t": "dbg.card", "op": "begin", "keep": keep}, timeout=10)
+def begin(link: Link, keep: bool, tries: int = 3) -> int:
+    """What the card holds. The board answers in order, so the replies to
+    `put`s still in flight come first, and are passed over. A lost `begin`
+    or reply is asked again, so it costs a resync, not the copy."""
+    for i in range(tries):
+        link.send({"t": "dbg.card", "op": "begin", "keep": keep})
+        try:
+            r = link.wait_for(lambda m: m.get("t") == "dbg.card" and m.get("op") == "begin", 10)
+            break
+        except DeviceError:
+            if i == tries - 1:
+                raise
     if not r.get("ok"):
         raise DeviceError(f"the card can't take it: {r.get('why')}")
     return int(r["have"])
-
-
-def resync(link: Link) -> int:
-    """After a lost or refused line: let the replies still coming drain,
-    then ask what the card holds."""
-    deadline = time.monotonic() + 0.5
-    while link.read_line(deadline) is not None:
-        pass
-    return begin(link, keep=True)
 
 
 def push(link: Link, data: bytes, fresh: bool = False,
@@ -83,8 +84,9 @@ def push(link: Link, data: bytes, fresh: bool = False,
             if progress:
                 progress(int(r["have"]), len(data))
             continue
+        # A lost or refused line: go on from what the card holds.
         resyncs += 1
-        at, inflight = resync(link), deque()
+        at, inflight = begin(link, keep=True), deque()
     r = link.request({"t": "dbg.card", "op": "end", "size": len(data), "crc": binascii.crc32(data)}, timeout=120)
     if not r.get("ok") and r.get("why") == "wrong crc" and not fresh:
         # What an earlier copy left was another pack's: start again.

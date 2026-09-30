@@ -12,7 +12,8 @@ public struct Take: Equatable, Sendable {
 
     /// Which of the brain's questions a take answers (DECISIONS.md §3):
     /// how Boop feels (`say.feeling`) or what NOW is about (`say.about`).
-    /// Needs you's takes are the rules' only.
+    /// Needs you's takes are in the pack, but Boop never says them
+    /// (VOICE.md §7).
     public enum Part: String, CaseIterable, Sendable {
         case feeling, about, attention
     }
@@ -31,4 +32,16 @@ public struct Take: Equatable, Sendable {
     public let finish: String?
     /// How long it plays on the board, in milliseconds.
     public let ms: Int
+}
+
+extension Take {
+    /// A take from its line in `Takes.swift`'s table: id, text, part,
+    /// meaning, kind, mood, finish (empty for any) and milliseconds, tab
+    /// separated. voicegen writes the table, and VoiceTests reads it back
+    /// against the pack, so a bad line can't ship.
+    init(row: Substring) {
+        let f = row.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+        self.init(id: f[0], text: f[1], part: Part(rawValue: f[2])!, meaning: f[3], kind: Kind(rawValue: f[4])!,
+                  mood: f[5], finish: f[6].isEmpty ? nil : f[6], ms: Int(f[7])!)
+    }
 }

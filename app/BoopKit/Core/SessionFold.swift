@@ -5,8 +5,7 @@ import Foundation
 /// an agent's event means, which sessions ended, so that a hook of theirs
 /// landing later is let go, and how long a silent session still counts. The
 /// core adds who asks and "needs you" (`Core.Session`), the view what each
-/// turn did (`TranscriptView.Thread`); both keep a session's turn as
-/// `AgentSession` does.
+/// turn did (`TranscriptView.Thread`); both keep a session's `Turn`.
 struct SessionFold {
     /// What an agent's event means to the rules.
     enum Step: Equatable {
@@ -90,30 +89,31 @@ struct SessionFold {
     mutating func forgetEnds(at now: Int64) {
         ended = ended.filter { now - $0.value < Self.forgetMs }
     }
+
+    /// A session whose last event was at `lastEventAt` has had none for
+    /// `forgetMs` before `now`.
+    static func forgotten(_ lastEventAt: Int64, at now: Int64) -> Bool { now - lastEventAt >= forgetMs }
 }
 
 /// A tool call's start, for its result: when, and its topic.
 typealias ToolStart = (at: Int64, topic: String?)
 
-/// A session's turn, its clock and its tool calls, as the core and the view
-/// both keep them (ADAPTERS.md §4, harness/EVENTS.md §4.1).
-protocol AgentSession {
-    var lastEventAt: Int64 { get set }
+/// A session's turn and its tool calls, as the core and the view both keep
+/// them (ADAPTERS.md §4, harness/EVENTS.md §4.1).
+struct Turn {
     /// When the turn now open started, and when the last one ended: a
     /// call's result from before the end landed late.
-    var turnStartedAt: Int64? { get set }
-    var lastTurnEndedAt: Int64? { get set }
+    var startedAt: Int64?
+    var lastEndedAt: Int64?
     /// When you last sent a prompt (a `turn` start), for a stale idle
-    /// notice: a turn a call started (a background subagent's, after the
-    /// main agent stopped) had no prompt to race.
-    var promptedAt: Int64? { get set }
+    /// notice: a turn a call started (Claude carrying on after another
+    /// hook blocked its `Stop`) had no prompt to race.
+    var promptedAt: Int64?
     /// Each running tool call's start, by `tool_use_id`, and the last
     /// one's, for a result that carries no ID or topic.
-    var toolStarts: [String: ToolStart] { get set }
-    var lastToolStart: ToolStart? { get set }
-}
+    var toolStarts: [String: ToolStart] = [:]
+    var lastToolStart: ToolStart?
 
-extension AgentSession {
     /// Claude's idle notice means it has sat at its prompt for a minute,
     /// so one within 30 s of your last prompt is from before it: a new
     /// prompt typed just as the minute ran out (ADAPTERS.md §4).
@@ -122,12 +122,9 @@ extension AgentSession {
             && promptedAt.map { e.ts - $0 < SessionFold.idleNoticeMinMs } == true
     }
 
-    /// No event for `forgetMs` before `now`.
-    func forgotten(at now: Int64) -> Bool { now - lastEventAt >= SessionFold.forgetMs }
-
     /// You sent a prompt at `now`: a turn starts.
     mutating func prompted(at now: Int64) {
-        turnStartedAt = now
+        startedAt = now
         promptedAt = now
     }
 
@@ -144,25 +141,26 @@ extension AgentSession {
     /// subagent's racing the interrupt), so the turn stays over.
     mutating func callEnded(_ e: Event) -> (started: ToolStart?, late: Bool) {
         let started = e["tool_use_id"]?.string.flatMap { toolStarts.removeValue(forKey: $0) } ?? lastToolStart
-        let late = turnStartedAt == nil && started.map { s in lastTurnEndedAt.map { s.at <= $0 } == true } == true
+        let late = startedAt == nil && started.map { s in lastEndedAt.map { s.at <= $0 } == true } == true
         return (started, late)
     }
 
-    /// A call with no turn open opens one at `now`, with no prompt (a
-    /// background subagent's after the main agent's `Stop`, say). Whether
-    /// it did.
+    /// The main agent's call `e` with no turn open opens one, with no
+    /// prompt (Claude carrying on after another hook blocked its `Stop`).
+    /// A subagent's opens none: a background helper that works on after
+    /// the main agent's `Stop` is no turn (EVENTS.md §4.1). Whether it did.
     @discardableResult
-    mutating func openTurn(at now: Int64) -> Bool {
-        guard turnStartedAt == nil else { return false }
-        turnStartedAt = now
+    mutating func openTurn(_ e: Event) -> Bool {
+        guard startedAt == nil, e.subagent == nil else { return false }
+        startedAt = e.ts
         return true
     }
 
     /// The turn open ends at `now`: when it started, or nil with none open.
     mutating func endTurn(at now: Int64) -> Int64? {
-        guard let started = turnStartedAt else { return nil }
-        turnStartedAt = nil
-        lastTurnEndedAt = now
+        guard let started = startedAt else { return nil }
+        startedAt = nil
+        lastEndedAt = now
         return started
     }
 }

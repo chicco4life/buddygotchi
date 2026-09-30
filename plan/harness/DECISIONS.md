@@ -1,6 +1,6 @@
 # Boop: harness decisions
 
-Updated 2026-09-29. What Boop decides when the brain wakes: the steering
+Updated 2026-09-30. What Boop decides when the brain wakes: the steering
 files Jev reads, the questions it answers, and the two actions that
 carry out its answers. The contract every action follows is
 [HARNESS.md](HARNESS.md) §4. The events are in [EVENTS.md](EVENTS.md),
@@ -358,12 +358,11 @@ about, and how big. Jev never picks a recording: Voice finds a take for
 the feeling and one for the topic in the face's mood and joins them,
 the feeling first ([VOICE.md](../VOICE.md) §4), so the questions stay
 this size as the bank grows. The two parts match the old mumble's
-exclamation and topic word. `say.feeling` and `say.about` offer only the
-answers that have a take (`ReactAction.feelings` and
-`ReactAction.topics`, and a test checks each take's has one), each
-naming the faces that can say it when not all 13 can
-(`sayOptions`); today every face can say every answer. Needs you's
-takes, `attention`, are never offered ([VOICE.md](../VOICE.md) §7).
+exclamation and topic word. `say.feeling` and `say.about` offer every
+answer (`ReactAction.feelings` and `ReactAction.topics`): tests check
+that each take's answer is one of them and that every face has takes
+of each ([VOICE.md](../VOICE.md) §3). Needs you's takes, `attention`,
+are never offered ([VOICE.md](../VOICE.md) §7).
 
 | `say.feeling` | Meaning |
 | --- | --- |
@@ -463,11 +462,12 @@ gate, which says when something needs you.
    beats a guessed answer. Voice builds the line ([VOICE.md](../VOICE.md)
    §4): a take for each, in the face's mood, fit for `react.animation`'s
    finish, of the nearest kind to `say.kind`'s (a sound when it's
-   missing), never one of the last line's takes while another fits; the
-   feeling's first, then the topic's, or the first alone when one is a
-   phrase or the two run past 2.8 s. It may find none, and then Boop
-   says nothing. Nor does it while the device's card has another voice
-   pack (`speaks`, [VOICE.md](../VOICE.md) §8).
+   missing), never a word the last line said while another fits; the
+   feeling's first, then the topic's; with a phrase, only the feeling's,
+   or the topic's when `say.kind` is a phrase and the feeling's isn't;
+   and the first alone when the two run past 2.8 s. It may find none,
+   and then Boop says nothing. Nor does it while the device's card has
+   another voice pack (`speaks`, [VOICE.md](../VOICE.md) §8).
 4. **The effect:** it's queued as a `moment` with `say` (the line's one
    or two takes, or `{}` when it says nothing, which still ends push-to-talk's
    `listening`), the face as `mood` and `react.loops`' pick as `loops`

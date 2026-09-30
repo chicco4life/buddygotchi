@@ -14,7 +14,6 @@ import Foundation
 public final class ReactAction: Action {
     public static let actionName = "react"
     public let name = ReactAction.actionName
-    let voice: Voice
     /// Queues a brain moment, which waits its turn behind whatever is
     /// playing, with the handle to end once the device says how it ended,
     /// or once it never will.
@@ -28,18 +27,16 @@ public final class ReactAction: Action {
     /// card has another pack, or none (VOICE.md §8), and then Boop says
     /// nothing.
     let speaks: () -> Bool
-    /// Picks among the takes that fit, and remembers the last line's,
-    /// which aren't said again while another fits.
+    /// Picks among the takes that fit, and remembers the last line's
+    /// words, which aren't said again while another fits.
     var takes = SplitMix64(seed: 0x7A4E)
-    var lastTakes: Set<String> = []
+    var lastWords: Set<String> = []
     /// Picks each finish's variation, never the last one of its animation
     /// (BEHAVIORS.md §5).
     var variants = SplitMix64(seed: 0xB00B)
     var lastVariant: [String: Int] = [:]
-
-    public init(voice: Voice, queue: @escaping (DeviceMoment, Pending) -> Void, blocked: @escaping () -> String?,
+    public init(queue: @escaping (DeviceMoment, Pending) -> Void, blocked: @escaping () -> String?,
                 who: @escaping () -> DeviceMoment.Who? = { nil }, speaks: @escaping () -> Bool = { true }) {
-        self.voice = voice
         self.queue = queue
         self.blocked = blocked
         self.who = who
@@ -74,8 +71,8 @@ public final class ReactAction: Action {
     ]
 
     /// How Boop can feel about NOW, in the order `say.feeling` offers them
-    /// (DECISIONS.md §3). Every feeling take has one; one with no take
-    /// isn't offered, and a test checks every take's has its words here.
+    /// (DECISIONS.md §3). Every feeling take has one, and every face has
+    /// takes of each (VOICE.md §3): tests check both, so all are offered.
     public static let feelings = [
         Option("upset", "Something went wrong or let Boop down: a check or a turn failing, the agent stuck or giving up, rude words or sad news.",
                notFor: "A win, a poke, or work going on, however long."),
@@ -87,7 +84,7 @@ public final class ReactAction: Action {
 
     /// What NOW can be about, in the order `say.about` offers them
     /// (DECISIONS.md §3): each a topic NOW's line shows. Every topic take
-    /// has one, and a test checks it.
+    /// has one, and every face has takes of each, as for `feelings`.
     public static let topics = [
         Option("start", "A turn starting: off it goes.", notFor: "Work going on, or a turn that finished."),
         Option("helpers", "The agent starting a subagent: helpers sent off."),
@@ -188,20 +185,10 @@ public final class ReactAction: Action {
         answers["say.kind"].flatMap { Take.Kind(rawValue: $0.choice) } ?? .sound
     }
 
-    /// A `say` question's options: `none`, then each of `options` Voice has
-    /// a take of, naming the faces that can say it when not all of them
-    /// can, so Jev can pick a face and an answer that go together.
-    func sayOptions(_ part: Take.Part, _ options: [Option], none: String) -> [Option] {
-        let have = voice.answers(part)
-        let moods = MoodAction.moods.map(\.name)
-        return [Option("none", none)] + options.filter { have.contains($0.name) }.map { o in
-            let faces = voice.faces(saying: o.name, part: part, in: moods)
-            let only = faces.count == moods.count ? "" : " Only these faces can say it: \(faces.joined(separator: ", "))."
-            return Option(o.name, o.what + only, notFor: o.notFor)
-        }
-    }
+    public func questions() -> [Question] { Self.asked }
 
-    public func questions() -> [Question] {
+    /// The questions, built once: none of them changes.
+    static let asked: [Question] = {
         let byBoth = "the PERSONALITY and MOOD sections, PERSONALITY's Examples first"
         return [
             Question(key: "react.mood", text: "How should Boop react to NOW, if at all? It makes this mood's face for a moment, and may say something.",
@@ -209,23 +196,23 @@ public final class ReactAction: Action {
                      options: [Option("none", "Stay quiet: nothing in NOW is worth a face, "
                                           + "or HISTORY shows Boop still making the one it calls for (in progress).",
                                       notFor: "Anything PERSONALITY's Examples react to that Boop isn't already doing.")]
-                         + Self.expressions),
+                         + ReactAction.expressions),
             Question(key: "react.animation", text: "If Boop reacts and NOW's line is a turn that finished, how did the turn end?",
                      about: "the NOW section", judgeBy: "NOW's line and the agent's last message under it",
                      options: [Option("none", "Just the face: NOW's line isn't a turn that finished done or failed. A turn starting, a check passing or failing (tests, a build, a deploy), a poke, a check-in, words to Boop and a stopped turn all get none.")]
-                         + Self.animations),
+                         + ReactAction.animations),
             Question(key: "react.loops", text: "If Boop reacts, how long does it hold the face?", about: "the NOW section",
-                     judgeBy: byBoth, options: Self.holds),
+                     judgeBy: byBoth, options: ReactAction.holds),
             Question(key: "say.feeling", text: "If Boop reacts, how does it feel about NOW? It says so first, in its face's mood.",
                      about: "the NOW section", judgeBy: byBoth,
-                     options: sayOptions(.feeling, Self.feelings, none: "No feeling to say: nothing in NOW is worth a sound.")),
+                     options: [Option("none", "No feeling to say: nothing in NOW is worth a sound.")] + ReactAction.feelings),
             Question(key: "say.about", text: "If Boop reacts, what is NOW about? It names it after the feeling, in its face's mood.",
                      about: "the NOW section", judgeBy: "NOW's line",
-                     options: sayOptions(.about, Self.topics, none: "No topic to name: NOW's line isn't about any of these.")),
+                     options: [Option("none", "No topic to name: NOW's line isn't about any of these.")] + ReactAction.topics),
             Question(key: "say.kind", text: "If Boop says something, how big is it?", about: "the NOW section",
-                     judgeBy: byBoth, options: Self.kinds),
+                     judgeBy: byBoth, options: ReactAction.kinds),
         ]
-    }
+    }()
 
     public func run(_ answers: Answers) -> ActionResult? {
         // 1. Does Jev want a reaction at all, and with which face?
@@ -239,9 +226,9 @@ public final class ReactAction: Action {
         // finish.
         let loops = Self.loops(answers)
         let pick = Self.animation(answers)
-        let line = !speaks() ? [] : voice.line(feeling: Self.feeling(answers), about: Self.about(answers), kind: Self.kind(answers),
-                                               face: choice, finish: pick, avoiding: lastTakes, rng: &takes)
-        if !line.isEmpty { lastTakes = Set(line.map(\.id)) }
+        let line = !speaks() ? [] : Voice.line(feeling: Self.feeling(answers), about: Self.about(answers), kind: Self.kind(answers),
+                                               face: choice, finish: pick, avoiding: lastWords, rng: &takes)
+        if !line.isEmpty { lastWords = Set(line.map(\.text)) }
         let say = DeviceMoment.Say(takes: line)
         var moment = DeviceMoment(say: say, mood: choice, loops: loops)
         if let pick {

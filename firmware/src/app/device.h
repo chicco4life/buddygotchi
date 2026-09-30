@@ -79,8 +79,8 @@ struct Hal {
   // connected), "adv" (advertising) or "conn".
   virtual const char* bleState() { return "off"; }
   virtual const char* bleName() { return ""; }
-  // The microSD card that holds the voice pack, for dbg.ping: "ok", "no
-  // card" or "no pack" (VOICE.md §8); the simulator's is a file.
+  // The microSD card that holds the voice pack, for dbg.ping's `card`
+  // (PROTOCOL.md §5, VOICE.md §8); the simulator's is a file.
   virtual const char* cardState() { return "none"; }
   // Copying a new voice pack onto the card over USB (`dbg.card`, PROTOCOL.md
   // §5): a file begun afresh, or kept to go on where an earlier copy
@@ -159,15 +159,6 @@ class Device {
   void render(uint32_t t);
   void sendPing(Link to);
   void sendStatus(Link to);
-  // dbg.card: copying a voice pack onto the card, a chunk at a time.
-  static constexpr size_t kCardChunk = 360;  // bytes a `put` may carry
-  struct CardOp {
-    const char* op = "";
-    bool keep = false;
-    uint32_t at = 0, c = 0, size = 0, crc = 0;
-    const char* d = "";
-  };
-  void cardCopy(const CardOp& o, Link from);
   void sendEnded();
   void sendState(Link to);
   void sendShot(Link to);
@@ -206,8 +197,10 @@ class Device {
   int targetX_ = -1, targetY_ = -1;  // a calibration target on dbg.pattern, or -1
   uint32_t drawnT_ = 0;   // the time of the last frame
   uint32_t drawnReal_ = 0;  // and the real time it was drawn
-  render::SceneFrame drawnFrame_{};  // everything its face's pixels depend on
-  bool drawnBubble_ = false;  // and whether the bubble was up
+  // A hash of everything its face's pixels depend on (the SceneFrame's
+  // bytes and whether the bubble was up), 0 for nothing: a copy of the
+  // frame would hold 1.7 KB of the heap for good.
+  uint64_t drawnKey_ = 0;
   // Or, while needs you's own design would show, the sign's pose instead.
   bool drawnSign_ = false;
   render::SignPose drawnPose_{};
@@ -229,13 +222,10 @@ class Device {
   bool touchInjected_ = false;  // it's dbg.touch's, not the panel's
   uint32_t touchSeenReal_ = 0;
 
-  // The line playing (its moment's number), and one that arrived, which
-  // starts when its bubble shows.
+  // A line is playing, and the moment (Behaviour::momentSeq) whose line
+  // has started or been dropped: a newer one's starts when its bubble shows.
   bool saying_ = false;
-  uint32_t sayMoment_ = 0;
-  bool linePending_ = false;
-  voice::Line line_;
-  uint32_t lineMoment_ = 0;
+  uint32_t saidSeq_ = 0;
   // The face's sound effects: its timeline, and the effects handed to the
   // Hal since boot, the last by its clip (dbg.state `audio.fx`).
   EffectTrack fx_;

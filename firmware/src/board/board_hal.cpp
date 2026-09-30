@@ -4,7 +4,6 @@
 #include <Preferences.h>
 #include <esp_heap_caps.h>
 
-#include "board/audio.h"
 #include "board/card.h"
 #include "board/display.h"
 #include "board/pins.h"
@@ -51,10 +50,6 @@ const char* BoardHal::gitSha() { return BOOP_GIT_SHA; }
 const char* BoardHal::deviceId() { return ble_ ? ble_->id() : Hal::deviceId(); }
 const char* BoardHal::bleState() { return ble_ ? ble_->state() : "off"; }
 const char* BoardHal::bleName() { return ble_ ? ble_->name() : ""; }
-const char* BoardHal::cardState() { return board::cardState(); }
-bool BoardHal::packBegin(bool keep, uint32_t& have, const char*& why) { return board::packBegin(keep, have, why); }
-bool BoardHal::packAppend(const uint8_t* d, size_t n, uint32_t& have) { return board::packAppend(d, n, have); }
-bool BoardHal::packEnd(uint32_t size, uint32_t crc, const char*& why) { return board::packEnd(size, crc, why); }
 
 uint32_t BoardHal::realMs() { return millis(); }
 
@@ -97,11 +92,5 @@ uint32_t BoardHal::heapFree() { return heap_caps_get_free_size(MALLOC_CAP_8BIT);
 uint32_t BoardHal::heapMin() { return heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT); }
 
 bool BoardHal::ampOn() { return digitalRead(pins::kAmpEnable) == LOW; }
-
-void BoardHal::say(const voice::Line& l) { audioSay(l); }
-void BoardHal::hush() { audioHush(); }
-void BoardHal::effect(const voice::Effect& e) { audioEffect(e); }
-void BoardHal::stopEffects() { audioStopEffects(); }
-app::AudioOut BoardHal::audioOut() { return board::audioOut(); }
 
 }  // namespace board

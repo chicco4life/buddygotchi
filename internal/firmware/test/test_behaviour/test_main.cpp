@@ -1557,12 +1557,11 @@ static void test_each_look_shows_its_design_in_the_mood() {
 // look comes back. The third tap in a row, and each after it, plays
 // tap_spam instead. A tap is in a row when it comes within
 // Behaviour::kTapRunMs of the one before, and tap_spam starts at
-// Behaviour::kTapSpamFrom: the Mac's TranscriptView.Config inARowMs (3000)
-// and answersRunFrom (3), which its MomentSchedule (tapRunMs, tapSpamFrom)
-// times the tap by too.
+// Behaviour::kTapSpamFrom: the Mac's TranscriptView.inARowMs (3000) and
+// answersRunFrom (3).
 static void test_taps_poke_and_a_run_spams() {
-  TEST_ASSERT_EQUAL_UINT32(3000, Behaviour::kTapRunMs);  // TranscriptView.Config.inARowMs
-  TEST_ASSERT_EQUAL_INT(3, Behaviour::kTapSpamFrom);     // TranscriptView.Config.answersRunFrom
+  TEST_ASSERT_EQUAL_UINT32(3000, Behaviour::kTapRunMs);  // TranscriptView.inARowMs
+  TEST_ASSERT_EQUAL_INT(3, Behaviour::kTapSpamFrom);     // TranscriptView.answersRunFrom
   Rig r;
   Model m = base("working");
   r.state(m);

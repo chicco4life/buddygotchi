@@ -1,6 +1,7 @@
 import BoopKit
 import Foundation
 import HookWire
+import os
 
 /// `Boop --headless`: the whole runtime with isolated state, no UI and no
 /// Bluetooth. The device, if any, is reached through `boopctl bridge`.
@@ -26,7 +27,7 @@ enum Headless {
         guard let nature = LongTerm.Nature(rawValue: args["--nature"] ?? "sweet") else { fail("--nature is sweet or cheeky") }
         let log = LogFile(directory: stateDir, echo: true)
 
-        let memory = try? MemoryStore(directory: stateDir)
+        let memory = try? MemoryStore(directory: stateDir, log: { log.write($0) })
         if memory?.isSetUp != true {
             let name = args["--name"] ?? "Boop"
             do {
@@ -47,11 +48,11 @@ enum Headless {
         if brain == "scripted" { options.brain = { _ in ScriptedBrain.pipelineCheck } }
         // The clock can be moved forward with `{"dev":"advance","ms":N}`, so
         // the pipeline check can finish a 6-minute turn without waiting it out.
-        let skew = Skew()
-        let steady = Runtime.steadyClock()
-        options.clock = { steady() + skew.ms }
-        options.wallClock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.ms }
-        options.advance = { skew.add($0) }
+        let skew = OSAllocatedUnfairLock(initialState: Int64(0))
+        let (clock, wallClock) = (options.clock, options.wallClock)
+        options.clock = { clock() + skew.withLock { $0 } }
+        options.wallClock = { wallClock() + skew.withLock { $0 } }
+        options.advance = { ms in skew.withLock { $0 += ms } }
         // A tap while something needs you opens the thread on this Mac;
         // agents' runs only log where (BEHAVIORS.md §3.2).
         if args.has("--no-open") { options.open = { _ in log.write("open: skipped (--no-open)"); return true } }
@@ -81,12 +82,4 @@ enum Headless {
         }
         withExtendedLifetime(sources) { dispatchMain() }
     }
-}
-
-/// How far headless mode's clock has been moved forward.
-final class Skew: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value: Int64 = 0
-    var ms: Int64 { lock.withLock { value } }
-    func add(_ ms: Int64) { lock.withLock { value += ms } }
 }

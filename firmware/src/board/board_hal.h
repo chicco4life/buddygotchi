@@ -1,5 +1,6 @@
 // The board's side of app::Hal: buttons, touch, LED, backlight, sound, the
-// amp, heap figures and Bluetooth's state (plan/DEVICE.md §2–3).
+// amp, heap figures and Bluetooth's state (plan/DEVICE.md §2–3). The sound
+// and the card's methods are in board/audio.cpp and board/card.cpp.
 #pragma once
 #include "app/device.h"
 

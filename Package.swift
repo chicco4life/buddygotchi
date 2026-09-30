@@ -57,14 +57,16 @@ var packageTargets: [Target] = [
     // Push-to-talk's mic lives in the app, in app/Boop/Talk.swift.
     // Info.plist is linked into the binary so macOS finds the Bluetooth,
     // microphone and speech usage descriptions without an app bundle.
+    // The steering files are bundled straight from plan/steering, their
+    // single source.
     .executableTarget(
         name: "Boop",
         dependencies: ["BoopKit"],
         path: ".",
-        exclude: excludingAllBut(["app/Boop", "internal/app/Boop"])
-            + ["app/Boop/Info.plist", "app/Boop/Resources"],
+        exclude: excludingAllBut(["app/Boop", "internal/app/Boop", "plan/steering"])
+            + ["app/Boop/Info.plist"],
         sources: ["app/Boop", "internal/app/Boop"],
-        resources: [.copy("app/Boop/Resources/steering")],
+        resources: [.copy("plan/steering")],
         linkerSettings: [.unsafeFlags([
             "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist",
             "-Xlinker", Context.packageDirectory + "/app/Boop/Info.plist",

@@ -1,6 +1,6 @@
 # Boop: voice
 
-Updated 2026-09-29. What Boop says, how the brain and Voice pick it, and
+Updated 2026-09-30. What Boop says, how the brain and Voice pick it, and
 how the device plays it, with the sound effects that go with the face's
 designs (§10). The code is the source: `app/BoopKit/Voice/` on the Mac,
 `firmware/src/voice/`, `firmware/src/app/effect_track.*` and
@@ -69,7 +69,7 @@ the bank's intent (voicegen's `FEELING` and `ABOUT`):
 | | `looking`, `planning` | search, analyze and ponder; plan |
 | | `done`, `answer` | success, reply |
 | | `stopped`, `waiting`, `quiet` | stop, wait, idle |
-| needs you's | `attention` | attention: the rules', never a reaction's (§7) |
+| needs you's | `attention` | attention: in the pack, but Boop never says them (§7) |
 
 "Passed" is the one word moved: it's about `tests`, not `done`.
 
@@ -102,10 +102,11 @@ stored as 8-bit samples. The robot-soft texture is already low-passed at
   this file.
 - `app/BoopKit/Voice/Takes.swift`, checked in: each take's id, text,
   part, answer, kind, mood, the finish it needs and its length, which
-  Voice picks from, and the pack's version. It's written as one
-  `append` per take, in functions of 400: a single array literal of
-  every take makes the Swift compiler run out of memory. A test holds it
-  to the pack.
+  Voice picks from, and the pack's version. It's written as a table in
+  one raw string, a take a line with its fields tab separated, read the
+  first time Voice needs it: spelled out as Swift values the takes made
+  380 KB of the release app and compiled slowly. A test holds it to the
+  pack.
 
 The 2,722 are 0.46–2.61 s once trimmed, 45 minutes in all: a 30.5 MB
 pack. Adding a take means adding it to the bank, rerunning voicegen and
@@ -122,24 +123,33 @@ copying the pack onto the card; the firmware doesn't change.
 2. Of those, the kind asked for; with none of it, the nearest kind,
    plainer before fancier at the same distance (a sound asked for is a
    word before a phrase), but never a swear nobody asked for.
-3. At random among them, but not one of the last line's takes while
-   another fits.
+3. At random among them, but not a word the last line said while
+   another fits, whichever recording said it and in whichever mood: the
+   bank has some words recorded twice in one mood, such as grumpy's two
+   Shits, and most in several, so after calm's "Ready" a curious face
+   doesn't say its own.
 4. The line is the feeling's take, then the topic's, 180 ms apart
-   (`Voice.joinGapMs`). A phrase plays alone, and so does the feeling's
-   take when the two would run past 2.8 s (`Voice.maxLineMs`). With
-   neither, Boop says nothing, and the face plays on its own.
+   (`Voice.joinGapMs`). A phrase plays alone: when one of the two is a
+   phrase, the feeling's take plays, unless a phrase was asked for and
+   only the topic's is one: a swear asked for with none to say still
+   plays the feeling's take, so an upset "Drat" doesn't give way to a
+   cheerful topic phrase. The feeling's take also plays alone when the
+   two would run past 2.8 s (`Voice.maxLineMs`). With neither, Boop says
+   nothing, and the face plays on its own.
 
 Real lines, from `boopdev say`: upset about tests, a sound, in an
 annoyed face is "Pfft Validate"; upset in a swear in an irritated face
 at a failed turn is "Shit", and with no failure the nearest plainer
 kind, "Oh, come on"; work in a sound in an engaged face is "Krr...";
 glad in a word in a happy face with no success is a sound, "Ha!"; glad
-in a grumpy face with no success is nothing.
+in a grumpy face with no success is nothing; glad about tests in a
+phrase in a curious face, which has no glad phrase, is the topic's
+"Fingers crossed".
 
 The brain's side is in [harness/DECISIONS.md](harness/DECISIONS.md) §3:
-`say.feeling` and `say.about` offer only the answers that have a take,
-naming the faces that can say one when not all of them can. The
-steering asks Boop to say something almost always.
+`say.feeling` and `say.about` offer every feeling and every topic,
+since every face can say each one (§3). The steering asks Boop to say
+something almost always.
 
 ## 5. Volume
 
@@ -175,15 +185,22 @@ an agent giving up gets a sigh.
 **The card.** Every take is on the board's microSD card, as the voice
 pack at `/boop/voice.bin` ([DEVICE.md](DEVICE.md) §2), which
 `voicegen.py --card /Volumes/<card>` copies onto a card in the Mac, in
-seconds. With no card reader, `boopctl card` copies it over USB
-(`dbg.card`), resuming where it stopped, but at about 0.7 KB/s, hours for
-the whole pack. The
-board mounts it at boot and reports the pack's version in `status` and
-`dbg.ping` (`none` with no card or no pack), and whether the card is
-there as `dbg.ping`'s `card` ([PROTOCOL.md](PROTOCOL.md) §4–5). The Mac
-sends takes only while that version is its own `Take.packVersion`;
-otherwise Boop has no voice, and says so once in `boop.log`. Its faces
-and sound effects carry on: the effects stay in flash.
+seconds, through `/boop/voice.tmp`, so a copy cut short leaves the last
+pack in place: the board checks only the pack's header. With no card
+reader, `boopctl card` copies it over USB (`dbg.card`), resuming where
+it stopped, but at about 0.7 KB/s, hours for the whole pack. The board
+mounts it at boot, so a card put back in needs the board's reset
+button, and reports the pack's version in `status` and `dbg.ping`
+(`none` with no card or no pack), and whether the card is there as
+`dbg.ping`'s `card` ([PROTOCOL.md](PROTOCOL.md) §4–5). The Mac sends
+takes only while that version is its own `Take.packVersion`; otherwise
+Boop has no voice, and says so once in `boop.log`, and the popover's
+device line says "No voice", with why and the fix in Settings. Its
+faces and sound effects carry on: the effects stay in flash. A read
+that fails (the card pulled out, or failing) ends the line playing,
+fading out as a cut does, and lets the pack go (`card` `card failed`),
+so nothing asks the card again until the board mounts it at boot or a
+copy reopens it.
 
 **The pack**, little-endian: a 64-byte header (`BOOPVOX1`, the version,
 the number of takes, the record size, where the index starts, the rate

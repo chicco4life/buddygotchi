@@ -33,16 +33,6 @@ public enum StateText {
         public var workingSince: Int64?
         /// `14:23, Tuesday`, for NOW's heading.
         public var clock: String
-
-        public init(guide: String, personality: String, mood: String, closing: String?, workingSince: Int64?,
-                    clock: String) {
-            self.guide = guide
-            self.personality = personality
-            self.mood = mood
-            self.closing = closing
-            self.workingSince = workingSince
-            self.clock = clock
-        }
     }
 
     /// The whole state for the pass on the view event `now`, from the view

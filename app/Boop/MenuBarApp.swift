@@ -45,13 +45,22 @@ struct SetupDraft {
 @MainActor
 final class AppModel: ObservableObject {
     @Published var pane = Pane.overview
+    /// The popover is open. Its views live on while it's closed, so they
+    /// hold their loops still until it opens again.
+    @Published var shown = false
     @Published var setup = SetupDraft()
     @Published var status: Runtime.Status?
     @Published var hooks: [Agent: HookInstaller.Health] = [:]
     @Published var restartAgents = false
-    /// Why the last Connect, Repair or Remove failed, per agent.
+    /// Why the last Connect, Repair or Remove failed, per agent, until its
+    /// hooks change.
     @Published var hookErrors: [Agent: String] = [:]
+    /// The agents whose failed change the Overview no longer shows. Settings'
+    /// row still says why, until the hooks change.
+    @Published var hookErrorsDismissed: Set<Agent> = []
     @Published var startError: String?
+    /// The "can't react yet" notice was closed, for this launch.
+    @Published var noKeyDismissed = false
 
     let installer: HookInstaller
     /// False on a folder other than the everyday one: then this copy never
@@ -60,9 +69,11 @@ final class AppModel: ObservableObject {
     let link: LinkSetting
     var runtime: Runtime?
     var finishSetup: () -> Void = {}
+    /// Shows `boop.log` in Finder.
+    var showLog: () -> Void = {}
     /// Reads Jev's key. Settings calls it off the main thread, since the
     /// Keychain may stop to ask for access; snapshots read none.
-    var readKey: @Sendable () -> String? = { Keychain.key(.jev) }
+    var readKey: @Sendable () -> String? = { Keychain.jevKey() }
 
     init(installer: HookInstaller, ownsHooks: Bool = true, link: LinkSetting) {
         self.installer = installer
@@ -75,8 +86,12 @@ final class AppModel: ObservableObject {
     /// Who Boop is, chosen in settings.
     var personality: Personality { status?.personality ?? .boop }
 
+    /// Hooks that changed since the last look, however they changed, make
+    /// a failed change's reason stale, so it goes.
     func refreshHooks() {
+        let before = hooks
         hooks = Dictionary(uniqueKeysWithValues: Agent.allCases.map { ($0, installer.health($0)) })
+        for agent in Agent.allCases where before[agent] != nil && before[agent] != hooks[agent] { hookErrors[agent] = nil }
     }
 
     func install(_ agent: Agent) {
@@ -90,23 +105,47 @@ final class AppModel: ObservableObject {
     /// Only a change that worked asks for a restart; one that failed says
     /// why on the agent's row.
     private func changeHooks(_ agent: Agent, _ change: () throws -> Void) {
+        hookErrorsDismissed.remove(agent)
         guard ownsHooks else {
             hookErrors[agent] = "only the everyday Boop changes them"
             return
         }
+        var why: String?
         do {
             try change()
-            hookErrors[agent] = nil
             restartAgents = true
         } catch {
-            hookErrors[agent] = "\(error)"
+            why = error.localizedDescription
         }
         refreshHooks()
+        hookErrors[agent] = why
     }
 
-    // The switches show the change at once; the runtime's next status confirms it.
+    /// Closes the Overview's notice for a change that failed.
+    func dismissHookError(_ agent: Agent) {
+        hookErrorsDismissed.insert(agent)
+    }
 
     var listening: Bool { status?.listening == true }
+
+    /// Jev's key has been read and there's none, so Boop can't react.
+    /// While a Keychain prompt waits, nobody knows yet.
+    var noKey: Bool { status.map { $0.keyRead && $0.brain == "none" } ?? false }
+
+    /// How things are, in a few words: the Overview's status line, and the
+    /// menu-bar icon's tooltip and what VoiceOver reads for it.
+    var headline: String {
+        guard let s = status?.snapshot else {
+            return startError == nil ? "Waking up…" : "Not running"
+        }
+        if listening { return "Listening…" }
+        if s.waiting > 0 { return s.waiting == 1 ? "Needs you" : "\(s.waiting) sessions need you" }
+        switch s.base {
+        case "working": return s.busy == 1 ? "Working on 1 session" : "Working on \(s.busy) sessions"
+        case "idle": return "Hanging out"
+        default: return "Napping"
+        }
+    }
 
     /// The mic button: click to talk, click again to send (BEHAVIORS.md §3.3).
     func toggleTalk() {
@@ -122,14 +161,47 @@ final class AppModel: ObservableObject {
         runtime?.dismissMicTrouble()
     }
 
-    /// Opens a session's thread where it runs (BEHAVIORS.md §3.2).
-    func open(_ thread: ThreadRef) {
-        runtime?.openThread(thread)
+    /// How Boop's body stands, in the words the Overview's device line and
+    /// Settings both use.
+    struct DeviceState {
+        var connected: Bool
+        /// Something only the person can fix.
+        var trouble = false
+        /// A word or two, for the Overview.
+        var short: String
+        /// A sentence, for Settings and the device line's help.
+        var detail: String
     }
 
-    func reconnectDevice() {
-        runtime?.reconnectDevice()
+    var device: DeviceState {
+        let how = switch link {
+        case .bluetooth: "Bluetooth"
+        case .usb: "USB"
+        case .none: ""
+        }
+        guard let status else {
+            return startError == nil ? DeviceState(connected: false, short: "Starting…", detail: "\(name) is starting.")
+                : DeviceState(connected: false, short: "Not running", detail: "\(name) isn't running, so it isn't looking for its body.")
+        }
+        if link == .none {
+            return DeviceState(connected: false, short: "No device", detail: "This copy of Boop runs without a device.")
+        }
+        guard status.connected else {
+            if let why = status.linkTrouble { return DeviceState(connected: false, trouble: true, short: "No \(how)", detail: why) }
+            return DeviceState(connected: false, short: "Looking…", detail: "Looking for it over \(how). Plug it into USB power.")
+        }
+        // Its card's voice isn't the app's, so it gets no takes (VOICE.md §8).
+        // `none` is no card, one it can't read, or no pack on it.
+        if let voice = status.device?.voice, status.device?.hasTheVoice == false {
+            let card = voice == "none" ? "it has no card, or no voice pack on its card" : "its card's voice pack isn't this app's"
+            return DeviceState(connected: true, trouble: true, short: "No voice",
+                               detail: "Connected over \(how), but \(card), so \(name) can't talk. "
+                                   + "Put the app's voice pack on a FAT32 card in the board, then press the board's reset button.")
+        }
+        return DeviceState(connected: true, short: "Connected", detail: "Connected over \(how).")
     }
+
+    // The switches show the change at once; the runtime's next status confirms it.
 
     func setVolume(_ volume: Int) {
         guard status?.snapshot.vol != volume else { return }
@@ -155,11 +227,6 @@ final class AppModel: ObservableObject {
                 NSWorkspace.shared.activateFileViewerSelecting([dir])
             }
         }
-    }
-
-    /// Jev's key changed: the brain uses it from the next event.
-    func jevKeyChanged(_ key: String?) {
-        runtime?.reloadBrain(jevKey: key)
     }
 
     /// What "Boop couldn't start" says, in plain words; the log keeps the
@@ -237,13 +304,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
         model.refreshHooks()
         model.finishSetup = { [weak self] in self?.finishSetup() }
+        model.showLog = { [log] in NSWorkspace.shared.activateFileViewerSelecting([log.url]) }
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.target = self
         item.button?.action = #selector(togglePopover)
-        item.button?.toolTip = "Boop"
         statusItem = item
-        updateIcon(nil)
+        updateIcon()
 
         let host = NSHostingController(rootView: PopoverView(model: model) { [weak self] in self?.popover.performClose(nil) })
         host.sizingOptions = [.preferredContentSize]
@@ -253,7 +320,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.animates = false
         popover.delegate = self
 
-        let memory = try? MemoryStore(directory: stateDir)
+        let memory = try? MemoryStore(directory: stateDir, log: { [log] in log.write($0) })
         if memory?.isSetUp == true {
             startRuntime()
         } else {
@@ -292,8 +359,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-    var listener: SpeechListener?
-
     func startRuntime() {
         // In debug mode the dashboard can drive `make debug`; plain `make
         // run` stays deaf to it.
@@ -301,7 +366,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                                      link: model.link, debug: debug, devLines: debug, log: log)
         do {
             let runtime = try Runtime(options)
-            runtime.onChange = { [weak self] status in Task { @MainActor in self?.show(status) } }
+            runtime.onChange = { [weak self] status in Task { @MainActor in self?.model.status = status; self?.updateIcon() } }
             // Push-to-talk (BEHAVIORS.md §3.3): the core says when the mic
             // is on; what it heard goes back to the runtime.
             let listener = SpeechListener(log: { [log] in log.write($0) })
@@ -314,7 +379,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     }
                 }
             }
-            self.listener = listener
             try runtime.start()
             model.runtime = runtime
             model.startError = nil
@@ -322,20 +386,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         } catch {
             log.write("boop: can't start: \(error)")
             model.startError = AppModel.startProblem(error)
+            updateIcon()
         }
     }
 
-    func show(_ status: Runtime.Status) {
-        model.status = status
-        updateIcon(status)
-    }
-
-    /// Every status push lands here, and most don't change the mood.
-    func updateIcon(_ status: Runtime.Status?) {
-        let mood = FaceMood(status)
-        guard mood != iconMood, let button = statusItem?.button else { return }
-        iconMood = mood
-        button.image = MenuBarIcon.image(mood)
+    /// Every status push lands here, and most change neither the look nor
+    /// the words.
+    func updateIcon() {
+        guard let button = statusItem?.button else { return }
+        let mood = model.startError == nil ? FaceMood(model.status) : .stopped
+        if mood != iconMood {
+            iconMood = mood
+            button.image = MenuBarIcon.image(mood)
+        }
+        let words = "\(model.name): \(model.headline)"
+        if button.toolTip != words {
+            button.toolTip = words
+            button.setAccessibilityLabel(words)
+        }
     }
 
     @objc func togglePopover() {
@@ -351,12 +419,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         model.refreshHooks()
         model.runtime?.refresh()
         NSApp.activate()
+        model.shown = true
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
     }
 
     /// Settings closes back to the overview; setup stays where it was.
     func popoverDidClose(_ notification: Notification) {
+        model.shown = false
         if model.pane == .settings { model.pane = .overview }
     }
 

@@ -27,8 +27,9 @@ has the tests, evals, dev tools and skills that check them.
   and here. The production targets (`HookWire`, `BoopKit`, `Boop`,
   `BoopHook`) never depend on the internal ones (`BoopDevKit`, `BoopDev`,
   `BoopTests`, `XCTest`). SwiftPM alone only warns about an import of a
-  target that isn't a dependency, so `make build` and `make -C internal test` build
-  with `--explicit-target-dependency-import-check error`, and code in
+  target that isn't a dependency, so `make build`, `make app` and
+  `make -C internal test` build with
+  `--explicit-target-dependency-import-check error`, and code in
   `app/` that imports anything from here fails the build. The one
   exception is the `Boop` target: its path is the repo root and its
   sources are `app/Boop/` and `internal/app/Boop/`, so headless mode and

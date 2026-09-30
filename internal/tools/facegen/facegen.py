@@ -776,13 +776,19 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict
     key_lists: dict[tuple[int, ...], int] = {}
     vals: list[int] = []
     val_lists: dict[tuple[int, ...], int] = {}
+    # Groups and rectangles are stored once each too: a scene's groups, and a
+    # group's list of rectangles, are indexes into them.
     groups: list[str] = []
+    group_of: dict[str, int] = {}
+    scene_groups: list[int] = []
     rects: list[str] = []
+    rect_of: dict[str, int] = {}
+    rect_slots: list[int] = []
     lists: dict[tuple, tuple[int, int]] = {}
     scene_rows: list[str] = []
     max_groups = 0
     for n, s in enumerate(scenes):
-        g0 = len(groups)
+        g0 = len(scene_groups)
         for g in s.groups:
             ids = []
             for tr in (g.move, g.show, g.fill):
@@ -805,22 +811,31 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict
                 ids.append(track_of[(tr.dur, kt, vt)])
             key = tuple(g.rects)
             if key not in lists:
-                lists[key] = (len(rects), len(g.rects))
+                lists[key] = (len(rect_slots), len(g.rects))
                 for x, y, w, h, c in g.rects:
                     assert 0 < w < 65536 and 0 < h < 256 and -32768 <= x < 32768
-                    rects.append(f"{{{x}, {y}, {w}, {h}, {c}}}")
+                    rect = f"{{{x}, {y}, {w}, {h}, {c}}}"
+                    rect_of.setdefault(rect, len(rects))
+                    if rect_of[rect] == len(rects):
+                        rects.append(rect)
+                    rect_slots.append(rect_of[rect])
             r0, rn = lists[key]
             parent = 0xFFFF if g.parent < 0 else g.parent
-            groups.append(f"{{{g.tx}, {g.ty}, {parent}, {ROLES.index(g.role)}, {int(g.visible)}, "
-                          f"{ids[0]}, {ids[1]}, {ids[2]}, {r0}, {rn}}}")
+            group = (f"{{{g.tx}, {g.ty}, {parent}, {ROLES.index(g.role)}, {int(g.visible)}, "
+                     f"{ids[0]}, {ids[1]}, {ids[2]}, {r0}, {rn}}}")
+            group_of.setdefault(group, len(groups))
+            if group_of[group] == len(groups):
+                groups.append(group)
+            scene_groups.append(group_of[group])
         max_groups = max(max_groups, len(s.groups))
         assert 0 < s.loop_ms() < 65536, "a loop fits a uint16_t"
         cx, cy, cw, ch = s.clip
         scene_rows.append(f"{{{g0}, {len(s.groups)}, {s.loop_ms()}, {cx}, {cy}, {cw}, {ch}}},  // {n}: {sources[n]}")
     assert all(-128 <= v <= 127 for v in vals) and all(k < 65536 for k in keys)
-    assert len(tracks) < 0xFFFF and len(rects) < 65536, "tracks and rectangles fit a group's indexes"
+    assert len(tracks) < 0xFFFF and len(rect_slots) < 65536, "tracks and rectangle lists fit a group's indexes"
+    assert len(groups) < 65536 and len(rects) < 65536, "groups and rectangles fit their indexes"
     assert len(COLORS.rgb) + SCENE_BASE - 1 <= 256, "the scene colours fit the palette"
-    size = (len(rects) * 8 + len(groups) * 18 + len(tracks) * 12 + len(keys) * 2 + len(vals)
+    size = (len(rects) * 8 + len(rect_slots) * 2 + len(groups) * 18 + len(scene_groups) * 2 + len(tracks) * 12 + len(keys) * 2 + len(vals)
             + len(scenes) * 16 + len(BLENDS.pairs) * len(COLORS.rgb) + len(table) * 4 + len(counts) * 3)
     maxv = max(counts.values())
 
@@ -877,7 +892,7 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict
         "  uint8_t role;",
         "  uint8_t visible;  // before any show track",
         "  uint16_t move, show, fill;  // into kTracks: tracks many groups can share; 0xFFFF for none",
-        "  uint16_t rect0, rects;  // into kRects: a list many groups can share",
+        "  uint16_t rect0, rects;  // into kRectIdx: a list many groups can share",
         "};",
         "struct Rect {",
         "  int16_t x, y;  // from the group's offset",
@@ -893,7 +908,7 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict
         "  uint16_t dur, n;",
         "  uint32_t key0, val0;",
         "};",
-        "// A scene's groups are kGroups[group0] on, parents first. Its `loopMs` is",
+        "// A scene's groups are kGroups[kSceneGroups[group0]] on, parents first. Its `loopMs` is",
         "// how long it takes to play once through: its longest track but the",
         "// blink, which the device times itself. A moment's loops count these",
         "// (plan/PROTOCOL.md §3). Nothing is drawn outside its clip.",
@@ -947,7 +962,9 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict
     lines += [f"static const uint16_t kFirst[kMoodCount][kStateCount] = {{"] + ["  " + r for r in rows_first] + ["};"]
     lines += block("kDesigns", "Design", design_rows, 8)
     lines += block("kGroups", "Group", groups, 2)
+    lines += block("kSceneGroups", "uint16_t", [str(i) for i in scene_groups], 16)
     lines += block("kRects", "Rect", rects, 5)
+    lines += block("kRectIdx", "uint16_t", [str(i) for i in rect_slots], 16)
     lines += block("kTracks", "Track", tracks, 6)
     lines += block("kKeys", "uint16_t", [str(k) for k in keys], 16)
     lines += block("kValues", "int8_t", [str(v) for v in vals], 32)
@@ -1137,9 +1154,6 @@ def emit_loops(scenes: list[Scene], table: dict[tuple[int, int, int], int],
         "        let row = row(mood: mood, state: state)",
         "        return row[(1...row.count).contains(variant) ? variant - 1 : 0].voiceMs",
         "    }",
-        "",
-        "    /// The longest loop of any design.",
-        "    public static var longest: Int64 { designs.values.flatMap { $0.flatMap { $0.map(\\.ms) } }.max()! }",
         "}",
         "",
     ]

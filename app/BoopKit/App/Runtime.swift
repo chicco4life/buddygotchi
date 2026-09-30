@@ -5,8 +5,8 @@ import HookWire
 /// socket feeds the adapters, and every event goes down the pipeline, into
 /// the transcript, the core and the view; the view events that wake the
 /// brain go to the harness, the core's snapshots to the device link and a
-/// new day to the memory store; the device's pokes come back as events. The menu-bar app and `Boop --headless` both
-/// run one of these.
+/// new day to the transcript's pruning; the device's pokes come back as
+/// events. The menu-bar app and `Boop --headless` both run one of these.
 ///
 /// All state lives on `home`, one serial queue, which is also the harness's.
 public final class Runtime: @unchecked Sendable {
@@ -46,7 +46,7 @@ public final class Runtime: @unchecked Sendable {
         /// may stop to ask for access; after, it's what Settings saved.
         /// Every read of the key goes through here, so tests and headless
         /// runs decide what it is.
-        public var readJevKey: @Sendable (_ saved: () -> String?) -> String? = { JevKey.read(else: $0()) }
+        public var readJevKey: @Sendable (_ saved: () -> String?) -> String? = { JevKey.environment() ?? $0() }
         public var log: @Sendable (String) -> Void = { _ in }
         /// Opens a thread on the Mac (`ThreadLink`): a tap while something
         /// needs you, or a click in the popover. Tests pass their own.
@@ -70,9 +70,15 @@ public final class Runtime: @unchecked Sendable {
         public var sessions: [SessionSummary]
         public var connected: Bool
         public var device: DeviceStatus?
+        /// Why the link can't look for the device (Bluetooth off), in the
+        /// transport's words, for the popover.
+        public var linkTrouble: String?
         public var personality: Personality
         /// The brain as it runs: `jev:jev-latest`, or `none` without a key.
         public var brain: String
+        /// Jev's key has been read, whether there was one or not. Until
+        /// then `brain` is `none` only because it isn't known yet.
+        public var keyRead: Bool
         /// The brain failing, for the popover's notice (harness/HARNESS.md §7).
         public var brainTrouble: BrainTrouble?
         /// The Mac's mic is on for push-to-talk (BEHAVIORS.md §3.3).
@@ -81,15 +87,18 @@ public final class Runtime: @unchecked Sendable {
         public var micTrouble: String?
 
         public init(name: String, snapshot: StateSnapshot, sessions: [SessionSummary], connected: Bool,
-                    device: DeviceStatus?, personality: Personality, brain: String, brainTrouble: BrainTrouble? = nil,
-                    listening: Bool = false, micTrouble: String? = nil) {
+                    device: DeviceStatus?, linkTrouble: String? = nil, personality: Personality, brain: String,
+                    keyRead: Bool = true, brainTrouble: BrainTrouble? = nil, listening: Bool = false,
+                    micTrouble: String? = nil) {
             self.name = name
             self.snapshot = snapshot
             self.sessions = sessions
             self.connected = connected
             self.device = device
+            self.linkTrouble = linkTrouble
             self.personality = personality
             self.brain = brain
+            self.keyRead = keyRead
             self.brainTrouble = brainTrouble
             self.listening = listening
             self.micTrouble = micTrouble
@@ -109,9 +118,11 @@ public final class Runtime: @unchecked Sendable {
     /// Debug mode's log of every event, view event and pass, in the state directory.
     public let debugLogURL: URL
 
-    public let home = DispatchQueue(label: "boop.home", qos: .userInitiated)
+    /// Each block drains its own autorelease pool: a burst keeps `home`
+    /// busy, and what Foundation leaves autoreleased would pile up until
+    /// it went idle.
+    public let home = DispatchQueue(label: "boop.home", qos: .userInitiated, autoreleaseFrequency: .workItem)
     public let options: Options
-    public let memory: MemoryStore
     public let link: DeviceLink
     /// Boop's name, from `long-term.md`.
     let name: String
@@ -125,7 +136,6 @@ public final class Runtime: @unchecked Sendable {
     let harness: Harness
     let mood: MoodStore
     let moodAction: MoodAction
-    let voice: Voice
     let lock: InstanceLock
     var server: HookServer?
     var timer: DispatchSourceTimer?
@@ -135,7 +145,6 @@ public final class Runtime: @unchecked Sendable {
     /// Jev's key, touched only on `home`: nil until read, and then the key
     /// or none. Until then no event wakes the brain.
     var jevKey: String??
-    var readingJevKey = false
     /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): the
     /// tap's poke plays at once, and the brain's moments wait their turn
     /// in it behind the brain's earlier ones, go to the device with an id
@@ -145,6 +154,9 @@ public final class Runtime: @unchecked Sendable {
     /// nil when none is.
     var pumpTimer: DispatchSourceTimer?
     var pumpAt: Int64?
+    /// The transport's `trouble` as the status last had it. It changes on
+    /// the transport's thread, so the tick looks.
+    var linkTrouble: String?
 
     /// After every change the menu bar might show. Called on `home`.
     public var onChange: ((Status) -> Void)?
@@ -186,8 +198,10 @@ public final class Runtime: @unchecked Sendable {
         guard let lock = InstanceLock(directory: options.stateDir) else { throw OpenError.locked(options.stateDir.path) }
         self.lock = lock
         let log = options.log
-        memory = try MemoryStore(directory: options.stateDir, log: log)
-        guard let longTerm = memory.longTerm else { throw OpenError.notSetUp }
+        let wall = options.wallClock(), wallAt = options.clock()
+        let today = options.time.day(wall)
+        guard let longTerm = try MemoryStore(directory: options.stateDir, today: today, log: log).longTerm
+        else { throw OpenError.notSetUp }
         name = longTerm.name
         settings = AppSettings.load(from: options.stateDir)
         link = DeviceLink(transport: options.link, log: log)
@@ -198,16 +212,20 @@ public final class Runtime: @unchecked Sendable {
         let printer = DebugLog.Printer()
         let print = options.debugPrint
         let emit = { (line: String) in
-            recent.add(line)
-            guard let debugLog else { return }
+            guard let debugLog else { return recent.add(line) }
             LineFile.append(line, to: debugLog)
             printer.readable(line).map(print)
         }
         self.emit = emit
         let clock = options.clock
+        // boop.log leaves out a `state` sent again unchanged (the keepalive,
+        // a reply to `status`), which debug.jsonl keeps (harness/HARNESS.md §9).
+        var lastState: String?
         link.onSend = { line, sender in
             emit(DebugLog.sent(line, by: sender, at: clock()))
-            if debugLog != nil { log("link \(sender == .brain ? "brain" : "rules") → " + line) }
+            guard debugLog != nil, line != lastState else { return }
+            if line.hasPrefix(#"{"t":"state""#) { lastState = line }
+            log("link \(sender == .brain ? "brain" : "rules") → " + line)
         }
 
         let now = options.clock()
@@ -218,14 +236,14 @@ public final class Runtime: @unchecked Sendable {
         config.mood = mood.current
         config.firstAsk = Core.randomFirstAsk()
         let places = self.places
-        core = Core(config: config, lastActiveDay: memory.lastActiveDay, place: places.place)
-        core.setWallClock(options.wallClock(), at: now)
-        view = TranscriptView(config: TranscriptView.Config(rules: rules, seed: longTerm.seed ^ UInt64(now)), place: places.place)
+        // The launch's read-back prunes the transcript, so today isn't a new day.
+        core = Core(config: config, lastActiveDay: today, place: places.place)
+        core.setWallClock(wall, at: wallAt)
+        view = TranscriptView(rules: rules, seed: longTerm.seed ^ UInt64(now), place: places.place)
         let transcript = Transcript(folder: options.stateDir.appendingPathComponent(Transcript.folderName),
                                     time: options.time, log: log)
         pipeline = Pipeline(core: core, transcript: transcript, view: view)
         pipeline.brain = false  // until Jev's key is read
-        voice = Voice()
         for over in options.steering.overBudget() { log("steering: over budget: \(over)") }
 
         // The actions' closures are only ever called on `home`, and reach
@@ -236,18 +254,17 @@ public final class Runtime: @unchecked Sendable {
         let link = self.link
         let home = self.home
         (harness, moodAction) = Runtime.harness(
-            brain: nil, pipeline: pipeline, mood: mood, voice: voice, steering: options.steering,
+            brain: nil, pipeline: pipeline, mood: mood, steering: options.steering,
             personality: { personalityNow() }, time: options.time, clock: clock, wall: options.wallClock,
             queue: { queued($0, $1) }, moodChanged: { moodSaved($0) }, speaks: { link.status?.hasTheVoice ?? true },
             home: home, emit: emit, log: log)
-        // The view picks up where the last launch left it.
-        let loaded = transcript.load(now: now)
-        pipeline.replay(loaded, now: now)
-        if !loaded.isEmpty { log("transcript: read back \(loaded.count) events, the view has \(view.events.count)") }
-        // No event's pass starts while something needs you, not even one
-        // that woke the brain before and waited (harness/EVENTS.md §6).
-        let pipeline = self.pipeline
-        harness.whyNotStart = { pipeline.whyNotWake($0) }
+        // The questions line is debug.jsonl's first, before the read-back
+        // below, the socket or the link can add one, so a changed first
+        // line means a new launch.
+        emit(DebugLog.questions(harness.actions, at: now))
+        // The view and the core pick up where the last launch left them.
+        let read = pipeline.readBack(now: now)
+        if read > 0 { log("transcript: read back \(read) events, the view has \(view.events.count)") }
         personalityNow = { [weak self] in self?.personality ?? .boop }
         moodSaved = { [weak self] in self?.moodChanged($0) }
         queued = { [weak self] moment, pending in self?.queue(moment, pending) }
@@ -270,7 +287,7 @@ public final class Runtime: @unchecked Sendable {
     /// time of day at wall-clock time `wall()`. `emit` gets the
     /// `debug.jsonl` lines (harness/HARNESS.md §9): every pass's, and every
     /// event's and view event's as it happens; nil writes none.
-    public static func harness(brain: (any Brain)?, pipeline: Pipeline, mood: MoodStore, voice: Voice, steering: Steering,
+    public static func harness(brain: (any Brain)?, pipeline: Pipeline, mood: MoodStore, steering: Steering,
                                personality: @escaping () -> Personality, time: LocalTime,
                                clock: @escaping @Sendable () -> Int64, wall: @escaping () -> Int64,
                                queue: @escaping (DeviceMoment, Pending) -> Void,
@@ -282,13 +299,13 @@ public final class Runtime: @unchecked Sendable {
         let view = pipeline.view
         let moodAction = MoodAction(store: mood, clock: clock, changed: moodChanged)
         var acting: () -> ViewEvent? = { nil }
-        let react = ReactAction(voice: voice, queue: queue, blocked: { core.reactionBlock }, who: {
+        let react = ReactAction(queue: queue, blocked: { core.reactionBlock }, who: {
             // The thread's name as its agent's app shows it, once an event
             // brought one, else the view's: its workspace, else its project.
             guard let key = acting()?.about, let who = view.who(about: key) else { return nil }
             return DeviceMoment.Who(agent: who.agent, thread: core.name(about: key) ?? who.thread)
         }, speaks: speaks)
-        let harness = Harness(brain: brain, actions: [moodAction, react], pipeline: pipeline, parts: { _ in
+        let harness = Harness(brain: brain, actions: [moodAction, react], pipeline: pipeline, parts: {
             let now = clock()
             let wall = wall()
             return StateText.Parts(guide: steering.guide, personality: steering.personality(personality()).text,
@@ -309,9 +326,6 @@ public final class Runtime: @unchecked Sendable {
 
     public func start() throws {
         let home = self.home
-        // The questions line is debug.jsonl's first, before the socket or the
-        // link can add one, so a changed first line means a new launch.
-        home.sync { emit(DebugLog.questions(harness.actions, at: options.clock())) }
         // Hooks are timed on the runtime's clock, which headless mode can move.
         let clock = options.clock
         let onLine: @Sendable (HookLine) -> Void = { [weak self] line in
@@ -341,7 +355,6 @@ public final class Runtime: @unchecked Sendable {
         home.async { [self] in
             readJevKey()
             run(pipeline.tick(at: options.clock()))
-            show(core.snapshot(at: options.clock()))
             changed()
             options.log("boop: running on \(options.stateDir.path), socket \(options.socketPath), "
                         + "link \(options.link?.name ?? "none"), personality \(personality.rawValue), "
@@ -403,9 +416,9 @@ public final class Runtime: @unchecked Sendable {
         switch link.receive(line, now: now) {
         case .tap:
             options.log("device: input tap")
-            // The device has already poked, cutting the animation playing
-            // but not a reaction's line or face.
-            tapped(now)
+            // A poke (BEHAVIORS.md §3.3). The device has already poked,
+            // cutting the animation playing but not a reaction's line or face.
+            run(pipeline.poke(at: now))
             pump()
         case .talk(let on):
             options.log("device: input talk_\(on ? "on" : "off")")
@@ -420,13 +433,6 @@ public final class Runtime: @unchecked Sendable {
             break
         }
         changed()
-    }
-
-    /// The device's tap. While `listening` shows, the device only squashes:
-    /// no poke plays, though the tap counts in the run (BEHAVIORS.md §3.3).
-    func tapped(_ now: Int64) {
-        schedule.tapped(now: now, listening: core.showsListening(at: now))
-        run(pipeline.poke(at: now))
     }
 
     /// A `{"dev":…}` line from the socket (VERIFICATION.md §2):
@@ -461,7 +467,7 @@ public final class Runtime: @unchecked Sendable {
         case "tap":
             // The device's tap, without a board (VERIFICATION.md §2).
             options.log("dev: tap")
-            tapped(options.clock())
+            run(pipeline.poke(at: options.clock()))
             pump()
             changed()
         case "listen":
@@ -487,6 +493,11 @@ public final class Runtime: @unchecked Sendable {
         // which runs on uptime, hasn't fired (the clock jumped).
         pump()
         harness.tick(now: now)
+        let trouble = link.transport?.trouble
+        if trouble != linkTrouble {
+            linkTrouble = trouble
+            changed()
+        }
     }
 
     /// The mood action saved a new mood: the device draws it from the next
@@ -516,8 +527,8 @@ public final class Runtime: @unchecked Sendable {
                 stateChanged = true
             case .record:
                 break
-            case .newDay(let date):
-                memory.startDay(date)
+            case .newDay:
+                pipeline.transcript.prune(now: options.clock())
             case .listen(let on, let by):
                 listen(on, by: by)
                 stateChanged = true
@@ -601,7 +612,6 @@ public final class Runtime: @unchecked Sendable {
             options.log("rule: dropped \(moment.anim ?? "a moment") while a brain moment plays")
             return
         }
-        schedule.rule(moment, now: now)
         link.play(moment)
     }
 
@@ -615,9 +625,8 @@ public final class Runtime: @unchecked Sendable {
 
     /// Plays the brain's next moment if its turn has come, and sets a timer
     /// for when to look again, unless one is set for no later that the
-    /// clock hasn't passed yet. Whatever frees the line sooner (a rule's
-    /// animation, a tap, the device's `ended`, "needs you") pumps again at
-    /// once. The schedule ends a moment's handle when no device is
+    /// clock hasn't passed yet. Whatever frees the line sooner (the
+    /// device's `ended`, "needs you") pumps again at once. The schedule ends a moment's handle when no device is
     /// connected, and gives one sent to the device its id. On `home`.
     func pump() {
         let now = options.clock()
@@ -651,8 +660,8 @@ public final class Runtime: @unchecked Sendable {
     func changed() {
         let now = options.clock()
         let status = Status(name: name, snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
-                            connected: link.connected, device: link.status, personality: personality,
-                            brain: harness.brain?.id ?? "none", brainTrouble: harness.trouble,
+                            connected: link.connected, device: link.status, linkTrouble: linkTrouble, personality: personality,
+                            brain: harness.brain?.id ?? "none", keyRead: jevKey != nil, brainTrouble: harness.trouble,
                             listening: core.listening != nil, micTrouble: micTrouble)
         if let line = DebugLog.status(status, at: now, last: &lastStatus) { emit(line) }
         onChange?(status)
@@ -660,10 +669,11 @@ public final class Runtime: @unchecked Sendable {
 
     /// The last `status` line written to `debug.jsonl`, without its time.
     var lastStatus: String?
-    /// This launch's debug lines, debug mode or not, for `saveReport`.
+    /// This launch's debug lines outside debug mode, for `saveReport`: in
+    /// debug mode the file has them.
     let recent: DebugLog.Recent
-    /// Every `debug.jsonl` line goes through this: kept in `recent`, and
-    /// in debug mode written to the file and printed readably.
+    /// Every `debug.jsonl` line goes through this: in debug mode written to
+    /// the file and printed readably, and otherwise kept in `recent`.
     let emit: (String) -> Void
 
     func saveSettings(_ change: (inout AppSettings) -> Void) {
@@ -773,14 +783,12 @@ public final class Runtime: @unchecked Sendable {
     /// there would stall every hook, tick and device line until it's
     /// answered. Then the brain is built with it. On `home`.
     func readJevKey() {
-        guard jevKey == nil, !readingJevKey else { return }
-        readingJevKey = true
+        guard jevKey == nil else { return }
         let read = options.readJevKey
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let key = read { Keychain.key(.jev) }
+            let key = read { Keychain.jevKey() }
             self?.home.async { [weak self] in
                 guard let self else { return }
-                readingJevKey = false
                 // A key Settings saved meanwhile wins.
                 if jevKey == nil { jevKey = .some(key) }
                 useBrain()

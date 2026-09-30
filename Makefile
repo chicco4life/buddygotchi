@@ -1,14 +1,12 @@
 # Boop v1. Run from the repo root. See README.md and plan/VERIFICATION.md.
 # The development targets (tests, simulator, tools) are in internal/Makefile:
 # make -C internal <target>.
-.PHONY: build run debug dash day flash eval clean
+.PHONY: build app run debug dash day flash eval clean
 
 PIO := firmware/tools/pio.sh
 
-# Mac app, boop-hook, boopdev, in one `swift build`: building them one by
-# one made SwiftPM redo their shared work each time (about 98 s from clean
-# against 64 s, and 18 s against 2 s after a one-file change). A bare build
-# also links the BoopTests runner, so its main is generated first.
+# The whole package in one `swift build`: the Mac app, boop-hook, boopdev
+# and the BoopTests runner, whose main is generated first.
 # SWIFT_CHECK makes importing a target that isn't a declared dependency an
 # error, not a warning, so app/ can't reach internal/ code (internal/README.md).
 # `make -C internal test` runs this target, then the tests.
@@ -17,15 +15,23 @@ build:
 	python3 internal/app/tools/gen-test-runner.py
 	swift build $(SWIFT_CHECK)
 
-# The Mac app with Bluetooth. The owner runs this, not agents. Builds
-# everything first (the app copies the boop-hook built next to it), then
-# starts the binary: `swift run` would check the build all over again.
-run: build
+# The Mac app, the boop-hook it copies from next to it and boopdev, without
+# the tests' generated runner, which is most of `build`'s time after a
+# change to what BoopKit declares.
+app:
+	swift build $(SWIFT_CHECK) --product Boop
+	swift build $(SWIFT_CHECK) --product boop-hook
+	swift build $(SWIFT_CHECK) --product boopdev  # the doctor skill checks the hooks with it
+
+# The Mac app with Bluetooth. The owner runs this, not agents. Builds the
+# app, then starts the binary: `swift run` would check the build all over
+# again.
+run: app
 	.build/debug/Boop
 
 # The same, printing everything to this terminal as it happens: hooks, the
 # core's decisions, device messages and every brain pass (plan/harness/HARNESS.md).
-debug: build
+debug: app
 	.build/debug/Boop --debug
 
 # The live dashboard for the app `make debug` started.
@@ -40,8 +46,8 @@ day:
 	internal/tools/boopctl day $(if $(DATE),--date $(DATE))
 
 # The harness eval scenarios (plan/EVALS.md) against Jev, all of them with no
-# request budget: the final pass, about 620 requests. While developing, run
-# .build/debug/boopdev eval --only TEXT instead.
+# request budget: the final pass (plan/EVALS.md §2 counts its requests).
+# While developing, run .build/debug/boopdev eval --only TEXT instead.
 # They need Jev's key in BOOP_JEV_KEY and fail without it
 # (plan/VERIFICATION.md L5).
 eval: build

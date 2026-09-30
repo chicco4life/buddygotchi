@@ -43,7 +43,7 @@ lived in `archived/`, now at git tag `archived-final`
 
 The everyday entry points are in [README.md](README.md), which stays a
 short overview. The root `Makefile` has only what the owner uses: `build`,
-`run`, `debug`, `dash`, `day`, `flash`, `eval` and `clean`. The development targets
+`app`, `run`, `debug`, `dash`, `day`, `flash`, `eval` and `clean`. The development targets
 (`test`, `tools-test`, `voice`, `fw`, `fw-test`, `sim`, `e2e`, `faces`, `tools`)
 are in `internal/Makefile`; run them from the repo root as
 `make -C internal <target>`. Every make target and tool is in
@@ -125,8 +125,8 @@ rules that are easy to break:
   a plain-text state; there's no free text. Keep questions few, with
   options that say what they're not.
 - **The steering files are read-only at runtime.** `plan/steering/` is
-  the single source, and the app bundles a copy in
-  `app/Boop/Resources/steering/`.
+  the single source, and the app bundles it at build time
+  (`Package.swift` copies it into the app's resources).
 - **No code, commands, tool output, file contents or agent transcripts go
   to the brain.** The only words are your prompt, the agent's last
   message and what you say to Boop on push-to-talk, cut short.
@@ -156,7 +156,7 @@ unpushed local `main`.
 | `app/HookWire/`, `app/BoopHook/`, `app/BoopKit/Adapters/`, `app/BoopKit/Install/` | `ADAPTERS.md` |
 | `app/BoopKit/Harness/`, `app/BoopKit/Brains/`, `app/BoopKit/App/Pipeline.swift` | `harness/HARNESS.md` |
 | `app/BoopKit/Core/Event.swift`, `app/BoopKit/Core/TranscriptView.swift`, what the core records | `harness/EVENTS.md` |
-| `app/BoopKit/Actions/`, `plan/steering/` | `harness/DECISIONS.md` (and the app's copy of `plan/steering/`) |
+| `app/BoopKit/Actions/`, `plan/steering/` | `harness/DECISIONS.md` |
 | `app/BoopKit/Memory/`, `app/BoopKit/App/` | `ARCHITECTURE.md` §3–4 |
 | `app/BoopKit/Voice/`, `firmware/src/voice/`, `firmware/src/app/effect_track.*`, `internal/tools/voicegen/`, `internal/tools/sfxgen/` | `VOICE.md` |
 | `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/{device.cpp,packets.h}`, `internal/tools/boopctl_lib/` | `PROTOCOL.md` |

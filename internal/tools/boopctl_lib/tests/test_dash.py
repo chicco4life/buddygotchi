@@ -92,6 +92,18 @@ class FeedTests(unittest.TestCase):
         self.assertIn(("sent", "→ state idle happy · busy 0 · needs you: claude jetpack · vol 6"), rows)
         self.assertIn(("status", "status: sessions claude jetpack waiting"), rows, "a status row shows what changed")
 
+    def test_the_state_joins_its_head(self):
+        """A pass line carries HISTORY and NOW, and a `head` line before it
+        the rest whenever that changes (plan/harness/HARNESS.md §9); an
+        older log's passes carry the whole state."""
+        board = Board()
+        self.assertIsNone(board.apply({"head": "You are.\nMOOD\ncalm\n\n", "received_at_ms": 1}))
+        board.apply({"pass": {"brain": "scripted", "answers": {}, "questions": [], "for": 1, "state": "HISTORY (oldest first)\nh\n\nNOW\nn"},
+                     "received_at_ms": 2})
+        self.assertEqual(board.jev_state, "You are.\nMOOD\ncalm\n\nHISTORY (oldest first)\nh\n\nNOW\nn")
+        old, _ = board_after(fixture_lines())
+        self.assertTrue(old.jev_state.startswith("You are the mind of Boop"))
+
     def test_keepalives_are_hidden(self):
         lines = fixture_lines()
         states = [line for line in lines if kind(line) == "sent" and line["sent"]["t"] == "state"]

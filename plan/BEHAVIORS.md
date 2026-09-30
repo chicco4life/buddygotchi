@@ -165,7 +165,7 @@ GUARANTEES
   • Boop only watches and tells. It never approves or blocks anything.
 ```
 
-Updated 2026-09-29. What Boop does when things happen. Plain rules keep
+Updated 2026-09-30. What Boop does when things happen. Plain rules keep
 the screen true at once: the Mac's core (`app/BoopKit/Core/`) keeps the
 sessions and says which visual to show, and the device
 (`firmware/src/app/behaviour.*`) shows it, adds its own life and answers
@@ -199,7 +199,7 @@ brain.
 ```
 hook events ──┐                 ┌─► core rules ─┬─► state ─────► device (PROTOCOL.md §3)
 device pokes ─┤                 │               ├─► one-shot ──► device
-              │                 │               └─► new day ───► memory
+              │                 │               └─► new day ───► transcript pruning
 what you say ─┼─► transcript ───┤
 heartbeats ───┘                 └─► view ─► harness ─► brain ─┬─► react ──► device
 1 s tick: core timers, the view's heartbeats                  └─► mood ───► core
@@ -385,7 +385,7 @@ newer moment, or skipped because something needed you
 | A command fails: it exits with an error or times out | `error` plays once, at most once every 30 s (`Core.errorEveryMs`), and never for a call you denied or one that failed otherwise. Claude only: Codex reports no failures |
 | A Claude helper starts, then comes back | Delegating while it works (§2). `helper_return` plays once when a helper Boop saw start (`SubagentStart`) ends while its turn goes on; with hooks from before that, when the main agent's `Task` or `Agent` call returns. Never after the turn ended |
 | A turn finishes | The session goes idle; no rule plays the finish. The brain hears of it, with how many tool calls it made and the agent's last message, and decides whether the finish gets a face, judges its outcome (a success, a failure, or only a reply), and picks how long it holds and which word ([harness/DECISIONS.md](harness/DECISIONS.md) §5). With no brain, a finish shows only the change of look |
-| A turn finishes, but its last test, build or deploy command failed | It counts as a failed turn, and the brain hears of that |
+| A turn finishes, but its own last test, build or deploy command failed | It counts as a failed turn, and the brain hears of that |
 | A turn fails (Claude stops on an API error) | No moment. The brain hears of it |
 | You interrupt a turn (Esc, or Codex's `Interrupt`) | `stopped` plays once, if a turn was open: Claude's idle notice after a turn that finished plays nothing. The brain hears it was stopped. It happens at once if a tool was running, else when Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §3) |
 
@@ -455,7 +455,7 @@ Headless, `--no-open` only logs where a thread would have opened
 | --- | --- |
 | You press BOOT or touch the screen | The face dips 2 px at once, until you let go |
 | You let go within 400 ms, or lift your finger: a tap | The mood's `poked` design, once, from its start, replacing the animation playing; asleep too. A brain reaction playing goes on: its line and bubble play over the poke, which is drawn in the reaction's mood until the reaction's face ends. From the third tap in a row on, `tap_spam` instead (below). The Mac records it as a poke, with the rule's `wiggle` action under it, and the brain hears of it, but not while it's answering the pokes before ([harness/EVENTS.md](harness/EVENTS.md) §6) |
-| Pokes in a row | Each within 3 s of the last (`TranscriptView.Config.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. The device counts them too, every tap, those that only dip the face included: from the third in a row (`answersRunFrom`), it plays the mood's `tap_spam` design instead of `poked` (`Behaviour::kTapRunMs` 3000 and `kTapSpamFrom` 3, the same numbers). How Boop reacts is the steering's: curious or glad at one poke; a little miffed at two in a row, turning annoyed; fed up at three or more, irritated and then grumpy, for a couple of minutes ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). The device plays its own tap animations, so no reaction plays one, and the taps after a reaction don't cut it short. From the third poke on, while the brain's reaction to them is in progress, a tap-cut one included, the pokes after it don't wake the brain, unless the mood changed since, so a barrage gets one "nope" ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| Pokes in a row | Each within 3 s of the last (`TranscriptView.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. The device counts them too, every tap, those that only dip the face included: from the third in a row (`answersRunFrom`), it plays the mood's `tap_spam` design instead of `poked` (`Behaviour::kTapRunMs` 3000 and `kTapSpamFrom` 3, the same numbers). How Boop reacts is the steering's: curious or glad at one poke; a little miffed at two in a row, turning annoyed; fed up at three or more, irritated and then grumpy, for a couple of minutes ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). The device plays its own tap animations, so no reaction plays one, and the taps after a reaction don't cut it short. From the third poke on, while the brain's reaction to them is in progress, a tap-cut one included, the pokes after it don't wake the brain, unless the mood changed since, so a barrage gets one "nope" ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | A tap while something needs you | The press dip only, with no poke: there a tap means "take me there", and the Mac opens the waiting thread (§3.2). It counts in the run, but doesn't wake the brain ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | Hold BOOT 400 ms, or click Talk in the popover | Push-to-talk, below: `listening` shows at once, the device sends `talk_on` at 400 ms and `talk_off` on release, or by itself after 30 s ([DEVICE.md](DEVICE.md) §4). No tap |
 | A tap while `listening` shows | The press dip only: nothing replaces `listening`, and nothing opens, even while something needs you. The brain still hears of the poke |
@@ -472,7 +472,9 @@ on the Mac; the device has no mic.
    limit), or if the link drops while BOOT is held.
 3. What it heard is recorded as what you said
    ([harness/EVENTS.md](harness/EVENTS.md) §2), and always wakes the
-   brain, even while something needs you. A reaction is the reply, and
+   brain, even while something needs you; its pass goes ahead of the
+   agents' events waiting for theirs ([harness/HARNESS.md](harness/HARNESS.md) §2).
+   A reaction is the reply, and
    ends `listening` as it plays, even one that says nothing. If the brain's pass on it (or on
    anything newer) makes no reaction, if there's no brain, if the mic
    heard nothing or couldn't start, the Mac ends `listening` at once with
@@ -502,6 +504,8 @@ brain is in [harness/EVENTS.md](harness/EVENTS.md) §9.
 With no `state` from the Mac for 30 s (`kNoAppMs`; the Mac's keepalive is
 in [PROTOCOL.md](PROTOCOL.md) §3), the device shows the no-app look, with
 only the unplugged icon in the strip, for as long as the silence lasts.
+At power-on no Mac has spoken yet, so the board starts in no app until the
+first `state` (`dbg.reset` starts on the face, so scenarios don't wait).
 The session counts and the amber light go, since it can no longer know
 them. No app shows over everything: a tap only dips the face, and
 nothing the Mac might still send plays. When the Mac comes back, Boop
@@ -512,8 +516,9 @@ blinks into whatever the next `state` says.
 While no agent works, an hour with no agent event or poke brings the
 brain a heartbeat, and another each hour after
 ([harness/EVENTS.md](harness/EVENTS.md) §4), so a mood can fade back to
-happy. Nothing shows on screen. The first activity of a new day starts
-short-term memory fresh ([ARCHITECTURE.md](ARCHITECTURE.md) §4.3).
+happy. Nothing shows on screen. The first activity on a day after the
+one the app opened on only deletes transcript files past 14 days
+([harness/HARNESS.md](harness/HARNESS.md) §5.1).
 
 ## 4. Sound and light
 

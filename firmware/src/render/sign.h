@@ -46,7 +46,6 @@ struct SignPose {
     return signY == o.signY && headX == o.headX && headY == o.headY && scale == o.scale && glance == o.glance &&
            eyesShut == o.eyesShut && whole == o.whole && hands == o.hands && handX == o.handX && handY == o.handY;
   }
-  bool operator!=(const SignPose& o) const { return !(*this == o); }
 };
 
 // The pose `ms` after the request, with the device's blink and press dip.

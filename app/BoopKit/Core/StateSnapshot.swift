@@ -96,20 +96,16 @@ public struct StateSnapshot: Equatable, Sendable {
 
     /// One JSON line, keys in the protocol's order.
     public var jsonLine: String {
-        var parts: [String] = ["\"t\":\"state\"", "\"base\":\(json(base))"]
-        if let act { parts.append("\"act\":\(json(act))") }
-        parts.append("\"mood\":\(json(mood))")
+        var parts: [String] = ["\"t\":\"state\"", "\"base\":\(Event.json(base))"]
+        if let act { parts.append("\"act\":\(Event.json(act))") }
+        parts.append("\"mood\":\(Event.json(mood))")
         if let attn {
-            let name = attn.name.isEmpty ? "" : ",\"name\":\(json(attn.name))"
+            let name = attn.name.isEmpty ? "" : ",\"name\":\(Event.json(attn.name))"
             let id = attn.id > 0 ? ",\"id\":\(attn.id)" : ""
-            parts.append("\"attn\":{\"agent\":\(json(attn.agent)),\"project\":\(json(attn.project))\(name),\"more\":\(attn.more)\(id)}")
+            parts.append("\"attn\":{\"agent\":\(Event.json(attn.agent)),\"project\":\(Event.json(attn.project))\(name),"
+                         + "\"more\":\(attn.more)\(id)}")
         }
         parts += ["\"busy\":\(busy)", "\"vol\":\(vol)", "\"variant\":\(variant)"]
         return "{" + parts.joined(separator: ",") + "}"
-    }
-
-    private func json(_ s: String) -> String {
-        let data = (try? JSONSerialization.data(withJSONObject: [s], options: [.withoutEscapingSlashes])) ?? Data("[\"\"]".utf8)
-        return String(String(decoding: data, as: UTF8.self).dropFirst().dropLast())
     }
 }

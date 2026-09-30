@@ -36,9 +36,8 @@ class Clock {
   uint32_t realBase_ = 0;
 };
 
-// Small deterministic random numbers (xorshift32). The device core's are
-// reseeded when the clock freezes; each voice line seeds its own
-// (voice/player.cpp).
+// Small deterministic random numbers (xorshift32), reseeded when the clock
+// freezes.
 class Rng {
  public:
   void seed(uint32_t s) { s_ = s ? s : 0x9E3779B9u; }

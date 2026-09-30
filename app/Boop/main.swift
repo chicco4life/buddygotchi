@@ -66,8 +66,10 @@ func runtimeOptions(stateDir: URL, socketPath: String, link: LinkSetting, debug:
 }
 
 /// Appends to `DIR/boop.log`, and echoes to stderr when asked. `echo`
-/// prints to stderr alone, for what must stay out of the file.
+/// prints to stderr alone, for what must stay out of the file. One past
+/// 5 MB is moved aside first (`BoopLog.rotate`).
 final class LogFile: @unchecked Sendable {
+    let url: URL
     let handle: FileHandle?
     let echo: Bool
     let lock = NSLock()
@@ -78,9 +80,11 @@ final class LogFile: @unchecked Sendable {
     }()
 
     init(directory: URL, echo: Bool) {
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let url = directory.appendingPathComponent("boop.log")
-        if !FileManager.default.fileExists(atPath: url.path) { FileManager.default.createFile(atPath: url.path, contents: nil) }
+        let fm = FileManager.default
+        try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        url = directory.appendingPathComponent("boop.log")
+        BoopLog.rotate(in: directory)
+        if !fm.fileExists(atPath: url.path) { fm.createFile(atPath: url.path, contents: nil) }
         handle = try? FileHandle(forWritingTo: url)
         _ = try? handle?.seekToEnd()
         self.echo = echo
@@ -106,34 +110,17 @@ final class LogFile: @unchecked Sendable {
     }
 }
 
-/// The ways to run Boop and what each takes. Anything else stops with the
-/// usage: a mistyped flag would otherwise start the menu-bar app, which uses
-/// Bluetooth and repairs the real hooks.
-enum Launch {
-    case menuBar, headless, snapshots
-
-    var options: Set<String> {
-        switch self {
-        case .menuBar: ["--state-dir", "--link"]
-        case .headless: ["--state-dir", "--link", "--socket", "--personality", "--brain", "--name", "--nature"]
-        case .snapshots: ["--snapshots"]
-        }
-    }
-
-    var flags: Set<String> {
-        switch self {
-        case .menuBar: ["--debug"]
-        case .headless: ["--headless", "--debug", "--no-open"]
-        case .snapshots: []
-        }
-    }
-}
-
+// The ways to run Boop and what each takes. Anything else stops with the
+// usage: a mistyped flag would otherwise start the menu-bar app, which uses
+// Bluetooth and repairs the real hooks.
 let raw = Array(CommandLine.arguments.dropFirst())
-let launch: Launch = raw.contains("--headless") ? .headless : raw.contains("--snapshots") ? .snapshots : .menuBar
-let args = Arguments.parse(raw, options: launch.options, flags: launch.flags, command: "boop", usage: usage)
-switch launch {
-case .headless: Headless.run(args)
-case .snapshots: MainActor.assumeIsolated { Snapshots.run(args) }
-case .menuBar: MenuBarApp.run(args)
-}
+let (launchHeadless, launchSnapshots) = (raw.contains("--headless"), raw.contains("--snapshots"))
+let (launchOptions, launchFlags): (Set<String>, Set<String>) =
+    launchHeadless ? (["--state-dir", "--link", "--socket", "--personality", "--brain", "--name", "--nature"],
+                      ["--headless", "--debug", "--no-open"])
+    : launchSnapshots ? (["--snapshots"], [])
+    : (["--state-dir", "--link"], ["--debug"])
+let args = Arguments.parse(raw, options: launchOptions, flags: launchFlags, command: "boop", usage: usage)
+if launchHeadless { Headless.run(args) }
+if launchSnapshots { MainActor.assumeIsolated { Snapshots.run(args) } }
+MenuBarApp.run(args)

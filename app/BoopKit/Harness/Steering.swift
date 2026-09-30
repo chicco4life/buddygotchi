@@ -17,12 +17,6 @@ public struct Steering: Equatable, Sendable {
     /// The MOOD section for each mood, by name.
     public var moods: [String: String]
 
-    public init(guide: String, personalities: [String: PersonalityFile], moods: [String: String]) {
-        self.guide = guide
-        self.personalities = personalities
-        self.moods = moods
-    }
-
     /// Reads a steering folder: `guide.md`, `personality/*.md` and
     /// `mood/*.md`. Throws if the guide or any personality or mood Boop
     /// knows is missing.
@@ -34,18 +28,17 @@ public struct Steering: Equatable, Sendable {
                 throw SteeringError("\(path) is missing from \(directory.path)")
             }
         }
-        let guide = Steering.clean(try read("guide.md"))
-        var personalities: [String: PersonalityFile] = [:]
+        guide = Steering.clean(try read("guide.md"))
+        personalities = [:]
         for p in Personality.allCases {
             let (frontMatter, body) = Steering.frontMatter(try read("personality/\(p.rawValue).md"))
             personalities[p.rawValue] = PersonalityFile(rules: Personality.Rules(frontMatter: frontMatter),
                                                         text: Steering.clean(body))
         }
-        var moods: [String: String] = [:]
+        moods = [:]
         for mood in MoodAction.moods.map(\.name) {
             moods[mood] = Steering.clean(try read("mood/\(mood).md"))
         }
-        self.init(guide: guide, personalities: personalities, moods: moods)
     }
 
     public func personality(_ p: Personality) -> PersonalityFile {

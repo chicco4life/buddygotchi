@@ -3,8 +3,12 @@ import Foundation
 /// One way to reach the device: Bluetooth or the USB bridge. Both carry the
 /// same lines (PROTOCOL.md §2), so nothing above this knows which it is.
 public protocol DeviceTransport: AnyObject, Sendable {
-    /// For logs and the settings screen, e.g. `usb:/tmp/boop-e2e/usb.sock`.
+    /// For logs and a bug report's `about.json`: `ble`, or `usb:<bridge socket>`.
     var name: String { get }
+    /// Why it can't look for the device at all, in plain words for the
+    /// popover with what to do (`Bluetooth is off. …`), or nil. Read from
+    /// any thread; the runtime looks once a second.
+    var trouble: String? { get }
     /// `onLine` gets each complete line from the device, and `onConnection`
     /// each change of connection, both on the transport's own thread.
     func start(onLine: @escaping @Sendable (String) -> Void, onConnection: @escaping @Sendable (Bool) -> Void)
@@ -15,6 +19,10 @@ public protocol DeviceTransport: AnyObject, Sendable {
     /// device again at once (the settings screen's Reconnect).
     func reconnect()
     func stop()
+}
+
+extension DeviceTransport {
+    public var trouble: String? { nil }
 }
 
 /// The device link (ARCHITECTURE.md §3.7): sends `state` on every change and
@@ -34,8 +42,6 @@ public final class DeviceLink {
     var lastSentAt: Int64?
     public private(set) var status: DeviceStatus?
     public private(set) var connected = false
-    /// Every line sent, for tests; nil keeps nothing.
-    public var sentLines: [String]?
     /// Called with every line sent and who sent it (debug mode's
     /// tracing); nil does nothing.
     public var onSend: ((String, Sender) -> Void)?
@@ -103,7 +109,6 @@ public final class DeviceLink {
     }
 
     func send(_ line: String, by sender: Sender) {
-        sentLines?.append(line)
         onSend?(line, sender)
         transport?.send(line)
     }

@@ -30,6 +30,12 @@ public struct ViewEvent: Equatable, Sendable {
     public var notes: [String] = []
     /// Whether it wakes the brain: its kind's rule, then the gates (§6).
     public var wakesBrain: Bool
+    /// How its pass waits behind a running one (harness/HARNESS.md §2):
+    /// a newer view event replaces one waiting at 0, and waits behind the
+    /// ones waiting at its own or higher. A finished turn is 1 and what
+    /// you said 2, so no finish loses its pass and the next pass answers
+    /// you.
+    public var passPriority = 0
     /// The thread it's about, as the view keys threads; nil for pokes,
     /// what you said and idle heartbeats.
     public var about: String?
@@ -65,31 +71,9 @@ public struct ViewEvent: Equatable, Sendable {
 /// left off. The heartbeat's timing is the one thing it decides from the
 /// clock (`heartbeat(at:)`). Touched only on the runtime's queue.
 public final class TranscriptView {
-    public struct Config: Sendable {
-        /// The personality's settings: how often the working heartbeat
-        /// comes and which tool uses wake the brain (BEHAVIORS.md §6).
-        public var rules: Personality.Rules
-        public var seed: UInt64
-        /// A poke within this of the one before is another in a row, which
-        /// its line counts (BEHAVIORS.md §3.3).
-        public var inARowMs: Int64 = 3000
-        /// The brain's reaction to this many pokes in a row or more
-        /// answers the run; to fewer, the pokes after it still wake the
-        /// brain, so Boop can go from glad to miffed to grumpy (EVENTS.md §6).
-        public var answersRunFrom = 3
-        /// While no thread works, a heartbeat after this long with no
-        /// event, and again every time as long again passes (EVENTS.md §4).
-        public var heartbeatMs: Int64 = 60 * 60 * 1000
-
-        public init(rules: Personality.Rules = Personality.Rules(), seed: UInt64 = 1) {
-            self.rules = rules
-            self.seed = seed
-        }
-    }
-
-    /// One agent session, as the lines name it: its turn as the core keeps
-    /// it too (`AgentSession`), and what the turn did.
-    struct Thread: AgentSession {
+    /// One agent session, as the lines name it: its `Turn`, as the core
+    /// keeps it too, and what the turn did.
+    struct Thread {
         var agent: Agent
         var id: String
         var project = "unknown"
@@ -98,9 +82,7 @@ public final class TranscriptView {
         var lastEventAt: Int64
         /// Turns started since the view first saw the thread.
         var turns = 0
-        var turnStartedAt: Int64?
-        var lastTurnEndedAt: Int64?
-        var promptedAt: Int64?
+        var turn = Turn()
         /// This turn's tool calls, and how many failed.
         var tools = 0
         var toolsFailed = 0
@@ -113,8 +95,6 @@ public final class TranscriptView {
         var check: (topic: String, failed: Bool)?
         /// Failures in a row of each check topic, across turns.
         var failRuns: [String: Int] = [:]
-        var toolStarts: [String: ToolStart] = [:]
-        var lastToolStart: ToolStart?
         /// "Needs you" shows for it (the core's `needs_you` action), and
         /// whether its last event asked for you: silent for the safety
         /// net's 10 minutes after that, it isn't working (ADAPTERS.md §4).
@@ -125,7 +105,9 @@ public final class TranscriptView {
         var key: String { SessionFold.key(agent, id) }
     }
 
-    public private(set) var config: Config
+    /// The personality's settings: how often the working heartbeat comes
+    /// and which tool uses wake the brain (BEHAVIORS.md §6).
+    public private(set) var rules: Personality.Rules
     let place: (String) -> Adapter.Place
 
     /// The view events, oldest first, up to `limit`.
@@ -160,10 +142,11 @@ public final class TranscriptView {
     /// started.
     var runReaction: (seq: Int, moodChanged: Bool)?
 
-    public init(config: Config = Config(), place: @escaping (String) -> Adapter.Place = { Adapter.place(cwd: $0) }) {
-        self.config = config
+    public init(rules: Personality.Rules = Personality.Rules(), seed: UInt64 = 1,
+                place: @escaping (String) -> Adapter.Place = { Adapter.place(cwd: $0) }) {
+        self.rules = rules
         self.place = place
-        rng = SplitMix64(seed: config.seed)
+        rng = SplitMix64(seed: seed)
     }
 
     /// What you say to Boop wakes the brain even while something needs
@@ -174,10 +157,21 @@ public final class TranscriptView {
     /// The topics whose failing command fails a turn (BEHAVIORS.md §3.1).
     static let checks: Set<String> = ["tests", "build", "deploy"]
 
+    /// A poke within this of the one before is another in a row, which its
+    /// line counts (BEHAVIORS.md §3.3).
+    public static let inARowMs: Int64 = 3000
+    /// The brain's reaction to this many pokes in a row or more answers the
+    /// run; to fewer, the pokes after it still wake the brain, so Boop can
+    /// go from glad to miffed to grumpy (EVENTS.md §6).
+    public static let answersRunFrom = 3
+    /// While no thread works, a heartbeat after this long with no event,
+    /// and again every time as long again passes (EVENTS.md §4).
+    public static let heartbeatMs: Int64 = 60 * 60 * 1000
+
     /// A new personality's settings, from the next event on. The working
     /// heartbeat starts its wait again at the new pace.
     public func setRules(_ rules: Personality.Rules) {
-        config.rules = rules
+        self.rules = rules
         nextWorkBeatAt = nil
     }
 
@@ -244,10 +238,11 @@ public final class TranscriptView {
 
     /// Keeps a view event of `e`'s type and phase, if `keeps` does.
     func add(_ e: Event, from: [Int]? = nil, notable: Bool = true, line: @autoclosure () -> String,
-             notes: [String] = [], wakes: Bool, about: String? = nil, facts: @autoclosure () -> [String: JSONValue] = [:]) {
-        guard TranscriptView.keeps(e.type, e.phase, notable: notable, allToolEnds: config.rules.toolUses == .all) else { return }
+             notes: [String] = [], wakes: Bool, passPriority: Int = 0, about: String? = nil,
+             facts: @autoclosure () -> [String: JSONValue] = [:]) {
+        guard TranscriptView.keeps(e.type, e.phase, notable: notable, allToolEnds: rules.toolUses == .all) else { return }
         events.append(ViewEvent(id: nextID, type: e.type, phase: e.phase, from: from ?? [e.seq], ts: e.ts, line: line(),
-                                notes: notes, wakesBrain: wakes, about: about, facts: facts()))
+                                notes: notes, wakesBrain: wakes, passPriority: passPriority, about: about, facts: facts()))
         nextID += 1
         if events.count > TranscriptView.limit {
             let drop = events.count - TranscriptView.limit
@@ -262,12 +257,13 @@ public final class TranscriptView {
         guard let agent = e.agent, let session = e.session, let step = SessionFold.step(e) else { return }
         let now = e.ts
         let key = SessionFold.key(agent, session)
-        // A thread silent for a day starts again from turn 0.
-        if threads[key]?.forgotten(at: now) == true { threads[key] = nil }
+        // Threads silent for a day are let go, as the core lets their
+        // sessions go: one that comes back starts again from turn 0.
+        for (k, t) in threads where SessionFold.forgotten(t.lastEventAt, at: now) { threads[k] = nil }
         fold.forgetEnds(at: now)
         guard fold.admits(e, step, key: key, known: threads[key] != nil) else { return }
         var t = threads[key] ?? newThread(agent, session, now)
-        if t.isStaleNotice(e, step) { return }
+        if t.turn.isStaleNotice(e, step) { return }
         if let cwd = e.cwd, !t.waiting {
             let place = self.place(cwd)
             if place.project != "unknown" {
@@ -294,9 +290,8 @@ public final class TranscriptView {
 
         switch step {
         case .turnStart:
-            t.prompted(at: now)
+            t.turn.prompted(at: now)
             t.topic = nil
-            t.check = nil
             t.turns += 1
             resetCounts(&t)
             threads[key] = t
@@ -314,14 +309,14 @@ public final class TranscriptView {
                 // `PreToolUse`'s. One that landed after its turn ended
                 // counts, but the turn stays over.
                 let started: ToolStart?
-                (started, late) = t.callEnded(e)
+                (started, late) = t.turn.callEnded(e)
                 if topic == nil { topic = started?.topic }
                 toolDone(&t, e, tool: tool, topic: topic, started: started?.at)
             } else if tool != nil {
-                t.callStarted(e)
+                t.turn.callStarted(e)
             }
             // A turn a call opens has counts of its own (EVENTS.md §4.1).
-            if !late && t.openTurn(at: now) { resetCounts(&t) }
+            if !late && t.turn.openTurn(e) { resetCounts(&t) }
             if let topic { t.topic = topic }
             if let topic, let failed = e["failed"]?.bool, TranscriptView.checks.contains(topic) { t.check = (topic, failed) }
             threads[key] = t
@@ -329,7 +324,7 @@ public final class TranscriptView {
             // A finish with no turn open (a second `Stop`, one after the
             // turn stopped, or the first Boop hears from a session)
             // finishes nothing the view saw.
-            guard let started = t.endTurn(at: now) else {
+            guard let started = t.turn.endTurn(at: now) else {
                 threads[key] = t
                 break
             }
@@ -361,11 +356,15 @@ public final class TranscriptView {
         Thread(agent: agent, id: id, order: fold.takeOrder(), lastEventAt: now)
     }
 
+    /// A turn starting, with a prompt or opened by a call: what it did
+    /// starts from nothing, so a check from before it, such as a
+    /// background helper's after the last `Stop`, isn't its outcome.
     func resetCounts(_ t: inout Thread) {
         t.tools = 0
         t.toolsFailed = 0
         t.topicStates = []
         t.comeback = nil
+        t.check = nil
     }
 
     /// A finished tool call: counted for the turn, and a view event when
@@ -428,7 +427,7 @@ public final class TranscriptView {
         let line = EventLine.turnEnd(agent: t.agent.rawValue, turn: t.turns, thread: threadLine(t), outcome: outcome,
                                      lengthMs: lengthMs, tools: t.tools)
         add(e, line: line, notes: message.flatMap(EventLine.lastMessage).map { [$0] } ?? [], wakes: true,
-            about: t.key,
+            passPriority: 1, about: t.key,
             facts: ["thread": threadFacts(t), "outcome": .string(outcome), "error": .of(error),
                     "length": .string(Band.length(ms: lengthMs)), "length_ms": .int(lengthMs),
                     "tools": .int(Int64(t.tools)), "tools_failed": .int(Int64(t.toolsFailed)),
@@ -458,7 +457,7 @@ public final class TranscriptView {
     func poke(_ e: Event) {
         let now = e.ts
         noteActivity(now)
-        if let last = pokes.last, now - last >= config.inARowMs {
+        if let last = pokes.last, now - last >= Self.inARowMs {
             pokes.removeAll()
             runReaction = nil
         }
@@ -477,7 +476,7 @@ public final class TranscriptView {
     func talk(_ e: Event) {
         guard let words = e["words"]?.string, let line = EventLine.said(words) else { return }
         noteActivity(e.ts)
-        add(e, line: line, wakes: true, facts: ["words": .string(words), "by": .string(e.specificType)])
+        add(e, line: line, wakes: true, passPriority: 2, facts: ["words": .string(words), "by": .string(e.specificType)])
     }
 
     // MARK: Heartbeats
@@ -486,14 +485,14 @@ public final class TranscriptView {
     /// you, and an event within the hour, or within the core's safety net
     /// if its last event asked for you.
     func isWorking(_ t: Thread, _ now: Int64) -> Bool {
-        t.turnStartedAt != nil && !t.waiting
+        t.turn.startedAt != nil && !t.waiting
             && now - t.lastEventAt < (t.asked ? SessionFold.safetyNetMs : SessionFold.staleWorkMs)
     }
 
     /// When the oldest turn still working began, or nil: HISTORY reaches
     /// back at least that far (harness/HARNESS.md §5.3).
     public func workingSince(at now: Int64) -> Int64? {
-        threads.values.filter { isWorking($0, now) }.compactMap(\.turnStartedAt).min()
+        threads.values.filter { isWorking($0, now) }.compactMap(\.turn.startedAt).min()
     }
 
     /// A heartbeat, if one is due at `now` (EVENTS.md §4): while threads
@@ -503,7 +502,7 @@ public final class TranscriptView {
     /// `take`, which says what it's about.
     public func heartbeat(at now: Int64) -> Event? {
         let working = threads.values.contains { isWorking($0, now) }
-        if working, let gap = config.rules.workBeatMs {
+        if working, let gap = rules.workBeatMs {
             guard let due = nextWorkBeatAt else {
                 nextWorkBeatAt = now + Int64(rng.int(in: gap))
                 return nil
@@ -513,21 +512,21 @@ public final class TranscriptView {
             return Event(ts: now, source: .clock, type: .heartbeat, specificType: "working")
         }
         nextWorkBeatAt = nil
-        guard !working, let last = lastActivityAt, (now - last) / config.heartbeatMs > Int64(heartbeats) else { return nil }
+        guard !working, let last = lastActivityAt, (now - last) / Self.heartbeatMs > Int64(heartbeats) else { return nil }
         return Event(ts: now, source: .clock, type: .heartbeat, specificType: "idle")
     }
 
     func heartbeat(_ e: Event) {
         let now = e.ts
         let working = threads.values.filter { isWorking($0, now) }
-        if let t = working.min(by: { ($0.turnStartedAt ?? now, $0.order) < ($1.turnStartedAt ?? now, $1.order) }) {
-            let ms = max(0, now - (t.turnStartedAt ?? now))
+        if let t = working.min(by: { ($0.turn.startedAt ?? now, $0.order) < ($1.turn.startedAt ?? now, $1.order) }) {
+            let ms = max(0, now - (t.turn.startedAt ?? now))
             add(e, line: EventLine.working(agent: t.agent.rawValue, thread: threadLine(t), ms: ms), wakes: true,
                 about: t.key, facts: ["thread": threadFacts(t), "working_ms": .int(ms), "topic": .of(t.topic)])
             return
         }
         guard let last = lastActivityAt else { return }
-        let hours = (now - last) / config.heartbeatMs
+        let hours = (now - last) / Self.heartbeatMs
         guard hours > 0 else { return }
         heartbeats = Int(hours)
         add(e, line: EventLine.heartbeat(hours: Int(hours)), wakes: true, facts: ["idle_hours": .int(hours)])
@@ -579,7 +578,7 @@ public final class TranscriptView {
             // A reaction to the run's first pokes doesn't answer it: the
             // pokes after them are new to the brain.
             if started, events[target].type == .poke, let first = pokes.first, events[target].ts >= first,
-               (events[target].facts["in_a_row"]?.int ?? 1) >= config.answersRunFrom {
+               (events[target].facts["in_a_row"]?.int ?? 1) >= Self.answersRunFrom {
                 runReaction = (e.seq, false)
             } else if e.specificType == MoodAction.actionName {
                 runReaction?.moodChanged = true
@@ -597,7 +596,7 @@ public final class TranscriptView {
     func continuesThePokes(_ e: Event) -> Bool {
         switch e.type {
         case .action: true
-        case .poke: pokes.last.map { e.ts - $0 < config.inARowMs } ?? false
+        case .poke: pokes.last.map { e.ts - $0 < Self.inARowMs } ?? false
         default: false
         }
     }

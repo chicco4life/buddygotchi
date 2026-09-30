@@ -1,6 +1,6 @@
 # Boop: device
 
-Updated 2026-09-29. The board Boop runs on, the pins it uses, how the
+Updated 2026-09-30. The board Boop runs on, the pins it uses, how the
 firmware is built and runs, what it keeps, and how to build and flash it.
 The code is the source (`firmware/`); board facts come from the
 MicroTech MTR024QV01A-V1 product specification (2025-03-24) and
@@ -98,10 +98,10 @@ replace the code that knows the hardware.
 | `src/app/device.*` | The device core: parses each line, answers `dbg.*`, turns BOOT and touch into gestures, decides when to draw, and sends `status`, `input` and `ended` | Board and Mac |
 | `src/app/behaviour.*` | What Boop does ([BEHAVIORS.md](BEHAVIORS.md)): the last `state`, the moment and line playing and how each the Mac waits on ended, taps in a row, blinks, no app, and the light, backlight and sound cues they imply | Board and Mac |
 | `src/app/` (the rest) | The device clock and random numbers (`clock.h`), BOOT's taps and holds (`gesture.*`), touch calibration (`touch_cal.h`), line reassembly and Bluetooth packets (`line_reader.h`, `packets.h`), and the screenshot's CRC and base64 (`codec.*`) | Board and Mac |
-| `src/render/` | The 8-bit canvas, palette, anti-aliased shapes, fonts, the animation bank's player (`scene.*`), the face screen with its bottom lane, the bubble or the strip (`screens.*`), the needs-you sign (`sign.*`), the animation and mood names (`anim.*`) and the test pattern | Board and Mac |
+| `src/render/` | The 8-bit canvas, palette, fonts, the animation bank's player (`scene.*`), the face screen with its bottom lane, the bubble or the strip (`screens.*`), the needs-you sign (`sign.*`), the animation and mood names (`anim.*`) and the test pattern | Board and Mac |
 | `src/voice/player.*` | The voice pack: takes found by id, their text and mouth, and a line of one or two takes into samples, read from a `voice::Source` (the card, or a file on the Mac) ([VOICE.md](VOICE.md) §8) | Board and Mac |
 | `src/voice/effects.*`, `src/app/effect_track.*` | The sound effects' clips and timelines, the mixer that adds them to the voice, and when each event plays with the face ([VOICE.md](VOICE.md) §10) | Board and Mac |
-| `src/board/` | The pins; `board_hal.*`, the board's side of the core's `Hal` (buttons, touch, LED, backlight, NVS, heap, sound); `display.*`, the only code that knows LovyanGFX; `touch.*`, the XPT2046; `card.*`, the microSD card and the pack on it; `audio.*`, the DAC task | Board |
+| `src/board/` | The pins; `board_hal.*`, the board's side of the core's `Hal` (buttons, touch, LED, backlight, NVS, heap); `display.*`, the only code that knows LovyanGFX; `touch.*`, the XPT2046; `card.*`, the microSD card and the pack on it, with `Hal`'s card methods; `audio.*`, the DAC task, with `Hal`'s sound methods | Board |
 | `src/link/ble.*` | The Nordic UART peripheral | Board |
 | `assets/` | Generated and checked in: `faces.h` (facegen), `fonts.h` (fontgen), `sfx.h` (sfxgen) ([VERIFICATION.md](VERIFICATION.md) §2). The voice isn't here: it's on the card | Both |
 | `tools/pio.sh`, `tools/version.py` | PlatformIO with its packages inside the checkout; the version and git SHA baked into each build | — |
@@ -132,7 +132,7 @@ loop()
  │               ─► BOOT and touch ─► press, tap, push-to-talk ─► Behaviour, and `input` to the Mac
  │               ─► sound cues, LED and backlight, through the Hal
  │               ─► draw into the canvas, if the picture changed
- └─ displayPush ─► only the changed bands, to the panel over SPI DMA
+ └─ displayPush ─► of each band, only the changed columns, to the panel over SPI DMA
 
 Bluetooth task ─► received bytes into a 2 KB ring; connects and MTU as atomics
 voice task (core 0) ─► an 8-deep queue of lines, cues, hushes and effects ─► player + effects ─► DAC
@@ -150,7 +150,8 @@ when a pass had nothing to read.
 All of it lives in RAM, in `Behaviour`, as a function of the device clock:
 every change happens at an exact millisecond, so a frozen clock gives the
 same frames on the board and in the simulator. After a reset the device
-knows nothing until the next `state`. Only the touch calibration survives
+knows nothing until the next `state`, and at power-on it shows no app
+until then ([BEHAVIORS.md](BEHAVIORS.md) §3.4). Only the touch calibration survives
 (§5).
 
 | State | Set by | Cleared by |
@@ -197,7 +198,8 @@ to read it (`Behaviour::kBubbleReadMs`).
 No line plays while something needs you, so the bubble never hides
 who's asking. The first pack's looks and its successes for the finish
 draw into the lane; the bubble blanks it, so their props there are cut
-at y 192 while it shows.
+at y 192 while it shows. The strip's divider, a dim line along y 204, is
+drawn only over bare glass, so it doesn't cut through their props.
 
 **The talking mouth.** While the line plays, the mouth is a small "o"
 (§6) whenever a take is loud: the voice pack has one mouth frame for
@@ -260,7 +262,7 @@ the test pattern and the webcam, and live in `firmware/src/board/display.h`:
 
 | Setting | Value |
 | --- | --- |
-| SPI write clock | 40 MHz; faster hasn't been tried |
+| SPI write clock | 80 MHz, over the ST7789's rated 62.5 MHz, on SPI2's own pins (no GPIO matrix): the test pattern's colours and edges and the moving face were clean on the webcam ([2026-09-29](evidence/2026-09-29-overnight/README.md)). 40 MHz, the only step below, if a board shows noise |
 | Colour inversion | On |
 | Colour order | RGB |
 | Panel memory | 240×320, offsets 0, 0 |
@@ -304,17 +306,17 @@ Nothing else is stored: the device ID comes from the Bluetooth MAC, and no
 
 Fonts, faces and sound effects are compiled in as arrays: the sound
 effects 208 KB with their timelines ([VOICE.md](VOICE.md) §10), the
-faces 1.19 MB (§6) and the fonts about 60 KB. The voice is on the
+faces 0.64 MB (§6) and the fonts about 60 KB. The voice is on the
 microSD card, 30.5 MB for 2,722 takes ([VOICE.md](VOICE.md) §8). The
-whole firmware is 2.36 MB, about 75% of app0.
+whole firmware is 1.79 MB, about 57% of app0.
 
 ## 6. Memory, drawing and speed
 
 | Use | Size | Notes |
 | --- | --- | --- |
 | Screen canvas, 8-bit indexed | 76.8 KB | 320 × 240 × 1 byte, allocated first |
-| Push buffers | 2 × 7.68 KB | Each turns a band of 12 canvas rows into RGB565 for SPI DMA, plus the 256-colour palette in the panel's byte order (512 B) |
-| NimBLE host and controller | ~75 KB, measured | |
+| Push buffers | 2 × 3.84 KB | Each turns a band of 6 canvas rows, or the part of one that changed, into RGB565 for SPI DMA, plus the 256-colour palette in the panel's byte order (512 B) and each tile's hash (1.6 KB) |
+| NimBLE host and controller | ~72 KB, measured | Built for what Boop uses (`platformio.ini`): one Mac connected, a peripheral that advertises, no bonds; NimBLE's defaults of three connections and the central and observer roles cost 3 KB more heap and 16 KB of flash |
 | Audio | ~15 KB | Four 1 KB DMA buffers, a 6 KB task stack (it reads the card as it plays), the player's 1 KB window of samples and the driver |
 | JSON and serial buffers | ~6 KB | 2 KB of received bytes each for USB and Bluetooth; a line is at most 512 bytes |
 | microSD | ~18 KB | The mount, with one file at a time (a FatFs file keeps a 4 KB sector), read through a plain POSIX descriptor shared under a mutex by lookups and the audio task |
@@ -331,9 +333,9 @@ write that still times out restarts the DAC and counts in `dbg.state`'s
 
 **Drawing.** The renderer uses integer maths only, so the board and the
 simulator agree to the pixel. Every colour comes from one 256-entry
-palette (`render/palette.h`). Text, the bubble and the strip are
-anti-aliased: each pixel row samples 4 sub-scanlines of 1/16 px, and the
-coverage picks one of 8 steps from black up to the ink.
+palette (`render/palette.h`). Text and the strip's two round icons are
+anti-aliased, as fontgen's glyphs and two 10 × 10 tables of 8 steps from
+black up to the ink; everything else is whole pixels.
 
 **The face** is the animation bank's designs
 (`internal/boop-design/boop-sound-bank-v4/`, [its guide](../internal/boop-design/README.md)),
@@ -387,9 +389,13 @@ can't do on its own into rectangles and steps:
 - **A translucent group** is flattened as Chrome composites it, into
   pieces of one colour and opacity. The device blends each over the pixel
   beneath through a table (`kBlendOver`) of every blend the designs make.
-- **What the designs repeat is stored once**: each group's rectangles,
-  and each track, its key times and its values. The flip-books repeat
-  themselves a lot, so the faces take 1.19 MB (§5).
+- **What the designs repeat is stored once**: each group, each
+  rectangle, each group's list of rectangles, and each track, its key
+  times and its values; a scene's groups and a list's rectangles are
+  16-bit indexes into them (`kSceneGroups`, `kRectIdx`). The flip-books
+  repeat themselves a lot: 12,156 of 38,999 groups and 15,126 of 41,697
+  rectangles are different, so the faces take 0.64 MB (§5), 1.19 MB
+  before the groups and rectangles were shared.
 
 The designs' 89 colours sit in the palette after the ramps
 (`faces::kSceneBase`). Every design is clipped above y 192, leaving the
@@ -443,8 +449,12 @@ sign covers the strip, so the working count doesn't show while something
 needs you. `test_face` pins the timings; the `needs_you` scenario's shots
 show the rise and each spot.
 
-**Redrawing.** A full-screen push is 153.6 KB over SPI, about 31 ms at
-40 MHz, so the firmware pushes only the 12-row bands whose rows changed.
+**Redrawing.** A full-screen push is 153.6 KB over SPI, about 15 ms at
+80 MHz, so the firmware pushes only what changed: the screen is 40 bands
+of 6 rows, each cut into ten 32-px tiles, and of each band it sends the
+columns from its first changed tile to its last, found by hashing each
+tile four pixels at a time (`render::Changes`). A blink or a step of a
+design touches a few tiles of a few bands, so it sends a few KB.
 It draws a frame only when the picture can have changed: after a message
 or an input, when a part of the face's design moves or shows differently
 (`render::SceneFrame`, which is also what it draws, so the face is laid out
@@ -459,11 +469,14 @@ frames stay exact) and a press draws at once for its first 60 ms. A screenshot a
 
 | Measure | Value | Source |
 | --- | --- | --- |
-| Firmware size | 2.36 MB (2,356,355 bytes), 74.9% of app0 | The board build that plays the takes from the card, with the needs-you sign (`make -C internal fw`), 2026-09-29 |
-| Free heap with the voice pack open on the card | 51.3 KB (51,332 bytes; least 51,184) | The bench board, firmware `1898f5c2` with the one-file mount, [2026-09-29](evidence/2026-09-29-voice-sd/README.md). The soak with it is still to run |
+| Firmware size | 1.79 MB (1,791,059 bytes), 56.9% of app0 | The board build with the faces' groups and rectangles shared and NimBLE sized for one Mac (`make -C internal fw`), [2026-09-29](evidence/2026-09-29-overnight/README.md); 2.34 MB before |
+| Free heap with the voice pack open on the card | 51.3 KB (51,332 bytes; least 51,184) | The bench board, firmware `1898f5c2` with the one-file mount, [2026-09-29](evidence/2026-09-29-voice-sd/README.md) |
+| Minimum free heap through a 30-minute soak, with NimBLE sized for one Mac | 54.5 KB (54,456 bytes after the first minute, 54,452 at the end), no reset, no audio errors | The bench board, firmware `a0d75321` plus `platformio.ini`'s NimBLE flags, advertising (no Mac connected), [2026-09-29](evidence/2026-09-29-overnight/README.md) |
+| Minimum free heap through a 45-minute soak, with the changed columns pushed at 80 MHz and the frame key | 64.8 KB (64,756 bytes from the first minute to the end), no reset, no audio errors, 286 reactions each ended once | The bench board, firmware `31691c98` plus the frame key and the power-on look, advertising (no Mac connected), [2026-09-29](evidence/2026-09-29-overnight/README.md) |
 | Minimum free heap, through a 10-minute soak with brain reactions | 71.5 KB (71,472 bytes), no drift from its first sample | The bench board, firmware `067c7d80`, [2026-09-29](evidence/2026-09-28-mood-spectrum/board/README.md) |
 | Frames a second through `perf --motion`'s finishes and pokes | 6.1 on average, 3 at the least: the wiggle now plays the stepped poke designs, not a continuous sway, so fewer frames change | The bench board, firmware `067c7d80`, 60 s, the same |
 | Drawing and pushing one changed frame (`draw_us`, `push_us`), through the soak | 1.5 ms and 11.7 ms typically; 3.0 ms and 27.0 ms at the most | The same |
+| The slowest frame drawn and pushed through `perf --motion`'s finishes and pokes | 10.8 ms (32.7 ms before, 16.3 ms at 40 MHz), 6.6 frames a second, minimum free heap 63.3 KB (50.9 KB before) | The bench board, the changed columns of 6-row bands at 80 MHz, [2026-09-29](evidence/2026-09-29-overnight/README.md) |
 | Minimum free heap in motion | 71.5 KB | `perf --motion`, the same |
 
 `fps` in `dbg.ping` counts frames drawn, so it says how often the picture
@@ -521,11 +534,13 @@ the checks):
   first.
 - **Touch does nothing:** wrong pins, no calibration, or bus contention.
   Touch must stay on its own pins (§2).
-- **Boop is silent, faces fine:** `ping`'s `card` says why. `no card`:
+- **Boop is silent, faces fine:** the popover says "No voice", and
+  `ping`'s `card` says why. `no card`:
   the card is out, or not FAT (a card over 32 GB comes as exFAT, which
   the board can't read; format it FAT32). `no pack`: copy the pack on
   with `voicegen.py --card`. Or the pack is another version than the
-  app's, which `boop.log` says ([VOICE.md](VOICE.md) §8).
+  app's. Once the card is back in, press the board's reset button
+  ([VOICE.md](VOICE.md) §8).
 - **Backlight flickers:** PWM too slow, or unstable USB power. Keep it at
   5 kHz or more.
 - **Advertising stops after a disconnect:** NimBLE-Arduino 2.x doesn't

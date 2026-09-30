@@ -1,5 +1,6 @@
 #include "render/scene.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "faces.h"
@@ -67,7 +68,7 @@ struct Placed {
 
 void place(const Scene& sc, const SceneShow& s, Placed& p) {
   for (int i = 0; i < sc.groups; ++i) {
-    const Group& g = kGroups[sc.group0 + i];
+    const Group& g = kGroups[kSceneGroups[sc.group0 + i]];
     int x = g.tx, y = g.ty;
     bool own = g.visible, shown = true, mouth = false;
     uint8_t fill = 0;
@@ -116,9 +117,9 @@ bool talk(const Scene& sc, const Placed& p, int16_t& ox, int16_t& oy, uint8_t& i
   int color = -1;
   for (int i = p.mouth; i < sc.groups; ++i) {
     if ((p.flags[i] & (Placed::kShown | Placed::kInMouth)) != (Placed::kShown | Placed::kInMouth)) continue;
-    const Group& g = kGroups[sc.group0 + i];
+    const Group& g = kGroups[kSceneGroups[sc.group0 + i]];
     for (int k = 0; k < g.rects; ++k) {
-      const Rect& r = kRects[g.rect0 + k];
+      const Rect& r = kRects[kRectIdx[g.rect0 + k]];
       int c = r.color == kInherit ? p.fill[i] : r.color;
       if (color < 0 && c > 0 && c < kBlend) color = c;
       if (r.x + p.x[i] < x0) x0 = r.x + p.x[i];
@@ -136,33 +137,20 @@ bool talk(const Scene& sc, const Placed& p, int16_t& ox, int16_t& oy, uint8_t& i
   return true;
 }
 
-// A translucent rectangle: each pixel it covers, within the clip, becomes
-// the blend of its colour over what's there.
-void blendRect(Canvas& c, int x, int y, int w, int h, int pair, const Scene& sc) {
-  int x0 = x < sc.clipX ? sc.clipX : x, y0 = y < sc.clipY ? sc.clipY : y;
-  int x1 = x + w, y1 = y + h;
-  if (x1 > sc.clipX + sc.clipW) x1 = sc.clipX + sc.clipW;
-  if (y1 > sc.clipY + sc.clipH) y1 = sc.clipY + sc.clipH;
-  if (x0 < 0) x0 = 0;
-  if (y0 < 0) y0 = 0;
-  if (x1 > kWidth) x1 = kWidth;
-  if (y1 > kHeight) y1 = kHeight;
+// A rectangle cut to the scene's clip and the screen, in colour `color`:
+// translucent from kBlend on, where each pixel it covers becomes the blend
+// of its colour over what's there.
+void clipRect(Canvas& c, int x, int y, int w, int h, int color, const Scene& sc) {
+  int x0 = std::max({x, int(sc.clipX), 0}), y0 = std::max({y, int(sc.clipY), 0});
+  int x1 = std::min({x + w, sc.clipX + sc.clipW, kWidth}), y1 = std::min({y + h, sc.clipY + sc.clipH, kHeight});
+  if (color < kBlend) return c.fillRect(x0, y0, x1 - x0, y1 - y0, toCanvas(color));
   uint8_t* px = c.pixels();
   for (int yy = y0; yy < y1; ++yy) {
     for (int xx = x0; xx < x1; ++xx) {
       uint8_t& d = px[yy * kWidth + xx];
-      d = toCanvas(kBlendOver[pair][fromCanvas(d)]);
+      d = toCanvas(kBlendOver[color - kBlend][fromCanvas(d)]);
     }
   }
-}
-
-// A rectangle cut to the scene's clip.
-void clipRect(Canvas& c, int x, int y, int w, int h, uint8_t ink, const Scene& sc) {
-  int x0 = x < sc.clipX ? sc.clipX : x, y0 = y < sc.clipY ? sc.clipY : y;
-  int x1 = x + w, y1 = y + h;
-  if (x1 > sc.clipX + sc.clipW) x1 = sc.clipX + sc.clipW;
-  if (y1 > sc.clipY + sc.clipH) y1 = sc.clipY + sc.clipH;
-  if (x1 > x0 && y1 > y0) c.fillRect(x0, y0, x1 - x0, y1 - y0, ink);
 }
 
 int moodIndex(Mood m) { return int(m) < kMoodCount ? int(m) : 0; }
@@ -245,7 +233,7 @@ uint8_t sceneInk(int color) { return color > 0 && color < kColorCount ? toCanvas
 bool blinksItself(Mood m, SceneState s, int variant) {
   const Scene& sc = kScenes[sceneOf(m, s, variant)];
   for (int i = 0; i < sc.groups; ++i) {
-    if (kGroups[sc.group0 + i].role == kRoleBlinkStep) return true;
+    if (kGroups[kSceneGroups[sc.group0 + i]].role == kRoleBlinkStep) return true;
   }
   return false;
 }
@@ -256,7 +244,7 @@ bool eyesClosed(const SceneShow& s) {
   place(sc, s, p);
   bool opens = false;
   for (int i = 0; i < sc.groups; ++i) {
-    uint8_t role = kGroups[sc.group0 + i].role;
+    uint8_t role = kGroups[kSceneGroups[sc.group0 + i]].role;
     if ((role == kRoleEyesClosed || role == kRoleBlinkStep) && p.on(i)) return true;
     opens = opens || role == kRoleEyesOpen || role == kRoleStep;
   }
@@ -285,15 +273,10 @@ void drawScene(Canvas& c, const SceneFrame& f) {
   const Scene& sc = kScenes[f.scene];
   for (int i = 0; i < sc.groups; ++i) {
     if (!f.on[i]) continue;
-    const Group& g = kGroups[sc.group0 + i];
+    const Group& g = kGroups[kSceneGroups[sc.group0 + i]];
     for (int k = 0; k < g.rects; ++k) {
-      const Rect& r = kRects[g.rect0 + k];
-      int color = r.color == kInherit ? f.fill[i] : r.color;
-      if (color >= kBlend) {
-        blendRect(c, r.x + f.x[i], r.y + f.y[i], r.w, r.h, color - kBlend, sc);
-      } else {
-        clipRect(c, r.x + f.x[i], r.y + f.y[i], r.w, r.h, toCanvas(color), sc);
-      }
+      const Rect& r = kRects[kRectIdx[g.rect0 + k]];
+      clipRect(c, r.x + f.x[i], r.y + f.y[i], r.w, r.h, r.color == kInherit ? f.fill[i] : r.color, sc);
     }
   }
   if (f.talkInk != kBlack) {

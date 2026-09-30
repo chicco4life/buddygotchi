@@ -49,7 +49,9 @@ final class RuntimeTests: XCTestCase {
     /// prompt would stall every event, and no event wakes the brain until it
     /// arrives; a key Settings saves or clears takes over at once. The read
     /// starts with `start`, once the callbacks are set, so it never races
-    /// the app setting them.
+    /// the app setting them. The status says whether it's been read, so the
+    /// popover never asks for a key that's still being read
+    /// (ARCHITECTURE.md §8).
     func testJevsKeyIsReadOffHome() throws {
         let prompt = DispatchSemaphore(value: 0)
         let reads = Lines()
@@ -68,11 +70,14 @@ final class RuntimeTests: XCTestCase {
         try runtime.start()
         defer { runtime.stop() }
         eventually("home answers while the key is read") { runtime.home.sync { statuses.last?.brain == "none" } }
+        XCTAssertTrue(runtime.home.sync { statuses.allSatisfy { !$0.keyRead } }, "not read yet, so not missing")
         prompt.signal()
         eventually("the brain once it's read") { runtime.home.sync { statuses.last?.brain == "jev-test" } }
+        XCTAssertTrue(runtime.home.sync { statuses.last?.keyRead == true })
         XCTAssertTrue(runtime.home.sync { runtime.pipeline.brain })
         runtime.reloadBrain(jevKey: nil)
         eventually("none when Settings clears it") { runtime.home.sync { statuses.last?.brain == "none" } }
+        XCTAssertTrue(runtime.home.sync { statuses.last?.keyRead == true }, "read, and there's none")
         XCTAssertFalse(runtime.home.sync { runtime.pipeline.brain }, "so no event wakes it")
         runtime.reloadBrain(jevKey: "k2")
         eventually("the brain when Settings saves one") { runtime.home.sync { statuses.last?.brain == "jev-test" } }
@@ -114,9 +119,24 @@ final class RuntimeTests: XCTestCase {
             }
         }
         XCTAssertEqual(AppSettings.load(from: dir).personality, .boop)
-        eventually("today's short-term memory") {
-            (try? String(contentsOf: self.dir.appendingPathComponent("short-term.md"), encoding: .utf8))?.contains("## Today") == true
-        }
+    }
+
+    /// ARCHITECTURE.md §8: why the link can't look for the device
+    /// (Bluetooth off) reaches the popover's status by the next tick, and
+    /// leaves it the same way.
+    func testTheLinksTroubleReachesTheStatus() throws {
+        let transport = FakeTransport()
+        let runtime = try makeRuntime(transport)
+        var statuses: [Runtime.Status] = []  // on `home`
+        runtime.onChange = { statuses.append($0) }
+        try runtime.start()
+        defer { runtime.stop() }
+        transport.lock.withLock { transport.why = "Bluetooth is off." }
+        runtime.home.sync { runtime.tick() }
+        XCTAssertEqual(runtime.home.sync { statuses.last?.linkTrouble }, "Bluetooth is off.")
+        transport.lock.withLock { transport.why = nil }
+        runtime.home.sync { runtime.tick() }
+        XCTAssertNil(runtime.home.sync { statuses.last?.linkTrouble })
     }
 
     /// harness/HARNESS.md §3–5: an event that wakes the brain gets a pass;
@@ -147,12 +167,16 @@ final class RuntimeTests: XCTestCase {
         eventually("the log line") { lines.lock.withLock { lines.log.contains { $0.hasPrefix("brain turn start ") && $0.hasSuffix("→ mood, react") } } }
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
         let debugLog = dir.appendingPathComponent(DebugLog.fileName)
-        func passes() -> [Substring] {
-            ((try? String(contentsOf: debugLog, encoding: .utf8)) ?? "").split(separator: "\n").filter { $0.contains("\"pass\":") }
+        func logged(_ kind: String) -> [Substring] {
+            ((try? String(contentsOf: debugLog, encoding: .utf8)) ?? "").split(separator: "\n").filter { $0.hasPrefix("{\"\(kind)\":") }
         }
+        func passes() -> [Substring] { logged("pass") }
         eventually("the second pass") { passes().count == 2 }
-        XCTAssertTrue(passes()[0].contains("Calm. Boop is settled"), "the first pass read calm")
-        XCTAssertTrue(passes()[1].contains("Annoyed. Boop is mildly put out"), "the next reads the new mood's file")
+        // The state's head is logged again only when it changes (§9).
+        let heads = logged("head")
+        XCTAssertEqual(heads.count, 2)
+        XCTAssertTrue(heads[0].contains("Calm. Boop is settled"), "the first pass read calm")
+        XCTAssertTrue(heads[1].contains("Annoyed. Boop is mildly put out"), "the next reads the new mood's file")
         XCTAssertTrue(Take.all.contains { $0.meaning == "work" && $0.mood == "grumpy"
                           && passes()[1].contains(#"Boop made a grumpy face, held once, and said \"\#($0.text)\"."#) },
                       "HISTORY shows what the actions did")
@@ -160,7 +184,7 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// harness/HARNESS.md §9: a bug report, debug mode or not, holds this
-    /// launch's debug lines (a pass's whole state included), the log's end,
+    /// launch's debug lines (the passes' states included), the log's end,
     /// the settings and mood files, and the status in `about.json`.
     func testABugReportKeepsEverythingOutsideDebugMode() throws {
         let transport = FakeTransport()
@@ -185,7 +209,8 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(report.deletingLastPathComponent().lastPathComponent, Runtime.reportsDir)
         let lines = try String(contentsOf: report.appendingPathComponent(DebugLog.fileName), encoding: .utf8).split(separator: "\n")
         XCTAssertTrue(lines[0].hasPrefix(#"{"questions":"#), "the questions first")
-        XCTAssertTrue(lines.contains { $0.contains(#""pass":"#) && $0.contains("PERSONALITY") }, "a pass with its whole state")
+        XCTAssertTrue(lines.contains { $0.hasPrefix(#"{"head":"#) && $0.contains("PERSONALITY") }, "the state's head")
+        XCTAssertTrue(lines.contains { $0.hasPrefix(#"{"pass":"#) && $0.contains("HISTORY (") }, "a pass with the rest of its state")
         XCTAssertTrue(lines.contains { $0.hasPrefix(#"{"sent":"#) }, "the lines sent to the device")
         XCTAssertTrue(lines.contains { $0.hasPrefix(#"{"status":"#) }, "the status")
         try XCTAssertEqual(String(contentsOf: report.appendingPathComponent("boop.log"), encoding: .utf8), "an old line\n")
@@ -195,15 +220,32 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// harness/HARNESS.md §9: the report's lines are capped at
-    /// `DebugLog.Recent.maxBytes`, the oldest let go first.
-    func testRecentLinesAreCapped() {
+    /// `DebugLog.Recent.maxBytes`, the oldest let go first, and kept as
+    /// their bytes alone, with at most an eighth more let go but not yet
+    /// dropped. The launch's `questions` line and the latest `head` line
+    /// let go still start the report.
+    func testRecentLinesAreCapped() throws {
         let recent = DebugLog.Recent()
-        let line = String(repeating: "x", count: 1023)
-        for _ in 0..<(DebugLog.Recent.maxBytes / 1024 + 5000) { recent.add(line) }
+        XCTAssertEqual(DebugLog.Recent.maxBytes, 8 << 20)
+        recent.add(#"{"questions":[],"received_at_ms":1}"#)
+        recent.add(DebugLog.head("old", at: 2))
+        recent.add(DebugLog.head("new", at: 3))
+        for n in 0..<(DebugLog.Recent.maxBytes / 1024 + 5000) { recent.add(String(format: "%07d", n) + String(repeating: "x", count: 1016)) }
         recent.add("last")
-        XCTAssertEqual(recent.kept.last, "last")
-        XCTAssertLessThanOrEqual(recent.kept.reduce(0) { $0 + $1.utf8.count + 1 }, DebugLog.Recent.maxBytes)
-        XCTAssertGreaterThan(recent.kept.count, DebugLog.Recent.maxBytes / 1024 - 2)
+        let lines = recent.bytes.split(separator: 0x0A)
+        XCTAssertEqual(lines.last.map { String(decoding: $0, as: UTF8.self) }, "last")
+        XCTAssertLessThanOrEqual(recent.bytes.count, DebugLog.Recent.maxBytes)
+        XCTAssertGreaterThan(lines.count, DebugLog.Recent.maxBytes / 1024 - 2)
+        XCTAssertEqual(String(decoding: lines[1].prefix(7), as: UTF8.self), String(format: "%07d", Int(String(decoding: lines[0].prefix(7), as: UTF8.self))! + 1),
+                       "whole lines, in order")
+        XCTAssertLessThanOrEqual(recent.text.count, DebugLog.Recent.maxBytes / 8 * 9 + 1024)
+        XCTAssertLessThanOrEqual(recent.text.capacity, DebugLog.Recent.maxBytes / 8 * 9 + (32 << 10), "its room was never grown")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("recent.jsonl")
+        try Runtime.write(recent.pieces, to: url)
+        let written = try String(contentsOf: url, encoding: .utf8).split(separator: "\n")
+        XCTAssertEqual(Array(written.prefix(2)), [#"{"questions":[],"received_at_ms":1}"#, #"{"head":"new","received_at_ms":3}"#])
+        XCTAssertEqual(written.count, lines.count + 2)
     }
 
     /// harness/HARNESS.md §9: debug mode logs every hook with what it became
@@ -251,8 +293,114 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(printed.contains { $0.hasPrefix("  ✗ react (") && $0.hasSuffix(") didn't happen: no device connected") },
                       "the fake device never connected: \(printed)")
         let p = try XCTUnwrap(debugLines().compactMap { $0["pass"] as? [String: Any] }.first)
-        XCTAssertTrue((p["state"] as? String)?.hasPrefix("You are the mind of Boop") == true)
+        XCTAssertTrue((p["state"] as? String)?.hasPrefix("HISTORY (") == true)
+        XCTAssertTrue((debugLines().first { $0["head"] != nil }?["head"] as? String)?.hasPrefix("You are the mind of Boop") == true)
         XCTAssertEqual(p["questions"] as? [String], ["mood", "react.mood", "react.animation", "react.loops", "say.feeling", "say.about", "say.kind"])
+
+        // A bug report in debug mode copies the file's lines: none are kept
+        // in memory beside it.
+        XCTAssertTrue(runtime.home.sync { runtime.recent.bytes.isEmpty })
+        let saved = Lines()
+        runtime.saveReport { saved.add($0?.path ?? "none") }
+        eventually("the report") { !saved.all.isEmpty }
+        let copied = try String(contentsOf: URL(fileURLWithPath: saved.all[0]).appendingPathComponent(DebugLog.fileName), encoding: .utf8)
+        XCTAssertTrue(copied.hasPrefix(#"{"questions":"#) && copied.contains(#""pass":"#), copied)
+        let whole = try String(contentsOf: debugLog, encoding: .utf8)
+        XCTAssertTrue(whole.hasPrefix(copied))
+        let short = dir.appendingPathComponent("lines.jsonl")
+        try Data("one\ntwo\nthree\n".utf8).write(to: short)
+        XCTAssertEqual(Runtime.end(of: short, bytes: 8), Data("three\n".utf8), "the end of a longer file starts at a line")
+        XCTAssertEqual(Runtime.end(of: short, bytes: 14), Data("one\ntwo\nthree\n".utf8))
+        XCTAssertNil(Runtime.end(of: dir.appendingPathComponent("none"), bytes: 8))
+        // A longer launch's report starts with its questions line and the
+        // head in force where its lines start, as `recent`'s does.
+        let big = dir.appendingPathComponent("big.jsonl")
+        let questions = #"{"questions":[],"received_at_ms":1}"# + "\n", head = DebugLog.head("new", at: 3) + "\n"
+        try Data((questions + DebugLog.head("old", at: 2) + "\n" + head
+                  + String(repeating: String(repeating: "x", count: 1023) + "\n", count: DebugLog.Recent.maxBytes / 1024 + 10)).utf8).write(to: big)
+        let pieces = Runtime.debugLines(big)
+        XCTAssertEqual(pieces.map { String(decoding: $0.prefix(40), as: UTF8.self) }, [questions, head, String(repeating: "x", count: 40)])
+        XCTAssertEqual(pieces[2].count, DebugLog.Recent.maxBytes / 1024 * 1024)
+        XCTAssertEqual(Runtime.debugLines(short).count, 1, "all of a short file, as it is")
+    }
+
+    /// harness/HARNESS.md §9: the questions line is debug.jsonl's first
+    /// even when the launch ends a reaction the last one left in progress,
+    /// so `boopctl day` doesn't count those ends as a launch of their own.
+    func testTheQuestionsComeFirstWhenALaunchEndsWhatTheLastLeftOpen() throws {
+        var options = try options(FakeTransport())
+        options.debug = true
+        let now = options.clock()
+        let last = Pipeline(core: Core(config: .init()), transcript: Transcript(folder: dir.appendingPathComponent(Transcript.folderName)),
+                            view: TranscriptView())
+        let line = HookLine(agent: "claude", hook: "UserPromptSubmit", session: "s1", cwd: "/tmp/jetpack", ts: now - 1000)
+        let prompt = try XCTUnwrap(last.agent(XCTUnwrap(Adapter.event(from: line, receivedAt: now - 1000))).recorded.first)
+        last.record(Event(ts: now - 900, source: .boop, type: .action, phase: .start, specificType: "react",
+                          data: ["for": .int(Int64(prompt.seq)), "by": "brain", "ok": true, "message": "Boop smiled."]))
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        let lines = debugLines()
+        XCTAssertNotNil(lines.first?["questions"], "\(lines.first ?? [:])")
+        let end = try XCTUnwrap(lines.compactMap { ($0["event"] as? [String: Any]).flatMap(Event.init(json:)) }.first)
+        XCTAssertEqual(end.data["why"], "Boop restarted")
+    }
+
+    /// harness/HARNESS.md §5.1: transcript files older than 14 days go at
+    /// each new day, not only at launch, for an app left running for weeks.
+    /// The day the app opened isn't a new day: its launch pruned already.
+    func testANewDayDeletesTranscriptFilesPastFourteenDays() throws {
+        var options = try options(nil)
+        let clock = VirtualClock(harnessT0)
+        options.clock = { clock.now }
+        options.wallClock = { clock.now }
+        let runtime = try Runtime(options)
+        let folder = dir.appendingPathComponent(Transcript.folderName)
+        let time = LocalTime()
+        func file(_ daysAgo: Int64) -> URL { folder.appendingPathComponent(time.day(clock.now - daysAgo * 86_400_000) + ".jsonl") }
+        func exists(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path) }
+        func hook() {
+            runtime.home.sync {
+                runtime.hook(HookLine(agent: "claude", hook: "UserPromptSubmit", session: "s1", cwd: "/tmp/jetpack", ts: clock.now),
+                             received: clock.now)
+            }
+        }
+        let old = file(14), kept = file(12)
+        try Data("{}\n".utf8).write(to: old)
+        try Data("{}\n".utf8).write(to: kept)
+        XCTAssertEqual(Transcript.keptDays, 14)
+        hook()
+        XCTAssertTrue(exists(old), "the day the app opened isn't a new day")
+        clock.now += 86_400_000
+        hook()
+        XCTAssertFalse(exists(old), "past 14 days, today included")
+        XCTAssertTrue(exists(kept))
+    }
+
+    /// harness/HARNESS.md §9: the 10 s keepalive's `state`, the same as the
+    /// last one sent, is in debug.jsonl (the dashboard's sign that the app
+    /// is running) but not in boop.log, which names each change once.
+    func testTheKeepaliveStaysOutOfBoopLog() throws {
+        let lines = DebugLines()
+        var options = try options(nil)
+        let clock = VirtualClock(harnessT0)
+        options.clock = { clock.now }
+        options.debug = true
+        options.log = { line in lines.lock.withLock { lines.log.append(line) } }
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        func states() -> (sent: Int, logged: Int) {
+            (debugLines().filter { ($0["sent"] as? [String: Any])?["t"] as? String == "state" }.count,
+             lines.lock.withLock { lines.log.filter { $0.hasPrefix(#"link rules → {"t":"state""#) }.count })
+        }
+        eventually("the first state") { runtime.home.sync { states().sent == 1 } }
+        for _ in 0..<2 {
+            clock.now += DeviceLink.keepaliveMs
+            runtime.home.sync { runtime.tick() }
+        }
+        XCTAssertEqual(runtime.home.sync { states().sent }, 3)
+        XCTAssertEqual(runtime.home.sync { states().logged }, 1)
     }
 
     /// harness/HARNESS.md §9: each launch keeps the last one's lines as
@@ -279,6 +427,25 @@ final class RuntimeTests: XCTestCase {
     func debugLines() -> [[String: Any]] {
         let text = (try? String(contentsOf: dir.appendingPathComponent(DebugLog.fileName), encoding: .utf8)) ?? ""
         return text.split(separator: "\n").compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+    }
+
+    /// Every line `runtime`'s link sends from now on, with no transport
+    /// too, beside the runtime's own `onSend`.
+    func collectSent(_ runtime: Runtime) -> Lines {
+        let lines = Lines()
+        let emit = runtime.link.onSend
+        runtime.link.onSend = { lines.add($0); emit?($0, $1) }
+        return lines
+    }
+
+    /// Every event this runtime's transcript recorded, from its files: it
+    /// keeps none in memory.
+    func recorded() -> [Event] {
+        let folder = dir.appendingPathComponent(Transcript.folderName)
+        return ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted().flatMap { name in
+            ((try? String(contentsOf: folder.appendingPathComponent(name), encoding: .utf8)) ?? "")
+                .split(separator: "\n").compactMap { Event(jsonLine: $0) }
+        }
     }
 
     /// The actions this runtime's debug.jsonl recorded, as events.
@@ -333,12 +500,12 @@ final class RuntimeTests: XCTestCase {
         var options = try options(nil)
         options.debug = true
         let runtime = try Runtime(options)
-        runtime.link.sentLines = []
+        let sentLines = collectSent(runtime)
         try runtime.start()
         defer { runtime.stop() }
         eventually("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
-        eventually("a mumble") { runtime.home.sync { runtime.link.sentLines!.contains { $0.contains(#""say":"#) } } }
+        eventually("a mumble") { runtime.home.sync { sentLines.all.contains { $0.contains(#""say":"#) } } }
         runtime.home.sync {}
 
         let text = try String(contentsOf: dir.appendingPathComponent(DebugLog.fileName), encoding: .utf8)
@@ -365,7 +532,7 @@ final class RuntimeTests: XCTestCase {
                     by: by.map { String(line[$0]).contains(#""brain""#) ? "brain" : "rule" })
         }
         let sent = sentBy.map(\.line)
-        XCTAssertEqual(sent, runtime.home.sync { runtime.link.sentLines! })
+        XCTAssertEqual(sent, runtime.home.sync { sentLines.all })
         XCTAssertTrue(sent.contains { $0.hasPrefix(#"{"t":"state""#) } && sent.contains { $0.hasPrefix(#"{"t":"moment""#) })
         // The scripted brain's reactions carry a mood; the rules' lines don't.
         for (line, by) in sentBy {
@@ -396,7 +563,7 @@ final class RuntimeTests: XCTestCase {
         var options = try options(nil)
         options.debug = true
         let runtime = try Runtime(options)
-        runtime.link.sentLines = []
+        let sentLines = collectSent(runtime)
         try runtime.start()
         defer { runtime.stop() }
         func sessions() -> [[String: String]] {
@@ -405,14 +572,14 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(HookSocket.send(hook("SessionStart"), to: socketPath))
         eventually("the first session") { sessions().count == 1 }
         func states(_ lines: [String]) -> [String] { lines.filter { $0.hasPrefix(#"{"t":"state""#) } }
-        let sent = runtime.home.sync { runtime.link.sentLines! }
+        let sent = runtime.home.sync { sentLines.all }
         XCTAssertTrue(states(sent).last?.contains(#""base":"idle""#) == true, "\(sent)")
         let second = HookLine(agent: "claude", hook: "SessionStart", session: "s2", cwd: "/tmp/notes",
                               ts: Int64(Date().timeIntervalSince1970 * 1000)).encoded()
         XCTAssertTrue(HookSocket.send(second, to: socketPath))
         eventually("the second session") { sessions().count == 2 }
         XCTAssertEqual(sessions().map { $0["status"] }, ["idle", "idle"])
-        XCTAssertEqual(states(runtime.home.sync { runtime.link.sentLines! }), states(sent), "no new state")
+        XCTAssertEqual(states(runtime.home.sync { sentLines.all }), states(sent), "no new state")
     }
 
     /// The dashboard's dev lines. A forced pass needs no
@@ -427,7 +594,7 @@ final class RuntimeTests: XCTestCase {
         try runtime.start()
         defer { runtime.stop() }
         transport.onConnection?(true)
-        eventually("no brain") { runtime.home.sync { !runtime.readingJevKey && runtime.jevKey != nil } }
+        eventually("no brain") { runtime.home.sync { runtime.jevKey != nil } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
 
         dev(#"{"dev":"answer","answers":{"react.mood":"grumpy","say.about":"work"}}"#)
@@ -487,7 +654,7 @@ final class RuntimeTests: XCTestCase {
             eventually("listening") { runtime.home.sync { runtime.core.listening?.by == .device } }
             transport.onLine?(#"{"t":"input","k":"talk_off"}"#)
             eventually("heard nothing") { transport.sent.contains(empty) }
-            XCTAssertEqual(runtime.home.sync { runtime.pipeline.transcript.events.filter { $0.type == .talk }.count }, 0)
+            XCTAssertEqual(runtime.home.sync { self.recorded().filter { $0.type == .talk }.count }, 0)
 
             let before = transport.sent.count
             dev(#"{"dev":"said","words":"are the tests passing?","by":"device"}"#)
@@ -500,7 +667,7 @@ final class RuntimeTests: XCTestCase {
             } else {
                 XCTAssertEqual(after, [empty], "no reply: listening ends")
             }
-            let talk = try XCTUnwrap(runtime.home.sync { runtime.pipeline.transcript.events.last { $0.type == .talk } })
+            let talk = try XCTUnwrap(runtime.home.sync { self.recorded().last { $0.type == .talk } })
             XCTAssertEqual(talk["words"], "are the tests passing?")
 
             dev(#"{"dev":"listen","on":true}"#)
@@ -598,24 +765,14 @@ final class RuntimeTests: XCTestCase {
         try XCTAssertThrowsError(try Runtime(options)) { XCTAssertEqual("\($0)", "\(Runtime.OpenError.notSetUp)") }
     }
 
-    /// The app bundles a copy of plan/steering/, file for file.
-    func testTheBundledSteeringIsTheSpec() throws {
-        let bundled = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .appendingPathComponent("../../../app/Boop/Resources/steering").standardizedFileURL
+    /// plan/steering/ has the guide, a file per mood and the two
+    /// personalities (harness/DECISIONS.md §2). harness/HARNESS.md §6.2: the
+    /// static parts stay within their budgets, and the personalities'
+    /// settings are BEHAVIORS.md §6's.
+    func testTheSteeringFitsItsBudgetsAndSettings() throws {
         let files = try XCTUnwrap(FileManager.default.subpaths(atPath: Self.steeringDir.path)).filter { $0.hasSuffix(".md") }.sorted()
         XCTAssertEqual(files, ["guide.md"] + MoodGraph.moods.sorted().map { "mood/\($0).md" }
                                + ["personality/boop.md", "personality/chatter.md"])
-        for file in files {
-            try XCTAssertEqual(try String(contentsOf: bundled.appendingPathComponent(file), encoding: .utf8),
-                               try String(contentsOf: Self.steeringDir.appendingPathComponent(file), encoding: .utf8),
-                               "app/Boop/Resources/steering/\(file) must be a copy of plan/steering/\(file)")
-        }
-        XCTAssertEqual(FileManager.default.subpaths(atPath: bundled.path)?.filter { $0.hasSuffix(".md") }.sorted(), files)
-    }
-
-    /// harness/HARNESS.md §6.2: the static parts stay within their budgets,
-    /// and the personalities' settings are BEHAVIORS.md §6's.
-    func testTheSteeringFitsItsBudgetsAndSettings() {
         XCTAssertEqual(Self.steering.overBudget(), [])
         XCTAssertEqual(Self.steering.personality(.boop).rules, Personality.Rules(workBeatMs: 90_000...180_000, toolUses: .notable))
         XCTAssertEqual(Self.steering.personality(.chatter).rules, Personality.Rules(workBeatMs: 30_000...60_000, toolUses: .all))
@@ -667,7 +824,7 @@ final class RuntimeTests: XCTestCase {
         eventually("started as boop") { runtime.home.sync { statuses.last?.personality == .boop } }
         runtime.setPersonality(.chatter)
         eventually("chatter now") { runtime.home.sync { statuses.last?.personality == .chatter } }
-        XCTAssertEqual(runtime.home.sync { runtime.view.config.rules.toolUses }, .all)
+        XCTAssertEqual(runtime.home.sync { runtime.view.rules.toolUses }, .all)
         XCTAssertEqual(AppSettings.load(from: dir).personality, .chatter)
     }
 
@@ -699,7 +856,7 @@ final class RuntimeTests: XCTestCase {
         eventually("the start's reaction has played") {
             runtime.home.sync {
                 let schedule = runtime.schedule
-                return schedule.lineFree <= runtime.options.clock() && schedule.waiting.isEmpty
+                return schedule.holder == nil && schedule.waiting.isEmpty
             }
         }
         XCTAssertTrue(HookSocket.send(Data(#"{"dev":"advance","ms":30000}"#.utf8), to: socketPath))
@@ -717,48 +874,32 @@ final class RuntimeTests: XCTestCase {
 
     /// ARCHITECTURE.md §3.2: the brain's moments play one at a time, each
     /// after any line playing, so none cuts off a line or another of the
-    /// brain's mumbles; a mumble plays over a poke, and a tap's poke
-    /// doesn't stop the line either (BEHAVIORS.md §3.3). One sent to the device holds
-    /// the line until the device says it ended, and for the brain's next
-    /// until its mumble has played, or its `ended` if sooner.
+    /// brain's mumbles. One sent to the device holds the line until the
+    /// device says it ended, and for the brain's next until its mumble has
+    /// played, or its `ended` if sooner.
     func testBrainMomentsTakeTurns() {
         let line = DeviceMoment.Say.test(ms: 720)
         let mumble = DeviceMoment(say: line, mood: "proud")  // its line is 1920 ms
-        var schedule = MomentSchedule()
-        schedule.tapped(now: 0)
-        schedule.brain(mumble, now: 100)
-        schedule.brain(mumble, now: 200)
-        var due = schedule.due(now: 500)
-        XCTAssertEqual(due.play, mumble, "over the poke, which a mumble doesn't cut")
-        schedule.hold(id: 1, mumble, now: 500, until: 500 + schedule.playMs(mumble) + MomentSchedule.endGraceMs)
+        var schedule = MomentSchedule(lastId: 0)
+        schedule.brain(mumble, Pending(), now: 100)
+        schedule.brain(mumble, Pending(), now: 200)
+        var due = schedule.due(now: 500, connected: true)
+        XCTAssertEqual(due.play.queued, mumble)
         XCTAssertEqual(schedule.next, 500 + 1920 + MomentSchedule.linkSlackMs, "the second waits for the first's mumble")
-        XCTAssertFalse(schedule.idle(now: 2000), "the line is busy")
-        XCTAssertNil(schedule.due(now: 2000).play)
-        schedule.ended(id: 2, now: 2200)
-        XCTAssertNil(schedule.due(now: 2200).play, "another moment's end")
-        schedule.ended(id: 1, now: 2300)
-        due = schedule.due(now: 2300)
-        XCTAssertEqual(due.play, mumble, "then the second, once the device says the first is over")
-        XCTAssertNil(due.next, "nothing left")
-
-        // Sent with no id, as with no device, it holds the line as
-        // reckoned, a tap's poke or not.
-        var cut = MomentSchedule()
-        cut.brain(mumble, now: 0)
-        XCTAssertEqual(cut.due(now: 0).play, mumble)
-        cut.brain(mumble, now: 1000)
-        XCTAssertNil(cut.due(now: 1500).play, "a line is playing")
-        let free = cut.lineFree
-        cut.tapped(now: 1500)
-        XCTAssertEqual(cut.lineFree, free, "the poke doesn't stop the line")
-        XCTAssertNil(cut.due(now: 1500).play)
+        XCTAssertNil(schedule.due(now: 2000, connected: true).play, "the line is busy")
+        schedule.ended(.done(2), now: 2200)
+        XCTAssertNil(schedule.due(now: 2200, connected: true).play, "another moment's end")
+        schedule.ended(.done(1), now: 2300)
+        due = schedule.due(now: 2300, connected: true)
+        XCTAssertEqual(due.play.queued, mumble, "then the second, once the device says the first is over")
+        XCTAssertNil(schedule.next, "nothing left")
     }
 
     /// harness/DECISIONS.md §5: a brain moment's handle goes through the
     /// schedule with it. One dropped for waiting over 5 s ends there as
     /// failed, `waited too long`; one whose turn comes is handed on with
     /// its handle, for whoever plays it to end.
-    func testADroppedMomentDidntHappen() {
+    func testADroppedMomentDidntHappen() throws {
         let line = DeviceMoment.Say.test(ms: 720)
         let mumble = DeviceMoment(say: line, mood: "proud")
         let cheer = DeviceMoment(anim: "task_complete", say: line, mood: "proud", outcome: "success")
@@ -769,18 +910,19 @@ final class RuntimeTests: XCTestCase {
             return pending
         }
         let late = handle("late"), onTime = handle("on time")
-        var schedule = MomentSchedule()
-        schedule.brain(cheer, now: 0)
-        XCTAssertEqual(schedule.due(now: 0).play, cheer)
-        schedule.hold(id: 1, cheer, now: 0, until: 5800)  // a cheer holds the line until its end
+        var schedule = MomentSchedule(lastId: 0)
+        schedule.brain(cheer, Pending(), now: 0)
+        XCTAssertEqual(schedule.due(now: 0, connected: true).play.queued, cheer)
+        let cheerEnds = try XCTUnwrap(schedule.holder?.until)  // a cheer holds the line until its end
         schedule.brain(mumble, late, now: 0)
-        schedule.brain(mumble, onTime, now: 1000)
-        let due = schedule.due(now: 5800)
+        schedule.brain(mumble, onTime, now: cheerEnds - 4800)
+        let due = schedule.due(now: cheerEnds, connected: true)
         XCTAssertEqual(MomentSchedule.maxWaitMs, 5000)
-        XCTAssertEqual(due.dropped, [mumble], "5.8 s is past 5 s")
+        XCTAssertGreaterThan(cheerEnds, 5000)
+        XCTAssertEqual(due.dropped, [mumble], "past 5 s")
         XCTAssertEqual(ends, ["late": .failed("waited too long")])
-        XCTAssertEqual(due.play, mumble, "4.8 s isn't")
-        XCTAssertTrue(due.pending === onTime, "handed on, still open")
+        XCTAssertEqual(due.play.queued, mumble, "4.8 s isn't")
+        XCTAssertTrue(schedule.playing.last?.pending === onTime, "handed on, still open")
     }
 
     /// harness/DECISIONS.md §5, PROTOCOL.md §4: a reaction is in progress
@@ -815,13 +957,13 @@ final class RuntimeTests: XCTestCase {
             clock.now = max(clock.now, runtime.home.sync { runtime.schedule.lineUntil })
             return try runtime.home.sync {
                 XCTAssertEqual(runtime.harness.force(["react.mood": "happy"]).map(\.name), ["react"])
-                let seq = try XCTUnwrap(runtime.pipeline.transcript.events.last { $0.type == .action && $0.specificType == "react" && $0.phase != .end }?.seq)
+                let seq = try XCTUnwrap(self.recorded().last { $0.type == .action && $0.specificType == "react" && $0.phase != .end }?.seq)
                 return (seq, try XCTUnwrap(transport.sent.last { $0.hasPrefix(#"{"t":"moment""#) }))
             }
         }
         func end(of seq: Int) -> Pending.End? {
             runtime.home.sync {
-                runtime.pipeline.transcript.events.first { $0.phase == .end && $0["for"] == .int(Int64(seq)) }.map(Self.end)
+                self.recorded().first { $0.phase == .end && $0["for"] == .int(Int64(seq)) }.map(Self.end)
             }
         }
 
@@ -1028,8 +1170,7 @@ final class RuntimeTests: XCTestCase {
 
     /// ARCHITECTURE.md §3.2: the schedule times a moment by the design
     /// showing: the look and mood of the last `state`. A reaction's face
-    /// holds the brain's next one back, and a tap's poke plays in it
-    /// without ending it.
+    /// holds the brain's next one back.
     func testTheScheduleTimesAMomentByTheDesignShowing() {
         let line = DeviceMoment.Say.test(ms: 100)
         let proud = DeviceMoment(say: line, mood: "proud", loops: 2)
@@ -1044,75 +1185,27 @@ final class RuntimeTests: XCTestCase {
         working.look = "working"
         XCTAssertEqual(schedule.playMs(proud), loop("proud", "idle"))
         XCTAssertEqual(working.playMs(proud), loop("proud", "working"))
-        schedule.brain(proud, now: 100)
-        schedule.brain(proud, now: 100)
-        let due = schedule.due(now: 100)
-        XCTAssertEqual(due.play, proud)
-        XCTAssertEqual(schedule.lineUntil, 100 + loop("proud", "idle"), "the next waits for its face")
-        XCTAssertEqual(due.next, 100 + MomentSchedule.maxWaitMs + 1, "or until the next has waited too long")
-        schedule.tapped(now: 200)
-        XCTAssertEqual(schedule.lineUntil, 100 + loop("proud", "idle"), "a tap's poke plays in the face")
-        XCTAssertEqual(schedule.busyUntil, max(schedule.lineUntil, 200 + DeviceMoment.tapMs(mood: schedule.mood, run: 1)))
+        schedule.brain(proud, Pending(), now: 100)
+        schedule.brain(proud, Pending(), now: 100)
+        let due = schedule.due(now: 100, connected: true)
+        XCTAssertEqual(due.play.queued, proud)
+        XCTAssertEqual(schedule.lineUntil, 100 + loop("proud", "idle"), "its line waits for its face")
+        XCTAssertEqual(schedule.next, 100 + proud.faceFirstMs + MomentSchedule.linkSlackMs, "the next, for its take")
     }
 
-    /// BEHAVIORS.md §3.3: the schedule counts taps in a row as the device
-    /// does, and times each as the design it plays: poked, the longest of
-    /// the mood's, for the first two of a run, tap_spam from the third. A
-    /// tap is in a row within 3 s of the last, the numbers the view counts
-    /// pokes by (`TranscriptView.Config`'s `inARowMs` and `answersRunFrom`)
-    /// and the firmware's (`Behaviour::kTapRunMs`, `kTapSpamFrom`). Taps
-    /// while something needs you or listening shows count, but only dip.
-    func testTapsInARowAreTimedAsTheDevicePlaysThem() {
-        let config = TranscriptView.Config()
-        XCTAssertEqual(MomentSchedule.tapRunMs, config.inARowMs)
-        XCTAssertEqual(MomentSchedule.tapSpamFrom, config.answersRunFrom)
-        XCTAssertEqual(MomentSchedule.tapRunMs, 3000)
-        XCTAssertEqual(MomentSchedule.tapSpamFrom, 3)
-        let longest = { (mood: String, state: String) in
-            (1...FaceLoops.count(mood: mood, state: state)).map { FaceLoops.ms(mood: mood, state: state, variant: $0) }.max()!
-        }
-        XCTAssertEqual(DeviceMoment.tapMs(mood: "calm", run: 1), longest("calm", "poked"))
-        XCTAssertEqual(DeviceMoment.tapMs(mood: "calm", run: 3), longest("calm", "tap_spam"))
-        var s = MomentSchedule()
-        s.mood = "wounded"
-        s.tapped(now: 1000)
-        XCTAssertEqual(s.animUntil, 1000 + longest("wounded", "poked"))
-        s.tapped(now: 3999)
-        XCTAssertEqual(s.taps, 2)
-        XCTAssertEqual(s.animUntil, 3999 + longest("wounded", "poked"))
-        s.tapped(now: 5000)
-        XCTAssertEqual(s.taps, 3)
-        XCTAssertEqual(s.animUntil, 5000 + longest("wounded", "tap_spam"), "the third spams")
-        s.tapped(now: 8000)
-        XCTAssertEqual(s.taps, 1, "3 s after the last: a new run")
-        XCTAssertEqual(s.animUntil, 8000 + longest("wounded", "poked"))
-        // Held: they count, and only dip.
-        s.show(look: "idle", mood: "wounded", attn: true, now: 9000)
-        s.tapped(now: 9000)
-        s.tapped(now: 9500, listening: true)
-        XCTAssertEqual(s.taps, 3)
-        XCTAssertEqual(s.animUntil, 9000, "needs you stopped the poke, and nothing played since")
-    }
-
-    /// ARCHITECTURE.md §3.2: a rule's one-shot plays at once, as a tap's
-    /// poke does, timed by its design in Boop's mood; a brain moment plays
-    /// over it without waiting. None goes while a brain moment's line
-    /// plays, which it would cut, nor while something needs you; a face
-    /// held on after its line may be replaced.
+    /// ARCHITECTURE.md §3.2: a rule's one-shot plays at once, and a brain
+    /// moment plays over it without waiting. None goes while a brain
+    /// moment's line plays, which it would cut, nor while something needs
+    /// you; a face held on after its line may be replaced.
     func testARuleOneShotPlaysAtOnceAndNeverCutsABrainLine() {
         var schedule = MomentSchedule()
         schedule.look = "working"
-        let shot = DeviceMoment(anim: "starting", variant: 1, ctx: "new_task")
         XCTAssertTrue(schedule.rulePlays(now: 100))
-        schedule.rule(shot, now: 100)
-        XCTAssertEqual(schedule.animUntil, 100 + FaceLoops.ms(mood: schedule.mood, state: "starting", variant: 1))
         let line = DeviceMoment.Say.test(ms: 240)
         let face = DeviceMoment(say: line, mood: "grumpy")
-        schedule.brain(face, now: 200)
-        let due = schedule.due(now: 200)
-        XCTAssertEqual(due.play, face, "the brain's mumble plays over it")
-        let until = 200 + schedule.playMs(face) + MomentSchedule.endGraceMs
-        schedule.hold(id: 1, face, now: 200, until: until)
+        schedule.brain(face, Pending(), now: 200)
+        let due = schedule.due(now: 200, connected: true)
+        XCTAssertEqual(due.play.queued, face, "the brain's mumble plays over it")
         XCTAssertFalse(schedule.rulePlays(now: 300), "its line plays")
         let spoken = 200 + face.sayMs + MomentSchedule.linkSlackMs
         XCTAssertFalse(schedule.rulePlays(now: spoken - 1))
@@ -1145,71 +1238,55 @@ final class RuntimeTests: XCTestCase {
     /// PROTOCOL.md §3–4, ARCHITECTURE.md §3.2: a brain moment sent to the
     /// device holds the line until the device's `ended` for it, or until
     /// the app stops waiting for that (its length and `endGraceMs`); then
-    /// the next one's turn comes. A tap stops it on the device, and "needs
-    /// you" starting stops everything; while something needs you, a tap
-    /// plays no poke.
+    /// the next one's turn comes. "Needs you" starting stops everything.
     func testTheDeviceSaysWhenTheLineIsFree() {
         let line = DeviceMoment.Say.test(ms: 720)
         let face = DeviceMoment(say: line, mood: "proud")
-        func sent(_ schedule: inout MomentSchedule, at now: Int64, id: Int) -> Int64 {
-            XCTAssertEqual(schedule.due(now: now).play, face)
-            let until = now + schedule.playMs(face) + MomentSchedule.endGraceMs
-            schedule.hold(id: id, face, now: now, until: until)
-            return until
+        func sent(_ schedule: inout MomentSchedule, at now: Int64) -> Int64 {
+            XCTAssertEqual(schedule.due(now: now, connected: true).play.queued, face)
+            return now + schedule.playMs(face) + MomentSchedule.endGraceMs
         }
-        var schedule = MomentSchedule()
-        schedule.brain(face, now: 0)
-        let until = sent(&schedule, at: 0, id: 7)
-        XCTAssertEqual(schedule.lineFree, until, "until its ended, at the latest when the app gives up on it")
-        XCTAssertEqual(schedule.busyUntil, until)
-        schedule.brain(face, now: 1000)
-        schedule.ended(id: 7, now: 1500)
-        XCTAssertEqual(schedule.lineFree, 1500)
-        XCTAssertEqual(schedule.due(now: 1500).play, face, "its turn")
+        var schedule = MomentSchedule(lastId: 6)
+        schedule.brain(face, Pending(), now: 0)
+        let until = sent(&schedule, at: 0)
+        XCTAssertEqual(schedule.holder?.until, until, "until its ended, at the latest when the app gives up on it")
+        schedule.brain(face, Pending(), now: 1000)
+        schedule.ended(.done(7), now: 1500)
+        XCTAssertNil(schedule.holder)
+        XCTAssertEqual(schedule.brainFree, 1500)
+        XCTAssertEqual(schedule.due(now: 1500, connected: true).play.queued, face, "its turn")
 
         // No `ended`: the line is free once the app stops waiting for it.
         var silent = MomentSchedule()
-        silent.brain(face, now: 0)
-        let deadline = sent(&silent, at: 0, id: 1)
-        XCTAssertFalse(silent.idle(now: deadline - 1))
-        XCTAssertNil(silent.due(now: deadline).play)
-        XCTAssertTrue(silent.idle(now: deadline))
+        silent.brain(face, Pending(), now: 0)
+        let deadline = sent(&silent, at: 0)
+        XCTAssertEqual(silent.holder?.until, deadline)
+        XCTAssertNil(silent.due(now: deadline, connected: true).play)
+        XCTAssertNil(silent.holder)
+        XCTAssertEqual(silent.brainFree, deadline)
 
-        // "Needs you" frees it. A tap leaves it to the moment's `ended`,
-        // since the line plays on over the poke.
-        for free in ["tap", "needs you"] {
-            var cut = MomentSchedule()
-            cut.brain(face, now: 0)
-            let held = sent(&cut, at: 0, id: 1)
-            cut.brain(face, now: 500)
+        // Its `ended` frees it, and so does "needs you" starting.
+        for free in ["ended", "needs you"] {
+            var cut = MomentSchedule(lastId: 0)
+            cut.brain(face, Pending(), now: 0)
+            _ = sent(&cut, at: 0)
+            cut.brain(face, Pending(), now: 500)
+            XCTAssertNil(cut.due(now: 1000, connected: true).play)
             switch free {
-            case "tap":
-                cut.tapped(now: 1000)
-                XCTAssertEqual(cut.lineFree, held, "a tap alone")
-                XCTAssertNil(cut.due(now: 1000).play)
-                cut.ended(id: 1, now: 1000)
+            case "ended": cut.ended(.done(1), now: 1000)
             default: cut.show(look: "idle", mood: "happy", attn: true, now: 1000)
             }
-            XCTAssertEqual(cut.lineFree, 1000, free)
-            XCTAssertEqual(cut.due(now: 1000).play, face, free)
+            XCTAssertEqual(cut.brainFree, 1000, free)
+            XCTAssertEqual(cut.due(now: 1000, connected: true).play.queued, face, free)
         }
-
-        // While something needs you a tap only dips the face: the
-        // schedule keeps what it had.
-        var held = MomentSchedule()
-        held.show(look: "idle", mood: "happy", attn: true, now: 0)
-        held.tapped(now: 200)
-        XCTAssertEqual(held.busyUntil, 0)
-        held.show(look: "idle", mood: "happy", attn: false, now: 300)
-        held.tapped(now: 400)
-        XCTAssertEqual(held.busyUntil, 400 + DeviceMoment.tapMs(mood: "happy", run: 2), "answered: it pokes")
 
         // Nothing plays with no device: `stop` frees everything.
         var gone = MomentSchedule()
-        gone.brain(face, now: 0)
-        _ = sent(&gone, at: 0, id: 1)
+        gone.brain(face, Pending(), now: 0)
+        _ = sent(&gone, at: 0)
         gone.stop(now: 10)
-        XCTAssertEqual(gone.busyUntil, 10)
+        XCTAssertNil(gone.holder)
+        XCTAssertEqual(gone.brainFree, 10)
     }
 
     /// harness/DECISIONS.md §5, ARCHITECTURE.md §3.2 (the owner's call,
@@ -1230,23 +1307,21 @@ final class RuntimeTests: XCTestCase {
         first.bind { ends["first"] = $0 }
         second.bind { ends["second"] = $0 }
         moments.brain(held, first, now: 0)
-        var play = moments.due(now: 0)
-        XCTAssertEqual(play.play, held, "the first plays at once")
-        guard var sent = play.play else { return }
-        moments.send(&sent, first, now: 0)
+        var play = moments.due(now: 0, connected: true)
+        XCTAssertEqual(play.play.queued, held, "the first plays at once")
+        guard let sent = play.play else { return }
         let faceEnds = 4 * FaceLoops.ms(mood: "proud", state: "idle", variant: 2)
         XCTAssertGreaterThanOrEqual(faceEnds, 16_000, "a face held four times over the idle look")
-        XCTAssertEqual(moments.lineFree, faceEnds + MomentSchedule.endGraceMs)
+        XCTAssertEqual(moments.holder?.until, faceEnds + MomentSchedule.endGraceMs)
 
         moments.brain(next, second, now: 1000)
         XCTAssertEqual(moments.next, 1920 + 500, "asked back once the first's mumble has played")
-        XCTAssertNil(moments.due(now: 2419).play)
-        play = moments.due(now: 2420)
-        XCTAssertEqual(play.play, next, "sent then, over the held face")
+        XCTAssertNil(moments.due(now: 2419, connected: true).play)
+        play = moments.due(now: 2420, connected: true)
+        XCTAssertEqual(play.play.queued, next, "sent then, over the held face")
         XCTAssertEqual(play.dropped, [])
-        guard var replacing = play.play else { return }
-        moments.send(&replacing, second, now: 2420)
-        XCTAssertFalse(moments.idle(now: 2420 + 1920), "the line waits for the second's ended")
+        guard let replacing = play.play else { return }
+        XCTAssertGreaterThan(moments.holder?.until ?? 0, 2420 + 1920, "the line waits for the second's ended")
 
         // The device ends the first at once, done: its line had played.
         moments.ended(MomentEnded(id: sent.id!, how: .done, why: nil), now: 2450)
@@ -1264,35 +1339,36 @@ final class RuntimeTests: XCTestCase {
         let face = DeviceMoment(say: line, mood: "proud")
         let cheer = DeviceMoment(anim: "task_complete", say: line, mood: "proud", outcome: "success")
         XCTAssertEqual(MomentSchedule.lateMs, 1000)
+        let freed = cheer.playMs(look: "idle", mood: MoodAction.initial) + MomentSchedule.endGraceMs
         func schedule() -> MomentSchedule {
             var s = MomentSchedule()
-            s.brain(cheer, now: 0)
-            _ = s.due(now: 0)
-            s.hold(id: 1, cheer, now: 0, until: 4840)  // it holds the line until 4.84 s
-            s.brain(face, now: 0)
+            s.brain(cheer, Pending(), now: 0)
+            _ = s.due(now: 0, connected: true)  // it holds the line until `freed`
+            s.brain(face, Pending(), now: freed - 4840)
             return s
         }
         var late = schedule()
-        XCTAssertEqual(late.next, 4840)
-        XCTAssertEqual(late.due(now: 5160).play, face, "its turn came at 4.84 s: the pump ran 0.32 s late")
+        XCTAssertEqual(late.next, freed)
+        XCTAssertEqual(late.due(now: freed + 320, connected: true).play.queued, face, "its turn came after 4.84 s: the pump ran 0.32 s late")
         var later = schedule()
-        XCTAssertEqual(later.due(now: 4840 + MomentSchedule.lateMs + 1).dropped, [face], "too late to count from its turn")
+        XCTAssertEqual(later.due(now: freed + MomentSchedule.lateMs + 1, connected: true).dropped, [face], "too late to count from its turn")
 
         var ends: [Pending.End] = []
         let pending = Pending()
         pending.bind { ends.append($0) }
         var stuck = MomentSchedule()
-        stuck.brain(DeviceMoment(say: line, mood: "proud", loops: 4), now: 0)
-        XCTAssertNotNil(stuck.due(now: 0).play)
-        XCTAssertEqual(stuck.lineUntil, 4 * FaceLoops.ms(mood: "proud", state: "idle", variant: 2), "a long face: idle's longest variation")
+        let long = DeviceMoment(anim: "task_complete", say: line, mood: "proud", loops: 4, outcome: "success")
+        stuck.brain(long, Pending(), now: 0)
+        XCTAssertNotNil(stuck.due(now: 0, connected: true).play)
+        XCTAssertGreaterThan(stuck.brainFree, 6001, "a long finish holds the line")
         stuck.brain(face, pending, now: 1000)
         XCTAssertEqual(stuck.next, 1000 + MomentSchedule.maxWaitMs + 1, "asked back when it's too old")
-        XCTAssertNil(stuck.due(now: 6000).play)
+        XCTAssertNil(stuck.due(now: 6000, connected: true).play)
         XCTAssertEqual(ends, [], "5 s isn't over 5 s")
-        let due = stuck.due(now: 6001)
+        let due = stuck.due(now: 6001, connected: true)
         XCTAssertEqual(due.dropped, [face], "dropped while the line is still busy")
         XCTAssertEqual(ends, [.failed("waited too long")])
-        XCTAssertNil(due.next)
+        XCTAssertNil(stuck.next)
     }
 
     /// harness/DECISIONS.md §5: the schedule hands the pump a brain moment
@@ -1309,7 +1385,8 @@ final class RuntimeTests: XCTestCase {
         let unsent = alone.due(now: 0, connected: false)
         XCTAssertEqual(unsent.play, face, "sent all the same, with no id")
         XCTAssertEqual(ends, [.failed("no device connected")])
-        XCTAssertTrue(alone.idle(now: 0), "the line is free")
+        XCTAssertNil(alone.holder, "nothing holds the line")
+        XCTAssertEqual(alone.brainFree, 0)
         XCTAssertEqual(alone.lastId, 7)
 
         var linked = MomentSchedule(lastId: 7)
@@ -1320,7 +1397,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(sent.play?.id, 8)
         XCTAssertEqual(linked.playing.map(\.id), [8])
         XCTAssertEqual(ends.count, 1, "its handle waits for the device")
-        XCTAssertFalse(linked.idle(now: 0))
+        XCTAssertNotNil(linked.holder)
     }
 
     /// ARCHITECTURE.md §3.2, PROTOCOL.md §4: whatever frees the line sends
@@ -1349,7 +1426,7 @@ final class RuntimeTests: XCTestCase {
         }
         func ends() -> [Pending.End] {
             runtime.home.sync {
-                runtime.pipeline.transcript.events.filter { $0.phase == .end && $0.specificType == "react" }.map(Self.end)
+                self.recorded().filter { $0.phase == .end && $0.specificType == "react" }.map(Self.end)
             }
         }
 
@@ -1393,21 +1470,19 @@ final class RuntimeTests: XCTestCase {
                        "nothing played the first, so the second didn't wait for it")
     }
 
-    /// ARCHITECTURE.md §3.2: "needs you" stops the poke and any line on
-    /// the device and plays nothing while it shows (BEHAVIORS.md §1), so
-    /// the schedule stops timing them: a reaction after it doesn't wait
-    /// for a line that was cut, and is timed on the new look's design.
+    /// ARCHITECTURE.md §3.2: "needs you" stops any line on the device and
+    /// plays nothing while it shows (BEHAVIORS.md §1), so the schedule
+    /// stops timing it: a reaction after it doesn't wait for a line that
+    /// was cut, and is timed on the new look's design.
     func testNeedsYouEndsWhatTheScheduleThoughtWasPlaying() {
         let line = DeviceMoment.Say.test(ms: 100)
         let face = DeviceMoment(say: line, mood: "proud", loops: 2)
         var schedule = MomentSchedule()
-        schedule.tapped(now: 0)
-        schedule.brain(face, now: 0)
-        XCTAssertEqual(schedule.due(now: 0).play, face)
+        schedule.brain(face, Pending(), now: 0)
+        XCTAssertEqual(schedule.due(now: 0, connected: true).play.queued, face)
         schedule.show(look: "working", mood: schedule.mood, attn: true, now: 300)
-        XCTAssertEqual(schedule.animUntil, 300)
         XCTAssertEqual(schedule.lineUntil, 300)
-        XCTAssertTrue(schedule.idle(now: 300))
+        XCTAssertEqual(schedule.brainFree, 300)
         XCTAssertEqual(schedule.playMs(face), face.playMs(look: "working", mood: schedule.mood))
     }
 
@@ -1417,34 +1492,30 @@ final class RuntimeTests: XCTestCase {
     /// run out.
     func testAWaitingMomentIsDroppedAtFiveSecondsWhateverPlays() {
         let line = DeviceMoment.Say.test(ms: 100)
-        let long = DeviceMoment(say: line, mood: "proud", loops: 4)
+        let long = DeviceMoment(anim: "task_complete", say: line, mood: "proud", loops: 4, outcome: "success")
         let next = DeviceMoment(say: line, mood: "happy")
         var ends: [Pending.End] = []
         let pending = Pending()
         pending.bind { ends.append($0) }
         var schedule = MomentSchedule()
-        schedule.brain(long, now: 0)
-        XCTAssertEqual(schedule.due(now: 0).play, long)
-        XCTAssertGreaterThan(schedule.lineUntil, 30_000, "four loops of the idle design")
+        schedule.brain(long, Pending(), now: 0)
+        XCTAssertEqual(schedule.due(now: 0, connected: true).play.queued, long)
+        XCTAssertGreaterThan(schedule.brainFree, 5501, "four loops of a finish")
         schedule.brain(next, pending, now: 500)
-        let early = schedule.due(now: 1000)
+        let early = schedule.due(now: 1000, connected: true)
         XCTAssertNil(early.play)
-        XCTAssertEqual(early.next, 500 + MomentSchedule.maxWaitMs + 1, "when it has waited too long")
-        let due = schedule.due(now: 5501)
+        XCTAssertEqual(schedule.next, 500 + MomentSchedule.maxWaitMs + 1, "when it has waited too long")
+        let due = schedule.due(now: 5501, connected: true)
         XCTAssertEqual(due.dropped, [next])
         XCTAssertEqual(ends, [.failed("waited too long")])
-        XCTAssertNil(due.next, "nothing waits")
+        XCTAssertNil(schedule.next, "nothing waits")
     }
 
-    /// ARCHITECTURE.md §3.2: what the device does on its own reaches the
-    /// schedule. A tap's poke plays there, and "needs you" stops it;
-    /// and each tick drops a reaction that has waited 5 s, before the
-    /// harness's ceiling could end it, whatever the pump's timer does
-    /// (a clock jump, or the Mac asleep).
-    func testTheScheduleFollowsTapsAndTicks() throws {
+    /// ARCHITECTURE.md §3.2: each tick drops a reaction that has waited
+    /// 5 s, before the harness's ceiling could end it, whatever the pump's
+    /// timer does (a clock jump, or the Mac asleep).
+    func testTheScheduleFollowsTicks() throws {
         let transport = FakeTransport()
-        // A brain that never reacts: the tap's pass would otherwise queue
-        // a reaction of its own whenever it happened to finish.
         var options = try options(transport, brain: ScriptedBrain(always: [:]))
         let clock = VirtualClock(harnessT0)
         options.clock = { clock.now }
@@ -1454,19 +1525,6 @@ final class RuntimeTests: XCTestCase {
         transport.onConnection?(true)
         runtime.home.sync {}
         let line = DeviceMoment.Say.test(ms: 100)
-
-        transport.onLine?(#"{"t":"input","k":"tap"}"#)
-        runtime.home.sync {}
-        let mood = runtime.home.sync { runtime.schedule.mood }
-        XCTAssertEqual(runtime.home.sync { runtime.schedule.animUntil }, clock.now + DeviceMoment.tapMs(mood: mood, run: 1),
-                       "the device's poke")
-        clock.now += 300
-        let asking = StateSnapshot(base: "idle", mood: "happy", attn: .init(agent: "claude", project: "x", more: 0, id: 1),
-                                   busy: 0, vol: 6)
-        runtime.home.sync { runtime.run([.state(asking)]) }
-        XCTAssertEqual(runtime.home.sync { runtime.schedule.animUntil }, clock.now, "needs you stopped it")
-        runtime.home.sync { runtime.run([.state(sampleSnapshot())]) }
-
         var ends: [Pending.End] = []
         let pending = Pending()
         pending.bind { ends.append($0) }
@@ -1535,7 +1593,7 @@ final class RuntimeTests: XCTestCase {
         let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
         func ends() -> [Pending.End] {
             runtime.home.sync {
-                runtime.pipeline.transcript.events.filter { $0.phase == .end && $0.specificType == "react" }.map(Self.end)
+                self.recorded().filter { $0.phase == .end && $0.specificType == "react" }.map(Self.end)
             }
         }
         connection(true)
@@ -1586,7 +1644,7 @@ final class RuntimeTests: XCTestCase {
         clock.now += 20
         device(#"{"t":"input","k":"tap"}"#)  // on the device before the second arrived
         XCTAssertEqual(moments(), 2, "the second may be playing: the third waits for its ended")
-        XCTAssertGreaterThan(runtime.home.sync { runtime.schedule.lineFree }, clock.now)
+        XCTAssertGreaterThan(runtime.home.sync { runtime.schedule.holder?.until ?? 0 }, clock.now)
         clock.now += 1500
         device(#"{"t":"ended","id":\#(transport.momentIds[1]),"how":"done"}"#)
         XCTAssertEqual(moments(), 3)
@@ -1750,11 +1808,10 @@ final class RuntimeTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dir) }
         let (harness, moodAction) = Runtime.harness(
             brain: nil, pipeline: Pipeline(core: Core(config: .init()), view: TranscriptView()),
-            mood: MoodStore(stateDir: dir), voice: Voice(), steering: Self.steering,
+            mood: MoodStore(stateDir: dir), steering: Self.steering,
             personality: { .boop }, time: LocalTime(timeZone: TimeZone(identifier: "UTC")!),
             clock: { clock.now }, wall: { clock.now }, queue: { _, _ in }, home: DispatchQueue(label: "boop.test"))
-        let poke = ViewEvent(id: 1, type: .poke, from: [1], ts: clock.now, line: "You poked Boop.", wakesBrain: true)
-        func closing() -> String? { harness.parts(poke).closing }
+        func closing() -> String? { harness.parts().closing }
         XCTAssertNil(closing(), "calm says nothing")
         _ = moodAction.change(to: "grumpy")
         clock.now += 30_000
@@ -1792,4 +1849,14 @@ func eventually(_ what: String, timeout: TimeInterval = 3, _ condition: () -> Bo
     let deadline = Date().addingTimeInterval(timeout)
     while !condition() && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
     XCTAssertTrue(condition(), what)
+}
+
+extension Optional where Wrapped == DeviceMoment {
+    /// The moment as it was queued, without the id `due` sent it with.
+    var queued: DeviceMoment? { map { var m = $0; m.id = nil; return m } }
+}
+
+extension MomentEnded {
+    /// The device's `ended` for `id`, played to the end.
+    static func done(_ id: Int) -> MomentEnded { MomentEnded(id: id, how: .done) }
 }

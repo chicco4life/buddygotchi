@@ -26,33 +26,18 @@ Score score(int mood, int state, int variant) {
   int i = scoreIndex(mood, state, variant);
   if (i < 0) return {};
   const sfx_assets::Score& s = sfx_assets::kScore[i];
-  Score out;
-  out.policy = Policy(s.policy);
-  out.every = s.every;
-  out.duck = s.duck;
-  out.voiceMs = s.voiceMs;
-  out.lists = s.lists;
-  out.loop0 = s.loop0;
-  return out;
+  return {Policy(s.policy), s.every, s.duck, s.voiceMs, s.lists, s.loop0};
 }
 
 Events events(const Score& s, uint32_t loop) {
   if (s.lists <= 0) return {};
   const sfx_assets::List& l = sfx_assets::kList[sfx_assets::kLoopList[s.loop0 + int(loop % uint32_t(s.lists))]];
-  Events out;
-  out.first = l.first;
-  out.n = l.n;
-  return out;
+  return {l.first, l.n};
 }
 
 FxEvent fxEvent(int i) {
   const sfx_assets::Event& e = sfx_assets::kEvent[i];
-  FxEvent out;
-  out.atMs = e.atMs;
-  out.clip = e.clip;
-  out.gain = e.gain;
-  out.pitch = e.pitch;
-  return out;
+  return {e.atMs, e.clip, e.gain, e.pitch};
 }
 
 int effectCount() { return sfx_assets::kClips; }

@@ -1,6 +1,6 @@
 # Boop: architecture
 
-Updated 2026-09-29. The parts of Boop, how they connect, what each one
+Updated 2026-09-30. The parts of Boop, how they connect, what each one
 keeps and where, the budgets, and the decisions still in force. The other
 specs go deeper on each part; [README.md](README.md) lists them.
 
@@ -25,9 +25,9 @@ approve on the Mac as you normally would.
 │                  ┌──────────┴───────────┐                      │    │
 │                  ▼                      ▼                      │    │
 │  Core: sessions, rules, 1 s tick   View: view events           │    │
-│     │              │                    │ that wake the brain  │    │
-│     ▼              ▼                    ▼                      │    │
-│   state         new day ─► Memory    Harness ◄──► Jev          │    │
+│     │                                   │ that wake the brain  │    │
+│     ▼                                   ▼                      │    │
+│   state                              Harness ◄──► Jev          │    │
 │     │                                   │ answers              │    │
 │     │                                   ▼                      │    │
 │     │                                Actions ─ mood ─► Core    │    │
@@ -105,7 +105,7 @@ talks to the device.
 | Thread link | `App/ThreadLink.swift` | Where a thread opens on the Mac: its link in the Claude or Codex app, or its app brought forward ([BEHAVIORS.md](BEHAVIORS.md) §3.2) | Why it's opened |
 | Moment schedule | `App/MomentSchedule.swift` | Decides when each brain moment plays: after any line playing, over an animation, or not at all; numbers the ones sent and ends their handles from the device's `ended` | What's in it |
 | Voice | `Voice/` | Turns a feeling, a topic, a kind and a face into a line of up to two of the recorded takes the board has, or none | Who asked, or why |
-| Memory store | `Memory/` | Reads and writes `long-term.md`, `short-term.md` and their snapshots | Models, the device |
+| Memory store | `Memory/` | Reads and writes `long-term.md` and its copies in `history/` | Models, the device |
 | Mood store | `MoodStore` in `Actions/MoodAction.swift` | Reads and writes the `mood` file | Who changes it |
 | Device link | `DeviceLink/` | Sends `state` and moments, receives taps and status, over Bluetooth or USB | What any of it means |
 | Hook installer | `Install/` | Adds, repairs and removes Boop's entries in the agents' settings | Anything at runtime |
@@ -134,6 +134,7 @@ clock.
 | `tick(at:)` | The runtime, once a second | `state` or `sessions` (an activity's hold running out, or a call gone quiet, included), a Codex request showing after its grace, a request the safety net clears (their `needs_you` actions), the mic off at 30 s |
 | `setVolume`, `setMood` | Settings; the mood action | `state` |
 | `setWallClock` | Every tick | None: it changes later decisions |
+| `replay(events)` | The transcript a launch read back, before anything else (§6) | None: each agent event is taken as `handle` takes it and the timers run at every event's time, but what the rules did then is recorded already. Which requests were shown is what the transcript's `needs_you` starts and ends say, so the core and the view agree; where the sessions folded again disagree, the first publish records the start or end that's missing, with why a request the read-back cleared did (the safety net, or forgotten). A request still shown is one this launch ends |
 
 | Effect | Carried out by |
 | --- | --- |
@@ -141,7 +142,7 @@ clock.
 | `sessions`, when the session list changed and the snapshot didn't | The menu bar's status, and `debug.jsonl`'s `status` line |
 | `record(Event)`: what the rules did, as an `action` | The transcript, right after the event that caused it, and so the view ([harness/EVENTS.md](harness/EVENTS.md) §2) |
 | `moment(DeviceMoment)`: a rule's one-shot (`starting`, `stopped`, `error`, `helper_return`, [BEHAVIORS.md](BEHAVIORS.md) §3.1), after the `state` of the same input | The device link, unless a brain moment's line plays (Moments, below) |
-| `newDay(date)`: the first hook or tap of a new local day | The memory store (§4) |
+| `newDay(date)`: the first hook, tap or talk of a local day after the one the app opened on or last saw activity | The transcript, which deletes its files past 14 days ([harness/HARNESS.md](harness/HARNESS.md) §5.1) |
 
 **What the core keeps:** the sessions ([ADAPTERS.md](ADAPTERS.md) §4 has
 their states), each with its running calls, the helpers it saw start,
@@ -162,9 +163,9 @@ adds who asks, "needs you" and what the look shows; the view, what each
 turn did. Each keeps its own copy: the core forgets a silent session on
 its tick, the view at the session's next event.
 
-**Its timers**, run by the tick: the Codex grace in `Core.Config`, the
-safety net and the idle and forget times in `SessionFold`, and the rest
-on `Core`:
+**Its timers**, run by the tick: the safety net and the idle and forget
+times in `SessionFold`, and the rest, the Codex grace included, on
+`Core`:
 
 | Timer | Value | Spec |
 | --- | --- | --- |
@@ -179,7 +180,8 @@ on `Core`:
 | The error one-shot plays at most once in | 30 s (`Core.errorEveryMs`) | [BEHAVIORS.md](BEHAVIORS.md) §3.1 |
 
 
-The view's, in `TranscriptView.Config`, which the tick asks it about:
+The view's, on `TranscriptView` (the working heartbeat's range from the
+personality's rules), which the tick asks it about:
 
 | Timer | Value | Spec |
 | --- | --- | --- |
@@ -239,11 +241,8 @@ that, or when the moment can't have played (one whose turn came with
 no device connected)
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5).
 
-The app reckons how long each moment plays at most, as the device times
-it: a tap's poke, the mood's poked design or, from the third tap in a
-row, tap_spam's (`MomentSchedule` counts taps as the device does,
-[BEHAVIORS.md](BEHAVIORS.md) §3.3), its longest variation; or a
-reaction's loops of its design (the animation's when it has one, the
+The app reckons how long each brain moment plays at most, as the device
+times it: a reaction's loops of its design (the animation's when it has one, the
 longest of the variations the device may play for its facts, else the
 look's), and the take's length, then 1.2 s to read the bubble, when
 that's longer; a take
@@ -260,10 +259,10 @@ moment on the device holds the schedule's line until the device's
 `ended` for it, and only if that never comes until the app gives up on
 it (its reckoning plus `endGraceMs`). The
 brain's next moment waits only until its take has played, or a silent
-face has shown for 1.2 s (`MomentSchedule.brainFree`), or its `ended` if that comes first. The schedule also hears what the device does on its own: a tap's
-poke replaces the animation playing, "needs you" starting stops everything, and
-while something needs you, or `listening` shows, a tap plays nothing
-but still counts in the run. A tap leaves a brain moment's line to its `ended`, since the line plays on over the poke. A reaction whose turn comes with no
+face has shown for 1.2 s (`MomentSchedule.brainFree`), or its `ended` if that comes first. The schedule also hears
+"needs you" starting, which stops everything on the device. It doesn't
+hear taps: a tap's poke replaces only an animation, and a brain moment's
+line plays on over it until its `ended`. A reaction whose turn comes with no
 device connected plays nowhere and holds nothing. But a link that drops
 doesn't stop what the device plays (the USB bridge reconnecting, or a
 Bluetooth blip), so a moment sent before the drop still holds the line
@@ -275,9 +274,12 @@ The brain is TypeSafe's Jev: it reads a plain-text state and answers
 multiple-choice questions with probabilities, all in one request of about
 0.2–0.3 s. The harness keeps the transcript, builds the state from it and
 the steering files, asks every action's questions, and hands each action
-its answers. One pass runs at a time, and a newer event that wakes the
-brain replaces one waiting. An action that started something is shown in
-progress until it reports how it ended, or the harness gives up waiting.
+its answers. One pass runs at a time. A newer event that wakes the brain
+waits behind a finished turn, which keeps its pass, and replaces any
+other one waiting; what you said goes ahead of the finishes waiting,
+so the next pass answers you. An action that started something is
+shown in progress until it reports how it ended, or the harness gives
+up waiting.
 Without Jev's key no pass runs: Boop shows its looks, "needs you",
 its one-shots and pokes, and nothing reacts or speaks
 ([harness/HARNESS.md](harness/HARNESS.md)).
@@ -307,8 +309,9 @@ a line, or none ([VOICE.md](VOICE.md) §4).
 
 ### 3.6 Memory store
 
-The memory store is the only code that reads or writes the memory files
-and their snapshots (§4), and it writes atomically.
+The memory store is the only code that reads or writes `long-term.md`
+and its copies in `history/` (§4). It reads the file once, when the app
+opens it, and writes atomically.
 
 ### 3.7 Device link
 
@@ -326,7 +329,11 @@ L4).
 ### 3.8 Runtime: queues, threads and timers
 
 All of Boop's state lives on one serial queue, `home`. Everything else
-hops onto it.
+hops onto it. Each block on `home`, and each hook connection on the hook
+server's thread, drains its own autorelease pool, so what Foundation
+leaves behind (a parsed line, a JSON line written) is freed at once: the
+hook server's thread never returns, and a burst keeps `home` busy, so
+either would otherwise hold it for good or until the burst ended.
 
 | Where | What runs there |
 | --- | --- |
@@ -340,10 +347,11 @@ hops onto it.
 
 | Timer | On | Does |
 | --- | --- | --- |
-| Tick, every 1 s | `home` | Reports the wall clock, runs the core's timers, sends the 10 s keepalive, gives up on a brain moment whose `ended` hasn't come in time ([harness/DECISIONS.md](harness/DECISIONS.md) §5), runs the moment pump, and ends any action left in progress too long ([harness/HARNESS.md](harness/HARNESS.md) §5.1) |
-| Moment pump | `home` | Plays the next brain moment when its turn comes, and drops one that has waited too long. Whatever frees the line sooner (a tap, the device's `ended`, "needs you") runs it at once, and so does a disconnect, though a brain moment still holds the line then (§3.2). Its timer has 5 ms of leeway, and counts the Mac's uptime, which stops while it sleeps, so one the clock has passed is replaced rather than waited for |
+| Tick, every 1 s | `home` | Reports the wall clock, runs the core's timers, sends the 10 s keepalive, gives up on a brain moment whose `ended` hasn't come in time ([harness/DECISIONS.md](harness/DECISIONS.md) §5), runs the moment pump, ends any action left in progress too long ([harness/HARNESS.md](harness/HARNESS.md) §5.1), and pushes a status when the link's trouble (Bluetooth off) changes |
+| Moment pump | `home` | Plays the next brain moment when its turn comes, and drops one that has waited too long. Whatever frees the line sooner (the device's `ended`, "needs you") runs it at once, and so does a disconnect, though a brain moment still holds the line then (§3.2). Its timer has 5 ms of leeway, and counts the Mac's uptime, which stops while it sleeps, so one the clock has passed is replaced rather than waited for |
+| A pass's deadline | `home` | Drops the pass running if Jev hasn't answered by then; the request goes on to its end, and the log says when it came ([harness/HARNESS.md](harness/HARNESS.md) §7) |
 
-At start the runtime takes the lock, reads the memory files (it won't run
+At start the runtime takes the lock, reads `long-term.md` (it won't run
 before setup), settings and mood, builds the core, Voice, the actions and
 the harness, then opens the socket, starts the link and the tick, and
 reads Jev's key. Until the key is read, no event wakes the brain. The app
@@ -358,26 +366,19 @@ lines on its socket, and can move its clock forward for tests
 
 ## 4. Memory and the state directory
 
-Boop's memory is two Markdown files in the state directory (§4.4):
-`long-term.md`, who this Boop is, and `short-term.md`, which day Boop last
-saw. Jev's state doesn't include them, and nothing records what Boop
-learns about you. Files from before 2026-09-27
-have more sections; they still load, and the store leaves them be.
+Boop's memory is one Markdown file in the state directory (§4.4),
+`long-term.md`, who this Boop is, with its copies in `history/` (§4.3).
+Jev's state doesn't include it, and nothing records what Boop learns
+about you. Files from before 2026-09-27 have more sections; they still
+load, and the store leaves them be. Apps before 2026-09-30 also kept
+`short-term.md`, the last day with activity; it's left where it is,
+unread.
 
-**A new day** starts at the day's first hook or tap, by the Mac's local
-calendar. The memory store snapshots both files to `history/<date>/`,
-where `<date>` is the date `short-term.md` held, the last day with
-activity (after a weekend, Friday's files go under Friday), and writes
-the new date to `short-term.md`. Setup also snapshots, under the day
-Boop hatched.
-
-**Hand edits** are welcome: the store reads a file again whenever it has
-changed on disk, so an edit isn't overwritten. A file that won't parse is
-copied to `<file>.broken`. `long-term.md` is then restored from its
-newest snapshot that reads, or else from the copy the store last read.
-`short-term.md` snapshots are always of an earlier day, so it keeps just
-the file's date if one can be found, so the day doesn't start twice, and
-otherwise starts fresh.
+**Hand edits** are welcome: the app never writes `long-term.md` after
+setup, and reads it at launch, so an edit takes effect then, and the
+launch keeps a copy of it (§4.3). A file that won't parse is copied to
+`long-term.md.broken` and restored from the newest copy in `history/`
+that reads.
 
 ### 4.1 The steering files
 
@@ -385,8 +386,8 @@ Boop's AGENTS.md: the guide that opens Jev's state, each personality
 (with its settings for the core's rules) and each mood
 ([harness/DECISIONS.md](harness/DECISIONS.md) §2). Nothing changes them at
 runtime, because different steering makes a different creature.
-`plan/steering/` is the single source; the app bundles a copy in
-`app/Boop/Resources/steering/`, and a test checks the two match.
+`plan/steering/` is the single source; the build copies it into the
+app's resources.
 
 ### 4.2 `long-term.md`
 
@@ -403,18 +404,16 @@ or cheeky), kept and not yet used; `seed` is random, 1 to `ffff` in hex,
 and seeds the core's and the view's randomness. It lives only on the Mac, so reflashing or
 replacing the device doesn't change it, and the app has no reset button.
 
-### 4.3 `short-term.md`
+### 4.3 `history/`
 
-From the memory tests (`testANewDaySnapshotsAndStartsFresh`):
-
-```markdown
-## Today
-2026-10-15
-```
-
-The core's new day writes it: the date alone. It's how a restart knows
-the day has already started. Anything after the date on the Today line,
-like the `first seen` time older files have, is ignored.
+Setup keeps a copy of `long-term.md` in `history/<the day Boop
+hatched>/`. A launch that reads a `long-term.md` unlike the newest copy
+there, a hand edit, copies it to `history/<today>/`, or over the newest
+copy if the Mac's clock is behind it, so the edit is always the newest.
+A `long-term.md` that won't parse comes back from the newest copy that
+reads, so a renamed Boop keeps its new name. Apps before 2026-09-29 also
+copied both memory files there at the end of each day with activity; a
+restore reads those too.
 
 ### 4.4 State directory
 
@@ -426,16 +425,15 @@ everyday Boop.
 | Path | What it is | Written |
 | --- | --- | --- |
 | `long-term.md` | Who this Boop is (§4.2) | At setup |
-| `short-term.md` | Today's date (§4.3) | At each new day |
-| `history/<date>/long-term.md`, `short-term.md` | Both memory files as they were at the end of that day, or at setup | At setup and each new day |
-| `<file>.broken` | The last memory file that wouldn't parse, kept for you to look at | When one doesn't parse |
+| `history/<date>/long-term.md` | `long-term.md` as setup wrote it, on the day Boop hatched, and as a hand edit left it, on the day a launch first read the edit (§4.3); older apps also kept both memory files at the end of each day with activity | At setup, and at a launch that finds `long-term.md` edited |
+| `long-term.md.broken` | The last `long-term.md` that wouldn't parse, kept for you to look at | When one doesn't parse |
 | `settings.json` | The personality and the volume (0–10), `boop` and 6 while it's missing. Keys it doesn't know, from older versions, are ignored, and an unknown personality reads as `boop` | When you change either in Settings |
 | `mood` | Boop's mood, one word and a newline; missing or unknown reads as `calm`, the resting mood, an unknown one logged, and `cheerful` as `happy` ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3) | By the `mood` action, on a change |
 | `boop.sock` | The hook socket, mode 0600 ([ADAPTERS.md](ADAPTERS.md) §2). Headless can put it elsewhere with `--socket` | Replaced at launch, removed at quit |
 | `boop.lock` | Locked while an app runs on this folder; a second copy refuses to start. The file stays, the lock goes with the process | At launch |
-| `boop.log` | The app's log, appended: startup, hook placement and repairs, the link connecting and dropping, the device's id and firmware, taps, memory recoveries, dropped brain moments, one `brain …` line per pass, and hooks only when armed or in debug mode. Never Jev's state ([harness/HARNESS.md](harness/HARNESS.md) §9) | Always |
-| `transcript/<date>.jsonl` | Every raw event of that day, one JSON line each ([harness/HARNESS.md](harness/HARNESS.md) §5) | Appended as events happen; a launch deletes files older than 14 days and reads the last 2 back |
-| `debug.jsonl` | Debug mode only: a `questions` line first, then every event, view event and pass, every line sent to the device and each status change, as JSON lines ([harness/HARNESS.md](harness/HARNESS.md) §9) | Emptied at each launch with `--debug`, after a copy of the last launch's goes to `debug.1.jsonl` |
+| `boop.log` | The app's log, appended: startup, hook placement and repairs, the link connecting and dropping, the device's id and firmware, taps, memory recoveries and copies, dropped brain moments, one `brain …` line per pass, and hooks only when armed or in debug mode. Never Jev's state ([harness/HARNESS.md](harness/HARNESS.md) §9) | Always; a launch that finds it past 5 MB (`BoopLog.maxBytes`) moves it to `boop.1.log`, replacing the one there, and starts a new one, but only while it holds `boop.lock`: a second copy started on a running app's folder leaves that app's log alone |
+| `transcript/<date>.jsonl` | Every raw event of that day, one JSON line each ([harness/HARNESS.md](harness/HARNESS.md) §5) | Appended as events happen; files older than 14 days are deleted at launch and each new day; a launch reads the last 2 back |
+| `debug.jsonl` | Debug mode only: a `questions` line first, then every event, view event and pass (the state's head in a `head` line when it changes), every line sent to the device and each status change, as JSON lines ([harness/HARNESS.md](harness/HARNESS.md) §9) | Emptied at each launch with `--debug`, after a copy of the last launch's goes to `debug.1.jsonl` |
 | `debug.<n>.jsonl` | Earlier launches' `debug.jsonl`, `debug.1.jsonl` the latest, as many as [harness/HARNESS.md](harness/HARNESS.md) §9 keeps | At each launch with `--debug`; the oldest is let go |
 | `bug-reports/<yyyy-MM-dd-HHmmss>/` | A bug report: this launch's debug lines, Jev's states included, the log's end, the settings, the mood and `about.json` ([harness/HARNESS.md](harness/HARNESS.md) §9) | When you press the bug button in the popover |
 | `doctor-armed` | While it's under 10 minutes old, the app logs every hook ([ADAPTERS.md](ADAPTERS.md) §6) | By the `doctor` skill; the app removes an older one |
@@ -476,16 +474,16 @@ What crosses each boundary, in the order an event travels:
 
 | State | Kept by | Where | After a restart |
 | --- | --- | --- | --- |
-| Sessions and their turns ([ADAPTERS.md](ADAPTERS.md) §4) | Core | Memory | Gone: each comes back with its next hook, and Boop sleeps until then |
+| Sessions and their turns ([ADAPTERS.md](ADAPTERS.md) §4), and the requests showing | Core | Folded from the transcript | Folded again from the last 2 days' files, the timers run at each event's time |
 | Turn numbers, failure runs, pokes in a row, the idle heartbeat's count | View | Folded from the transcript | Folded again from the last 2 days' files |
 | The working heartbeat's next time | View | Memory | Starts again |
-| The last active day | Core, from `short-term.md` | Disk | Kept, so a restart doesn't start the day twice |
+| The last active day | Core | Memory | Starts as the day the app opened, whose old transcript files the launch deleted |
 | The transcript | Transcript | `transcript/<date>.jsonl`, and `debug.jsonl` in debug mode | Kept 14 days; the last 2 read back |
-| The pass running and the one waiting, and started actions still open | Harness | Memory | Gone: an open action is ended as failed at launch |
+| The pass running and the ones waiting, and started actions still open | Harness | Memory | Gone: an open action is ended as failed at launch |
 | Brain moments waiting with their handles, when the device is free, and the look and mood of the last `state`, which time a moment's loops | Moment schedule | Memory | Gone |
 | Brain moments on the device, by `id`, with their handles and when to give up waiting for their `ended` | Runtime | Memory | Gone |
 | The latest snapshot, the device's status, whether it's connected | Device link | Memory | Rebuilt at start |
-| Project and workspace by folder (up to 512) | Adapter | Memory | Read again |
+| Project and workspace by folder (up to 512, each for 30 s) | Adapter | Memory | Read again |
 | Name, hatch day, nature, voice seed | Memory store | `long-term.md` | Kept |
 | Mood | Mood store | `mood` | Kept |
 | Volume, personality | Runtime | `settings.json` | Kept |
@@ -507,16 +505,18 @@ personality or memory, only its touch calibration. What it does is in
 | Failure | What happens |
 | --- | --- |
 | App not running, or the Mac asleep | Hooks give up within 50 ms and agents carry on. The device shows it has no app after 30 s ([BEHAVIORS.md](BEHAVIORS.md) §3.4) |
-| App restarted | Sessions are gone until their next hook; the mood, settings and memory stay (§6). A turn that was running goes idle when it finishes, but the brain isn't told of it, since Boop didn't see it start, so nothing celebrates it ([harness/EVENTS.md](harness/EVENTS.md) §7) |
+| App restarted | The core and the view fold the last 2 days of the transcript back in (§6), so the sessions, a request still waiting and a turn still running carry on, and that turn's finish is told as usual. A request still waiting shows with this launch's number, so the device announces it again. An action still in progress is ended as failed ([harness/HARNESS.md](harness/HARNESS.md) §5). The mood, settings and memory stay |
+| Bluetooth off, or not allowed | The app logs it, and the popover says so, with where to turn it on or allow it, instead of looking for the device ([PROTOCOL.md](PROTOCOL.md) §2) |
 | Device disconnected | The app keeps going and drops what it would send; on reconnect the latest `state` catches the device up. HISTORY says a reaction playing or sent meanwhile didn't happen ([harness/DECISIONS.md](harness/DECISIONS.md) §5), though one that was playing keeps the line until it ends (§3.2), since the device plays on |
 | Jev slow, offline or wrong | Rules still drive every reaction. A pass Jev fails, is late for, or answers off its options is dropped, and no action runs ([harness/HARNESS.md](harness/HARNESS.md) §7) |
-| No Jev key | No pass runs; events are still recorded |
-| A memory file won't parse | It's kept as `.broken` and recovered (§4) |
-| A second copy of Boop on the same state directory | It refuses to start (`boop.lock`), and the popover says another copy is running |
+| No Jev key | No pass runs; events are still recorded. The Overview says Boop can't react yet, with a button into Settings, until it's dismissed for the launch |
+| `long-term.md` won't parse | It's kept as `.broken` and recovered (§4) |
+| A second copy of Boop on the same state directory | It refuses to start (`boop.lock`), and the popover says another copy is running. As for any start that fails, the menu-bar icon's eyes turn to crosses, and its tooltip and VoiceOver say "Not running": they always say the popover's status line |
 | The hook socket can't open | The popover says Boop can't listen for hooks. Headless refuses a socket path over 103 bytes before starting |
 | `bin/boop-hook` missing, or an agent's settings file unreadable | Nothing is installed or repaired, and Settings says why ([ADAPTERS.md](ADAPTERS.md) §5) |
+| No agent's hooks connected, or a change to them failed | The Overview says so, with a button into Settings: with no sessions it says Boop isn't listening to any agent instead of promising to notice them, and a change that failed, at setup or in Settings, shows why until it's dismissed or the agent's hooks change. The agent's row in Settings keeps saying why until they change, through its next Connect, Repair or Remove or any other way |
 | The bundled steering folder missing or broken | The app exits with a message before the runtime starts |
-| The Keychain asks for access | Only the key's reader waits; hooks, ticks and the device carry on |
+| The Keychain asks for access | Only the key's reader waits; hooks, ticks and the device carry on. Until the key is read, the popover doesn't say there's none |
 | The Mac's clock changes | Timers don't; days and times of day follow it |
 
 ## 9. Budgets
@@ -561,7 +561,7 @@ dev tools, skills, the firmware's simulator and unit tests) is in
 | --- | --- | --- | --- |
 | `HookWire` | Library | `app/HookWire/` | Yes |
 | `BoopKit` | Library, on `HookWire` | `app/BoopKit/` | Yes |
-| `Boop` | The app | `app/Boop/`, plus `internal/app/Boop/` for `--headless` and `--snapshots` | Yes |
+| `Boop` | The app | `app/Boop/`, plus `internal/app/Boop/` for `--headless` and `--snapshots`, and `plan/steering/` as a resource | Yes |
 | `BoopHook` (`boop-hook`) | The hook client, on `HookWire` | `app/BoopHook/` | Yes |
 | `BoopDevKit` | Library: the evals and hook replay | `internal/app/BoopDevKit/` | No |
 | `BoopDev` (`boopdev`) | The developer CLI | `internal/app/BoopDev/` | No |
@@ -574,7 +574,7 @@ code. `Package.swift` is at the repo root because SwiftPM takes no target
 outside the package's root.
 
 The stable contracts are the common event ([ADAPTERS.md](ADAPTERS.md) §1),
-the memory files (§4), the harness's two contracts, events in and actions
+the memory file (§4), the harness's two contracts, events in and actions
 out ([harness/HARNESS.md](harness/HARNESS.md) §3–4), and the protocol
 ([PROTOCOL.md](PROTOCOL.md)).
 
@@ -693,3 +693,12 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-29 | What Boop says is two answers again, as the mumble's exclamation and topic word were: how it feels (`say.feeling`: upset, glad, tickled) and what NOW is about (`say.about`: 15 topics), played as a line of up to two takes, 180 ms apart, at most 2.8 s, a phrase alone; `say.meaning` goes. Every face has takes for every answer. Voice takes the nearest kind either way, never a swear nobody asked for. A failed turn's face is irritated, which swears; sad is for an agent giving up. The bubble drops to the small font for a line too long for the large one | The owner's rule: every face and every answer has something to play, and the topic words (Launch, Rerun, Cleared, Test) are the content half of the old pair. Sad and wounded were silent at the failures that matter most. The changed scenarios pass once each (15 of 15) | [VOICE.md](VOICE.md) §4, [harness/DECISIONS.md](harness/DECISIONS.md) §3, §5, [DEVICE.md](DEVICE.md) §4, [evidence](evidence/2026-09-29-voice-sd/eval.txt) |
 | 2026-09-29 | The free-heap floor is 50 KB, was 60 KB: the microSD mount costs about 18 KB even with one file open at a time, and the audio task's stack grows to 6 KB to read the card. `boopctl card` can copy the pack over USB, but at about 0.7 KB/s; a card reader is the way | Measured on the bench board: 38.8 KB with Arduino `File`s and four files allowed, 51.3 KB with one POSIX descriptor under a mutex. The voice needs the card; the rest of the budget is unchanged | [DEVICE.md](DEVICE.md) §6, [VOICE.md](VOICE.md) §8, [evidence](evidence/2026-09-29-voice-sd/README.md) |
 | 2026-09-29 | A tap while something needs you opens the waiting thread on the Mac (the `open_thread` rule action), and a click on the popover's card or a session's row opens that one: the Claude app's session by `claude://code/continue`, the Codex app's thread by `codex://threads/`, else the agent's app (its terminal) brought forward. The hook client keeps the app from the hook's environment. That tap no longer wakes the brain, reversing 2026-09-28's "every poke wakes the brain" while something needs you | The owner wanted a tap on the sign to take them to the thread, and only that: a poke's reaction couldn't play until the request cleared anyway |
+| 2026-09-29 | Voice doesn't say a word the last line said while another fits, whichever recording said it: it avoids the last line's texts, not its take ids, so it also skips the same word recorded in another mood or for the other question | 19 words are recorded twice in one pool a reaction picks from (grumpy's Shit and Fuck at a failure, happy's Done and Finish at a success, annoyed's Tsk and Pfft), so after a grumpy "Shit" the other Shit came next 1 time in 6. Matching by text reaches further: 260 of the 287 pools of one answer, kind and mood share a word with another pool (every mood recorded its own "Ready" for a start), so most picks after a face change can differ from what matching ids gave, and with them the "said" text HISTORY shows the brain. Avoiding never empties a pool or changes the kind | [VOICE.md](VOICE.md) §4 |
+| 2026-09-29 | A launch folds the transcript it reads back into the core as well as the view (`Core.replay`): the sessions, a request still waiting and a turn still running carry on, where the core used to start empty and Boop slept until each session's next hook. A request still waiting shows with this launch's number, so the device announces it again | After every relaunch a permission prompt still open vanished from the device and the popover, and the view, which had replayed, kept that thread waiting for good: its request's end was never recorded, and it had no working heartbeats. A relaunch mid-turn had the brain hear "still working" over an asleep face. The replay adds about 0.15 s to a debug launch that reads back 15,000 events | §3.2, §6, §8, [harness/HARNESS.md](harness/HARNESS.md) §5 |
+| 2026-09-29 | A request from "anyone" (a `Notification` whose own hook hasn't come) is answered by another agent's call only once it's 1 s old (`Core.noticeFirstMs`); any other event still answers it at once | With subagents running in parallel, a sibling's call could land between a `Notification` and its `PermissionRequest`: the request cleared and showed again, so amber flickered and the device announced one prompt twice. Each hook is its own process, so their order varies, and nobody answers a prompt within a second | [ADAPTERS.md](ADAPTERS.md) §4 |
+| 2026-09-29 | Only the main agent's call opens a turn with none open; a subagent's doesn't. A background helper that works on after the main agent's `Stop` makes the session work, with no turn, and its end, with no call left running, makes it idle. This replaces "a background subagent's call after the main agent's `Stop` opens a turn" | That turn had no end of its own: the helper's end left the session working, with working heartbeats, for up to an hour, until Claude's idle notice stopped it with a `stopped` one-shot nobody caused and told the brain the turn finished twice (done, then stopped). The notice now ends nothing with no turn open, though it still makes the session idle, so a helper still at work shows idle until its next event: an interrupted subagent's call racing the Esc would otherwise keep Boop working an hour | [harness/EVENTS.md](harness/EVENTS.md) §4.1, [ADAPTERS.md](ADAPTERS.md) §4 |
+| 2026-09-29 | A view event waits behind a running pass by its priority (`ViewEvent.passPriority`, which the view sets): a finished turn (1) keeps its pass, and what you said (2) goes ahead of the finishes waiting; a newer view event replaces only a waiting one at 0. This replaces "a newer view event replaces the one waiting" | With several agents at work, another agent's routine event arriving during a pass took a waiting finish's pass, so that finish never got its face, or took the pass that answers what you said. What you said waiting behind a finish ended `listening` on that finish's reaction, and the reply waited its turn: so it goes first (2026-09-30). The waiting ones that keep their pass are rare and each pass takes about 0.3 s, so the queue stays short | [harness/HARNESS.md](harness/HARNESS.md) §2, [harness/EVENTS.md](harness/EVENTS.md) §3 |
+| 2026-09-30 | When one of a line's two takes is a phrase and a phrase was asked for, the topic's phrase plays alone if the feeling's take isn't one; otherwise the feeling's take plays alone, as it always did | A phrase asked for where only the topic has one lost it to the feeling's sound or word: a happy win said "Sweet", not a done phrase such as "Job done", in 106 of the 1,509 face, finish, feeling and topic combinations with takes for both. Taking the take of the nearer kind for every ask would also have changed 106 swear asks with no swear to say, 43 of them upset: a calm face upset about a start said "Tiny steps", not "Drat". Other asks keep the feeling's take, so nothing but phrase asks changes | [VOICE.md](VOICE.md) §4 |
+| 2026-09-30 | `short-term.md` goes, with the memory store's part in a new day: the core starts each launch on the day the app opened, so its first activity then isn't a new day, and a new day only prunes the transcript. The memory store reads `long-term.md` once, when the app opens it, not again when it changes on disk, and since 2026-09-29, no longer copies it to `history/` each active day. An existing `short-term.md` is left where it is, unread | Its date only fed itself: the core read it to tell a new day, and a new day wrote it back. Nothing the brain, the popover or the tools read came from it, and the launch prunes the transcript already, so starting the launch's day again did nothing. `long-term.md` never changes after setup but by hand, so each day's copy was the same file again, and the runtime read it once at launch anyway: an edit takes effect at the next launch | §3.2, §4, §4.4, §6 |
+| 2026-09-30 | A launch copies `long-term.md` to `history/<today>/` when it reads and isn't the newest copy there: a hand edit gets a backup, and a broken file comes back as the edit, not as setup wrote it | The daily copies (above) were the only backup of a hand edit, the one way to rename a Boop: without one, a renamed Boop whose file later broke came back under its hatch name. A launch reads one more small file, and history/ gains a folder only when the file changed | §4, §4.3 |
+| 2026-09-30 | The app bundles `plan/steering/` itself, as a resource of the `Boop` target, and the copy in `app/Boop/Resources/steering/` goes, with the test that kept the two the same | One source and no hand sync: every steering edit needed an rsync to the copy, or the test failed and `make run` read the old text. The copy was there because the target couldn't reach `plan/`; its path has been the repo root since ae7f6b13 | §4.1 |

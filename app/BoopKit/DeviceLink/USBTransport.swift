@@ -66,8 +66,6 @@ public final class USBTransport: DeviceTransport, @unchecked Sendable {
         }
     }
 
-    deinit { stop() }
-
     func loop(onLine: @escaping @Sendable (String) -> Void, onConnection: @escaping @Sendable (Bool) -> Void) {
         var buffer = [UInt8](repeating: 0, count: 65536)
         while lock.withLock({ running }) {

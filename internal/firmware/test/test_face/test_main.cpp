@@ -9,11 +9,12 @@
 #include "render/anim.h"
 #include "render/font.h"
 #include "render/palette.h"
-#include "render/raster.h"
+#include "render/maths.h"
 #include "render/scene.h"
 #include "render/screens.h"
 #include "render/sign.h"
 #include "voice/player.h"
+#include "../../pack_file.h"
 
 using namespace render;
 
@@ -34,14 +35,6 @@ struct Buf {
 
 }  // namespace
 
-static void test_isqrt_is_exact() {
-  for (uint32_t v : {0u, 1u, 2u, 3u, 4u, 99u, 100u, 6399u, 6400u, 4294836225u, 4294967295u}) {
-    uint64_t r = isqrt(v);
-    TEST_ASSERT_TRUE(r * r <= v);
-    TEST_ASSERT_TRUE((r + 1) * (r + 1) > v);
-  }
-}
-
 static void test_ease_is_monotonic_from_0_to_1024() {
   TEST_ASSERT_EQUAL_INT(0, ease(0, 150));
   TEST_ASSERT_EQUAL_INT(512, ease(75, 150));
@@ -51,31 +44,6 @@ static void test_ease_is_monotonic_from_0_to_1024() {
     TEST_ASSERT_TRUE(ease(t, 150) >= last);
     last = ease(t, 150);
   }
-}
-
-static void test_spans_cut() {
-  Spans s;
-  s.add(0, 100);
-  s.cut(40, 60);
-  TEST_ASSERT_EQUAL_INT(2, s.n);
-  TEST_ASSERT_EQUAL_INT(40, s.s[0].b);
-  TEST_ASSERT_EQUAL_INT(60, s.s[1].a);
-}
-
-static void test_fill_shape_antialiases_only_the_edges() {
-  Buf b;
-  // A rectangle from x = 10.5 to 20 px, rows 5..10: column 10 is half covered.
-  fillShape(5, 10, [](int sy) {
-    Spans s;
-    s.add(px(10) + 8, px(20));
-    (void)sy;
-    return s;
-  }, [&](int x, int y, int level) { b.px[y * kWidth + x] = uint8_t(level); });
-  TEST_ASSERT_EQUAL_INT(4, b.at(10, 7));
-  TEST_ASSERT_EQUAL_INT(8, b.at(11, 7));
-  TEST_ASSERT_EQUAL_INT(8, b.at(19, 7));
-  TEST_ASSERT_EQUAL_INT(0, b.at(20, 7));
-  TEST_ASSERT_EQUAL_INT(0, b.at(15, 10));
 }
 
 static void test_palette_ramps_run_from_black_to_the_ink() {
@@ -148,6 +116,20 @@ static void test_every_state_has_a_name() {
   TEST_ASSERT_TRUE(stateFromName(nullptr) == SceneState::kIdle);
 }
 
+// DEVICE.md §4: the strip's divider is drawn only over bare glass, so it
+// doesn't cut through the props an older mood's working look draws into
+// the lane.
+static void test_the_divider_leaves_the_design_alone() {
+  Buf b;
+  b.c.fillRect(100, kStripTop - 4, 30, 10, 7);  // a prop across the divider's row
+  Strip busy;
+  busy.busy = 1;
+  drawStrip(b.c, busy);
+  for (int x = 100; x < 130; ++x) TEST_ASSERT_EQUAL_INT(7, b.at(x, kStripTop));
+  TEST_ASSERT_EQUAL_INT(inkAt(kInkDim, kLevels), b.at(60, kStripTop));
+  TEST_ASSERT_EQUAL_INT(inkAt(kInkDim, kLevels), b.at(200, kStripTop));
+}
+
 static void test_an_empty_strip_is_bare_glass() {
   // With nothing to count or flag, the strip shows nothing, not even its
   // divider; with anything, the divider is there.
@@ -209,8 +191,9 @@ static void test_the_strip_says_who_needs_you() {
 }
 
 // DEVICE.md §4: the bubble shows the take's text, in amber, centred;
-// every take's text fits whole inside the margins ("Bada bing bada boom" is
-// the longest), and only text too long for the bubble ends "..".
+// every take's text in the card's pack fits whole inside the margins, in
+// the large font or else the small one ("Technical difficulties" is the
+// widest), and only text too long for the bubble ends "..".
 static void test_the_bubble_fits_every_take() {
   auto draw = [](const char* text, int& left, int& right) {
     Buf b;
@@ -219,7 +202,9 @@ static void test_the_bubble_fits_every_take() {
     left = kWidth, right = -1;
     for (int y = kLaneTop; y < kHeight; ++y) {
       for (int x = 0; x < kWidth; ++x) {
-        if (b.at(x, y) != inkAt(kInkAmber, kLevels)) continue;
+        bool amber = false;  // at any of the ink's anti-aliased levels
+        for (int l = 1; l <= kLevels; ++l) amber = amber || b.at(x, y) == inkAt(kInkAmber, l);
+        if (!amber) continue;
         ++n;
         if (x < left) left = x;
         if (x > right) right = x;
@@ -228,14 +213,24 @@ static void test_the_bubble_fits_every_take() {
     }
     return n;
   };
-  for (int i = 0; i < voice::takeCount(); ++i) {
-    const char* text = voice::takeText(i);
-    TEST_ASSERT_TRUE(std::strlen(text) <= 20);
+  if (!packfile::open()) TEST_FAIL_MESSAGE("no voice pack: run make -C internal voice");
+  // Each take's text from the pack's index: a 64-byte header with the count
+  // at 24 and the index at 32, then 128-byte records, the text at 72 (VOICE.md §8).
+  uint8_t h[64];
+  TEST_ASSERT_TRUE(packfile::source().read(0, h, sizeof(h)));
+  auto u32 = [](const uint8_t* p) { return uint32_t(p[0]) | uint32_t(p[1]) << 8 | uint32_t(p[2]) << 16 | uint32_t(p[3]) << 24; };
+  const uint32_t count = u32(h + 24), indexAt = u32(h + 32);
+  TEST_ASSERT_EQUAL_UINT32(2722, count);
+  const int room = kWidth - 2 * 12 - 2 * (10 + 2);  // the margins, the padding and the outline
+  for (uint32_t i = 0; i < count; ++i) {
+    char text[37] = {};
+    TEST_ASSERT_TRUE(packfile::source().read(indexAt + i * 128 + 72, text, 36));
+    // Whole: it fits the room in one font or the other, so nothing cuts it.
+    const Font& f = stringWidth(kLarge, text) <= room ? kLarge : kSmall;
+    TEST_ASSERT_TRUE_MESSAGE(stringWidth(f, text) <= room, text);
     int left, right;
     TEST_ASSERT_TRUE(draw(text, left, right) > 0);
-    TEST_ASSERT_INT_WITHIN(kLarge.w, kWidth - 1 - right, left);  // centred
-    // Whole: its last letter is drawn where the fitted width puts it.
-    TEST_ASSERT_INT_WITHIN(kLarge.w, stringWidth(kLarge, text), right - left + 1);
+    TEST_ASSERT_INT_WITHIN_MESSAGE(f.w, kWidth - 1 - right, left, text);  // centred
   }
   int left, right;
   draw("a very long line that cannot fit", left, right);  // cut, but inside the margins
@@ -416,15 +411,13 @@ void test_text_wraps_at_spaces() {
 
 int main(int, char**) {
   UNITY_BEGIN();
-  RUN_TEST(test_isqrt_is_exact);
     RUN_TEST(test_ease_is_monotonic_from_0_to_1024);
-  RUN_TEST(test_spans_cut);
-  RUN_TEST(test_fill_shape_antialiases_only_the_edges);
   RUN_TEST(test_palette_ramps_run_from_black_to_the_ink);
   RUN_TEST(test_every_anim_has_a_name_and_ends);
   RUN_TEST(test_every_mood_has_a_name);
   RUN_TEST(test_every_state_has_a_name);
   RUN_TEST(test_an_empty_strip_is_bare_glass);
+  RUN_TEST(test_the_divider_leaves_the_design_alone);
   RUN_TEST(test_the_strip_says_who_needs_you);
   RUN_TEST(test_the_bubble_fits_every_take);
   RUN_TEST(test_the_bubble_takes_the_lane);

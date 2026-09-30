@@ -15,7 +15,15 @@ struct OverviewPane: View {
             FittedScroll(maxHeight: maxHeight - 76) {
                 VStack(alignment: .leading, spacing: Theme.gapSection) {
                     if let error = model.startError {
-                        notice("exclamationmark.triangle.fill", Theme.clayInk, "Boop couldn't start", error)
+                        notice("exclamationmark.triangle.fill", Theme.clayInk, "Boop couldn't start", error,
+                               action: ("Show boop.log", model.showLog))
+                    }
+                    if model.noKey, !model.noKeyDismissed {
+                        notice("key.fill", Theme.inkSoft, "\(model.name) can't react yet",
+                               "Add a Jev API key in Settings, and \(model.name) reacts to what your agents do and answers when you talk.",
+                               action: openSettings) {
+                            model.noKeyDismissed = true
+                        }
                     }
                     if let trouble = model.status?.brainTrouble {
                         notice("exclamationmark.triangle.fill", Theme.clayInk, "Jev isn't answering",
@@ -30,6 +38,15 @@ struct OverviewPane: View {
                         notice("arrow.clockwise", Theme.inkSoft, "Restart your agent sessions",
                                "Open sessions pick up Boop's hooks when they restart.") {
                             model.restartAgents = false
+                        }
+                    }
+                    // A change that failed, at setup or in Settings, until it's dismissed
+                    // or the hooks change.
+                    ForEach(Agent.allCases.filter { model.hookErrors[$0] != nil && !model.hookErrorsDismissed.contains($0) },
+                            id: \.self) { agent in
+                        notice("exclamationmark.triangle.fill", Theme.clayInk, "Couldn't change \(agent.displayName)'s hooks",
+                               model.hookErrors[agent] ?? "", action: openSettings) {
+                            model.dismissHookError(agent)
                         }
                     }
                     if let status = model.status {
@@ -54,25 +71,32 @@ struct OverviewPane: View {
                     BoopFace(mood: FaceMood(model.status), design: model.status?.snapshot.mood ?? MoodAction.initial,
                              size: faceSize)
                     VStack(alignment: .leading, spacing: 3) {
-                        HStack(alignment: .firstTextBaseline, spacing: Theme.gap) {
-                            // A long name shrinks a little before it's cut.
+                        HStack(alignment: .firstTextBaseline, spacing: 0) {
+                            // The name comes first: a long one shrinks a little
+                            // before it's cut, and the mood shows only whole,
+                            // where there's room for it.
                             Text(model.name).font(.boop(18)).lineLimit(1).minimumScaleFactor(0.8)
                                 .layoutPriority(1)
-                            if let mood = model.status?.snapshot.mood { moodLabel(mood) }
+                            if let mood = model.status?.snapshot.mood {
+                                ViewThatFits(in: .horizontal) {
+                                    moodLabel(mood).padding(.leading, Theme.gap)
+                                    Color.clear.frame(width: 0, height: 0)
+                                }
+                            }
                         }
                         HStack(spacing: 6) {
                             StateDot(tone: tone, pulsing: live)
-                            Text(headline).font(.system(size: 12)).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                            Text(model.headline).font(.system(size: 12)).foregroundStyle(Theme.inkSoft).lineLimit(1)
                         }
-                        .animation(.boopSettle, value: headline)
+                        .animation(.boopSettle, value: model.headline)
                     }
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 0)
                 if model.status != nil {
                     VStack(alignment: .trailing, spacing: 6) {
-                        DeviceLine(model: model)
-                        TalkButton(model: model)
+                        deviceLine
+                        talkButton
                     }
                 }
             }
@@ -91,11 +115,11 @@ struct OverviewPane: View {
     /// faces apart. The face already draws in the mood's designs.
     private func moodLabel(_ mood: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text("Mood").foregroundStyle(Theme.inkFaint)
-            Text(mood.capitalized).foregroundStyle(Theme.inkSoft)
+            Text("Mood").foregroundStyle(Theme.inkSoft)
+            Text(mood.capitalized).fontWeight(.semibold).foregroundStyle(Theme.inkSoft)
                 .contentTransition(.opacity)
         }
-        .font(.system(size: 11, weight: .medium))
+        .font(.system(size: 11))
         .lineLimit(1)
         .fixedSize()
         .animation(.boopSettle, value: mood)
@@ -132,31 +156,54 @@ struct OverviewPane: View {
         }
     }
 
+    /// Whether Boop's body is connected, as plain words, so it doesn't look
+    /// like a button. Which board it is stays out of sight.
+    private var deviceLine: some View {
+        let device = model.device
+        return HStack(spacing: 5) {
+            Circle().fill(device.connected ? Theme.sage : Theme.inkFaint).frame(width: 6, height: 6)
+            Text(device.short)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(device.trouble ? Theme.clayInk : Theme.inkSoft)
+        }
+        .fixedSize()
+        .padding(.trailing, 2)
+        .help(device.detail)
+        .animation(.boopSettle, value: device.short)
+    }
+
+    /// Push-to-talk from the Mac (BEHAVIORS.md §3.3): click to talk, click
+    /// again to send. The device's BOOT button does the same while held.
+    private var talkButton: some View {
+        let on = model.listening
+        return Button(action: model.toggleTalk) {
+            // One width for both words, so the button doesn't jump.
+            Label(on ? "Send" : "Talk", systemImage: on ? "arrow.up" : "mic.fill")
+                .labelStyle(.titleAndIcon)
+                .lineLimit(1)
+                .frame(width: 50)
+        }
+        .buttonStyle(RowButtonStyle(filled: on))
+        .fixedSize()
+        .help(on ? "Stop listening and send what \(model.name) heard"
+                 : model.noKey ? "Talk to \(model.name) with the Mac's microphone. Only Jev answers, so this needs a Jev API key"
+                 : "Talk to \(model.name) with the Mac's microphone. It stops by itself after 30 seconds")
+        .accessibilityLabel(on ? "Stop listening and send" : "Talk to \(model.name)")
+        .animation(.boopSettle, value: on)
+    }
+
     private var tone: Color {
         if model.listening { return Theme.recording }
         return switch FaceMood(model.status) {
         case .needsYou: Theme.amber
         case .working: Theme.inkSoft
-        case .idle, .happy, .asleep, .cheeky: Theme.inkFaint
+        case .idle, .happy, .asleep, .cheeky, .stopped: Theme.inkFaint
         }
     }
 
     private var live: Bool {
         let mood = FaceMood(model.status)
         return model.listening || mood == .working || mood == .needsYou
-    }
-
-    private var headline: String {
-        guard let s = model.status?.snapshot else {
-            return model.startError == nil ? "Waking up…" : "Not running"
-        }
-        if model.listening { return "Listening…" }
-        if s.waiting > 0 { return s.waiting == 1 ? "Needs you" : "\(s.waiting) sessions need you" }
-        switch s.base {
-        case "working": return s.busy == 1 ? "Working on 1 session" : "Working on \(s.busy) sessions"
-        case "idle": return "Hanging out"
-        default: return "Napping"
-        }
     }
 
     // MARK: Needs you
@@ -172,15 +219,17 @@ struct OverviewPane: View {
         let agent = Agent(rawValue: attn.agent)?.displayName ?? attn.agent
         let opens = waiting?.thread.flatMap(ThreadLink.target)
         return Opens(waiting?.thread, radius: Theme.cardRadius, model: model) {
-            needsYouCard(attn, project: project, name: name, agent: agent, workspace: waiting?.workspace,
-                         hint: opens.map { "Waiting for you. Click to \(openVerb($0))." }
-                             ?? "Waiting for you. Answer it in the agent's window.")
+            needsYouCard(attn, project: project, name: name, workspace: waiting?.workspace,
+                         hint: "\(agent) is waiting for you. " + (opens.map { "Click to \(openVerb($0))." } ?? "Answer it in its window."))
         }
         .transition(.scale(scale: 0.96, anchor: .top).combined(with: .opacity))
         .animation(.boopPop, value: project)
     }
 
-    private func needsYouCard(_ attn: StateSnapshot.Attention, project: String, name: String, agent: String,
+    /// The project and its thread on the first line, as a session's row has
+    /// them, so the thread is cut before the project; which agent it is,
+    /// in the hint.
+    private func needsYouCard(_ attn: StateSnapshot.Attention, project: String, name: String,
                               workspace: String?, hint: String) -> some View {
         Card(tone: Theme.amber) {
             HStack(alignment: .top, spacing: Theme.gapSnug + 2) {
@@ -190,8 +239,9 @@ struct OverviewPane: View {
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: 5) {
-                        Text(project.isEmpty ? agent : "\(agent) · \(project)")
+                        Text(projectName(project))
                             .font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                            .layoutPriority(1)
                         if let workspace { ThreadName(workspace) }
                     }
                     if !name.isEmpty {
@@ -210,14 +260,20 @@ struct OverviewPane: View {
 
     // MARK: Sessions
 
+    /// Sessions reach Boop only through the hooks, so with none connected
+    /// the list can't promise any, and says where to connect them.
     @ViewBuilder private func sessions(_ status: Runtime.Status) -> some View {
-        if status.sessions.isEmpty {
+        let heard = Agent.allCases.filter { model.hooks[$0] == .installed || model.hooks[$0] == .outdated }
+        if status.sessions.isEmpty, heard.isEmpty {
+            notice("ear", Theme.inkSoft, "\(status.name) isn't listening to any agent yet",
+                   "Connect Claude Code or Codex in Settings, and \(status.name) will notice them.", action: openSettings)
+        } else if status.sessions.isEmpty {
             Card {
                 HStack(spacing: Theme.gapSnug + 2) {
                     Image(systemName: "moon.zzz.fill").font(.system(size: 14)).foregroundStyle(Theme.inkFaint)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("No agents awake").font(.system(size: 12, weight: .medium))
-                        Text("Start Claude Code or Codex and \(status.name) will notice.")
+                        Text("Start \(heard.map(\.displayName).joined(separator: " or ")) and \(status.name) will notice.")
                             .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                     }
                     Spacer(minLength: 0)
@@ -264,8 +320,14 @@ struct OverviewPane: View {
         }
     }
 
+    private var openSettings: (String, () -> Void) {
+        ("Open Settings", { model.pane = .settings })
+    }
+
+    /// A notice card: what's up, in a line and a few words, with a button
+    /// for what the person can do about it, and a cross if it can go.
     private func notice(_ icon: String, _ tone: Color, _ title: String, _ detail: String,
-                        dismiss: (() -> Void)? = nil) -> some View {
+                        action: (String, () -> Void)? = nil, dismiss: (() -> Void)? = nil) -> some View {
         Card {
             HStack(alignment: .top, spacing: Theme.gapSnug + 2) {
                 Image(systemName: icon).font(.system(size: 13)).foregroundStyle(tone).frame(width: 18)
@@ -273,6 +335,9 @@ struct OverviewPane: View {
                     Text(title).font(.system(size: 12, weight: .semibold))
                     Text(detail).font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
+                    if let action {
+                        Button(action.0, action: action.1).buttonStyle(.row).padding(.top, 6)
+                    }
                 }
                 Spacer(minLength: 0)
                 if let dismiss {
@@ -316,7 +381,7 @@ struct Opens<Content: View>: View {
 
     var body: some View {
         if let thread, let target = ThreadLink.target(thread) {
-            Button { model.open(thread) } label: { content }
+            Button { model.runtime?.openThread(thread) } label: { content }
                 .buttonStyle(OpensButtonStyle(radius: radius))
                 .help(openVerb(target).prefix(1).uppercased() + openVerb(target).dropFirst())
         } else {
@@ -358,6 +423,11 @@ struct KeyedSession: Identifiable {
             return KeyedSession(id: "\(place)#\(n)", session: s)
         }
     }
+}
+
+/// A session's project as the popover names it.
+func projectName(_ project: String) -> String {
+    project.isEmpty ? "Unknown project" : project
 }
 
 /// A thread's name after its project, small and faint: which worktree or
@@ -408,7 +478,7 @@ struct SessionRow: View {
     var body: some View {
         HStack(spacing: Theme.gapSnug) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(project.isEmpty ? "Unknown project" : project)
+                Text(projectName(project))
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1).truncationMode(.middle)
                     .layoutPriority(1)
@@ -424,48 +494,5 @@ struct SessionRow: View {
         }
         .overlay(RoundedRectangle(cornerRadius: Theme.wellRadius).strokeBorder(Theme.hairline, lineWidth: 1))
         .accessibilityElement(children: .combine)
-    }
-}
-
-/// Push-to-talk from the Mac (BEHAVIORS.md §3.3): click to talk, click again to
-/// send. The device's BOOT button does the same while held.
-struct TalkButton: View {
-    @ObservedObject var model: AppModel
-
-    var body: some View {
-        let on = model.listening
-        Button(action: model.toggleTalk) {
-            // One width for both words, so the button doesn't jump.
-            Label(on ? "Send" : "Talk", systemImage: on ? "arrow.up" : "mic.fill")
-                .labelStyle(.titleAndIcon)
-                .lineLimit(1)
-                .frame(width: 50)
-        }
-        .buttonStyle(RowButtonStyle(filled: on))
-        .fixedSize()
-        .help(on ? "Stop listening and send what \(model.name) heard"
-                 : "Talk to \(model.name) with the Mac's microphone. It stops by itself after 30 seconds")
-        .accessibilityLabel(on ? "Stop listening and send" : "Talk to \(model.name)")
-        .animation(.boopSettle, value: on)
-    }
-}
-
-/// Whether Boop's body is connected, as plain words, so it doesn't look like
-/// a button. Which board it is stays out of sight.
-struct DeviceLine: View {
-    @ObservedObject var model: AppModel
-
-    var body: some View {
-        let connected = model.status?.connected == true
-        HStack(spacing: 5) {
-            Circle().fill(connected ? Theme.sage : Theme.inkFaint).frame(width: 6, height: 6)
-            Text(connected ? "Connected" : model.link == .none ? "No device" : "Looking…")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(Theme.inkSoft)
-        }
-        .fixedSize()
-        .padding(.trailing, 2)
-        .help(connected ? "Boop's body is connected" : "Boop's body isn't connected yet. Plug it into USB power.")
-        .animation(.boopSettle, value: connected)
     }
 }

@@ -1,15 +1,22 @@
 """boopctl e2e's order check (plan/VERIFICATION.md L4) on a made-up app
 log: a brain moment comes after the rules' reaction, and the device's
 `ended` says whether a newer moment cut it short: the brain's next one
-mustn't, a rule's one-shot may. Needs no board or app."""
+mustn't, a rule's one-shot may. And e2e and soak --pipeline when the run
+can't start. Needs no board or app."""
+import contextlib
+import io
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from boopctl_lib import e2e  # noqa: E402
+from boopctl_lib.device import DeviceError  # noqa: E402
 
 LOG = """\
 10:00:00.000 hook: claude UserPromptSubmit
@@ -66,6 +73,55 @@ class OrderTests(unittest.TestCase):
                        "10:00:01.000 device: moment 1 ended done\n")
         self.assertEqual(e2e.check_order(run)["early"], 1)
         self.assertEqual(len(run.failed), 1)
+
+
+class SetupFailureTests(unittest.TestCase):
+    """No board, no build or an app that exits: the run fails with the
+    reason and still writes its result."""
+
+    def setUp(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        tmp, leak = Path(d.name), []
+        self.out, self.leak = tmp / "out", leak
+        self.out.mkdir()
+        self.enterContext(contextlib.redirect_stdout(io.StringIO()))
+
+        class NoBoard(e2e.Run):
+            """Its throwaway state in the test's folder, and no board."""
+
+            def __init__(self, root, out, brain, port):
+                super().__init__(tmp / root.name, out, brain, port)
+
+            def start(self):
+                if leak:  # the log of an app that got partway
+                    self.state.mkdir(parents=True)
+                    (self.state / "boop.log").write_text(leak[0])
+                raise DeviceError("no board on /dev/cu.usbserial-*")
+
+        patch = mock.patch.object(e2e, "Run", NoBoard)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_e2e_writes_its_result(self):
+        self.assertEqual(e2e.main(self.out, "scripted", None, None), 1)
+        result = json.loads((self.out / "e2e-scripted.json").read_text())
+        self.assertFalse(result["ok"])
+        self.assertIn("no board on /dev/cu.usbserial-*", result["failures"])
+
+    def test_soak_writes_its_result(self):
+        self.assertEqual(e2e.soak(self.out, "scripted", None, 0.01), 1)
+        result = json.loads((self.out / "soak-scripted.json").read_text())
+        self.assertFalse(result["ok"])
+        self.assertEqual((result["heap_min_after_2min"], result["series"]), (None, []))
+        self.assertIn("no board on /dev/cu.usbserial-*", result["failures"])
+
+    def test_named_fixtures_are_still_checked_for_private_words(self):
+        self.leak.append("hook: claude PostToolUse PRIVATE_OUTPUT_9823\n")
+        self.assertEqual(e2e.main(self.out, "scripted", None, ["claude/session.jsonl"]), 1)
+        failures = json.loads((self.out / "e2e-scripted.json").read_text())["failures"]
+        self.assertTrue(any(f.startswith("PRIVATE_ markers") for f in failures), failures)
+        self.assertFalse(any("the harness saw an event" in f for f in failures), "the whole run's events aren't expected")
 
 
 if __name__ == "__main__":

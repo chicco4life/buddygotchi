@@ -767,6 +767,18 @@ static void test_attention_shows_needs_you_and_alerts_once() {
   TEST_ASSERT_EQUAL(0, int(m.hal.effects.size()));
 }
 
+// BEHAVIORS.md §3.4: at power-on no Mac has spoken, so the board shows no
+// app from the start, not a face for the first 30 s; the first state ends
+// it. dbg.reset, which every scenario starts with, still starts on the face.
+static void test_power_on_shows_no_app_until_a_state() {
+  Rig r;
+  TEST_ASSERT_EQUAL_STRING("no_app", r.screen().c_str());
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  TEST_ASSERT_EQUAL_STRING("face", r.screen().c_str());
+  r.usbLine("{\"t\":\"dbg.reset\"}");
+  TEST_ASSERT_EQUAL_STRING("face", r.screen().c_str());
+}
+
 // BEHAVIORS.md §3.4: no app after 30 s of silence. dbg.state still says
 // "no_app", the backlight dims to 60 and the face is asleep.
 static void test_no_app_after_30s_of_silence() {
@@ -1520,6 +1532,7 @@ int main() {
   RUN_TEST(test_the_redraw_cap_doesnt_delay_a_press);
   RUN_TEST(test_attention_shows_needs_you_and_alerts_once);
   RUN_TEST(test_no_app_after_30s_of_silence);
+  RUN_TEST(test_power_on_shows_no_app_until_a_state);
   RUN_TEST(test_moment_plays_then_ends_and_a_new_one_replaces_it);
   RUN_TEST(test_a_moment_with_nothing_to_play_is_ignored);
   RUN_TEST(test_a_strip_touch_is_a_tap);

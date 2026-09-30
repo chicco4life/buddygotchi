@@ -255,8 +255,9 @@ final class AdapterTests: XCTestCase {
         XCTAssertEqual(Adapter.place(cwd: tree.path).project, "jetpack")
     }
 
-    /// ADAPTERS.md §3: a worktree's `.git` is read once per folder, not on
-    /// every hook, and the cache starts again past 512 folders. A line
+    /// ADAPTERS.md §3: a worktree's `.git` is read once per folder every
+    /// 30 s, not on every hook, and the cache starts again past 512
+    /// folders. So a checkout's new branch shows within 30 s. A line
     /// without a `cwd` is `unknown`; the core keeps the session's project.
     func testProjectNamesAreCachedPerFolder() throws {
         let root = tempDir("boop-wt")
@@ -264,14 +265,22 @@ final class AdapterTests: XCTestCase {
         try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let git = tree.appendingPathComponent(".git")
-        try "gitdir: /Users/me/src/jetpack/.git/worktrees/feature-x\n".write(to: git, atomically: true, encoding: .utf8)
-        let places = Adapter.Places()
+        let gitdir = "gitdir: /Users/me/src/jetpack/.git/worktrees/feature-x\n"
+        try gitdir.write(to: git, atomically: true, encoding: .utf8)
+        var now: TimeInterval = 100
+        let places = Adapter.Places(now: { now })
         XCTAssertEqual(places.place(cwd: tree.path), Adapter.Place(project: "jetpack", workspace: "feature-x"))
         try FileManager.default.removeItem(at: git)
         XCTAssertEqual(places.place(cwd: tree.path).project, "jetpack", "not read again")
         for i in 0..<Adapter.Places.limit { _ = places.place(cwd: "/w/p\(i)") }
         XCTAssertEqual(places.place(cwd: tree.path).project, "feature-x", "read again once the cache starts over")
         XCTAssertLessThanOrEqual(places.places.count, Adapter.Places.limit)
+        try gitdir.write(to: git, atomically: true, encoding: .utf8)
+        now += 29
+        XCTAssertEqual(places.place(cwd: tree.path).project, "feature-x", "kept for 30 s")
+        now += 1
+        XCTAssertEqual(places.place(cwd: tree.path).project, "jetpack", "then read again")
+        XCTAssertEqual(Adapter.Places.keepFor, 30)
         var line = line("claude", "PreToolUse", tool: "Bash")
         line.cwd = nil
         XCTAssertNil(Adapter.event(from: line)?.cwd)
@@ -350,6 +359,52 @@ final class AdapterTests: XCTestCase {
         XCTAssertNil(Adapter.place(cwd: repo.path).workspace, "a detached head has none")
         XCTAssertNil(Adapter.place(cwd: root.appendingPathComponent("plain").path).workspace)
         XCTAssertEqual(Adapter.place(cwd: "/Users/me/src/landing/.worktrees/fix-nav").workspace, "fix-nav")
+    }
+
+    /// ADAPTERS.md §3: an agent that cd's into a subfolder stays in its
+    /// repository's thread: the nearest folder above with a `.git` names the
+    /// project and workspace, not the subfolder. The walk stops at the home
+    /// folder, so a dotfiles repo there doesn't name every other folder.
+    func testASubfolderIsItsRepositorysPlace() throws {
+        let root = tempDir("boop-sub")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let tree = root.appendingPathComponent("buddy-reaction-animation-0bb6b0")
+        try FileManager.default.createDirectory(at: tree.appendingPathComponent("internal/app"), withIntermediateDirectories: true)
+        try "gitdir: /Users/me/src/buddygotchi/.git/worktrees/buddy-reaction-animation-0bb6b0\n"
+            .write(to: tree.appendingPathComponent(".git"), atomically: true, encoding: .utf8)
+        let there = Adapter.Place(project: "buddygotchi", workspace: "buddy-reaction-animation")
+        XCTAssertEqual(Adapter.place(cwd: tree.appendingPathComponent("internal/app").path), there)
+        XCTAssertEqual(Adapter.place(cwd: tree.appendingPathComponent("internal").path + "/"), there)
+
+        let repo = root.appendingPathComponent("landing")
+        try FileManager.default.createDirectory(at: repo.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: repo.appendingPathComponent("app/src"), withIntermediateDirectories: true)
+        try "ref: refs/heads/fix-login\n".write(to: repo.appendingPathComponent(".git/HEAD"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(Adapter.place(cwd: repo.appendingPathComponent("app/src").path),
+                       Adapter.Place(project: "landing", workspace: "fix-login"))
+
+        let home = root.appendingPathComponent("home")
+        try FileManager.default.createDirectory(at: home.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: home.appendingPathComponent("notes/day"), withIntermediateDirectories: true)
+        XCTAssertEqual(Adapter.place(cwd: home.appendingPathComponent("notes/day").path, home: home.path),
+                       Adapter.Place(project: "day"))
+        XCTAssertEqual(Adapter.place(cwd: root.appendingPathComponent("plain").path), Adapter.Place(project: "plain"))
+    }
+
+    /// ADAPTERS.md §3: the walk up to a repository looks at most 8 folders
+    /// up, so a `.git` 8 folders above names the place and one 9 above
+    /// doesn't.
+    func testTheWalkUpLooksEightFoldersUp() throws {
+        XCTAssertEqual(Adapter.lookUp, 8)
+        let root = tempDir("boop-up")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repo = root.appendingPathComponent("landing")
+        try FileManager.default.createDirectory(at: repo.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        let eight = (1...8).reduce(repo) { folder, i in folder.appendingPathComponent("d\(i)") }
+        let nine = eight.appendingPathComponent("d9")
+        try FileManager.default.createDirectory(at: nine, withIntermediateDirectories: true)
+        XCTAssertEqual(Adapter.place(cwd: eight.path).project, "landing")
+        XCTAssertEqual(Adapter.place(cwd: nine.path).project, "d9")
     }
 
     /// An agent picks its branch names: only a short plain name gets through.

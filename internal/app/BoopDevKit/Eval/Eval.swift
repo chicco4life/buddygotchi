@@ -446,7 +446,7 @@ public struct Eval {
         let rules = steering.personality(scenario.personality).rules
         let core = Core(config: .init(time: time, seed: 1), lastActiveDay: time.day(start))
         core.setWallClock(start, at: start)
-        let view = TranscriptView(config: .init(rules: rules, seed: 1))
+        let view = TranscriptView(rules: rules, seed: 1)
         let pipeline = Pipeline(core: core, view: view)
         let mood = MoodStore(stateDir: dir)
         let home = DispatchQueue(label: "boop.eval")
@@ -455,7 +455,7 @@ public struct Eval {
         // does once it has; one left in progress stays so.
         let ending = Ending()
         let (harness, moodAction) = Runtime.harness(
-            brain: brain, pipeline: pipeline, mood: mood, voice: Voice(), steering: steering,
+            brain: brain, pipeline: pipeline, mood: mood, steering: steering,
             personality: { scenario.personality }, time: time, clock: { clock.now }, wall: { clock.now },
             queue: { moment, pending in
                 ending.said = moment.say?.text

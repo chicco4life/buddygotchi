@@ -101,9 +101,10 @@ BOOP_JEV_KEY=… make eval                     # the final pass: every scenario,
 ```
 
 **The API budget.** Every pass is one request to Jev, and a full
-`make eval` is about 620 of them, so it's the final pass before a
-commit, once. While developing, run the scenarios the change is about
-with `--only`. Before it asks Jev anything, `boopdev eval` counts each
+`make eval` is about 635 of them (`--list` counts them), so it's the
+final pass before a commit, once. While developing, run the scenarios
+the change is about with `--only`. Before it asks Jev anything,
+`boopdev eval` counts each
 run's passes with the scripted brain (about right: what Jev answers can
 move a later pass or two), times its runs, prints the total, and stops
 with the costliest scenarios if that's over the budget: 100 requests,
@@ -334,7 +335,9 @@ internal/tools/boopctl workday check /tmp/tn-out/1/debug.jsonl
 ```
 
 Jev is stochastic, so run each side of a change at least twice. Warm it
-up on new steering first (a `boopdev eval --runs 1`): its first passes
+up on new steering first with a whole `boopdev eval --runs 1
+--no-budget`, as the runs below did (one scenario warms only the moods
+it passes through): its first passes
 on text it hasn't seen could go over the deadline, then 1.25 s, and drop, 13 and
 19 of the first 30 in the runs of
 [2026-09-28](evidence/2026-09-28-tonight/tune/README.md), which has the

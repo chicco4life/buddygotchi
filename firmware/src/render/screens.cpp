@@ -4,7 +4,6 @@
 
 #include "render/font.h"
 #include "render/palette.h"
-#include "render/raster.h"
 
 namespace render {
 
@@ -26,20 +25,19 @@ constexpr int kBubbleLine = 2;
 
 void plotInk(Canvas& c, int x, int y, int level, int ink) { c.pixels()[y * kWidth + x] = inkAt(ink, level); }
 
-void fillCircle(Canvas& c, int cx, int cy, int r, int ink) {
-  fillShape((cy - r) / kSub - 1, (cy + r) / kSub + 2, [&](int sy) { return circle(cx, cy, r, sy); },
-            [&](int x, int y, int level) { plotInk(c, x, y, level, ink); });
-}
+// The strip's two round icons, 10 × 10 px, as anti-aliased levels (0 is
+// bare glass): the dot by who needs you and the ring by the working count.
+constexpr char kDot[10][11] = {"0026886200", "0488888840", "2888888882", "6888888886", "7888888887",
+                               "7888888887", "6888888886", "2888888882", "0488888840", "0026886200"};
+constexpr char kRing[10][11] = {"0026886200", "0488888840", "2884004882", "6840000486", "7810000187",
+                                "7810000187", "6840000486", "2884004882", "0488888840", "0026886200"};
 
-void fillRing(Canvas& c, int cx, int cy, int r, int inner, int ink) {
-  fillShape((cy - r) / kSub - 1, (cy + r) / kSub + 2,
-            [&](int sy) {
-              Spans s = circle(cx, cy, r, sy);
-              int lo, hi;
-              if (circleRow(cx, cy, inner, sy, lo, hi)) s.cut(lo, hi);
-              return s;
-            },
-            [&](int x, int y, int level) { plotInk(c, x, y, level, ink); });
+void drawIcon(Canvas& c, int x, int y, const char (&icon)[10][11], int ink) {
+  for (int j = 0; j < 10; ++j) {
+    for (int i = 0; i < 10; ++i) {
+      if (int level = icon[j][i] - '0') plotInk(c, x + i, y + j, level, ink);
+    }
+  }
 }
 
 // The box around `w` px of what's in it, centred, and the tail over its middle.
@@ -60,7 +58,7 @@ void drawBox(Canvas& c, int w) {
 
 // The line's text in its bubble, which takes the whole lane: the text
 // centred in the large font, or the small one when it doesn't fit (20
-// characters do, the longest line 34), cut to fit the room.
+// characters do; the longest take is 22), cut to fit the room.
 void drawBubble(Canvas& c, const char* text) {
   c.fillRect(0, kLaneTop, kWidth, kHeight - kLaneTop, kBlack);  // the lane is the bubble's
   const int room = kWidth - 2 * kMargin - 2 * (kBubblePad + kBubbleLine);
@@ -102,13 +100,18 @@ void drawStrip(Canvas& c, const Strip& s) {
   // The first pack's success designs for the finish fill the screen with
   // colour: the finish's names get a black band to be read on.
   if (s.doneAgent) c.fillRect(0, kStripTop, kWidth, kHeight - kStripTop, kBlack);
-  c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 1, inkAt(kInkDim, kLevels));
+  // The divider, only over bare glass: an older mood's working look draws
+  // its props down into the lane, and the line mustn't cut through them.
+  uint8_t* divider = c.pixels() + kStripTop * kWidth;
+  for (int x = kMargin; x < kWidth - kMargin; ++x) {
+    if (divider[x] == kBlack) divider[x] = inkAt(kInkDim, kLevels);
+  }
   const int cy = kStripCy, ty = cy - 10;
   int x = kMargin;
   char busy[12];
   std::snprintf(busy, sizeof(busy), "%d", s.busy);
   if (s.agent) {
-    fillCircle(c, px(x + 5), px(cy), px(5), kInkAmber);
+    drawIcon(c, x, cy - 5, kDot, kInkAmber);
     // Who needs you, cut to leave room for "+N" and the working count.
     char more[12] = "";
     if (s.more > 0) std::snprintf(more, sizeof(more), "+%d", s.more);
@@ -132,7 +135,7 @@ void drawStrip(Canvas& c, const Strip& s) {
     x = drawStringFit(c, kSmall, x + 15, ty, who, kInkEye, room) + 14;
   }
   if (s.busy > 0) {
-    fillRing(c, px(x + 5), px(cy), px(5), px(3), kInkGrey);
+    drawIcon(c, x, cy - 5, kRing, kInkGrey);
     drawString(c, kSmall, x + 15, ty, busy, kInkGrey);
   }
   if (s.noApp) iconNoApp(c, kWidth - kMargin - 16, cy - 8);

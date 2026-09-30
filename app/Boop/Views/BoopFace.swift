@@ -9,6 +9,9 @@ enum FaceMood: Hashable {
     case asleep, idle, working, needsYou, happy
     /// Setup's preview of a cheeky Boop: the proud face's smirk.
     case cheeky
+    /// Boop couldn't start: the menu bar's crossed eyes, so it never passes
+    /// for napping.
+    case stopped
 
     init(_ status: Runtime.Status?) {
         guard let status else {
@@ -37,7 +40,7 @@ struct BoopFace: View {
     var mood: FaceMood
     /// Boop's mood, which picks the set of designs (harness/DECISIONS.md §2.3).
     var design: String = MoodAction.initial
-    var size: CGFloat = 40
+    var size: CGFloat
 
     @ViewState private var blink = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -47,7 +50,7 @@ struct BoopFace: View {
     /// happy and the proud idle faces.
     private var key: String {
         switch mood {
-        case .asleep: "happy/asleep"
+        case .asleep, .stopped: "happy/asleep"
         case .idle: "\(design)/idle"
         case .working: "\(design)/working"
         case .needsYou: "\(design)/needs_you"
@@ -80,7 +83,8 @@ struct BoopFace: View {
             }
         }
         .frame(width: size, height: size)
-        .task(id: key) { await live() }
+        // Held still, the id changes too, so the blinking stops.
+        .task(id: still ? nil : key) { await live() }
         .accessibilityHidden(true)
     }
 
@@ -119,21 +123,12 @@ struct BoopFace: View {
 
 /// The menu-bar icon: two rounded eyes, nothing else, so it reads at 18 pt.
 /// Closed while asleep, open while agents idle, with a small dot while they
-/// work, and amber when something needs you.
-@MainActor
+/// work, amber when something needs you, and crosses when Boop isn't
+/// running.
 enum MenuBarIcon {
-    private static var cache: [FaceMood: NSImage] = [:]
-
-    /// Made once per mood. The coloured ones redraw every time they're
-    /// shown, so they follow the menu bar between light and dark.
+    /// The coloured one redraws every time it's shown, so it follows the
+    /// menu bar between light and dark.
     static func image(_ mood: FaceMood) -> NSImage {
-        if let image = cache[mood] { return image }
-        let image = draw(mood)
-        cache[mood] = image
-        return image
-    }
-
-    private static func draw(_ mood: FaceMood) -> NSImage {
         let image = NSImage(size: NSSize(width: 20, height: 18), flipped: true) { _ in
             let match = NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua, .vibrantLight, .vibrantDark])
             let dark = match == .darkAqua || match == .vibrantDark
@@ -144,6 +139,21 @@ enum MenuBarIcon {
             default: .black
             }
             colour.setFill()
+            if mood == .stopped {
+                // Two crosses where the eyes go.
+                colour.setStroke()
+                for x: CGFloat in [4, 12] {
+                    let cross = NSBezierPath()
+                    cross.move(to: NSPoint(x: x, y: 7))
+                    cross.line(to: NSPoint(x: x + 4, y: 11))
+                    cross.move(to: NSPoint(x: x + 4, y: 7))
+                    cross.line(to: NSPoint(x: x, y: 11))
+                    cross.lineWidth = 1.5
+                    cross.lineCapStyle = .round
+                    cross.stroke()
+                }
+                return true
+            }
             // Two tall eyes, or two short bars while asleep.
             // Whole points, so they stay crisp at 1×.
             for x: CGFloat in [4, 12] {
