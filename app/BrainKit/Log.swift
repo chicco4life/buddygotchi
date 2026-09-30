@@ -9,7 +9,7 @@ import Foundation
 public final class Log: @unchecked Sendable {
     public struct Options: Sendable {
         /// Days of files kept, today included; older ones are deleted at
-        /// launch and at each new day.
+        /// launch and on the first event of each new day.
         public var keptDays = 14
         /// How far back events are kept in memory.
         public var keepMs: Int64 = 24 * 60 * 60 * 1000
@@ -31,13 +31,16 @@ public final class Log: @unchecked Sendable {
     public private(set) var events: [Event] = []
     /// The newest event's `seq`, or 0 before the first.
     public private(set) var lastSeq = 0
+    /// The newest event's `at`, and its day, which the next can't go before.
+    var lastAt: Int64 = 0
+    var lastDay: String?
     /// Each kind's events, by `seq`, oldest first.
     var byKind: [String: [Int]] = [:]
     /// The kit's own events by what they're `for` (§2.2): `did`s by their
     /// event, `ended` by its `did`, and which events have a `pass`.
     var didsFor: [Int: [Int]] = [:]
     var endedFor: [Int: Int] = [:]
-    var passed: Set<Int> = []
+    var passFor: [Int: Int] = [:]
     /// The `did`s still open: `open`, with no `ended` yet (§5.3).
     public private(set) var openDids: Set<Int> = []
 
@@ -61,13 +64,22 @@ public final class Log: @unchecked Sendable {
     }
 
     /// Logs an event: the next `seq`, and `now` as its `at` if it has none.
+    /// An `at` never goes back past the last event's, so `seq` and `at`
+    /// keep the same order in the files and in memory, nor on past `now`,
+    /// so one emitter's clock can't carry the rest into the future.
     @discardableResult
     public func append(_ event: Event, now: Int64) -> Event {
         var e = event
         lastSeq += 1
         e.seq = lastSeq
-        if e.at == 0 { e.at = now }
-        if let url = file(for: e.at) { LineFile.append(e.jsonLine, to: url) }
+        e.at = max(lastAt, min(e.at == 0 ? now : e.at, max(now, lastAt)))
+        lastAt = e.at
+        if folder != nil {
+            let day = options.day(e.at)
+            if let last = lastDay, day != last { prune(now: e.at) }
+            lastDay = day
+            if let url = file(for: e.at) { LineFile.append(e.jsonLine, to: url) }
+        }
         keep(e)
         trim(now: e.at)
         return e
@@ -86,16 +98,17 @@ public final class Log: @unchecked Sendable {
             if endedFor[about] == nil { endedFor[about] = e.seq }
             openDids.remove(about)
         case Event.pass:
-            passed.insert(about)
+            if passFor[about] == nil { passFor[about] = e.seq }
         default:
             break
         }
     }
 
-    /// Lets go of the events older than `keepMs`, now and then: once the
-    /// oldest is an hour past it, so it isn't every append.
-    func trim(now: Int64) {
-        guard let first = events.first, now - first.at > options.keepMs + 3_600_000 else { return }
+    /// Lets go of the events older than `keepMs` as of `now`, so what's in
+    /// memory is what a launch at `now` would read back: on each append,
+    /// and on the kit's tick.
+    public func trim(now: Int64) {
+        guard let first = events.first, now - first.at > options.keepMs else { return }
         let cut = events.firstIndex { now - $0.at <= options.keepMs } ?? events.count
         let gone = events[..<cut]
         let last = gone.last?.seq ?? 0
@@ -106,7 +119,7 @@ public final class Log: @unchecked Sendable {
         }
         didsFor = didsFor.filter { $0.key > last }
         endedFor = endedFor.filter { $0.key > last }
-        passed = passed.filter { $0 > last }
+        passFor = passFor.filter { $0.key > last }
         openDids = openDids.filter { $0 > last }
     }
 
@@ -118,7 +131,7 @@ public final class Log: @unchecked Sendable {
     }
 
     /// Deletes the files older than `keptDays` as of `now`: at launch, and
-    /// at each new day.
+    /// on the first event of each new day.
     public func prune(now: Int64) {
         guard let folder else { return }
         let oldest = options.day(now - Int64(options.keptDays - 1) * 24 * 3_600_000)
@@ -128,16 +141,19 @@ public final class Log: @unchecked Sendable {
         }
     }
 
-    /// Reads the files back as of `now`, after pruning: the events of the
+    /// Reads the files back as of `now`, then prunes: the events of the
     /// last `keepMs` into memory, in order, and `seq` on from the newest
-    /// file's last event. Returns the events read into memory. A line
-    /// that doesn't parse, such as one a crash cut short, is skipped, even
-    /// when the cut is inside a character.
+    /// file's last event, even when that file is about to go. Returns the
+    /// events read into memory. A line that doesn't parse, such as one a
+    /// crash cut short, is skipped, even when the cut is inside a character.
     @discardableResult
     public func load(now: Int64) -> ArraySlice<Event> {
         guard let folder else { return events[...] }
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        prune(now: now)
+        defer {
+            prune(now: now)
+            lastDay = options.day(max(lastAt, now))
+        }
         let days = days()
         let from = now - options.keepMs
         let oldestRead = options.day(from)
@@ -159,6 +175,7 @@ public final class Log: @unchecked Sendable {
                 autoreleasepool {
                     guard let e = Event(jsonLine: line) ?? options.decode?(line) else { skipped += 1; return }
                     lastSeq = max(lastSeq, e.seq)
+                    lastAt = max(lastAt, e.at)
                     guard e.at >= from, e.seq > (events.last?.seq ?? 0) else { return }
                     keep(e)
                 }
@@ -207,7 +224,7 @@ public final class Log: @unchecked Sendable {
     public func ended(_ did: Int) -> Event? { endedFor[did].flatMap(event) }
 
     /// Whether the event `seq` has a `pass`.
-    public func answered(_ seq: Int) -> Bool { passed.contains(seq) }
+    public func answered(_ seq: Int) -> Bool { passFor[seq] != nil }
 }
 
 /// A read-only view of the log (kit/BRAIN-KIT.md §2.4): everything so far,
@@ -226,7 +243,8 @@ public struct LogView {
 
     /// Every event after `seq`, of any kind, oldest first.
     public func events(after seq: Int) -> ArraySlice<Event> {
-        log.events[log.index(after: seq)..<log.index(after: upTo - 1)]
+        let end = log.index(after: upTo - 1)
+        return log.events[min(log.index(after: seq), end)..<end]
     }
 
     /// Every event at or after `now - ms`, oldest first.
@@ -273,13 +291,12 @@ public struct LogView {
         seqs(kind).reversed().prefix { log.event($0).map { $0.at >= now - ms } ?? false }.count
     }
 
-    /// The `did`s for the event `seq`, in order: those in the log so far,
-    /// whatever the view's cut.
-    public func dids(for seq: Int) -> [Event] { log.dids(for: seq) }
+    /// The `did`s for the event `seq` in view, in order.
+    public func dids(for seq: Int) -> [Event] { log.dids(for: seq).filter { $0.seq < upTo } }
 
-    /// How the `did` `seq` ended, if it has, as the log has it so far.
-    public func ended(_ did: Int) -> Event? { log.ended(did) }
+    /// How the `did` `seq` ended, if it has in view.
+    public func ended(_ did: Int) -> Event? { log.ended(did).flatMap { $0.seq < upTo ? $0 : nil } }
 
-    /// Whether the event `seq` has a `pass`.
-    public func answered(_ seq: Int) -> Bool { log.answered(seq) }
+    /// Whether the event `seq` has a `pass` in view.
+    public func answered(_ seq: Int) -> Bool { log.passFor[seq].map { $0 < upTo } ?? false }
 }

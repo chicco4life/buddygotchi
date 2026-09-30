@@ -27,14 +27,21 @@ public enum JSONValue: Equatable, Sendable, ExpressibleByStringLiteral, Expressi
         switch self {
         case .string(let s): s
         case .int(let n): NSNumber(value: n)
-        // As a decimal of Swift's shortest form: `JSONSerialization` writes
-        // a double to 17 places, 0.97 as 0.96999999999999997.
-        case .double(let d): d.isFinite ? NSDecimalNumber(string: String(d)) : NSNull()
+        case .double(let d): d.isFinite ? JSONValue.shortest(d) : NSNull()
         case .bool(let b): b
         case .array(let a): a.map(\.foundation)
         case .object(let o): o.mapValues(\.foundation)
         case .null: NSNull()
         }
+    }
+
+    /// `d` as a decimal of Swift's shortest form: `JSONSerialization` writes
+    /// a double to 17 places, 0.97 as 0.96999999999999997. A decimal can't
+    /// hold much past 1e±127, so a double it can't give back exactly goes
+    /// as itself.
+    static func shortest(_ d: Double) -> NSNumber {
+        let n = NSDecimalNumber(string: String(d))
+        return n != NSDecimalNumber.notANumber && n.doubleValue == d ? n : NSNumber(value: d)
     }
 
     /// A value from what `JSONSerialization` read: a whole number is an

@@ -3,13 +3,13 @@ import Foundation
 
 // `kit-emit`: sends one event to a brain kit's socket (plan/kit/BRAIN-KIT.md §3.3).
 //   kit-emit --socket PATH SOURCE KIND [key=value ...] [--line TEXT]
-// A value that reads as a whole number is one, `true` and `false` are yes and no, and the rest are strings.
+// A whole number written plainly is one, `true` and `false` are yes and no, and the rest are strings.
 
 let usage = """
     usage: kit-emit --socket PATH SOURCE KIND [key=value ...] [--line TEXT]
     Sends one event to the brain kit's socket at PATH (EventServer), e.g.
       kit-emit --socket /tmp/beacon.sock ci build_failed branch=main run=812
-    A value that reads as a whole number is one, true and false are yes and no, the rest strings.
+    A whole number written plainly (812, -3; not 007) is one, true and false are yes and no, the rest strings.
     --line gives the event a line of its own, for a kind registered with no transform.
     """
 
@@ -24,12 +24,11 @@ func parse(_ words: [String]) -> (socket: String?, line: String?, rest: [String]
     return (socket, line, rest)
 }
 
-let words = Array(CommandLine.arguments.dropFirst())
-if words.contains("--help") || words.contains("-h") {
+let (socket, line, rest) = parse(Array(CommandLine.arguments.dropFirst()))
+if rest.contains("--help") || rest.contains("-h") {
     print(usage)
     exit(0)
 }
-let (socket, line, rest) = parse(words)
 guard let socket, var event = EventServer.event(from: rest) else {
     FileHandle.standardError.write(Data((usage + "\n").utf8))
     exit(2)

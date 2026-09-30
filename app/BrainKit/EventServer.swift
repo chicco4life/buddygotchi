@@ -7,19 +7,28 @@ import Foundation
 
 /// A way in for other processes (kit/BRAIN-KIT.md §3.3): a Unix socket that
 /// takes one JSON event per line, `{"source":…,"kind":…,"data":{…}}`
-/// (`line` and `at` optional), and hands each on. It never writes back.
-/// `kit-emit` sends to it from a shell.
+/// (`line` and `at` optional), and hands each on as its line ends. It never
+/// writes back. Each connection is read on its own thread, and closed once
+/// it's quiet for half a second. `kit-emit` sends to it from a shell.
 public final class EventServer: @unchecked Sendable {
     public let path: String
-    private let onEvent: @Sendable (Event) -> Void
-    private let lock = NSLock()
-    private var listener: Int32 = -1
+    private let state: State
 
-    /// `onEvent` gets each event on the server's own thread; hop to the
+    /// What the listening thread needs, apart from the server, so letting
+    /// go of the server stops it.
+    private final class State: @unchecked Sendable {
+        let onEvent: @Sendable (Event) -> Void
+        let lock = NSLock()
+        var listener: Int32 = -1
+
+        init(onEvent: @escaping @Sendable (Event) -> Void) { self.onEvent = onEvent }
+    }
+
+    /// `onEvent` gets each event on one of the server's threads; hop to the
     /// kit's queue to emit it.
     public init(path: String, onEvent: @escaping @Sendable (Event) -> Void) {
         self.path = path
-        self.onEvent = onEvent
+        state = State(onEvent: onEvent)
     }
 
     public enum Failure: Error { case pathTooLong, socket(Int32), bind(Int32), listen(Int32), send }
@@ -47,16 +56,18 @@ public final class EventServer: @unchecked Sendable {
             close(fd)
             throw Failure.listen(error)
         }
-        lock.withLock { listener = fd }
-        let thread = Thread { [weak self] in self?.acceptLoop(fd) }
+        let state = state
+        state.lock.withLock { state.listener = fd }
+        let thread = Thread { EventServer.acceptLoop(fd, state) }
         thread.name = "brainkit.event-server"
         thread.start()
     }
 
     public func stop() {
-        let fd = lock.withLock { () -> Int32 in
-            defer { listener = -1 }
-            return listener
+        let state = state
+        let fd = state.lock.withLock { () -> Int32 in
+            defer { state.listener = -1 }
+            return state.listener
         }
         guard fd >= 0 else { return }
         shutdown(fd, Int32(SHUT_RDWR))
@@ -66,34 +77,41 @@ public final class EventServer: @unchecked Sendable {
 
     deinit { stop() }
 
-    private func acceptLoop(_ fd: Int32) {
+    private static func acceptLoop(_ fd: Int32, _ state: State) {
         while true {
             let client = accept(fd, nil, nil)
             if client < 0 {
-                if lock.withLock({ listener }) != fd { return }  // stopped
+                if state.lock.withLock({ state.listener }) != fd { return }  // stopped
                 usleep(10_000)
                 continue
             }
-            autoreleasepool { handle(client) }
+            let reader = Thread { autoreleasepool { handle(client, state.onEvent) } }
+            reader.name = "brainkit.event-server.client"
+            reader.start()
         }
     }
 
-    /// Reads a connection's lines, with a short timeout so a stuck client
-    /// can't hold up the next.
-    private func handle(_ client: Int32) {
+    /// Reads a connection's lines, handing on each as it ends, until the
+    /// client closes it, it's quiet for half a second, or it has sent 1 MB.
+    private static func handle(_ client: Int32, _ onEvent: @Sendable (Event) -> Void) {
         defer { close(client) }
         var timeout = timeval(tv_sec: 0, tv_usec: 500_000)
         setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-        var data = Data()
+        var pending = Data()
+        var total = 0
         var buffer = [UInt8](repeating: 0, count: 4096)
-        while data.count < 1 << 20 {
+        while total < 1 << 20 {
             let n = read(client, &buffer, buffer.count)
             if n <= 0 { break }
-            data.append(contentsOf: buffer[0..<n])
+            total += n
+            pending.append(contentsOf: buffer[0..<n])
+            while let end = pending.firstIndex(of: 0x0A) {
+                let line = pending[pending.startIndex..<end]
+                if !line.isEmpty, let e = decode(Data(line)) { onEvent(e) }
+                pending.removeSubrange(pending.startIndex...end)
+            }
         }
-        for part in data.split(separator: 0x0A) where !part.isEmpty {
-            if let e = EventServer.decode(Data(part)) { onEvent(e) }
-        }
+        if !pending.isEmpty, let e = decode(pending) { onEvent(e) }
     }
 
     /// An event from a line: `source` and `kind` needed, `data`, `line` and
@@ -108,16 +126,18 @@ public final class EventServer: @unchecked Sendable {
     }
 
     /// An event from a command line's words, `SOURCE KIND [key=value ...]`
-    /// (`kit-emit`): a value that reads as a whole number is one, `true` and
-    /// `false` are yes and no, the rest strings. Nil without a source and a
-    /// kind, or a word that isn't `key=value`.
+    /// (`kit-emit`): a value that's a whole number written plainly (`812`,
+    /// `-3`, not `007` or `+4`) is one, `true` and `false` are yes and no,
+    /// the rest strings. Nil without a source and a kind, or a word that
+    /// isn't `key=value`.
     public static func event(from arguments: [String]) -> Event? {
         guard arguments.count >= 2 else { return nil }
         var data: [String: JSONValue] = [:]
         for word in arguments.dropFirst(2) {
             guard let eq = word.firstIndex(of: "="), eq != word.startIndex else { return nil }
             let key = String(word[..<eq]), value = String(word[word.index(after: eq)...])
-            data[key] = Int64(value).map(JSONValue.int) ?? (value == "true" ? .bool(true) : value == "false" ? .bool(false) : .string(value))
+            let number = Int64(value).flatMap { String($0) == value ? JSONValue.int($0) : nil }
+            data[key] = number ?? (value == "true" ? .bool(true) : value == "false" ? .bool(false) : .string(value))
         }
         return Event(source: arguments[0], kind: arguments[1], data: data)
     }

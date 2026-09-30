@@ -96,3 +96,88 @@ and no board.
 Not checked here: anything with Jev (no key, so no steering eval; the
 prompts are pinned byte-for-byte instead), the board over USB or
 Bluetooth, and a Linux build of `BrainKit`.
+
+## Rebased onto main-refactor
+
+The owner asked (2026-09-30) for the branch to go on top of
+`main-refactor` (a6d5447d, agent-hooks). The commits above are now
+47763219 (golden states), 2b4d462b (the spec), dd67bdd5, 0fea574f,
+c94f20af (steps 1–4), a8366d11 (Beacon), a651c5e4 (the sweep) and
+35ac9f7b (the evidence). The one real conflict was the session
+bookkeeping, now agent-hooks' `SessionFold` on `AgentEvent`: Boop's
+changes to it were dropped, and `AgentEvent(Event)` reads the kit's
+event shape. Every commit was built and its Swift tests run during the
+rebase. At the tip, before the review fixes: `make -C internal test`
+passed 302 of 302 (the hook tests moved to agent-hooks, whose own 76
+passed), with the 387 golden states unchanged, and
+`make -C internal tools-test` passed 94 and 3.
+
+## Review (2026-09-30), ended early
+
+Four reviewers read the branch: the kit's code, Boop's move onto it,
+the specs, and the tests, Beacon and the tools. The owner asked to stop
+before all the findings were fixed; the one on Boop's move was stopped
+before it reported.
+
+Fixed in the review commit (302 of 302 Swift tests, golden states
+unchanged):
+
+- A double past about 1e±127 in an event crashed the app when it was
+  written; it's now written as a plain double.
+- An event given an earlier `at` than the last could lose events at the
+  next launch and hide a waiting one; one with a future `at` emptied the
+  memory. `at` now never goes back, nor past the clock.
+- The log let go of old events only once they were an hour past
+  `keepMs`, so a running app and a relaunched one could see different
+  things for events 24–25 hours old. It now trims on every event and
+  tick.
+- The kit pruned old files only at launch, and a launch after more than
+  14 idle days restarted `seq` at 1. It now prunes on the first event of
+  a new day too, and reads `seq` before pruning.
+- A view's `dids(for:)`, `ended` and `answered` ignored a transform's
+  cut, and `events(after:)` trapped for a `seq` past it.
+- `h.hold` on a kind with no input gave that kind a line.
+- The stale events noted grew without end.
+- `JevBrain` reported no probability at all, not 1, for a pick given
+  without probabilities.
+- `EventServer` could never be let go of, read one connection at a
+  time, and lost lines a long connection sent after a pause. Each
+  connection is now its own, and each line is handed on as it ends.
+- `kit-emit` turned `007` into 7 and `+4` into 4, and printed its help
+  when `--line`'s text was `-h`.
+- The spec said the kit refuses answers that leave a question out; only
+  `JevBrain` does, and Boop's scripted test brains rely on answering
+  some. §8 now says so.
+
+Still open:
+
+- **Kit:** duplicate question keys crash at the first call, where §5.1
+  says the kit refuses to start; a relaunch within 10 s can answer an
+  event from before it, which §9 says never happens; `onLine` isn't
+  called for events read back at launch; `changedDuringPass` is state
+  kept outside the log; `history()` and `all(since:)` scan the whole
+  day.
+- **Tests:** nothing pins `maxWaitMs` (10 s), the kit's `keptDays` and
+  `keepMs` defaults, react's 90 s `openFor`, a late answer running no
+  output, the older-line branches of `Event.legacy`, or a pass going
+  stale when the brain changes mid-call. The deadline test measures
+  `respond`'s sleep, not the loop's timer. `GoldenStateTests` passes
+  green while re-recording with `BOOP_GOLDEN_RECORD=1`. The fixes above
+  have no tests of their own yet.
+- **Tools:** the dashboard shows 0 ms for Jev after a held pass, and
+  `workday` counts held passes as passes.
+- **Beacon:** `reachBack` keeps reaching back to the last red streak
+  after the build is green, not only when the pass is NOW.
+- **Docs:** BRAIN-KIT §3.1's example interpolates a `JSONValue`
+  (`string("main")`); EVENTS.md §1 still says passes are in
+  `debug.jsonl` only; §7.1 says to set `reading` to nil (it's an enum);
+  `.failed` carries no facts; the §2.1 and §2.2 example lines, EVENTS.md's
+  `did`/`ended` example and DECISIONS.md §5's "recorded" lines weren't
+  taken from a run; EXAMPLE.md still says `mood` saved the mood;
+  plan/README.md's HARNESS and EVENTS rows are out of date; a ViewTests
+  comment says two days' files; CLAUDE.md's `make build` line leaves out
+  `beacon` and `kit-emit`; this file's step numbers differ from §14's;
+  EVENTS.md says a raw tool wait gets a line; BRAIN-KIT never names
+  `resume()`, `use(_:)`, `respond(to:)`, `Options.loop` or `idle`; §13
+  cites EVENTS.md §1 for the shape (it's §2); §7.2 leaves out that older
+  in-progress events come only from inside the time window.

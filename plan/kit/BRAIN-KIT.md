@@ -54,7 +54,7 @@ gives the same answer.
 ```swift
 public struct Event {
     var seq: Int                  // stamped by the log: counts on across days and launches
-    var at: Int64                 // unix milliseconds: stamped by the log unless the emitter set it
+    var at: Int64                 // unix milliseconds: stamped by the log unless the emitter set it (§2.3)
     var source: String            // who it's from: "ci", "device", "claude", "self"
     var kind: String              // what it is: "build_failed", "press", "turn_end"
     var line: String?             // a line of its own, for a kind with no transform (§3)
@@ -92,11 +92,16 @@ the event they answer.
 ### 2.3 The log
 
 `Log` is append-only. Each event gets the next `seq`, and `at` if it had
-none. With a folder, each event is written as it's appended to
-`<folder>/<yyyy-mm-dd>.jsonl`, one file a day; files older than
-**14 days** are deleted at launch and at each new day. A launch reads the
-files back into memory and keeps the last **24 hours** there (`keepMs`,
-which an app may raise), dropping older events as new ones come. A line
+none. An `at` never goes back before the last event's, and never past
+the clock, so `seq` and `at` keep one order and one wrong clock can't
+carry the rest into the future. With a folder, each event is written as
+it's appended to `<folder>/<yyyy-mm-dd>.jsonl`, one file a day; files
+older than **14 days** are deleted at launch and on the first event of
+each new day, and `seq` counts on even when every file has gone. A
+launch reads the files back into memory and keeps the last **24 hours**
+there (`keepMs`, which an app may raise); older events are let go on
+every event and every tick, so a running app holds just what a launch at
+that moment would read back. A line
 that doesn't parse, such as one a crash cut short, is skipped, and a file
 that ends mid-line is ended first so the next line isn't glued to it.
 Without a folder (tests) it's in memory only. An app whose older files
@@ -106,7 +111,8 @@ hold another shape of line passes a `decode` for them (Boop's does, §13).
 
 Every function you register gets a `LogView`, a read-only view of the log.
 A transform's view stops just before its event, so replaying the log gives
-the same lines; the others see everything so far.
+the same lines; the others see everything so far. The `did`s, ends and
+passes a view reports stop at its cut too.
 
 ```swift
 struct LogView {
@@ -178,7 +184,7 @@ All three end in the same `emit`:
 | Way | For |
 | --- | --- |
 | `h.emit(source:kind:data:line:)`, or `h.emit(event)` | Your own code |
-| `EventServer`, a Unix socket that takes one JSON event per line (`{"source":…,"kind":…,"data":…}`), and the `kit-emit` command line | Other processes: a CI script, a cron job. `kit-emit --socket /tmp/beacon.sock ci build_failed branch=main run=812` |
+| `EventServer`, a Unix socket that takes one JSON event per line (`{"source":…,"kind":…,"data":…}`), and the `kit-emit` command line | Other processes: a CI script, a cron job. `kit-emit --socket /tmp/beacon.sock ci build_failed branch=main run=812`. Each connection is read on its own and each line handed on as it ends; a connection quiet for half a second is closed. In `kit-emit`, a value that's a whole number written plainly (`812`, `-3`, not `007`) is a number, `true` and `false` are yes and no, and the rest are strings |
 | The device's `ev` lines | Piece C, later: `source` `device`, and `did` for what it already did on its own |
 
 ## 4. Rules
@@ -394,8 +400,12 @@ protocol Brain: Sendable {
 }
 ```
 
-Every question must come back answered with one of its own options, or
-the whole answer is unusable. The kit ships two:
+`JevBrain` refuses an answer that leaves a question out or picks an
+option the question doesn't have, and the pass is dropped. The kit
+itself hands each output whatever came back for its questions, so a
+scripted brain may answer only some: an output does nothing with an
+answer it hasn't, and a `Choice` ignores a pick it didn't offer. The kit
+ships two:
 
 | Brain | For |
 | --- | --- |

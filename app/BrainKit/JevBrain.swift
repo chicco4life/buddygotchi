@@ -91,7 +91,8 @@ public struct JevBrain: Brain {
             for (name, p) in (a["probabilities"] as? [String: Any]) ?? [:] {
                 if let p = (p as? NSNumber)?.doubleValue { probabilities[name] = p }
             }
-            out[q.key] = Answer(choice: choice, probabilities: probabilities)
+            // With no probabilities, the pick is reported at 1 (§8).
+            out[q.key] = Answer(choice: choice, probabilities: probabilities.isEmpty ? [choice: 1] : probabilities)
         }
         return out
     }

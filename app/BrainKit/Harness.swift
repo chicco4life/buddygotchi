@@ -131,10 +131,11 @@ public final class Harness: @unchecked Sendable {
     // Registration.
     struct Input {
         var wake: Int?
-        var hold: ((Event, LogView) -> String?)?
         var transform: ((Event, LogView) -> Line?)?
     }
     var inputs: [String: Input] = [:]
+    /// Each kind's hold, apart from its input: a hold alone registers no line.
+    var holds: [String: (Event, LogView) -> String?] = [:]
     var rules: [(kind: String, run: (Event) -> Void)] = []
     struct Output {
         var action: any Action
@@ -185,22 +186,20 @@ public final class Harness: @unchecked Sendable {
     /// A kind with a line: `wake` its priority (nil: it never wakes the
     /// brain), `transform` its line from the event and the log before it.
     public func input(_ kind: String, wake: Int? = nil, _ transform: @escaping (Event, LogView) -> Line?) {
-        inputs[kind] = Input(wake: wake, hold: inputs[kind]?.hold, transform: transform)
+        inputs[kind] = Input(wake: wake, transform: transform)
     }
 
     /// A kind with no transform: its events show their own `line`, or
     /// their data (`hold: secs 2`).
     public func input(_ kind: String, wake: Int? = nil) {
-        inputs[kind] = Input(wake: wake, hold: inputs[kind]?.hold, transform: nil)
+        inputs[kind] = Input(wake: wake, transform: nil)
     }
 
     /// A check for `kind`, asked when one of its events' turn to wake the
     /// brain comes (§9): a reason to hold it back, or nil. It can read your
     /// live state as well as the log.
     public func hold(_ kind: String, _ check: @escaping (Event, LogView) -> String?) {
-        var input = inputs[kind] ?? Input(wake: nil, hold: nil, transform: nil)
-        input.hold = check
-        inputs[kind] = input
+        holds[kind] = check
     }
 
     /// Registers kinds from a JSON object: `{"kind": {"line": "… {field} …",
@@ -465,6 +464,7 @@ public final class Harness: @unchecked Sendable {
         let now = clock.now()
         let recent = log.view(now: now).recent(within: options.maxWaitMs).filter { !$0.isKit && wakes($0) }
         let waiting = recent.filter { !log.answered($0.seq) && $0.seq != running?.seq }
+        notedStale.formIntersection(recent.map(\.seq))
         var live: [Event] = []
         for e in waiting {
             if wake(e) == 0, let newer = recent.last(where: { $0.seq > e.seq }) {
@@ -483,7 +483,7 @@ public final class Harness: @unchecked Sendable {
         guard depth == 0, options.loop, running == nil, let brain else { return }
         while running == nil, let e = next() {
             let view = log.view(now: clock.now())
-            if let why = inputs[e.kind]?.hold?(e, view) {
+            if let why = holds[e.kind]?(e, view) {
                 finish(e, nil, .success([:]), latencyMs: 0, brainID: brain.id, held: why)
                 continue
             }
@@ -666,6 +666,7 @@ public final class Harness: @unchecked Sendable {
     public func tick() {
         dispatchPrecondition(condition: .onQueue(queue))
         let now = clock.now()
+        log.trim(now: now)
         depth += 1
         for seq in log.openDids.sorted() {
             guard let d = log.event(seq) else { continue }
@@ -736,7 +737,7 @@ public final class Harness: @unchecked Sendable {
     /// the queue. Past the deadline the request is cancelled.
     public func respond(to e: Event) async -> Pass? {
         let job: Job? = queue.sync {
-            guard wakes(e), let brain, inputs[e.kind]?.hold?(e, log.view(now: clock.now())) == nil else { return nil }
+            guard wakes(e), let brain, holds[e.kind]?(e, log.view(now: clock.now())) == nil else { return nil }
             return prepare(e, brain)
         }
         guard let job else { return nil }
