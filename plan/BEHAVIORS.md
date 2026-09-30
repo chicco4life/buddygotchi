@@ -513,7 +513,8 @@ blinks into whatever the next `state` says.
 
 ### 3.5 Quiet time
 
-While no agent works, an hour with no agent event or poke brings the
+While no agent works, an hour with no agent event, poke, word to Boop
+or coming back to the Mac brings the
 brain a heartbeat, and another each hour after
 ([harness/EVENTS.md](harness/EVENTS.md) §4), so a mood can fade back to
 happy. Nothing shows on screen. The first activity on a day after the

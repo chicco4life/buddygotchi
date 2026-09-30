@@ -68,6 +68,16 @@ public final class Pipeline {
         return gated(step)
     }
 
+    /// You stepping away from the Mac or coming back, as the presence
+    /// detector decided (harness/EVENTS.md §2.1): recorded and folded, but
+    /// never the core's. Only a back wakes the brain.
+    @discardableResult
+    public func presence(_ event: Event) -> Step {
+        var step = Step()
+        record(event, &step)
+        return gated(step)
+    }
+
     /// The core's timers, then a heartbeat if one is due.
     @discardableResult
     public func tick(at now: Int64) -> Step {

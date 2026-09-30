@@ -1,6 +1,6 @@
 # Boop: harness evals
 
-Updated 2026-09-29. How we check that Jev decides as Boop should: short
+Updated 2026-09-30. How we check that Jev decides as Boop should: short
 scenarios of agent work, run through the real pipeline (the transcript,
 the core and the view), harness and actions,
 each pass checked against what it should come to. The harness is
@@ -40,6 +40,8 @@ Wednesday 14:00 UTC and stands still while Jev answers.
 | `poke` | One poke from the device, a pass: steps a second apart make pokes in a row ([harness/EVENTS.md](harness/EVENTS.md) §4) |
 | `pokes` | Four pokes at once from the device, each a pass: the step checks the last, `You poked Boop 4 times in a row.` |
 | `said` | What you said on push-to-talk, the step's `words`, after the device's button: a `talk` event, `You said to Boop: "…"` |
+| `away` | You lock the screen and leave: a `presence` start, `locked`, since this moment ([harness/EVENTS.md](harness/EVENTS.md) §2.1), `You stepped away from the Mac.`, which wakes no pass |
+| `back` | You unlock it: a `presence` end, `unlocked`, `You came back to the Mac after a long break.` with the break's band since the last `away` |
 | `wait` | Nothing; only time passes |
 
 Every event is Claude's, in project `landing`, in session `s1` or the
@@ -101,7 +103,7 @@ BOOP_JEV_KEY=… make eval                     # the final pass: every scenario,
 ```
 
 **The API budget.** Every pass is one request to Jev, and a full
-`make eval` is about 635 of them (`--list` counts them), so it's the
+`make eval` is about 655 of them (`--list` counts them), so it's the
 final pass before a commit, once. While developing, run the scenarios
 the change is about with `--only`. Before it asks Jev anything,
 `boopdev eval` counts each
@@ -219,7 +221,7 @@ kinds, all with the `boop` personality unless the file says otherwise:
   the graph, a step at a time (`47`, `49`, `53`).
 - **Tuning** (`01`, `07`, `10`–`12`, `14`, `15`, `18`, `19`, `21`,
   `22`, `24`–`27`, `29`, `44`–`46`, `48`, `50`–`52`, `54`–`60`,
-  `62`): single decisions (a long turn done says it went well,
+  `62`–`65`): single decisions (a long turn done says it went well,
   `29`; a failure that really stings swears, `60`; and Boop picks a face
   that can say what it means, at a failed check and at a finish, `62`),
   and the liveliness brief: Boop reacts often (every quick win, `19`;
@@ -241,7 +243,11 @@ kinds, all with the `boop` personality unless the file says otherwise:
   softens a fed-up Boop a step (`56`), a second is fair only after
   poking it again (`57`), sad news makes it sad and keeps it so until
   it's taken back, when it switches (`58`), and a plain question
-  softens nothing (`59`).
+  softens nothing (`59`). And coming back to the Mac
+  ([harness/EVENTS.md](harness/EVENTS.md) §2.1): after hours away Boop
+  is glad to see you (`63`), a short break isn't news and leaves the
+  mood alone (`64`), and work that finished while you were away is
+  celebrated as it ends, never replayed when you're back (`65`).
 - **Known gaps** (`20`): flipping tests don't flip the mood. Its `gap`
   says why the steering can't get there alone.
 

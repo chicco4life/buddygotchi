@@ -47,6 +47,11 @@ public final class Runtime: @unchecked Sendable {
         /// Every read of the key goes through here, so tests and headless
         /// runs decide what it is.
         public var readJevKey: @Sendable (_ saved: () -> String?) -> String? = { JevKey.environment() ?? $0() }
+        /// The Mac's idle time in ms, read on every tick for the presence
+        /// detector (harness/EVENTS.md §2.1): the app's. Nil (headless)
+        /// reads none of the Mac's signals: `{"dev":"presence"}` lines
+        /// stand in (harness/HARNESS.md §9).
+        public var idleMs: (@Sendable () -> Int64)?
         public var log: @Sendable (String) -> Void = { _ in }
         /// Opens a thread on the Mac (`ThreadLink`): a tap while something
         /// needs you, or a click in the popover. Tests pass their own.
@@ -174,6 +179,13 @@ public final class Runtime: @unchecked Sendable {
     var replyFor: Int?
     var micTrouble: String?
 
+    // Here and away (harness/EVENTS.md §2.1). All on `home`.
+    /// Decides whether you're at the Mac, from where the transcript left it.
+    var presence = PresenceDetector()
+    /// The idle time `{"dev":"presence","idle_ms":N}` set, read in place of
+    /// the Mac's when there's no `idleMs`.
+    var devIdleMs: Int64 = 0
+
     /// A clock that never steps and keeps counting while the Mac sleeps,
     /// starting at the wall clock's time: the keepalive and moments'
     /// turns are measured on it, so setting the Mac's clock back can't stall them
@@ -265,6 +277,7 @@ public final class Runtime: @unchecked Sendable {
         // The view and the core pick up where the last launch left them.
         let read = pipeline.readBack(now: now)
         if read > 0 { log("transcript: read back \(read) events, the view has \(view.events.count)") }
+        presence = PresenceDetector(away: view.away)
         personalityNow = { [weak self] in self?.personality ?? .boop }
         moodSaved = { [weak self] in self?.moodChanged($0) }
         queued = { [weak self] moment, pending in self?.queue(moment, pending) }
@@ -475,6 +488,18 @@ public final class Runtime: @unchecked Sendable {
             guard let on = object["on"] as? Bool else { return }
             run(core.listen(on, at: options.clock()))
             options.log("dev: listen \(on)")
+        case "presence":
+            // The Mac's signals and idle time, headless only: the app
+            // reads the Mac's own (harness/HARNESS.md §9).
+            guard options.idleMs == nil else { return }
+            if let ms = (object["idle_ms"] as? NSNumber)?.int64Value {
+                devIdleMs = max(0, ms)
+                options.log("dev: idle \(devIdleMs) ms")
+            }
+            if let signal = (object["signal"] as? String).flatMap(PresenceDetector.Signal.init(rawValue:)) {
+                options.log("dev: presence \(signal.rawValue)")
+                presenceSignal(signal)
+            }
         case "report":
             saveReport { _ in }
         default:
@@ -486,6 +511,7 @@ public final class Runtime: @unchecked Sendable {
         let now = options.clock()
         core.setWallClock(options.wallClock(), at: now)
         run(pipeline.tick(at: now))
+        if let e = presence.tick(at: now, idleMs: options.idleMs?() ?? devIdleMs) { recordPresence(e) }
         link.tick(now: now)
         schedule.overdue(now: now)
         // A reaction that has waited too long is dropped here too, before
@@ -498,6 +524,18 @@ public final class Runtime: @unchecked Sendable {
             linkTrouble = trouble
             changed()
         }
+    }
+
+    /// You stepped away or came back, as the detector decided: recorded,
+    /// and a back wakes the brain (harness/EVENTS.md §2.1).
+    func recordPresence(_ e: Event) {
+        options.log("presence: \(e.phase == .start ? "away" : "back") (\(e.specificType))")
+        run(pipeline.presence(e))
+    }
+
+    /// A signal from the Mac for the presence detector.
+    func presenceSignal(_ signal: PresenceDetector.Signal) {
+        if let e = presence.signal(signal, at: options.clock()) { recordPresence(e) }
     }
 
     /// The mood action saved a new mood: the device draws it from the next
@@ -727,6 +765,12 @@ public final class Runtime: @unchecked Sendable {
             endListening()
             changed()
         }
+    }
+
+    /// A lock, unlock, sleep or wake from the Mac, for the presence
+    /// detector (harness/EVENTS.md §2.1).
+    public func presence(_ signal: PresenceDetector.Signal) {
+        home.async { [self] in presenceSignal(signal) }
     }
 
     /// The popover's "can't hear you" notice was dismissed.

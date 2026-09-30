@@ -1,0 +1,9 @@
+{
+  "name": "Coming back after hours is a glad hello",
+  "case": "Nothing is going on. The person locks the Mac and leaves for three hours, then comes back and unlocks it. Boop is glad to see them: a happy, excited or curious face, never a sad, hurt or cross one, and no finish is played, since no turn ended.",
+  "why": "harness/EVENTS.md §2.1, §4: coming back wakes the brain with the break's band; PERSONALITY's Examples: back after a very long break is happy, glad in a sound, twice; harness/DECISIONS.md §3: react.animation is none for anything but a turn that finished",
+  "steps": [
+    {"event": "away", "at": "0s"},
+    {"event": "back", "at": "3h", "expect": {"react": "happy|excited|curious", "animation": "none"}}
+  ]
+}

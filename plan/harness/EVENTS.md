@@ -13,7 +13,8 @@ or something Boop did that a person could notice. Everything else is a
 log line (`debug.jsonl`).**
 
 - **In:** agent hooks that map to a type (§2), pokes, what you say to
-  Boop on push-to-talk, heartbeats, and
+  Boop on push-to-talk, you stepping away from the Mac and coming back
+  (§2.1), heartbeats, and
   actions: the brain's and the dashboard's (`react`, `mood`) and the
   rules' (`wiggle`, `open_thread`, and `needs_you` starting and ending).
 - **Out:** hooks Boop ignores, passes (`debug.jsonl` only), state
@@ -41,10 +42,10 @@ Claude `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | --- | --- |
 | `seq` | Its place in the transcript. It counts on across days and launches |
 | `ts` | When it happened, in unix milliseconds (the app's steady clock, which starts at the wall clock's time: [ARCHITECTURE.md](../ARCHITECTURE.md) §3.2) |
-| `source` | `claude`, `codex`, `device`, `clock`, `boop` or `mic` |
-| `type` | One of the eight generic types below |
+| `source` | `claude`, `codex`, `device`, `clock`, `boop`, `mic` or `mac` |
+| `type` | One of the nine generic types below |
 | `phase` | `start`, `wait` or `end` for a type with a lifetime; left out for one that just happens |
-| `specific_type` | The source's own name for it: the hook (`UserPromptSubmit`, `Interrupt`), the device's message (`input`), the clock's reason (`idle`, `working`), the button that turned the mic on (`device` or `app`) or the action's name (`react`, `wiggle`) |
+| `specific_type` | The source's own name for it: the hook (`UserPromptSubmit`, `Interrupt`), the device's message (`input`), the clock's reason (`idle`, `working`), the button that turned the mic on (`device` or `app`), why you're away or back (§2.1) or the action's name (`react`, `wiggle`) |
 | `session`, `subagent`, `cwd` | An agent's session, the Claude subagent's `agent_id`, and the working directory; an action about a session names it too. Left out when there's none |
 | `data` | The type's own fields, below. Every agent event can also carry `name`, the thread's name as its agent's app shows it, when the hook found one ([ADAPTERS.md](../ADAPTERS.md) §2): for the strip, the popover and a cheer; and `app` and `app_session`, the app the agent runs in and that app's ID for the session, when the hook's environment said: where a tap opens the thread ([BEHAVIORS.md](../BEHAVIORS.md) §3.2). The view leaves them out. The core carries each on, so an event is recorded without the ones its session already has (and `mode` while plan mode hasn't changed): the first event of a session each day, so each day's file has them for a launch's read-back ([HARNESS.md](HARNESS.md) §5), or of one the core doesn't hold, after a launch, the session's end or a day's silence, has them all (`Core.unrepeated`) |
 
@@ -56,6 +57,7 @@ Claude `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | `subagent` | claude | start / end | — (the subagent is the event's `subagent`) |
 | `poke` | device | — | — |
 | `talk` | mic | — | `words`: what the Mac's mic heard, as macOS transcribed it, up to 2,000 characters (`HookLine.maxMessage`). Only when it heard something |
+| `presence` | mac | start / end | start (you stepped away): `since`, when you last touched the Mac, in unix milliseconds. end (you're back): — (§2.1) |
 | `heartbeat` | clock | — | — (the view says what it's about, §4) |
 | `action` | boop | start / end, or none | `for` (the `seq` of the event it's about, or null), `by` (`brain`, `dashboard` or `rule`), `ok`, `message`, and the action's own facts: `react`'s start has `takes` (the ids of the takes it queued, in the order said, `[]` when it says nothing), so a tool can say what it said. end: `for` (its start's `seq`), `outcome` (`done` or `failed`), `why` |
 
@@ -72,6 +74,14 @@ carries its permission mode as `mode` (`plan` shows as planning,
 [BEHAVIORS.md](../BEHAVIORS.md) §2). Only the core reads `source` and
 `mode`; the view leaves them out. Which hook becomes which type and
 phase is [ADAPTERS.md](../ADAPTERS.md) §3.
+
+You locking the screen, then coming back an hour later (the shape
+`PresenceTests` pins):
+
+```jsonl
+{"seq":40,"ts":1790000030000,"source":"mac","type":"presence","phase":"start","specific_type":"locked","data":{"since":1790000000000}}
+{"seq":41,"ts":1790003600000,"source":"mac","type":"presence","phase":"end","specific_type":"unlocked","data":{}}
+```
 
 **Actions.** One that finishes at once is a single event with no phase.
 One that starts something that takes time (a reaction playing on the
@@ -92,6 +102,49 @@ event that caused it:
 | `open_thread` | A poke while something needs you and `listening` doesn't show: the Mac opens the thread the sign names ([BEHAVIORS.md](../BEHAVIORS.md) §3.2) | `for` the poke, `agent`, `message` `Boop opened the thread that needs you on the Mac.` |
 | `needs_you`, start | "Needs you" starts showing for a session, after Codex's grace ([ADAPTERS.md](../ADAPTERS.md) §4) | `for` the request's `tool` wait, `agent`, `message` |
 | `needs_you`, end | It clears | `agent`, `outcome`: `done` when answered, else `failed` with `why` (`nothing for 10 minutes`, `the session ended`, `forgotten`) |
+
+### 2.1 Here and away
+
+Whether you're at the Mac is decided in one place, the presence
+detector (`PresenceDetector` in
+`app/BoopKit/Presence/PresenceDetector.swift`), which makes the
+`presence` events. Nothing after it decides again: the view pairs a
+start with its end and the brain hears them (§4), and nothing else
+reads them.
+
+It hears the Mac's raw signals (`app/Boop/PresenceSignals.swift`), none
+of which asks for a permission: the screen locking and unlocking
+(switching to another user counts as a lock), the Mac or its displays
+sleeping and waking, and, on the runtime's 1 s tick, how long it's been
+since the last key press or mouse move: a number, never the keys.
+
+| | When (`PresenceDetector.Config`) | `specific_type` |
+| --- | --- | --- |
+| Away (`start`) | The screen stays locked 30 s (`lockGraceMs`) | `locked` |
+| | The Mac or its displays stay asleep 30 s (`lockGraceMs`) | `asleep` |
+| | No key or mouse for 30 minutes (`idleAwayMs`) | `idle` |
+| Back (`end`) | While away: a key or mouse within the last 5 s (`backInputMs`), the screen unlocked and awake | `unlocked` or `woke` if that came since the away, else `input` |
+
+**How sure each is.** A lock or sleep almost always means you left, so
+it counts after a short grace. Idle alone can be a video or a long read,
+so it waits much longer; displays that sleep on their own usually come
+sooner, and a playing video keeps them awake. A lock or sleep shorter
+than the grace, or idle shorter than 30 minutes, records nothing.
+
+**`since`** is the tick's time minus the idle time, so an away noticed
+after 30 minutes of idle starts when you left, not when it was noticed.
+
+**One at a time.** While you're away, more signals record nothing until
+you're back. At launch the detector starts from the view: away if the
+transcript's last `presence` is a start (`TranscriptView.away`), so a
+launch never records a second away, and your first touch records the
+back. `Boop --headless` reads none of the Mac's signals; dev lines stand
+in for them ([HARNESS.md](HARNESS.md) §9).
+
+**Being away changes nothing.** Nothing acts on an away: the core never
+sees one, and it never wakes the brain. Only coming back does, since a
+wrong away (a long video) must not make Boop go quiet (decision log in
+[ARCHITECTURE.md](../ARCHITECTURE.md) §11).
 
 ## 3. The view
 
@@ -120,6 +173,7 @@ the view and dropped.
 | `tool` end | Notable ones (§4.1); all with the personality's `tool_uses: all` ([BEHAVIORS.md](../BEHAVIORS.md) §6) |
 | `tool` start | None |
 | `poke`, `talk`, `heartbeat` | All |
+| `presence` start, `presence` end | All |
 | `session`, `subagent` | None: they only tell the view when a session ends or a subagent's hook isn't the session's turn |
 | `action` | Not as view events: as the `did` lines of the view event it's `for` (§7). A `needs_you` start is kept as the `tool` wait it shows |
 
@@ -151,7 +205,9 @@ thread's key, `<agent>/<session>`, such as `claude/s1`.
 | `tool` end | A tool call finishes and is notable, or any with `tool_uses: all` | Its result, whether it passed after failing, its time's band and its category | Yes |
 | `poke` | Every poke | How many pokes in a row: each within 3 s of the one before (`TranscriptView.inARowMs`) | Yes, but not while something needs you (the tap opens the thread) or while Boop is answering its run (§6) |
 | `talk` | You said something to Boop on push-to-talk ([BEHAVIORS.md](../BEHAVIORS.md) §3.3) | Your words | Always, even while something needs you (§6) |
-| `heartbeat` | While no thread works, each whole hour since the last agent event or poke (`TranscriptView.heartbeatMs`). While any thread works, once the personality's `working_heartbeat` wait has passed since Boop last started a reaction (the view sees `react`'s `action` start, §7), however many view events woke the brain in it ([BEHAVIORS.md](../BEHAVIORS.md) §2) | The idle hours, or the thread working longest | Yes |
+| `presence` start | The detector says you stepped away (§2.1) | Why, and since when | Never |
+| `presence` end | You're back from an away the view saw start | How long you were away, from its `since`, as a band (§5) | Yes |
+| `heartbeat` | While no thread works, each whole hour since the last agent event, poke, what you said or your coming back (`TranscriptView.heartbeatMs`). While any thread works, once the personality's `working_heartbeat` wait has passed since Boop last started a reaction (the view sees `react`'s `action` start, §7), however many view events woke the brain in it ([BEHAVIORS.md](../BEHAVIORS.md) §2) | The idle hours, or the thread working longest | Yes |
 
 A thread **works** while its turn is open, nothing waits on you, and it
 has had an event within the hour; within 10 minutes if its last event
@@ -185,7 +241,9 @@ asked for you (the core's safety net, [ADAPTERS.md](../ADAPTERS.md) §4).
 | `tool` wait | `thread` | §3.1 | Yes |
 | `poke` | `in_a_row`, `seconds` | Pokes in a row, this one included, and the whole seconds they took | The count, past one |
 | `talk` | `words`, `by` | What you said, whole; the button, `device` or `app` | The words, cut to 300 characters |
-| `heartbeat` | `idle_hours`, or `thread`, `working_ms` and `topic` | Whole hours since the last agent event or poke; or the thread working longest, how long its turn has run, and its latest topic | The hours; or the thread and its turn's band (§5), not the topic |
+| `presence` start | `why`, `since` | `locked`, `asleep` or `idle` (§2.1); when you last touched the Mac | No |
+| `presence` end | `away`, `away_ms` | The break's band (§5), and its milliseconds, from the start's `since` | The band only |
+| `heartbeat` | `idle_hours`, or `thread`, `working_ms` and `topic` | Whole hours since the last agent event, poke, what you said or your coming back; or the thread working longest, how long its turn has run, and its latest topic | The hours; or the thread and its turn's band (§5), not the topic |
 
 **A turn's outcome** is `failed` when the agent reports an API error, or
 when the turn ends while its own last test, build or deploy command failed
@@ -229,6 +287,7 @@ No number reaches Jev that it would have to compare
 | Band | For | Values |
 | --- | --- | --- |
 | `Band.length` | A turn's `length`, the working heartbeat's turn so far, a tool call's `took` | `short` under a minute, `long` under 5 minutes, `very long` from 5 minutes: the lengths the moods read ([DECISIONS.md](DECISIONS.md) §2.3) |
+| `Band.away` | A `presence` end's `away` | `short` under 15 minutes, `long` under 2 hours, `very long` from 2 hours |
 
 ## 6. Which view events wake the brain
 
@@ -285,7 +344,7 @@ rules did (the `wiggle` or `open_thread`), or `Boop did nothing on its own.`
 
 The view writes every line when it makes the view event, from the facts
 marked "in the line" in §4.1 (`EventLine` in
-`app/BoopKit/Core/TranscriptView.swift`), and `ViewTests` checks them.
+`app/BoopKit/Core/TranscriptView.swift`), and `ViewTests` checks them, `PresenceTests` the presence lines.
 
 | View event | Line |
 | --- | --- |
@@ -296,6 +355,8 @@ marked "in the line" in §4.1 (`EventLine` in
 | `tool` wait | `claude needs you on "fix-nav" (landing).` |
 | `poke` | `You poked Boop.`, or `You poked Boop 4 times in a row.` |
 | `talk` | `You said to Boop: "are the tests passing yet?"`, on one line and cut to 300 characters like a note (`EventLine.said`) |
+| `presence` start | `You stepped away from the Mac.` |
+| `presence` end | `You came back to the Mac after a long break.`, the break's band (§5) |
 | `heartbeat` | `Nothing has happened for 1 hour.`, `… for 3 hours.` While working: `claude is still working on "fix-nav" (landing), a long turn.`, the band of its turn so far |
 
 A thread reads `"fix-nav" (landing)`, or just `"landing"` when its name is
@@ -307,7 +368,8 @@ line and cut to 300 characters (`EventLine.messageMax`).
 
 **Few modifiers.** A line carries only an outcome (`done`, `failed`,
 `stopped`, and ` It failed.` on a routine tool line), a length band, a
-turn's tool calls, `after failing` on a pass and a poke's count: no
+turn's tool calls, `after failing` on a pass, a poke's count and a
+break's band: no
 streaks, times, gaps, error reasons or topic lists, so a line means one
 thing and a test can pin what Jev reads. The facts keep the rest for logs
 and evals. The only line that closes HISTORY is `mood`'s
@@ -331,6 +393,9 @@ other:
   long (5 minutes or more).
 - "You said to Boop" quotes the person talking to Boop. It can't talk
   back: it answers with a face, and maybe a word or a sound.
+- "You" stepping away from the Mac and coming back is the person. Breaks
+  are short (under 15 minutes), long (under 2 hours) or very long (2
+  hours or more).
 ```
 
 ## 9. Privacy
@@ -343,4 +408,6 @@ the Mac and is never kept: macOS recognizes it on the Mac
 (`requiresOnDeviceRecognition`) and only the words go on. No commands,
 tool input or output, file contents, error text or transcripts do. The
 other names in an event are the project's, the workspace's, the agent's,
-and in its data alone, the tool's and a subagent's type.
+and in its data alone, the tool's and a subagent's type. Of what you do
+on the Mac, only whether you're away and when you left and came back
+are recorded (§2.1): not which app, window or keys.

@@ -123,8 +123,13 @@ public final class TranscriptView {
     // The run of pokes going on (BEHAVIORS.md §3.3).
     var pokes: [Int64] = []
 
+    /// The away you haven't come back from (EVENTS.md §2.1): its event's
+    /// `seq` and when you left.
+    var awaySince: (seq: Int, at: Int64)?
+
     // Heartbeats (EVENTS.md §4).
-    /// The last agent event or poke, and the idle heartbeats since.
+    /// The last agent event, poke, thing you said or coming back, and the
+    /// idle heartbeats since.
     var lastActivityAt: Int64?
     var heartbeats = 0
     /// When the working heartbeat is next due; nil until work starts, and
@@ -188,6 +193,7 @@ public final class TranscriptView {
         case .session, .turn, .tool, .subagent: agentEvent(e)
         case .poke: poke(e)
         case .talk: talk(e)
+        case .presence: presence(e)
         case .heartbeat: heartbeat(e)
         case .action: action(e)
         }
@@ -224,13 +230,15 @@ public final class TranscriptView {
 
     /// Whether the view keeps a view event of this type and phase
     /// (EVENTS.md §3): turns' starts and ends, tool calls that wait on you,
-    /// pokes, what you said and heartbeats, and tool calls' ends when
+    /// pokes, what you said, you stepping away and coming back, and
+    /// heartbeats, and tool calls' ends when
     /// notable, or every one with `allToolEnds` (the personality's
     /// `tool_uses: all`, BEHAVIORS.md §6). The rest are read, for what
     /// they tell the view, and dropped.
     public static func keeps(_ type: Event.Kind, _ phase: Event.Phase?, notable: Bool, allToolEnds: Bool) -> Bool {
         switch (type, phase) {
-        case (.turn, .start?), (.turn, .end?), (.tool, .wait?), (.poke, nil), (.talk, nil), (.heartbeat, nil): true
+        case (.turn, .start?), (.turn, .end?), (.tool, .wait?), (.poke, nil), (.talk, nil), (.heartbeat, nil),
+             (.presence, .start?), (.presence, .end?): true
         case (.tool, .end?): notable || allToolEnds
         default: false
         }
@@ -479,6 +487,31 @@ public final class TranscriptView {
         add(e, line: line, wakes: true, passPriority: 2, facts: ["words": .string(words), "by": .string(e.specificType)])
     }
 
+    // MARK: Here and away
+
+    /// Whether you're away from the Mac, as the transcript has it: an away
+    /// with no back yet. The presence detector starts from this at launch.
+    public var away: Bool { awaySince != nil }
+
+    /// You stepping away or coming back, as the presence detector decided
+    /// (EVENTS.md §2.1): the view only pairs them. An away never wakes the
+    /// brain; a back does, with how long you were gone. A back with no
+    /// away the view saw makes no view event.
+    func presence(_ e: Event) {
+        if e.phase == .start {
+            let since = e["since"]?.int ?? e.ts
+            awaySince = (e.seq, since)
+            add(e, line: EventLine.away, wakes: false, facts: ["why": .string(e.specificType), "since": .int(since)])
+            return
+        }
+        guard let away = awaySince else { return }
+        awaySince = nil
+        noteActivity(e.ts)
+        let ms = max(0, e.ts - away.at)
+        add(e, from: [away.seq, e.seq], line: EventLine.back(ms: ms), wakes: true,
+            facts: ["away": .string(Band.away(ms: ms)), "away_ms": .int(ms)])
+    }
+
     // MARK: Heartbeats
 
     /// Whether a thread is working at `now`: a turn open, nothing asked of
@@ -498,7 +531,7 @@ public final class TranscriptView {
     /// A heartbeat, if one is due at `now` (EVENTS.md §4): while threads
     /// work, once the personality's wait has passed with no reaction from
     /// Boop; while none works, each whole hour since the last
-    /// agent event or poke. The caller records it and hands it back to
+    /// agent event, poke, thing you said or coming back. The caller records it and hands it back to
     /// `take`, which says what it's about.
     public func heartbeat(at now: Int64) -> Event? {
         let working = threads.values.contains { isWorking($0, now) }
@@ -721,6 +754,14 @@ public enum EventLine {
         count <= 1 ? "You poked Boop." : "You poked Boop \(count) times in a row."
     }
 
+    /// You stepping away from the Mac.
+    public static let away = "You stepped away from the Mac."
+
+    /// `You came back to the Mac after a long break.`: the break's band.
+    public static func back(ms: Int64) -> String {
+        "You came back to the Mac after a \(Band.away(ms: ms)) break."
+    }
+
     public static func heartbeat(hours: Int) -> String {
         "Nothing has happened for \(hours) hour\(hours == 1 ? "" : "s")."
     }
@@ -744,6 +785,9 @@ public enum EventLine {
           long (5 minutes or more).
         - "You said to Boop" quotes the person talking to Boop. It can't talk
           back: it answers with a face, and maybe a word or a sound.
+        - "You" stepping away from the Mac and coming back is the person. Breaks
+          are short (under 15 minutes), long (under 2 hours) or very long (2
+          hours or more).
         """
 
     public static func needsYou(agent: String, thread: String) -> String {

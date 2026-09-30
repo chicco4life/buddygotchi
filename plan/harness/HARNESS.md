@@ -40,7 +40,8 @@ recorded after it, and the view events it made are gated
 ```
  agent hooks ─► adapters ─┐
  device pokes ────────────┤
- what you say (the mic) ──┼─► Transcript.append ─► transcript/<day>.jsonl, debug.jsonl
+ what you say (the mic) ──┤
+ away and back (presence)─┼─► Transcript.append ─► transcript/<day>.jsonl, debug.jsonl
  heartbeats (the view) ───┘        │
                                    ├─► Core ─► state ─► device link
                                    │     └─► rule actions (wiggle, needs_you) ─► Transcript.append
@@ -366,7 +367,7 @@ How to read HISTORY and NOW:
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
 bytes ÷ 4, which overestimates English: the guide 300 (now 297), a
-personality 700 (`boop` 693, `chatter` 381), raised from 600 when `boop` took what you say to it and its Examples ([BEHAVIORS.md](../BEHAVIORS.md) §3.3), and a mood 175 (the 13 files 123–175), raised from 150 when the moods took four reasons from the notes ([DECISIONS.md](DECISIONS.md) §2.3): Jev reads only the current mood's file, so it costs at most 25 tokens a request.
+personality 750 (`boop` 723, `chatter` 488), raised from 600 when `boop` took what you say to it and its Examples ([BEHAVIORS.md](../BEHAVIORS.md) §3.3), and from 700 when it took coming back to the Mac ([EVENTS.md](EVENTS.md) §2.1), and a mood 175 (the 13 files 123–175), raised from 150 when the moods took four reasons from the notes ([DECISIONS.md](DECISIONS.md) §2.3): Jev reads only the current mood's file, so it costs at most 25 tokens a request.
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
 about 200 tokens and HISTORY's 40 view events about 1,200, and each
@@ -542,6 +543,8 @@ line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 | `{"dev":"listen","on":true}` | The popover's Talk button: the mic on (`true`) or off, as clicking it does ([BEHAVIORS.md](../BEHAVIORS.md) §3.3). With no mic (headless) turning it off hears nothing |
 | `{"dev":"said","words":"are the tests passing?","by":"device"}` | What push-to-talk heard, with no mic: recorded as a `talk` event after `by`'s button (`app` unless it says), whose pass replies or ends `listening` ([EVENTS.md](EVENTS.md) §2) |
 | `{"dev":"tap"}` | A tap on the board, with no board: a poke, or while something needs you, the waiting thread opened on the Mac ([BEHAVIORS.md](../BEHAVIORS.md) §3.2; headless `--no-open` only logs where) |
+| `{"dev":"presence","signal":"locked"}` | Headless only: a signal from the Mac to the presence detector, `locked`, `unlocked`, `asleep` or `woke`, as macOS's notification would send; what it records, if anything, is the detector's call on the next tick ([EVENTS.md](EVENTS.md) §2.1) |
+| `{"dev":"presence","idle_ms":1800000}` | Headless only: the Mac's idle time the detector reads from the next tick on, in place of the real one, which headless never reads (0 until a line sets it). With `advance` it tests the idle away |
 | `{"dev":"report"}` | Saves a bug report, as the button does (below) |
 
 A forced pass that plays a finish, its action and the action's end,

@@ -66,7 +66,7 @@ public struct Steering: Equatable, Sendable {
     /// Budgets in tokens (HARNESS.md §6.2).
     public enum Budget {
         public static let guide = 300
-        public static let personality = 700
+        public static let personality = 750
         public static let mood = 175
     }
 

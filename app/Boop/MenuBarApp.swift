@@ -359,11 +359,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
+    let presenceSignals = PresenceSignals()
+
     func startRuntime() {
         // In debug mode the dashboard can drive `make debug`; plain `make
         // run` stays deaf to it.
-        let options = runtimeOptions(stateDir: stateDir, socketPath: stateDir.appendingPathComponent("boop.sock").path,
+        var options = runtimeOptions(stateDir: stateDir, socketPath: stateDir.appendingPathComponent("boop.sock").path,
                                      link: model.link, debug: debug, devLines: debug, log: log)
+        // Here and away (harness/EVENTS.md §2.1): the Mac's idle time on
+        // every tick, and its locks, sleeps and wakes below.
+        options.idleMs = PresenceSignals.idleMs
         do {
             let runtime = try Runtime(options)
             runtime.onChange = { [weak self] status in Task { @MainActor in self?.model.status = status; self?.updateIcon() } }
@@ -379,6 +384,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     }
                 }
             }
+            presenceSignals.start { runtime.presence($0) }
             try runtime.start()
             model.runtime = runtime
             model.startError = nil

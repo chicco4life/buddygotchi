@@ -138,7 +138,8 @@ public struct Scenario: Sendable {
     public var steps: [Step]
     public var file: String
 
-    public static let events = ["turn started", "command", "turn finished", "turn failed", "poke", "pokes", "said", "wait"]
+    public static let events = ["turn started", "command", "turn finished", "turn failed", "poke", "pokes", "said",
+                                "away", "back", "wait"]
 
     /// How a reaction ends, from a step's `reaction`: nil for a value it
     /// doesn't take.
@@ -662,6 +663,11 @@ public struct Eval {
         case "poke": return [{ $0.poke(at: now) }]
         case "pokes": return (0..<4).map { _ in { $0.poke(at: now) } }
         case "said": return [{ $0.said(step.words ?? "", by: .device, at: now) }]
+        // What the presence detector would decide (EVENTS.md §2.1): you
+        // lock the screen and leave now, and later unlock it.
+        case "away": return [{ $0.presence(Event(ts: now, source: .mac, type: .presence, phase: .start, specificType: "locked",
+                                                 data: ["since": .int(now)])) }]
+        case "back": return [{ $0.presence(Event(ts: now, source: .mac, type: .presence, phase: .end, specificType: "unlocked")) }]
         default: return []  // wait
         }
     }

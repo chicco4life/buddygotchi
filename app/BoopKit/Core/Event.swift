@@ -21,6 +21,9 @@ public struct Event: Equatable, Sendable {
         case claude, codex, device, clock, boop
         /// The Mac's microphone: what you said to Boop.
         case mic
+        /// The Mac itself: you stepping away and coming back, as the
+        /// presence detector decides (EVENTS.md §2.1).
+        case mac
 
         /// An agent's events' source: its own name.
         public init(_ agent: Agent) { self.init(rawValue: agent.rawValue)! }
@@ -28,7 +31,7 @@ public struct Event: Equatable, Sendable {
 
     /// What it is, whatever agent it came from (EVENTS.md §2).
     public enum Kind: String, Sendable, CaseIterable {
-        case session, turn, tool, subagent, poke, talk, heartbeat, action
+        case session, turn, tool, subagent, poke, talk, presence, heartbeat, action
     }
 
     /// Where in its life a thing with a start and an end is: a tool call
@@ -138,5 +141,11 @@ public enum Band {
     /// under a minute, long under 5 minutes, very long past that.
     public static func length(ms: Int64) -> String {
         ms < 60_000 ? "short" : ms < 5 * 60_000 ? "long" : "very long"
+    }
+
+    /// How long you were away from the Mac: short under 15 minutes, long
+    /// under 2 hours, very long past that.
+    public static func away(ms: Int64) -> String {
+        ms < 15 * 60_000 ? "short" : ms < 2 * 60 * 60_000 ? "long" : "very long"
     }
 }
