@@ -93,8 +93,9 @@ public struct MomentEnded: Equatable, Sendable {
 /// A line from the device.
 public enum DeviceMessage: Equatable, Sendable {
     case status(DeviceStatus)
-    /// An `input` whose `k` is `tap`.
-    case tap
+    /// An `input` whose `k` is `tap`, with the id of the brain's finish it
+    /// landed on when that names whose turn it was (PROTOCOL.md §4).
+    case tap(finish: Int?)
     /// An `input` whose `k` is `talk_on` (true) or `talk_off`: the BOOT
     /// button held for push-to-talk, or let go (PROTOCOL.md §4).
     case talk(Bool)
@@ -113,7 +114,7 @@ public enum DeviceMessage: Equatable, Sendable {
             return .status(DeviceStatus(id: id, fw: object["fw"] as? String ?? "?", voice: object["voice"] as? String))
         case "input":
             switch object["k"] as? String {
-            case "tap": return .tap
+            case "tap": return .tap(finish: (object["id"] as? NSNumber).map(\.intValue).flatMap { $0 > 0 ? $0 : nil })
             case "talk_on": return .talk(true)
             case "talk_off": return .talk(false)
             default: return .other(line)

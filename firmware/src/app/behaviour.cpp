@@ -447,8 +447,9 @@ void Behaviour::pressDown(uint32_t t) {
 void Behaviour::pressUp() { pressed_ = false; }
 
 // Every tap counts in the run, those that only dip the face too, as the
-// Mac counts pokes; while the face is held, a tap shows the press dip only.
-// Otherwise it plays poked in Boop's mood, or tap_spam from the run's
+// Mac counts pokes; while the face is held, or while the brain's finish
+// names whose turn it was (the Mac opens that thread), a tap shows the
+// press dip only. Otherwise it plays poked in Boop's mood, or tap_spam from the run's
 // third tap on, cutting the animation playing. A brain reaction's line and
 // expression play on over it, so a barrage doesn't cut short the one
 // answer it gets.
@@ -456,7 +457,7 @@ void Behaviour::tap(uint32_t t, Rng& rng) {
   bool inRun = taps_ > 0 && int32_t(t - lastTap_) < int32_t(kTapRunMs);
   taps_ = inRun ? std::min(taps_ + 1, 1000) : 1;
   lastTap_ = t;
-  if (held(t)) return;
+  if (held(t) || finishShown(t)) return;
   const render::Anim a = taps_ >= kTapSpamFrom ? render::Anim::kTapSpam : render::Anim::kPoked;
   const uint8_t v = pick(a, model_.mood, 0, render::Outcome::kNone, render::StartCtx::kNone, rng);
   change(t, [&] { play(a, t, CutBy::kTap, 1, model_.mood, v); });
@@ -565,6 +566,13 @@ uint8_t Behaviour::blTarget(uint32_t t) const {
   return 255;
 }
 
+bool Behaviour::finishOn(uint32_t t) const {
+  bool finish = moment_.anim == render::Anim::kTaskComplete || moment_.anim == render::Anim::kReplyReady;
+  return momentOn(t) && finish && moment_.agent[0];
+}
+
+uint32_t Behaviour::finishShown(uint32_t t) const { return finishOn(t) ? moment_.id : 0; }
+
 // With no app the Mac's counts are stale, so only the unplugged
 // icon shows (BEHAVIORS.md §3.4). While the brain's finish plays, whose
 // turn it was (BEHAVIORS.md §5).
@@ -574,8 +582,7 @@ render::Strip Behaviour::strip(uint32_t t) const {
   if (s.noApp) return s;
   s.busy = model_.busy;
   if (model_.attn) s.agent = model_.agent, s.project = model_.project, s.name = model_.name, s.more = model_.more;
-  bool finish = moment_.anim == render::Anim::kTaskComplete || moment_.anim == render::Anim::kReplyReady;
-  if (momentOn(t) && finish && moment_.agent[0]) {
+  if (finishOn(t)) {
     s.doneAgent = moment_.agent, s.doneThread = moment_.thread, s.doneOutcome = moment_.outcome;
   }
   return s;

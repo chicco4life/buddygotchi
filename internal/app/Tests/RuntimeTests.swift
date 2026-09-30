@@ -831,7 +831,8 @@ final class RuntimeTests: XCTestCase {
     /// A long turn, finished after moving the clock with `{"dev":"advance"}`:
     /// no rule plays its finish; the brain's reaction does, as one moment
     /// with the finish, its outcome, its face and what it says (BEHAVIORS.md
-    /// §3.1, §5).
+    /// §3.1, §5). A tap on it opens that thread, and isn't a poke that
+    /// wakes the brain (§3.3).
     func testTheBrainJudgesAFinish() throws {
         let transport = FakeTransport()
         var options = try options(transport)
@@ -844,7 +845,9 @@ final class RuntimeTests: XCTestCase {
         transport.onConnection?(true)
 
         eventually("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
-        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
+        let prompt = HookLine(agent: "claude", hook: "UserPromptSubmit", session: "s1", cwd: "/tmp/jetpack",
+                              app: HostApp.claude, appSession: "local_7db5", ts: Int64(Date().timeIntervalSince1970 * 1000))
+        XCTAssertTrue(HookSocket.send(prompt.encoded(), to: socketPath))
         eventually("working") { transport.sent.contains { $0.contains("\"base\":\"working\"") } }
         eventually("the start's reaction") { transport.sent.contains { $0.contains("\"say\"") } }
         let moments = { transport.sent.filter { $0.contains("\"t\":\"moment\"") } }
@@ -870,6 +873,18 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(finish.contains(#""who":{"agent":"claude","thread":"jetpack"},"outcome":"success","id":"#),
                       "names whose turn, and its outcome: \(finish)")
         XCTAssertEqual(moments().count, before + 1, "no rule finish besides")
+
+        let id = try XCTUnwrap(finish.range(of: #"(?<="id":)\d+"#, options: .regularExpression).map { finish[$0] })
+        transport.onLine?(#"{"t":"input","k":"tap","id":\#(id)}"#)
+        eventually("the finished thread opened") { opened.all == ["claude://code/continue?session=local_7db5"] }
+        let action = try XCTUnwrap(recorded().last { $0.specificType == Core.openThread })
+        XCTAssertEqual(action["message"]?.string, Core.openedFinished)
+        let poke = try XCTUnwrap(runtime.home.sync { runtime.view.events.last })
+        XCTAssertEqual(poke.type, .poke)
+        XCTAssertFalse(poke.wakesBrain, "it doesn't wake the brain")
+        transport.onLine?(#"{"t":"input","k":"tap","id":1}"#)  // a moment the app isn't waiting on: a poke
+        eventually("a poke") { recorded().contains { $0.specificType == Core.wiggle } }
+        XCTAssertEqual(opened.all.count, 1)
     }
 
     /// ARCHITECTURE.md §3.2: the brain's moments play one at a time, each

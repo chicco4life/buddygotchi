@@ -152,7 +152,7 @@ class Device {
   };
 
   void reply(Link link, const char* text, size_t n);
-  void emit(const char* k, bool injected);  // an `input` message to the Mac
+  void emit(const char* k, bool injected, uint32_t id = 0);  // an `input` message to the Mac
   void input(const char* k, uint32_t t, int x = -1, int y = -1);
   void tapped(uint32_t t, bool injected);  // a tap, from BOOT or the panel
   void readInputs(uint32_t t);

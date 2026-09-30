@@ -49,11 +49,13 @@ public final class Pipeline {
 
     /// The device's poke: the device has already played it.
     @discardableResult
-    public func poke(at now: Int64) -> Step {
+    public func poke(at now: Int64, finish: ThreadRef? = nil) -> Step {
         var step = Step()
         let e = record(Event(ts: now, source: .device, type: .poke, specificType: "input"), &step)
-        run(core.poke(at: now, seq: e.seq), &step)
-        return gated(step)
+        run(core.poke(at: now, seq: e.seq, finish: finish), &step)
+        // A tap that opens a finished turn's thread means "take me there",
+        // not a poke: it doesn't wake the brain (harness/EVENTS.md §6).
+        return gated(step, wake: finish == nil)
     }
 
     /// What you said to Boop on push-to-talk, heard by the Mac's mic

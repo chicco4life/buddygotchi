@@ -147,7 +147,8 @@ final class DeviceLinkTests: XCTestCase {
         // An older board's `bat` and `usb` are ignored.
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.3.1","bat":3910,"usb":1}"#),
                        .status(DeviceStatus(id: "b00p-7f3a", fw: "0.3.1")))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"tap"}"#), .tap)
+        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"tap"}"#), .tap(finish: nil))
+        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"tap","id":42}"#), .tap(finish: 42))
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_on"}"#), .talk(true))
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_off"}"#), .talk(false))
         // Focus and touch-and-hold were removed; an older board's are ignored.

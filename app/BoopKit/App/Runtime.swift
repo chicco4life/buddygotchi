@@ -316,7 +316,8 @@ public final class Runtime: @unchecked Sendable {
             // The thread's name as its agent's app shows it, once an event
             // brought one, else the view's: its workspace, else its project.
             guard let key = acting()?.about, let who = view.who(about: key) else { return nil }
-            return DeviceMoment.Who(agent: who.agent, thread: core.name(about: key) ?? who.thread)
+            return DeviceMoment.Who(agent: who.agent, thread: core.name(about: key) ?? who.thread,
+                                    opens: core.thread(about: key))
         }, speaks: speaks)
         let harness = Harness(brain: brain, actions: [moodAction, react], pipeline: pipeline, parts: {
             let now = clock()
@@ -427,11 +428,13 @@ public final class Runtime: @unchecked Sendable {
     func device(_ line: String) {
         let now = options.clock()
         switch link.receive(line, now: now) {
-        case .tap:
-            options.log("device: input tap")
+        case .tap(let finish):
+            options.log("device: input tap" + (finish.map { " on moment \($0)" } ?? ""))
             // A poke (BEHAVIORS.md §3.3). The device has already poked,
-            // cutting the animation playing but not a reaction's line or face.
-            run(pipeline.poke(at: now))
+            // cutting the animation playing but not a reaction's line or face;
+            // on the brain's finish that names whose turn it was it only
+            // dipped, and the tap opens that thread.
+            run(pipeline.poke(at: now, finish: finish.flatMap { schedule.opens(finish: $0) }))
             pump()
         case .talk(let on):
             options.log("device: input talk_\(on ? "on" : "off")")

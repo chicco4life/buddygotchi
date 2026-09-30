@@ -217,7 +217,9 @@ sent on release. The device counts taps in a row itself: a tap within
 plays `tap_spam` instead of `poked` (`Behaviour::kTapRunMs`,
 `kTapSpamFrom`, the Mac's `TranscriptView` numbers,
 [BEHAVIORS.md](BEHAVIORS.md) §3.3). Every tap counts, those that only
-dip the face included. Held 400 ms, it's push-to-talk: at that moment the
+dip the face included. While the brain's finish names whose turn it was
+(`Behaviour::finishShown`), a tap only dips the face and carries the
+finish's id, so the Mac opens that thread ([PROTOCOL.md](PROTOCOL.md) §4). Held 400 ms, it's push-to-talk: at that moment the
 device sends `talk_on` and shows `listening` at once, without waiting for
 the Mac; on release it sends `talk_off`, and no tap. After 30 s of
 talking (`kTalkCapMs`, from `talk_on`) the device sends `talk_off` itself,

@@ -100,7 +100,7 @@ event that caused it:
 | Action | When | `data` |
 | --- | --- | --- |
 | `wiggle` | A poke, unless something needs you or `listening` shows: the device played its poke by itself (the mood's `poked` design, `tap_spam` from the third in a row, [BEHAVIORS.md](../BEHAVIORS.md) §3.3). The action keeps its older name and message, which Jev reads, until the evals can check new wording | `for` the poke, `message` `Boop wiggled on its own.` |
-| `open_thread` | A poke while something needs you and `listening` doesn't show: the Mac opens the thread the sign names ([BEHAVIORS.md](../BEHAVIORS.md) §3.2) | `for` the poke, `agent`, `message` `Boop opened the thread that needs you on the Mac.` |
+| `open_thread` | A poke while something needs you and `listening` doesn't show: the Mac opens the thread the sign names ([BEHAVIORS.md](../BEHAVIORS.md) §3.2). Or a poke on the brain's finish that names whose turn it was: the Mac opens that thread (§3.3) | `for` the poke, `agent`, `message` `Boop opened the thread that needs you on the Mac.`, or for a finish `Boop opened the thread that finished on the Mac.` |
 | `needs_you`, start | "Needs you" starts showing for a session, after Codex's grace ([ADAPTERS.md](../ADAPTERS.md) §4) | `for` the request's `tool` wait, `agent`, `message` |
 | `needs_you`, end | It clears | `agent`, `outcome`: `done` when answered, else `failed` with `why` (`nothing for 10 minutes`, `the session ended`, `forgotten`) |
 
@@ -306,6 +306,9 @@ only when its kind says so (§4), and never:
   then (`TranscriptView.wakesWhileNeeded`). A poke doesn't: then a tap
   opens the waiting thread (`open_thread`), and it's still counted in
   its run;
+- for a poke that opened a finished turn's thread (`open_thread`,
+  [BEHAVIORS.md](../BEHAVIORS.md) §3.3): it means "take me there", and
+  it's still counted in its run;
 - for a poke, while Boop is answering its run: the brain's reaction to
   the run's third poke in a row or a later one
   (`TranscriptView.answersRunFrom`) is in progress, a tap-cut one

@@ -16,10 +16,14 @@ public struct DeviceMoment: Equatable, Sendable {
         public var agent: String
         /// The thread's name, cut as `StateSnapshot.clip` cuts names.
         public var thread: String
+        /// Where a tap on the finish opens the thread (BEHAVIORS.md §3.3).
+        /// Not sent: the device's tap names the moment's id instead.
+        public var opens: ThreadRef?
 
-        public init(agent: String, thread: String) {
+        public init(agent: String, thread: String, opens: ThreadRef? = nil) {
             self.agent = agent
             self.thread = StateSnapshot.clip(thread, marked: true)
+            self.opens = opens
         }
     }
 

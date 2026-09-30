@@ -165,6 +165,9 @@ public final class Core {
     /// names (the view's keys are the same), or nil.
     public func name(about key: String) -> String? { sessions[key]?.name }
 
+    /// Where the session `key` names opens on the Mac, or nil.
+    public func thread(about key: String) -> ThreadRef? { sessions[key].map(ThreadRef.init) }
+
     /// The asker of a request that came as a `Notification` alone, which
     /// doesn't say who asked: any event from the session answers it.
     static let anyone = "*"
@@ -487,14 +490,15 @@ public final class Core {
         fx.append(.moment(moment))
     }
 
-    /// A tap on the device, recorded as the poke `seq`. The device has
+    /// A tap on the device, recorded as the poke `seq`, on the brain's
+    /// finish for `finish`'s thread, if the device said so. The device has
     /// already reacted.
     @discardableResult
-    public func poke(at now: Int64, seq: Int? = nil) -> [CoreEffect] {
+    public func poke(at now: Int64, seq: Int? = nil, finish: ThreadRef? = nil) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now)
         startDayIfNew(now, &fx)
-        poked(now, seq: seq, &fx)
+        poked(now, seq: seq, finish: finish, &fx)
         publish(now, &fx)
         return fx
     }
@@ -713,18 +717,20 @@ public final class Core {
     /// nothing replaces it: the device plays no poke, so nothing is
     /// recorded. While something needs you the device plays no poke either:
     /// the tap opens the thread the sign names on the Mac, recorded as the
-    /// `open_thread` action (BEHAVIORS.md §3.2).
-    func poked(_ now: Int64, seq: Int?, _ fx: inout [CoreEffect]) {
+    /// `open_thread` action (BEHAVIORS.md §3.2). Nor on the brain's finish
+    /// that names whose turn it was: the tap opens that thread
+    /// (BEHAVIORS.md §3.3).
+    func poked(_ now: Int64, seq: Int?, finish: ThreadRef?, _ fx: inout [CoreEffect]) {
         guard !showsListening(at: now) else { return }
         let seq: JSONValue = seq.map { .int(Int64($0)) } ?? .null
-        if let waiting = grouped(at: now).waiting.first {
-            let thread = ThreadRef(waiting)
+        func open(_ thread: ThreadRef, _ message: String) {
             fx.append(.record(Event(ts: now, source: .boop, type: .action, specificType: Core.openThread,
                                     data: ["for": seq, "by": "rule", "ok": true, "agent": .string(thread.agent),
-                                           "message": .string(Core.openedThread)])))
+                                           "message": .string(message)])))
             fx.append(.open(thread))
-            return
         }
+        if let waiting = grouped(at: now).waiting.first { return open(ThreadRef(waiting), Core.openedThread) }
+        if let finish { return open(finish, Core.openedFinished) }
         fx.append(.record(Event(ts: now, source: .boop, type: .action, specificType: Core.wiggle,
                                 data: ["for": seq, "by": "rule", "ok": true, "message": .string(Core.wiggled)])))
     }
@@ -751,6 +757,7 @@ public final class Core {
     public static let wiggled = "Boop wiggled on its own."
     public static let openThread = "open_thread"
     public static let openedThread = "Boop opened the thread that needs you on the Mac."
+    public static let openedFinished = "Boop opened the thread that finished on the Mac."
     public static let needsYou = "needs_you"
 
     /// Runs every timer due by `now`, in order, but shows no Codex request

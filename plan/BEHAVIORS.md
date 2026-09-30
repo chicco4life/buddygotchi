@@ -368,8 +368,8 @@ replaces it once the take has played, or, if it said nothing, once its
 face has shown for 1.2 s. One is dropped once it
 has waited 5 s for its turn (`MomentSchedule.maxWaitMs`,
 [ARCHITECTURE.md](ARCHITECTURE.md) §3.2). The device tells the Mac how each
-brain reaction ended: played out, cut short by a tap (only a finish,
-whose animation the poke replaces; its line plays on), "needs you" or a
+brain reaction ended: played out, cut short by a tap (only a finish
+that names nobody, whose animation the poke replaces; its line plays on), "needs you" or a
 newer moment, or skipped because something needed you
 ([PROTOCOL.md](PROTOCOL.md) §4), and HISTORY says so
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5).
@@ -457,6 +457,7 @@ Headless, `--no-open` only logs where a thread would have opened
 | You let go within 400 ms, or lift your finger: a tap | The mood's `poked` design, once, from its start, replacing the animation playing; asleep too. A brain reaction playing goes on: its line and bubble play over the poke, which is drawn in the reaction's mood until the reaction's face ends. From the third tap in a row on, `tap_spam` instead (below). The Mac records it as a poke, with the rule's `wiggle` action under it, and the brain hears of it, but not while it's answering the pokes before ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | Pokes in a row | Each within 3 s of the last (`TranscriptView.inARowMs`): the line counts them, `You poked Boop 4 times in a row.`, so Jev can tell a single poke from a barrage. The device counts them too, every tap, those that only dip the face included: from the third in a row (`answersRunFrom`), it plays the mood's `tap_spam` design instead of `poked` (`Behaviour::kTapRunMs` 3000 and `kTapSpamFrom` 3, the same numbers). How Boop reacts is the steering's: curious or glad at one poke; a little miffed at two in a row, turning annoyed; fed up at three or more, irritated and then grumpy, for a couple of minutes ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3). The device plays its own tap animations, so no reaction plays one, and the taps after a reaction don't cut it short. From the third poke on, while the brain's reaction to them is in progress, a tap-cut one included, the pokes after it don't wake the brain, unless the mood changed since, so a barrage gets one "nope" ([harness/EVENTS.md](harness/EVENTS.md) §6) |
 | A tap while something needs you | The press dip only, with no poke: there a tap means "take me there", and the Mac opens the waiting thread (§3.2). It counts in the run, but doesn't wake the brain ([harness/EVENTS.md](harness/EVENTS.md) §6) |
+| A tap while the brain's finish names whose turn it was (the strip's tick, cross or dots and the thread) | The same: the press dip only, the finish plays on, and the Mac opens that thread where it runs (§3.2), recorded as the rule's `open_thread` action. It counts in the run, but doesn't wake the brain. The device sends the finish's id with the tap, so the thread is the one on screen ([PROTOCOL.md](PROTOCOL.md) §4) |
 | Hold BOOT 400 ms, or click Talk in the popover | Push-to-talk, below: `listening` shows at once, the device sends `talk_on` at 400 ms and `talk_off` on release, or by itself after 30 s ([DEVICE.md](DEVICE.md) §4). No tap |
 | A tap while `listening` shows | The press dip only: nothing replaces `listening`, and nothing opens, even while something needs you. The brain still hears of the poke |
 

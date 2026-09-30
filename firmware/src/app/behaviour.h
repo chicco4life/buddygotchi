@@ -150,6 +150,9 @@ class Behaviour {
   void pressDown(uint32_t t);  // visible feedback at once
   void pressUp();
   void tap(uint32_t t, Rng& rng);  // BOOT, or a touch anywhere
+  // The id of the brain's finish showing whose turn it was at t, which a
+  // tap opens on the Mac instead of poking (BEHAVIORS.md §3.3); 0 for none.
+  uint32_t finishShown(uint32_t t) const;
   // Push-to-talk: BOOT held (talk_on) and let go, or capped (talk_off).
   void talkOn(uint32_t t, Rng& rng);
   void talkOff(uint32_t t);
@@ -322,6 +325,8 @@ class Behaviour {
   void startBlink(uint32_t t, Rng& rng);
   uint32_t blinkGap(Rng& rng) const;
   bool momentOn(uint32_t t) const;
+  // The brain's finish plays, naming whose turn it was (the strip shows it).
+  bool finishOn(uint32_t t) const;
   bool listening(uint32_t t) const;  // `listening` is playing
   // No app, something needs you (BEHAVIORS.md §1), or `listening` waits
   // for the reply (DEVICE.md §4): a tap or another animation doesn't take

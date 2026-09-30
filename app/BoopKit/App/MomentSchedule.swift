@@ -73,8 +73,9 @@ public struct MomentSchedule {
     /// this launch's (PROTOCOL.md §3).
     public private(set) var lastId: Int
     /// The brain's moments on the device, oldest first, each with its id,
-    /// its handle and when the app stops waiting for its `ended`.
-    public private(set) var playing: [(id: Int, pending: Pending, deadline: Int64)] = []
+    /// its handle, when the app stops waiting for its `ended`, and for a
+    /// finish, the thread a tap on it opens.
+    public private(set) var playing: [(id: Int, pending: Pending, deadline: Int64, opens: ThreadRef?)] = []
 
     /// A launch's ids start after `lastId`, somewhere random by default.
     public init(lastId: Int = Int.random(in: 0..<MomentSchedule.maxId)) {
@@ -138,6 +139,12 @@ public struct MomentSchedule {
         }
         guard let i = playing.firstIndex(where: { $0.id == ended.id }) else { return }
         playing.remove(at: i).pending.finish(Self.end(ended))
+    }
+
+    /// The thread a tap on the finish `id` opens: the device said the tap
+    /// landed on it (BEHAVIORS.md §3.3). Nil once the app gave up on it.
+    public func opens(finish id: Int) -> ThreadRef? {
+        playing.first { $0.id == id }?.opens
     }
 
     /// How a reaction ended, from the device's `ended`
@@ -240,7 +247,7 @@ public struct MomentSchedule {
             lastId = Self.nextId(after: lastId)
             moment.id = lastId
             let deadline = now + playMs(moment) + Self.endGraceMs
-            playing.append((lastId, pending, deadline))
+            playing.append((lastId, pending, deadline, moment.who?.opens))
             holder = (lastId, deadline, moment.anim == nil ? min(deadline, now + moment.faceFirstMs + Self.linkSlackMs) : deadline)
             return (moment, dropped)
         }

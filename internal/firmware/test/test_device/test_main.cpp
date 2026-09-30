@@ -425,6 +425,22 @@ static void test_injected_tap_reaches_the_mac() {
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
 }
 
+// PROTOCOL.md §4: a tap while the brain's finish names whose turn it was
+// carries that moment's id, the thread the Mac opens; the finish plays on.
+static void test_a_tap_on_a_named_finish_carries_its_id() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\"}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"task_complete\",\"outcome\":\"success\",\"id\":42,"
+            "\"who\":{\"agent\":\"claude\",\"thread\":\"fix-nav\"}}");
+  r.usbLine("{\"t\":\"dbg.press\",\"ms\":100}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\",\"id\":42}"));
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"ended\""));  // not cut
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"anim\":\"task_complete\""));
+}
+
 // The resistive panel misses readings under a light press, so a
 // panel touch ends only after 50 ms without contact. A press that flickers
 // is one tap; a new press after a real lift is another.
@@ -1522,6 +1538,7 @@ int main() {
   RUN_TEST(test_a_physical_hold_is_push_to_talk);
   RUN_TEST(test_the_macs_listening_and_the_empty_moment);
   RUN_TEST(test_a_flickering_touch_is_one_tap);
+  RUN_TEST(test_a_tap_on_a_named_finish_carries_its_id);
   RUN_TEST(test_a_moment_carries_its_expression);
   RUN_TEST(test_a_touch_ends_while_the_clock_is_frozen);
   RUN_TEST(test_a_frozen_clock_runs_again_after_60s_without_debug);

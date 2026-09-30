@@ -1760,6 +1760,46 @@ static void test_a_cheer_names_whose_turn_in_the_strip() {
   TEST_ASSERT_NULL(r.b.strip(r.t).doneAgent);
 }
 
+// BEHAVIORS.md §3.3: a tap while the brain's finish names whose turn it
+// was takes you to that thread: the press dip only, the finish plays on,
+// and the tap carries its id for the Mac. A finish the Mac doesn't wait on (no id) or that names nobody is poked.
+static void test_a_tap_on_a_named_finish_opens_its_thread() {
+  Rig r;
+  r.at(1000);
+  r.state(base("idle"));
+  MomentIn in;
+  in.anim = Anim::kTaskComplete;
+  in.whoAgent = "claude";
+  in.whoThread = "fix-nav";
+  in.id = 9;
+  r.b.onMoment(in, r.t);
+  TEST_ASSERT_EQUAL_UINT32(9, r.b.finishShown(r.t));
+  r.at(r.t + 100);
+  r.b.tap(r.t, r.rng);
+  TEST_ASSERT_EQUAL(Anim::kTaskComplete, r.anim());
+  TEST_ASSERT_EQUAL_STRING("fix-nav", r.b.strip(r.t).doneThread);
+  TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
+  r.at(r.t + 100);
+  r.b.tap(r.t, r.rng);
+  uint32_t left;
+  r.b.moment(r.t, left);
+  r.at(r.t + left);
+  TEST_ASSERT_EQUAL_UINT32(0, r.b.finishShown(r.t));  // over
+  TEST_ASSERT_EQUAL_STRING("9 done", ended(r).c_str());
+  r.at(r.t + 5000);
+  in.id = 0;  // one the Mac doesn't wait on
+  r.b.onMoment(in, r.t);
+  TEST_ASSERT_EQUAL_UINT32(0, r.b.finishShown(r.t));
+  r.b.tap(r.t, r.rng);
+  TEST_ASSERT_EQUAL(Anim::kPoked, r.anim());
+  r.at(r.t + 5000);
+  in.id = 10, in.whoAgent = nullptr, in.whoThread = nullptr;  // names nobody
+  r.b.onMoment(in, r.t);
+  TEST_ASSERT_EQUAL_UINT32(0, r.b.finishShown(r.t));
+  r.b.tap(r.t, r.rng);
+  TEST_ASSERT_EQUAL(Anim::kPoked, r.anim());
+}
+
 static void test_press_shows_within_20ms() {
   Rig r;
   r.state(base("idle"));
@@ -2112,10 +2152,11 @@ static void test_a_finishs_line_waits_for_its_voice_window() {
   r.at(at + replyLoop);
   TEST_ASSERT_EQUAL_STRING("6 done", ended(r).c_str());
   // Tapped before its line: the poke replaces the finish, which was cut,
-  // but the line still plays at its window, over the poke.
+  // but the line still plays at its window, over the poke. (One that
+  // names whose turn it was isn't poked: the tap opens that thread.)
   r.at(at + replyLoop + 1000);
   r.state(m);
-  in.id = 7;
+  in.id = 7, in.whoAgent = nullptr, in.whoThread = nullptr;
   r.b.onMoment(in, r.t);
   const uint32_t tapped = r.t;
   r.at(r.t + 100);
@@ -2304,6 +2345,7 @@ int main() {
   RUN_TEST(test_the_looks_variations_take_turns);
   RUN_TEST(test_no_app_at_30s_and_reconnect_blinks_back);
   RUN_TEST(test_a_cheer_names_whose_turn_in_the_strip);
+  RUN_TEST(test_a_tap_on_a_named_finish_opens_its_thread);
   RUN_TEST(test_press_shows_within_20ms);
   RUN_TEST(test_gestures_send_the_right_inputs);
   RUN_TEST(test_a_long_touch_during_needs_you_is_a_tap);

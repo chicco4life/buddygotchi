@@ -124,10 +124,12 @@ void Device::reply(Link link, const char* text, size_t n) {
 // USB while the Mac has spoken there within kNoAppMs. A tool's `moment`
 // over USB doesn't take the taps away from the app on Bluetooth. Input a
 // tool injected goes back only over USB, where the tool is, so a test run
-// never reaches the everyday app on Bluetooth.
-void Device::emit(const char* k, bool injected) {
-  char buf[48];
-  int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"input\",\"k\":\"%s\"}", k);
+// never reaches the everyday app on Bluetooth. A tap on the brain's
+// finish carries its id, the thread the Mac opens.
+void Device::emit(const char* k, bool injected, uint32_t id) {
+  char buf[64];
+  int n = id ? std::snprintf(buf, sizeof(buf), "{\"t\":\"input\",\"k\":\"%s\",\"id\":%lu}", k, (unsigned long)id)
+             : std::snprintf(buf, sizeof(buf), "{\"t\":\"input\",\"k\":\"%s\"}", k);
   if (injected) return reply(Link::kUsb, buf, size_t(n));
   if (bleUp_) reply(Link::kBle, buf, size_t(n));
   if (usbHeard_ && heardLately(usbHeardReal_, hal_.realMs())) reply(Link::kUsb, buf, size_t(n));
@@ -317,9 +319,10 @@ bool Device::shouldDropBle() {
 }
 
 void Device::tapped(uint32_t t, bool injected) {
+  uint32_t finish = b_.finishShown(t);
   b_.tap(t, rng_);
   input("tap", t);
-  emit("tap", injected);
+  emit("tap", injected, finish);
 }
 
 // BOOT and touch, turned into gestures (DEVICE.md §4). Every press and

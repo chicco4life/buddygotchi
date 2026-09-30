@@ -1,6 +1,6 @@
 # Boop: protocol
 
-Updated 2026-09-29. Every message between the Boop Mac app and the device,
+Updated 2026-09-30. Every message between the Boop Mac app and the device,
 over Bluetooth or USB, and the debug messages tools send over USB. The
 code is the source: `app/BoopKit/DeviceLink/`, `StateSnapshot.swift` and
 `DeviceMoment.swift` on the Mac, `firmware/src/app/device.cpp` and
@@ -204,7 +204,8 @@ And a rule's one-shot, from the replay of
 | `who.thread` | string, at most 23 bytes of UTF-8 | The thread's name: as its agent's app shows it once an event brought one (`attn.name`'s), else its workspace (a linked worktree's folder, else the branch), else its project, cut as `attn.project` is | Kept in 23 bytes |
 | `id` | int 1–2147483647, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Each time the app starts, its ids start at a random number and count up (back to 1 after 2147483647), so a moment an earlier launch left playing can't share an id with a new one | Answered with one `ended` carrying this `id` (§4). Missing, or anything but an integer from 1 to 4,294,967,295 (a fraction too): no `ended` |
 
-A tap's poke plays at once, replacing the animation but not a brain
+A tap's poke plays at once, replacing the animation (but for a finish
+with `who`, which a tap doesn't cut: it opens its thread) but not a brain
 line or face, which play on over it. A rule's one-shot plays at once too, except
 that the Mac sends none while a brain moment's line plays, which it
 would cut (a face held on after the line may be replaced). A brain
@@ -231,7 +232,8 @@ in `FaceLoops`.
   plays its `loops` of its design, which starts over each time, timed by
   the design of the mood it's drawn in when it starts, then the look
   comes back; a tap's poke plays once. A finish with `who` names them in
-  the strip for as long as it plays.
+  the strip for as long as it plays, and a tap then only dips the face
+  and sends the finish's `id` with the tap (§4).
 - A line with no animation plays over whatever face is showing and
   replaces any line playing, at once. It speaks for its takes' length
   (each take's samples at 11.025 kHz, in ms rounded down, as the Mac's
@@ -306,16 +308,18 @@ the last, on the link the Mac last spoke on. The Mac answers every
 
 ```json
 {"t":"input","k":"tap"}
+{"t":"input","k":"tap","id":42}
 ```
 
 | `k` | Meaning |
 | --- | --- |
-| `tap` | BOOT pressed for less than 400 ms, or the screen touched anywhere, however long; sent on release |
+| `tap` | BOOT pressed for less than 400 ms, or the screen touched anywhere, however long; sent on release. With `id` while a brain finish with `who` and an `id` plays: that moment's `id`, whose thread the Mac opens ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 | `talk_on` | BOOT held for 400 ms: push-to-talk starts, sent at 400 ms |
 | `talk_off` | BOOT let go after `talk_on`, or held 30 s past it (the device's cap) |
 
 The device has already reacted on screen before it sends this: the
-poke (or the press dip, while the face is held), or `listening` from
+poke (or the press dip, while the face is held or a finish with `who`
+plays), or `listening` from
 `talk_on` until the reply ([DEVICE.md](DEVICE.md) §4). It sends it
 on every live link: Bluetooth while a Mac is connected, and USB while the
 Mac has spoken there (any message that isn't `dbg.*`) in the last 30 s,
@@ -323,8 +327,9 @@ so a tool's `moment` over USB doesn't take taps and push-to-talk away
 from the app on Bluetooth. Input a tool injects (`dbg.press`, `dbg.touch`)
 goes back only over USB, so a test run never reaches the app on
 Bluetooth, or turns on its mic. The Mac records a tap as a `poke` event,
-with `input` as its `specific_type`, and hands it to the core
-([BEHAVIORS.md](BEHAVIORS.md) §3.3,
+with `input` as its `specific_type`, and hands it to the core, with the
+thread of the finish its `id` names while the Mac still waits on that
+moment ([BEHAVIORS.md](BEHAVIORS.md) §3.3,
 [harness/EVENTS.md](harness/EVENTS.md) §2); `talk_on` and `talk_off`
 turn its mic on and off. It ignores any other `k`.
 
@@ -344,7 +349,7 @@ while something needed you:
 | --- | --- | --- |
 | `id` | int | The moment's `id` (§3) |
 | `how` | `done`, `cut` or `skipped` | `done`: its animation and its line with its bubble played to the end. The face it holds after them counts too, but ending that early (below) leaves it `done`: the reaction was seen and heard. `cut`: something stopped its animation or its line early. `skipped`: none of it played: something needed you, `listening` held the face or the device showed no app when it arrived (or it had nothing the device can play, which the Mac never sends) |
-| `why` | `tap`, `moment`, `needs_you` or `reset`, only with `cut` | What stopped it first: a tap's poke (which replaces a finish's animation; a line plays on) or push-to-talk's `listening`, a newer moment (an animation, or any line, which replaces the line playing), "needs you" starting, or `dbg.reset` |
+| `why` | `tap`, `moment`, `needs_you` or `reset`, only with `cut` | What stopped it first: a tap's poke (which replaces a finish's animation, one without `who`; a line plays on) or push-to-talk's `listening`, a newer moment (an animation, or any line, which replaces the line playing), "needs you" starting, or `dbg.reset` |
 
 The device sends one for every moment with an `id`, exactly once, on the
 link the moment came in on, when none of it plays any more: the
