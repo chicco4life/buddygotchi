@@ -9,7 +9,9 @@ harness spec ([harness/HARNESS.md](../harness/HARNESS.md)) says what Boop
 adds.
 
 The code is the `BrainKit` target (`app/BrainKit/`, Foundation only, so
-it builds on Linux too). The log format (§2), the prompt's layout (§7) and
+it's meant to build on Linux too; only macOS builds it so far). Its second
+example, Beacon, is `internal/examples/Beacon/`; `kit-emit` is
+`internal/app/KitEmit/`. The log format (§2), the prompt's layout (§7) and
 the question-and-answer shape (§5) are written so a port to another
 language is a translation; §12 says what a port must match and what to
 test it against.
@@ -134,7 +136,7 @@ h.input("press", wake: 0) { e, log in
     let n = log.count("press", within: 3000)
     return n == 0 ? "You pressed the button." : "You pressed the button \(n + 1) times in a row."
 }
-h.hold("press") { e, log in link.playing ? "Beacon is playing" : nil }
+h.hold("press") { e, log in log.count("press", within: 3000) >= 4 ? "the button is being mashed" : nil }
 ```
 
 - **The transform** returns `nil` (the event is hidden: no line, and it
@@ -458,33 +460,41 @@ clock and tick by hand.
 
 Beacon is a CI light with one button and three one-shots it plays:
 `flash`, `wobble` and `cheer`. It's in the repo as
-`internal/examples/Beacon/` (§14 step 6), and its test pins this
-example (`BeaconTests`).
+`internal/examples/Beacon/`, with its steering folder (a guide, a
+personality and one file for each tone), and `beacon` runs this example
+(`BeaconTests` pins it). The wiring, from `Beacon.swift`:
 
 ```swift
-let h = Harness(name: "Beacon", brain: JevBrain(key: key), log: Log(folder: dir))
-h.input("build_failed", wake: 1) { e, log in … }          // §3.1
+let h = Harness(name: "Beacon", brain: brain, log: log, clock: clock, queue: queue, options: options)
+h.input("build_failed", wake: 1) { e, log in … }             // §3.1
 h.input("build_passed", wake: 1) { e, log in
-    log.last("build_failed").map { f in log.last("build_passed").map { $0.seq < f.seq } ?? true } == true
-        ? "The build on \(e["branch"]!) passed after failing." : "The build on \(e["branch"]!) passed."
+    let streak = log.count("build_failed", since: log.last("build_passed"))
+    return streak == 0 ? "The build on main passed." : "The build on main passed after \(streak) failures."
 }
-h.input("press", wake: 0) { … }                             // §3.1
-h.on("build_failed") { e in link.do("flash"); h.did("Beacon flashed red on its own.", for: e, action: "flash") }
-h.output(tone)                                              // §6
-h.output(Play(link))                                        // §5.3: none | wobble | cheer
-h.section { _ in steering["guide"] }
-h.section { _ in steering["personality"] }
-h.section { log in steering["tone/\(tone.value(log))"] }
-h.emit(source: "ci", kind: "build_failed", data: ["branch": "main", "run": 812])
+h.input("press", wake: 0) { … }                                // §3.1
+h.hold("press") { … }                                          // §3.1: the button being mashed
+h.input("still_red", wake: 1) { _, _ in "The build has been red for an hour." }
+try h.load(steering.appendingPathComponent("events.json"))    // §3.2: deploy
+h.on("build_failed") { e in light.do("flash", ["color": "red"]); h.did("Beacon flashed red on its own.", for: e, action: "flash") }
+h.on("build_passed") { e in light.do("flash", ["color": "green"]); h.did("Beacon flashed green on its own.", for: e, action: "flash") }
+h.output(tone)                                                 // §6: calm | worried | grim
+h.output(Play(light), openFor: 20_000)                         // §5.3: none | wobble | cheer
+h.section { _ in words["guide"] }
+h.section { _ in words["personality"] }
+h.section { log in words["tone/\(tone.value(log))"] }
+h.reachBack { _, log in /* the latest red streak's first failure */ }
+h.closing { now, log in /* "Beacon has been worried for 11 min." */ }
+h.tick { now, log in /* still_red, once, after an hour of red */ }  // §10
 ```
 
-At 14:01 and 14:05 the build fails: each time the rule flashes red, and
-the brain stays calm and plays nothing. At 14:06 you press the button. At
-14:09 it fails a third time, and the log gets:
+On a clock from 14:00 on a Wednesday, the build fails at 14:01 and
+14:05: each time the rule flashes red, and the brain stays calm and plays
+nothing. At 14:06 you press the button. At 14:09 it fails a third time,
+and the log gets:
 
 ```json
-{"seq":10,"at":1790690940000,"source":"ci","kind":"build_failed","data":{"branch":"main","run":814}}
-{"seq":11,"at":1790690940000,"source":"self","kind":"did","data":{"action":"flash","by":"rule","for":10,"message":"Beacon flashed red on its own.","ok":true}}
+{"seq":9,"at":1791986940000,"source":"ci","kind":"build_failed","data":{"branch":"main","run":814}}
+{"seq":10,"at":1791986940000,"source":"self","kind":"did","data":{"action":"flash","by":"rule","for":9,"message":"Beacon flashed red on its own.","ok":true}}
 ```
 
 The prompt the brain is sent ends:
@@ -503,23 +513,62 @@ Beacon flashed red on its own.
 ```
 
 The brain answers `tone: worried`, `play: wobble`: a `pass` and two
-`did`s, the wobble open until the device says it's done. A press three
-seconds later is sent:
+`did`s, the wobble open until the light says it's done:
+
+```json
+{"seq":11,"at":1791986940000,"source":"self","kind":"pass","data":{"answers":{"play":{"choice":"wobble","p":{"wobble":1}},"tone":{"choice":"worried","p":{"worried":1}}},"brain":"scripted","dropped":null,"for":9,"ms":0}}
+{"seq":12,"at":1791986940000,"source":"self","kind":"did","data":{"action":"tone","by":"brain","for":9,"from":"calm","latency_ms":0,"message":"Beacon went from calm to worried.","ok":true,"to":"worried"}}
+{"seq":13,"at":1791986940000,"source":"self","kind":"did","data":{"action":"play","by":"brain","for":9,"latency_ms":0,"message":"Beacon wobbled.","ok":true,"open":true}}
+```
+
+A press three seconds later is sent, with `tone/worried` as its TONE
+section:
 
 ```
+HISTORY (oldest first; indented lines add to the line above)
+8 min ago: The build on main failed.
+  Beacon flashed red on its own.
+4 min ago: The build on main failed again, 2 in a row.
+  Beacon flashed red on its own.
+3 min ago: You pressed the button.
 just now: The build on main failed again, 3 in a row.
   Beacon flashed red on its own.
   Beacon went from calm to worried.
   Beacon wobbled. (in progress)
+Beacon has been worried for under a minute.
 
 NOW (14:09, Wednesday)
 You pressed the button.
 Beacon did nothing on its own.
 ```
 
-so the brain plays nothing, and the tone section is now `tone/worried`.
-At 14:20 the build passes after failing, and the brain goes back to calm
-and cheers. (The test's own run prints the whole log and every prompt.)
+so the brain plays nothing. The light says the wobble is done at
+14:09:08 (`{"seq":16,…,"kind":"ended","data":{"action":"play","by":"brain","for":13,"outcome":"done"}}`).
+At 14:20 the build passes, and HISTORY reaches back past its 10 minutes
+to the red streak's first failure:
+
+```
+HISTORY (oldest first; indented lines add to the line above)
+19 min ago: The build on main failed.
+  Beacon flashed red on its own.
+15 min ago: The build on main failed again, 2 in a row.
+  Beacon flashed red on its own.
+14 min ago: You pressed the button.
+11 min ago: The build on main failed again, 3 in a row.
+  Beacon flashed red on its own.
+  Beacon went from calm to worried.
+  Beacon wobbled.
+10 min ago: You pressed the button.
+Beacon has been worried for 11 min.
+
+NOW (14:20, Wednesday)
+The build on main passed after 3 failures.
+Beacon flashed green on its own.
+```
+
+The brain goes back to calm and cheers. `beacon` prints the whole log
+and every prompt; `beacon listen --socket /tmp/beacon.sock` runs Beacon
+live, taking events from `kit-emit`.
 
 ## 12. For a port
 
@@ -531,8 +580,8 @@ its own business:
 - **The prompt:** §7's layout, byte for byte.
 - **Questions and answers:** §5.1's shapes, and one request per call.
 
-Two sets of cases pin them: `BeaconTests` (the kit alone, §11) and
-Boop's `GoldenStateTests`, which checks every state Boop's 60 eval
+Three sets of cases pin them: `BrainKitTests` (the kit alone, with toy
+outputs), `BeaconTests` (§11) and Boop's `GoldenStateTests`, which checks every state Boop's 60 eval
 scenarios build, 387 of them, against
 `internal/app/Tests/Fixtures/golden-states/`.
 
@@ -563,7 +612,8 @@ Each step keeps Boop working and `GoldenStateTests` green:
    loop and the tick, with its own tests.
 4. Boop on the kit: the view as transforms, the pipeline as rules, mood as
    a `Choice`.
-5. Beacon, the second tiny example, in the repo.
+5. Beacon, the second tiny example, in the repo, with `beacon` and
+   `kit-emit`.
 
 [evidence/2026-09-30-brain-kit/PLAN.md](../evidence/2026-09-30-brain-kit/PLAN.md)
 tracks them.

@@ -1,0 +1,43 @@
+import BrainKit
+import Foundation
+
+// `kit-emit`: sends one event to a brain kit's socket (plan/kit/BRAIN-KIT.md §3.3).
+//   kit-emit --socket PATH SOURCE KIND [key=value ...] [--line TEXT]
+// A value that reads as a whole number is one, `true` and `false` are yes and no, and the rest are strings.
+
+let usage = """
+    usage: kit-emit --socket PATH SOURCE KIND [key=value ...] [--line TEXT]
+    Sends one event to the brain kit's socket at PATH (EventServer), e.g.
+      kit-emit --socket /tmp/beacon.sock ci build_failed branch=main run=812
+    A value that reads as a whole number is one, true and false are yes and no, the rest strings.
+    --line gives the event a line of its own, for a kind registered with no transform.
+    """
+
+/// The flags taken out of the words, and the words left.
+func parse(_ words: [String]) -> (socket: String?, line: String?, rest: [String]) {
+    var rest = words, socket: String?, line: String?
+    for flag in ["--socket", "--line"] {
+        guard let i = rest.firstIndex(of: flag), i + 1 < rest.count else { continue }
+        if flag == "--socket" { socket = rest[i + 1] } else { line = rest[i + 1] }
+        rest.removeSubrange(i...(i + 1))
+    }
+    return (socket, line, rest)
+}
+
+let words = Array(CommandLine.arguments.dropFirst())
+if words.contains("--help") || words.contains("-h") {
+    print(usage)
+    exit(0)
+}
+let (socket, line, rest) = parse(words)
+guard let socket, var event = EventServer.event(from: rest) else {
+    FileHandle.standardError.write(Data((usage + "\n").utf8))
+    exit(2)
+}
+event.line = line
+do {
+    try EventServer.send(event, to: socket)
+} catch {
+    FileHandle.standardError.write(Data("kit-emit: couldn't send to \(socket): \(error)\n".utf8))
+    exit(1)
+}

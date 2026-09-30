@@ -70,7 +70,7 @@ launch the menu-bar app or run the whole eval.
 
 | Target | What it does |
 | --- | --- |
-| `make build` | Builds the Mac app, agent-hooks' `agent-hook` and `boopdev` in one `swift build`. Importing a target that isn't a declared dependency fails it, so `app/` can't use `internal/` code ([ARCHITECTURE.md](ARCHITECTURE.md) §10) |
+| `make build` | Builds the Mac app, agent-hooks' `agent-hook`, `boopdev`, `beacon` and `kit-emit` in one `swift build`. Importing a target that isn't a declared dependency fails it, so `app/` can't use `internal/` code ([ARCHITECTURE.md](ARCHITECTURE.md) §10) |
 | `make app` | Builds the Mac app, `agent-hook` and `boopdev` (the doctor skill checks the hooks with it), not the tests, with the same import check: what `make run` needs |
 | `make run` | `make app`, then runs the menu-bar app with Bluetooth. The owner's; never from an agent's shell |
 | `make debug` | The same with `--debug` |
@@ -125,6 +125,15 @@ commands go through the bridge.
 | `eval [--runs N] [--only TEXT] [--always] [--budget N \| --no-budget] [--timeline] [--scenarios DIR] [--steering DIR]`, `eval --list` | The eval scenarios against Jev (L5, [EVALS.md](EVALS.md)), stopping first if they'd send more than the budget of requests (100 by default); `--list` prints each one's case, runs and requests with no key |
 | `watch [FILE] [--new]` | Prints a `debug.jsonl`'s view events, passes and actions readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's. `--new` skips what's already there, though the first pass still prints the state's head in force ([harness/HARNESS.md](harness/HARNESS.md) §9) |
 | `hooks status\|install\|remove [claude\|codex] --home DIR [--hook PATH]` | Boop's hook installer, against any HOME ([ADAPTERS.md](ADAPTERS.md) §5) |
+
+**The brain kit's example and tool** ([kit/BRAIN-KIT.md](kit/BRAIN-KIT.md)
+§3.3, §11), built by `make build`:
+
+| Command | What it does |
+| --- | --- |
+| `.build/debug/beacon` | Runs Beacon, the kit's second example, through the worked example's timeline on a virtual clock with a scripted brain, and prints every event the log wrote and every prompt the brain was sent. `--steering DIR` (default `internal/examples/Beacon/steering`, from the repo root) |
+| `.build/debug/beacon listen --socket PATH` | Beacon live on a socket, the scripted brain answering and the light saying each one-shot is done 2 s later; prints each line, action and pass as it happens, until Ctrl-C |
+| `.build/debug/kit-emit --socket PATH SOURCE KIND [key=value …] [--line TEXT]` | Sends one event to a kit's socket: `kit-emit --socket /tmp/beacon.sock ci build_failed branch=main run=812`. A whole number is one, `true` and `false` yes and no, the rest strings |
 
 **`.build/debug/Boop`**, the app.
 

@@ -12,6 +12,8 @@ has the tests, evals, dev tools and skills that check them.
 | `app/BoopDevKit/` | A library for `boopdev` and the tests: the harness evals (`Eval/`, [plan/EVALS.md](../plan/EVALS.md)) and hook replay (`Replay.swift`) |
 | `app/BoopDev/` | `boopdev`, the developer CLI ([plan/VERIFICATION.md](../plan/VERIFICATION.md) §2) |
 | `app/Tests/` | The Swift unit tests (`BoopTests`) and their fixtures; the hook fixtures are agent-hooks' (`agent-hooks/Tests/AgentHooksTests/Fixtures/`), and only the pipeline check's are here (`Fixtures/hooks/e2e/`) |
+| `app/KitEmit/` | `kit-emit`, which sends one event to a brain kit's socket ([plan/kit/BRAIN-KIT.md](../plan/kit/BRAIN-KIT.md) §3.3) |
+| `examples/` | The brain kit's second example, Beacon, a CI light (`Beacon/`, with its steering), and `beacon`, which runs it (`BeaconDemo/`, [plan/kit/BRAIN-KIT.md](../plan/kit/BRAIN-KIT.md) §11) |
 | `app/TestSupport/XCTestShim/` | A stand-in XCTest for Command Line Tools, which has none |
 | `app/Evals/scenarios/` | The eval scenarios `boopdev eval` runs against Jev |
 | `app/tools/` | `gen-test-runner.py`, which writes the tests' `main` for the shim (`make build` runs it) |
@@ -27,7 +29,8 @@ has the tests, evals, dev tools and skills that check them.
   target outside the package's root and the targets live in both `app/`
   and here. The production targets (`BrainKit`, `BoopKit`, `Boop`, and
   agent-hooks', a local package the root one depends on) never depend on
-  the internal ones (`BoopDevKit`, `BoopDev`, `BoopTests`, `XCTest`). SwiftPM alone only warns about an import of a
+  the internal ones (`BoopDevKit`, `BoopDev`, `Beacon`, `BeaconDemo`,
+  `KitEmit`, `BoopTests`, `XCTest`). SwiftPM alone only warns about an import of a
   target that isn't a dependency, so `make build`, `make app` and
   `make -C internal test` build with
   `--explicit-target-dependency-import-check error`, and code in

@@ -86,6 +86,25 @@ var packageTargets: [Target] = [
         path: "internal/app/BoopDevKit",
         swiftSettings: testable
     ),
+    // The brain kit's second example, Beacon (plan/kit/BRAIN-KIT.md §11),
+    // and `beacon`, which runs it; `kit-emit`, which sends an event to a
+    // kit's socket.
+    .target(
+        name: "Beacon",
+        dependencies: ["BrainKit"],
+        path: "internal/examples/Beacon",
+        exclude: ["steering"]
+    ),
+    .executableTarget(
+        name: "BeaconDemo",
+        dependencies: ["Beacon", "BrainKit"],
+        path: "internal/examples/BeaconDemo"
+    ),
+    .executableTarget(
+        name: "KitEmit",
+        dependencies: ["BrainKit"],
+        path: "internal/app/KitEmit"
+    ),
     // Developer CLI: the evals, reading debug logs, replay, voice lines
     // and the hook installer (hooks).
     .executableTarget(
@@ -102,7 +121,7 @@ var packageTargets: [Target] = [
 packageTargets += [
     .executableTarget(
         name: "BoopTests",
-        dependencies: ["BrainKit", "BoopKit", "BoopDevKit", "XCTest", agentHooks],
+        dependencies: ["BrainKit", "BoopKit", "BoopDevKit", "Beacon", "XCTest", agentHooks],
         path: "internal/app/Tests",
         exclude: ["Fixtures"],
         swiftSettings: [.define("BOOP_SHIM_RUNNER")]
@@ -119,6 +138,8 @@ let package = Package(
     products: [
         .executable(name: "Boop", targets: ["Boop"]),
         .executable(name: "boopdev", targets: ["BoopDev"]),
+        .executable(name: "beacon", targets: ["BeaconDemo"]),
+        .executable(name: "kit-emit", targets: ["KitEmit"]),
     ],
     // The hook layer is its own package (agent-hooks/README.md): Boop
     // depends on it, and it on nothing here. Its hook client, agent-hook,

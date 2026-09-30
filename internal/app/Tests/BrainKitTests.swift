@@ -500,6 +500,10 @@ final class BrainKitTests: XCTestCase {
         XCTAssertEqual(e["run"], 812)
         XCTAssertEqual(rig.sync { rig.h.line(e.seq)?.text }, "The build on main failed.")
         XCTAssertNil(EventServer.decode(Data(#"{"kind":"x"}"#.utf8)), "a source is needed")
+        let words = try XCTUnwrap(EventServer.event(from: ["ci", "build_failed", "branch=main", "run=812", "green=false"]))
+        XCTAssertEqual(words.data, ["branch": "main", "run": 812, "green": false], "kit-emit's words")
+        XCTAssertNil(EventServer.event(from: ["ci"]))
+        XCTAssertNil(EventServer.event(from: ["ci", "x", "=1"]))
     }
 
     /// §9, the evals: one event straight through, without the loop: nil

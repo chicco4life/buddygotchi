@@ -107,6 +107,21 @@ public final class EventServer: @unchecked Sendable {
                      data: data)
     }
 
+    /// An event from a command line's words, `SOURCE KIND [key=value ...]`
+    /// (`kit-emit`): a value that reads as a whole number is one, `true` and
+    /// `false` are yes and no, the rest strings. Nil without a source and a
+    /// kind, or a word that isn't `key=value`.
+    public static func event(from arguments: [String]) -> Event? {
+        guard arguments.count >= 2 else { return nil }
+        var data: [String: JSONValue] = [:]
+        for word in arguments.dropFirst(2) {
+            guard let eq = word.firstIndex(of: "="), eq != word.startIndex else { return nil }
+            let key = String(word[..<eq]), value = String(word[word.index(after: eq)...])
+            data[key] = Int64(value).map(JSONValue.int) ?? (value == "true" ? .bool(true) : value == "false" ? .bool(false) : .string(value))
+        }
+        return Event(source: arguments[0], kind: arguments[1], data: data)
+    }
+
     /// The line for `e`, as `send` writes it.
     public static func encode(_ e: Event) -> String {
         var o: [String: Any] = ["source": e.source, "kind": e.kind, "data": e.data.mapValues(\.foundation)]

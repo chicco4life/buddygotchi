@@ -581,6 +581,8 @@ Swift targets:
 | `Boop` | The app | `app/Boop/`, plus `internal/app/Boop/` for `--headless` and `--snapshots`, and `plan/steering/` as a resource | Yes |
 | `BoopDevKit` | Library: the evals and hook replay | `internal/app/BoopDevKit/` | No |
 | `BoopDev` (`boopdev`) | The developer CLI | `internal/app/BoopDev/` | No |
+| `Beacon`, `BeaconDemo` (`beacon`) | The brain kit's second example and its runner ([kit/BRAIN-KIT.md](kit/BRAIN-KIT.md) §11), on `BrainKit` only | `internal/examples/` | No |
+| `KitEmit` (`kit-emit`) | Sends one event to a brain kit's socket | `internal/app/KitEmit/` | No |
 | `BoopTests` | The unit tests; without Xcode, an executable on the `XCTest` shim target | `internal/app/Tests/` | No |
 
 `BoopKit` and every target on it take agent-hooks' `AgentHooks`
