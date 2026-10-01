@@ -296,11 +296,10 @@ whose result is known: one that failed, or one that passed with
 Every other finished call only adds to the turn's counts and topics,
 unless the personality asks for `all`.
 
-**Tool categories:** `shell` (`Bash`, `shell`, `exec_command`,
-`local_shell`), `edit` (`Edit`, `Write`, `MultiEdit`, `NotebookEdit`,
-`apply_patch`), `read` (`Read`), `search` (`Grep`, `Glob`, `LS`), `web`
-(`WebFetch`, `WebSearch`), `subagent` (`Task`, `Agent`), `mcp` (any
-`mcp__…`) and `other`. A call's time pairs its start with its end by
+**Tool categories:** agent-hooks' tool kinds
+([agent-hooks/SPEC.md](../../agent-hooks/SPEC.md) §3, `ToolKind`), which
+know the agents' tool names: `shell`, `edit`, `read`, `search`, `web`,
+`subagent`, `mcp` and `other`, a `planning` tool reading as `other` here. A call's time pairs its start with its end by
 `tool_use_id`, or else takes the thread's last call start.
 
 **Codex** reports no tool failures, so its tool ends are `unknown` and

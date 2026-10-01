@@ -31,9 +31,6 @@ public enum Topic {
     ]
 
     static let docExtensions: Set<String> = ["md", "markdown", "mdx", "txt", "rst"]
-    static let editTools: Set<String> = [
-        "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch", "edit", "write", "write_file", "edit_file",
-    ]
 
     /// Any tool that isn't an edit and has a command (Claude's `Bash`,
     /// Codex's `shell` or `exec_command`) is tagged by what it runs: its
@@ -42,7 +39,7 @@ public enum Topic {
     /// `extraPatterns`).
     public static func tag(tool: String?, input: Any?, extra: [String: [[String]]] = [:]) -> String? {
         guard let tool else { return nil }
-        if editTools.contains(tool) {
+        if ToolKind.of(tool) == .edit {
             return paths(in: input).contains(where: isDoc) ? "docs" : nil
         }
         let rules = extra.isEmpty ? rules : merged(extra)

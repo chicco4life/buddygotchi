@@ -53,6 +53,8 @@ public struct AgentEvent: Equatable, Codable, Sendable {
     /// A turn start's prompt, with `--keep-text`.
     public var prompt: String?
     public var tool: String?
+    /// What kind of work the tool call is, from `tool` (`ToolKind`).
+    public var toolKind: ToolKind? { tool.map(ToolKind.of) }
     public var toolUseID: String?
     /// What a tool call is about: `tests`, `build`, `deploy`, `docs` or
     /// `inspect` (`Topic`).

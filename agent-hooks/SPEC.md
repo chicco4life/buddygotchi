@@ -1,6 +1,6 @@
 # agent-hooks: the spec
 
-Updated 2026-09-30. What agent-hooks does, exactly: the hook client and
+Updated 2026-10-01. What agent-hooks does, exactly: the hook client and
 where it sends, the event every hook becomes, how a session moves between
 working, idle and "needs you", how the hooks are installed, and the
 command line. [README.md](README.md) is the overview. Code: `Sources/`,
@@ -251,6 +251,25 @@ branch you check out shows within 30 s.
   `word/` and a trailing hash (`-7a22ea`) go, it's lowercased, anything
   but `a-z` and `0-9` becomes `-`, and it's cut to 40 characters
   (`claude/agent-work-visibility-7a22ea` is `agent-work-visibility`).
+
+**Tool kinds.** So an app never keeps a list of the agents' tool names,
+`ToolKind.of(tool)` says what kind of work a call is, and an event's
+`toolKind` and a running call's `kind` say it too. It's worked out from
+the name, so it isn't on the wire:
+
+| Kind | Tools |
+| --- | --- |
+| `shell` | `Bash`, `shell`, `exec_command`, `local_shell` |
+| `edit` | `Edit`, `Write`, `MultiEdit`, `NotebookEdit`, `apply_patch`, `edit`, `write`, `write_file`, `edit_file` |
+| `read` | `Read` |
+| `search` | `Grep`, `Glob`, `LS` |
+| `web` | `WebFetch`, `WebSearch` |
+| `subagent` | `Task`, `Agent` |
+| `planning` | `TodoWrite`, `ExitPlanMode`, `update_plan` |
+| `mcp` | any `mcp__…` |
+| `other` | anything else |
+
+A new or renamed agent tool is one line in `ToolKind.tools`.
 
 **Topic tags.** So an app can say what the work is without the command,
 `agent-hook` glances at a tool's input to pick a tag, then drops the

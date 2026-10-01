@@ -16,6 +16,8 @@ public final class SessionTracker {
         /// Its key: the `tool_use_id`, or `#N` for one without.
         public let key: String
         public let tool: String
+        /// What kind of work it is, from `tool` (`ToolKind`).
+        public var kind: ToolKind { ToolKind.of(tool) }
         public let topic: String?
         /// `""` for the main agent, else the subagent's `agent_id`.
         public let by: String

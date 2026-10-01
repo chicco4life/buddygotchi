@@ -165,7 +165,7 @@ GUARANTEES
   • Boop only watches and tells. It never approves or blocks anything.
 ```
 
-Updated 2026-09-30. What Boop does when things happen. Plain rules keep
+Updated 2026-10-01. What Boop does when things happen. Plain rules keep
 the screen true at once: the Mac's core (`app/BoopKit/Core/`) keeps the
 sessions and says which visual to show, and the device
 (`firmware/src/app/behaviour.*`) shows it, adds its own life and answers
@@ -289,7 +289,7 @@ the look is plain working.
 | `delegating` | The main agent's `Task` or `Agent` call runs, or a helper Boop saw start (`SubagentStart`) hasn't ended. Never from a helper's end, or its call, alone | Claude |
 | `terminal` | A shell command runs: `Bash`, `shell`, `exec_command`, `local_shell` | Claude, Codex |
 | `searching` | `WebSearch` or `WebFetch` runs | Claude |
-| `analyzing` | `Read`, `Grep`, `Glob` or `LS` runs, or a shell command that only looks at files (topic `inspect`) | Claude, Codex |
+| `analyzing` | A `read` or `search` tool runs (agent-hooks' `ToolKind`: `Read`, `Grep`, `Glob`, `LS`), or a shell command that only looks at files (topic `inspect`) | Claude, Codex |
 | `tool_use` | Any other call runs: an edit, an MCP tool… | Claude, Codex |
 | `waiting` | A call has run with nothing heard from its session for 20 s (`Core.waitingMs`): waiting on the machine. Or Codex's request is in its 2 s grace, waiting on its reviewer ([ADAPTERS.md](ADAPTERS.md) §4). A helper at work never counts as waiting | Claude, Codex |
 | `planning` | Claude is in plan mode (`permission_mode` `plan`), or a `TodoWrite`, `ExitPlanMode` or Codex `update_plan` call runs. Never from the gap between a prompt and the first call | Claude; Codex if its hooks report `update_plan` |

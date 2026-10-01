@@ -65,7 +65,10 @@ name, the session, the time and the few facts that hook carries:
 Every event can also have `cwd`, the thread's `name` as the agent's app
 shows it, the `app` the agent runs in, and Claude's permission `mode` and
 `subagent`. `topic` says what a command is about without the command:
-`tests`, `build`, `deploy`, `docs` or `inspect` (it only reads).
+`tests`, `build`, `deploy`, `docs` or `inspect` (it only reads), and
+`toolKind` what kind of tool it is (`shell`, `edit`, `read`, `search`,
+`web`, `subagent`, `planning`, `mcp` or `other`), so an app never keeps
+a list of the agents' tool names.
 [SPEC.md](SPEC.md) §3 has every hook and field.
 
 ## Sessions and "needs you"

@@ -424,7 +424,7 @@ public final class TranscriptView {
             }
         }
         guard TranscriptView.keeps(e.type, e.phase, notable: notable, allToolEnds: rules.toolUses == .all) else { return nil }
-        let category = EventLine.category(tool: tool)
+        let category = EventLine.category(ToolKind.of(tool))
         let result = failed.map { $0 ? "failed" : "ok" } ?? "unknown"
         let text = notable
             ? EventLine.check(agent: t.agent.rawValue, topic: topic!, thread: threadLine(t), failed: failed!)
@@ -831,18 +831,10 @@ public enum EventLine {
         "\(agent) needs you on \(thread)."
     }
 
-    /// The tool's category (EVENTS.md §4).
-    public static func category(tool: String?) -> String {
-        guard let tool else { return "other" }
-        if tool.hasPrefix("mcp__") { return "mcp" }
-        switch tool {
-        case "Bash", "shell", "exec_command", "local_shell": return "shell"
-        case "Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch": return "edit"
-        case "Read": return "read"
-        case "Grep", "Glob", "LS": return "search"
-        case "WebFetch", "WebSearch": return "web"
-        case "Task", "Agent": return "subagent"
-        default: return "other"
-        }
+    /// The tool's category in a line's facts (EVENTS.md §4): agent-hooks'
+    /// kind, but for planning, which the brain hears as `other`, as before
+    /// the kinds moved there.
+    public static func category(_ kind: ToolKind) -> String {
+        kind == .planning ? ToolKind.other.rawValue : kind.rawValue
     }
 }

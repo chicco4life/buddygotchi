@@ -13,25 +13,21 @@ public enum Act: String, CaseIterable, Sendable {
     /// Whether it outranks `other`.
     public func beats(_ other: Act) -> Bool { rank < other.rank }
 
-    /// The tools that plan: Claude's `TodoWrite` and `ExitPlanMode`, and
-    /// Codex's `update_plan`, if its hooks ever report it.
-    static let planningTools: Set<String> = ["TodoWrite", "ExitPlanMode", "update_plan"]
-
     /// What a running call shows, by its tool and topic (BEHAVIORS.md §2):
     /// a call that runs tests is testing, a shell command that only looks
-    /// (`inspect`) is analyzing, and otherwise its category decides
-    /// (harness/EVENTS.md §4.1). A `Task` or `Agent` call is delegating only
+    /// (`inspect`) is analyzing, and otherwise its kind decides (agent-hooks'
+    /// `ToolKind`, which knows the agents' tool names). A `Task` or `Agent` call is delegating only
     /// from the main agent. Anything else is `tool_use`.
     static func of(tool: String?, topic: String?, byMainAgent: Bool) -> Act {
         if topic == "tests" { return .testing }
         if topic == "inspect" { return .analyzing }
-        if let tool, planningTools.contains(tool) { return .planning }
-        switch EventLine.category(tool: tool) {
-        case "shell": return .terminal
-        case "read", "search": return .analyzing
-        case "web": return .searching
-        case "subagent": return byMainAgent ? .delegating : .toolUse
-        default: return .toolUse
+        switch ToolKind.of(tool) {
+        case .planning: return .planning
+        case .shell: return .terminal
+        case .read, .search: return .analyzing
+        case .web: return .searching
+        case .subagent: return byMainAgent ? .delegating : .toolUse
+        case .edit, .mcp, .other: return .toolUse
         }
     }
 }
