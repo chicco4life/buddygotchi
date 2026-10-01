@@ -1,13 +1,12 @@
 import AgentHooks
 import Foundation
 import JHarness
-import JHarnessLink
 import LinkKit
 
 /// The brain's reactions on the device, until each ends (ARCHITECTURE.md
 /// §3.2). The device decides what plays when (linkkit/SPEC.md §4): each
 /// reaction goes out at once, a `do` that waits its turn there, and the
-/// link hands back how it came out (JHarnessLink's `do(…, pending:)`). This
+/// link hands back how it came out, once. This
 /// reads that as its handle's end (harness/DECISIONS.md §5), holds a reaction your tap cut short in
 /// progress until the pokes stop, and keeps where a tap on the brain's
 /// finish opens its thread (BEHAVIORS.md §3.3) while the finish may still
@@ -52,9 +51,8 @@ public final class Reactions {
     /// landed on it (BEHAVIORS.md §3.3). Nil once it's over.
     public func opens(finish id: Int) -> ThreadRef? { opens[id]?.thread }
 
-    /// How the reaction whose handle is `pending` came out, as the map of
-    /// JHarnessLink's `do(…, pending:)`: its end, or nil, holding it while
-    /// the pokes go on, when your tap cut it.
+    /// How the reaction whose handle is `pending` came out: its end, or
+    /// nil, holding it while the pokes go on, when your tap cut it.
     public func read(_ outcome: DeviceLink.Outcome, _ pending: Pending) -> Pending.End? {
         guard let end = Self.end(outcome) else {
             cutByTap.append(pending)

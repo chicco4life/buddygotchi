@@ -94,3 +94,11 @@ public enum LinkSetting: Equatable, Sendable {
         }
     }
 }
+
+extension DeviceLink.Sender {
+    /// Who asked for a line, for `debug.jsonl`'s `by` and boop.log: the
+    /// core's rules (every `state`, the one-shots, push-to-talk), or the
+    /// brain's reactions.
+    public static let rule: Self = "rule"
+    public static let brain: Self = "brain"
+}

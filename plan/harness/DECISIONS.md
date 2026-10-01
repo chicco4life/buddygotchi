@@ -525,7 +525,7 @@ the handle is ended ([HARNESS.md](HARNESS.md) §4, §5.3). The link gives
 its `do` an `id`, and hands back how it came out: the device's `ended`
 (`done`, `cut` or `skipped`, with why, [PROTOCOL.md](../PROTOCOL.md)
 §4), or why there's none ([linkkit/SPEC.md](../../linkkit/SPEC.md) §5).
-JHarnessLink's `do(…, pending:)` ends the handle from that, as the app's
+`Runtime.queue` ends the handle from that, as the app's
 `Reactions` (`app/BoopKit/App/Reactions.swift`, `read`) reads it:
 
 | End | When |

@@ -1,6 +1,5 @@
 import Foundation
 import JHarness
-import JHarnessLink
 import LinkKit
 
 /// Debug mode's record of the brain (harness/HARNESS.md §9): in the state

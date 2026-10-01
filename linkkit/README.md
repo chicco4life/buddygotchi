@@ -54,8 +54,7 @@ in `hello`. Tools also send `dbg.*` messages over USB (SPEC.md §7).
 ## The host, in Swift
 
 It builds from source with Swift 6 (Xcode or the Command Line Tools) on
-macOS 13 or later, on Foundation and CoreBluetooth, with
-[../jharness](../jharness/README.md) beside it (below, With JHarness):
+macOS 13 or later, on Foundation and CoreBluetooth alone:
 
 ```swift
 // Package.swift
@@ -155,54 +154,11 @@ the links, says `hello`, runs the turn, routes `ev` and answers the
 when its holder rests, ends or is cut. Its README has the lamp, whole.
 Boop's firmware is another app on it.
 
-## With JHarness
-
-`JHarnessLink`, a second product, glues a device into an app whose brain
-runs on [JHarness](../jharness/README.md). LinkKit itself never imports
-JHarness, but the package depends on `../jharness` for it, and SwiftPM
-resolves a package's dependencies whichever product an app takes, so
-JHarness's folder must be beside this one even for `LinkKit` alone.
-
-```swift
-.product(name: "JHarnessLink", package: "linkkit"),
-```
-
-- **`link.do(…, pending:)`** finishes a JHarness `Pending` from the
-  `do`'s end, so an output that plays something returns
-  `.started(message, pending)` and HISTORY shows it in progress until
-  the device says. `DeviceLink.end` is the default reading (`done`, `cut
-  short: tap`, `skipped: late`, `the device disconnected`); pass your own
-  `map`, and return nil to finish it yourself later. It's by `brain`
-  unless you say: JHarnessLink names JHarness's two senders, `rule` and
-  `brain`.
-- **`DeviceEvents`** logs every `ev` as an event from `device`, what the
-  device did about it as a `did` in your words, and `device_up` and
-  `device_down`.
-- **`Play`** is a ready-made output: the brain picks one of the names you
-  describe that the device's `hello` says it plays, or none, and it plays
-  with `play: next`.
-
-On the harness's queue, which must be the link's:
-
-```swift
-import JHarness
-import JHarnessLink
-import LinkKit
-
-func wire(_ harness: Harness, to link: DeviceLink, clock: @escaping () -> Int64) {
-    _ = DeviceEvents(link: link, harness: harness) { ev in ev.did == "stopped" ? "The lamp stopped blinking." : nil }
-    harness.input("press", wake: 1) { _, _ in Line("You pressed the lamp's button.") }
-    harness.output(Play(link: link, question: "Should the lamp blink at NOW?", judgeBy: "NOW's line",
-                        options: [Option("blink", "Blink: something went wrong.")], clock: clock))
-}
-```
-
 ## Boop
 
 Boop, the desk creature LinkKit was pulled out of, is one app on it: its
 own `state` fields, `do` names, `hello`'s `voice` and taps, on the Mac
-and in its firmware. Its reactions end their JHarness `Pending`s through
-`link.do(…, pending:)`, read its own way.
+and in its firmware.
 
 ## Development
 
@@ -214,9 +170,7 @@ The tests use Swift Testing: `LinkKitTests` (framing and chunking, the
 Bluetooth outbox and reconnect timing, the socket transport, the bridge
 on a pseudo-terminal, the wire, the keepalive, `hello` and trouble, ids,
 exactly one end, the give-up and a link that drops), each naming the
-SPEC.md section it checks, and `JHarnessLinkTests`. The device half has
+SPEC.md section it checks. The device half has
 its own PlatformIO project for its tests
 ([device/README.md](device/README.md)). The package depends on nothing
-but Foundation, CoreBluetooth and `../jharness` (which only
-`JHarnessLink` imports, though SwiftPM needs it for either product), and
-on nothing else outside this folder.
+but Foundation and CoreBluetooth, and on nothing outside this folder.

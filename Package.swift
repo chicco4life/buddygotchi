@@ -19,9 +19,6 @@ let jharness: Target.Dependency = .product(name: "JHarness", package: "jharness"
 /// LinkKit's library, which every Boop target that talks to the device
 /// imports.
 let linkKit: Target.Dependency = .product(name: "LinkKit", package: "linkkit")
-/// LinkKit's glue to JHarness: a reaction's `do` that finishes its
-/// `Pending`, and JHarness's senders, `rule` and `brain`.
-let jharnessLink: Target.Dependency = .product(name: "JHarnessLink", package: "linkkit")
 
 /// Everything in the repo except `kept` and the directories leading to them,
 /// for a target whose path is the repo root: SwiftPM warns about each file
@@ -53,7 +50,7 @@ var packageTargets: [Target] = [
     // (App) (plan/ARCHITECTURE.md §3).
     .target(
         name: "BoopKit",
-        dependencies: [jharness, agentHooks, linkKit, jharnessLink],
+        dependencies: [jharness, agentHooks, linkKit],
         path: "app/BoopKit",
         swiftSettings: testable
     ),

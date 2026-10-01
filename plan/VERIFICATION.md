@@ -286,10 +286,7 @@ gets at least one scenario. Their pictures are the golden images in
   reading dropped, the board going away), the wire, the keepalive,
   `hello` and trouble (a device that doesn't fit gets `state` but no
   `do`, and its `ev`s are dropped), who sent each line, ids, exactly one
-  end per `do`, the give-up at its `ttl` plus 60 s and a link that drops;
-  `JHarnessLinkTests` the glue: the default mapping of an end, a
-  `Pending` the device finishes, the device's events in the log, and
-  `Play`'s options following the `hello`.
+  end per `do`, the give-up at its `ttl` plus 60 s and a link that drops.
 - **LinkKit's device library (`pio test -d linkkit/device -e native`,
   run by `make -C internal fw-test`):** the library alone, from its own
   PlatformIO project, with a fake app and nothing of Boop's: every rule of the turn with its numbers

@@ -46,7 +46,7 @@ each of Boop's parts is on it:
 | The view (`TranscriptView`) | Transforms for the kinds with lines, their wakes, and holds for the gates. The agent lines need each thread's turn history: a fold of the log (`TranscriptView.Fold`) that catches up to the event it's asked about, so its answer depends on the log alone |
 | Heartbeats | Timed checks. The working heartbeat's random wait is the view's own timer, reset when it sees a reaction start in the log |
 | Mood | A `Choice`, its options Boop's mood graph |
-| React | An output that returns `.started`, its handle finished through JHarnessLink's `do(…, pending:)`, as the app's `Reactions` reads it, when the device's `ended` comes, or when the link says none will. A reaction your tap cut short is finished `done` once the pokes stop, so HISTORY shows it in progress while they go on |
+| React | An output that returns `.started`, its handle finished from its `do`'s outcome, as the app's `Reactions` reads it, when the device's `ended` comes, or when the link says none will. A reaction your tap cut short is finished `done` once the pokes stop, so HISTORY shows it in progress while they go on |
 | Jev's state | Sections: the guide (with Boop's own "how to read" and words), PERSONALITY and MOOD; the closing line; reach-back to the oldest working turn |
 | `debug.jsonl`, the dashboard, `boopctl day` | `onLine` and `onPass`, and the log's own lines |
 | The transcript | JHarness's log, in `transcript/`; lines written before JHarness are still read (`Event.legacy`, the log's `decode`) |

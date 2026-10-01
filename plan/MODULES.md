@@ -3,42 +3,52 @@
 Updated 2026-10-01. Boop is three small libraries and the app that joins
 them. Each library solves one problem, builds and tests on its own, has a
 README (the overview) and a SPEC (the contract), and knows nothing of
-Boop, nor of the other two but for LinkKit's optional glue to JHarness.
+Boop or of each other.
 Everything that makes Boop Boop, the core's rules, the mood graph, faces,
 voice and steering, is app code on top. This page is how they fit; each
 piece's own pages say how it works.
 
 ```
-  Claude Code, Codex                                          the board (ESP32)
-        │ hooks                                            Boop's firmware app
-        ▼                                                          │ plugs into
- ┌──────────────┐          ┌──────────────┐          ┌──────────────┴───────┐
- │ A            │          │ B            │          │ C  LinkKit           │
- │ agent-hooks  │          │ JHarness     │          │ host (Swift) ◄─────► │ device (C++)
- │ hooks →      │          │ log → prompt │          │ state, do  ─►        │ the turn
- │ events,      │          │ → one request│          │ ◄─ hello, ev         │
- │ sessions     │          │ → outputs    │          └──────────────▲───────┘
- └──────┬───────┘          └──────▲───────┘                         │
-        │ AgentEvent               │ emit, outputs     JHarnessLink │ (optional glue)
-        └──────────────► Boop's Mac app (BoopKit, Boop) ────────────┘
+  Claude Code, Codex
+        │ hooks
+        ▼
+ ┌────────────────────┐
+ │ A  agent-hooks     │  hooks → events, sessions, "needs you"
+ └─────────┬──────────┘
+           │ AgentEvent
+           ▼
+ ┌────────────────────┐   events    ┌────────────────────┐
+ │ Boop's Mac app     │ ──────────► │ B  JHarness        │  log → prompt → one
+ │ (BoopKit, Boop)    │ ◄────────── │                    │  request → outputs
+ └─────────┬──────────┘   answers   └────────────────────┘
+           │ state, do      ▲ hello, ev
+           ▼                │
+ ┌────────────────────┐
+ │ C  LinkKit (host)  │  the only way to the board
+ └─────────┬──────────┘
+           │ JSON lines over Bluetooth or USB
+ ┌─────────▼──────────┐
+ │ C  LinkKit device  │  the turn: decides when a request plays
+ │ + Boop's firmware  │  faces, voice, behaviour
+ └────────────────────┘
 ```
 
 | Piece | Folder | What it does | Products | Contract |
 | --- | --- | --- | --- | --- |
 | A | [agent-hooks/](../agent-hooks/README.md) | Coding agents' hooks become one kind of event; it keeps each session's state and "needs you" | `AgentHooks`, `agent-hook`, `agent-hooks` | [SPEC](../agent-hooks/SPEC.md) |
 | B | [jharness/](../jharness/README.md) | A personality from Markdown plus multiple choice: a log of events, a line for each, one question request per pass, outputs that act | `JHarness`, `jharness-emit`, `beacon` | [SPEC](../jharness/SPEC.md) |
-| C | [linkkit/](../linkkit/README.md) | A host and a small device: four messages, and the device decides what plays when | `LinkKit`, `JHarnessLink`, `linkkit-bridge`; the C++ library in [linkkit/device/](../linkkit/device/README.md) | [SPEC](../linkkit/SPEC.md) |
+| C | [linkkit/](../linkkit/README.md) | A host and a small device: four messages, and the device decides what plays when | `LinkKit`, `linkkit-bridge`; the C++ library in [linkkit/device/](../linkkit/device/README.md) | [SPEC](../linkkit/SPEC.md) |
 | Boop | `app/`, `firmware/` | The desk creature on top of all three | `Boop`, `BoopKit`; the firmware | this folder |
 
 ## The rules that keep them apart
 
 - **Dependencies point one way.** Boop depends on A, B and C; none of
-  them depends on Boop, and A and B depend on nothing else here. C's
-  `LinkKit` doesn't import JHarness; only its optional `JHarnessLink`
-  does (and so the linkkit package expects `../jharness` beside it).
+  them depends on Boop or on each other. The app is the only thing that
+  talks to the board, and only through LinkKit; JHarness never touches
+  the device: it hands its answers back to Boop's own outputs.
 - **The build enforces it.** Each piece is its own package (Swift) or
   library (PlatformIO, with its own project for its tests) with nothing
-  outside its folder (bar `JHarnessLink`'s `../jharness`), `make build`'s explicit import check
+  outside its folder, `make build`'s explicit import check
   fails a target that imports what it doesn't declare, and
   `linkkit/device/tools/check_includes.py` fails every firmware env's
   build if the device library includes a header that isn't its own, a
@@ -57,9 +67,8 @@ piece's own pages say how it works.
 | Boop → B | `app/BoopKit/App/Pipeline.swift` | Each event goes into the harness in one `batch` with the core's rules; `TranscriptView` registers the transforms that give each kind its line and wake, and `Runtime` the outputs (`MoodAction`, a `Choice`, and `ReactAction`) ([harness/HARNESS.md](harness/HARNESS.md)) |
 | Boop → C (the look) | `app/BoopKit/App/Runtime.swift` | Every change of the core's snapshot is `link.update(state: snapshot.fields)` on LinkKit's `DeviceLink`; it sends it on change, on connect, in answer to `hello` and every 10 s |
 | Boop → C (one-shots) | `Runtime.playRule` | A rule's one-shot is `link.do(name, args:, play: .ifFree, by: .rule)`: at once, never waiting for the brain, and skipped by the device (`busy`) while a brain reaction holds the turn busy, its line or a finish |
-| B → C (reactions) | `ReactAction` → `Runtime.queue` | The brain's reaction is JHarnessLink's `link.do(name, args:, play: .next, ttl: BoopDevice.reactionTTL, by: .brain, pending:)`, a 5 s wait at most; its `Pending` stays open until the device's `ended`, which `Reactions.read` makes done or failed, or holds while the pokes go on after your tap cut it ([harness/DECISIONS.md](harness/DECISIONS.md) §5); `Reactions.sent` keeps whose thread a tap on a finish opens, and `Runtime.harness` wires the hold's end for the app and the evals alike |
+| B → C (reactions) | `ReactAction` → `Runtime.queue` | JHarness hands Jev's answers to Boop's own output, `ReactAction`, which sends `link.do(name, args:, play: .next, ttl: BoopDevice.reactionTTL, by: .brain)`, a 5 s wait at most; the reaction's `Pending` stays open until the device's `ended`, which `Reactions.read` makes done or failed, or holds while the pokes go on after your tap cut it ([harness/DECISIONS.md](harness/DECISIONS.md) §5); `Reactions.sent` keeps whose thread a tap on a finish opens, and `Runtime.harness` wires the hold's end for the app and the evals alike |
 | C → Boop | `Runtime.device`, `Runtime.deviceEvent` | The link finishes each `do` from its `ended` itself, and hands on every other `ev`: `tap` (with `on`, the finish it landed on, whose thread it opens) becomes a `poke` through the pipeline, and `talk_on` and `talk_off` turn the core's mic on and off ([PROTOCOL.md](PROTOCOL.md) §4). A line the link doesn't know is checked for the `status` of Boop's firmware from before the kit, which the link then counts as too old |
-| B ↔ C, generic | `linkkit/Sources/JHarnessLink` | `link.do(…, pending:)` finishes a `Pending`, with the app's own reading (`map`) or `DeviceLink.end`; JHarness's senders, `rule` and `brain`; `DeviceEvents` logs every `ev`, and `Play` offers the device's `hello.does` to the brain. Boop takes the first two, with `Reactions.read` as its reading (a tap's cut held until the pokes stop, Boop's refusals read as `something needed you`), but not the last two: its taps are pokes with rules of their own, not `DeviceEvents`' generic events, and its reactions are its own output |
 
 ## One event's journey
 
@@ -90,8 +99,7 @@ A Claude turn finishes while Boop is idle and calm.
    the bubble; a finish never rests, so another reaction waits behind
    it. When all of it is over the app tells the kit, which answers (C):
    `{"t":"ev","kind":"ended","data":{"id":558386703,"how":"done"}}`
-7. JHarnessLink's `do(…, pending:)` finishes the `Pending` done, as
-   `Reactions` reads the `ended`; JHarness logs its `ended`, and the next
+7. `Reactions` reads the `ended` and finishes the `Pending` done; JHarness logs its `ended`, and the next
    prompt's HISTORY says what Boop did, plainly.
 
 A tap on the screen goes the other way: the board pokes at once on its
@@ -112,9 +120,6 @@ own, then sends `{"t":"ev","kind":"tap","did":"poked"}`; Boop records a
   a complete app in [linkkit/device/README.md](../linkkit/device/README.md),
   and `LampHost` in [linkkit/README.md](../linkkit/README.md) drives it
   from a Mac, over USB through `linkkit-bridge`.
-- **B and C together:** the same README's "With JHarness" wires a
-  device's events into a harness and its `hello` into the brain's
-  choices in a few lines.
 
 ## Building and testing
 

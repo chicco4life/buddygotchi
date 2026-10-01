@@ -20,7 +20,7 @@ cheap ESP32 board with a screen is the body. Start with
 | `Package.swift` | The Swift package, at the root because its targets are in both `app/` and `internal/`. It builds into `.build/` |
 | `agent-hooks/` | The hook layer, a Swift package of its own meant to be open-sourced ([its README](agent-hooks/README.md), [its spec](agent-hooks/SPEC.md)): the `agent-hook` hook client, the `agent-hooks` command line, and the `AgentHooks` library that turns hooks into events and keeps the sessions and "needs you". It depends on nothing else in the repo; Boop depends on it |
 | `jharness/` | The brain's harness, a Swift package of its own meant to be open-sourced ([its README](jharness/README.md), [its spec](jharness/SPEC.md)): the `JHarness` library (events and the log, each kind's line, rules, outputs and `Choice`, the prompt, Jev and the loop that asks it), `jharness-emit`, and its worked example Beacon (`beacon`). It depends on nothing else in the repo; Boop's brain runs on it |
-| `linkkit/` | The device link, a package of its own meant to be open-sourced ([its README](linkkit/README.md), [its spec](linkkit/SPEC.md)): the protocol (four JSON messages, and the turn, by which the device decides what plays when), the Swift host library `LinkKit` with its Bluetooth and socket transports, `linkkit-bridge` (the USB bridge), `JHarnessLink` (optional glue to JHarness, whose reaction `do` Boop uses), and the C++ device library in `linkkit/device/` ([its README](linkkit/device/README.md)), with its own PlatformIO project for its tests, that Boop's firmware plugs into. Only `JHarnessLink` depends on anything else in the repo (`../jharness`); Boop depends on the rest |
+| `linkkit/` | The device link, a package of its own meant to be open-sourced ([its README](linkkit/README.md), [its spec](linkkit/SPEC.md)): the protocol (four JSON messages, and the turn, by which the device decides what plays when), the Swift host library `LinkKit` with its Bluetooth and socket transports, `linkkit-bridge` (the USB bridge), and the C++ device library in `linkkit/device/` ([its README](linkkit/device/README.md)), with its own PlatformIO project for its tests, that Boop's firmware plugs into. It depends on nothing else in the repo; Boop depends on it |
 | `app/` | The Mac side that ships: the menu-bar app (`Boop`) and the `BoopKit` library, Boop's own code on the three packages |
 | `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)): Boop's app on LinkKit's device library, with its generated assets and build scripts |
 | `internal/` | Everything that doesn't ship ([its README](internal/README.md)): `boopdev` and its library, Boop's Swift tests and eval scenarios, the sources of `Boop --headless` and `--snapshots`, and the firmware's simulator and unit tests (env `native`) |
@@ -34,8 +34,7 @@ skills and the simulator. What ships (`BoopKit`, `Boop`, the three
 packages agent-hooks, jharness and linkkit, LinkKit's device library and
 the firmware) never depends on internal code, and `make build` fails if a
 Swift target imports one it doesn't declare. The packages depend on
-nothing of Boop's and nothing outside their folders, but for
-`JHarnessLink`'s `../jharness`; the device library's build fails if it
+nothing of Boop's and nothing outside their folders; the device library's build fails if it
 includes a header that isn't its own (`linkkit/device/tools/check_includes.py`).
 Their own tests live in each package. The one overlap is `Boop --headless` and
 `Boop --snapshots`, flags of the shipped app whose sources are in
@@ -132,7 +131,7 @@ how Boop sits on its three packages (agent-hooks, JHarness, LinkKit) in
   what the brain hears ([plan/harness/EVENTS.md](plan/harness/EVENTS.md)).
   Anything else is a log line.
 - **The packages stay apart.** agent-hooks, JHarness and LinkKit know
-  nothing of Boop, and nothing of each other but for `JHarnessLink`.
+  nothing of Boop or of each other.
   Boop translates between them in a few places (plan/MODULES.md, Where
   they join), and anything Boop-specific stays in `app/` or `firmware/`.
 - **The harness is generic.** JHarness takes events, asks every output's

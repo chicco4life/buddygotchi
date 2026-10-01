@@ -1,7 +1,6 @@
 import AgentHooks
 import Foundation
 import JHarness
-import JHarnessLink
 import LinkKit
 
 /// Everything the app runs, wired together (ARCHITECTURE.md §1): the hook
@@ -723,13 +722,15 @@ public final class Runtime: @unchecked Sendable {
 
     /// A reaction from the brain, sent at once to wait its turn on the
     /// device (`next`, for up to 5 s), and its handle, ended once it's
-    /// known how it went (JHarnessLink's `do(…, pending:)`, read Boop's way
-    /// by `Reactions`): at once when it can't be sent. On `home`.
+    /// known how it went (read Boop's way by `Reactions`): at once when it
+    /// can't be sent. On `home`.
     func queue(_ moment: DeviceMoment, _ pending: Pending) {
         core.listeningEnded()  // a reaction ends `listening`: it's the reply (BEHAVIORS.md §3.3)
         let now = options.clock(), reactions = reactions
-        let id = link.do(moment.name, args: moment.args, play: .next, ttl: BoopDevice.reactionTTL, by: .brain, now: now,
-                         pending: pending) { reactions.read($0, pending) }
+        let id = link.do(moment.name, args: moment.args, play: .next, ttl: BoopDevice.reactionTTL, by: .brain,
+                         now: now) { outcome in
+            if let end = reactions.read(outcome, pending) { pending.finish(end) }
+        }
         if let id, let thread = moment.who?.opens { reactions.sent(id, opens: thread, ttl: BoopDevice.reactionTTL, now: now) }
     }
 
