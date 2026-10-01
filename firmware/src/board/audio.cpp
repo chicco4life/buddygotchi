@@ -1,28 +1,25 @@
+// The voice task, the same on every board (documentation/DEVICE.md §4,
+// documentation/VOICE.md §8, §10): it renders the voice player, mixes the sound
+// effects in, and hands each chunk to the board's output (board/audio_out.h),
+// turning the amp on only while something plays.
 #include "board/audio.h"
 
 #include <Arduino.h>
-#include <driver/dac_continuous.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
+#include "board/audio_out.h"
 #include "board/board_hal.h"
-#include "board/pins.h"
 
 namespace board {
 
 namespace {
 
-// Four 1 KB DMA buffers; the driver widens each sample to 16 bits, so each
-// holds 512 samples (23 ms). The task writes one full buffer at a time and
-// never lets the DMA run dry: silence when there's nothing to say. If the
-// DMA ever finishes its queue, the synchronous driver stops handing buffers
-// back (seen on the board, 2026-09-26), so an underrun must not happen.
-constexpr size_t kDmaBufs = 4;
-constexpr size_t kDmaBytes = 1024;
-constexpr size_t kChunk = kDmaBytes / 2;
-constexpr int kWriteTimeoutMs = 200;
+// The task writes one chunk at a time and never lets the output run dry:
+// silence when there's nothing to say.
+constexpr size_t kChunk = audio_out::kChunk;
 
 // Effects neither replace nor hush a line: they mix under it.
 enum class Kind : uint8_t { kSay, kHush, kEffect, kStopEffects };
@@ -39,7 +36,6 @@ constexpr int kAmpHold = 44;
 // main loop, and a line.
 constexpr int kQueue = 8;
 
-dac_continuous_handle_t dac = nullptr;
 QueueHandle_t queue = nullptr;
 portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
 app::AudioOut stats;  // guarded by `lock`
@@ -49,7 +45,7 @@ uint8_t chunk[kChunk];
 
 // The line being played, for its timeline. Writes return at the DMA's
 // pace, so the time between the write before the line and the write that
-// finished it is how long the DAC took to play those chunks.
+// finished it is how long the output took to play those chunks.
 struct Current {
   bool line = false;
   int take = -1;
@@ -72,7 +68,7 @@ void locked(F f) {
 void finish(bool cut) {
   if (!cur.line) return;
   uint32_t wall = 0;
-  if (cur.chunks) {  // the DAC's pace, over the line's own samples
+  if (cur.chunks) {  // the output's pace, over the line's own samples
     int64_t us = (lastWriteUs - cur.startUs) * int64_t(cur.samples) / int64_t(cur.chunks * kChunk);
     wall = uint32_t(us / 1000);
   }
@@ -114,7 +110,7 @@ void apply(const Cmd& c) {
     applyVoice(c);
   }
   if (sounding()) {
-    digitalWrite(pins::kAmpEnable, LOW);  // amp on (active low)
+    audio_out::amp(true);
     drain = 0;
     locked([] { stats.playing = true; });
   } else if (drain == 0) {
@@ -131,18 +127,13 @@ void task(void*) {
     bool speaking = player.playing();  // a line, which the effects go under
     size_t made = player.render(chunk, kChunk);
     effects.mix(chunk, kChunk, speaking);
-    if (dac_continuous_write(dac, chunk, kChunk, nullptr, kWriteTimeoutMs) != ESP_OK) {
-      // Wedged anyway: restart the DAC so the next line can play.
-      dac_continuous_disable(dac);
-      dac_continuous_enable(dac);
-      locked([] { ++stats.errors; });
-    }
+    if (!audio_out::write(chunk)) locked([] { ++stats.errors; });
     lastWriteUs = esp_timer_get_time();
     if (cur.line && made) cur.samples += made, ++cur.chunks;
     if (was && !player.playing()) finish(false);
     if (wasAny && !sounding()) drain = kAmpHold;
     if (drain > 0 && --drain == 0 && !sounding()) {
-      digitalWrite(pins::kAmpEnable, HIGH);
+      audio_out::amp(false);
       locked([] { stats.playing = false; });
     }
   }
@@ -160,17 +151,7 @@ void send(const Cmd& c) {
 }  // namespace
 
 bool audioBegin() {
-  dac_continuous_config_t cfg = {};
-  static_assert(pins::kDac == 26, "DAC_CHANNEL_MASK_CH1 is GPIO26 (DEVICE.md §2)");
-  cfg.chan_mask = DAC_CHANNEL_MASK_CH1;
-  cfg.desc_num = kDmaBufs;
-  cfg.buf_size = kDmaBytes;
-  cfg.freq_hz = voice::kOutRate;
-  cfg.offset = 0;
-  cfg.clk_src = DAC_DIGI_CLK_SRC_DEFAULT;
-  cfg.chan_mode = DAC_CHANNEL_MODE_SIMUL;
-  if (dac_continuous_new_channels(&cfg, &dac) != ESP_OK) return false;
-  if (dac_continuous_enable(dac) != ESP_OK) return false;
+  if (!audio_out::begin()) return false;
   queue = xQueueCreate(kQueue, sizeof(Cmd));
   if (!queue) return false;
   // Above Bluetooth's host task, so the DMA never runs dry. Its stack has
@@ -181,7 +162,7 @@ bool audioBegin() {
   return true;
 }
 
-// BoardHal's sound: the queue to the task, and its figures.
+// BoardHal's sound: the queue to the task, its figures and the amp.
 void BoardHal::say(const voice::Line& l) { send({Kind::kSay, l, {}}); }
 void BoardHal::hush() { send({Kind::kHush, {}, {}}); }
 void BoardHal::effect(const voice::Effect& e) { send({Kind::kEffect, {}, e}); }
@@ -192,5 +173,7 @@ app::AudioOut BoardHal::audioOut() {
   locked([&] { a = stats; });
   return a;
 }
+
+bool BoardHal::ampOn() { return audio_out::ampOn(); }
 
 }  // namespace board

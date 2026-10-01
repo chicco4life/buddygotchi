@@ -23,7 +23,7 @@ from typing import Any, Callable
 import serial
 
 BAUD = 460800  # the CH340 on macOS can't do 921600 (documentation/DEVICE.md §7)
-PORT_PATTERNS = ("/dev/cu.usbserial-*", "/dev/cu.wchusbserial*")
+PORT_PATTERNS = ("/dev/cu.usbserial-*", "/dev/cu.wchusbserial*", "/dev/cu.usbmodem*")  # the last: the AMOLED-2.06 board (documentation/DEVICE.md §9)
 
 
 class DeviceError(Exception):

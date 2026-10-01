@@ -60,9 +60,9 @@ tools/.venv/.ok: tools/requirements.txt
 faces: tools
 	cd $(ROOT) && internal/tools/.venv/bin/python internal/tools/facegen/facegen.py --check
 
-# Firmware for the board (env cyd24).
+# Firmware for both boards (envs cyd24 and amoled206).
 fw:
-	cd $(ROOT) && $(PIO) run -e cyd24
+	cd $(ROOT) && $(PIO) run -e cyd24 -e amoled206
 
 # Firmware unit tests on the Mac: Boop's, then LinkKit's device library's
 # own (linkkit/device/platformio.ini).

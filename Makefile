@@ -60,9 +60,11 @@ day:
 eval: build
 	.build/debug/boopdev eval --no-budget
 
-# Build and upload over USB (auto-reset, no BOOT press).
+# Build and upload over USB (auto-reset, no BOOT press), for whichever
+# board is plugged in; BOARD (cyd24 or amoled206) or BOOP_PORT picks one
+# when it can't tell (firmware/tools/flash.sh, documentation/DEVICE.md §7).
 flash:
-	$(PIO) run -e cyd24 -t upload $(if $(BOOP_PORT),--upload-port $(BOOP_PORT))
+	firmware/tools/flash.sh
 
 clean:
 	rm -rf .build firmware/.pio

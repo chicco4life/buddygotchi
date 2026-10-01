@@ -7,8 +7,8 @@
 namespace render {
 
 // The logical screen: landscape, 320 wide and 240 tall. The
-// panel itself is 240×320; the board turns the picture (board/display.h
-// kRotation), so drawing code only ever sees this size.
+// panel itself is 240×320 on the CYD, 410×502 on the AMOLED board; each
+// board turns the picture (board/config.h), so drawing code only ever sees this size.
 constexpr int kWidth = 320;
 constexpr int kHeight = 240;
 
@@ -33,7 +33,7 @@ class Canvas {
   uint8_t* px_;
 };
 
-// What the pusher sends (board/display.cpp, DEVICE.md §6): the screen in
+// What the pusher sends (each board's display.cpp, DEVICE.md §6): the screen in
 // bands of kBand rows, and of each band only the columns that changed since
 // it was last pushed, found by hashing kTile-wide tiles.
 constexpr int kBand = 6, kTile = 32;

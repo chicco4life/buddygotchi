@@ -17,7 +17,8 @@ exists and what's in v1 are in [documentation/VISION.md](documentation/VISION.md
 You need macOS 26 or later with Command Line Tools (Xcode isn't needed)
 and PlatformIO's `pio`.
 
-1. Plug the board in over USB and run `make flash`.
+1. Plug the board in over USB and run `make flash`. It works out which
+   board it is (the CYD or the AMOLED board).
 2. From your own terminal, run `make run`. It builds the app and starts
    it in the menu bar.
 3. The first time, the popover walks you through setup: a name, sweet or

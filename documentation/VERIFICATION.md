@@ -76,12 +76,12 @@ launch the menu-bar app or run the whole eval.
 | `make debug` | The same with `--debug` |
 | `make dash` | The dashboard for the app `make debug` started, in a second terminal |
 | `make day` | What the everyday app did in a day, and why, from the logs `make debug` leaves (`boopctl day`, below); `DATE=YYYY-MM-DD` picks the day, the newest line's by default |
-| `make flash` | Builds the firmware and uploads it over USB; `BOOP_PORT` picks the port |
+| `make flash` | Builds the firmware and uploads it over USB, for whichever board is plugged in (`firmware/tools/flash.sh`); `BOOP_PORT` or `BOARD=cyd24`/`BOARD=amoled206` picks one when more than one is ([DEVICE.md](DEVICE.md) §7) |
 | `make eval` | Builds, then runs every eval scenario against Jev with no request budget, 3 runs each for an `always` scenario and 1 for the rest (L5): the final pass ([EVALS.md](EVALS.md) §2 counts its requests); fails without `BOOP_JEV_KEY` |
 | `make clean` | Deletes `.build` and `firmware/.pio` |
 | `make -C internal voice` | Builds the voice pack, `.build/voice/voice.bin`, and `Takes.swift` with voicegen (below) when the bank or voicegen changed. `test`, `fw-test` and `sim` make it first, since they read it |
 | `make -C internal test` | The Swift unit tests, the eval runner included with a scripted brain, through the XCTest shim, since there's no Xcode: `make build`, then `.build/debug/BoopTests`. `BOOP_TEST_FILTER=Golden .build/debug/BoopTests` runs only the tests whose `Class.method` name contains `Golden`. Then the own tests of agent-hooks, JHarness and LinkKit, in Swift Testing: `swift test --scratch-path .build/tests` in `agent-hooks/`, `jharness/` and `linkkit/`, each tried again up to seven times when its build fails with the "plugin for module 'TestingMacros' not found" flake |
-| `make -C internal fw` | Builds the firmware for the board: Boop's app on LinkKit's device library (`linkkit/device/`, [DEVICE.md](DEVICE.md) §4), whose build fails if the kit includes anything of Boop's (`linkkit/device/tools/check_includes.py`, run by every env) |
+| `make -C internal fw` | Builds the firmware for both boards (envs `cyd24` and `amoled206`, [DEVICE.md](DEVICE.md) §9): Boop's app on LinkKit's device library (`linkkit/device/`, [DEVICE.md](DEVICE.md) §4), whose build fails if the kit includes anything of Boop's (`linkkit/device/tools/check_includes.py`, run by every env) |
 | `make -C internal fw-test` | The firmware's unit tests on the Mac (`pio test -e native`), then LinkKit's device library's own, from its own project (`pio test -d linkkit/device -e native`: `test_turn`, `test_kit`, `test_helpers`) |
 | `make -C internal sim` | Every scenario in the simulator, against the goldens (L1) |
 | `make -C internal e2e` | Builds, then runs the pipeline check (L4) |
@@ -91,7 +91,7 @@ launch the menu-bar app or run the whole eval.
 
 **`internal/tools/boopctl`**, the board over USB, the simulator, the
 dashboard and the day's summary. `--port PORT` picks the serial port (default `$BOOP_PORT` or
-the first `/dev/cu.usbserial-*`). Without it, while a bridge runs (below),
+the first `/dev/cu.usbserial-*`, or `/dev/cu.usbmodem*` for the AMOLED board, DEVICE.md §9). Without it, while a bridge runs (below),
 commands go through the bridge.
 
 | Command | What it does |

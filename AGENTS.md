@@ -93,7 +93,9 @@ make -C internal test                                 # Swift unit tests: Boop's
 - PlatformIO is `/opt/homebrew/bin/pio`. Call it through
   `firmware/tools/pio.sh` (the make targets do), which keeps its packages
   in `firmware/.platformio-core`. The board shows up as
-  `/dev/cu.usbserial-*`, and the serial port needs no special permissions.
+  `/dev/cu.usbserial-*` (the AMOLED board, env `amoled206`, as
+  `/dev/cu.usbmodem*`; documentation/DEVICE.md §9), and the serial port needs no
+  special permissions.
 - System Python has no pyserial, Pillow or Textual. The tools use
   `internal/tools/.venv`, which `internal/tools/boopctl` makes on its
   first run (`make -C internal tools` refreshes it).

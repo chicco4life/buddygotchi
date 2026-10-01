@@ -4,7 +4,7 @@ Updated 2026-10-01. What Boop says, how the brain and Voice pick it, and
 how the device plays it, with the sound effects that go with the face's
 designs (§10). The code is the source: `app/BoopKit/Voice/` on the Mac,
 `firmware/src/voice/`, `firmware/src/app/effect_track.*` and
-`firmware/src/board/audio.*` on the device, and
+`firmware/src/board/audio.*` and each board's `audio_out.cpp` on the device, and
 `internal/tools/voicegen/` and `internal/tools/sfxgen/` for the sounds.
 
 ## 1. What we're after
@@ -221,8 +221,10 @@ without holding the index, and keeps the last eight it looked up
 **Playback.** A line's takes are looked up when its call plays, and
 the audio task plays them whole, from first sample to last, at their
 recorded pitch: the 11.025 kHz samples are read from the card a
-kilobyte at a time and interpolated to the DAC's 22.05 kHz
-([DEVICE.md](DEVICE.md) §4). Between two takes, 180 ms of silence. A
+kilobyte at a time and interpolated to 22.05 kHz, which the board's
+output plays: the CYD's DAC, or the AMOLED board's ES8311 codec, given
+the same samples widened to 16 bits (`board/audio_out.h`,
+[DEVICE.md](DEVICE.md) §4, §9). Between two takes, 180 ms of silence. A
 take the pack doesn't have plays nothing. A line cut short (hushed, or
 replaced by a new one) fades out over 4 ms under what comes next, so
 the cut doesn't click.

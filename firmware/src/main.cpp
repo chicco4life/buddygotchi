@@ -8,7 +8,6 @@
 #include "board/audio.h"
 #include "board/board_hal.h"
 #include "board/display.h"
-#include "board/pins.h"
 #include "linkkit/ble.h"
 #include "linkkit/kit.h"
 #include "linkkit/line_reader.h"
@@ -40,9 +39,8 @@ void setup() {
   Serial.begin(460800);  // the CH340 on macOS can't do 921600
   hal.begin();
   if (!pixels || !board::displayBegin()) {
-    // Nothing to draw with: say so on USB and keep the backlight on.
-    pinMode(pins::kBacklight, OUTPUT);
-    digitalWrite(pins::kBacklight, HIGH);
+    // Nothing to draw with: say so on USB and keep what light there is on.
+    board::displayFailed();
     for (;;) {
       Serial.println("{\"t\":\"dbg.fatal\",\"why\":\"canvas or display init failed\"}");
       delay(2000);

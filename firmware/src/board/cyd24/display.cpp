@@ -1,10 +1,14 @@
+// The CYD's screen (documentation/DEVICE.md §4): the ST7789 through LovyanGFX on
+// SPI, turned by the panel to the canvas's shape (board/config.h).
 #include "board/display.h"
+
+#include <Arduino.h>
 
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 #include <esp_heap_caps.h>
 
-#include "board/pins.h"
+#include "board/config.h"
 #include "render/palette.h"
 
 namespace board {
@@ -111,5 +115,10 @@ void displayPush(const render::Canvas& canvas) {
 }
 
 void displayBacklight(uint8_t level) { lcd.setBrightness(level); }
+
+void displayFailed() {
+  pinMode(pins::kBacklight, OUTPUT);
+  digitalWrite(pins::kBacklight, HIGH);
+}
 
 }  // namespace board

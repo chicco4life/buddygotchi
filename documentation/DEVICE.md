@@ -1,10 +1,12 @@
 # Boop: device
 
-Updated 2026-09-30. The board Boop runs on, the pins it uses, how the
+Updated 2026-10-01. The board Boop runs on, the pins it uses, how the
 firmware is built and runs, what it keeps, and how to build and flash it.
 The code is the source (`firmware/`); board facts come from the
 MicroTech MTR024QV01A-V1 product specification (2025-03-24) and
-measurements on our own board.
+measurements on our own board. A second board, the Waveshare
+ESP32-S3-Touch-AMOLED-2.06, runs the same firmware from its own build
+(§9).
 
 ## 1. The board
 
@@ -34,14 +36,14 @@ The bench unit's Bluetooth MAC ends in `54:fe`, so it advertises as
 
 ## 2. Pin map
 
-The pins the firmware drives, from `firmware/src/board/pins.h`:
+The pins the firmware drives, from `firmware/src/board/cyd24/config.h`:
 
 | GPIO | Used for | Notes |
 | --- | --- | --- |
 | 14, 13, 15, 2 | Screen SPI clock, MOSI, chip select, data/command | SPI2 (HSPI). No MISO, so the panel can't be read back. 2 is a strapping pin, fine as wired |
 | EN | Screen reset | Shared with the ESP32's reset, so the firmware resets the ST7789 in software |
 | 21 | Backlight | PWM at 12 kHz; high is on |
-| 25, 32, 39, 33 | Touch SPI clock, MOSI, MISO, chip select | Bit-banged (`board/touch.cpp`). 39 is input-only |
+| 25, 32, 39, 33 | Touch SPI clock, MOSI, MISO, chip select | Bit-banged (`board/cyd24/touch.cpp`). 39 is input-only |
 | 36 | Touch interrupt | Low while pressed; input-only |
 | 22, 16, 17 | LED red, green, blue | PWM at 5 kHz, **active low**. 16 is free because there's no PSRAM |
 | 26 | Audio | DAC channel 2 (the driver's `CH1`) |
@@ -80,7 +82,7 @@ except by volume 0.
 | --- | --- |
 | Platform | PlatformIO, pioarduino `platform-espressif32` 55.03.39 (Arduino core 3.x on ESP-IDF 5.x), board `esp32dev` at 240 MHz, DIO flash |
 | Display | LovyanGFX 1.2: `Panel_ST7789` on SPI2, `Light_PWM` backlight |
-| Touch | Our own bit-banged XPT2046 reading (`board/touch.cpp`) |
+| Touch | Our own bit-banged XPT2046 reading (`board/cyd24/touch.cpp`) |
 | microSD | The Arduino core's `SD` on SPI3: the voice pack ([VOICE.md](VOICE.md) §8) |
 | Protocol | LinkKit's device library (`linkkit/device/`, [its README](../linkkit/device/README.md)), linked in by `lib_deps` as `symlink://../linkkit/device` in both envs: the lines, hello, the turn, the links and the kit's `dbg.*` ([linkkit/SPEC.md](../linkkit/SPEC.md)) |
 | Bluetooth | NimBLE-Arduino 2.x, a Nordic UART peripheral, in the kit (`linkkit/ble.*`, built only on the board) ([PROTOCOL.md](PROTOCOL.md) §2); Classic Bluetooth's memory is released at start |
@@ -103,7 +105,8 @@ replace the code that knows the hardware.
 | `src/render/` | The 8-bit canvas, palette, fonts, the animation bank's player (`scene.*`), the face screen with its bottom lane, the bubble or the strip (`screens.*`), the needs-you sign (`sign.*`), the animation and mood names (`anim.*`) and the test pattern | Board and Mac |
 | `src/voice/player.*` | The voice pack: takes found by id, their text and mouth, and a line of one or two takes into samples, read from a `voice::Source` (the card, or a file on the Mac) ([VOICE.md](VOICE.md) §8) | Board and Mac |
 | `src/voice/effects.*`, `src/app/effect_track.*` | The sound effects' clips and timelines, the mixer that adds them to the voice, and when each event plays with the face ([VOICE.md](VOICE.md) §10) | Board and Mac |
-| `src/board/` | The pins; `board_hal.*`, the board's side of the core's `Hal` (buttons, touch, LED, backlight, NVS, heap); `display.*`, the only code that knows LovyanGFX; `touch.*`, the XPT2046; `card.*`, the microSD card and the pack on it, with `Hal`'s card methods; `audio.*`, the DAC task, with `Hal`'s sound methods | Board |
+| `src/board/` | What every board shares: `config.h`, which includes the board's pins and panel settings; `board_hal.*`, the board's side of the core's `Hal` (buttons, touch, backlight, NVS, heap); `card.*`, the microSD card and the pack on it, with `Hal`'s card methods; `audio.*`, the voice task, with `Hal`'s sound methods; and the interfaces each board implements, `display.h`, `touch.h` and `audio_out.h` | Board |
+| `src/board/cyd24/`, `src/board/amoled206/` | One board each, and each env builds only its own (`BOOP_BOARD_CYD24` or `BOOP_BOARD_AMOLED206`): `config.h`, its pins and panel settings; `display.cpp`, the only code that knows LovyanGFX; `touch.cpp`, the XPT2046 or the FT3168; `audio_out.cpp`, the DAC or the ES8311; `hal.cpp`, its start-up, LED and default touch map (§9) | Board |
 | `assets/` | Generated and checked in: `faces.h` (facegen), `fonts.h` (fontgen), `sfx.h` (sfxgen) ([VERIFICATION.md](VERIFICATION.md) §2). The voice isn't here: it's on the card | Both |
 | `tools/pio.sh`, `tools/version.py` | PlatformIO with its packages inside the checkout; the version and git SHA baked into each build | — |
 
@@ -264,7 +267,7 @@ same, and its `talk_on` and `talk_off` go back only over USB
 ### Panel settings
 
 The spec doesn't give these. They were confirmed on the real panel with
-the test pattern and the webcam, and live in `firmware/src/board/display.h`:
+the test pattern and the webcam, and live in `firmware/src/board/cyd24/config.h`:
 
 | Setting | Value |
 | --- | --- |
@@ -495,12 +498,19 @@ changed; `draw_us` and `push_us` say how fast the board draws.
 ## 7. Build and flash
 
 ```sh
-make -C internal fw          # build the firmware for the board (env cyd24)
-make flash                   # build and upload over USB; BOOP_PORT picks the port
+make -C internal fw          # build the firmware for both boards (envs cyd24 and amoled206)
+make flash                   # build and upload over USB, for whichever board is plugged in
 make -C internal fw-test     # the firmware's unit tests on the Mac (env native)
 make -C internal sim         # every scenario in the simulator, against the goldens
 internal/tools/boopctl ping  # firmware version and SHA, uptime, heap, fps, link
 ```
+
+`make flash` runs `firmware/tools/flash.sh`, which tells the boards
+apart by their port: `/dev/cu.usbserial-*` or `/dev/cu.wchusbserial*` is
+the CYD (env `cyd24`), `/dev/cu.usbmodem*` the AMOLED board (env
+`amoled206`, §9). With more than one board plugged in it stops and lists
+them; `BOOP_PORT=…` or `BOARD=cyd24`/`BOARD=amoled206` picks one, and
+either overrides what it finds.
 
 The make targets run PlatformIO through `firmware/tools/pio.sh`, which
 keeps its packages in `firmware/.platformio-core`, inside the checkout.
@@ -558,3 +568,31 @@ the checks):
   bootloader. Normal flashing doesn't need it, thanks to auto-reset.
 - **A button on IO35 needs an external pull-up,** like every input-only
   pin (§2).
+
+## 9. The AMOLED board
+
+Waveshare **ESP32-S3-Touch-AMOLED-2.06**, a watch-style board, runs the
+same app as env `amoled206`, with its own pins, screen, touch, sound and
+start-up in `firmware/src/board/amoled206/` (§4, Modules). The CYD's are in
+`board/cyd24/`; nothing outside those folders knows which board it's on. Pins and parts are from Waveshare's docs and
+example repo (`waveshareteam/ESP32-S3-Touch-AMOLED-2.06`); brought up on
+2026-10-01.
+
+| Part | What it is | How Boop uses it |
+| --- | --- | --- |
+| Chip | ESP32-S3 rev v0.2, 8 MB octal PSRAM, 32 MB quad flash | Built as 16 MB flash with `default_16MB.csv` (6.25 MB app slots) |
+| Screen | 2.06" AMOLED, 410×502, CO5300 on quad SPI (SCLK 11, CS 12, RST 8, IO 4–7), columns 22 in | LovyanGFX's `Panel_CO5300` at 40 MHz. The 320×240 canvas is drawn 1.5× (480×360) and turned a quarter in `displayPush`, centred with a black border; windows are at even addresses with even sizes, so two bands go per batch. Held sideways, USB-C is on the left (`kTopOnPanelLeft`) |
+| Touch | FT3168 at 0x38 on I2C (SDA 15, SCL 14), INT 38, RST 9 | Read only while INT is low or for 60 ms after it falls (idle, it naps and fails reads, and each failure logs onto the USB link); reads panel pixels, mapped to the canvas by the default touch map (`panelToCanvas`) |
+| Sound | ES8311 codec at 0x18 on I2C, I2S (MCLK 16, BCLK 41, WS 45, DOUT 40), NS4150B amp enable on 46 (high is on) | The shared voice task's chunks, widened to 16-bit mono I2S at 22.05 kHz, MCLK 256 × fs, codec volume 0 dB |
+| microSD | SPI on SPI3: SCK 2, MOSI 1, MISO 3, CS 17 | The voice pack, as on the CYD ([VOICE.md](VOICE.md) §8). The 30.5 MB pack doesn't fit in the flash beside the app |
+| USB | The S3's own USB-Serial/JTAG (303a:1001) | `/dev/cu.usbmodem*`; flashing needs no BOOT press |
+| Buttons | BOOT (IO0); PWR goes to the AXP2101 | BOOT is the main button |
+| Not used | AXP2101 power chip (its defaults power the screen), ES7210 mics, QMI8658 IMU, PCF85063 RTC, no LED | `setLed` does nothing |
+
+`make flash` finds it on its own (§7).
+
+Reading its flash back with esptool over USB-Serial/JTAG drops out every
+few hundred KB ("Serial data stream stopped"), so a full backup of the
+factory image didn't work; Waveshare's repo has a recovery image in
+`FirmWare/`.
+

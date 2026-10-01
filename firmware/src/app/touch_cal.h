@@ -33,7 +33,7 @@ struct TouchCal {
 // The map to use before calibration: the raw range stretched over the
 // panel as it's built (raw x along its 240 px side, raw y along its 320 px
 // side, as LovyanGFX assumes), then turned by `rotation` (LovyanGFX's
-// quarter turns clockwise, board/display.h kRotation) exactly as the
+// quarter turns clockwise, board/cyd24/config.h kRotation) exactly as the
 // picture is. Which way the raw axes really run is unconfirmed until a
 // calibration; the calibration fixes any mismatch.
 inline TouchCal defaultTouchCal(int rotation) {

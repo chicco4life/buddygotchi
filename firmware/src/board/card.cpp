@@ -11,7 +11,7 @@
 
 #include "linkkit/codec.h"
 #include "board/board_hal.h"
-#include "board/pins.h"
+#include "board/config.h"
 #include "voice/player.h"
 
 namespace board {
@@ -24,7 +24,7 @@ constexpr uint32_t kCardHz = 10000000;
 constexpr const char* kPackPath = "/boop/voice.bin";
 constexpr const char* kCopyPath = "/boop/voice.tmp";
 
-SPIClass cardSpi(VSPI);
+SPIClass cardSpi(pins::kCardSpiBus);
 const char* state = "no card";
 
 // The pack's bytes from one open file, shared by lookups on the main loop

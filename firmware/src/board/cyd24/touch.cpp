@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cstring>
 
-#include "board/pins.h"
+#include "board/config.h"
 
 namespace board {
 

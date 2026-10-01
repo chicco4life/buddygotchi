@@ -1,13 +1,13 @@
-// The XPT2046 touch controller (documentation/DEVICE.md §2), read by bit-banged SPI
-// on its own pins, so the second hardware SPI bus is free for the microSD
-// card (board/card.h).
+// The touch controller (documentation/DEVICE.md §2, §9): the CYD's XPT2046 on
+// bit-banged SPI (cyd24/touch.cpp), or the AMOLED board's FT3168 on I2C
+// (amoled206/touch.cpp).
 #pragma once
 
 namespace board {
 
 void touchBegin();
-// The XPT2046's raw reading (no mapping) and the interrupt line; z is 0
-// with no press. BoardHal maps it to screen pixels (app/touch_cal.h).
+// The controller's raw reading (no mapping) and whether it reports a touch;
+// z is 0 with no press. BoardHal maps it to screen pixels (app/touch_cal.h).
 void touchRaw(int& x, int& y, int& z, bool& irq);
 
 }  // namespace board
