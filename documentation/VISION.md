@@ -1,6 +1,6 @@
 # Boop: vision
 
-Updated 2026-09-30. Why Boop exists, who it's for, what v1 does, and the
+Updated 2026-10-01. Why Boop exists, who it's for, what v1 does, and the
 promises it keeps. How it all works is in the other specs
 ([README.md](README.md)).
 
@@ -114,6 +114,10 @@ harness evals check the brain's part ([EVALS.md](EVALS.md)).
   failure or only a reply; without one, Boop shows what its agents do
   and when you're needed, but doesn't react
   ([harness/HARNESS.md](harness/HARNESS.md)).
+- **Grows.** Your agents' work earns Boop XP by plain rules, and it
+  grows through six stages, from Hatchling to Legend. The Mac app shows
+  both; nothing it does changes with them yet
+  ([BEHAVIORS.md](BEHAVIORS.md) §7).
 - **Hears you.** Hold its button, or click Talk, and speak: the Mac's
   mic turns it into words on the Mac, and with Jev, Boop answers with a
   face, and maybe a word or a sound. It can't talk back ([BEHAVIORS.md](BEHAVIORS.md)
@@ -142,7 +146,8 @@ changes.
 2. **It never talks like a human.** A sound, a word or a little phrase
    at most, recorded in the mood it shows, and it fits what's happening.
 3. **Its inner state stays inner.** Feelings show only in behaviour, never
-   as meters or scores.
+   as meters or scores. How much it has grown is the exception: its XP and
+   stage show in the Mac app ([BEHAVIORS.md](BEHAVIORS.md) §7).
 4. **Fast and rule-driven where it counts.** Anything that tells you an
    agent needs you is decided by plain rules and shows up within a second
    of Claude asking, and 2 s after Codex asks, since Codex's own reviewer

@@ -130,6 +130,34 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(AppSettings.load(from: dir).personality, .boop)
     }
 
+    /// BEHAVIORS.md §7: the agents' work earns XP as it happens, which
+    /// reaches the popover's status and is kept in boop.sqlite; the next
+    /// launch's read-back doesn't count it again.
+    func testWorkEarnsXPThatOutlivesTheApp() throws {
+        let transport = FakeTransport()
+        var runtime: Runtime? = try makeRuntime(transport)
+        let options = runtime!.options
+        var statuses: [Runtime.Status] = []  // on `home`
+        runtime!.onChange = { statuses.append($0) }
+        try runtime!.start()
+        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
+        XCTAssertTrue(HookSocket.send(hook("PostToolUse", tool: "Bash"), to: socketPath))
+        XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
+        eventually("XP for a tool and a turn") { runtime!.home.sync { statuses.last?.growth?.xp == 6 } }
+        XCTAssertEqual(runtime!.home.sync { statuses.last?.growth?.stage }, 1)
+        runtime!.stop()
+        runtime!.home.sync {}
+        runtime = nil
+
+        let again = try Runtime(options)
+        var after: [Runtime.Status] = []
+        again.onChange = { after.append($0) }
+        try again.start()
+        defer { again.stop() }
+        eventually("a status") { again.home.sync { !after.isEmpty } }
+        XCTAssertEqual(again.home.sync { after.last?.growth }, Growth(xp: 6))
+    }
+
     /// ARCHITECTURE.md §8: why the link can't look for the device
     /// (Bluetooth off) reaches the popover's status by the next tick, and
     /// leaves it the same way.
@@ -632,7 +660,7 @@ final class RuntimeTests: XCTestCase {
         // Status: only the facts the device lines don't carry, and only changes.
         let statuses = lines.compactMap { $0["status"] as? [String: Any] }
         XCTAssertFalse(statuses.isEmpty)
-        XCTAssertEqual(Set(statuses[0].keys), ["personality", "brain", "sessions", "connected"], "a state carries the mood")
+        XCTAssertEqual(Set(statuses[0].keys), ["personality", "brain", "sessions", "connected", "stage"], "a state carries the mood")
         XCTAssertEqual(statuses.last?["brain"] as? String, "scripted")
         XCTAssertEqual(statuses.last?["connected"] as? Bool, true)
         let sessions = try XCTUnwrap(statuses.last?["sessions"] as? [[String: String]])

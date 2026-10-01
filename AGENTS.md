@@ -179,7 +179,7 @@ unpushed local `main`.
 
 | When you change | Update |
 | --- | --- |
-| `app/BoopKit/Core/Core.swift`, `app/BoopKit/Core/Activity.swift`, `firmware/src/app/behaviour.*` | `BEHAVIORS.md` |
+| `app/BoopKit/Core/Core.swift`, `app/BoopKit/Core/Activity.swift`, `app/BoopKit/Core/Growth.swift`, `firmware/src/app/behaviour.*` | `BEHAVIORS.md` |
 | `firmware/src/render/`, `firmware/src/app/gesture.*` | `DEVICE.md` |
 | `agent-hooks/` (its sources, tests, fixtures and command line) | `agent-hooks/SPEC.md`, `agent-hooks/README.md`, and `ADAPTERS.md` where Boop's use changes |
 | `jharness/` (its sources, tests, `jharness-emit` and Beacon) | `jharness/SPEC.md`, `jharness/README.md`, and `harness/HARNESS.md` §1.1 where Boop's use changes |

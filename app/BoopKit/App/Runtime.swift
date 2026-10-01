@@ -96,11 +96,13 @@ public final class Runtime: @unchecked Sendable {
         public var listening: Bool
         /// Why push-to-talk couldn't hear you, until the next try.
         public var micTrouble: String?
+        /// Boop's XP and stage (BEHAVIORS.md §7).
+        public var growth: Growth?
 
         public init(name: String, snapshot: StateSnapshot, sessions: [SessionSummary], connected: Bool,
                     device: DeviceInfo?, linkTrouble: String? = nil, deviceTrouble: String? = nil, personality: Personality,
                     brain: String, keyRead: Bool = true, brainTrouble: BrainTrouble? = nil, listening: Bool = false,
-                    micTrouble: String? = nil) {
+                    micTrouble: String? = nil, growth: Growth? = nil) {
             self.name = name
             self.snapshot = snapshot
             self.sessions = sessions
@@ -114,6 +116,7 @@ public final class Runtime: @unchecked Sendable {
             self.brainTrouble = brainTrouble
             self.listening = listening
             self.micTrouble = micTrouble
+            self.growth = growth
         }
     }
 
@@ -177,6 +180,10 @@ public final class Runtime: @unchecked Sendable {
     /// The transport's `trouble` as the status last had it. It changes on
     /// the transport's thread, so the tick looks.
     var linkTrouble: String?
+    /// Boop's XP and stage, counted from each event as it's logged
+    /// (BEHAVIORS.md §7), and whether the XP changed since the last status.
+    let growth: GrowthStore
+    var grew = false
 
     /// After every change the menu bar might show. Called on `home`.
     public var onChange: ((Status) -> Void)?
@@ -291,6 +298,13 @@ public final class Runtime: @unchecked Sendable {
         var held: [String] = []
         var holding = true
         debugWriter = Runtime.debugLines(pipeline: pipeline, emit: { line in if holding { held.append(line) } else { emit(line) } })
+        // Growth's store, or one in memory for this launch if the file won't open.
+        let values: KeyValueStore
+        do { values = try KeyValueStore(directory: options.stateDir) } catch {
+            log("growth: \(error); keeping XP in memory until the app quits")
+            values = try KeyValueStore(directory: nil)
+        }
+        growth = GrowthStore(values, log: log)
         // The view and the core pick up where the last launch left them.
         let read = home.sync { pipeline.readBack(now: now) }
         // The mood an older Boop kept in its own file (harness/DECISIONS.md §2).
@@ -304,6 +318,7 @@ public final class Runtime: @unchecked Sendable {
         held.forEach(emit)
         if read > 0 { log("transcript: read back \(read) events") }
         presence = PresenceDetector(away: view.away(logNow))
+        growth.follow(transcriptAt: transcript.lastSeq)
         personalityNow = { [weak self] in self?.personality ?? .boop }
         queued = { [weak self] moment, pending in self?.queue(moment, pending) }
         // The device's taps and push-to-talk; the link leaves out those of
@@ -315,6 +330,11 @@ public final class Runtime: @unchecked Sendable {
             self?.moodChanged(to)
         }
         harness.onPass = { [weak self] pass in self?.passed(pass) }
+        // Every event as it's logged, never the read-back's: those were counted.
+        harness.on("*") { [weak self] e in
+            guard let self, growth.count(e) else { return }
+            grew = true
+        }
     }
 
     /// Boop's brain on JHarness's `Harness` (harness/HARNESS.md): its outputs
@@ -621,7 +641,7 @@ public final class Runtime: @unchecked Sendable {
                 open(thread, by: "tap")
             }
         }
-        if stateChanged { changed() }
+        if stateChanged || grew { changed() }
     }
 
     /// The core turned the mic on or off (BEHAVIORS.md §3.3). On: after
@@ -740,7 +760,8 @@ public final class Runtime: @unchecked Sendable {
                             connected: link.connected, device: link.hello.map(DeviceInfo.init), linkTrouble: linkTrouble,
                             deviceTrouble: link.trouble?.description, personality: personality, brain: harness.brain?.id ?? "none",
                             keyRead: jevKey != nil, brainTrouble: trouble, listening: core.listening != nil,
-                            micTrouble: micTrouble)
+                            micTrouble: micTrouble, growth: growth.growth)
+        grew = false
         if let line = DebugLog.status(status, at: now, last: &lastStatus) { emit(line) }
         onChange?(status)
     }

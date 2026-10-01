@@ -600,5 +600,8 @@ def status_text(st: Line, before: Line | None = None) -> str:
         "brain": lambda v: f"brain {v}",
         "sessions": lambda v: "sessions " + sessions_text(v),
         "connected": lambda v: "device " + ("connected" if v else "not connected"),
+        "stage": lambda v: f"stage {v}",
     }
-    return " · ".join(show(st.get(key)) for key, show in shown.items() if not before or st.get(key) != before.get(key))
+    # A key the line doesn't have (`stage`, before 2026-10-01) isn't shown.
+    return " · ".join(show(st[key]) for key, show in shown.items()
+                      if key in st and (not before or st.get(key) != before.get(key)))

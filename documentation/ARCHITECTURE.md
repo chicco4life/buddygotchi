@@ -310,6 +310,13 @@ The memory store is the only code that reads or writes `long-term.md`
 and its copies in `history/` (§4). It reads the file once, when the app
 opens it, and writes atomically.
 
+`boop.sqlite` is Memory's too: `KeyValueStore`, one table of text values
+by key (`kv`), each `set` one transaction, and `GrowthStore` on it, which
+keeps Boop's XP and stage under `growth.` keys ([BEHAVIORS.md](BEHAVIORS.md)
+§7). Anything else that needs a value or two kept across launches goes in
+the same table under a prefix of its own. A file that won't open is
+logged, and the launch keeps growth in memory until it quits.
+
 ### 3.7 Device link
 
 The device link is LinkKit's `DeviceLink`, a package of its own like
@@ -442,6 +449,7 @@ everyday Boop.
 | `long-term.md` | Who this Boop is (§4.2) | At setup |
 | `history/<date>/long-term.md` | `long-term.md` as setup wrote it, on the day Boop hatched, and as a hand edit left it, on the day a launch first read the edit (§4.3); older apps also kept both memory files at the end of each day with activity | At setup, and at a launch that finds `long-term.md` edited |
 | `long-term.md.broken` | The last `long-term.md` that wouldn't parse, kept for you to look at | When one doesn't parse |
+| `boop.sqlite` | Values kept by key (§3.6): Boop's XP, its stage and the last event counted (`growth.xp`, `growth.stage`, `growth.last_seq`), with SQLite's `-wal` and `-shm` files beside it | As events earn XP ([BEHAVIORS.md](BEHAVIORS.md) §7) |
 | `settings.json` | The personality and the volume (0–10), `boop` and 6 while it's missing. Keys it doesn't know, from older versions, are ignored, and an unknown personality reads as `boop` | When you change either in Settings |
 | `boop.sock` | The hook socket, mode 0600, which the everyday app lists as `~/.agent-hooks/sockets/boop.sock` ([ADAPTERS.md](ADAPTERS.md) §2). Headless can put it elsewhere with `--socket` | Replaced at launch, removed at quit |
 | `boop.lock` | Locked while an app runs on this folder; a second copy refuses to start. The file stays, the lock goes with the process | At launch |
@@ -507,6 +515,7 @@ What crosses each boundary, in the order an event travels:
 | Name, hatch day, nature, voice seed | Memory store | `long-term.md` | Kept |
 | Mood | The `mood` action (JHarness's `Choice`) | Its latest change in the transcript | Read back with the last 24 hours, else calm; the first launch after the change carries over the old `mood` file's |
 | Volume, personality | Runtime | `settings.json` | Kept |
+| XP and stage | `GrowthStore` (Memory) | `boop.sqlite` | Kept; the read-back's events aren't counted again |
 | Jev's key | The Keychain | Login Keychain | Kept |
 | Touch calibration | Device | Its flash ([DEVICE.md](DEVICE.md) §5) | Kept |
 
@@ -778,3 +787,4 @@ keeps it. The full log up to 2026-09-27 is
 | 2026-09-30 | An output can keep what it started open past its `openFor` (JHarness's `keepOpen`, asked from the `did` and the log on the tick), and react keeps a reaction your tap cut short open while the pokes hold it (`TranscriptView.heldByPokes`): a poke came after it, and nothing since has stopped the pokes | The tick ended such a reaction as failed 90 s after it started: a run of pokes that long, or a few pokes and then 90 s with nothing else happening, dropped it from HISTORY, and a run that long got a second reaction. Main held it in progress however long the pokes went on, then done | [jharness/SPEC.md](../jharness/SPEC.md) §5.3, [harness/DECISIONS.md](harness/DECISIONS.md) §5, [evidence](evidence/2026-09-30-link-kit/parity.md) |
 | 2026-10-01 | LinkKit's pieces stand on their own: the host's type is `DeviceLink` (it was `Link`, which SwiftUI already names), its own lines are by `link` (Boop names its own senders, `rule` and `brain`); `Trouble` is a value, not words; the USB bridge is LinkKit's (`linkkit-bridge`, whose rules `boopctl bridge` keeps), and the device library tests in its own PlatformIO project. Boop ends a reaction's handle from its `do`'s outcome, read by `Reactions`, and the tap-cut hold is wired in `Runtime.harness`, for the app and the evals alike. The Bluetooth outbox never drops a `do`: past 4 KB waiting it gives the link up, which fails what waits at once | A library a SwiftUI app can't name without a module prefix, a USB path that needs Boop's tools, and a generic `do` with Boop's words in it weren't separate pieces; a `do` the outbox dropped left its reaction in progress in HISTORY for a minute, since no `ended` could come | [MODULES.md](MODULES.md), [linkkit/SPEC.md](../linkkit/SPEC.md) §8 |
 | 2026-10-01 | No glue between JHarness and LinkKit: JHarnessLink (a `do` that finished a `Pending`, a forwarder of device events, a `Play` output) is gone, and the linkkit package depends on nothing but Foundation and CoreBluetooth. Boop finishes a reaction's `Pending` itself in `Runtime.queue` | Boop used one helper of it, about ten lines; it put a second path to the device in every picture, made the linkkit package need `../jharness` beside it, and was a generic piece with no other user | [MODULES.md](MODULES.md) |
+| 2026-10-01 | Boop earns XP by rule from its agents' work and grows through six stages, kept in `boop.sqlite`, a key-value table for anything small kept across launches. Only the popover shows them; nothing Boop does depends on them yet. Promise 3 now allows its growth to show in the Mac app | The owner wanted a levelling system working from day one, with behaviour on top later. A key-value table stays a few rows however long Boop runs, where a row per award would grow with every tool call | [BEHAVIORS.md](BEHAVIORS.md) §7, [VISION.md](VISION.md) |

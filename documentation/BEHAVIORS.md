@@ -596,3 +596,42 @@ Jev's call each time, steered by the text: `boop` reacts to anything
 that stands out, gives every finish done and each working heartbeat a
 small face, so a long stretch of work never sits on one look for
 long, and `chatter` reacts to everything, over the top.
+
+## 7. Growth
+
+Boop earns XP from what its agents get done, and grows through stages as
+it does. Plain rules count it, never the brain, and so far only the Mac
+app's popover shows it: nothing Boop does, says or shows on the device
+depends on it yet.
+
+| What happened | XP |
+| --- | --- |
+| A tool call ends without failing (`tool` end, Claude or Codex, a helper's included) | 1 (`Growth.toolXP`) |
+| A helper comes back (`subagent` end) | 2 (`Growth.helperXP`) |
+| A turn ends done (`turn` end, `outcome` `done`) | 5 (`Growth.turnXP`) |
+| Anything else: a failed call or turn, a stopped turn, a poke, what you say | 0 |
+
+| Stage | Name | From |
+| --- | --- | --- |
+| 1 | Hatchling | 0 XP |
+| 2 | Sprout | 200 XP |
+| 3 | Buddy | 1,000 XP |
+| 4 | Pal | 4,000 XP |
+| 5 | Chonk | 12,000 XP |
+| 6 | Legend | 30,000 XP |
+
+- **Each event counts once**, as it's logged: the store keeps the `seq`
+  of the last one counted, so a launch's read-back counts nothing again.
+  When the transcript's numbering starts over (every file of it gone),
+  counting follows it.
+- **A stage reached is kept.** The XP only grows, and the stage kept
+  never goes back, even if a later release raises the thresholds.
+- **Reaching a stage** is a line in `boop.log` (`growth: reached stage 2,
+  Sprout, at 200 XP`) and a `stage` in debug mode's `status` line
+  ([harness/HARNESS.md](harness/HARNESS.md) §9); the XP, which moves with
+  every tool call, stays out of `debug.jsonl`.
+- **The popover** shows the stage's name, "Stage N of 6", the XP, a bar of
+  how far through the stage, and the XP to the next one ("Fully grown" at
+  the last).
+- Both are kept in `boop.sqlite` ([ARCHITECTURE.md](ARCHITECTURE.md)
+  §4.4), so reflashing or replacing the device changes neither.

@@ -55,6 +55,9 @@ struct OverviewPane: View {
                         PaneSection(status.sessions.isEmpty ? "Sessions" : "Sessions · \(status.sessions.count)") {
                             sessions(status)
                         }
+                        if let growth = status.growth {
+                            PaneSection("Growth") { growthCard(growth) }
+                        }
                     }
                 }
                 .padding(.horizontal, Theme.gutter)
@@ -205,6 +208,37 @@ struct OverviewPane: View {
     private var live: Bool {
         let mood = FaceMood(model.status)
         return model.listening || mood == .working || mood == .needsYou
+    }
+
+    // MARK: Growth
+
+    /// Boop's stage and XP (BEHAVIORS.md §7): the stage's name, how far
+    /// through it, and what's left to the next.
+    private func growthCard(_ growth: Growth) -> some View {
+        Card {
+            VStack(alignment: .leading, spacing: Theme.gapSnug) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(growth.name).font(.system(size: 12, weight: .semibold))
+                    Text("Stage \(growth.stage) of \(Growth.stages.count)")
+                        .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
+                    Spacer(minLength: 0)
+                    Text("\(growth.xp.formatted()) XP").font(.system(size: 11, weight: .medium)).monospacedDigit()
+                }
+                .lineLimit(1)
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Theme.well)
+                        Capsule().fill(Theme.amber).frame(width: max(6, geo.size.width * growth.progress))
+                    }
+                }
+                .frame(height: 6)
+                .animation(.boopSettle, value: growth.progress)
+                Text(growth.nextAt.map { "\(($0 - growth.xp).formatted()) XP to \(Growth.stages[growth.stage].name)" }
+                     ?? "Fully grown")
+                    .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Needs you

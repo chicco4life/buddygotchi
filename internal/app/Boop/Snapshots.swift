@@ -110,7 +110,8 @@ enum Snapshots {
                        name: String = "Mochi", brain: String = "jev:jev-latest", keyRead: Bool = true,
                        mood: String = MoodAction.initial, brainTrouble: BrainTrouble? = nil,
                        listening: Bool = false, micTrouble: String? = nil, voice: String? = nil,
-                       linkTrouble: String? = nil, deviceTrouble: String? = nil) -> Runtime.Status {
+                       linkTrouble: String? = nil, deviceTrouble: String? = nil,
+                       growth: Growth? = Growth(xp: 1_340)) -> Runtime.Status {
         let statuses: [String: SessionSummary.Status] = ["wait": .waiting, "work": .working, "idle": .idle]
         // Each in its agent's own app, so its row opens it.
         let sessions = rows.enumerated().map { i, row in
@@ -133,7 +134,7 @@ enum Snapshots {
                               device: connected && deviceTrouble == nil ? DeviceInfo(id: "b00p-54fe", fw: "1.0.0", voice: voice) : nil,
                               linkTrouble: linkTrouble, deviceTrouble: deviceTrouble,
                               personality: personality, brain: brain, keyRead: keyRead, brainTrouble: brainTrouble,
-                              listening: listening, micTrouble: micTrouble)
+                              listening: listening, micTrouble: micTrouble, growth: growth)
     }
 
     static func overviews(_ installer: HookInstaller) -> [(String, AppModel)] {
