@@ -4,6 +4,7 @@
 #include "board/display.h"
 
 #define LGFX_USE_V1
+#include <Arduino.h>
 #include <LovyanGFX.hpp>
 #include <esp_heap_caps.h>
 
@@ -41,7 +42,7 @@ class Panel : public lgfx::LGFX_Device {
     {
       auto cfg = panel_.config();
       cfg.pin_cs = pins::kLcdCs;
-      cfg.pin_rst = pins::kLcdReset;
+      cfg.pin_rst = -1;  // reset in displayBegin, held longer than LovyanGFX holds it
       cfg.pin_busy = -1;
       cfg.memory_width = kPanelWidth;
       cfg.memory_height = kPanelHeight;
@@ -79,6 +80,23 @@ uint16_t along[kPicH];  // panel step along the canvas's columns → canvas colu
 uint16_t across[kPicW]; // panel step across → canvas row
 render::Changes changes;
 
+// The CO5300's hardware reset, timed as Waveshare's own driver times it
+// (Arduino_GFX's CO5300, 200 ms each way). LovyanGFX's 8 ms low and 64 ms
+// after were enough from power-up but, after a restart over USB with the
+// panel still powered, left it stuck on a white screen until the board
+// was unplugged (DEVICE.md §9).
+constexpr uint32_t kResetMs = 200;
+
+void resetPanel() {
+  pinMode(pins::kLcdReset, OUTPUT);
+  digitalWrite(pins::kLcdReset, HIGH);
+  delay(10);
+  digitalWrite(pins::kLcdReset, LOW);
+  delay(kResetMs);
+  digitalWrite(pins::kLcdReset, HIGH);
+  delay(kResetMs);
+}
+
 }  // namespace
 
 bool displayBegin() {
@@ -92,6 +110,7 @@ bool displayBegin() {
   }
   for (int i = 0; i < kPicH; ++i) along[i] = uint16_t(i * 2 / 3);
   for (int j = 0; j < kPicW; ++j) across[j] = uint16_t(j * 2 / 3);
+  resetPanel();
   if (!lcd.init()) return false;
   lcd.setRotation(0);
   lcd.fillScreen(0);
