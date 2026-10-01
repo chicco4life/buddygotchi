@@ -1,4 +1,4 @@
-<!-- The happy mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (plan/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
+<!-- The happy mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (documentation/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
 MOOD
 Happy. Boop is in good spirits: things are going well.
 Its faces lean happy and excited; a failure gets an annoyed face.

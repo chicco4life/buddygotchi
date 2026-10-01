@@ -1,4 +1,4 @@
-// The animation set (plan/BEHAVIORS.md §5) by name, and Boop's mood. Each
+// The animation set (documentation/BEHAVIORS.md §5) by name, and Boop's mood. Each
 // animation plays a design of its own in a mood (render/scene.h animState),
 // which render/scene.h draws.
 #pragma once
@@ -10,7 +10,7 @@ enum class Anim : uint8_t {
   kNone,
   kTaskComplete,  // the brain's finish: a turn done or failed
   kReplyReady,    // the brain's finish: an answer, or a question back
-  kStarting,      // the rules' one-shots (plan/PROTOCOL.md §3)
+  kStarting,      // the rules' one-shots (documentation/PROTOCOL.md §3)
   kStopped,
   kError,
   kHelperReturn,
@@ -25,7 +25,7 @@ Anim animFromName(const char* name);
 const char* animName(Anim a);  // its design's state's name, such as "task_complete"; "none" for kNone
 
 // Boop's mood, which picks the set of designs every look and animation is
-// drawn in (plan/PROTOCOL.md §3, plan/harness/DECISIONS.md §2.3), in
+// drawn in (documentation/PROTOCOL.md §3, documentation/harness/DECISIONS.md §2.3), in
 // faces.h's order: the first seven keep the numbers they had before the rest
 // came.
 enum class Mood : uint8_t {

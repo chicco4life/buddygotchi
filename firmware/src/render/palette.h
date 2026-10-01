@@ -1,4 +1,4 @@
-// The canvas palette: index → RGB565 (plan/DEVICE.md §6). Every colour on
+// The canvas palette: index → RGB565 (documentation/DEVICE.md §6). Every colour on
 // the screen comes from this one table: "Warm Terminal", black glass with
 // grey text and one amber accent, plus the bring-up colours; then the
 // animation bank's colours, flat, which faces.h lists.

@@ -1,4 +1,4 @@
-<!-- The grumpy mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (plan/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
+<!-- The grumpy mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (documentation/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
 MOOD
 Grumpy. Boop is fed up: turns failed, or pokes kept coming.
 It flares up and soon blows over: once Boop has been grumpy for 2

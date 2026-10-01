@@ -1,5 +1,5 @@
 """`boopctl card`: the voice pack copied onto the card over `dbg.card`,
-against the simulator's card folder (plan/VOICE.md §8, PROTOCOL.md §5)."""
+against the simulator's card folder (documentation/VOICE.md §8, PROTOCOL.md §5)."""
 from __future__ import annotations
 
 import binascii

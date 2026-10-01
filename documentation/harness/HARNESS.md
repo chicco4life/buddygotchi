@@ -328,8 +328,8 @@ fresh for every pass since Jev keeps no session:
 | Part | Kind | Source |
 | --- | --- | --- |
 | The guide (no heading) | Static, then generated | [steering/guide.md](../steering/guide.md), then how to read HISTORY and NOW (§6.1) |
-| `PERSONALITY` | Static, the one chosen in Settings | `plan/steering/personality/<name>.md` ([boop](../steering/personality/boop.md), [chatter](../steering/personality/chatter.md)) |
-| `MOOD` | Static, the current mood's | `plan/steering/mood/<mood>.md` ([calm](../steering/mood/calm.md), …, one for each of the 13 moods), the mood the log has at each pass |
+| `PERSONALITY` | Static, the one chosen in Settings | `documentation/steering/personality/<name>.md` ([boop](../steering/personality/boop.md), [chatter](../steering/personality/chatter.md)) |
+| `MOOD` | Static, the current mood's | `documentation/steering/mood/<mood>.md` ([calm](../steering/mood/calm.md), …, one for each of the 13 moods), the mood the log has at each pass |
 | `HISTORY (oldest first; indented lines add to the line above)` | Built by JHarness | The lines, what Boop did, and the closing line (§5.3) |
 | `NOW (14:23, Tuesday)` | Built by JHarness | The event this pass is for (§5.3) |
 
@@ -343,7 +343,7 @@ JHarness's is off (`Harness.Options.reading`). The harness never reads
 any of them.
 
 **The steering files** are read once at launch from the app's bundled
-copy of `plan/steering/` (`Steering`), and never written. HTML comments
+copy of `documentation/steering/` (`Steering`), and never written. HTML comments
 are left out. A personality's front matter goes to the core's rules
 ([BEHAVIORS.md](../BEHAVIORS.md) §6) and never reaches Jev. A missing
 file stops the app from starting, and an unknown mood reads as calm's

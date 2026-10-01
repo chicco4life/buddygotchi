@@ -1,4 +1,4 @@
-"""Webcam helpers for L3 (plan/VERIFICATION.md §5, §6). Opt-in only.
+"""Webcam helpers for L3 (documentation/VERIFICATION.md §5, §6). Opt-in only.
 
 Clips are short, video only, and stay in /tmp. `frame` finds the screen by
 recording it solid white and then with the backlight off; `pattern` checks the
@@ -192,7 +192,7 @@ def pattern(dev: Device, camera: str) -> dict:
     }
 
 
-# Live clips (plan/VERIFICATION.md §5 L3): the clock runs, so the camera sees
+# Live clips (documentation/VERIFICATION.md §5 L3): the clock runs, so the camera sees
 # real motion. Each is a list of (seconds after recording starts, message).
 _WORKING = {"t": "state", "base": "working", "busy": 1}
 _ATTN = {**_WORKING, "attn": {"agent": "codex", "project": "landing", "more": 0}}

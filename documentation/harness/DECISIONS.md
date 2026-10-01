@@ -30,7 +30,7 @@ on the same pass.
 ## 2. The steering files
 
 Jev's three static sections, one file each in
-[plan/steering/](../steering/guide.md), read-only at runtime and bundled
+[documentation/steering/](../steering/guide.md), read-only at runtime and bundled
 in the app ([HARNESS.md](HARNESS.md) §6 says how they're loaded). Their
 examples are written as the state's own lines.
 

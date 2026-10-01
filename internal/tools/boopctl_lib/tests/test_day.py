@@ -1,8 +1,8 @@
-"""boopctl day (plan/VERIFICATION.md §2): a day's summary from debug mode's
-logs (plan/harness/HARNESS.md §9), against a simulated day recorded from a
+"""boopctl day (documentation/VERIFICATION.md §2): a day's summary from debug mode's
+logs (documentation/harness/HARNESS.md §9), against a simulated day recorded from a
 real headless run with a relaunch mid-day (fixtures/day, made by
-plan/evidence/2026-09-28-tonight/daylog/drive_day.py, then rewritten into
-today's lines by plan/evidence/2026-09-28-raw-transcript-view/
+documentation/evidence/2026-09-28-tonight/daylog/drive_day.py, then rewritten into
+today's lines by documentation/evidence/2026-09-28-raw-transcript-view/
 convert_fixtures.py), and against small made-up logs for the rules. Needs no board, app or sim."""
 import contextlib
 import io
@@ -314,7 +314,7 @@ class RuleTests(unittest.TestCase):
 
     def test_a_finish_the_device_didnt_play_isnt_one(self):
         """linkkit/SPEC.md §4: the device decides what plays, and says how
-        each `do` went (`ended`, plan/harness/HARNESS.md §9). A finish it
+        each `do` went (`ended`, documentation/harness/HARNESS.md §9). A finish it
         skipped, or one cut short by anything but your tap, didn't play; one
         your tap cut did, and one with no word yet counts as sent."""
         do = lambda t, id, name: {  # noqa: E731

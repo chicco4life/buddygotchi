@@ -19,7 +19,7 @@ namespace board {
 namespace {
 
 // The card's SPI clock: the probe of 2026-09-29 read about 900 KB/s at
-// 10 MHz, eighty times what a line needs (plan/evidence/2026-09-29-voice-sd).
+// 10 MHz, eighty times what a line needs (documentation/evidence/2026-09-29-voice-sd).
 constexpr uint32_t kCardHz = 10000000;
 constexpr const char* kPackPath = "/boop/voice.bin";
 constexpr const char* kCopyPath = "/boop/voice.tmp";

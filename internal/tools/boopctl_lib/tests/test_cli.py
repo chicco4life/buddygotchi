@@ -1,5 +1,5 @@
 """boopctl's command line: every subcommand parses and has help, and the
-set stays the one plan/VERIFICATION.md §2 lists. Needs no board."""
+set stays the one documentation/VERIFICATION.md §2 lists. Needs no board."""
 import contextlib
 import io
 import json
@@ -35,7 +35,7 @@ class CLITests(unittest.TestCase):
 
     def test_the_commands_are_the_documented_ones(self):
         self.assertEqual(self.subcommands(), COMMANDS)
-        table = (cli.REPO / "plan" / "VERIFICATION.md").read_text()
+        table = (cli.REPO / "documentation" / "VERIFICATION.md").read_text()
         for command in COMMANDS:
             self.assertTrue(f"| `{command}" in table, f"VERIFICATION.md §2 doesn't list boopctl {command}")
 

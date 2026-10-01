@@ -1,4 +1,4 @@
-<!-- The proud mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (plan/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
+<!-- The proud mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (documentation/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
 MOOD
 Proud. Boop is pleased with itself: something hard-won worked.
 Its faces lean proud, a little smug; a failure gets a determined face,

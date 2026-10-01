@@ -454,7 +454,7 @@ retried once and counted as a link glitch.
    requests. As the final pass, `make eval` runs every scenario, 3 times
    each for an `always` one and once for the rest, with no budget. What it reports is in [EVALS.md](EVALS.md) §2.
 2. Read a sample of its passes (`boopdev watch` on the file it names)
-   against the steering files (`plan/steering/`): are the reactions and
+   against the steering files (`documentation/steering/`): are the reactions and
    mood changes in character and never nagging, and the words and how
    long each face holds right for what happened?
 3. After a change to the steering files or the questions, the working
@@ -487,7 +487,7 @@ L3 and report it.
 
 ## 7. Evidence
 
-Work that needs a record writes `plan/evidence/<date>-<topic>/README.md`:
+Work that needs a record writes `documentation/evidence/<date>-<topic>/README.md`:
 what ran, the result, anything accepted or changed and why, and a few
 small PNGs (simulator, device screenshot, webcam crop). Logs and raw video stay in `/tmp`. The finished v1
-build's records are in `plan/evidence/v1-build/`.
+build's records are in `documentation/evidence/v1-build/`.

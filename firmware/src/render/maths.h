@@ -1,5 +1,5 @@
 // Integer maths the device and the simulator share, so they agree to the
-// pixel and the millisecond (plan/DEVICE.md §6).
+// pixel and the millisecond (documentation/DEVICE.md §6).
 #pragma once
 #include <cstdint>
 

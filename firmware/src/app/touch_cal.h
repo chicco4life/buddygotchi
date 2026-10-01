@@ -1,4 +1,4 @@
-// Touch calibration (plan/DEVICE.md §4): an affine map from the XPT2046's
+// Touch calibration (documentation/DEVICE.md §4): an affine map from the XPT2046's
 // raw readings to screen pixels. `boopctl calibrate` fits it from 4 taps and
 // sends it with dbg.touchcal; the board keeps it in NVS. Until then the
 // default map below is used. Pure C++.

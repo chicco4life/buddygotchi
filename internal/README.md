@@ -4,7 +4,7 @@ Everything in the repo that doesn't ship. What ships is in `app/` (the Mac
 app and its library, BoopKit), `firmware/` (the board's firmware, its
 generated assets and the scripts that build it), and three packages of
 their own, each with its own tests beside its code
-([plan/MODULES.md](../plan/MODULES.md)): `agent-hooks/` (the hook client
+([documentation/MODULES.md](../documentation/MODULES.md)): `agent-hooks/` (the hook client
 and its library), `jharness/` (the brain's harness, `jharness-emit` and
 its example, Beacon) and `linkkit/` (the device link: its Swift host and
 the C++ device library the firmware builds). This folder has Boop's
@@ -13,8 +13,8 @@ tests, evals, dev tools and skills.
 | Path | What it is |
 | --- | --- |
 | `app/Boop/` | `Headless.swift` and `Snapshots.swift`: the sources of `Boop --headless` and `Boop --snapshots`, which are compiled into the shipped `Boop` target |
-| `app/BoopDevKit/` | A library for `boopdev` and the tests: the harness evals (`Eval/`, [plan/EVALS.md](../plan/EVALS.md)) and hook replay (`Replay.swift`) |
-| `app/BoopDev/` | `boopdev`, the developer CLI ([plan/VERIFICATION.md](../plan/VERIFICATION.md) §2) |
+| `app/BoopDevKit/` | A library for `boopdev` and the tests: the harness evals (`Eval/`, [documentation/EVALS.md](../documentation/EVALS.md)) and hook replay (`Replay.swift`) |
+| `app/BoopDev/` | `boopdev`, the developer CLI ([documentation/VERIFICATION.md](../documentation/VERIFICATION.md) §2) |
 | `app/Tests/` | Boop's Swift unit tests (`BoopTests`) and their fixtures. The packages' tests are in each package, under `swift test` (`agent-hooks/Tests/`, `jharness/Tests/`, `linkkit/Tests/`); the hook fixtures are agent-hooks' (`agent-hooks/Tests/AgentHooksTests/Fixtures/`), and only the pipeline check's are here (`Fixtures/hooks/e2e/`) |
 | `app/TestSupport/XCTestShim/` | A stand-in XCTest for Command Line Tools, which has none |
 | `app/Evals/scenarios/` | The eval scenarios `boopdev eval` runs against Jev |
@@ -22,7 +22,7 @@ tests, evals, dev tools and skills.
 | `firmware/sim/` | The simulator's `main` (`boop-sim`), built with the firmware's pure C++ and LinkKit's device library in PlatformIO's `native` env |
 | `firmware/test/` | The firmware's unit tests, the simulator scenarios and their golden pictures. LinkKit's device library tests in its own project (`linkkit/device/test/`) |
 | `firmware/pack_file.h` | The voice pack read from `.build/voice/voice.bin`, for the simulator and the tests, which have no SD card |
-| `tools/` | `boopctl` (the board over USB, the simulator, the live dashboard, a day's summary from the debug logs, and `boopctl workday`, a scripted working day through the headless app and its brain, [plan/EVALS.md](../plan/EVALS.md) §5), `voicegen`, `sfxgen`, `fontgen` and `facegen` (they write `firmware/assets/*.h`, which is checked in; `facegen` runs the animation bank's generator, `boop-design/boop-sound-bank-v4/`, for the designs, `sfxgen` imports its sounds, and `voicegen` converts the recorded voice bank, `boop-design/assets/boop-voice-v1/`, into the voice pack for the board's SD card, `.build/voice/voice.bin`, which isn't checked in, and the Mac's `Takes.swift`), and the `webcam/` recorder |
+| `tools/` | `boopctl` (the board over USB, the simulator, the live dashboard, a day's summary from the debug logs, and `boopctl workday`, a scripted working day through the headless app and its brain, [documentation/EVALS.md](../documentation/EVALS.md) §5), `voicegen`, `sfxgen`, `fontgen` and `facegen` (they write `firmware/assets/*.h`, which is checked in; `facegen` runs the animation bank's generator, `boop-design/boop-sound-bank-v4/`, for the designs, `sfxgen` imports its sounds, and `voicegen` converts the recorded voice bank, `boop-design/assets/boop-voice-v1/`, into the voice pack for the board's SD card, `.build/voice/voice.bin`, which isn't checked in, and the Mac's `Takes.swift`), and the `webcam/` recorder |
 | `skills/` | `doctor` and `webcam-verify`, linked from `.claude/skills/`, `.codex/skills/` and `.cursor/skills/` |
 | `boop-design/` | The animation bank, the source of the device's designs and sounds (facegen and sfxgen build from it), with its offline preview, the approved mood-graph design/handover, and the recorded voice bank ([guide](boop-design/README.md)) |
 
@@ -59,4 +59,4 @@ tests, evals, dev tools and skills.
 
 `internal/Makefile` has the development targets; run them from the repo
 root as `make -C internal <target>`. They are listed in
-[plan/VERIFICATION.md](../plan/VERIFICATION.md) §2.
+[documentation/VERIFICATION.md](../documentation/VERIFICATION.md) §2.

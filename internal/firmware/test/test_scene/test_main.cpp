@@ -1,6 +1,6 @@
 // The animation bank's player (render/scene.h) against facegen's own
 // drawing of the designs, which facegen --check holds to Chrome's drawing
-// of the SVGs (plan/VERIFICATION.md L0).
+// of the SVGs (documentation/VERIFICATION.md L0).
 #include <unity.h>
 
 #include "../../pack_file.h"

@@ -87,7 +87,7 @@ struct Track {
 // A scene's groups are kGroups[kSceneGroups[group0]] on, parents first. Its `loopMs` is
 // how long it takes to play once through: its longest track but the
 // blink, which the device times itself. A moment's loops count these
-// (plan/PROTOCOL.md §3). Nothing is drawn outside its clip.
+// (documentation/PROTOCOL.md §3). Nothing is drawn outside its clip.
 struct Scene {
   uint32_t group0;
   uint16_t groups;
@@ -107,7 +107,7 @@ constexpr const char* kStateNames[22] = {"idle", "working", "needs_you", "task_c
 constexpr int kMaxVariants = 9;
 constexpr int kDesignCount = 770;
 // A design: a mood and state's variation, the scene it draws, and the host
-// fact it's for, if any (plan/PROTOCOL.md §3), as render::Outcome and
+// fact it's for, if any (documentation/PROTOCOL.md §3), as render::Outcome and
 // render::StartCtx number them: task_complete's outcome, 1 success or
 // 2 failure, and starting's context, 1 new_task, 2 session or
 // 3 continuation; 0 when it's for any.

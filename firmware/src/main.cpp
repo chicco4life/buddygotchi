@@ -1,6 +1,6 @@
 // Board entry point: allocate the canvas first, bring up the screen and
 // Bluetooth, then run Boop on LinkKit with USB serial and BLE as its links
-// (plan/DEVICE.md §4).
+// (documentation/DEVICE.md §4).
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 

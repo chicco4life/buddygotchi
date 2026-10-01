@@ -1,7 +1,7 @@
 {
   "name": "Hours of nothing fade an excited Boop a step at a time",
   "case": "Boop is excited when a quick turn finishes, and then nothing happens for hours. Each hour of nothing fades its mood one step toward calm: to happy after the first (excited has no move straight to calm), then calm after the second.",
-  "why": "plan/steering/guide.md: after an hour of nothing a mood fades a step toward calm; the mood graph has no move from excited to calm, so it goes through happy (plan/steering/mood/excited.md)",
+  "why": "documentation/steering/guide.md: after an hour of nothing a mood fades a step toward calm; the mood graph has no move from excited to calm, so it goes through happy (documentation/steering/mood/excited.md)",
   "mood": "excited",
   "checks": {"moves_on_graph": true},
   "steps": [

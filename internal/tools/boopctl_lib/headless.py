@@ -1,4 +1,4 @@
-"""`Boop --headless` for the commands that drive it (plan/VERIFICATION.md
+"""`Boop --headless` for the commands that drive it (documentation/VERIFICATION.md
 §2): `boopctl e2e` and `soak --pipeline` against the bridge, and `boopctl
 workday` against its own fake device. It starts the app with throwaway
 state on short sockets under /tmp (a Unix socket's path has room for 103

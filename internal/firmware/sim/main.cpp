@@ -1,4 +1,4 @@
-// boop-sim: Boop on LinkKit, on the Mac (plan/VERIFICATION.md §2, §4). It
+// boop-sim: Boop on LinkKit, on the Mac (documentation/VERIFICATION.md §2, §4). It
 // behaves like the board on USB: protocol and dbg.* lines on stdin, replies
 // on stdout. `boopctl sim` drives it with the same scenario runner as the
 // board, so a device screenshot and a simulator screenshot come from the

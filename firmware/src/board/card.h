@@ -1,4 +1,4 @@
-// The microSD card (plan/DEVICE.md §2, plan/VOICE.md §8): mounted on the
+// The microSD card (documentation/DEVICE.md §2, documentation/VOICE.md §8): mounted on the
 // second hardware SPI bus at boot, with the voice pack Boop says its takes
 // from. With no card, or no pack on it, Boop has no voice.
 #pragma once
@@ -7,7 +7,7 @@ namespace board {
 
 // Mounts the card and opens /boop/voice.bin for voice::openPack. False
 // when there's no card or no pack; BoardHal's cardState says which
-// (dbg.ping's `card`, plan/PROTOCOL.md §5). A new pack copied on over USB
+// (dbg.ping's `card`, documentation/PROTOCOL.md §5). A new pack copied on over USB
 // (dbg.card) goes to /boop/voice.tmp, begun afresh or kept, appended to,
 // then checked and renamed over the pack, which reopens (BoardHal's
 // packBegin, packAppend and packEnd).

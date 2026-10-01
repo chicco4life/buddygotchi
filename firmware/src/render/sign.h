@@ -1,4 +1,4 @@
-// The needs-you sign (plan/DEVICE.md §6): Boop holds up an amber sign that
+// The needs-you sign (documentation/DEVICE.md §6): Boop holds up an amber sign that
 // fills the screen, with who's asking in large type, and peeks over its top
 // edge, ducking and popping up at the left corner, the right, then the
 // middle. It replaces the mood's needs-you design; the design's sounds

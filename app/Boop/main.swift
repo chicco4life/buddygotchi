@@ -40,7 +40,7 @@ let usage = """
     (boop \(BoopVersion.current))
     """
 
-/// The steering folder as bundled with the app (a copy of `plan/steering/`).
+/// The steering folder as bundled with the app (a copy of `documentation/steering/`).
 func bundledSteering() -> Steering {
     guard let url = Bundle.module.url(forResource: "steering", withExtension: nil) else {
         fail("the steering folder is missing from the app")

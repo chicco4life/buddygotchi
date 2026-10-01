@@ -3,7 +3,7 @@ import Foundation
 import JHarness
 import LinkKit
 
-/// The harness evals (plan/EVALS.md): scenarios of hook-level steps on a
+/// The harness evals (documentation/EVALS.md): scenarios of hook-level steps on a
 /// virtual clock, run through a fresh core, the real harness and the real
 /// actions, each pass checked against what Jev should answer. They ask Jev,
 /// so they need its key; `boopdev eval` fails without it. Tests run the same
@@ -86,7 +86,7 @@ public struct Scenario: Sendable {
         }
     }
 
-    /// Checks over a whole run rather than one pass (plan/EVALS.md §3):
+    /// Checks over a whole run rather than one pass (documentation/EVALS.md §3):
     /// how lively Boop stays. Each is loose on purpose, there to catch a
     /// clear failure.
     public struct Checks: Sendable, Equatable {
@@ -311,7 +311,7 @@ public struct EvalError: Error, CustomStringConvertible {
     public init(_ description: String) { self.description = description }
 }
 
-/// Runs scenarios (plan/EVALS.md §2).
+/// Runs scenarios (documentation/EVALS.md §2).
 public struct Eval {
     /// What one checked step came to.
     public struct Check: Sendable {
@@ -426,7 +426,7 @@ public struct Eval {
         self.steering = steering
     }
 
-    /// How many runs a scenario gets unless `--runs` says (plan/EVALS.md
+    /// How many runs a scenario gets unless `--runs` says (documentation/EVALS.md
     /// §2): its own `runs`, else 3 for an `always` one, Boop's character,
     /// and 1 for the rest.
     public static func runs(_ scenario: Scenario) -> Int { scenario.runs ?? (scenario.always ? 3 : 1) }
@@ -562,7 +562,7 @@ public struct Eval {
         return Result(scenario: scenario.name, file: scenario.file, checks: checks, runChecks: runChecks, timeline: timeline)
     }
 
-    /// The whole-run checks (plan/EVALS.md §3) against a run's passes, the
+    /// The whole-run checks (documentation/EVALS.md §3) against a run's passes, the
     /// spans its turn worked and the mood it started in.
     static func judge(_ c: Scenario.Checks, timeline: [Pass], working: [(Int64, Int64)],
                       start: String = MoodAction.initial) -> [RunCheck] {

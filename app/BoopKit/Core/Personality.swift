@@ -1,6 +1,6 @@
 import Foundation
 
-/// Who Boop is: a file in `plan/steering/personality/`, chosen in Settings
+/// Who Boop is: a file in `documentation/steering/personality/`, chosen in Settings
 /// (BEHAVIORS.md §6, harness/DECISIONS.md §2.2). Its settings drive the
 /// view's rules; its text is the PERSONALITY section of Jev's state.
 public enum Personality: String, CaseIterable, Sendable {

@@ -16,7 +16,7 @@ public final class Runtime: @unchecked Sendable {
         public var stateDir: URL
         public var socketPath: String
         public var link: Transport?
-        /// The static parts of Jev's state: a copy of `plan/steering/`.
+        /// The static parts of Jev's state: a copy of `documentation/steering/`.
         public var steering: Steering
         /// Override the personality in `settings.json` for this run only.
         public var personality: Personality?

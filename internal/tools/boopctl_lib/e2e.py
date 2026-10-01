@@ -1,4 +1,4 @@
-"""The pipeline check (plan/VERIFICATION.md L4): hook → app → USB → device.
+"""The pipeline check (documentation/VERIFICATION.md L4): hook → app → USB → device.
 
 Starts `boopctl bridge` and a headless app with throwaway state, sends each
 fixture's payloads through the real `agent-hook`, run as Boop installs it

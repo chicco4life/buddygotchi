@@ -1,4 +1,4 @@
-// The voice pack from a file (plan/VOICE.md §8), for the simulator and the
+// The voice pack from a file (documentation/VOICE.md §8), for the simulator and the
 // firmware's tests, which have no SD card: .build/voice/voice.bin, which
 // `make -C internal voice` builds (voicegen).
 #pragma once

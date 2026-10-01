@@ -30,7 +30,7 @@ let usages: [(command: String, text: String)] = [
     ("eval", """
     boopdev eval [--runs N] [--only TEXT] [--always] [--budget N | --no-budget] [--timeline] [--scenarios DIR] [--steering DIR]
     boopdev eval --list [--always] [--only TEXT] [--scenarios DIR]
-        Runs the harness eval scenarios (plan/EVALS.md): hook-level steps on a virtual clock through a fresh
+        Runs the harness eval scenarios (documentation/EVALS.md): hook-level steps on a virtual clock through a fresh
         pipeline, the real harness and actions, and Jev, each pass checked against what it should come to (the
         reaction, what it says, how long the face holds and the mood), and each run against its whole-run
         checks. Needs Jev's key in BOOP_JEV_KEY and fails without it. --runs runs each scenario N times
@@ -199,7 +199,7 @@ func say(_ raw: [String]) {
     }
 }
 
-/// The Boop repo: the nearest folder with `plan/steering/guide.md` above
+/// The Boop repo: the nearest folder with `documentation/steering/guide.md` above
 /// the working directory, or else above boopdev itself (`.build/debug`).
 func findRepo() -> URL? {
     let starts = [URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
@@ -207,7 +207,7 @@ func findRepo() -> URL? {
     for start in starts {
         var dir = start.standardizedFileURL
         for _ in 0..<8 {
-            if FileManager.default.fileExists(atPath: dir.appendingPathComponent("plan/steering/guide.md").path) { return dir }
+            if FileManager.default.fileExists(atPath: dir.appendingPathComponent("documentation/steering/guide.md").path) { return dir }
             dir = dir.deletingLastPathComponent()
         }
     }
@@ -215,7 +215,7 @@ func findRepo() -> URL? {
 }
 
 /// How many Jev requests `boopdev eval` may send unless `--budget` or
-/// `--no-budget` says (plan/EVALS.md §2): enough for a handful of
+/// `--no-budget` says (documentation/EVALS.md §2): enough for a handful of
 /// scenarios while developing, not the whole eval, which is the final pass.
 let evalBudget = 100
 
@@ -237,7 +237,7 @@ func eval(_ raw: [String]) async {
     if args.has("--always") { list = list.filter(\.always) }
     guard !list.isEmpty else { fail("no scenarios in \(scenarios.path)") }
     let steering: Steering
-    do { steering = try Steering(directory: path("--steering", "plan/steering")) } catch { fail("\(error)") }
+    do { steering = try Steering(directory: path("--steering", "documentation/steering")) } catch { fail("\(error)") }
     let given = args["--runs"].map { Int($0) }
     if let given, (given ?? 0) < 1 { fail("--runs is a count, 1 or more") }
     let budget = args["--budget"].map { Int($0) }

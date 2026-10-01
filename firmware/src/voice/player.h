@@ -1,4 +1,4 @@
-// The voice player (plan/VOICE.md §8): plays a line of one or two recorded
+// The voice player (documentation/VOICE.md §8): plays a line of one or two recorded
 // takes from the voice pack on the SD card, each whole and at its recorded
 // pitch, as 8-bit samples at 22.05 kHz for the DAC. The takes are
 // 11.025 kHz; each is resampled 2× with linear interpolation as it plays.

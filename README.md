@@ -10,7 +10,7 @@ report, and they fail open.
 A Mac menu-bar app does the thinking. A cheap ESP32 board with a 2.4" touch
 screen (MicroTech MTR024QV01A) is the body: it draws, plays what the Mac
 asks for when its turn comes, and reports, over Bluetooth or USB. Why it
-exists and what's in v1 are in [plan/VISION.md](plan/VISION.md).
+exists and what's in v1 are in [documentation/VISION.md](documentation/VISION.md).
 
 ## Using it
 
@@ -35,7 +35,7 @@ On the board:
 | Press BOOT, or touch the screen | Poke Boop: it reacts in its mood, and differently from the third poke in a row |
 | Hold BOOT and speak (or click Talk in the popover) | Talk to Boop: the Mac's mic listens until you let go, and Boop answers with a face |
 
-What Boop does and shows is in [plan/BEHAVIORS.md](plan/BEHAVIORS.md).
+What Boop does and shows is in [documentation/BEHAVIORS.md](documentation/BEHAVIORS.md).
 
 ## Everyday commands
 
@@ -77,8 +77,9 @@ internal/tools/boopctl dash --state-dir /tmp/boop
 
 What ships is in `app/` (the Mac app), `firmware/` and three packages
 of their own, each with a README and a spec, that Boop is built on and
-that know nothing of it ([plan/MODULES.md](plan/MODULES.md) says how
-they join):
+that know nothing of it ([documentation/MODULES.md](documentation/MODULES.md) says how
+they join, and [documentation/architecture.html](documentation/architecture.html)
+shows it interactively):
 
 - [agent-hooks/](agent-hooks/README.md): installs the agents' hooks and
   says what each session is doing.
@@ -89,8 +90,8 @@ they join):
 
 Tests, the simulator and the other dev tools are in
 [internal/](internal/README.md), run as `make -C internal <target>`
-([plan/VERIFICATION.md](plan/VERIFICATION.md) lists them). The specs start
-at [plan/README.md](plan/README.md).
+([documentation/VERIFICATION.md](documentation/VERIFICATION.md) lists them). The specs start
+at [documentation/README.md](documentation/README.md).
 
 The [animation bank](internal/boop-design/README.md) is where the
 device's designs and sounds come from: facegen and sfxgen build from it.

@@ -1,4 +1,4 @@
-// Sound on the board (plan/DEVICE.md §4, plan/VOICE.md §8, §10): a task on
+// Sound on the board (documentation/DEVICE.md §4, documentation/VOICE.md §8, §10): a task on
 // core 0 renders the voice player, mixes the sound effects in, and feeds
 // ESP-IDF's continuous DAC on GPIO26 at 22.05 kHz, turning the amp on only
 // while something plays. The main loop hands it lines and effects

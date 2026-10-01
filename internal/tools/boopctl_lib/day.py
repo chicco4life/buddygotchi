@@ -1,5 +1,5 @@
-"""`boopctl day` (plan/VERIFICATION.md §2): what Boop did in a day, and why,
-from debug mode's logs (plan/harness/HARNESS.md §9). It reads the state dir's
+"""`boopctl day` (documentation/VERIFICATION.md §2): what Boop did in a day, and why,
+from debug mode's logs (documentation/harness/HARNESS.md §9). It reads the state dir's
 debug.jsonl and the earlier launches' debug.<n>.jsonl, oldest first, and
 sums up one local day by the hour: finishes, working chatter, the brain's
 reactions and their faces, alerts, mood changes, passes, and the brain's

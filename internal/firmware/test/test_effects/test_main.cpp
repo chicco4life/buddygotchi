@@ -1,4 +1,4 @@
-// The face's sound effects (plan/VOICE.md §10): the bank's clips and
+// The face's sound effects (documentation/VOICE.md §10): the bank's clips and
 // timelines as assets/sfx.h has them, the mixer, and when each event plays.
 #include <unity.h>
 

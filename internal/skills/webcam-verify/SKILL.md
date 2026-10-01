@@ -7,7 +7,7 @@ description: Verify Boop's physical screen and animations using bounded webcam r
 
 The one procedure for Boop's camera. The recorder's commands and what it
 writes are in `internal/tools/webcam/README.md`, the L3 checks this serves
-are in `plan/VERIFICATION.md` L3, and the camera policy (opt-in, bounded
+are in `documentation/VERIFICATION.md` L3, and the camera policy (opt-in, bounded
 clips, video only, footage kept local) is in `CLAUDE.md`.
 
 ## When
@@ -53,8 +53,8 @@ clips, video only, footage kept local) is in `CLAUDE.md`.
    timestamps; the host's timing and the requested length are
    approximate. Put the board back as it was afterwards where you can.
 5. **Review.** Crop to the screen and look at every consecutive frame
-   across the motion and its settling. Compare with `plan/BEHAVIORS.md`,
-   `plan/DEVICE.md` and the simulator's goldens. Allow for the screen's
+   across the motion and its settling. Compare with `documentation/BEHAVIORS.md`,
+   `documentation/DEVICE.md` and the simulator's goldens. Allow for the screen's
    orientation, exposure, the panel's scan and the camera's cadence (a
    frame every 33 ms at 30 fps). Check for continuous motion, overshoot
    and settling, repeated or abrupt jumps, and the return to rest. Clean

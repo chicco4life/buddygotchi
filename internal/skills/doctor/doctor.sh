@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Boop doctor (plan/ADAPTERS.md §6): will Boop see this agent's hooks?
+# Boop doctor (documentation/ADAPTERS.md §6): will Boop see this agent's hooks?
 #
 #   1. Hooks are registered for each agent and point at an existing agent-hook
 #      (the installer's own check, through boopdev: run make build first).

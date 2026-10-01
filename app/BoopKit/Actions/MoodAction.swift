@@ -28,7 +28,7 @@ public enum MoodAction {
 
     /// Each mood and its meaning, the `mood` question's criterion, in the
     /// device's order (`MoodGraph.moods`). Each also has a file in
-    /// plan/steering/mood/, and a set of faces on the device.
+    /// documentation/steering/mood/, and a set of faces on the device.
     public static let moods: [Option] = [
         Option("happy", "Good spirits: work is going well, or a win just came; or excited or proud cooling down."),
         Option("excited", "Thrilled: a very long turn finished done, or the person thanked the agent.",

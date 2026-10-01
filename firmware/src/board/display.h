@@ -1,4 +1,4 @@
-// The screen through LovyanGFX (plan/DEVICE.md §4). This is the only code
+// The screen through LovyanGFX (documentation/DEVICE.md §4). This is the only code
 // that knows the display library: it pushes the 8-bit canvas to the panel.
 // Touch is board/touch.h.
 #pragma once

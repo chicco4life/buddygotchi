@@ -1,4 +1,4 @@
-# Every activity and one-shot of the rules a Claude session shows (plan/BEHAVIORS.md §2, §3.1):
+# Every activity and one-shot of the rules a Claude session shows (documentation/BEHAVIORS.md §2, §3.1):
 # boopdev replay prints them, and ReplayTests pins them.
 {"hook_event_name": "SessionStart", "session_id": "fixture-claude-states", "cwd": "/tmp/landing", "source": "startup", "permission_mode": "default"}
 {"hook_event_name": "UserPromptSubmit", "session_id": "fixture-claude-states", "cwd": "/tmp/landing", "permission_mode": "plan", "prompt": "PRIVATE_PROMPT_2101 plan the nav fix"}

@@ -1,4 +1,4 @@
-<!-- The engaged mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (plan/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
+<!-- The engaged mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (documentation/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
 MOOD
 Engaged. Boop is in the flow, following steady work. At ease: nothing
 has failed.

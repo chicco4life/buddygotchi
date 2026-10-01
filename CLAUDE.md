@@ -10,19 +10,19 @@ your Claude Code and Codex agents. It grunts, huffs and says the odd word,
 tells you when an agent needs your approval on the Mac, and celebrates
 work that earns it. It never approves anything. A Mac app does the thinking; a
 cheap ESP32 board with a screen is the body. Start with
-[plan/VISION.md](plan/VISION.md).
+[documentation/VISION.md](documentation/VISION.md).
 
 ## Repo layout
 
 | Path | What it is |
 | --- | --- |
-| `plan/` | The spec, which the code implements ([the index](plan/README.md)). [plan/MODULES.md](plan/MODULES.md) says how the three packages below join Boop, and [plan/VERIFICATION.md](plan/VERIFICATION.md) how everything is checked. Evidence goes in `plan/evidence/` |
+| `documentation/` | The spec, which the code implements ([the index](documentation/README.md)). [documentation/MODULES.md](documentation/MODULES.md) says how the three packages below join Boop, and [documentation/VERIFICATION.md](documentation/VERIFICATION.md) how everything is checked. Evidence goes in `documentation/evidence/` |
 | `Package.swift` | The Swift package, at the root because its targets are in both `app/` and `internal/`. It builds into `.build/` |
 | `agent-hooks/` | The hook layer, a Swift package of its own meant to be open-sourced ([its README](agent-hooks/README.md), [its spec](agent-hooks/SPEC.md)): the `agent-hook` hook client, the `agent-hooks` command line, and the `AgentHooks` library that turns hooks into events and keeps the sessions and "needs you". It depends on nothing else in the repo; Boop depends on it |
 | `jharness/` | The brain's harness, a Swift package of its own meant to be open-sourced ([its README](jharness/README.md), [its spec](jharness/SPEC.md)): the `JHarness` library (events and the log, each kind's line, rules, outputs and `Choice`, the prompt, Jev and the loop that asks it), `jharness-emit`, and its worked example Beacon (`beacon`). It depends on nothing else in the repo; Boop's brain runs on it |
 | `linkkit/` | The device link, a package of its own meant to be open-sourced ([its README](linkkit/README.md), [its spec](linkkit/SPEC.md)): the protocol (four JSON messages, and the turn, by which the device decides what plays when), the Swift host library `LinkKit` with its Bluetooth and socket transports, `linkkit-bridge` (the USB bridge), and the C++ device library in `linkkit/device/` ([its README](linkkit/device/README.md)), with its own PlatformIO project for its tests, that Boop's firmware plugs into. It depends on nothing else in the repo; Boop depends on it |
 | `app/` | The Mac side that ships: the menu-bar app (`Boop`) and the `BoopKit` library, Boop's own code on the three packages |
-| `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)): Boop's app on LinkKit's device library, with its generated assets and build scripts |
+| `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([documentation/DEVICE.md](documentation/DEVICE.md)): Boop's app on LinkKit's device library, with its generated assets and build scripts |
 | `internal/` | Everything that doesn't ship ([its README](internal/README.md)): `boopdev` and its library, Boop's Swift tests and eval scenarios, the sources of `Boop --headless` and `--snapshots`, and the firmware's simulator and unit tests (env `native`) |
 | `internal/tools/` | `boopctl` (device tool, and `boopctl workday`, a scripted working day through the brain), `voicegen` (voice assets), `sfxgen` (the sound effects, from the animation bank), `fontgen` (the device's fonts), `facegen` (the device's faces, from the animation bank), `webcam/` (opt-in recorder) |
 | `internal/skills/` | `doctor` (hook self-check) and `webcam-verify`, symlinked for Claude, Codex and Cursor |
@@ -54,7 +54,7 @@ short overview. The root `Makefile` has only what the owner uses: `build`,
 (`test`, `tools-test`, `voice`, `fw`, `fw-test`, `sim`, `e2e`, `faces`, `tools`)
 are in `internal/Makefile`; run them from the repo root as
 `make -C internal <target>`. Every make target and tool is in
-[plan/VERIFICATION.md](plan/VERIFICATION.md) §2, and each CLI prints its
+[documentation/VERIFICATION.md](documentation/VERIFICATION.md) §2, and each CLI prints its
 flags with `--help`. `make run` and `make debug` use Bluetooth, so they're
 the owner's. For agents:
 
@@ -109,7 +109,7 @@ make -C internal test                                 # Swift unit tests: Boop's
   shell.** macOS kills the process on its first Bluetooth use. For live
   checks, use USB: `internal/tools/boopctl bridge` plus
   `Boop --headless --state-dir DIR --link usb:SOCKET`
-  ([plan/VERIFICATION.md](plan/VERIFICATION.md) L4). Ask the owner to run
+  ([documentation/VERIFICATION.md](documentation/VERIFICATION.md) L4). Ask the owner to run
   `make run` for Bluetooth.
 - **Don't modify `~/.claude`, `~/.codex`, or the everyday app's state from
   tests.** Use a temporary `HOME` and isolated state directories, and give
@@ -120,19 +120,19 @@ make -C internal test                                 # Swift unit tests: Boop's
 
 ## Architecture rules
 
-The full picture is in [plan/ARCHITECTURE.md](plan/ARCHITECTURE.md), and
+The full picture is in [documentation/ARCHITECTURE.md](documentation/ARCHITECTURE.md), and
 how Boop sits on its three packages (agent-hooks, JHarness, LinkKit) in
-[plan/MODULES.md](plan/MODULES.md). The rules that are easy to break:
+[documentation/MODULES.md](documentation/MODULES.md). The rules that are easy to break:
 
 - **Decisions and effects are separate.** The core and the brain decide.
   Actions (`mood`, `react`) carry out effects and check their own rules.
 - **Everything goes through the transcript.** Hooks, pokes, heartbeats
   and every action are raw events in one shape; the view folds them into
-  what the brain hears ([plan/harness/EVENTS.md](plan/harness/EVENTS.md)).
+  what the brain hears ([documentation/harness/EVENTS.md](documentation/harness/EVENTS.md)).
   Anything else is a log line.
 - **The packages stay apart.** agent-hooks, JHarness and LinkKit know
   nothing of Boop or of each other.
-  Boop translates between them in a few places (plan/MODULES.md, Where
+  Boop translates between them in a few places (documentation/MODULES.md, Where
   they join), and anything Boop-specific stays in `app/` or `firmware/`.
 - **The harness is generic.** JHarness takes events, asks every output's
   questions in one request and hands each output its own answers. It
@@ -150,7 +150,7 @@ how Boop sits on its three packages (agent-hooks, JHarness, LinkKit) in
 - **The brain is Jev: multiple choice only.** It answers questions about
   a plain-text state; there's no free text. Keep questions few, with
   options that say what they're not.
-- **The steering files are read-only at runtime.** `plan/steering/` is
+- **The steering files are read-only at runtime.** `documentation/steering/` is
   the single source, and the app bundles it at build time
   (`Package.swift` copies it into the app's resources).
 - **No code, commands, tool output, file contents or agent transcripts go
@@ -165,7 +165,7 @@ how Boop sits on its three packages (agent-hooks, JHarness, LinkKit) in
 
 ## Specs stay in sync
 
-`plan/` is the contract. A change to behaviour, a message, a budget, a
+`documentation/` is the contract. A change to behaviour, a message, a budget, a
 flow, a command or a check updates the matching spec in the same commit,
 so reviewers can read the spec diff next to the code diff.
 
@@ -174,7 +174,7 @@ so reviewers can read the spec diff next to the code diff.
 anything: a worktree made from `origin/main` can be far behind an
 unpushed local `main`.
 
-**Which spec goes with which code** (specs are in `plan/`; a package's
+**Which spec goes with which code** (specs are in `documentation/`; a package's
 `SPEC.md` and `README.md` are in its own folder):
 
 | When you change | Update |
@@ -190,7 +190,7 @@ unpushed local `main`.
 | `app/BoopKit/Harness/`, `app/BoopKit/Brains/`, `app/BoopKit/App/Pipeline.swift` | `harness/HARNESS.md` |
 | `app/BoopKit/Core/Event.swift`, `app/BoopKit/Core/TranscriptView.swift`, what the core records | `harness/EVENTS.md` |
 | `app/BoopKit/Presence/`, `app/Boop/PresenceSignals.swift` | `harness/EVENTS.md` §2.1 |
-| `app/BoopKit/Actions/`, `plan/steering/` | `harness/DECISIONS.md` |
+| `app/BoopKit/Actions/`, `documentation/steering/` | `harness/DECISIONS.md` |
 | `app/BoopKit/App/Reactions.swift` (how a reaction's `ended` reads) | `harness/DECISIONS.md` §5 |
 | `app/BoopKit/Memory/`, `app/BoopKit/App/` | `ARCHITECTURE.md` §3–4 |
 | `app/BoopKit/Voice/`, `firmware/src/voice/`, `firmware/src/app/effect_track.*`, `internal/tools/voicegen/`, `internal/tools/sfxgen/` | `VOICE.md` |
@@ -206,12 +206,12 @@ unpushed local `main`.
 | `Package.swift`, a package's `Package.swift` (`agent-hooks/`, `jharness/`, `linkkit/`), what goes in `internal/` | `ARCHITECTURE.md` §10, `internal/README.md`, `MODULES.md`, this file |
 | Structure, boundaries or a budget | `ARCHITECTURE.md` |
 | What's in or out of v1 | `VISION.md` (Scope) |
-| A spec added, renamed or removed | `plan/README.md`, this table |
+| A spec added, renamed or removed | `documentation/README.md`, this table |
 
 **Rules that keep them from drifting:**
 
 - **Say each fact once.** A number, name or rule lives in one doc; the
-  others link to it. When you change one, grep `plan/`, this file,
+  others link to it. When you change one, grep `documentation/`, this file,
   `README.md`, `internal/README.md`, `internal/skills/`,
   `internal/tools/*/README.md`, `agent-hooks/*.md`, `jharness/*.md`,
   `linkkit/**/*.md` and code comments for the old value or name, and fix
@@ -239,13 +239,13 @@ unpushed local `main`.
 
 If a change deliberately departs from the spec, change the spec first and
 add a row saying why to the decision log at the end of
-[plan/ARCHITECTURE.md](plan/ARCHITECTURE.md).
+[documentation/ARCHITECTURE.md](documentation/ARCHITECTURE.md).
 
 ## Checking your work
 
-Check changes with the loop in [plan/VERIFICATION.md](plan/VERIFICATION.md)
+Check changes with the loop in [documentation/VERIFICATION.md](documentation/VERIFICATION.md)
 §1, and report only checks that actually ran and passed. Evidence goes in
-`plan/evidence/<date>-<topic>/` (§7 there).
+`documentation/evidence/<date>-<topic>/` (§7 there).
 
 Before trusting anything that depends on hooks, run the `doctor` skill
 (`internal/skills/doctor/doctor.sh`). It checks that this agent's hooks

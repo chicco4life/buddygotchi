@@ -385,7 +385,7 @@ import Testing
             ("docker compose -f compose.test.yml run -e CI=1 web bundle exec rspec", "tests"),
             ("docker build -t app .", "build"),
             // Only mentioned.
-            ("grep -rn \"make webcam-test\" README.md plan/", nil), ("grep -n 'make test' Makefile", nil),
+            ("grep -rn \"make webcam-test\" README.md documentation/", nil), ("grep -n 'make test' Makefile", nil),
             ("git commit -m \"run pytest in CI\"", nil), ("python3 -c \"import pytest\"", nil),
             ("which tsc", nil), ("ls node_modules/.bin/jest", nil), ("rg -l 'cargo test' docs", nil),
             ("echo \"now run: make test\"", nil), ("go run ./cmd/test", nil),

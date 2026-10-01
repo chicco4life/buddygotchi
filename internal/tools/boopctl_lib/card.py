@@ -1,9 +1,9 @@
 """Copying the voice pack onto the board's microSD card over USB (`boopctl
-card`; plan/VOICE.md §8, plan/PROTOCOL.md §5): `dbg.card` `begin`, a `put`
+card`; documentation/VOICE.md §8, documentation/PROTOCOL.md §5): `dbg.card` `begin`, a `put`
 per chunk with its CRC-32, then `end` with the whole file's size and CRC-32,
 which the board checks by reading the file back before it swaps it in.
 
-It's slow, hours for the whole pack (plan/VOICE.md §8 has the rate), so a
+It's slow, hours for the whole pack (documentation/VOICE.md §8 has the rate), so a
 card reader (`voicegen.py --card`) comes first. A few `put`s are in flight
 at once. Every reply says how much the card holds, so a line lost on the
 way (the CH340 drops a run of bytes now and then) costs a resync, not the

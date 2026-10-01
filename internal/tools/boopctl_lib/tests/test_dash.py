@@ -70,9 +70,9 @@ def board_after(lines: list[dict]) -> tuple[Board, list[tuple[str, str]]]:
 class FeedTests(unittest.TestCase):
     """The fixture: boopdev replay of the e2e Claude session into
     `Boop --headless --debug --brain scripted`, then the dashboard's dev
-    lines and a few more hooks (plan/evidence/2026-09-27-dashboard),
+    lines and a few more hooks (documentation/evidence/2026-09-27-dashboard),
     rewritten into today's lines by
-    plan/evidence/2026-09-28-raw-transcript-view/convert_fixtures.py."""
+    documentation/evidence/2026-09-28-raw-transcript-view/convert_fixtures.py."""
 
     def test_the_fixture_has_every_kind_of_line(self):
         kinds = [kind(line) for line in fixture_lines()]
@@ -107,7 +107,7 @@ class FeedTests(unittest.TestCase):
 
     def test_the_state_joins_its_head(self):
         """A pass line carries HISTORY and NOW, and a `head` line before it
-        the rest whenever that changes (plan/harness/HARNESS.md §9); an
+        the rest whenever that changes (documentation/harness/HARNESS.md §9); an
         older log's passes carry the whole state."""
         board = Board()
         self.assertIsNone(board.apply({"head": "You are.\nMOOD\ncalm\n\n", "received_at_ms": 1}))
@@ -187,7 +187,7 @@ class FeedTests(unittest.TestCase):
 class ColumnsTests(unittest.TestCase):
     """The three columns, newest first, from
     `tests/fixtures/dash-columns.jsonl`. It was recorded from a real run
-    (plan/evidence/2026-09-28-tonight/dash: a headless app whose USB link is
+    (documentation/evidence/2026-09-28-tonight/dash: a headless app whose USB link is
     a boop-sim, a forced mood, the e2e Claude session, a forced reaction
     that played, a forced pass that chose none, a cheer from the dashboard,
     and four taps on the sim's screen, then a poke streak), then edited, since
@@ -197,7 +197,7 @@ class ColumnsTests(unittest.TestCase):
     dropped one, its reaction's action, moment and settle taken out
     (make_fixture.py there). It was recorded before the raw transcript,
     and rewritten into today's lines by
-    plan/evidence/2026-09-28-raw-transcript-view/convert_fixtures.py, so
+    documentation/evidence/2026-09-28-raw-transcript-view/convert_fixtures.py, so
     its lines keep that run's words."""
 
     def setUp(self):
@@ -293,7 +293,7 @@ class ColumnsTests(unittest.TestCase):
 
     def test_a_one_shot_the_device_skipped(self):
         """linkkit/SPEC.md §4: the device decides what plays, and says so
-        (`ended`, plan/harness/HARNESS.md §9): a rule's one-shot it skipped
+        (`ended`, documentation/harness/HARNESS.md §9): a rule's one-shot it skipped
         while a reaction held its turn is marked on its reflex, and one it
         played isn't."""
         t = 1_790_550_800_000

@@ -1,4 +1,4 @@
-// Sound effects (plan/VOICE.md §10): the animation bank's clips and each
+// Sound effects (documentation/VOICE.md §10): the animation bank's clips and each
 // design's timeline, from assets/sfx.h, and a small mixer that adds them
 // to the voice. Pure C++: the board mixes into the DAC's samples, and
 // tests render into memory. When each event plays is app/effect_track.h's.

@@ -26,7 +26,7 @@ final class RuntimeTests: XCTestCase {
     }
 
     static let steeringDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        .appendingPathComponent("../../../plan/steering").standardizedFileURL
+        .appendingPathComponent("../../../documentation/steering").standardizedFileURL
     static let steering = try! Steering(directory: steeringDir)
 
     /// A runtime whose brain is `brain` once the key reads, or none.
@@ -857,7 +857,7 @@ final class RuntimeTests: XCTestCase {
         try XCTAssertThrowsError(try Runtime(options)) { XCTAssertEqual("\($0)", "\(Runtime.OpenError.notSetUp)") }
     }
 
-    /// plan/steering/ has the guide, a file per mood and the two
+    /// documentation/steering/ has the guide, a file per mood and the two
     /// personalities (harness/DECISIONS.md §2). harness/HARNESS.md §6.2: the
     /// static parts stay within their budgets, and the personalities'
     /// settings are BEHAVIORS.md §6's.

@@ -6,7 +6,8 @@ README (the overview) and a SPEC (the contract), and knows nothing of
 Boop or of each other.
 Everything that makes Boop Boop, the core's rules, the mood graph, faces,
 voice and steering, is app code on top. This page is how they fit; each
-piece's own pages say how it works.
+piece's own pages say how it works. [architecture.html](architecture.html)
+is the same picture to click through, with the directory tree.
 
 ```
   Claude Code, Codex

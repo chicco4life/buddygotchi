@@ -3,7 +3,7 @@
 A small AVFoundation recorder and frame extractor for looking at Boop's
 physical screen. When and how to use the camera is the
 [`webcam-verify` skill](../../skills/webcam-verify/SKILL.md), and the L3
-checks ([plan/VERIFICATION.md](../../../plan/VERIFICATION.md) L3) use it
+checks ([documentation/VERIFICATION.md](../../../documentation/VERIFICATION.md) L3) use it
 through `internal/tools/boopctl cam`. This page is the recorder itself.
 
 It needs only Command Line Tools, with no FFmpeg or Python packages.

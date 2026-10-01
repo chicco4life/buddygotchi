@@ -1,7 +1,7 @@
 {
   "name": "A failure that really stings gets a swear",
   "case": "Boop is already fed up, grumpy, after a failed check. The agent works for four minutes, its tests fail again, and then the whole turn fails (a long turn, not a very long one, which would make Boop sad). That's a failure that really stings: Boop makes a grumpy or irritated face, played as a failure, and swears at it ('Shit', 'Fuck', 'Damn', 'Crap' or 'Shiba'), or at least says a grumbling phrase ('Mamma mia', 'Oh, come on'). It swears at the situation, never at the person.",
-  "why": "plan/steering/personality/boop.md: a failure that really stings, in an irritated or grumpy face, gets a swear; harness/DECISIONS.md §3: say.kind's swear is a failure that really stings; VOICE.md §4: a swear only on a failed turn, and irritated and grumpy faces have them",
+  "why": "documentation/steering/personality/boop.md: a failure that really stings, in an irritated or grumpy face, gets a swear; harness/DECISIONS.md §3: say.kind's swear is a failure that really stings; VOICE.md §4: a swear only on a failed turn, and irritated and grumpy faces have them",
   "mood": "grumpy",
   "steps": [
     {"event": "turn started", "at": "0s", "prompt": "get the checkout flow passing again"},

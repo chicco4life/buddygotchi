@@ -1,5 +1,5 @@
 // Boop on LinkKit: the app the kit calls (linkkit/device/src/linkkit/kit.h).
-// It reads Boop's `state` and `do` args (plan/PROTOCOL.md), says when a
+// It reads Boop's `state` and `do` args (documentation/PROTOCOL.md), says when a
 // call may play and when it rests or ends, recognises gestures, plays
 // the voice and draws. What Boop does is decided by Behaviour. Pure C++:
 // the board and the simulator run the same code behind a small Hal.

@@ -1,5 +1,5 @@
 // Turns a button's raw up/down level into taps and push-to-talk
-// (plan/DEVICE.md §4): a press shorter than kHoldMs is a tap, sent on
+// (documentation/DEVICE.md §4): a press shorter than kHoldMs is a tap, sent on
 // release; held kHoldMs or more, it's push-to-talk from then until the
 // release, or until kTalkCapMs of talking. Debounced; pure C++, driven by
 // the device clock.

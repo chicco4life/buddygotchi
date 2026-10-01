@@ -1,7 +1,7 @@
 # sfxgen
 
 Builds `firmware/assets/sfx.h`, Boop's sound effects, from the animation
-bank's procedural sounds ([plan/VOICE.md](../../../plan/VOICE.md) §10):
+bank's procedural sounds ([documentation/VOICE.md](../../../documentation/VOICE.md) §10):
 
     node internal/tools/sfxgen/sfxgen.mjs [--wav-dir DIR]
 

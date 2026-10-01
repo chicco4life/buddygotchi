@@ -1,5 +1,5 @@
 #!/bin/sh
-# Boop's device tool (plan/VERIFICATION.md §2). Runs in internal/tools/.venv, with
+# Boop's device tool (documentation/VERIFICATION.md §2). Runs in internal/tools/.venv, with
 # pyserial, Pillow and Textual; the first run makes it (`make -C internal tools`).
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 py="$here/.venv/bin/python"

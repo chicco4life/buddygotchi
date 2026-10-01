@@ -4,7 +4,7 @@ import XCTest
 @testable import BoopDevKit
 @testable import BoopKit
 
-/// Every state the eval scenarios build, pinned (plan/VERIFICATION.md §5, L0):
+/// Every state the eval scenarios build, pinned (documentation/VERIFICATION.md §5, L0):
 /// each scenario runs with a scripted brain that answers from NOW alone, and
 /// every state it's sent must match `Fixtures/golden-states/<scenario>.txt`
 /// byte for byte. Nothing here needs Jev, so a change to how Boop's prompt

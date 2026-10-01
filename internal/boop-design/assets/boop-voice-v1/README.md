@@ -10,7 +10,7 @@ mood graph, generic harness, or approval rules. Publication is not listening app
 Boop's repo keeps only the `robot-soft` texture (`audio-pcm8/robot-soft/`):
 the manifest's `original` and `robot-grain` paths aren't here, and
 `tools/check.mjs` checks the textures that are. Boop's `voicegen` builds
-its voice from this texture ([plan/VOICE.md](../../../../plan/VOICE.md) §3).
+its voice from this texture ([documentation/VOICE.md](../../../../documentation/VOICE.md) §3).
 
 ## Start here: find an actual recording in seconds
 
@@ -141,7 +141,7 @@ Aliases such as `weary`, `amused`, `relieved` and `unspecified` do not silently 
 one of the 13 persistent moods; those older takes need explicit review/relabeling.
 
 Short phrases, borrowed words and explicit expressions are design proposals beyond
-the current production one-English-word contract in `plan/VOICE.md`. Short phrases
+the current production one-English-word contract in `documentation/VOICE.md`. Short phrases
 require `--phrases`; rare entries also require `--rare`; swears additionally require
 `--explicit`. These switches permit selection, not a change to production policy.
 
@@ -254,7 +254,7 @@ the archived originals or unused comparisons on the SD card.
    beat-based duration caps must not clip, accelerate or pitch-shift these full
    performances. This bank exceeds the board's 4 MB flash, so do not bake all of
    it into `voice.h`. Check SD/touch SPI bus ownership and pin routing against
-   `plan/DEVICE.md` before adding SD support.
+   `documentation/DEVICE.md` before adding SD support.
 2. **Read the container correctly:** validate RIFF/WAVE and PCM format, walk chunks
    to find `fmt ` and `data`, and honor odd-chunk padding. Never feed WAV headers
    into the DAC or assume every future WAV has a 44-byte header. Reject a missing,

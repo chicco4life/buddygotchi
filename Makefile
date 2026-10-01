@@ -1,4 +1,4 @@
-# Boop v1. Run from the repo root. See README.md and plan/VERIFICATION.md.
+# Boop v1. Run from the repo root. See README.md and documentation/VERIFICATION.md.
 # The development targets (tests, simulator, tools) are in internal/Makefile:
 # make -C internal <target>.
 .PHONY: build app run debug dash day flash eval clean
@@ -37,7 +37,7 @@ run: app
 	.build/debug/Boop
 
 # The same, printing everything to this terminal as it happens: hooks, the
-# core's decisions, device messages and every brain pass (plan/harness/HARNESS.md).
+# core's decisions, device messages and every brain pass (documentation/harness/HARNESS.md).
 debug: app
 	.build/debug/Boop --debug
 
@@ -47,16 +47,16 @@ dash:
 	internal/tools/boopctl dash
 
 # What Boop did in a day, and why, by the hour, from the logs `make debug`
-# leaves (plan/harness/HARNESS.md §9). DATE=YYYY-MM-DD picks the day; the
+# leaves (documentation/harness/HARNESS.md §9). DATE=YYYY-MM-DD picks the day; the
 # newest line's by default.
 day:
 	internal/tools/boopctl day $(if $(DATE),--date $(DATE))
 
-# The harness eval scenarios (plan/EVALS.md) against Jev, all of them with no
-# request budget: the final pass (plan/EVALS.md §2 counts its requests).
+# The harness eval scenarios (documentation/EVALS.md) against Jev, all of them with no
+# request budget: the final pass (documentation/EVALS.md §2 counts its requests).
 # While developing, run .build/debug/boopdev eval --only TEXT instead.
 # They need Jev's key in BOOP_JEV_KEY and fail without it
-# (plan/VERIFICATION.md L5).
+# (documentation/VERIFICATION.md L5).
 eval: build
 	.build/debug/boopdev eval --no-budget
 

@@ -1,4 +1,4 @@
-"""Scenarios (plan/VERIFICATION.md §4): one JSON object per line, played the
+"""Scenarios (documentation/VERIFICATION.md §4): one JSON object per line, played the
 same way on the board and in boop-sim."""
 from __future__ import annotations
 

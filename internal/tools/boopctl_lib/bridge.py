@@ -1,5 +1,5 @@
 """`boopctl bridge`: owns the board's serial port and shares it through a
-Unix socket (plan/VERIFICATION.md §2, L4).
+Unix socket (documentation/VERIFICATION.md §2, L4).
 
 Every complete line from the board goes to every client; every complete line
 from a client goes to the board whole, so lines from different clients never

@@ -1,7 +1,7 @@
 // The voice player: the pack's takes found by id, a line of one or two
 // takes played whole at their recorded pitch (11.025 kHz resampled 2× to
-// 22.05 kHz), volume, the cut's fade, and the mouth (plan/VOICE.md §8,
-// plan/DEVICE.md §4–5). The pack is .build/voice/voice.bin, as voicegen
+// 22.05 kHz), volume, the cut's fade, and the mouth (documentation/VOICE.md §8,
+// documentation/DEVICE.md §4–5). The pack is .build/voice/voice.bin, as voicegen
 // writes it and the board reads it from its card.
 #include <unity.h>
 

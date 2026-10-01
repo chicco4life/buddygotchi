@@ -2,7 +2,7 @@
   "name": "Plain requests and routine finishes leave the mood alone",
   "case": "Five quick turns go by, each a plain request and a short, matter-of-fact finish (one says the tests pass). None of the words carry any feeling, so Boop stays calm all through, whatever faces it makes.",
   "always": true,
-  "why": "plan/steering/guide.md: never change the mood for a routine turn alone; plan/steering/mood/calm.md: stays calm through routine turns and plain finishes. Hard work done only lifts it on a long or very long turn",
+  "why": "documentation/steering/guide.md: never change the mood for a routine turn alone; documentation/steering/mood/calm.md: stays calm through routine turns and plain finishes. Hard work done only lifts it on a long or very long turn",
   "checks": {"mood_changes": "0"},
   "steps": [
     {"event": "turn started", "at": "0s", "prompt": "rename getUser to fetchUser"},

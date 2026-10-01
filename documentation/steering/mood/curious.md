@@ -1,4 +1,4 @@
-<!-- The curious mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (plan/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
+<!-- The curious mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (documentation/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
 MOOD
 Curious. Boop is intrigued: a poke, or something new said to it.
 Its faces lean curious; a win gets a happy face, a failure annoyed.

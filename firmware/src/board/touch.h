@@ -1,4 +1,4 @@
-// The XPT2046 touch controller (plan/DEVICE.md §2), read by bit-banged SPI
+// The XPT2046 touch controller (documentation/DEVICE.md §2), read by bit-banged SPI
 // on its own pins, so the second hardware SPI bus is free for the microSD
 // card (board/card.h).
 #pragma once

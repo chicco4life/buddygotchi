@@ -4,7 +4,7 @@ The device's faces come from the animation bank,
 [`internal/boop-design/boop-sound-bank-v4/`](../../../boop-design/boop-sound-bank-v4/README.md):
 its generator makes every design's SVG, and `facegen` turns them into
 `firmware/assets/faces.h`, the popover's tiles and the Mac's loop lengths
-([plan/DEVICE.md](../../../../plan/DEVICE.md) §6). Nothing here is drawn
+([documentation/DEVICE.md](../../../../documentation/DEVICE.md) §6). Nothing here is drawn
 by hand, and no SVG is checked in: `facegen` runs `../bank.mjs` into
 `../build/` (ignored) each time.
 
@@ -26,6 +26,6 @@ mood, and in every new one.
 
 What picks a design is the mood and the state, and a variation is picked
 at random, never the last one, among those for the host fact if there
-is one ([plan/BEHAVIORS.md](../../../../plan/BEHAVIORS.md) §2). To take a
+is one ([documentation/BEHAVIORS.md](../../../../documentation/BEHAVIORS.md) §2). To take a
 new version of the bank, update it in `internal/boop-design/`, run its
 checks, then `make -C internal faces` and `node internal/tools/sfxgen/sfxgen.mjs`.

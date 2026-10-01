@@ -3,8 +3,8 @@
 Updated 2026-09-29. The code-based animation/SFX bank and approved mood-graph
 handover. The bank is the one source of the device's designs and sounds:
 `facegen` runs its generator for the faces and `sfxgen` imports its
-timelines and synthesiser ([plan/DEVICE.md](../../plan/DEVICE.md) §6,
-[plan/VOICE.md](../../plan/VOICE.md) §10), so a change here changes the
+timelines and synthesiser ([documentation/DEVICE.md](../../documentation/DEVICE.md) §6,
+[documentation/VOICE.md](../../documentation/VOICE.md) §10), so a change here changes the
 firmware once they're rerun.
 
 - [Animation bank](boop-sound-bank-v4/README.md): editable SVG generators,
@@ -15,7 +15,7 @@ firmware once they're rerun.
   neighbor choices, dramatic-edge gating, migration and voice guidance.
 - [Machine-readable graph](boop-mood-spectrum-v2/mood-graph.json). The
   app ships it as `app/BoopKit/Actions/MoodGraph.swift`, which a test
-  holds to this file move for move ([plan/harness/DECISIONS.md](../../plan/harness/DECISIONS.md) §4).
+  holds to this file move for move ([documentation/harness/DECISIONS.md](../../documentation/harness/DECISIONS.md) §4).
 - [Voice asset bank and agent selection guide](assets/boop-voice-v1/README.md):
   2,722 recorded Robot Minion takes (only the robot-soft texture is kept here),
   dictionary, lookup indexes, the audition page and a tested host-side selector.
@@ -54,7 +54,7 @@ or consume credits. Each script supports `--help`.
 The imported bank is self-contained: no absolute workstation paths and no
 dependency on the design workspace's V3 folder. Independent V3 fingerprints
 check preservation of the older SVGs and scores. See the
-[verification evidence](../../plan/evidence/2026-09-28-mood-design-push/README.md).
+[verification evidence](../../documentation/evidence/2026-09-28-mood-design-push/README.md).
 
 ## How the device uses it
 

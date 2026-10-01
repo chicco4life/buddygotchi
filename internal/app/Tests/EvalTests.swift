@@ -4,7 +4,7 @@ import XCTest
 @testable import BoopDevKit
 @testable import BoopKit
 
-/// The eval runner (plan/EVALS.md), with a scripted brain: the scenarios
+/// The eval runner (documentation/EVALS.md), with a scripted brain: the scenarios
 /// read, each step reaches the core, and each pass is checked. The evals
 /// themselves ask Jev (`boopdev eval`).
 final class EvalTests: XCTestCase {

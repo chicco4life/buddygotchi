@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- How Boop's three pieces fit: open this file in a browser. Rebuilt by hand; the directory tree is a snapshot of 2026-10-01. -->
+<title>Boop's Three Pieces</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --ground:#eef1f4; --panel:#ffffff; --ink:#18202b; --ink2:#4a5566; --ink3:#7a8597; --rule:#d5dbe3;
+  --a:#13806a; --a-soft:#d9f0ea; --b:#5a4fcf; --b-soft:#e6e3fb; --c:#b86e0e; --c-soft:#f8ead3;
+  --boop:#d13f78; --boop-soft:#fae1eb; --ext:#5d6b7e; --ext-soft:#e4e9ef;
+  --good:#1d8a4a; --warn:#b7791f; --bad:#c2410c;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",ui-sans-serif,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#11161d; --panel:#19202a; --ink:#e7ecf2; --ink2:#a9b4c3; --ink3:#7d8899; --rule:#2c3644;
+    --a:#3cc4a3; --a-soft:#163a33; --b:#9b92ff; --b-soft:#26244a; --c:#e9a446; --c-soft:#3b2c14;
+    --boop:#f06b9e; --boop-soft:#3d1a2a; --ext:#93a1b4; --ext-soft:#232c38;
+    --good:#4ccf84; --warn:#e4b04a; --bad:#f2774a;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#11161d; --panel:#19202a; --ink:#e7ecf2; --ink2:#a9b4c3; --ink3:#7d8899; --rule:#2c3644;
+  --a:#3cc4a3; --a-soft:#163a33; --b:#9b92ff; --b-soft:#26244a; --c:#e9a446; --c-soft:#3b2c14;
+  --boop:#f06b9e; --boop-soft:#3d1a2a; --ext:#93a1b4; --ext-soft:#232c38;
+  --good:#4ccf84; --warn:#e4b04a; --bad:#f2774a;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;margin:0;padding-inline:16px}
+.wrap{max-width:1120px;margin:0 auto;padding-block:28px 64px;display:flex;flex-direction:column;gap:44px}
+h1,h2,h3{font-family:var(--display);line-height:1.15;text-wrap:balance;margin:0}
+h1{font-size:clamp(30px,5vw,46px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:26px;font-weight:700}
+h3{font-size:18px;font-weight:700}
+p{margin:0;max-width:68ch}
+code,.mono{font-family:var(--mono);font-size:.86em}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+header{display:flex;flex-direction:column;gap:12px}
+.lede{font-size:18px;color:var(--ink2)}
+.meta{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-family:var(--mono);font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--rule);color:var(--ink2);background:var(--panel)}
+nav.toc{display:flex;flex-wrap:wrap;gap:6px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--ground);padding-block:8px;border-bottom:1px solid var(--rule)}
+nav.toc a{font-size:14px;color:var(--ink2);text-decoration:none;padding:5px 11px;border-radius:7px}
+nav.toc a:hover,nav.toc a:focus-visible{background:var(--panel);color:var(--ink);outline:none}
+section{display:flex;flex-direction:column;gap:16px;scroll-margin-top:60px}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:12px;padding:20px}
+.grid2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+.scroll{overflow-x:auto}
+/* diagram */
+svg text{font-family:var(--body)}
+.node{cursor:pointer}
+.node rect{stroke-width:1.5;transition:stroke-width .15s}
+.node:hover rect,.node:focus-visible rect{stroke-width:3}
+.node:focus-visible{outline:none}
+.node.sel rect{stroke-width:3.5}
+.node.dim{opacity:.28}
+.edge{fill:none;stroke:var(--ink3);stroke-width:1.6}
+.edge.dep{stroke-dasharray:5 4}
+.edge.hot{stroke:var(--boop);stroke-width:3}
+.edge.dim{opacity:.18}
+.elabel{font-size:12px;fill:var(--ink2)}
+.toggle{display:inline-flex;border:1px solid var(--rule);border-radius:9px;overflow:hidden;background:var(--panel)}
+.toggle button{font:inherit;font-size:14px;border:0;background:transparent;color:var(--ink2);padding:6px 12px;cursor:pointer}
+.toggle button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.toggle button:focus-visible{outline:2px solid var(--b);outline-offset:-2px}
+.detail h3{margin-bottom:4px}
+.detail .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px;margin-top:10px}
+.detail .kv dt{color:var(--ink3)}
+.detail .kv dd{margin:0}
+.detail ul{margin:8px 0 0;padding-left:18px;font-size:15px}
+.swatch{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:baseline}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--ink2)}
+/* journey */
+.journey{display:flex;flex-direction:column;gap:12px}
+.steps{display:flex;gap:6px;flex-wrap:wrap}
+.steps button{font:inherit;font-size:13px;font-family:var(--mono);width:34px;height:34px;border-radius:8px;border:1px solid var(--rule);background:var(--panel);color:var(--ink2);cursor:pointer}
+.steps button[aria-current="step"]{background:var(--boop);color:#fff;border-color:var(--boop)}
+.steps button:focus-visible{outline:2px solid var(--b);outline-offset:2px}
+.stepbody{display:flex;flex-direction:column;gap:8px}
+pre.line{margin:0;padding:10px 12px;background:var(--ground);border:1px solid var(--rule);border-radius:8px;font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;word-break:break-all;color:var(--ink)}
+.navbtns{display:flex;gap:8px}
+.btn{font:inherit;font-size:14px;padding:6px 14px;border-radius:8px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);cursor:pointer}
+.btn:hover{border-color:var(--ink3)}
+.btn:focus-visible{outline:2px solid var(--b);outline-offset:2px}
+/* messages */
+.msgs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.msg{border-top:3px solid var(--c);padding-top:10px;display:flex;flex-direction:column;gap:6px}
+.msg .dir{font-family:var(--mono);font-size:12px;color:var(--ink3)}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-weight:700;color:var(--ink2);font-size:13px}
+td code{white-space:nowrap}
+/* timeline */
+.tl text{font-size:12px;fill:var(--ink2)}
+.tl .tick{stroke:var(--rule)}
+/* tree */
+.treebar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.treebar input{font:inherit;font-size:14px;padding:6px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink);min-width:0;flex:1 1 220px}
+.treebar input:focus-visible{outline:2px solid var(--b);outline-offset:1px}
+.tree{font-family:var(--mono);font-size:13px;line-height:1.75}
+.tree ul{list-style:none;margin:0;padding-left:18px;border-left:1px dashed var(--rule)}
+.tree>ul{padding-left:0;border-left:0}
+.tree li{margin:0}
+.tree .row{display:flex;align-items:baseline;gap:8px;padding:0 6px;border-radius:5px}
+.tree .row:hover{background:var(--ground)}
+.tree .dirbtn{font:inherit;background:none;border:0;color:var(--ink);cursor:pointer;padding:0;text-align:left;display:flex;gap:6px;align-items:baseline}
+.tree .dirbtn:focus-visible{outline:2px solid var(--b);outline-offset:1px}
+.tree .caret{display:inline-block;width:10px;color:var(--ink3);transition:transform .12s}
+.tree li.closed>.row .caret{transform:rotate(-90deg)}
+.tree li.closed>ul{display:none}
+.tree .lines{margin-left:auto;color:var(--ink3);font-variant-numeric:tabular-nums;font-size:12px;white-space:nowrap}
+.tree .note{color:var(--ink3);font-size:12px}
+.tree .tag{font-size:10.5px;padding:0 6px;border-radius:4px;font-weight:600}
+.tree mark{background:color-mix(in srgb,var(--c) 30%,transparent);color:inherit;border-radius:2px}
+.dirname{font-weight:600}
+.small{font-size:13px;color:var(--ink3)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+<header>
+  <span class="eyebrow">Boop · branch main-refactor · 2026-10-01</span>
+  <h1>Boop's three pieces</h1>
+  <p class="lede">Boop is three small libraries (hooks, brain, device link) and the desk creature built on top of them. This page maps how they fit, walks one event through all of them, shows how the device decides what plays when, and lays out the code.</p>
+  <div class="meta">
+    <span class="chip">3 Swift packages + 1 C++ library</span>
+    <span class="chip">Swift tests: Boop 269 · agent-hooks 81 · JHarness 36 · LinkKit 44</span>
+    <span class="chip">firmware tests 168 + 54</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <a href="#map">Map</a><a href="#journey">One event's journey</a><a href="#wire">The wire and the turn</a><a href="#tree">Directory tree</a>
+</nav>
+
+<section id="map">
+  <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
+    <h2>The map</h2>
+    <div class="toggle" role="group" aria-label="What the arrows show">
+      <button type="button" id="mode-flow" aria-pressed="true">Data flow</button>
+      <button type="button" id="mode-dep" aria-pressed="false">Who depends on whom</button>
+    </div>
+  </div>
+  <p>Read it top to bottom. The Mac app is the only thing that talks to the board, and it does so only through LinkKit. JHarness sits to the side: the app hands it events and gets answers back, and the app decides what to send. Click a box for details, or switch the arrows to show which code imports which.</p>
+  <div class="grid2">
+    <div class="panel scroll"><svg id="diagram" viewBox="0 0 720 690" width="100%" style="min-width:520px" role="img" aria-label="Architecture diagram"></svg></div>
+    <div class="panel detail" id="detail" aria-live="polite"></div>
+  </div>
+  <div class="legend" id="legend"></div>
+</section>
+
+<section id="journey">
+  <h2>One event's journey</h2>
+  <p>A Claude Code turn finishes while Boop is idle. Step through what happens, piece by piece. The lines are the real shapes from the tests and the board run.</p>
+  <div class="panel journey">
+    <div class="steps" id="steps" role="tablist" aria-label="Steps"></div>
+    <div class="grid2">
+      <div class="scroll"><svg id="mini" viewBox="0 0 720 690" width="100%" style="min-width:420px" aria-hidden="true"></svg></div>
+      <div class="stepbody" id="stepbody" aria-live="polite"></div>
+    </div>
+    <div class="navbtns"><button class="btn" type="button" id="prev">Back</button><button class="btn" type="button" id="next">Next</button></div>
+  </div>
+</section>
+
+<section id="wire">
+  <h2>The wire and the turn</h2>
+  <p>LinkKit's whole protocol is four JSON-line messages. The app owns everything inside them: Boop's state keys, its <code>do</code> names and its <code>ev</code> kinds.</p>
+  <div class="msgs">
+    <div class="panel msg"><span class="dir">Mac → device</span><h3>state</h3><p>How things are now. Sent whole on every change and every 10 s, so a lost line fixes itself.</p></div>
+    <div class="panel msg"><span class="dir">Mac → device</span><h3>do</h3><p>Please play this. A request with an id, a name, args, and how it may take the turn: <code>now</code>, <code>next</code> (with a ttl) or <code>if_free</code>.</p></div>
+    <div class="panel msg"><span class="dir">device → Mac</span><h3>hello</h3><p>Who I am and the names I can play. Sent when the host first speaks, when asked, and every 60 s.</p></div>
+    <div class="panel msg"><span class="dir">device → Mac</span><h3>ev</h3><p>Something happened: a tap, push-to-talk, or <code>ended</code>, which answers every <code>do</code> exactly once.</p></div>
+  </div>
+  <div class="panel" style="display:flex;flex-direction:column;gap:12px">
+    <h3>The device decides when things play</h3>
+    <p>One request holds the turn at a time, either busy or resting. Below is the real run from the board tonight (from <code>documentation/evidence/2026-09-30-link-kit/webcam/review.md</code>): two brain reactions sent 0.1 s apart, and a rule's one-shot sent during the first line.</p>
+    <div class="scroll"><svg class="tl" id="timeline" viewBox="0 0 720 210" width="100%" style="min-width:560px" role="img" aria-label="Turn timeline"></svg></div>
+    <table>
+      <thead><tr><th>play</th><th>Turn free or resting</th><th>Turn busy</th><th>Boop uses it for</th></tr></thead>
+      <tbody>
+        <tr><td><code>now</code></td><td>takes it</td><td>takes it; the holder ends cut</td><td>the Talk button's listening</td></tr>
+        <tr><td><code>next</code></td><td>takes it</td><td>waits; skipped <code>late</code> after its ttl</td><td>the brain's reactions (ttl 5 s)</td></tr>
+        <tr><td><code>if_free</code></td><td>takes it</td><td>skipped <code>busy</code></td><td>the rules' one-shots</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="tree">
+  <h2>Directory tree</h2>
+  <p>Every tracked file in the modules, with line counts. Big generated or fixture folders are folded into one line with a file count. Colors mark which piece a folder belongs to.</p>
+  <div class="treebar">
+    <input id="treeq" type="search" placeholder="Filter by name, e.g. turn, Link, test" aria-label="Filter files">
+    <button class="btn" type="button" id="expand">Expand all</button>
+    <button class="btn" type="button" id="collapse">Collapse all</button>
+  </div>
+  <div class="panel tree" id="treeview"></div>
+  <p class="small">Repo root also holds <code>Package.swift</code> (Boop's Swift package, depending on the three packages by path), <code>Makefile</code> (build, run, flash, eval), <code>CLAUDE.md</code>/<code>AGENTS.md</code>, <code>README.md</code> and <code>landing/</code> (the website).</p>
+</section>
+</div>
+
+<script>
+const TREE = [{"n":"agent-hooks","k":[{"n":"Examples","k":[{"n":"needs-you-notify.sh","l":30}]},{"n":"Sources","k":[{"n":"AgentHookClient","k":[{"n":"main.swift","l":41}]},{"n":"AgentHooks","k":[{"n":"AgentEvent.swift","l":118},{"n":"Exports.swift","l":3},{"n":"HookInstaller.swift","l":376},{"n":"HookServer.swift","l":125},{"n":"Mapping.swift","l":162},{"n":"Places.swift","l":120},{"n":"SessionFold.swift","l":169},{"n":"SessionTracker.swift","l":516},{"n":"ThreadLink.swift","l":76}]},{"n":"AgentHooksCLI","k":[{"n":"main.swift","l":247}]},{"n":"AgentHooksWire","k":[{"n":"HookLine.swift","l":216},{"n":"HookSocket.swift","l":121},{"n":"HostApp.swift","l":26},{"n":"ThreadName.swift","l":110},{"n":"ToolError.swift","l":15},{"n":"ToolKind.swift","l":50},{"n":"Topic.swift","l":403}]}]},{"n":"Tests","k":[{"n":"AgentHooksTests","k":[{"n":"Fixtures","c":12},{"n":"HookServerTests.swift","l":30},{"n":"InstallerTests.swift","l":537},{"n":"MappingTests.swift","l":106},{"n":"PlaceTests.swift","l":161},{"n":"SessionTrackerTests.swift","l":147},{"n":"ThreadLinkTests.swift","l":30},{"n":"ToolKindTests.swift","l":41},{"n":"WireTests.swift","l":522}]}]},{"n":"Package.swift","l":32},{"n":"README.md","l":218},{"n":"SPEC.md","l":538}]},{"n":"jharness","k":[{"n":"Examples","k":[{"n":"Beacon","k":[{"n":"steering","k":[{"n":"tone","k":[{"n":"calm.md","l":3},{"n":"grim.md","l":3},{"n":"worried.md","l":3}]},{"n":"events.json","l":3},{"n":"guide.md","l":9},{"n":"personality.md","l":12}]},{"n":"Beacon.swift","l":171},{"n":"Demo.swift","l":100}]},{"n":"BeaconDemo","k":[{"n":"main.swift","l":50}]}]},{"n":"Sources","k":[{"n":"JHarness","k":[{"n":"Brain.swift","l":54},{"n":"Choice.swift","l":76},{"n":"Contracts.swift","l":237},{"n":"Event.swift","l":104},{"n":"EventServer.swift","l":191},{"n":"Harness.swift","l":829},{"n":"JevBrain.swift","l":99},{"n":"Line.swift","l":34},{"n":"LineFile.swift","l":17},{"n":"Log.swift","l":412},{"n":"Steering.swift","l":63}]},{"n":"JHarnessEmit","k":[{"n":"main.swift","l":42}]}]},{"n":"Tests","k":[{"n":"JHarnessTests","k":[{"n":"BeaconTests.swift","l":190},{"n":"JevBrainTests.swift","l":86},{"n":"JHarnessTests.swift","l":755},{"n":"KeepOpenTests.swift","l":41},{"n":"LogTests.swift","l":188},{"n":"TestSupport.swift","l":28}]}]},{"n":"Package.swift","l":27},{"n":"README.md","l":213},{"n":"SPEC.md","l":676}]},{"n":"linkkit","k":[{"n":"device","k":[{"n":"examples","k":[{"n":"lamp","k":[{"n":"lamp.h","l":61}]}]},{"n":"src","k":[{"n":"linkkit","k":[{"n":"ble.cpp","l":157},{"n":"ble.h","l":52},{"n":"clock.h","l":57},{"n":"codec.cpp","l":69},{"n":"codec.h","l":36},{"n":"kit.cpp","l":607},{"n":"kit.h","l":302},{"n":"limits.h","l":21},{"n":"line_reader.h","l":46},{"n":"packets.h","l":108}]}]},{"n":"test","k":[{"n":"test_helpers","k":[{"n":"test_main.cpp","l":213}]},{"n":"test_kit","k":[{"n":"test_main.cpp","l":468}]},{"n":"test_turn","k":[{"n":"test_main.cpp","l":455}]},{"n":"kit_fakes.h","l":176}]},{"n":"tools","k":[{"n":"check_includes.py","l":51}]},{"n":"library.json","l":17},{"n":"platformio.ini","l":19},{"n":"README.md","l":176}]},{"n":"Sources","k":[{"n":"LinkKit","k":[{"n":"BLETransport.swift","l":342},{"n":"Bridge.swift","l":247},{"n":"DeviceLink.swift","l":398},{"n":"JSON.swift","l":369},{"n":"LineFramer.swift","l":49},{"n":"SocketTransport.swift","l":157},{"n":"Transport.swift","l":27},{"n":"Wire.swift","l":185}]},{"n":"LinkKitBridge","k":[{"n":"main.swift","l":68}]}]},{"n":"Tests","k":[{"n":"LinkKitTests","k":[{"n":"BridgeTests.swift","l":148},{"n":"LinkTests.swift","l":467},{"n":"TransportTests.swift","l":233},{"n":"WireTests.swift","l":159}]}]},{"n":"Package.swift","l":24},{"n":"README.md","l":176},{"n":"SPEC.md","l":283}]},{"n":"app","k":[{"n":"Boop","k":[{"n":"Views","k":[{"n":"BoopFace.swift","l":175},{"n":"FaceDesigns.swift","l":99},{"n":"OverviewPane.swift","l":499},{"n":"PopoverView.swift","l":100},{"n":"SettingsPane.swift","l":291},{"n":"SetupPane.swift","l":258},{"n":"Theme.swift","l":334},{"n":"ViewState.swift","l":6}]},{"n":"Info.plist","l":30},{"n":"main.swift","l":128},{"n":"MenuBarApp.swift","l":468},{"n":"PresenceSignals.swift","l":44},{"n":"Talk.swift","l":161}]},{"n":"BoopKit","k":[{"n":"Actions","k":[{"n":"DeviceMoment.swift","l":116},{"n":"MoodAction.swift","l":133},{"n":"MoodGraph.swift","l":47},{"n":"ReactAction.swift","l":268}]},{"n":"Adapters","k":[{"n":"Adapter.swift","l":71}]},{"n":"App","k":[{"n":"AppSettings.swift","l":82},{"n":"Arguments.swift","l":82},{"n":"BoopLog.swift","l":27},{"n":"BugReport.swift","l":94},{"n":"DoctorArm.swift","l":24},{"n":"Keychain.swift","l":61},{"n":"Pipeline.swift","l":224},{"n":"Reactions.swift","l":100},{"n":"Refusal.swift","l":10},{"n":"Runtime.swift","l":895}]},{"n":"Brains","k":[{"n":"JevKey.swift","l":12},{"n":"PipelineCheck.swift","l":31}]},{"n":"Core","k":[{"n":"Activity.swift","l":111},{"n":"BoopVersion.swift","l":6},{"n":"Core.swift","l":555},{"n":"CoreEffect.swift","l":50},{"n":"Event.swift","l":168},{"n":"FaceLoops.swift","l":87},{"n":"LocalTime.swift","l":67},{"n":"Personality.swift","l":50},{"n":"StateSnapshot.swift","l":117},{"n":"TranscriptView.swift","l":840}]},{"n":"DeviceLink","k":[{"n":"BoopDevice.swift","l":104}]},{"n":"Harness","k":[{"n":"BrainTrouble.swift","l":45},{"n":"DebugLog.swift","l":365},{"n":"Steering.swift","l":59},{"n":"Transcript.swift","l":22}]},{"n":"Memory","k":[{"n":"MemoryFiles.swift","l":66},{"n":"MemoryStore.swift","l":113}]},{"n":"Presence","k":[{"n":"PresenceDetector.swift","l":101}]},{"n":"Voice","k":[{"n":"Take.swift","l":47},{"n":"Takes.swift","l":2738},{"n":"Voice.swift","l":72}]}]}]},{"n":"firmware","k":[{"n":"assets","c":4},{"n":"src","k":[{"n":"app","k":[{"n":"behaviour.cpp","l":612},{"n":"behaviour.h","l":403},{"n":"device.cpp","l":656},{"n":"device.h","l":217},{"n":"effect_track.cpp","l":60},{"n":"effect_track.h","l":51},{"n":"gesture.cpp","l":33},{"n":"gesture.h","l":38},{"n":"touch_cal.h","l":86}]},{"n":"board","k":[{"n":"audio.cpp","l":196},{"n":"audio.h","l":14},{"n":"board_hal.cpp","l":103},{"n":"board_hal.h","l":54},{"n":"card.cpp","l":165},{"n":"card.h","l":16},{"n":"display.cpp","l":115},{"n":"display.h","l":43},{"n":"pins.h","l":37},{"n":"touch.cpp","l":68},{"n":"touch.h","l":13}]},{"n":"render","k":[{"n":"anim.cpp","l":38},{"n":"anim.h","l":44},{"n":"canvas.cpp","l":76},{"n":"canvas.h","l":59},{"n":"font.cpp","l":133},{"n":"font.h","l":37},{"n":"maths.h","l":19},{"n":"palette.h","l":117},{"n":"pattern.cpp","l":43},{"n":"pattern.h","l":29},{"n":"scene.cpp","l":287},{"n":"scene.h","l":107},{"n":"screens.cpp","l":151},{"n":"screens.h","l":48},{"n":"sign.cpp","l":170},{"n":"sign.h","l":58}]},{"n":"voice","k":[{"n":"effects.cpp","l":113},{"n":"effects.h","l":91},{"n":"player.cpp","l":225},{"n":"player.h","l":107}]},{"n":"main.cpp","l":87}]},{"n":"tools","k":[{"n":"pio.sh","l":9},{"n":"version.py","l":29}]},{"n":"platformio.ini","l":62}]},{"n":"internal","k":[{"n":"app","k":[{"n":"Boop","k":[{"n":"Headless.swift","l":86},{"n":"Snapshots.swift","l":377}]},{"n":"BoopDev","k":[{"n":"main.swift","l":426}]},{"n":"BoopDevKit","k":[{"n":"Eval","k":[{"n":"Eval.swift","l":743}]},{"n":"Replay.swift","l":102}]},{"n":"Evals","k":[{"n":"scenarios","c":60}]},{"n":"Tests","k":[{"n":"Fixtures","c":68},{"n":"ActivityTests.swift","l":477},{"n":"AdapterTests.swift","l":356},{"n":"ArgumentsTests.swift","l":45},{"n":"CoreTests.swift","l":2068},{"n":"DeviceLinkTests.swift","l":299},{"n":"EvalTests.swift","l":293},{"n":"GoldenStateTests.swift","l":118},{"n":"HarnessTests.swift","l":368},{"n":"KeychainTests.swift","l":78},{"n":"MemoryTests.swift","l":156},{"n":"MoodGraphTests.swift","l":46},{"n":"ParityTests.swift","l":216},{"n":"PresenceTests.swift","l":340},{"n":"ReplayTests.swift","l":211},{"n":"RuntimeTests.swift","l":1555},{"n":"SoakTests.swift","l":243},{"n":"StateDirTests.swift","l":52},{"n":"TestEvents.swift","l":44},{"n":"ViewTests.swift","l":625},{"n":"VoiceTests.swift","l":205}]},{"n":"TestSupport","k":[{"n":"XCTestShim","k":[{"n":"XCTest.swift","l":204}]}]},{"n":"tools","k":[{"n":"gen-test-runner.py","l":124}]}]},{"n":"boop-design","c":2781},{"n":"firmware","k":[{"n":"sim","k":[{"n":"main.cpp","l":107}]},{"n":"test","k":[{"n":"golden","c":80},{"n":"scenarios","k":[{"n":"base.jsonl","l":34},{"n":"behaviour.jsonl","l":81},{"n":"blend.jsonl","l":27},{"n":"bubble.jsonl","l":79},{"n":"expression.jsonl","l":70},{"n":"finish.jsonl","l":61},{"n":"inputs.jsonl","l":23},{"n":"layout.jsonl","l":15},{"n":"life.jsonl","l":14},{"n":"moments.jsonl","l":76},{"n":"needs_you.jsonl","l":57},{"n":"pattern.jsonl","l":4},{"n":"states.jsonl","l":73},{"n":"taps.jsonl","l":93},{"n":"turn.jsonl","l":47}]},{"n":"test_behaviour","k":[{"n":"test_main.cpp","l":2353}]},{"n":"test_canvas","k":[{"n":"test_main.cpp","l":120}]},{"n":"test_device","k":[{"n":"test_main.cpp","l":1908}]},{"n":"test_effects","k":[{"n":"test_main.cpp","l":383}]},{"n":"test_face","k":[{"n":"test_main.cpp","l":431}]},{"n":"test_gesture","k":[{"n":"test_main.cpp","l":68}]},{"n":"test_scene","k":[{"n":"frames.h","l":7982},{"n":"test_main.cpp","l":360}]},{"n":"test_voice","k":[{"n":"test_main.cpp","l":221}]}]},{"n":"pack_file.h","l":33}]},{"n":"skills","k":[{"n":"doctor","k":[{"n":"doctor.sh","l":183},{"n":"SKILL.md","l":90}]},{"n":"webcam-verify","k":[{"n":"agents","k":[{"n":"openai.yaml","l":5}]},{"n":"SKILL.md","l":71}]}]},{"n":"tools","k":[{"n":"boopctl_lib","k":[{"n":"dash","k":[{"n":"__init__.py","l":0},{"n":"app.py","l":357},{"n":"controls.py","l":91},{"n":"face.py","l":115},{"n":"feed.py","l":604}]},{"n":"tests","k":[{"n":"fixtures","c":4},{"n":"fake_board.py","l":45},{"n":"old_logs.py","l":36},{"n":"test_card.py","l":101},{"n":"test_cli.py","l":346},{"n":"test_dash.py","l":781},{"n":"test_day.py","l":451},{"n":"test_e2e.py","l":164},{"n":"test_link.py","l":38},{"n":"test_workday.py","l":401}]},{"n":"__init__.py","l":1},{"n":"__main__.py","l":5},{"n":"bridge.py","l":139},{"n":"calibrate.py","l":105},{"n":"cam.py","l":266},{"n":"card.py","l":126},{"n":"cli.py","l":842},{"n":"common.py","l":152},{"n":"day.py","l":457},{"n":"device.py","l":282},{"n":"e2e.py","l":461},{"n":"headless.py","l":81},{"n":"image.py","l":51},{"n":"scenario.py","l":77},{"n":"workday.py","l":905}]},{"n":"facegen","k":[{"n":"design","c":2},{"n":"bank.mjs","l":47},{"n":"facegen.py","l":1352}]},{"n":"fontgen","c":1},{"n":"sfxgen","k":[{"n":"README.md","l":15},{"n":"sfxgen.mjs","l":249}]},{"n":"voicegen","k":[{"n":"voicegen.py","l":301}]},{"n":"webcam","k":[{"n":"tests","k":[{"n":"Fixture.swift","l":36},{"n":"test_webcam.py","l":78}]},{"n":"Info.plist","l":7},{"n":"README.md","l":71},{"n":"webcam.sh","l":10},{"n":"Webcam.swift","l":287}]},{"n":"boopctl","l":10},{"n":"requirements.txt","l":4}]},{"n":"Makefile","l":89},{"n":"README.md","l":62}]},{"n":"documentation","k":[{"n":"evidence","c":385},{"n":"harness","k":[{"n":"DECISIONS.md","l":584},{"n":"EVENTS.md","l":447},{"n":"EXAMPLE.md","l":190},{"n":"HARNESS.md","l":609}]},{"n":"steering","c":16},{"n":"ADAPTERS.md","l":171},{"n":"architecture.html","l":0},{"n":"ARCHITECTURE.md","l":780},{"n":"BEHAVIORS.md","l":598},{"n":"DEVICE.md","l":560},{"n":"EVALS.md","l":361},{"n":"MODULES.md","l":132},{"n":"PROTOCOL.md","l":488},{"n":"README.md","l":39},{"n":"VERIFICATION.md","l":493},{"n":"VISION.md","l":186},{"n":"VOICE.md","l":351}]}];
+
+const NODES = {
+  agents:{x:230,y:14,w:260,h:52,mod:"ext",title:"Claude Code, Codex",sub:"the coding agents",
+    what:"Their hooks run agent-hook on every event (prompt sent, tool used, turn ended, approval asked). Boop never approves or blocks anything: hooks only report.",
+    where:"outside the repo", owns:["nothing of ours"]},
+  A:{x:230,y:98,w:260,h:76,mod:"a",title:"A · agent-hooks",sub:"hooks → events, sessions",
+    what:"Turns every hook into one kind of event (a kind and a phase), keeps each session's state and who needs you, installs and repairs the hooks.",
+    where:"agent-hooks/ · its own Swift package", owns:["AgentHooks library, agent-hook client, agent-hooks CLI","SessionTracker: working, idle, needs you","HookServer: the Unix socket hooks write to"],
+    deps:"Foundation only"},
+  B:{x:568,y:214,w:144,h:88,mod:"b",title:"B · JHarness",sub:"the multiple-choice brain",
+    what:"Keeps a log of events, writes each as a line of English by looking back at the log, builds the prompt (your sections, HISTORY, NOW), asks every output's questions in one request to Jev, and runs the outputs.",
+    where:"jharness/ · its own Swift package (was BrainKit)", owns:["Harness, Log, LogView, Choice, Action, Pending","JevBrain and ScriptedBrain","jharness-emit CLI, Beacon example"],
+    deps:"Foundation only"},
+  Chost:{x:230,y:348,w:260,h:80,mod:"c",title:"C · LinkKit (host)",sub:"Swift, on the Mac",
+    what:"Sends state and do, reads hello and ev, gives every do exactly one answer, asks for hello on connect, gives up after ttl + 60 s. Bluetooth and USB transports live here.",
+    where:"linkkit/Sources/LinkKit", owns:["DeviceLink, Wire, JSON","BLETransport, SocketTransport","linkkit-bridge (shares a USB port on a socket)"],
+    deps:"Foundation, CoreBluetooth"},
+  boop:{x:200,y:210,w:300,h:96,mod:"boop",title:"Boop's Mac app",sub:"BoopKit + the menu-bar app",
+    what:"Everything that makes Boop Boop: the core's rules (screen priority, one-shots), the transcript view's lines, the mood graph, react, voice, steering. It translates between the pieces in three places and nowhere else.",
+    where:"app/BoopKit, app/Boop", owns:["Adapter (A → events)","Core, TranscriptView, MoodAction, ReactAction","BoopDevice + Reactions: the only code that talks to LinkKit"], deps:"A, B, C"},
+  Cdev:{x:230,y:500,w:260,h:72,mod:"c",title:"C · LinkKit (device)",sub:"C++ library on the ESP32",
+    what:"Reads lines from USB and Bluetooth, dispatches the four messages, runs the turn (now / next / if_free, rest, refuse, cut), the clock and the debug channel.",
+    where:"linkkit/device/ · a PlatformIO library with its own tests", owns:["Kit, App interface, Turn","Nordic UART transport","test_turn, test_kit, the lamp example"], deps:"C++17, ArduinoJson"},
+  fw:{x:230,y:600,w:260,h:64,mod:"boop",title:"Boop's firmware app",sub:"faces, voice, behaviour",
+    what:"Plugs into the device library as a linkkit::App: draws faces and the needs-you sign, speaks takes from the SD card, and tells the kit when a request rests or ends.",
+    where:"firmware/src", owns:["device.cpp (the App), behaviour.cpp","render/, voice/, board/"], deps:"LinkKit device library"},
+};
+const FLOW = [
+  ["agents","A","hook lines"],["A","boop","AgentEvent"],
+  ["boop","B","events"],["B","boop","answers"],
+  ["boop","Chost","state, do"],["Chost","Cdev","JSON lines (BLE / USB)"],["Cdev","Chost","hello, ev"],
+  ["Cdev","fw","onState, onDo"],["fw","Cdev","rest, ended"]
+];
+const DEPS = [["boop","A"],["boop","B"],["boop","Chost"],["fw","Cdev"]];
+const MODS = {a:["--a","--a-soft","A · agent-hooks"],b:["--b","--b-soft","B · JHarness"],c:["--c","--c-soft","C · LinkKit"],boop:["--boop","--boop-soft","Boop (app code)"],ext:["--ext","--ext-soft","outside"]};
+
+const svgNS="http://www.w3.org/2000/svg";
+function el(tag,attrs,parent){const e=document.createElementNS(svgNS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
+function center(n){return {x:n.x+n.w/2,y:n.y+n.h/2}}
+function edgePoint(n,toward){const c=center(n),dx=toward.x-c.x,dy=toward.y-c.y;const sx=(n.w/2)/Math.abs(dx||1e-6),sy=(n.h/2)/Math.abs(dy||1e-6);const s=Math.min(sx,sy);return {x:c.x+dx*s,y:c.y+dy*s}}
+
+function drawDiagram(svg,{interactive,mode,hot=[],hotNodes=null}){
+  svg.innerHTML="";
+  const defs=el("defs",{},svg);
+  [["arr","var(--ink3)"],["arrhot","var(--boop)"]].forEach(([id,c])=>{const m=el("marker",{id:svg.id+id,viewBox:"0 0 10 10",refX:"9",refY:"5",markerWidth:"7",markerHeight:"7",orient:"auto-start-reverse"},defs);el("path",{d:"M0 0L10 5L0 10z",fill:c},m)});
+  const edges=mode==="dep"?DEPS.map(([a,b])=>[a,b,""]):FLOW;
+  [[188,84,528,354,"the Mac"],[188,482,528,192,"the board (ESP32)"]].forEach(([x,y,w,h,l])=>{
+    el("rect",{x,y,width:w,height:h,rx:14,fill:"none",stroke:"var(--rule)","stroke-dasharray":"3 5","stroke-width":1.5},svg);
+    const t=el("text",{x:x+12,y:y+h-10,"font-size":"12",fill:"var(--ink3)","font-family":"var(--mono)"},svg);t.textContent=l});
+  const gE=el("g",{},svg);
+  edges.forEach(([a,b,label])=>{
+    const na=NODES[a],nb=NODES[b];
+    const ca=center(na),cb=center(nb);
+    // offset paired edges
+    const paired=edges.some(([x,y])=>x===b&&y===a);
+    const p1=edgePoint(na,cb),p2=edgePoint(nb,ca);
+    let ox=0,oy=0;
+    if(paired){const dx=cb.x-ca.x,dy=cb.y-ca.y,L=Math.hypot(dx,dy)||1;ox=-dy/L*16;oy=dx/L*16}
+    const isHot=hot.some(([x,y])=>x===a&&y===b);
+    const path=el("path",{d:`M${p1.x+ox} ${p1.y+oy}L${p2.x+ox} ${p2.y+oy}`,class:"edge"+(mode==="dep"?" dep":"")+(isHot?" hot":"")+(hot.length&&!isHot?" dim":""),"marker-end":`url(#${svg.id}${isHot?"arrhot":"arr"})`},gE);
+    if(label&&interactive){const vertical=Math.abs(p2.x-p1.x)<Math.abs(p2.y-p1.y);
+      const right=paired?(ox>0||oy<0):true;
+      const mx=(p1.x+p2.x)/2+ox*2.2+(vertical?(right?8:-8):0), my=(p1.y+p2.y)/2+oy*2.2+(vertical?4:-6);
+      const t=el("text",{x:mx,y:my,class:"elabel","text-anchor":vertical?(right?"start":"end"):"middle"},gE);t.textContent=label}
+  });
+  const gN=el("g",{},svg);
+  for(const id in NODES){
+    const n=NODES[id],[c,s]=MODS[n.mod];
+    const g=el("g",{class:"node"+(hotNodes&&!hotNodes.includes(id)?" dim":""),"data-id":id},gN);
+    if(interactive){g.setAttribute("tabindex","0");g.setAttribute("role","button");g.setAttribute("aria-label",n.title)}
+    el("rect",{x:n.x,y:n.y,width:n.w,height:n.h,rx:10,fill:`var(${s})`,stroke:`var(${c})`},g);
+    const t1=el("text",{x:n.x+n.w/2,y:n.y+n.h/2-(n.sub?3:-5),"text-anchor":"middle","font-weight":"700","font-size":"14.5",fill:"var(--ink)"},g);t1.textContent=n.title;
+    if(n.sub){const t2=el("text",{x:n.x+n.w/2,y:n.y+n.h/2+15,"text-anchor":"middle","font-size":"12.5",fill:"var(--ink2)"},g);t2.textContent=n.sub}
+  }
+  // board bracket label
+
+  return gN;
+}
+
+let mapMode="flow",selected="boop";
+function showDetail(id){
+  const n=NODES[id],[c]=MODS[n.mod];
+  const d=document.getElementById("detail");
+  d.innerHTML=`<span class="eyebrow"><span class="swatch" style="background:var(${c})"></span>${MODS[n.mod][2]}</span>
+  <h3>${n.title}</h3><p style="color:var(--ink2);font-size:15px">${n.what}</p>
+  <dl class="kv"><dt>Where</dt><dd><code>${n.where}</code></dd>${n.deps?`<dt>Depends on</dt><dd>${n.deps}</dd>`:""}</dl>
+  <ul>${n.owns.map(o=>`<li>${o}</li>`).join("")}</ul>`;
+}
+function renderMap(){
+  const g=drawDiagram(document.getElementById("diagram"),{interactive:true,mode:mapMode});
+  g.querySelectorAll(".node").forEach(nd=>{
+    const id=nd.dataset.id;
+    if(id===selected)nd.classList.add("sel");
+    const pick=()=>{selected=id;renderMap();showDetail(id)};
+    nd.addEventListener("click",pick);
+    nd.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();pick();document.querySelector(`#diagram .node[data-id="${id}"]`).focus()}});
+  });
+}
+document.getElementById("mode-flow").onclick=()=>{mapMode="flow";setMode()};
+document.getElementById("mode-dep").onclick=()=>{mapMode="dep";setMode()};
+function setMode(){document.getElementById("mode-flow").setAttribute("aria-pressed",mapMode==="flow");document.getElementById("mode-dep").setAttribute("aria-pressed",mapMode==="dep");renderMap()}
+document.getElementById("legend").innerHTML=Object.values(MODS).map(([c,,l])=>`<span><span class="swatch" style="background:var(${c})"></span>${l}</span>`).join("")+`<span>— runtime data · - - - import</span>`;
+renderMap();showDetail(selected);
+
+// journey
+const STEPS=[
+  {t:"The hook fires",n:["agents","A"],e:[["agents","A"]],p:"Claude Code runs its Stop hook: <code>agent-hook claude --keep-text</code>. It writes one line to every socket in <code>~/.agent-hooks/sockets/</code> and exits. It never waits, so it can't slow the agent down.",l:""},
+  {t:"Boop turns it into an event",n:["A","boop"],e:[["A","boop"]],p:"Boop's HookServer reads the line. agent-hooks' Mapping makes an <code>AgentEvent</code> (kind turn, phase end), and Boop's Adapter keeps it as a <code>turn_end</code> event. In one batch, the core folds it (the session is idle now) and JHarness logs it.",l:""},
+  {t:"The look goes out at once",n:["boop","Chost","Cdev","fw"],e:[["boop","Chost"],["Chost","Cdev"],["Cdev","fw"]],p:"The core's snapshot changed, so the device gets the new look straight away, before the brain is asked anything. The brain is never on the screen's path.",l:'{"t":"state","base":"idle","mood":"calm","busy":0,"vol":6,"variant":2}'},
+  {t:"The brain is asked",n:["boop","B"],e:[["boop","B"],["B","boop"]],p:"TranscriptView writes the event's line by looking back at the log for the turn's start. It wakes the brain: JHarness builds the prompt (Boop's sections, then HISTORY and NOW) and asks every output's questions in one request to Jev, about 0.2 s.",l:'claude finished turn 12 on "api": done, a long turn, 8 tool calls.'},
+  {t:"The reaction is requested",n:["boop","Chost","Cdev"],e:[["boop","Chost"],["Chost","Cdev"]],p:"JHarness hands Jev's answers back to Boop's own output, ReactAction, which picks the finish, a proud face and a take, and sends it as a <code>next</code> request with a 5 s ttl. JHarness logs it as in progress.",l:'{"t":"do","id":558386703,"name":"task_complete","play":"next","ttl":5000,"args":{"outcome":"success","variant":2,"who":{"agent":"claude","thread":"api"},"say":{"take":"new.d02"},"mood":"proud"}}'},
+  {t:"The device plays it when it's free",n:["Cdev","fw"],e:[["Cdev","fw"]],p:"LinkKit's turn is free, so the request takes it at once. If another reaction's line were playing, it would wait up to its 5 s. Boop's firmware plays the animation, the line and its bubble.",l:""},
+  {t:"The device says how it went",n:["fw","Cdev","Chost","boop","B"],e:[["fw","Cdev"],["Cdev","Chost"],["boop","B"]],p:"When all of it has played, the kit answers. Reactions finishes the Pending as done, JHarness logs its ended, and the next prompt's HISTORY says what Boop did.",l:'{"t":"ev","kind":"ended","data":{"id":558386703,"how":"done"}}'},
+];
+let step=0;
+const stepsEl=document.getElementById("steps");
+STEPS.forEach((s,i)=>{const b=document.createElement("button");b.type="button";b.textContent=i+1;b.setAttribute("role","tab");b.setAttribute("aria-label",`Step ${i+1}: ${s.t}`);b.onclick=()=>{step=i;renderStep()};stepsEl.appendChild(b)});
+function renderStep(){
+  const s=STEPS[step];
+  [...stepsEl.children].forEach((b,i)=>b.setAttribute("aria-current",i===step?"step":"false"));
+  drawDiagram(document.getElementById("mini"),{interactive:false,mode:"flow",hot:s.e,hotNodes:s.n});
+  document.getElementById("stepbody").innerHTML=`<span class="eyebrow">Step ${step+1} of ${STEPS.length}</span><h3>${s.t}</h3><p style="color:var(--ink2)">${s.p}</p>${s.l?`<pre class="line">${s.l.replace(/</g,"&lt;")}</pre>`:""}`;
+  document.getElementById("prev").disabled=step===0;document.getElementById("next").disabled=step===STEPS.length-1;
+}
+document.getElementById("prev").onclick=()=>{if(step>0){step--;renderStep()}};
+document.getElementById("next").onclick=()=>{if(step<STEPS.length-1){step++;renderStep()}};
+renderStep();
+
+// timeline (seconds from the first do)
+(function(){
+  const svg=document.getElementById("timeline");const x0=150,x1=700,T=5.5;const X=t=>x0+(x1-x0)*t/T;
+  for(let t=0;t<=5;t++){el("line",{x1:X(t),x2:X(t),y1:20,y2:175,class:"tick"},svg);const tx=el("text",{x:X(t),y:195,"text-anchor":"middle"},svg);tx.textContent=t+" s"}
+  const rows=[
+    {y:40,label:"react 101",parts:[[0,2.29,"busy","--b"]],note:"line + bubble, ended done 2.29 s"},
+    {y:85,label:"react 102",parts:[[0.1,2.31,"waiting","--ext"],[2.31,4.83,"busy","--b"],[4.83,5.09,"resting","--c"]],note:"took the turn at 2.31 s"},
+    {y:130,label:"starting (if_free)",parts:[[0.3,0.33,"skipped busy","--bad"]],note:"skipped at once"},
+  ];
+  rows.forEach(r=>{
+    const lt=el("text",{x:10,y:r.y+15,"font-family":"var(--mono)"},svg);lt.textContent=r.label;
+    r.parts.forEach(([a,b,name,c])=>{const w=Math.max(4,X(b)-X(a));el("rect",{x:X(a),y:r.y,width:w,height:22,rx:5,fill:`var(${c})`,opacity:name==="waiting"?.35:.85},svg);if(w>60){const t=el("text",{x:X(a)+8,y:r.y+15,fill:"var(--panel)","font-weight":"700"},svg);t.textContent=name;if(name==="waiting")t.setAttribute("fill","var(--ink)")}});
+    if(r.label.startsWith("starting")){const t=el("text",{x:X(0.4)+8,y:r.y+15},svg);t.textContent="skipped: busy (react 101's line was playing)"}
+  });
+})();
+
+
+
+// tree
+const MODTAG={"agent-hooks":"a","jharness":"b","linkkit":"c","app":"boop","firmware":"boop","internal":"ext","documentation":"ext"};
+const TAGLABEL={a:"A",b:"B",c:"C",boop:"Boop",ext:""};
+function total(n){if(n.l!=null)return n.l;if(n.c!=null)return 0;return (n._t??=n.k.reduce((s,k)=>s+total(k),0))}
+function count(n){if(n.l!=null)return 1;if(n.c!=null)return n.c;return n.k.reduce((s,k)=>s+count(k),0)}
+const NOTES={"agent-hooks":"piece A","jharness":"piece B (was app/BrainKit)","linkkit":"piece C","linkkit/device":"C, the C++ device library","app":"Boop's Mac app","firmware":"Boop's firmware","internal":"tests, tools, simulator (never ships)","documentation":"Boop's specs, evidence and this page","app/BoopKit/DeviceLink":"Boop's layer on LinkKit"};
+function renderTree(q){
+  q=(q||"").trim().toLowerCase();
+  const hl=s=>{if(!q)return s;const i=s.toLowerCase().indexOf(q);return i<0?s:s.slice(0,i)+"<mark>"+s.slice(i,i+q.length)+"</mark>"+s.slice(i+q.length)};
+  function matches(n,path){if(!q)return true;if((path+"/"+n.n).toLowerCase().includes(q))return true;return n.k?n.k.some(k=>matches(k,path+"/"+n.n)):false}
+  function node(n,path,depth,mod){
+    const full=path?path+"/"+n.n:n.n;
+    if(!matches(n,path))return "";
+    if(n.k){
+      const open=q||depth<1;
+      const tag=depth===0?MODTAG[n.n]:null;
+      const m=tag||mod;
+      const t=tag&&TAGLABEL[tag]?`<span class="tag" style="background:var(${MODS[tag][1]});color:var(${MODS[tag][0]})">${TAGLABEL[tag]}</span>`:"";
+      const note=NOTES[full]?`<span class="note">${NOTES[full]}</span>`:"";
+      return `<li class="${open?"":"closed"}"><div class="row"><button class="dirbtn" type="button" aria-expanded="${open}"><span class="caret">▾</span><span class="dirname" style="color:var(${MODS[m][0]})">${hl(n.n)}/</span></button>${t}${note}<span class="lines">${count(n)} files · ${total(n).toLocaleString()} lines</span></div><ul>${n.k.map(k=>node(k,full,depth+1,m)).join("")}</ul></li>`;
+    }
+    if(n.c!=null)return `<li><div class="row"><span style="width:10px"></span><span class="dirname" style="color:var(--ink3)">${hl(n.n)}/</span><span class="note">folded</span><span class="lines">${n.c} files</span></div></li>`;
+    return `<li><div class="row"><span style="width:10px"></span><span>${hl(n.n)}</span><span class="lines">${n.l.toLocaleString()}</span></div></li>`;
+  }
+  const html=TREE.map(n=>node(n,"",0,MODTAG[n.n]||"ext")).join("");
+  const tv=document.getElementById("treeview");
+  tv.innerHTML=html?`<ul>${html}</ul>`:`<p class="small">Nothing matches “${q.replace(/</g,"&lt;")}”.</p>`;
+  tv.querySelectorAll(".dirbtn").forEach(b=>b.onclick=()=>{const li=b.closest("li");li.classList.toggle("closed");b.setAttribute("aria-expanded",!li.classList.contains("closed"))});
+}
+document.getElementById("treeq").addEventListener("input",e=>renderTree(e.target.value));
+document.getElementById("expand").onclick=()=>document.querySelectorAll("#treeview li").forEach(li=>{li.classList.remove("closed");const b=li.querySelector(":scope>.row .dirbtn");if(b)b.setAttribute("aria-expanded","true")});
+document.getElementById("collapse").onclick=()=>document.querySelectorAll("#treeview li").forEach(li=>{if(li.querySelector(":scope>ul")){li.classList.add("closed");const b=li.querySelector(":scope>.row .dirbtn");if(b)b.setAttribute("aria-expanded","false")}});
+renderTree("");
+</script>
+
+</body>
+</html>

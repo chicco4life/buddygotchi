@@ -1,4 +1,4 @@
-<!-- The irritated mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (plan/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
+<!-- The irritated mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (documentation/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
 MOOD
 Irritated. Boop's patience is fraying: failures or pokes keep coming.
 More than annoyed, short of grumpy.

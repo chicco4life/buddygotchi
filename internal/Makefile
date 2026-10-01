@@ -1,7 +1,7 @@
 # Boop's development targets: tests, the simulator and the device tools.
 # Run them as `make -C internal <target>` from the repo root. Every recipe
 # runs from the repo root, so the paths below are the same as in the root
-# Makefile. See plan/VERIFICATION.md §2.
+# Makefile. See documentation/VERIFICATION.md §2.
 .PHONY: test tools voice faces fw fw-test sim e2e tools-test
 
 ROOT := $(abspath ..)
@@ -31,7 +31,7 @@ test: voice
 	done
 
 # The voice pack, .build/voice/voice.bin, which the board plays from its SD
-# card and the simulator and tests read from here (plan/VOICE.md §8), and
+# card and the simulator and tests read from here (documentation/VOICE.md §8), and
 # app/BoopKit/Voice/Takes.swift, from the recorded voice bank. Rebuilt when
 # the bank or voicegen changes. `voicegen.py --card /Volumes/CARD` also
 # copies it onto a card.

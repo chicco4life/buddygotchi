@@ -58,7 +58,7 @@ CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 NS = "{http://www.w3.org/2000/svg}"
 W, H = 320, 240
 
-# The order of render::Mood and render::SceneState (plan/PROTOCOL.md §3): the
+# The order of render::Mood and render::SceneState (documentation/PROTOCOL.md §3): the
 # first seven of each keep the numbers they had before the rest came. faces.h
 # carries these names for the device (kMoodNames, kStateNames).
 MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad",
@@ -652,7 +652,7 @@ def assign_roles(scene: Scene, name: str) -> None:
             g.role = "mouth"
     # A blink: two sibling groups, one showing but for a short window in its
     # loop and the other only in that window. The device blinks on its own
-    # clock (plan/BEHAVIORS.md §2), so it shows the open eyes, or the closed
+    # clock (documentation/BEHAVIORS.md §2), so it shows the open eyes, or the closed
     # ones while it blinks.
     for i, a in enumerate(groups):
         if not a.show or a.role != "none":
@@ -792,7 +792,7 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict
         for g in s.groups:
             ids = []
             for tr in (g.move, g.show, g.fill):
-                # The device blinks on its own clock (plan/BEHAVIORS.md §2), so
+                # The device blinks on its own clock (documentation/BEHAVIORS.md §2), so
                 # the design's blink timing isn't kept.
                 if tr is None or g.role in ("eyes_open", "eyes_closed"):
                     ids.append(0xFFFF)
@@ -911,7 +911,7 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict
         "// A scene's groups are kGroups[kSceneGroups[group0]] on, parents first. Its `loopMs` is",
         "// how long it takes to play once through: its longest track but the",
         "// blink, which the device times itself. A moment's loops count these",
-        "// (plan/PROTOCOL.md §3). Nothing is drawn outside its clip.",
+        "// (documentation/PROTOCOL.md §3). Nothing is drawn outside its clip.",
         "struct Scene {",
         "  uint32_t group0;",
         "  uint16_t groups;",
@@ -931,7 +931,7 @@ def emit(scenes: list[Scene], table: dict[tuple[int, int, int], int], meta: dict
         f"constexpr int kMaxVariants = {maxv};",
         f"constexpr int kDesignCount = {len(table)};",
         "// A design: a mood and state's variation, the scene it draws, and the host",
-        "// fact it's for, if any (plan/PROTOCOL.md §3), as render::Outcome and",
+        "// fact it's for, if any (documentation/PROTOCOL.md §3), as render::Outcome and",
         "// render::StartCtx number them: task_complete's outcome, 1 success or",
         "// 2 failure, and starting's context, 1 new_task, 2 session or",
         "// 3 continuation; 0 when it's for any.",

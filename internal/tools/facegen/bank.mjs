@@ -2,7 +2,7 @@
 // every design's SVG, made by the bank's own generator
 // (internal/boop-design/boop-sound-bank-v4/runtime/), into DIR/svg/, and
 // its catalogue entry, with its voice window, into DIR/designs.json. DIR is
-// ignored by git; the bank is the designs' only source (plan/DEVICE.md §6).
+// ignored by git; the bank is the designs' only source (documentation/DEVICE.md §6).
 //
 //     node internal/tools/facegen/bank.mjs --out DIR
 import fs from 'node:fs';

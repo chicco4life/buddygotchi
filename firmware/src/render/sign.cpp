@@ -35,7 +35,7 @@ int sc(int v, int s) {
 }
 
 // The face drawn at `s` 64ths of its size, the whole face's layout (the
-// pixel face of plan/DEVICE.md §6): two window eyes of four panes, pink
+// pixel face of documentation/DEVICE.md §6): two window eyes of four panes, pink
 // cheeks and a small "o" of a mouth.
 void drawHead(Canvas& c, const SignPose& p) {
   const int s = p.scale, cx = p.headX, cy = p.headY;

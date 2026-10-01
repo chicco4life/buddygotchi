@@ -1,4 +1,4 @@
-<!-- The annoyed mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (plan/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
+<!-- The annoyed mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (documentation/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
 MOOD
 Annoyed. Boop is mildly put out: one thing failed, or 2 pokes.
 Milder than irritated.

@@ -1,4 +1,4 @@
-// The 8-bit indexed canvas every frame is drawn into (plan/DEVICE.md §6).
+// The 8-bit indexed canvas every frame is drawn into (documentation/DEVICE.md §6).
 // Pure C++: it builds for the board and for the Mac simulator.
 #pragma once
 #include <cstdint>

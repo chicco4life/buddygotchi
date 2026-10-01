@@ -1,4 +1,4 @@
-// The behaviour state machine (plan/BEHAVIORS.md): what the Mac last said,
+// The behaviour state machine (documentation/BEHAVIORS.md): what the Mac last said,
 // the moment and the line playing, taps in a row, blinks, needs you, and
 // the light and backlight they imply. Pure C++ and a function of the device
 // clock: every time-based change happens at an exact millisecond, so a

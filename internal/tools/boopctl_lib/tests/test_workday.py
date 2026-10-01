@@ -1,4 +1,4 @@
-"""boopctl workday (plan/EVALS.md §5): the day is the same for a seed,
+"""boopctl workday (documentation/EVALS.md §5): the day is the same for a seed,
 well formed, and tells the story it says; the report counts what it says,
 from the passes' answers and the takes the actions recorded, never an
 action's message; and the fake device speaks the device's wire. No app, no
@@ -258,7 +258,7 @@ class ReportTests(unittest.TestCase):
             return {"type": "turn", "phase": "end", "facts": {"outcome": "done", "tools_failed": 0, **facts}}
         self.assertEqual(workday.classify(end(length_ms=59_000)), "short")
         self.assertEqual(workday.classify(end(length_ms=60_000)), "minutes")
-        # plan/harness/DECISIONS.md §2.3: a turn of 5 minutes or more is a big moment.
+        # documentation/harness/DECISIONS.md §2.3: a turn of 5 minutes or more is a big moment.
         self.assertEqual(workday.classify(end(length_ms=5 * 60_000 - 1)), "minutes")
         self.assertEqual(workday.classify(end(length_ms=5 * 60_000)), "notable")
         # The line says only the outcome and length, so failures along the way don't count.

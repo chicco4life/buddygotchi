@@ -1,6 +1,6 @@
 // The board's side of app::Hal (and LinkKit's Platform): buttons, touch,
 // LED, backlight, sound, the amp, heap figures and Bluetooth's state
-// (plan/DEVICE.md §2–3). The sound and the card's methods are in
+// (documentation/DEVICE.md §2–3). The sound and the card's methods are in
 // board/audio.cpp and board/card.cpp.
 #pragma once
 #include "app/device.h"

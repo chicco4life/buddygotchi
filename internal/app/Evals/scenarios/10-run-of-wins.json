@@ -1,7 +1,7 @@
 {
   "name": "Short wins leave Boop calm, and a very long turn done lifts it",
   "case": "Three quick turns in a row each pass their tests and finish within a minute; Boop stays calm through them. Then a twelve-minute turn passes its tests and finishes well: Boop plays it as a success and its mood lifts, to excited, or proud or happy on the way.",
-  "why": "plan/steering/mood/calm.md: calm stays through routine turns; a very long turn (5 minutes or more) finishing done lifts it to excited (a jump the finish earns), and from engaged or determined, where the long work took it, to excited or proud; plan/steering/guide.md: the change shows, with the new mood's face (PERSONALITY's Examples)",
+  "why": "documentation/steering/mood/calm.md: calm stays through routine turns; a very long turn (5 minutes or more) finishing done lifts it to excited (a jump the finish earns), and from engaged or determined, where the long work took it, to excited or proud; documentation/steering/guide.md: the change shows, with the new mood's face (PERSONALITY's Examples)",
   "steps": [
     {"event": "turn started", "at": "0s"},
     {"event": "command", "at": "30s", "topic": "tests", "failed": false},

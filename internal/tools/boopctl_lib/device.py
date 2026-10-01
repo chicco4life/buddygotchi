@@ -22,7 +22,7 @@ from typing import Any, Callable
 
 import serial
 
-BAUD = 460800  # the CH340 on macOS can't do 921600 (plan/DEVICE.md §7)
+BAUD = 460800  # the CH340 on macOS can't do 921600 (documentation/DEVICE.md §7)
 PORT_PATTERNS = ("/dev/cu.usbserial-*", "/dev/cu.wchusbserial*")
 
 

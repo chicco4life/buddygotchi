@@ -580,7 +580,7 @@ react at all.
 ## 6. Personalities
 
 How much Boop reacts is its personality's to say, chosen in Settings and applied from the next event. A personality is a
-file in `plan/steering/personality/`: its front matter sets the view's
+file in `documentation/steering/personality/`: its front matter sets the view's
 rules below, and its text steers the brain
 ([harness/DECISIONS.md](harness/DECISIONS.md) §2.2). "Needs you" and the
 tap's poke are the same for every personality.

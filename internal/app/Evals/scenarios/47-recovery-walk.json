@@ -2,7 +2,7 @@
   "name": "A grumpy Boop recovers along the graph, never straight to happy",
   "case": "Boop is grumpy when a stretch of quiet, good work begins: small turns that finish well, a few minutes apart. Its mood walks back down step by step (to irritated or annoyed, then engaged or calm, maybe on to happy) and never jumps from grumpy straight to happy or excited; by the end it has recovered, no longer grumpy or irritated.",
   "always": true,
-  "why": "plan/steering/mood/grumpy.md: grumpy fades a step toward calm after its minutes; the mood graph (MoodGraph, harness/DECISIONS.md §2.3) offers grumpy no move to happy or excited, and the mood question offers only a mood's moves",
+  "why": "documentation/steering/mood/grumpy.md: grumpy fades a step toward calm after its minutes; the mood graph (MoodGraph, harness/DECISIONS.md §2.3) offers grumpy no move to happy or excited, and the mood question offers only a mood's moves",
   "mood": "grumpy",
   "checks": {"moves_on_graph": true},
   "steps": [

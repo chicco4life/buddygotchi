@@ -6,7 +6,7 @@ import XCTest
 @testable import BoopKit
 
 /// What Boop did before its brain moved onto JHarness (main at 4bea7b21)
-/// and still does (plan/evidence/2026-09-30-link-kit/parity.md): the mood
+/// and still does (documentation/evidence/2026-09-30-link-kit/parity.md): the mood
 /// a Boop from before comes back in, with its sessions and threads, and a
 /// reaction your tap cut short held however long the pokes go on.
 final class ParityTests: XCTestCase {
@@ -22,7 +22,7 @@ final class ParityTests: XCTestCase {
     }
 
     static let steering = try! Steering(directory: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        .appendingPathComponent("../../../plan/steering").standardizedFileURL)
+        .appendingPathComponent("../../../documentation/steering").standardizedFileURL)
     /// The state directory main left (Fixtures/parity-upgrade): its
     /// transcript, two days of main's lines, and its `mood` file, proud,
     /// from a change 29 hours before the relaunch at `t`.

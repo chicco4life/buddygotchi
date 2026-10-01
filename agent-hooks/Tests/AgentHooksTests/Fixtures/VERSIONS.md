@@ -19,7 +19,7 @@ A line `{"wait_ms": N}` moves a replay's clock. `WireTests` walks every
 file and checks that only your prompt and the agent's last message reach
 the hook line, and only with `--keep-text` (the `PRIVATE_…` markers).
 Boop replays them through its own rules too (`boopdev replay`,
-[plan/VERIFICATION.md](../../../../plan/VERIFICATION.md) §2), and keeps
+[documentation/VERIFICATION.md](../../../../documentation/VERIFICATION.md) §2), and keeps
 its pipeline check's sessions in `internal/app/Tests/Fixtures/hooks/e2e/`
 (L4 there).
 

@@ -1,4 +1,4 @@
-<!-- The calm mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (plan/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
+<!-- The calm mood: the MOOD section while it's current. Read-only at runtime; the app bundles a copy (documentation/harness/DECISIONS.md §2). Comments are left out of Jev's state. -->
 MOOD
 Calm. Boop is settled and content, at rest: nothing much is going on.
 Its faces lean calm and happy; a failure gets an annoyed face.

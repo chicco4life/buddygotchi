@@ -12,7 +12,7 @@
 
 namespace render {
 
-// The designs' states, in faces.h's order (plan/PROTOCOL.md §3): the first
+// The designs' states, in faces.h's order (documentation/PROTOCOL.md §3): the first
 // seven keep the numbers they had before the rest came. Idle, working,
 // asleep, needs you, no app and what the agents are doing (planning to
 // waiting) are looks, what the face shows when no moment plays; the rest are
@@ -36,7 +36,7 @@ constexpr int kMaxVariants = 9;  // faces.h checks it
 int variants(Mood m, SceneState s);
 
 // The host fact a variation is for, when it's for one: task_complete's
-// outcome and starting's context (plan/PROTOCOL.md §3). kNone on a design
+// outcome and starting's context (documentation/PROTOCOL.md §3). kNone on a design
 // is for any; as a filter, it takes any.
 enum class Outcome : uint8_t { kNone, kSuccess, kFailure };
 enum class StartCtx : uint8_t { kNone, kNewTask, kSession, kContinuation };
@@ -63,7 +63,7 @@ struct SceneShow {
   int16_t dy = 0;          // the face pressed down
 };
 // A flip-book, one of the new moods' designs, blinks in a step of its own on
-// its own clock, so the device's blinks leave it be (plan/BEHAVIORS.md §2).
+// its own clock, so the device's blinks leave it be (documentation/BEHAVIORS.md §2).
 bool blinksItself(Mood m, SceneState s, int variant);
 // The show draws the design's closed eyes: the first pack's, or a
 // flip-book's blink step; or the design has no eyes to open, as the first
@@ -73,7 +73,7 @@ bool eyesClosed(const SceneShow& s);
 // Everything a scene's pixels depend on: the scene, the additions, and
 // where each group sits, whether it shows and its fill. Two shows with the
 // same frame draw the same pixels, so the device skips drawing one whose
-// frame hasn't changed (plan/DEVICE.md §6). A step to the same place (the
+// frame hasn't changed (documentation/DEVICE.md §6). A step to the same place (the
 // designs often hold a value over several steps) leaves the frame as it was.
 struct SceneFrame {
   static constexpr int kMaxGroups = 288;  // groups in a scene; faces.h checks it
@@ -93,7 +93,7 @@ inline bool operator!=(const SceneFrame& a, const SceneFrame& b) { return !(a ==
 // asleep and no app, which look the same in every mood.
 int sceneOf(Mood m, SceneState s, int variant = 0);
 // How long that design takes to play once through, in ms (faces.h's
-// loopMs): what a moment's loops count (plan/PROTOCOL.md §3).
+// loopMs): what a moment's loops count (documentation/PROTOCOL.md §3).
 uint32_t loopMs(Mood m, SceneState s, int variant = 0);
 SceneFrame sceneFrame(const SceneShow& s);
 // Draws a frame sceneFrame made over what's on the canvas; the screen

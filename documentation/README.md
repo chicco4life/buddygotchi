@@ -13,6 +13,7 @@ beside their code; they're listed here too, and
 | [BEHAVIORS.md](BEHAVIORS.md) | What Boop does when things happen, with its sound and light, and how each personality changes it |
 | [VOICE.md](VOICE.md) | What Boop says: the recorded takes, how one is picked and played |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | The parts and their boundaries, the data flow, queues and timers, what Boop keeps on disk, budgets, and the decisions in force |
+| [architecture.html](architecture.html) | The same picture, interactive: open it in a browser for a clickable map of the pieces, one event's journey step by step, the device's turn on a real timeline, and the whole directory tree with line counts |
 | [MODULES.md](MODULES.md) | The three packages Boop is built on (agent-hooks, JHarness, LinkKit): what each does, the rules that keep them apart, where each joins Boop's code, one event's journey through all of them, and using each on its own |
 | [ADAPTERS.md](ADAPTERS.md) | How Boop uses agent-hooks: the raw event each hook becomes, Boop's socket, what it adds to the session rules, and when it installs the hooks |
 | [../agent-hooks/SPEC.md](../agent-hooks/SPEC.md) | agent-hooks, the hook layer as a package of its own: the hook client, the event each hook becomes, session states and "needs you", installing the hooks, and its command line |

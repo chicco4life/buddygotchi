@@ -1,4 +1,4 @@
-"""`boopctl workday` (plan/EVALS.md §5): a scripted working day through the
+"""`boopctl workday` (documentation/EVALS.md §5): a scripted working day through the
 headless app and its brain.
 
 `plan` prints the day, `run` replays it through `Boop --headless` on a
@@ -47,7 +47,7 @@ from boopctl_lib.device import DeviceError
 from boopctl_lib.headless import Headless
 
 # The resting mood: a new Boop starts in it and moods fade back toward it
-# (plan/harness/DECISIONS.md §2.3, `MoodAction.initial`).
+# (documentation/harness/DECISIONS.md §2.3, `MoodAction.initial`).
 REST = "calm"
 
 # A turn this long or longer, ending, is a big moment, not routine
@@ -732,7 +732,7 @@ def summarize(path: Path) -> dict[str, Any]:
 
 # ------------------------------------------------------------- liveliness
 
-# The loose limits `check` holds a day to (plan/EVALS.md §5): each catches
+# The loose limits `check` holds a day to (documentation/EVALS.md §5): each catches
 # a clear failure of the owner's brief (2026-09-28), an animated Boop that
 # reacts often, never idles for long and doesn't flail (repeats are fine),
 # and is to be tightened once the day meets it.
@@ -749,7 +749,7 @@ LIMITS = {
 def liveliness(working: list[list[int]], reactions: list[dict[str, Any]],
                changes: list[dict[str, Any]]) -> dict[str, Any]:
     """How lively a day was: quiet stretches of work, repeats, and how the
-    mood moved (plan/EVALS.md §5)."""
+    mood moved (documentation/EVALS.md §5)."""
     times = [r["ms"] for r in reactions]
     gaps: list[tuple[int, int]] = []  # (ms, from)
     for a, b in working:

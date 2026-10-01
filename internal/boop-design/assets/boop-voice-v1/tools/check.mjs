@@ -25,7 +25,7 @@ for(const r of records){
  assert.deepEqual(Object.keys(r.files).sort(),Object.keys(profiles).sort());
  assert.equal(r.routineDurationEligible,r.seconds<=b.dictionary.policy.maxSeconds);
  for(const [profile,file] of Object.entries(r.files)){
-  // Boop's repo keeps only the robot-soft texture (plan/VOICE.md §3); the others may be absent.
+  // Boop's repo keeps only the robot-soft texture (documentation/VOICE.md §3); the others may be absent.
   if(profile!=='robot-soft'&&!fs.existsSync(path.join(root,file.path)))continue;
   const bytes=checkedFile(file);assert.equal(bytes.toString('ascii',0,4),'RIFF');assert.equal(bytes.toString('ascii',8,12),'WAVE');
   let p=12,pcm,format;

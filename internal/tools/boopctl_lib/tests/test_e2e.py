@@ -1,4 +1,4 @@
-"""boopctl e2e's order check (plan/VERIFICATION.md L4) on a made-up app
+"""boopctl e2e's order check (documentation/VERIFICATION.md L4) on a made-up app
 log: a brain reaction comes after the rules' reaction, and the device's
 `ended` says how it went: waiting its turn behind another's line, or being
 skipped for waiting too long, is fine; being cut short by the brain's own

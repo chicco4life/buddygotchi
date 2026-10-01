@@ -1,4 +1,4 @@
-"""Command line for boopctl (plan/VERIFICATION.md §2); `boopctl --help` lists
+"""Command line for boopctl (documentation/VERIFICATION.md §2); `boopctl --help` lists
 the subcommands and `boopctl <command> --help` their options."""
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ def cmd_dash(args: argparse.Namespace) -> int:
 
 def cmd_day(args: argparse.Namespace) -> int:
     """What Boop did in a day, and why, from debug mode's logs
-    (plan/harness/HARNESS.md §9)."""
+    (documentation/harness/HARNESS.md §9)."""
     from boopctl_lib import day
 
     if args.file:
@@ -712,7 +712,7 @@ def play_needs(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="boopctl", description="Talk to the Boop board over USB (plan/VERIFICATION.md §2).")
+    parser = argparse.ArgumentParser(prog="boopctl", description="Talk to the Boop board over USB (documentation/VERIFICATION.md §2).")
     parser.add_argument("--port", help="serial port (default: $BOOP_PORT or the first /dev/cu.usbserial-*)")
     sub = parser.add_subparsers(dest="command", required=True, metavar="command")
     sub.add_parser("ping", help="firmware version, uptime, heap, fps, link").set_defaults(func=cmd_ping)
@@ -802,7 +802,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--socket", help="socket path (default: $BOOP_BRIDGE or /tmp/boop-bridge.sock)")
     p.add_argument("--quiet", action="store_true")
     p.set_defaults(func=cmd_bridge)
-    p = sub.add_parser("cam", help="webcam helpers (opt-in; plan/VERIFICATION.md §6)")
+    p = sub.add_parser("cam", help="webcam helpers (opt-in; documentation/VERIFICATION.md §6)")
     p.add_argument("action", choices=["frame", "pattern", "clip"])
     p.add_argument("name", nargs="?", help="clip: idle, needs_you, cheer or tap")
     p.add_argument("--seconds", type=int, default=8, help="clip length, at most 10")

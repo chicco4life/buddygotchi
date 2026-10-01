@@ -1,4 +1,4 @@
-// Boop on LinkKit, line in and line out: its vocabulary (plan/PROTOCOL.md),
+// Boop on LinkKit, line in and line out: its vocabulary (documentation/PROTOCOL.md),
 // its rules for the turn, the debug channel and inputs, through the same
 // Hal the simulator uses.
 #include <unity.h>

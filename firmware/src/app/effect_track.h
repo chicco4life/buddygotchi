@@ -1,4 +1,4 @@
-// When the face's sound effects play (plan/VOICE.md §10): each design has
+// When the face's sound effects play (documentation/VOICE.md §10): each design has
 // a timeline of events on its own clock, from assets/sfx.h, and this
 // follows the face the screen shows, handing over each event as the
 // design's clock reaches it. Pure C++ and a function of the device clock,

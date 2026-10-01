@@ -6,7 +6,7 @@ description: Self-diagnose whether the current agent harness (Claude Code or Cod
 # Boop doctor
 
 `internal/skills/doctor/doctor.sh` does the checking; this file says how
-to drive it. It checks the four things in `plan/ADAPTERS.md` §6, needs
+to drive it. It checks the four things in `documentation/ADAPTERS.md` §6, needs
 `make build` first, and only reads `~/.claude` and `~/.codex`.
 
 ## Procedure
@@ -27,7 +27,7 @@ to drive it. It checks the four things in `plan/ADAPTERS.md` §6, needs
    - `2`: everything passed and the check is **armed** for the live step.
      Arming writes `doctor-armed` in the state directory; while it's there
      the app logs every hook to `boop.log`. The app drops an arm nobody
-     confirms after a while (`plan/ADAPTERS.md` §6), so go on straight away.
+     confirms after a while (`documentation/ADAPTERS.md` §6), so go on straight away.
 
 3. Run exactly one harmless shell command through your own tool-calling
    path, so your harness fires its hooks:

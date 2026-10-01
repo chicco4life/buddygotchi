@@ -1,4 +1,4 @@
-// Pin map for the MicroTech MTR024QV01A (plan/DEVICE.md §2) and what's
+// Pin map for the MicroTech MTR024QV01A (documentation/DEVICE.md §2) and what's
 // attached on this bench (§3).
 #pragma once
 

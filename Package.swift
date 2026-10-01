@@ -47,7 +47,7 @@ var packageTargets: [Target] = [
     // Everything that isn't the app shell: Adapters, Core, Harness, Brains,
     // Actions, Voice, Memory, DeviceLink (Boop's vocabulary on LinkKit),
     // the hook installer (Install) and the Runtime that wires them together
-    // (App) (plan/ARCHITECTURE.md §3).
+    // (App) (documentation/ARCHITECTURE.md §3).
     .target(
         name: "BoopKit",
         dependencies: [jharness, agentHooks, linkKit],
@@ -60,16 +60,16 @@ var packageTargets: [Target] = [
     // Push-to-talk's mic lives in the app, in app/Boop/Talk.swift.
     // Info.plist is linked into the binary so macOS finds the Bluetooth,
     // microphone and speech usage descriptions without an app bundle.
-    // The steering files are bundled straight from plan/steering, their
+    // The steering files are bundled straight from documentation/steering, their
     // single source.
     .executableTarget(
         name: "Boop",
         dependencies: ["BoopKit", agentHooks, jharness, linkKit],
         path: ".",
-        exclude: excludingAllBut(["app/Boop", "internal/app/Boop", "plan/steering"])
+        exclude: excludingAllBut(["app/Boop", "internal/app/Boop", "documentation/steering"])
             + ["app/Boop/Info.plist"],
         sources: ["app/Boop", "internal/app/Boop"],
-        resources: [.copy("plan/steering")],
+        resources: [.copy("documentation/steering")],
         linkerSettings: [.unsafeFlags([
             "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist",
             "-Xlinker", Context.packageDirectory + "/app/Boop/Info.plist",

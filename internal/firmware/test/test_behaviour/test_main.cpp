@@ -1,4 +1,4 @@
-// The behaviour state machine (plan/BEHAVIORS.md), with
+// The behaviour state machine (documentation/BEHAVIORS.md), with
 // every timing checked to the millisecond.
 #include <unity.h>
 

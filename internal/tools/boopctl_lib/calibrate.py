@@ -1,4 +1,4 @@
-"""Touch calibration (plan/DEVICE.md §4): a person taps 4 crosses, and the
+"""Touch calibration (documentation/DEVICE.md §4): a person taps 4 crosses, and the
 board keeps the fitted raw → screen map in NVS. Needs a person; `fit` is
 the only part that runs without one."""
 from __future__ import annotations
