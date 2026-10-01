@@ -1,6 +1,6 @@
 # Boop animation and mood design package
 
-Updated 2026-09-29. The code-based animation/SFX bank and approved mood-graph
+Updated 2026-10-02. The code-based animation/SFX bank and approved mood-graph
 handover. The bank is the one source of the device's designs and sounds:
 `facegen` runs its generator for the faces and `sfxgen` imports its
 timelines and synthesiser ([documentation/DEVICE.md](../../documentation/DEVICE.md) §6,
@@ -19,6 +19,11 @@ firmware once they're rerun.
 - [Voice asset bank and agent selection guide](assets/boop-voice-v1/README.md):
   2,722 recorded Robot Minion takes (only the robot-soft texture is kept here),
   dictionary, lookup indexes, the audition page and a tested host-side selector.
+- [VideoG Slime Blob](slime-blob/README.md): separate procedural blue-gel
+  character audition, expanded mood/state/transition handover and manual
+  nonverbal sound sketches. It does not replace the shipping bank or graph;
+  state choreography, production graph gating and synchronized sounds are
+  implementation work for this new series.
 
 From the **repository root**, with Node.js:
 

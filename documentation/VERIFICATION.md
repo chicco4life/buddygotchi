@@ -1,6 +1,6 @@
 # Boop: verification
 
-Updated 2026-10-01. How we check that Boop works, including what's on its
+Updated 2026-10-02. How we check that Boop works, including what's on its
 screen, without a person watching, and every tool that does it.
 
 ## 1. The loop
@@ -46,6 +46,15 @@ All scripts support `--help`; none contacts JEV, ElevenLabs or a device.
 Evidence: [mood design publication](evidence/2026-09-28-mood-design-push/README.md).
 These checks are not physical audio tests or the owner's approval of the
 new art.
+
+**The separate slime design audition.** The nonshipping
+[VideoG Slime Blob package](../internal/boop-design/slime-blob/README.md)
+has offline build/graph/coverage/motion/SFX/link checks and optional browser
+checks, with commands and results in its
+[validation guide](../internal/boop-design/slime-blob/VALIDATION.md).
+It changes neither the shipping bank nor production behavior. Its checklist
+does not mean the full state choreography, graph policy or embedded renderer
+has been implemented; no hook/board/paid-model checks apply to this export.
 
 **The recorded voice bank.** Boop's voice comes from it
 ([VOICE.md](VOICE.md) §3). `node internal/boop-design/assets/boop-voice-v1/tools/check.mjs`

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VideoG Slime Blob — expression audition</title><link rel="stylesheet" href="style.css">
+<script src="catalog.js" defer></script><script src="slime.js" defer></script>
+<script src="../sound/sfx.js" defer></script><script src="sound-audition.js" defer></script></head>
+<body><main><header><h1>VideoG Slime Blob</h1><p>Blue glowing gel · one persistent body · expression/gesture audition</p></header>
+<div id="slime-jelly-base">
+  <div class="viz-row" style="justify-content:space-between">
+    <span>Jelly slime · kawaii expression redraw</span>
+    <span class="text-small text-muted" data-status aria-live="polite">Calm · resting</span>
+  </div>
+  <div class="slime-stage cursor-interaction">
+    <canvas aria-label="A simple translucent blue slime with a soft glow and pupil-free emoji faces. Poke to cycle expressions. Hold and drag the surface to stretch the slime, then release to bounce back." role="img"></canvas>
+  </div>
+  <div class="viz-controls" style="justify-content:center">
+    <button class="btn btn-primary" type="button" data-poke>Poke</button>
+    <button class="btn" type="button" data-shake>Shake</button>
+    <button class="btn btn-ghost" type="button" data-pause aria-pressed="false">Pause</button>
+  </div>
+  <div class="viz-controls">
+    <label class="form-label" for="slime-expression"><span id="slime-expression-label">Expression</span>
+      <select class="form-select" id="slime-expression" data-expression aria-labelledby="slime-expression-label">
+      </select>
+    </label>
+  </div>
+  <div class="viz-controls">
+    <label class="form-label" for="slime-performance"><span id="slime-performance-label">Performance</span>
+    <select class="form-select" id="slime-performance" data-performance aria-labelledby="slime-performance-label"></select>
+    </label>
+    <button class="btn" type="button" data-perform>Replay gesture</button>
+  </div>
+  <div class="text-small text-muted text-center">Tap to change expression · hold and drag to stretch</div>
+</div>
+
+<section class="sound-panel"><h2>Procedural sound sketches</h2>
+<p>Optional, manual audition only. These sounds are not yet connected to the body or activity states. No voice, recording or background music.</p>
+<div class="viz-controls" data-sound-buttons></div><p class="text-small" data-sound-status aria-live="polite">Silent until you click a sound.</p></section>
+<footer><p>All faces are review candidates. Mood graph, state scenes and automatic sound synchronization are not installed here. <a href="../README.md">Colleague handover</a></p></footer>
+</main></body></html>
