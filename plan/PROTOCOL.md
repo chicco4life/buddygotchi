@@ -306,6 +306,7 @@ something in it changes: a new voice pack copied onto the card
 | `kit`, `app` | LinkKit's version, 1, and `boop` (SPEC §3). The Mac drives only an `app` of `boop` with a `kit` it knows |
 | `id` | The device's permanent ID: `b00p-` and the same 4 hex digits as its advertised name, in lower case (`b00p-0000` in the simulator and tests). The Mac logs it |
 | `fw` | The firmware version, from the repo's `VERSION` file (`sim` in the simulator). Shown in the popover's footer |
+| `boot` | The board's boot id, from its radio's random numbers once per power-on ([linkkit/SPEC.md](../linkkit/SPEC.md) §3, §5); none in the simulator and tests. A new one fails the reactions the Mac still waits on, as `the device restarted` |
 | `does` | Boop's `do` names (§3), in this order |
 | `voice` | Boop's own field: the version of the voice pack on its microSD card ([VOICE.md](VOICE.md) §8), `none` with no card or no pack. The Mac sends takes only while it's its own `Take.packVersion`, and logs when they differ |
 

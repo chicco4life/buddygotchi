@@ -37,7 +37,7 @@ Tools also send `dbg.*` messages over USB (§7).
   field or type never breaks an older peer.
 - **The kit owns a few field names and the app owns the rest.** `state` is
   entirely the app's. `do` carries the app's details in `args`, and `ev` in
-  `data`. `hello` has five kit fields; any other field in it is the app's.
+  `data`. `hello` has six kit fields; any other field in it is the app's.
 - There are no app-defined message types. An app extends the protocol by
   choosing `state` keys, `do` names and `ev` kinds. `dbg.*` is the one
   namespace an app adds types to.
@@ -58,6 +58,7 @@ Tools also send `dbg.*` messages over USB (§7).
 | `app` | Which kind of device this is. A host drives only the `app` it was written for |
 | `id` | The device's permanent id |
 | `fw` | The firmware version |
+| `boot` | 8 hex digits picked at random each time the device powers on, or missing. A different one from the last means the device restarted (§5) |
 | `does` | The `do` names it plays, at most 32. The whole `hello` fits in one line |
 | any other field | The app's (Boop's `voice`) |
 
@@ -186,6 +187,7 @@ queue in order of arrival.
 | While the link is up | The host sends `state` on every change and at least every 10 s. The device sends `hello` again when something in it changes, and 60 s after the last one on the link the host last spoke on |
 | 30 s with no line from the host | The device treats the host as gone: it tells the app, and drops a Bluetooth link so it can advertise again |
 | The link drops | The host ends every `do` still waiting for its `ended` as failed (the device may play on) |
+| A `hello` whose `boot` differs from the last one the host heard | The device restarted and forgot every request: the host ends each still waiting as failed (`the device restarted`) at once, rather than at its give-up time, below. The host keeps the last `boot` across links, so a restart over a link that stayed up, or one that dropped, is caught either way |
 | No `ended` by a `do`'s `ttl` (5000 ms for `now` and `if_free`) plus 60 s after it was sent | The host gives up on it as failed: a line was lost. Only the `ended` stops that wait (resting never reaches the host), so a call that may play longer than its `ttl` plus 60 s must end sooner, or be split into several calls |
 
 A link is *live* for device → host messages while it's connected

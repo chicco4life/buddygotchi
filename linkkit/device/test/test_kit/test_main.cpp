@@ -51,7 +51,7 @@ static void test_lines_the_kit_ignores() {
 }
 
 // §3, §5: hello answers a host's first line on a link (any type but
-// dbg.*): its five kit fields, then the app's. Over Bluetooth, the first
+// dbg.*): its kit fields, then the app's. Over Bluetooth, the first
 // line since connecting; not the connect itself.
 static void test_hello_answers_the_hosts_first_line() {
   Rig r;
@@ -72,6 +72,18 @@ static void test_hello_answers_the_hosts_first_line() {
   r.kit.connected();  // a new connection: hello again on its first line
   r.bleLine("{\"t\":\"state\"}");
   TEST_ASSERT_EQUAL(2, count(r.ble.text, "\"hello\""));
+}
+
+// §3, §5: hello carries the platform's boot id, picked once per power-on,
+// as 8 hex digits after fw; a platform that gives 0 has none.
+static void test_hello_says_its_boot() {
+  Rig r;
+  r.platform.boot = 0xab12;
+  r.usbLine("{\"t\":\"state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"fw\":\"1.2.3\",\"boot\":\"0000ab12\",\"does\""));
+  Rig none;
+  none.usbLine("{\"t\":\"state\"}");
+  TEST_ASSERT_FALSE(has(none.usb.text, "\"boot\""));
 }
 
 // §5: USB is live while the host has spoken there in the last 30 s; its
@@ -434,6 +446,7 @@ int main() {
   RUN_TEST(test_the_limits);
   RUN_TEST(test_lines_the_kit_ignores);
   RUN_TEST(test_hello_answers_the_hosts_first_line);
+  RUN_TEST(test_hello_says_its_boot);
   RUN_TEST(test_usb_hello_again_after_30_s_of_silence);
   RUN_TEST(test_a_hosts_hello_asks_for_one);
   RUN_TEST(test_a_hello_too_long_goes_short_or_not_at_all);

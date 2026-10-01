@@ -42,6 +42,7 @@ class BoardHal : public app::Hal {
   bool packAppend(const uint8_t* d, size_t n, uint32_t& have) override;
   bool packEnd(uint32_t size, uint32_t crc, const char*& why) override;
   const char* fwVersion() override;
+  uint32_t bootId() override;
   const char* gitSha() override;
 
  private:

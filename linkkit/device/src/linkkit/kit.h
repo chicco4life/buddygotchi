@@ -42,6 +42,10 @@ struct Platform {
   virtual uint32_t realMs() = 0;          // a millisecond counter; it may wrap
   virtual const char* deviceId() = 0;     // hello.id: the device's permanent id
   virtual const char* fwVersion() = 0;    // hello.fw
+  // hello.boot: a number picked at random once per power-on, so a host can
+  // tell the device restarted and stop waiting on what it had sent (§5).
+  // 0 leaves it out.
+  virtual uint32_t bootId() { return 0; }
   // Bluetooth, for dbg.ping: "off", "idle", "adv" or "conn", and the name
   // it advertises ("" for none).
   virtual const char* bleState() { return "off"; }

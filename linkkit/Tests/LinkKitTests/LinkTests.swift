@@ -41,6 +41,29 @@ func ended(_ id: Int, _ how: String, _ why: String? = nil) -> String {
 @Suite struct LinkStateTests {
     /// SPEC.md §5: a `state` on every change, and the latest again once
     /// 10 s have passed without one.
+    /// SPEC.md §5: a `hello` with a different `boot` means the device
+    /// restarted and forgot what it was asked, so every `do` still waiting
+    /// fails at once, while the same `boot` again, or none, changes nothing.
+    @Test func testANewBootFailsWhatWaits() {
+        func hello(_ boot: String?) -> String {
+            #"{"t":"hello","kit":1,"app":"pip","id":"pip-54fe","fw":"1.0.0""#
+                + (boot.map { #","boot":"\#($0)""# } ?? "") + #","does":["react"]}"#
+        }
+        let (link, _, logs) = makeLink(hello: false)
+        link.receive(hello("0000ab12"), now: 0)
+        #expect(link.hello?.boot == "0000ab12")
+        let outcomes = Box<DeviceLink.Outcome>()
+        link.do("react", now: 0) { outcomes.add($0) }
+        link.receive(hello("0000ab12"), now: 100)  // the 60 s repeat
+        link.receive(hello(nil), now: 200)
+        #expect(outcomes.all.isEmpty)
+        link.receive(hello("77770001"), now: 300)
+        #expect(outcomes.all == [.failed(.restarted)])
+        #expect(DeviceLink.Failure.restarted.description == "the device restarted")
+        #expect(logs.all.contains { $0.contains("the device restarted") })
+        #expect(link.lastBoot == "77770001")
+    }
+
     @Test func testStateGoesOutOnChangeAndEveryTenSeconds() {
         let (link, transport, _) = makeLink()
         link.update(state: fields, now: 0)

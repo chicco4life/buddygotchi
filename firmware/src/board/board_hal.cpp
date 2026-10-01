@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include <esp_heap_caps.h>
+#include <esp_random.h>
 
 #include "board/card.h"
 #include "board/display.h"
@@ -45,6 +46,12 @@ void BoardHal::begin() {
 }
 
 const char* BoardHal::fwVersion() { return BOOP_FW_VERSION; }
+
+// Picked once, from the radio's true random numbers (LinkKit SPEC §5).
+uint32_t BoardHal::bootId() {
+  static const uint32_t id = esp_random() | 1;
+  return id;
+}
 const char* BoardHal::gitSha() { return BOOP_GIT_SHA; }
 
 const char* BoardHal::deviceId() { return ble_ ? ble_->id() : Hal::deviceId(); }

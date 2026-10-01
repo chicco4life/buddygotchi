@@ -14,15 +14,20 @@ public struct Hello: Equatable, Sendable {
     public var fw: String
     /// The `do` names it plays.
     public var does: [String]
+    /// Picked at random each time the device powers on (8 hex digits), so
+    /// a new one means it restarted; nil when it gives none.
+    public var boot: String?
     /// Every other field, in the line's order: the app's own.
     public var fields: JSONObject
 
-    public init(kit: Int? = Wire.kit, app: String, id: String, fw: String, does: [String], fields: JSONObject = [:]) {
+    public init(kit: Int? = Wire.kit, app: String, id: String, fw: String, does: [String], boot: String? = nil,
+                fields: JSONObject = [:]) {
         self.kit = kit
         self.app = app
         self.id = id
         self.fw = fw
         self.does = does
+        self.boot = boot
         self.fields = fields
     }
 }
@@ -146,12 +151,13 @@ public enum Wire {
         switch type {
         case "hello":
             var fields = object
-            for key in ["t", "kit", "app", "id", "fw", "does"] { fields[key] = nil }
+            for key in ["t", "kit", "app", "id", "fw", "does", "boot"] { fields[key] = nil }
             return .hello(Hello(kit: object["kit"]?.int,
                                 app: object["app"]?.string ?? "",
                                 id: object["id"]?.string ?? "",
                                 fw: object["fw"]?.string ?? "",
                                 does: object["does"]?.array?.compactMap(\.string) ?? [],
+                                boot: object["boot"]?.string,
                                 fields: fields))
         case "ev":
             guard let kind = object["kind"]?.string else { return .other(line) }

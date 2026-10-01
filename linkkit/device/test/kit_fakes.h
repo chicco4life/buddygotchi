@@ -17,6 +17,8 @@ struct Platform : linkkit::Platform {
   uint32_t realMs() override { return real; }
   const char* deviceId() override { return "dev-0001"; }
   const char* fwVersion() override { return "1.2.3"; }
+  uint32_t boot = 0;  // 0: hello says none
+  uint32_t bootId() override { return boot; }
 };
 
 struct Capture : linkkit::Out {

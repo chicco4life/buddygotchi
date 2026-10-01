@@ -244,7 +244,7 @@ void Kit::tick() {
   pump(t);
 }
 
-// The hello (§3): the kit's five fields, then the app's unless kitOnly.
+// The hello (§3): the kit's fields, then the app's unless kitOnly.
 void Kit::fillHello(JsonDocument& d, bool kitOnly) {
   d.clear();
   d["t"] = "hello";
@@ -252,6 +252,11 @@ void Kit::fillHello(JsonDocument& d, bool kitOnly) {
   d["app"] = app_.name();
   d["id"] = platform_.deviceId();
   d["fw"] = platform_.fwVersion();
+  if (uint32_t boot = platform_.bootId()) {
+    char hex[9];
+    std::snprintf(hex, sizeof(hex), "%08x", unsigned(boot));
+    d["boot"] = hex;
+  }
   JsonArray does = d["does"].to<JsonArray>();
   for (int i = 0; i < nDoes_; ++i) does.add(does_[i]);
   if (!kitOnly) app_.hello(d.as<JsonObject>());

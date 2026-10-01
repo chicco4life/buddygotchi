@@ -106,6 +106,9 @@ public final class DeviceLink {
         case disconnected
         /// No `ended` came by its `ttl` plus 60 s.
         case noAnswer
+        /// The device restarted while it waited (a `hello` with a new
+        /// `boot`): it has forgotten the request.
+        case restarted
 
         public var description: String {
             switch self {
@@ -116,6 +119,7 @@ public final class DeviceLink {
             case .tooLong: "the line is too long"
             case .disconnected: "the device disconnected"
             case .noAnswer: "the device never said it ended"
+            case .restarted: "the device restarted"
             }
         }
     }
@@ -133,6 +137,9 @@ public final class DeviceLink {
     /// The device's latest `hello` on this link, when it fits this app.
     /// Nil until one comes, after the link drops, and while `trouble` is set.
     public private(set) var hello: Hello?
+    /// The last `boot` a fitting `hello` gave, kept across links: a
+    /// different one means the device restarted (SPEC.md §5).
+    public private(set) var lastBoot: String?
     /// Why the device on the link gets no `do` (SPEC.md §6); nil when it
     /// fits or hasn't said. It still gets `state`. Cleared when the link
     /// drops or a `hello` that fits comes.
@@ -304,8 +311,19 @@ public final class DeviceLink {
                 let changed = hello != h
                 hello = h
                 trouble = nil
+                // A device that restarted has forgotten what it was asked
+                // (SPEC.md §5): what waits on it fails at once.
+                var forgotten: [Waiting] = []
+                if let boot = h.boot {
+                    if let last = lastBoot, last != boot {
+                        forgotten = takeWaiting()
+                        log("device link: the device restarted (boot \(last) → \(boot))")
+                    }
+                    lastBoot = boot
+                }
                 // A device that rebooted catches up at once (SPEC.md §5).
                 sendState(now: now)
+                for w in forgotten { w.completion(.failed(.restarted)) }
                 if changed { onHello?(h) }
             }
         case .ended(let ended):
