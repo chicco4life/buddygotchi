@@ -1,9 +1,14 @@
 # Boop animation and mood design package
 
-Updated 2026-09-29. The code-based animation/SFX bank and approved mood-graph
+Updated 2026-10-01. The code-based animation/SFX bank and approved mood-graph
 handover, published together for review and later integration. Nothing here
 changes the shipped app, firmware enums, steering or hardware assets.
 
+- [Character animation and jelly slime handover](character-handover/README.md):
+  current code/schema map and a separate full-body 3D character brief, with
+  a proposed persistent-rig continuity controller and colleague prompt.
+  The [shared handover](https://chatgpt.com/space/page_4a8b184328f48191be1934dd225e6474)
+  also includes the owner's blue-slime image and jelly-motion video references.
 - [Animation bank](boop-sound-bank-v4/README.md): editable SVG generators,
   procedural sounds, portable browser player and coverage index.
 - [Offline review](boop-sound-bank-v4/review/boop-moods.html): download/open
